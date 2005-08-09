@@ -910,12 +910,70 @@ static int rapid_flush(flush_pos_t * pos)
 
 #endif				/* REISER4_USE_RAPID_FLUSH */
 
+static jnode * find_flush_start_jnode(
+	jnode * start,
+	txn_atom * atom, 
+	flush_queue_t * fq,
+	int *nr_queued, 
+	int flags)
+{
+	jnode * node;
+
+	if (start != NULL) {
+		LOCK_JNODE(start);
+		if (jnode_is_dirty(start) && !JF_ISSET(start, JNODE_OVRWR)) {
+			assert("zam-1056", start->atom == atom);
+			node = start;
+			goto enter;
+		}
+		UNLOCK_JNODE(start);
+	}
+	/* In this loop we process all already prepped (RELOC or OVRWR) and dirtied again
+	 * nodes. The atom spin lock is not released until all dirty nodes processed or
+	 * not prepped node found in the atom dirty lists. */
+	while ((node = find_first_dirty_jnode(atom, flags))) {
+		LOCK_JNODE(node);
+	enter:
+		assert("zam-881", jnode_is_dirty(node));
+		assert("zam-898", !JF_ISSET(node, JNODE_OVRWR));
+
+		if (JF_ISSET(node, JNODE_WRITEBACK)) {
+			capture_list_remove_clean(node);
+			capture_list_push_back(ATOM_WB_LIST(atom), node);
+			/*XXXX*/
+			ON_DEBUG(count_jnode
+				 (atom, node, DIRTY_LIST, WB_LIST, 1));
+
+		} else if (jnode_is_znode(node)
+			   && znode_above_root(JZNODE(node))) {
+			/* A special case for znode-above-root.  The above-root (fake)
+			   znode is captured and dirtied when the tree height changes or
+			   when the root node is relocated.  This causes atoms to fuse so
+			   that changes at the root are serialized.  However, this node is
+			   never flushed.  This special case used to be in lock.c to
+			   prevent the above-root node from ever being captured, but now
+			   that it is captured we simply prevent it from flushing.  The
+			   log-writer code relies on this to properly log superblock
+			   modifications of the tree height. */
+			jnode_make_wander_nolock(node);
+		} else if (JF_ISSET(node, JNODE_RELOC)) {
+			queue_jnode(fq, node);
+			++(*nr_queued);
+		} else
+			break;
+
+		UNLOCK_JNODE(node);
+	}
+	return node;
+}
+
+
 /* Flush some nodes of current atom, usually slum, return -E_REPEAT if there are more nodes
  * to flush, return 0 if atom's dirty lists empty and keep current atom locked, return
  * other errors as they are. */
 int
 flush_current_atom(int flags, long nr_to_write, long *nr_submitted,
-		   txn_atom ** atom)
+		   txn_atom ** atom, jnode *start)
 {
 	reiser4_super_info_data *sinfo = get_current_super_private();
 	flush_queue_t *fq = NULL;
@@ -955,43 +1013,7 @@ flush_current_atom(int flags, long nr_to_write, long *nr_submitted,
 	writeout_mode_enable();
 
 	nr_queued = 0;
-
-	/* In this loop we process all already prepped (RELOC or OVRWR) and dirtied again
-	 * nodes. The atom spin lock is not released until all dirty nodes processed or
-	 * not prepped node found in the atom dirty lists. */
-	while ((node = find_first_dirty_jnode(*atom, flags))) {
-		LOCK_JNODE(node);
-
-		assert("zam-881", jnode_is_dirty(node));
-		assert("zam-898", !JF_ISSET(node, JNODE_OVRWR));
-
-		if (JF_ISSET(node, JNODE_WRITEBACK)) {
-			capture_list_remove_clean(node);
-			capture_list_push_back(ATOM_WB_LIST(*atom), node);
-			 /*XXXX*/
-			    ON_DEBUG(count_jnode
-				     (*atom, node, DIRTY_LIST, WB_LIST, 1));
-
-		} else if (jnode_is_znode(node)
-			   && znode_above_root(JZNODE(node))) {
-			/* A special case for znode-above-root.  The above-root (fake)
-			   znode is captured and dirtied when the tree height changes or
-			   when the root node is relocated.  This causes atoms to fuse so
-			   that changes at the root are serialized.  However, this node is
-			   never flushed.  This special case used to be in lock.c to
-			   prevent the above-root node from ever being captured, but now
-			   that it is captured we simply prevent it from flushing.  The
-			   log-writer code relies on this to properly log superblock
-			   modifications of the tree height. */
-			jnode_make_wander_nolock(node);
-		} else if (JF_ISSET(node, JNODE_RELOC)) {
-			queue_jnode(fq, node);
-			++nr_queued;
-		} else
-			break;
-
-		UNLOCK_JNODE(node);
-	}
+	node = find_flush_start_jnode(start, *atom, fq, &nr_queued, flags);
 
 	if (node == NULL) {
 		if (nr_queued == 0) {

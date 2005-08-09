@@ -1122,7 +1122,7 @@ static int commit_current_atom(long *nr_submitted, txn_atom ** atom)
 		    flush_current_atom(JNODE_FLUSH_WRITE_BLOCKS |
 				       JNODE_FLUSH_COMMIT,
 				       LONG_MAX /* nr_to_write */ ,
-				       nr_submitted, atom);
+				       nr_submitted, atom, NULL);
 		if (ret != -E_REPEAT)
 			break;
 
@@ -1428,7 +1428,7 @@ static int txn_try_to_fuse_small_atom(txn_mgr * tmgr, txn_atom * atom)
    If atom is too large or too old it is committed also.
 */
 int
-flush_some_atom(long *nr_submitted, const struct writeback_control *wbc,
+flush_some_atom(jnode * start, long *nr_submitted, const struct writeback_control *wbc,
 		int flags)
 {
 	reiser4_context *ctx = get_current_context();
@@ -1499,7 +1499,7 @@ flush_some_atom(long *nr_submitted, const struct writeback_control *wbc,
 
 	BUG_ON(atom->super != ctx->super);
 	assert("vs-35", atom->super == ctx->super);
-	ret = flush_current_atom(flags, wbc->nr_to_write, nr_submitted, &atom);
+	ret = flush_current_atom(flags, wbc->nr_to_write, nr_submitted, &atom, start);
 	if (ret == 0) {
 		/* flush_current_atom returns 0 only if it submitted for write
 		   nothing */
@@ -1750,7 +1750,7 @@ static int try_commit_txnh(commit_data * cd)
 			 */
 			result = flush_current_atom(JNODE_FLUSH_WRITE_BLOCKS,
 						    LONG_MAX, &cd->nr_written,
-						    &cd->atom);
+						    &cd->atom, NULL);
 			if (result == 0) {
 				UNLOCK_ATOM(cd->atom);
 				cd->preflush = 0;

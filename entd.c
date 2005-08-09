@@ -13,6 +13,7 @@
 #include "reiser4.h"
 #include "vfs_ops.h"
 #include "page_cache.h"
+#include "inode.h"
 
 #include <linux/sched.h>	/* struct task_struct */
 #include <linux/suspend.h>
@@ -72,12 +73,42 @@ void init_entd_context(struct super_block *super)
 	wbq_list_init(&ctx->wbq_list);
 }
 
-static void wakeup_wbq(entd_context * ent, struct wbq *rq)
+static void __put_wbq(entd_context * ent, struct wbq *rq)
 {
-	wbq_list_remove(rq);
-	ent->nr_synchronous_requests--;
 	rq->wbc->nr_to_write--;
 	up(&rq->sem);
+}
+
+/* ent should be locked */
+static struct wbq *__get_wbq(entd_context * ent)
+{
+	if (wbq_list_empty(&ent->wbq_list)) {
+		return NULL;
+	}
+	ent->nr_synchronous_requests --;
+	ent->nr_all_requests --;
+	return wbq_list_pop_front(&ent->wbq_list);
+}
+
+struct wbq * get_wbq(struct super_block * super)
+{
+	struct wbq *result;
+	entd_context * ent = get_entd_context(super);
+
+	spin_lock(&ent->guard);
+	result = __get_wbq(ent);
+	spin_unlock(&ent->guard);
+
+	return result;
+}
+
+void put_wbq(struct super_block *super, struct wbq * rq)
+{
+	entd_context * ent = get_entd_context(super);
+
+	spin_lock(&ent->guard);
+	__put_wbq(ent, rq);
+	spin_unlock(&ent->guard);
 }
 
 static void wakeup_all_wbq(entd_context * ent)
@@ -85,10 +116,8 @@ static void wakeup_all_wbq(entd_context * ent)
 	struct wbq *rq;
 
 	spin_lock(&ent->guard);
-	while (!wbq_list_empty(&ent->wbq_list)) {
-		rq = wbq_list_front(&ent->wbq_list);
-		wakeup_wbq(ent, rq);
-	}
+	while ((rq = __get_wbq(ent)) != NULL)
+		__put_wbq(ent, rq);
 	spin_unlock(&ent->guard);
 }
 
@@ -140,8 +169,8 @@ static int entd(void *arg)
 				struct wbq *rq = wbq_list_front(&ent->wbq_list);
 
 				if (++rq->nr_entd_iters > MAX_ENTD_ITERS) {
-					ent->nr_all_requests--;
-					wakeup_wbq(ent, rq);
+					rq = __get_wbq(ent);
+					__put_wbq(ent, rq);
 					continue;
 				}
 			} else {
@@ -242,6 +271,59 @@ static void kick_entd(entd_context * ent)
 
 #define ENTD_CAPTURE_APAGE_BURST (32l)
 
+/* Ask as_ops->writepages() to process given page */
+static jnode * capture_given_page(struct page *page)
+{
+	struct address_space * mapping;
+	struct writeback_control wbc = {
+		.bdi = NULL,
+		.sync_mode = WB_SYNC_NONE,
+		.older_than_this = NULL,
+		.nonblocking = 0,
+		.start = page->index << PAGE_CACHE_SHIFT,
+		.end = page->index << PAGE_CACHE_SHIFT,
+		.nr_to_write = 1,
+	};
+	jnode * node;
+
+	assert("zam-1055", page->mapping != NULL);
+
+	mapping = page->mapping;
+	if (mapping->a_ops && mapping->a_ops->writepages)
+		mapping->a_ops->writepages(mapping, &wbc);
+	lock_page(page);
+	node = jprivate(page);
+	if (node != NULL)
+		jref(node);
+	unlock_page(page);
+	return node;
+}
+
+jnode * get_jnode_by_wbq(struct super_block *super, struct wbq *rq)
+{
+	struct page * page = NULL;
+	jnode * node = NULL;
+	int result;
+
+	if (rq == NULL)
+		return NULL;
+
+	assert("zam-1052", rq->page != NULL);
+
+	page = rq->page;
+	node = capture_given_page(page);
+	if (node == NULL)
+		return NULL;
+	spin_lock_jnode(node);
+	result = try_capture(node, ZNODE_WRITE_LOCK, TXN_CAPTURE_NONBLOCKING, 0);
+	spin_unlock_jnode(node);
+	if (result) {
+		jput(node);
+		return NULL;
+	}
+	return node;
+}
+
 static void entd_flush(struct super_block *super)
 {
 	reiser4_context ctx;
@@ -260,7 +342,6 @@ static void entd_flush(struct super_block *super)
 
 	wbc.nr_to_write = ENTD_CAPTURE_APAGE_BURST;
 	writeout(super, &wbc);
-
 	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx);
 }
@@ -281,11 +362,11 @@ int write_page_by_ent(struct page *page, struct writeback_control *wbc)
 	phantom = jprivate(page) == NULL || !jnode_check_dirty(jprivate(page));
 #if 1
 	BUG_ON(page->mapping == NULL);
+	/* re-dirty page */
 	if (!TestSetPageDirty(page)) {
 		if (mapping_cap_account_dirty(page->mapping))
 			inc_page_state(nr_dirty);
 	}
-	/* re-dirty page */
 	/*reiser4_set_page_dirty(page);*/
 	/*set_page_dirty_internal(page, phantom);*/
 	/* unlock it to avoid deadlocks with the thread which will do actual i/o  */
@@ -297,6 +378,7 @@ int write_page_by_ent(struct page *page, struct writeback_control *wbc)
 	rq.nr_entd_iters = 0;
 	rq.page = page;
 	rq.wbc = wbc;
+	rq.phantom = phantom;
 
 	spin_lock(&ent->guard);
 	if (ent->flushers == 0)
@@ -319,19 +401,12 @@ int write_page_by_ent(struct page *page, struct writeback_control *wbc)
 	/* don't release rq until wakeup_wbq stops using it. */
 	spin_lock(&ent->guard);
 	spin_unlock(&ent->guard);
-	/* wbq dequeued by the ent thread (by another then current thread). */
-	lock_page(page);
-	return 0;
-}
-
-/* ent should be locked */
-static struct wbq *get_wbq(entd_context * ent)
-{
-	if (wbq_list_empty(&ent->wbq_list)) {
-		spin_unlock(&ent->guard);
-		return NULL;
+	if (!PageDirty(page)) {
+		/* Eventually ENTD has written the page to disk. */
+		return 1;
 	}
-	return wbq_list_front(&ent->wbq_list);
+	lock_page(page);
+	return WRITEPAGE_ACTIVATE;
 }
 
 void ent_writes_page(struct super_block *sb, struct page *page)
@@ -348,13 +423,9 @@ void ent_writes_page(struct super_block *sb, struct page *page)
 
 	spin_lock(&ent->guard);
 	if (ent->nr_all_requests > 0) {
-		ent->nr_all_requests--;
-		rq = get_wbq(ent);
-		if (rq == NULL)
-			/* get_wbq() releases entd->guard spinlock if NULL is
-			 * returned. */
-			return;
-		wakeup_wbq(ent, rq);
+		rq = __get_wbq(ent);
+		if (rq != NULL)
+			__put_wbq(ent, rq);
 	}
 	spin_unlock(&ent->guard);
 }

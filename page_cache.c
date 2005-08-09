@@ -511,9 +511,7 @@ int reiser4_writepage(struct page *page /* page to start writeback from */ ,
 	     ctx->trans->atom == NULL && ctx->entd == 0)) {
 		/* Throttle memory allocations if we were not in reiser4 or if
 		   lock stack is clean and atom is not opened */
-		write_page_by_ent(page, wbc);
-		/* FIXME: return 0 if ent thread sent page for write */
-		return WRITEPAGE_ACTIVATE;
+		return write_page_by_ent(page, wbc);
 	}
 #endif				/* REISER4_USE_ENTD */
 

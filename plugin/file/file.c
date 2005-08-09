@@ -1469,20 +1469,7 @@ writepages_unix_file(struct address_space *mapping,
 		result = 0;
 		goto end;
 	}
-
-	pindex = 0;
-#if 0
-	/* this is to have ent thread to write particular page */
-	ctx = get_current_context_check();
-	if (ctx != NULL && ctx->entd && wbc->end != 0) {
-		/* entd is trying to flush certain page of certain atom. */
-		if (inode->i_ino != wbc->end)
-			/* This is not that file */
-			return 0;
-		pindex = wbc->start;
-	}
-#endif
-	jindex = pindex;
+	jindex = pindex = wbc->start >> PAGE_CACHE_SHIFT;
 	result = 0;
 	nr_pages =
 	    (i_size_read(inode) + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;

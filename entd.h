@@ -23,6 +23,7 @@ struct wbq {
 	struct page *page;
 	struct semaphore sem;
 	int nr_entd_iters;
+	unsigned int phantom:1;
 };
 
 /* ent-thread context. This is used to synchronize starting/stopping ent
@@ -69,6 +70,10 @@ extern void leave_flush(struct super_block *super);
 extern int write_page_by_ent(struct page *, struct writeback_control *);
 extern int wbq_available(void);
 extern void ent_writes_page(struct super_block *, struct page *);
+
+extern struct wbq *get_wbq(struct super_block *);
+extern void put_wbq(struct super_block *, struct wbq *);
+extern jnode *get_jnode_by_wbq(struct super_block *, struct wbq *);
 /* __ENTD_H__ */
 #endif
 
