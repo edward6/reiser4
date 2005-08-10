@@ -721,25 +721,31 @@ append_hole(hint_t * hint, struct inode *inode, loff_t new_size, int exclusive)
 	return result;
 }
 
-/* this either cuts or add items of/to the file so that items match
-   new_size. It is used in unix_file_setattr when it is used to truncate
-   VS-FIXME-HANS: explain that and in unix_file_delete */
+/**
+ * truncate_file_body - change length of file
+ * @inode: inode of file
+ * @new_size: new file length
+ *
+ * Adjusts items file @inode is built of to match @new_size. It may either cut
+ * items or add them to represent a hole at the end of file. The caller has to
+ * obtain exclusive access to the file.
+ */
 static int truncate_file_body(struct inode *inode, loff_t new_size)
 {
 	int result;
-	hint_t *hint;
 
-	hint = kmalloc(sizeof(*hint), GFP_KERNEL);
-	if (hint == NULL)
-		return RETERR(-ENOMEM);
-	hint_init_zero(hint);
-	if (inode->i_size < new_size)
-		result =
-		    append_hole(hint, inode, new_size,
-				1 /* exclusive access is obtained */ );
-	else
+	if (inode->i_size < new_size) {
+		hint_t *hint;
+
+		hint = kmalloc(sizeof(*hint), GFP_KERNEL);
+		if (hint == NULL)
+			return RETERR(-ENOMEM);
+		hint_init_zero(hint);
+		result = append_hole(hint, inode, new_size,
+				     1 /* exclusive access is obtained */ );
+		kfree(hint);
+	} else
 		result = shorten_file(inode, new_size);
-	kfree(hint);
 	return result;
 }
 
@@ -2943,36 +2949,35 @@ init_inode_data_unix_file(struct inode *inode,
 	init_inode_ordering(inode, crd, create);
 }
 
-/* plugin->u.file.pre_delete
-
-   We need this because generic_delete_inode calls truncate_inode_pages before
-   filesystem's delete_inode method. As result of this, reiser4 tree may have
-   unallocated extents which do not have pages pointed by them (those pages are
-   removed by truncate_inode_pages), which may confuse flush code. The solution
-   for this problem is to call pre_delete method from reiser4_put_inode to
-   remove file items together with corresponding pages. Generic_delete_inode
-   will call truncate_inode_pages which will do nothing and
-   reiser4_delete_inode which completes file deletion by removing stat data
-   from the tree.
-   This method is to be called from reiser4_put_inode when file is already
-   unlinked and iput is about to drop last reference to inode.  If nfsd manages
-   to iget the file after pre_delete started, it will either be able to access
-   a file content (if it will get access to file earlier than pre_delete) or it
-   will get file truncated to 0 size if pre_delete goes first
-*/
-int pre_delete_unix_file(struct inode *inode)
+/**
+ * delete_object_unix_file - delete_object of file_plugin
+ * @inode: inode to be deleted
+ *
+ * Truncates file to length 0, removes stat data and safe link.
+ */
+int delete_object_unix_file(struct inode *inode)
 {
 	unix_file_info_t *uf_info;
 	int result;
 
-	txn_restart_current();
+	assert("", (get_current_context() && 
+		    get_current_context()->trans->atom == NULL));
 
-	/* FIXME: put comment here */
+	if (inode_get_flag(inode, REISER4_NO_SD))
+		return 0;
+
+	/* truncate file bogy first */
 	uf_info = unix_file_inode_data(inode);
 	get_exclusive_access(uf_info);
 	result = truncate_file_body(inode, 0 /* size */ );
 	drop_exclusive_access(uf_info);
-	return result;
+
+	if (result)
+		warning("", "failed to truncate file (%llu) on removal: %d",
+			get_inode_oid(inode), result);
+
+	/* remove stat data and safe link */
+	return delete_object_common(inode);
 }
 
 /* Reads @count bytes from @file and calls @actor for every page read. This is

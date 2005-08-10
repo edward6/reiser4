@@ -3441,13 +3441,6 @@ int delete_cryptcompress(struct inode *inode)
 	return delete_object_common(inode);
 }
 
-/* plugin->u.file.pre_delete method
-   see plugin.h for description */
-int pre_delete_cryptcompress(struct inode *inode)
-{
-	return cryptcompress_truncate(inode, 0, 0);
-}
-
 /* plugin->u.file.setattr method
    see plugin.h for description */
 int setattr_cryptcompress(struct dentry *dentry,	/* Object to change attributes */

@@ -166,9 +166,14 @@ create_object_common(struct inode *object, struct inode *parent UNUSED_ARG,
 
 static int common_object_delete_no_reserve(struct inode *inode);
 
-/* this is common implementation of delete method of file plugin
-   all it does is object stat data removal
-*/
+/**
+ * delete_object_common - delete_object of file_plugin
+ * @inode: inode to be deleted
+ *
+ * This is common implementation of delete_object method of file_plugin. It
+ * applies to object its deletion consists of removing two items - stat data
+ * and safe-link.
+ */
 int delete_object_common(struct inode *inode)
 {
 	int result;
@@ -178,6 +183,7 @@ int delete_object_common(struct inode *inode)
 	   inode->i_size can be != 0 here */
 	assert("nikita-3420", inode->i_size == 0 || S_ISLNK(inode->i_mode));
 	assert("nikita-3421", inode->i_nlink == 0);
+
 
 	if (!inode_get_flag(inode, REISER4_NO_SD)) {
 		reiser4_block_nr reserve;
@@ -194,16 +200,27 @@ int delete_object_common(struct inode *inode)
 	return result;
 }
 
-/* this is implementation of delete method of file plugin for typical directory
-   it calls done method of directory plugin and deletes stat data
-*/
+/**
+ * delete_directory_common - delete_object of file_plugin
+ * @inode: inode to be deleted
+ *
+ * This is common implementation of delete_object method of file_plugin for
+ * typical directory. It calls done method of dir_plugin to remove "." and
+ * removes stat data and safe-link.
+ */
 int delete_directory_common(struct inode *inode)
 {
 	int result;
 	dir_plugin *dplug;
 
+	assert("", (get_current_context() && 
+		    get_current_context()->trans->atom == NULL));
+
 	dplug = inode_dir_plugin(inode);
 	assert("vs-1101", dplug && dplug->done);
+
+	/* kill cursors which might be attached to inode */
+	kill_cursors(inode);
 
 	/* grab space enough for removing two items */
 	if (reiser4_grab_space

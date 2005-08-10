@@ -130,7 +130,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.set_plug_in_inode = set_plug_in_inode_common,
 		.adjust_to_parent = adjust_to_parent_common,
 		.create_object = create_object_common,	/* this is not inode_operations's create */
-		.delete_object = delete_object_common,
+		.delete_object = delete_object_unix_file,
 		.add_link = add_link_common,
 		.rem_link = rem_link_common,
 		.owns_item = owns_item_unix_file,
@@ -145,7 +145,6 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		},
 		.init_inode_data = init_inode_data_unix_file,
 		.cut_tree_worker = cut_tree_worker_common,
-		.pre_delete = pre_delete_unix_file,
 		.wire = {
 			.write = wire_write_common,
 			.read = wire_read_common,
@@ -354,7 +353,6 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		},
 		.init_inode_data = init_inode_data_cryptcompress,
 		.cut_tree_worker = cut_tree_worker_cryptcompress,
-		.pre_delete = pre_delete_cryptcompress,
 		.destroy_inode = destroy_inode_cryptcompress,
 		.wire = {
 			.write = wire_write_common,
