@@ -286,9 +286,9 @@ static jnode * capture_given_page(struct page *page)
 	};
 	jnode * node;
 
-	assert("zam-1055", page->mapping != NULL);
-
 	mapping = page->mapping;
+	if (mapping == NULL)
+		return NULL;
 	if (mapping->a_ops && mapping->a_ops->writepages)
 		mapping->a_ops->writepages(mapping, &wbc);
 	lock_page(page);
