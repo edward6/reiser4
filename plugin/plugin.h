@@ -253,10 +253,10 @@ typedef struct file_plugin {
 			      reiser4_object_create_data *);
 
 	/*
-	 * delete empty object. This method should check REISER4_NO_SD and set
-	 * REISER4_NO_SD on success. Deletion of empty object at least includes
-	 * removal of stat-data if any. For directories this also includes
-	 * removal of dot and dot-dot.
+	 * this method should check REISER4_NO_SD and set REISER4_NO_SD on
+	 * success. Deletion of an object usually includes removal of items
+	 * building file body (for directories this is removal of "." and "..")
+	 * and removal of stat-data item.
 	 */
 	int (*delete_object) (struct inode *);
 
@@ -327,9 +327,6 @@ typedef struct file_plugin {
 				const reiser4_key * to_key,
 				reiser4_key * smallest_removed, struct inode *,
 				int, int *);
-
-	/* truncate file to zero size. called by reiser4_drop_inode before truncate_inode_pages */
-	int (*pre_delete) (struct inode *);
 
 	/* called from ->destroy_inode() */
 	void (*destroy_inode) (struct inode *);

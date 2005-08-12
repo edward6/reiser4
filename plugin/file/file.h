@@ -40,7 +40,7 @@ int flow_by_inode_unix_file(struct inode *, const char __user *buf,
 int owns_item_unix_file(const struct inode *, const coord_t *);
 void init_inode_data_unix_file(struct inode *, reiser4_object_create_data *,
 			       int create);
-int pre_delete_unix_file(struct inode *);
+int delete_object_unix_file(struct inode *);
 
 /* all the write into unix file is performed by item write method. Write method
    of unix file plugin only decides which item plugin (extent or tail) and in
@@ -193,7 +193,6 @@ int cut_tree_worker_cryptcompress(tap_t *, const reiser4_key * from_key,
 				  reiser4_key * smallest_removed,
 				  struct inode *object, int truncate,
 				  int *progress);
-int pre_delete_cryptcompress(struct inode *);
 void destroy_inode_cryptcompress(struct inode *);
 
 extern reiser4_plugin_ops cryptcompress_plugin_ops;

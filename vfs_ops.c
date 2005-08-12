@@ -56,7 +56,6 @@
 
 static struct inode *reiser4_alloc_inode(struct super_block *);
 static void reiser4_destroy_inode(struct inode *);
-static void reiser4_put_inode(struct inode *);
 static void reiser4_delete_inode(struct inode *);
 static void reiser4_write_super(struct super_block *);
 static int reiser4_statfs(struct super_block *, struct kstatfs *);
@@ -509,33 +508,6 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */ )
 			container_of(info, reiser4_inode_object, p));
 }
 
-/* put_inode of super_operations
-
-   we use put_inode to call pre_delete method of file plugin if it is defined
-   and if inode is unlinked and if it is about to drop inode reference count to
-   0. */
-static void reiser4_put_inode(struct inode *inode)
-{
-	reiser4_context *ctx;
-	file_plugin *fplug;
-
-	fplug = inode_file_plugin(inode);
-	if (fplug == NULL ||
-	    inode->i_nlink != 0 ||
-	    atomic_read(&inode->i_count) > 1 || fplug->pre_delete == NULL)
-		return;
-
-	ctx = init_context(inode->i_sb);
-	if (IS_ERR(ctx)) {
-		warning("vs-14", "failed to init context");
-		return;
-	}
-	/* kill cursors which might be attached to inode if it were a directory one */
-	kill_cursors(inode);
-	fplug->pre_delete(inode);
-	reiser4_exit_context(ctx);
-}
-
 /*
  * Called by reiser4_sync_inodes(), during speculative write-back (through
  * pdflush, or balance_dirty_pages()).
@@ -637,12 +609,16 @@ void reiser4_throttle_write(struct inode *inode)
 	balance_dirty_pages_ratelimited(inode->i_mapping);
 }
 
-/* ->delete_inode() super operation */
+/**
+ * reiser4_delete_inode - delete_inode of struct super_operations
+ * @object: 
+ *
+ * 
+ */
 static void reiser4_delete_inode(struct inode *object)
 {
 	reiser4_context *ctx;
-
-	truncate_inode_pages(&object->i_data, 0);
+	file_plugin *fplug;
 
 	ctx = init_context(object->i_sb);
 	if (IS_ERR(ctx)) {
@@ -651,8 +627,6 @@ static void reiser4_delete_inode(struct inode *object)
 	}
 
 	if (is_inode_loaded(object)) {
-		file_plugin *fplug;
-
 		fplug = inode_file_plugin(object);
 		if (fplug != NULL && fplug->delete_object != NULL)
 			fplug->delete_object(object);
@@ -1367,7 +1341,6 @@ struct super_operations reiser4_super_operations = {
 	.alloc_inode = reiser4_alloc_inode,
 	.destroy_inode = reiser4_destroy_inode,
 	.read_inode = noop_read_inode,
-	.put_inode = reiser4_put_inode,
 	.delete_inode = reiser4_delete_inode,
 	.put_super = reiser4_put_super,
 	.write_super = reiser4_write_super,
