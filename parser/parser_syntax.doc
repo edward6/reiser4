@@ -1,0 +1,389 @@
+SYS_REISER4 SYNTAX
+
+sys_reiser4() - system call executing a sequence of expressions upon
+the file-system(s).
+
+The expressions are specified by the user using a command string in a
+special language.
+
+The objects in the language are the FS objects,
+its metadata, plus temporary objects and "inline" data.
+
+The temporary objects are used for accessing and passing result
+without writing to the file system.
+
+"inline" data used in expressions as constant string for assign it to
+some object.
+
+The operation on these objects is:
+
+1 a plugins as lookup methods
+2 a concatenation operator "+"
+3 an assign operator.
+4 a condition (not yet working)
+
+The current implementation operator "+" is a scalar concatenation of
+the operands.
+
+Later it is possible to make the set operation between sets of objects:
+union, difference and multiple. condition operator, scalar and set patterns.
+
+for operate with foreign objects (objects of different file-systems )
+we can use only FS objects and tmp names.
+    
+for operate with reiser4 objects we have 3 case
+ file system object - directory and regular files
+ pseudo files - as element of reiser4 namespace for access to file-system metadata.
+               it can be founded by lookup plugin
+  tmp files -  for accessing and passing result in runtime .
+
+later it will be possible to store each pseudo name and its
+corresponding metadata in a reiser4 tree as an item with name and
+other attributes. Where default plugin is "..body" for access to the
+file body.
+
+While parsing the command string, the interpreter finds the lookup
+plugin and passes it the parameters.
+
+Another way to operate with objects is with the assign operator:
+
+object1 <- object2
+
+where object1 is lhv (target expression(name). )
+      object2 is rhv (source expression)
+
+All names in the expression are a sequence of names divided by "/" and
+called path as in the traditional path in UNIX systems.
+
+They can be a reference to the file system , or to metadata, or to a
+stream managed by an arbitrary method of the filesystem object, or to
+a tmp name.
+
+Assign as an expression has a value and can be used in rhv .  The it's
+value is a target name with it's all values.
+
+for example:
+A+(B<-C)+D
+where A, C and D is an expressions, B is a file.
+
+the value of this expression is value of expression A concatenated
+with value of file B after assign to it the expression C, and
+concatenated with expression D.
+this expression is equvalent to expressions:
+B<-C;A+B+D
+
+In current version the all expressions and target values is a scalar values.
+Later it is a possible use a set values on one (or both) part of assign.
+
+
+The Assign operator can have a name.
+
+For checking a result of assign (error code and length of written
+bytes) the assign operator can be have a name.  A name of an assign
+operator is a local name.(temporary name) It's lifetime is limited to
+surrounding brackets or the end of the command string.
+
+The local names.
+Any name has a runtime stack of values.
+
+1. If we use name from FS only, the stack of this name will have only
+   one value: lnode, corresponding to its name in the FS. (for foreign
+   objects this is a dentry lnode)
+   This name isn't a local name. It's lifetime is depended on the FS
+   and isn't limited to surrounding brackets or the end of the command
+   string.
+
+2. If we use a name not from the FS, the stack will have one local
+   (TMP) value. The user mast be care for its value. Because the
+   omitted value in rhv isn't an error. It's interpreting as an empty
+   value. The value for this type name can be assigned by assign
+   operator only.
+   It's lifetime is limited to surrounding brackets or the end of the
+   command string.
+
+3. If we use named assign, the current value, if it exist, pushed to
+  stack and new value created for this local name.
+  This name will have 2 special child names for length and error code
+  of assign:
+  assign_result and assign_length.
+  Lifetime of these 3 names is limited to surrounding brackets or the
+  end of the command string.
+
+
+The current implementation has 2 ways for performing named assign:
+
+1. the name declared in assign operation with <= operator.
+example:
+
+name<=A<-B
+
+It means we read expression B, if file A exist, we overwrite it with
+the contents of expression B.
+
+If object A does not exist in the FS, then we create local name "A" as
+a child of the current path, and then associate the contents of
+expression B with the created name ("A").  Then this name and its
+associated value (contents of expression B) can be used in any
+expression as a regular object of FS.
+
+Then created local "name" as a child of current path.  If the "name"
+exist as a child of current path or as a FS object, it's value will be
+pushed to the stack and create new one.  Then created local subnames
+"assign_result" and "assign_length" as a child of "name" for storing
+result of assign operator.
+
+
+For example:
+
+Suppose, we have 5 files in FS: a, b1, b2, c, d.
+
+"rez<=a<-b1+b2; c<-rez/assign_result; d<-rez/assign_length"
+
+file a will have concatenated contents of files b1 and b2;
+file c will have the error code of assign;
+file d will have the length of written bytes.
+
+If we have the "rez" file in FS. It contents will not be changed.
+local name "rez" will be free and its subnames and contents will free
+too.  
+
+
+2. The name for assign result used a target name.
+A<-B
+
+created local subnames "assign_result" and "assign_length" as a child
+of object A for storing result of assign operator.
+
+for example
+
+Suppose, we have 5 files in FS: a, b1, b2, c, d.
+
+"a<-b1+b2; c<-a/assign_result; d<-a/assign_length"
+
+file a will have concatenated contents of files b1 and b2;
+file c will have the error code of assign;
+file d will have the length of written bytes
+
+local names "assign_result" and "assign_length" will be free and its
+contents will be free too.  But name "a" will exist as object of the FS.
+
+
+
+creations objects.
+
+
+lets consider the following.
+
+We want create a regular file with name
+"new_file_name" in directory "b" with ACL for uid=357 - denied and
+copy to it the contents of /etc/passwd.
+ 
+command_string="b/(.../new/(name<-\"new_file_name\"; type<-regular_file; permition<-acl); new_file_name/.../acl/( uid<-\"357\", access<-denied );new_file_name<-/etc/passwd)";
+
+where:
+  b is a directory
+suppose we have lnode for it.
+(if it is ommited ("b") then we take the current directory PWD, and take the lnode for it)
+Then we make:
+b_lnode->lookup(new)
+it that meen we find lnode for directory plugin "new"
+    all parameters in new plugin will be filled by default.
+    and then we find new_lnode->lookup(name). this is lnode for name of new file and we assign to it string constant "new_file_name".
+
+    then we find new_lnode->lookup(type). this is lnode of type of new file
+    then we find new_lnode->lookup(regular_file) this is lnode of constants (plugin id) of types of plugin "new" for regular file
+    then we copy contens regular_file_lnode  to type_lnode. ()
+
+    then we find new_lnode->lookup(permition). this is lnode of type of permition of new file
+    then we find new_lnode->lookup(acl). this is lnode of constants of type of permition of "new" plugin, correcponding to acl
+    then we copy contens acl_lnode throuse tube to permition_lnode.
+
+the next symbol in command string is a ")". by default it mean "create" object with all parameters, what we are fielded.
+
+now we have the "b/new_name_file" object in FS. This is a regular file with acl permition type.
+Let's go ahead.
+
+then we find b_lnode->lookup(new_file_name). this is lnode for new file we jast created.
+then we find new_file_name_lnode->lookup(acl) . this is lnode of acl plugin .
+    then we find acl_lnode->lookup(uid) this is lnode for uid field of acl and assign (append) to it string constant "357".???????this is a list of uid
+    then we find acl_lnode->lookup(access).
+    then we find acl_lnode->lookup(denied).
+    then we copy contens denied_lnode (This is plugin id) to access_lnode.
+
+then we find root_lnode->lookup(etc),
+then we find etc_lnode->lookup(passwd)
+then we read contens passwd_lnode throuse tube and write to new_file_name_lnode lnode.
+
+ok. command string is executed.
+
+
+
+the range plugin, current directory, analog of cd(1)
+
+lets consider the following
+command_string="/path0/path1/filename/.../range/(offset<-\"100\",last_byte<-\"256\")<-/path0/path2/filename/.../range/(first_byte<-\"100\")";
+
+the both operand have eq part of path: "/path0". we can to put it as a
+multiplier outside the brackets:
+
+command_string="/path0/(path1/filename/.../range/(offset<-\"100\",last_byte<-\"256\")<-path2/filename/.../range/(first_byte<-\"100\"))";
+
+the first part of path: /path0 is looks like cd(1) operator. One
+exclusion: after finishing this command the current work directory
+will be same as before.
+The both operand in expression
+
+(path1/filename/.../range/(offset<-\"100\",last_byte<-\"256\")<-path2/filename/.../range/(first_byte<-\"100\")
+
+has as a current directory = /path0.
+
+All operand in expression
+(offset<-\"100\",last_byte<-\"256\")
+has  the 
+/path0/path1/filename/.../range
+as a current logical directory.
+the
+offset<-\"100\",last_byte<-\"256\"
+sets the parameters of range plugin for make a window of parent object.
+
+In this example we write to file
+/path0/path1/filename from offset 100 (in decimal) up to 256 (in decimal) no more.
+Variant 1:
+If source is smaller of this size, the last bytes of target window will be set to 0.
+If source is larger of this size, the rest bytes will be ignored.
+Variant 2:
+If source is smaller of this size, the last bytes of target window will not change.
+If source is larger of this size, the rest bytes will be ignored.
+Variant 3:
+If source is smaller of this size or larger, the tail of target will be shifted to end of assigned data.
+(The defined window in target will be overload by defined window of source.)
+(example:is source length is 0 the target will be cut the defined window, If target window size is 0, the source will inserted.)
+
+if last_byte or length is ommited, the source will be read up to end of file.
+(if it possible. for example: the /process will not ended by eof. in this case the 1 page size will be read)
+
+
+
+
+
+
+
+
+the user space access.
+The operand
+
+/.../process/range/(offset<-\"200\",last_byte<-\"256\")
+
+ make the access from/to the buffer starting at address offset in
+ the process address space, ending at last_byte. The number of bytes
+ actually read/write (assignment source may be smaller or larger than
+ assignment target) is written to assign_length and error code to an
+ assign_result with common negotiate of tmp names.
+
+
+
+
+list of pseudo plugins and its description
+
+new                     the parent's "dir" plugin.
+                        invoke is delayed: the "/( new_expression )" expression mast be followed.
+                        if it ommited the default values for all parameters will be used.
+                        if we need use something different from defaults, we need define it inside the brackets.
+                        the creation will be begin after the corresponding ")" will parsed.
+                        the result is a created file.
+                        can be used as rhs and lhs of assign operator.
+
+    name                "new" plugin name space. the name of created object, mast be target with assign operator.
+                        the default value will be generated as a special unique name for current directory.??? Is it possible.
+                        the result is a name.
+    type                "new" plugin name space. the type of created object, mast be target with assign operator.
+                        operator for created object. The default value is "regular_file".
+                        the result is a type.
+        regular_file    "type" plugin name space. the possible values for parent plugin "type"
+        directory       "type" plugin name space. the possible values for parent plugin "type"
+        
+    permition           new plugin name space. the permition type  of created object, mast be target with assign operator.
+        acl             permition plugin name space. the possible values for parent plugin permition
+        
+
+
+uid                     the parent's object plugin.
+                        the result is a pseudo file, body contain the uid of parent object.
+                        can be used as rhs and lhs of assign operator.
+
+qid                     the parent's object plugin.
+                        the result is a pseudo file, body contain the qid of parent object.
+                        can be used as rhs and lhs of assign operator.
+
+rwx                     the parent's object plugin.
+                        the result is a pseudo file, body contain the rwx of parent object.
+                        can be used as rhs and lhs of assign operator.
+
+oid                     the parent's object plugin.
+                        the result is a pseudo file, body contain the oid of parent object.
+                        can be used as rhs of assign operator.
+
+key                     the parent's object plugin.
+                        the result is a pseudo file, body contain the uid of parent object.
+                        can be used as  rhs of assign operator.
+
+size                    the parent's object plugin.
+                        the result is a pseudo file, body contain the size of parent object.
+                        can be used as  rhs of assign operator.
+
+name                    the parent's object plugin.
+                        the result is a pseudo file, body contain the name of parent object.
+                        can be used as  rhs and lhs of assign operator.
+
+                        when the "name" used on lhs its equal to rename(1).
+
+
+acl
+    gid
+    uid
+    access
+        denied
+
+rename                  the parent's "dir" plugin
+                        the result is a same object but with new name
+    name                the name of object to be renamed
+    newname             the new name of object
+
+unlink                  the parent's "dir" plugin
+    name                the name of object to be unliked
+
+link                    make a link
+    name                the name of object to be linked
+    linkname            the link name
+    linktype            the type of link
+        symlink
+        hardlink
+
+
+range                   the parent object plugin.
+                        This is a window to object starting from offset|first_byte ended to last_byte|(offset+length)
+                        can't be used without the parent object
+                        don't have the return value, but change the parent value.
+                        can used with any object, constants, strings etc.
+
+    offset              starting offset for window
+
+    first_byte          starting offset for window
+
+    length              size of window
+
+    last_byte           ending offset for window
+
+lookup                  the plugin for find the subnames and it's type
+                        parameters : lnode *parent,qstr *name
+                        return: lnode *founded_name 
+
+
+
+# Local variables:
+# mode-name: "proposal"
+# indent-tabs-mode: nil
+# tab-width: 4
+# eval: (if (fboundp 'flyspell-mode) (flyspell-mode))
+# End:
+

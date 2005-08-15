@@ -1,0 +1,19 @@
+
+diff -puN fs/namei.c~reiser4-export-link_path_walk fs/namei.c
+
+
+
+diff -puN fs/namei.c~reiser4-export-link_path_walk fs/namei.c
+--- linux-2.6.11/fs/namei.c~reiser4-export-link_path_walk	2005-03-28 16:10:12.000000000 +0400
++++ linux-2.6.11-demidov/fs/namei.c	2005-07-06 21:29:55.000000000 +0400
+@@ -923,6 +923,8 @@ int fastcall link_path_walk(const char *
+ 	return result;
+ }
+ 
++EXPORT_SYMBOL(link_path_walk);
++
+ int fastcall path_walk(const char * name, struct nameidata *nd)
+ {
+ 	current->total_link_count = 0;
+
+_
