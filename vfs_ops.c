@@ -527,7 +527,13 @@ void writeout(struct super_block *sb, struct writeback_control *wbc)
 	/* Commit all atoms if reiser4_writepages() is called from sys_sync() or
 	   sys_fsync(). */
 	if (wbc->sync_mode != WB_SYNC_NONE) {
-		txnmgr_force_commit_all(sb, 1);
+		/*
+		 * have txnmgr_force_commit_all to commit only old atoms if it
+		 * is called not from umount context. Rely on the fact that
+		 * generic_shutdown_super sets sb->s_root to NULL before
+		 * calling fsync_super.
+		 */
+		txnmgr_force_commit_all(sb, (sb->s_root == NULL) ? 1 : 0);
 		return;
 	}
 
@@ -1122,7 +1128,13 @@ static void reiser4_write_super(struct super_block *s)
 	if (ret != 0)
 		warning("vs-1701",
 			"capture_super_block failed in write_super: %d", ret);
-	ret = txnmgr_force_commit_all(s, 1);
+	/*
+	 * have txnmgr_force_commit_all to commit only old atoms if it is
+	 * called not from umount context. Rely on the fact that
+	 * generic_shutdown_super sets sb->s_root to NULL before calling
+	 * fsync_super.
+	 */
+	ret = txnmgr_force_commit_all(s, (s->s_root == NULL) ? 1 : 0);
 	if (ret != 0)
 		warning("jmacd-77113",
 			"txn_force failed in write_super: %d", ret);
