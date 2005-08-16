@@ -346,10 +346,6 @@ end_bio_single_page_write(struct bio *bio, unsigned int bytes_done UNUSED_ARG,
 	if (!test_bit(BIO_UPTODATE, &bio->bi_flags))
 		SetPageError(page);
 	end_page_writeback(page);
-	/*XXXXX*/
-	if (jprivate(page))
-		clog_jnode(jprivate(page), JH_END_WRITE);
-	/*XXXXX*/
 	bio_put(bio);
 	return 0;
 }

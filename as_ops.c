@@ -170,13 +170,18 @@ reiser4_readpages(struct file *file, struct address_space *mapping,
  * completed.
  */
 
-int reiser4_invalidatepage(struct page *page /* page to invalidate */ ,
-			   unsigned long offset	/* starting offset for partial
-						 * invalidation */ )
+/**
+ * reiser4_invalidatepage
+ * @page: page to invalidate
+ * @offset: starting offset for partial invalidation
+ *
+ */
+int reiser4_invalidatepage(struct page *page, unsigned long offset)
 {
 	int ret = 0;
 	reiser4_context *ctx;
 	struct inode *inode;
+	jnode *node;
 
 	/*
 	 * This is called to truncate file's page.
@@ -195,7 +200,6 @@ int reiser4_invalidatepage(struct page *page /* page to invalidate */ ,
 	 * top-to-bottom style: items are killed in cut_tree_object() and
 	 * pages belonging to extent are invalidated in kill_hook_extent(). So
 	 * probably now additional call to capture is not needed here.
-	 *
 	 */
 
 	assert("nikita-3137", PageLocked(page));
@@ -213,12 +217,29 @@ int reiser4_invalidatepage(struct page *page /* page to invalidate */ ,
 		return 0;
 	if (get_cc_fake(inode->i_sb) == inode)
 		return 0;
-	if (get_super_private(inode->i_sb)->bitmap == inode)
+	if (get_bitmap_fake(inode->i_sb) == inode)
 		return 0;
-
 	assert("vs-1426", PagePrivate(page));
 	assert("vs-1427",
 	       page->mapping == jnode_get_mapping(jnode_by_page(page)));
+	assert("", jprivate(page) != NULL);
+	assert("", offset == 0);
+	
+	node = jprivate(page);
+	LOCK_JNODE(node);
+	if (!JF_ISSET(node, JNODE_DIRTY) && !JF_ISSET(node, JNODE_FLUSH_QUEUED) &&
+	    !JF_ISSET(node, JNODE_WRITEBACK)) {
+		/* there is not need to capture */
+		jref(node);
+		JF_SET(node, JNODE_HEARD_BANSHEE);
+		page_clear_jnode(page, node);
+		uncapture_jnode(node);
+		unhash_unformatted_jnode(node);
+		jput(node);
+		return 0;
+	}
+	UNLOCK_JNODE(node);
+			
 
 	ctx = init_context(inode->i_sb);
 	if (IS_ERR(ctx))
@@ -232,26 +253,23 @@ int reiser4_invalidatepage(struct page *page /* page to invalidate */ ,
 	}
 
 	if (offset == 0) {
-		jnode *node;
-
 		/* remove jnode from transaction and detach it from page. */
-		node = jnode_by_page(page);
-		if (node != NULL) {
-			assert("vs-1435", !JF_ISSET(node, JNODE_CC));
-			jref(node);
-			JF_SET(node, JNODE_HEARD_BANSHEE);
-			/* page cannot be detached from jnode concurrently,
-			 * because it is locked */
-			uncapture_page(page);
-
-			/* this detaches page from jnode, so that jdelete will not try to lock page which is already locked */
-			UNDER_SPIN_VOID(jnode,
-					node, page_clear_jnode(page, node));
-			unhash_unformatted_jnode(node);
-
-			jput(node);
-		}
+		assert("vs-1435", !JF_ISSET(node, JNODE_CC));
+		jref(node);
+		JF_SET(node, JNODE_HEARD_BANSHEE);
+		/* page cannot be detached from jnode concurrently, because it
+		 * is locked */
+		uncapture_page(page);
+		
+		/* this detaches page from jnode, so that jdelete will not try
+		 * to lock page which is already locked */
+		UNDER_SPIN_VOID(jnode,
+				node, page_clear_jnode(page, node));
+		unhash_unformatted_jnode(node);
+		
+		jput(node);
 	}
+
 	reiser4_exit_context(ctx);
 	return ret;
 }
@@ -380,9 +398,6 @@ int reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 		 * jnode_extent_write() here, because pages seen by
 		 * jnode_extent_write() are !releasable(). */
 		page_clear_jnode(page, node);
-		/*XXXXX*/
-		clog_jnode(node, JH_RELEASEPAGE);
-		/*XXXXX*/
 		UNLOCK_JLOAD(node);
 		UNLOCK_JNODE(node);
 

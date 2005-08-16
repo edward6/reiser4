@@ -697,9 +697,6 @@ assign_real_blocknrs(flush_pos_t * flush_pos, reiser4_block_nr first,
 		assert("vs-1476", atomic_read(&node->x_count) > 0);
 		JF_CLR(node, JNODE_FLUSH_RESERVED);
 		jnode_set_block(node, &first);		
-		/*XXXXX*/
-		clog_jnode(node, JH_ASSIGN_REAL_BLOCKNR);
-		/*XXXXX*/
 
 		unformatted_make_reloc(node, fq);
 		/*XXXX*/

@@ -187,22 +187,6 @@ struct jnode {
 	/*XXXX*/
 } __attribute__ ((aligned(16)));
 
-/*XXXX*/
-#define JH_MAKE_EXTENT 1 /* capture_extent after make_extent before try_capture */
-#define JH_ASSIGN_REAL_BLOCKNR 2 /* assign_real_blocknrs */
-#define JH_EFLUSH 3 /* emergency_flush after page_io */
-#define JH_UNEFLUSH 4 /* eflush_free after tree tag clearing */
-#define JH_CAJ 5 /* capture_anonymous_jnodes after tag is cleared */
-#define JH_MJD 6 /* do_jnode_make_dirty after moving to dirty list */
-#define JH_WRITE 7 /* write_jnodes_to_disk_extent after clearing dirty bit */
-#define JH_END_READ 8 /* end_bio_single_page_read after successful uptodate check */
-#define JH_END_WRITE 9 /* end_bio_single_page_write after end_page_writeback */
-#define JH_RELEASEPAGE 10 /* reiser4_releasepage after page_clear_jnode */
-#define JH_ATTACHPAGE 11 /* jnode_attach_page after set page private */
-void clog_jnode(jnode *node, int event);
-/*XXXX*/
-
-
 /*
  * jnode types. Enumeration of existing jnode types.
  */

@@ -326,7 +326,6 @@ int emergency_flush(struct page *page)
 
 				result = page_io(page, node, WRITE,
 						 GFP_NOFS | __GFP_HIGH);
-				clog_jnode(node, JH_EFLUSH);
 			} else {
 				JF_CLR(node, JNODE_EFLUSH);
 				UNLOCK_JLOAD(node);
@@ -648,8 +647,6 @@ void eflush_free(jnode * node)
 
 		assert("nikita-3355",
 		       jnode_tree_by_reiser4_inode(info)->rnode != NULL);
-		clog_jnode(node, JH_UNEFLUSH);
-
 		dec_unfm_ef();
 	}
 	UNLOCK_JNODE(node);

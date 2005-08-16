@@ -1804,7 +1804,6 @@ static int commit_txnh(txn_handle * txnh)
 
 	cd.atom->txnh_count -= 1;
 	txnh->atom = NULL;
-
 	txnh_list_remove(txnh);
 
 	UNLOCK_TXNH(txnh);
@@ -2349,8 +2348,7 @@ void uncapture_page(struct page *pg)
 	reiser4_wait_page_writeback(pg);
 
 	node = (jnode *) (pg->private);
-	if (node == NULL)
-		return;
+	BUG_ON(node == NULL);
 
 	LOCK_JNODE(node);
 
@@ -2406,7 +2404,8 @@ void uncapture_page(struct page *pg)
 	jput(node);
 }
 
-/* this is used in extent's kill hook to uncapture and unhash jnodes attached to inode's tree of jnodes */
+/* this is used in extent's kill hook to uncapture and unhash jnodes attached to
+ * inode's tree of jnodes */
 void uncapture_jnode(jnode * node)
 {
 	txn_atom *atom;
@@ -2435,7 +2434,7 @@ void uncapture_jnode(jnode * node)
 
 /* No-locking version of assign_txnh.  Sets the transaction handle's atom pointer,
    increases atom refcount and txnh_count, adds to txnh_list. */
-static void capture_assign_txnh_nolock(txn_atom * atom, txn_handle * txnh)
+static void capture_assign_txnh_nolock(txn_atom *atom, txn_handle *txnh)
 {
 	assert("umka-200", atom != NULL);
 	assert("umka-201", txnh != NULL);
@@ -2444,6 +2443,7 @@ static void capture_assign_txnh_nolock(txn_atom * atom, txn_handle * txnh)
 	assert("jmacd-823", spin_atom_is_locked(atom));
 	assert("jmacd-824", txnh->atom == NULL);
 	assert("nikita-3540", atom_isopen(atom));
+	BUG_ON(txnh->atom != NULL);
 
 	atomic_inc(&atom->refcount);
 	txnh->atom = atom;
@@ -2453,7 +2453,7 @@ static void capture_assign_txnh_nolock(txn_atom * atom, txn_handle * txnh)
 
 /* No-locking version of assign_block.  Sets the block's atom pointer, references the
    block, adds it to the clean or dirty capture_jnode list, increments capture_count. */
-static void capture_assign_block_nolock(txn_atom * atom, jnode * node)
+static void capture_assign_block_nolock(txn_atom *atom, jnode *node)
 {
 	assert("umka-202", atom != NULL);
 	assert("umka-203", node != NULL);
@@ -2538,10 +2538,6 @@ static void do_jnode_make_dirty(jnode * node, txn_atom * atom)
 		capture_list_push_back(ATOM_DIRTY_LIST(atom, level), node);
 		ON_DEBUG(count_jnode
 			 (atom, node, NODE_LIST(node), DIRTY_LIST, 1));
-		/*XXXX*/
-		clog_jnode(node, JH_MJD);
-		/*XXXX*/
-
 		/*
 		 * JNODE_CCED bit protects clean copy (page created by
 		 * copy-on-capture) from being evicted from the memory. This

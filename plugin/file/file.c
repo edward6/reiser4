@@ -1388,7 +1388,6 @@ static int commit_file_atoms(struct inode *inode)
 	/*
 	 * finish extent<->tail conversion if necessary
 	 */
-
 	get_exclusive_access(uf_info);
 	if (inode_get_flag(inode, REISER4_PART_CONV)) {
 		result = finish_conversion(inode);
@@ -1401,7 +1400,6 @@ static int commit_file_atoms(struct inode *inode)
 	/*
 	 * find what items file is made from
 	 */
-
 	result = find_file_state(uf_info);
 	drop_exclusive_access(uf_info);
 	if (result != 0)
@@ -1410,9 +1408,10 @@ static int commit_file_atoms(struct inode *inode)
 	/*
 	 * file state cannot change because we are under ->i_sem
 	 */
-
 	switch (uf_info->container) {
 	case UF_CONTAINER_EXTENTS:
+		/* find_file_state might open join an atom */
+		txn_restart_current();
 		result =
 		    /*
 		     * when we are called by

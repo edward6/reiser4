@@ -684,9 +684,6 @@ void jnode_attach_page(jnode * node, struct page *pg)
 	pg->private = (unsigned long)node;
 	node->pg = pg;
 	SetPagePrivate(pg);
-	/*XXXXX*/
-	clog_jnode(node, JH_ATTACHPAGE);
-	/*XXXXX*/
 }
 
 /* Dual to jnode_attach_page: break a binding between page and jnode */
@@ -1954,17 +1951,6 @@ jnode *jclone(jnode * node)
 	JF_SET(clone, JNODE_CC);
 	return clone;
 }
-
-/*XXXXX*/
-void clog_jnode(jnode *node, int event)
-{
-	assert("", node->free_slot >= 0 && node->free_slot < 16);
-	node->history[node->free_slot] = event;
-	node->free_slot ++;
-	if (node->free_slot == 16)
-		node->free_slot = 0;
-}
-/*XXXXX*/
 
 /* Make Linus happy.
    Local variables:

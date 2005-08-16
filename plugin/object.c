@@ -171,8 +171,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.write_sd_by_inode = write_sd_by_inode_common,
 		.flow_by_inode = bugop,
 		.key_by_inode = bugop,
-		.set_plug_in_inode =
-		set_plug_in_inode_common,
+		.set_plug_in_inode = set_plug_in_inode_common,
 		.adjust_to_parent = adjust_to_parent_common_dir,
 		.create_object = create_object_common,
 		.delete_object = delete_directory_common,
