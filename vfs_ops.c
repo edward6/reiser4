@@ -256,17 +256,6 @@ static void done_dentry_fsdata(void)
 	kmem_cache_destroy(dentry_fsdata_slab);
 }
 
-reiser4_dentry_fsdata *reiser4_get_fsdata()
-{
-	reiser4_dentry_fsdata *d_fsdata;
-	d_fsdata = kmem_cache_alloc(dentry_fsdata_slab,
-				    GFP_KERNEL);
-	if (d_fsdata == NULL)
-		return ERR_PTR(RETERR(-ENOMEM));
-	memset(d_fsdata, 0, sizeof(reiser4_dentry_fsdata));
-	return d_fsdata;
-}
-
 /* Return and lazily allocate if necessary per-dentry data that we
    attach to each dentry. */
 reiser4_dentry_fsdata *reiser4_get_dentry_fsdata(struct dentry *dentry	/* dentry
@@ -275,7 +264,11 @@ reiser4_dentry_fsdata *reiser4_get_dentry_fsdata(struct dentry *dentry	/* dentry
 	assert("nikita-1365", dentry != NULL);
 
 	if (dentry->d_fsdata == NULL) {
-		dentry->d_fsdata = reiser4_get_fsdata();
+		dentry->d_fsdata = kmem_cache_alloc(dentry_fsdata_slab,
+						    GFP_KERNEL);
+		if (dentry->d_fsdata == NULL)
+			return ERR_PTR(RETERR(-ENOMEM));
+		memset(dentry->d_fsdata, 0, sizeof(reiser4_dentry_fsdata));
 	}
 	return dentry->d_fsdata;
 }
@@ -449,25 +442,6 @@ static void destroy_inodecache(void)
 		warning("nikita-1695", "not all inodes were freed");
 }
 
-void reiser4_init_info(reiser4_inode *info)
-{
-	assert("VD", info != NULL);
-	info->hset = info->pset = plugin_set_get_empty();
-	info->extmask = 0;
-	info->locality_id = 0ull;
-	info->plugin_mask = 0;
-#if !REISER4_INO_IS_OID
-	info->oid_hi = 0;
-#endif
-	seal_init(&info->sd_seal, NULL, NULL);
-	coord_init_invalid(&info->sd_coord, NULL);
-	info->flags = 0;
-	spin_inode_object_init(info);
-	/* this deals with info's loading semaphore */
-	loading_alloc(info);
-	info->vroot = UBER_TREE_ADDR;
-}
-
 /* ->alloc_inode() super operation: allocate new inode */
 static struct inode *reiser4_alloc_inode(struct super_block *super UNUSED_ARG	/* super block new
 										 * inode is
@@ -478,7 +452,24 @@ static struct inode *reiser4_alloc_inode(struct super_block *super UNUSED_ARG	/*
 	assert("nikita-1696", super != NULL);
 	obj = kmem_cache_alloc(inode_cache, SLAB_KERNEL);
 	if (obj != NULL) {
-		reiser4_init_info(&obj->p);
+		reiser4_inode *info;
+
+		info = &obj->p;
+
+		info->hset = info->pset = plugin_set_get_empty();
+		info->extmask = 0;
+		info->locality_id = 0ull;
+		info->plugin_mask = 0;
+#if !REISER4_INO_IS_OID
+		info->oid_hi = 0;
+#endif
+		seal_init(&info->sd_seal, NULL, NULL);
+		coord_init_invalid(&info->sd_coord, NULL);
+		info->flags = 0;
+		spin_inode_object_init(info);
+		/* this deals with info's loading semaphore */
+		loading_alloc(info);
+		info->vroot = UBER_TREE_ADDR;
 		return &obj->vfs_inode;
 	} else
 		return NULL;
