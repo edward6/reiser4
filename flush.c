@@ -985,6 +985,7 @@ flush_current_atom(int flags, long nr_to_write, long *nr_submitted,
 	assert("zam-890", spin_atom_is_locked(*atom));
 	assert("zam-892", get_current_context()->trans->atom == *atom);
 
+	nr_to_write = LONG_MAX;
 	while (1) {
 		ret = fq_by_atom(*atom, &fq);
 		if (ret != -E_REPEAT)
