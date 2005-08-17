@@ -824,9 +824,11 @@ ef_prepare(jnode * node, reiser4_block_nr * blk, eflush_node_t ** efnode,
 		txn_atom *atom;
 		switch (jnode_is_leaf(node)) {
 		default:
-			/* We cannot just ask block allocator to take block from
+			/*
+			 * We cannot just ask block allocator to take block from
 			 * flush reserved space, because there is no current
-			 * atom at this point. */
+			 * atom at this point.
+			 */
 			atom = jnode_get_atom(node);
 			if (atom != NULL) {
 				if (JF_ISSET(node, JNODE_FLUSH_RESERVED)) {
@@ -838,9 +840,10 @@ ef_prepare(jnode * node, reiser4_block_nr * blk, eflush_node_t ** efnode,
 				} else
 					UNLOCK_ATOM(atom);
 			}
-			/* fall through */
-			/* node->atom == NULL if page was dirtied through
-			 * mmap */
+			/*
+			 * fall through.
+			 * node->atom == NULL if page was dirtied through mmap
+			 */
 		case 0:
 			result =
 			    reiser4_grab_space_force((__u64) 1, BA_RESERVED);
@@ -855,8 +858,10 @@ ef_prepare(jnode * node, reiser4_block_nr * blk, eflush_node_t ** efnode,
 		hint->block_stage = BLOCK_GRABBED;
 	}
 
-	/* XXX protect @node from being concurrently eflushed. Otherwise,
-	 * there is a danger of underflowing block space */
+	/*
+	 * XXX protect @node from being concurrently eflushed. Otherwise, there
+	 * is a danger of underflowing block space
+	 */
 	UNLOCK_JLOAD(node);
 	UNLOCK_JNODE(node);
 
