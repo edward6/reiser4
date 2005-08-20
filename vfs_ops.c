@@ -372,16 +372,20 @@ void reiser4_free_fsdata(reiser4_file_fsdata * fsdata)
 /*
  * Dual to reiser4_get_file_fsdata().
  */
-void reiser4_free_file_fsdata(struct file *f)
+void reiser4_free_file_fsdata(struct file *file)
 {
 	reiser4_file_fsdata *fsdata;
-	fsdata = f->private_data;
+
+	spin_lock_inode(file->f_dentry->d_inode);
+	fsdata = file->private_data;
 	if (fsdata != NULL) {
 		readdir_list_remove_clean(fsdata);
 		if (fsdata->cursor == NULL)
 			reiser4_free_fsdata(fsdata);
 	}
-	f->private_data = NULL;
+	file->private_data = NULL;
+
+	spin_unlock_inode(file->f_dentry->d_inode);
 }
 
 /* our ->read_inode() is no-op. Reiser4 inodes should be loaded

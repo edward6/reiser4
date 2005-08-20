@@ -25,13 +25,7 @@ int readdir_common(struct file *, void *dirent, filldir_t);
 */
 int release_dir_common(struct inode *inode, struct file *file)
 {
-	/* this is called when directory file descriptor is closed. */
-	spin_lock_inode(inode);
-	/* remove directory from readddir list. See comment before
-	 * readdir_common() for details. */
-	if (file->private_data != NULL)
-		readdir_list_remove_clean(reiser4_get_file_fsdata(file));
-	spin_unlock_inode(inode);
+	reiser4_free_file_fsdata(file);
 	return 0;
 }
 
@@ -245,3 +239,13 @@ do_prepare_write(struct file *file, struct page *page, unsigned from,
 	assert("umka-3098", PageLocked(page));
 	return result;
 }
+
+/*
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 79
+ * End:
+ */
