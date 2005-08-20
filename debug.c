@@ -12,10 +12,6 @@
  *     locking: schedulable(), lock_counters(), print_lock_counters(),
  *     no_counters_are_held(), commit_check_locks()
  *
- *     {debug,trace,log}_flags: reiser4_are_all_debugged(),
- *     reiser4_is_debugged(), get_current_trace_flags(),
- *     get_current_log_flags().
- *
  *     error code monitoring (see comment before RETERR macro): return_err(),
  *     report_err().
  *
@@ -58,10 +54,6 @@ static char panic_buf[REISER4_PANIC_MSG_BUFFER_SIZE];
  */
 static spinlock_t panic_guard = SPIN_LOCK_UNLOCKED;
 
-#if REISER4_DEBUG
-static int reiser4_is_debugged(struct super_block *super, __u32 flag);
-#endif
-
 /* Your best friend. Call it on each occasion.  This is called by
     fs/reiser4/debug.h:reiser4_panic(). */
 void reiser4_do_panic(const char *format /* format string */ , ... /* rest */ )
@@ -96,43 +88,7 @@ void reiser4_do_panic(const char *format /* format string */ , ... /* rest */ )
 		 *
 		 */
 		DEBUGON(1);
-
-#if REISER4_DEBUG
-		if (get_current_context_check() != NULL) {
-			struct super_block *super;
-			reiser4_context *ctx;
-
-			/*
-			 * if we are within reiser4 context, print it contents:
-			 */
-
-			/* lock counters... */
-			ON_DEBUG(print_lock_counters
-				 ("pins held", lock_counters()));
-			/* other active contexts... */
-			ON_DEBUG(print_contexts());
-			ctx = get_current_context();
-			super = ctx->super;
-			if (get_super_private(super) != NULL &&
-			    reiser4_is_debugged(super, REISER4_VERBOSE_PANIC))
-				/* znodes... */
-				print_znodes("znodes", current_tree);
-			{
-				/*
-				 * remove context from the list of active
-				 * contexts. This is precaution measure:
-				 * current is going to die, and leaving
-				 * context on the list would render latter
-				 * corrupted.
-				 */
-				spin_lock(&active_contexts_lock);
-				context_list_remove(ctx);
-				spin_unlock(&active_contexts_lock);
-			}
-		}
-#endif
 	}
-	BUG();
 	/* to make gcc happy about noreturn attribute */
 	panic("%s", panic_buf);
 }
@@ -289,15 +245,6 @@ int commit_check_locks(void)
 	counters->inode_sem_r = inode_sem_r;
 	counters->inode_sem_w = inode_sem_w;
 	return result;
-}
-
-/*
- * check that some bits specified by @flags are set in ->debug_flags of the
- * super block.
- */
-static int reiser4_is_debugged(struct super_block *super, __u32 flag)
-{
-	return get_super_private(super)->debug_flags & flag;
 }
 
 /*

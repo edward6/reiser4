@@ -897,79 +897,55 @@ do {						\
 #define PUSH_SB_FIELD_OPT(field, format) PUSH_OPT(SB_FIELD_OPT(field, format))
 #define PUSH_BIT_OPT(name, bit) PUSH_OPT(BIT_OPT(name, bit))
 
-	/* trace_flags=N
-
-	   set trace flags to be N for this mount. N can be C numeric
-	   literal recognized by %i scanf specifier.  It is treated as
-	   bitfield filled by values of debug.h:reiser4_trace_flags
-	   enum
-	 */
-	PUSH_SB_FIELD_OPT(trace_flags, "%i");
-	/* log_flags=N
-
-	   set log flags to be N for this mount. N can be C numeric
-	   literal recognized by %i scanf specifier.  It is treated as
-	   bitfield filled by values of debug.h:reiser4_log_flags
-	   enum
-	 */
-	PUSH_SB_FIELD_OPT(log_flags, "%i");
-	/* debug_flags=N
-
-	   set debug flags to be N for this mount. N can be C numeric
-	   literal recognized by %i scanf specifier.  It is treated as
-	   bitfield filled by values of debug.h:reiser4_debug_flags
-	   enum
-	 */
-	PUSH_SB_FIELD_OPT(debug_flags, "%i");
-	/* tmgr.atom_max_size=N
-
-	   Atoms containing more than N blocks will be forced to
-	   commit. N is decimal.
+	/* 
+	 * tmgr.atom_max_size=N
+	 * Atoms containing more than N blocks will be forced to commit. N is
+	 * decimal.
 	 */
 	PUSH_SB_FIELD_OPT(tmgr.atom_max_size, "%u");
-	/* tmgr.atom_max_age=N
-
-	   Atoms older than N seconds will be forced to commit. N is
-	   decimal.
+	/*
+	 * tmgr.atom_max_age=N
+	 * Atoms older than N seconds will be forced to commit. N is decimal.
 	 */
 	PUSH_SB_FIELD_OPT(tmgr.atom_max_age, "%u");
-	/* tmgr.atom_min_size=N
-
-	   In committing an atom to free dirty pages, force the atom less than N in
-	   size to fuse with another one.
+	/*
+	 * tmgr.atom_min_size=N
+	 * In committing an atom to free dirty pages, force the atom less than
+	 * N in size to fuse with another one.
 	 */
 	PUSH_SB_FIELD_OPT(tmgr.atom_min_size, "%u");
-	/* tmgr.atom_max_flushers=N
-
-	   limit of concurrent flushers for one atom. 0 means no limit.
+	/*
+	 * tmgr.atom_max_flushers=N
+	 * limit of concurrent flushers for one atom. 0 means no limit.
 	 */
 	PUSH_SB_FIELD_OPT(tmgr.atom_max_flushers, "%u");
-	/* tree.cbk_cache_slots=N
-
-	   Number of slots in the cbk cache.
+	/*
+	 * tree.cbk_cache_slots=N
+	 * Number of slots in the cbk cache.
 	 */
 	PUSH_SB_FIELD_OPT(tree.cbk_cache.nr_slots, "%u");
-
-	/* If flush finds more than FLUSH_RELOCATE_THRESHOLD adjacent
-	   dirty leaf-level blocks it will force them to be
-	   relocated. */
+	/*
+	 * If flush finds more than FLUSH_RELOCATE_THRESHOLD adjacent dirty
+	 * leaf-level blocks it will force them to be relocated.
+	 */
 	PUSH_SB_FIELD_OPT(flush.relocate_threshold, "%u");
-	/* If flush finds can find a block allocation closer than at
-	   most FLUSH_RELOCATE_DISTANCE from the preceder it will
-	   relocate to that position. */
+	/*
+	 * If flush finds can find a block allocation closer than at most
+	 * FLUSH_RELOCATE_DISTANCE from the preceder it will relocate to that
+	 * position.
+	 */
 	PUSH_SB_FIELD_OPT(flush.relocate_distance, "%u");
-	/* If we have written this much or more blocks before
-	   encountering busy jnode in flush list - abort flushing
-	   hoping that next time we get called this jnode will be
-	   clean already, and we will save some seeks. */
+	/*
+	 * If we have written this much or more blocks before encountering busy
+	 * jnode in flush list - abort flushing hoping that next time we get
+	 * called this jnode will be clean already, and we will save some
+	 * seeks.
+	 */
 	PUSH_SB_FIELD_OPT(flush.written_threshold, "%u");
-	/* The maximum number of nodes to scan left on a level during
-	   flush. */
+	/* The maximum number of nodes to scan left on a level during flush. */
 	PUSH_SB_FIELD_OPT(flush.scan_maxnodes, "%u");
-
 	/* preferred IO size */
 	PUSH_SB_FIELD_OPT(optimal_io_size, "%u");
-
 	/* carry flags used for insertion of new nodes */
 	PUSH_SB_FIELD_OPT(tree.carry.new_node_flags, "%u");
 	/* carry flags used for insertion of new extents */
@@ -980,8 +956,10 @@ do {						\
 	PUSH_SB_FIELD_OPT(tree.carry.insert_flags, "%u");
 
 #ifdef CONFIG_REISER4_BADBLOCKS
-	/* Alternative master superblock location in case if it's original
-	   location is not writeable/accessable. This is offset in BYTES. */
+	/*
+	 * Alternative master superblock location in case if it's original
+	 * location is not writeable/accessable. This is offset in BYTES.
+	 */
 	PUSH_SB_FIELD_OPT(altsuper, "%lu");
 #endif
 
@@ -993,19 +971,24 @@ do {						\
 	PUSH_BIT_OPT("mtflush", REISER4_MTFLUSH);
 	/* disable pseudo files support */
 	PUSH_BIT_OPT("nopseudo", REISER4_NO_PSEUDO);
-	/* Don't load all bitmap blocks at mount time, it is useful
-	   for machines with tiny RAM and large disks. */
+	/*
+	 * Don't load all bitmap blocks at mount time, it is useful for
+	 * machines with tiny RAM and large disks.
+	 */
 	PUSH_BIT_OPT("dont_load_bitmap", REISER4_DONT_LOAD_BITMAP);
 	/* disable transaction commits during write() */
 	PUSH_BIT_OPT("atomic_write", REISER4_ATOMIC_WRITE);
 
 	PUSH_OPT(
 	{
-		/* tree traversal readahead parameters:
-		   -o readahead:MAXNUM:FLAGS
-		   MAXNUM - max number fo nodes to request readahead for: -1UL will set it to max_sane_readahead()
-		    FLAGS - combination of bits: RA_ADJCENT_ONLY, RA_ALL_LEVELS, CONTINUE_ON_PRESENT
-		*/
+		/*
+		 * tree traversal readahead parameters:
+		 * -o readahead:MAXNUM:FLAGS
+		 * MAXNUM - max number fo nodes to request readahead for: -1UL
+		 * will set it to max_sane_readahead()
+		 * FLAGS - combination of bits: RA_ADJCENT_ONLY, RA_ALL_LEVELS,
+		 * CONTINUE_ON_PRESENT
+		 */
 		.name = "readahead",
 		.type = OPT_FORMAT,
 		.u = {
@@ -1030,7 +1013,7 @@ do {						\
 			.oneof = {
 				.result = &sbinfo->onerror,
 				.list = {
-					"panic", "remount-ro", "reboot", NULL
+					"panic", "remount-ro", NULL
 				},
 			}
 		}
@@ -1058,9 +1041,7 @@ do {						\
 
 	log_file_name = NULL;
 
-	/*
-	   init default readahead params
-	 */
+	/* init default readahead params */
 	sbinfo->ra_params.max = num_physpages / 4;
 	sbinfo->ra_params.flags = 0;
 
@@ -1096,10 +1077,13 @@ static int reiser4_show_options(struct seq_file *m, struct vfsmount *mnt)
 	super = mnt->mnt_sb;
 	sbinfo = get_super_private(super);
 
-	seq_printf(m, ",trace=0x%x", sbinfo->trace_flags);
-	seq_printf(m, ",log=0x%x", sbinfo->log_flags);
-	seq_printf(m, ",debug=0x%x", sbinfo->debug_flags);
 	seq_printf(m, ",atom_max_size=0x%x", sbinfo->tmgr.atom_max_size);
+	seq_printf(m, ",atom_max_age=0x%x", sbinfo->tmgr.atom_max_age);
+	seq_printf(m, ",atom_min_size=0x%x", sbinfo->tmgr.atom_min_size);
+	seq_printf(m, ",atom_max_flushers=0x%x",
+		   sbinfo->tmgr.atom_max_flushers);
+	seq_printf(m, ",cbk_cache_slots=0x%x",
+		   sbinfo->tree.cbk_cache.nr_slots);
 
 	return 0;
 }

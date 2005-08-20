@@ -572,7 +572,8 @@ static node_plugin *znode_guess_plugin(const znode * node	/* znode to guess
 	} else {
 		return node_plugin_by_disk_id
 		    (tree, &((common_node_header *) zdata(node))->plugin_id);
-#if GUESS_EXISTS
+#ifdef GUESS_EXISTS
+wewefewf
 		reiser4_plugin *plugin;
 
 		/* NOTE-NIKITA add locking here when dynamic plugins will be

@@ -23,18 +23,20 @@ typedef struct {
 } flush_params;
 
 typedef enum {
-	/* True if this file system doesn't support hard-links (multiple
-	   names) for directories: this is default UNIX behavior.
-
-	   If hard-links on directoires are not allowed, file system is
-	   Acyclic Directed Graph (modulo dot, and dotdot, of course).
-
-	   This is used by reiser4_link().
+	/*
+	 * True if this file system doesn't support hard-links (multiple names)
+	 * for directories: this is default UNIX behavior.
+	 *
+	 * If hard-links on directoires are not allowed, file system is Acyclic
+	 * Directed Graph (modulo dot, and dotdot, of course).
+	 *
+	 * This is used by reiser4_link().
 	 */
 	REISER4_ADG = 0,
-	/* set if all nodes in internal tree have the same node layout plugin.
-	   If so, znode_guess_plugin() will return tree->node_plugin in stead
-	   of guessing plugin by plugin id stored in the node.
+	/*
+	 * set if all nodes in internal tree have the same node layout plugin.
+	 * If so, znode_guess_plugin() will return tree->node_plugin in stead
+	 * of guessing plugin by plugin id stored in the node.
 	 */
 	REISER4_ONE_NODE_PLUGIN = 1,
 	/* if set, bsd gid assignment is supported. */
@@ -43,8 +45,10 @@ typedef enum {
 	REISER4_32_BIT_TIMES = 3,
 	/* allow concurrent flushes */
 	REISER4_MTFLUSH = 4,
-	/* disable support for pseudo files. Don't treat regular files as
-	 * directories. */
+	/*
+	 * disable support for pseudo files. Don't treat regular files as
+	 * directories.
+	 */
 	REISER4_NO_PSEUDO = 5,
 	/* load all bitmap blocks at mount time */
 	REISER4_DONT_LOAD_BITMAP = 6,
@@ -60,19 +64,10 @@ typedef enum {
  * needs ->open method to handle pseudo files correctly, but if file system is
  * mounted with "nopseudo" mount option, it's better to have ->open set to
  * NULL, as this makes sys_open() a little bit more efficient.
- *
  */
 typedef struct object_ops {
 	struct super_operations super;
-	/*struct file_operations          file; */
 	struct dentry_operations dentry;
-	/*struct address_space_operations as; */
-
-	/*struct inode_operations         regular;
-	   struct inode_operations         dir;
-	   struct inode_operations         symlink;
-	   struct inode_operations              special; */
-
 	struct export_operations export;
 } object_ops;
 
@@ -130,15 +125,12 @@ typedef struct object_ops {
       [sb-fake-allocated]
 */
 struct reiser4_super_info_data {
-	/* guard spinlock which protects reiser4 super
-	   block fields (currently blocks_free,
-	   blocks_free_committed)
+	/*
+	 * guard spinlock which protects reiser4 super block fields (currently
+	 * blocks_free, blocks_free_committed)
 	 */
 	reiser4_spin_data guard;
 
-	/*
-	 * object id manager
-	 */
 	/* next oid that will be returned by oid_allocate() */
 	oid_t next_to_use;
 	/* total number of used oids */
@@ -169,15 +161,22 @@ struct reiser4_super_info_data {
 	/* amount of blocks used by file system data and meta-data. */
 	__u64 blocks_used;
 
-	/* amount of free blocks. This is "working" free blocks counter. It is
-	   like "working" bitmap, please see block_alloc.c for description. */
+	/* 
+	 * amount of free blocks. This is "working" free blocks counter. It is
+	 * like "working" bitmap, please see block_alloc.c for description.
+	 */
 	__u64 blocks_free;
 
-	/* free block count for fs committed state. This is "commit" version
-	   of free block counter. */
+	/*
+	 * free block count for fs committed state. This is "commit" version of
+	 * free block counter.
+	 */
 	__u64 blocks_free_committed;
 
-	/* number of blocks reserved for further allocation, for all threads. */
+	/*
+	 * number of blocks reserved for further allocation, for all
+	 * threads.
+	 */
 	__u64 blocks_grabbed;
 
 	/* number of fake allocated unformatted blocks in tree. */
@@ -193,23 +192,7 @@ struct reiser4_super_info_data {
 	__u64 blocks_clustered;
 
 	/* unique file-system identifier */
-	/* does this conform to Andreas Dilger UUID stuff? */
 	__u32 fsuid;
-
-	/* per-fs tracing flags. Use reiser4_trace_flags enum to set
-	   bits in it. */
-	__u32 trace_flags;
-
-	/* per-fs log flags. Use reiser4_log_flags enum to set
-	   bits in it. */
-	__u32 log_flags;
-	__u32 oid_to_log;
-
-	/* per-fs debugging flags. This is bitmask populated from
-	   reiser4_debug_flags enum. */
-	__u32 debug_flags;
-
-	/* super block flags */
 
 	/* file-system wide flags. See reiser4_fs_flag enum */
 	unsigned long fs_flags;
@@ -235,19 +218,17 @@ struct reiser4_super_info_data {
 		format40_super_info format40;
 	} u;
 
-	/*
-	 * value we return in st_blksize on stat(2).
-	 */
+	/* value we return in st_blksize on stat(2) */
 	unsigned long optimal_io_size;
 
 	/* parameters for the flush algorithm */
 	flush_params flush;
 
+#if REISER4_USE_EFLUSH
 	/* see emergency_flush.c for details */
 	reiser4_spin_data eflush_guard;
 	/* number of emergency flushed nodes */
 	int eflushed;
-#if REISER4_USE_EFLUSH
 	/* hash table used by emergency flush. Protected by ->eflush_guard */
 	ef_hash_table efhash_table;
 #endif
@@ -269,9 +250,11 @@ struct reiser4_super_info_data {
 
 	ra_params_t ra_params;
 
-	/* A semaphore for serializing cut tree operation if
-	   out-of-free-space: the only one cut_tree thread is allowed to grab
-	   space from reserved area (it is 5% of disk space) */
+	/* 
+	 * A semaphore for serializing cut tree operation if out-of-free-space:
+	 * the only one cut_tree thread is allowed to grab space from reserved
+	 * area (it is 5% of disk space)
+	 */
 	struct semaphore delete_sema;
 	/* task owning ->delete_sema */
 	struct task_struct *delete_sema_owner;
@@ -299,6 +282,7 @@ struct reiser4_super_info_data {
 	/* minimum used blocks value (includes super blocks, bitmap blocks and
 	 * other fs reserved areas), depends on fs format and fs size. */
 	__u64 min_blocks_used;
+
 	/* number of space allocated by kmalloc. For debugging. */
 	int kmallocs;
 
@@ -309,12 +293,9 @@ struct reiser4_super_info_data {
 	 * with _irq modifier, because it is also modified from interrupt
 	 * contexts (by RCU).
 	 */
-
 	spinlock_t all_guard;
-	/* list of all jnodes */
-	struct list_head all_jnodes;
+	struct list_head all_jnodes;	/* list of all jnodes */
 
-	/*XXX debugging code */
 	__u64 eflushed_unformatted;	/* number of eflushed unformatted nodes */
 	__u64 unalloc_extent_pointers;	/* number of unallocated extent pointers in the tree */
 #endif

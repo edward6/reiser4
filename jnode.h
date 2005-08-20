@@ -181,10 +181,6 @@ struct jnode {
 	/* this indicates which atom's list the jnode is on */
 	atom_list list1;
 #endif
-	/*XXXX*/
-	char history[16];
-	int free_slot;
-	/*XXXX*/
 } __attribute__ ((aligned(16)));
 
 /*
