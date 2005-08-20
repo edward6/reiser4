@@ -532,7 +532,7 @@ reiser4_block_nr fake_blocknr_unformatted(void)
 	assign_fake_blocknr(&blocknr);
 	grabbed2fake_allocated_unformatted();
 
-	inc_unalloc_unfm_ptr();
+	 /*XXXXX*/ inc_unalloc_unfm_ptr();
 	return blocknr;
 }
 

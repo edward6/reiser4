@@ -223,6 +223,11 @@ int scan_extent(flush_scan * scan)
 
 		assert("zam-1043", blocknr_is_fake(jnode_get_block(neighbor)));
 
+		/* XXX commented assertion out, because it is inherently
+		 * racy */
+		/* assert("jmacd-3551", !jnode_check_flushprepped(neighbor)
+		   && same_slum_check(neighbor, scan->node, 0, 0)); */
+
 		ret = scan_set_current(scan, neighbor, scan_dist, &coord);
 		if (ret != 0) {
 			goto exit;
@@ -694,8 +699,9 @@ assign_real_blocknrs(flush_pos_t * flush_pos, reiser4_block_nr first,
 		jnode_set_block(node, &first);		
 
 		unformatted_make_reloc(node, fq);
-		ON_DEBUG(count_jnode(node->atom, node, PROTECT_LIST,
-				     FQ_LIST, 0));
+		/*XXXX*/
+		ON_DEBUG(count_jnode
+			 (node->atom, node, PROTECT_LIST, FQ_LIST, 0));
 		junprotect(node);
 		assert("", NODE_LIST(node) == FQ_LIST);
 		UNLOCK_JNODE(node);
@@ -704,7 +710,7 @@ assign_real_blocknrs(flush_pos_t * flush_pos, reiser4_block_nr first,
 	}
 
 	capture_list_splice(ATOM_FQ_LIST(fq), protected_nodes);
-	assert("vs-1687", count == i);
+	 /*XXX*/ assert("vs-1687", count == i);
 	if (state == UNALLOCATED_EXTENT)
 		dec_unalloc_unfm_ptrs(count);
 	UNLOCK_ATOM(atom);

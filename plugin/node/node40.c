@@ -761,7 +761,7 @@ int init_node40(znode * node /* node to initialise */ )
 	return 0;
 }
 
-#ifdef GUESS_EXISTS
+#if GUESS_EXISTS
 int guess_node40(const znode * node /* node to guess plugin of */ )
 {
 	node40_header *nethack;

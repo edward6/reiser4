@@ -206,9 +206,9 @@ void queue_jnode(flush_queue_t * fq, jnode * node)
 	mark_jnode_queued(fq, node);
 	capture_list_remove_clean(node);
 	capture_list_push_back(ATOM_FQ_LIST(fq), node);
-
-	ON_DEBUG(count_jnode(node->atom, node, NODE_LIST(node),
-			     FQ_LIST, 1));
+	 /*XXXX*/
+	    ON_DEBUG(count_jnode
+		     (node->atom, node, NODE_LIST(node), FQ_LIST, 1));
 }
 
 /* repeatable process for waiting io completion on a flush queue object */

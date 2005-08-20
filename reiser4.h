@@ -62,7 +62,7 @@
  */
 #define ENABLE_REISER4_PSEUDO (0)
 
-/*#define GUESS_EXISTS 1*/
+#define GUESS_EXISTS (0)
 
 /*
  * PLEASE update fs/reiser4/kattr.c:show_options() when adding new compilation

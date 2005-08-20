@@ -101,7 +101,7 @@ node_plugin node_plugins[LAST_NODE_ID] = {
 		       .check = check_node40,
 		       .parse = parse_node40,
 		       .init = init_node40,
-#ifdef GUESS_EXISTS
+#if GUESS_EXISTS
 		       .guess = guess_node40,
 #endif
 		       .change_item_size = change_item_size_node40,

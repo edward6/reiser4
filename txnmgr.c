@@ -2811,7 +2811,7 @@ void jnode_make_wander_nolock(jnode * node)
 	JF_SET(node, JNODE_OVRWR);
 	capture_list_remove_clean(node);
 	capture_list_push_back(ATOM_OVRWR_LIST(atom), node);
-	ON_DEBUG(count_jnode(atom, node, DIRTY_LIST, OVRWR_LIST, 1));
+	 /*XXXX*/ ON_DEBUG(count_jnode(atom, node, DIRTY_LIST, OVRWR_LIST, 1));
 }
 
 /* Same as jnode_make_wander_nolock, but all necessary locks are taken inside
@@ -3705,9 +3705,9 @@ static void remove_from_capture_list(jnode * node)
 	capture_list_remove_clean(node);
 	node->atom->capture_count--;
 	atomic_dec(&node->x_count);
-	
-	ON_DEBUG(count_jnode(node->atom, node, NODE_LIST(node),
-			     NOT_CAPTURED, 1));
+	 /*XXXX*/
+	    ON_DEBUG(count_jnode
+		     (node->atom, node, NODE_LIST(node), NOT_CAPTURED, 1));
 	node->atom = 0;
 }
 
@@ -3726,9 +3726,9 @@ static void replace_on_capture_list(jnode * node, jnode * copy)
 	jref(copy);
 	copy->atom = node->atom;
 	node->atom->capture_count++;
-
-	ON_DEBUG(count_jnode(node->atom, copy, NODE_LIST(copy),
-			     NODE_LIST(node), 1));
+	 /*XXXX*/
+	    ON_DEBUG(count_jnode
+		     (node->atom, copy, NODE_LIST(copy), NODE_LIST(node), 1));
 
 	/* remove old jnode from capture list */
 	remove_from_capture_list(node);

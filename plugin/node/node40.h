@@ -80,7 +80,7 @@ size_t estimate_node40(znode * node);
 int check_node40(const znode * node, __u32 flags, const char **error);
 int parse_node40(znode * node);
 int init_node40(znode * node);
-#ifdef GUESS_EXISTS
+#if GUESS_EXISTS
 int guess_node40(const znode * node);
 #endif
 void change_item_size_node40(coord_t * coord, int by);

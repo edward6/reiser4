@@ -940,9 +940,9 @@ static jnode * find_flush_start_jnode(
 		if (JF_ISSET(node, JNODE_WRITEBACK)) {
 			capture_list_remove_clean(node);
 			capture_list_push_back(ATOM_WB_LIST(atom), node);
-
-			ON_DEBUG(count_jnode(atom, node, DIRTY_LIST,
-					     WB_LIST, 1));
+			/*XXXX*/
+			ON_DEBUG(count_jnode
+				 (atom, node, DIRTY_LIST, WB_LIST, 1));
 
 		} else if (jnode_is_znode(node)
 			   && znode_above_root(JZNODE(node))) {
