@@ -717,62 +717,43 @@ void atom_dec_and_unlock(txn_atom * atom)
 		UNLOCK_ATOM(atom);
 }
 
-/* Return a new atom, locked.  This adds the atom to the transaction manager's list and
-   sets its reference count to 1, an artificial reference which is kept until it
-   commits.  We play strange games to avoid allocation under jnode & txnh spinlocks.*/
+/* Create new atom and connect it to given transaction handle.  This adds the
+   atom to the transaction manager's list and sets its reference count to 1, an
+   artificial reference which is kept until it commits.  We play strange games
+   to avoid allocation under jnode & txnh spinlocks.*/
 
-/* ZAM-FIXME-HANS: should we set node->atom and txnh->atom here also? */
-/* ANSWER(ZAM): there are special functions, capture_assign_txnh_nolock() and
-   capture_assign_block_nolock(), they are called right after calling
-   atom_begin_and_lock().  It could be done here, but, for understandability, it
-   is better to keep those calls inside try_capture_block main routine where all
-   assignments are made. */
-static txn_atom *atom_begin_andlock(txn_atom ** atom_alloc, jnode * node,
-				    txn_handle * txnh)
+static int atom_begin_and_assign_to_txnh(txn_atom ** atom_alloc, txn_handle * txnh)
 {
 	txn_atom *atom;
 	txn_mgr *mgr;
 
-	assert("jmacd-43228", spin_jnode_is_locked(node));
-	assert("jmacd-43227", spin_txnh_is_locked(txnh));
-	assert("jmacd-43226", node->atom == NULL);
-	assert("jmacd-43225", txnh->atom == NULL);
-
-	if (REISER4_DEBUG && rofs_jnode(node)) {
+	if (REISER4_DEBUG && rofs_tree(current_tree)) {
 		warning("nikita-3366", "Creating atom on rofs");
 		dump_stack();
 	}
-
-	/* A memory allocation may schedule we have to release those spinlocks
-	 * before kmem_cache_alloc() call. */
-	UNLOCK_JNODE(node);
-	UNLOCK_TXNH(txnh);
 
 	if (*atom_alloc == NULL) {
 		(*atom_alloc) = kmem_cache_alloc(_atom_slab, GFP_KERNEL);
 
 		if (*atom_alloc == NULL)
-			return ERR_PTR(RETERR(-ENOMEM));
+			return RETERR(-ENOMEM);
 	}
 
 	/* and, also, txnmgr spin lock should be taken before jnode and txnh
 	   locks. */
 	mgr = &get_super_private(reiser4_get_current_sb())->tmgr;
 	spin_lock_txnmgr(mgr);
-
-	LOCK_JNODE(node);
 	LOCK_TXNH(txnh);
 
-	/* Check if both atom pointers are still NULL... */
-	if (node->atom != NULL || txnh->atom != NULL) {
+	/* Check whether new atom still needed */
+	if (txnh->atom != NULL) {
 		/* NOTE-NIKITA probably it is rather better to free
 		 * atom_alloc here than thread it up to try_capture(). */
 
 		UNLOCK_TXNH(txnh);
-		UNLOCK_JNODE(node);
 		spin_unlock_txnmgr(mgr);
 
-		return ERR_PTR(-E_REPEAT);
+		return -E_REPEAT;
 	}
 
 	atom = *atom_alloc;
@@ -795,10 +776,14 @@ static txn_atom *atom_begin_andlock(txn_atom ** atom_alloc, jnode * node,
 
 	/* One reference until it commits. */
 	atomic_inc(&atom->refcount);
-
 	atom->stage = ASTAGE_CAPTURE_FUSE;
 	atom->super = reiser4_get_current_sb();
-	return atom;
+	capture_assign_txnh_nolock(atom, txnh);
+
+	UNLOCK_ATOM(atom);
+	UNLOCK_TXNH(txnh);
+
+	return -E_REPEAT;
 }
 
 #if REISER4_DEBUG
@@ -1103,7 +1088,7 @@ static int current_atom_complete_writes(void)
 static int commit_current_atom(long *nr_submitted, txn_atom ** atom)
 {
 	reiser4_super_info_data *sbinfo = get_current_super_private();
-	long ret;
+	long ret = 0;
 	/* how many times jnode_flush() was called as a part of attempt to
 	 * commit this atom. */
 	int flushiters;
@@ -1150,12 +1135,14 @@ static int commit_current_atom(long *nr_submitted, txn_atom ** atom)
 		return RETERR(-E_REPEAT);
 	}
 
+	if ((*atom)->capture_count == 0)
+		goto done;
+
 	/* Up to this point we have been flushing and after flush is called we
 	   return -E_REPEAT.  Now we can commit.  We cannot return -E_REPEAT
 	   at this point, commit should be successful. */
 	atom_set_stage(*atom, ASTAGE_PRE_COMMIT);
 	ON_DEBUG(((*atom)->committer = current));
-
 	UNLOCK_ATOM(*atom);
 
 	ret = current_atom_complete_writes();
@@ -1185,6 +1172,7 @@ static int commit_current_atom(long *nr_submitted, txn_atom ** atom)
 	assert("zam-927", capture_list_empty(&(*atom)->inodes));
 
 	LOCK_ATOM(*atom);
+	done:
 	atom_set_stage(*atom, ASTAGE_DONE);
 	ON_DEBUG((*atom)->committer = NULL);
 
@@ -1924,10 +1912,7 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode,
 		if (		// txnh_atom->stage >= ASTAGE_CAPTURE_WAIT &&
 			   jnode_is_znode(node) && znode_is_locked(JZNODE(node))
 			   && JF_ISSET(node, JNODE_MISSED_IN_CAPTURE)) {
-			JF_CLR(node, JNODE_MISSED_IN_CAPTURE);
-
 			ret = fuse_not_fused_lock_owners(txnh, JZNODE(node));
-
 			if (ret) {
 				JF_SET(node, JNODE_MISSED_IN_CAPTURE);
 
@@ -1937,7 +1922,8 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode,
 				       spin_jnode_is_not_locked(node));
 
 				return ret;
-			}
+			} else
+				JF_CLR(node, JNODE_MISSED_IN_CAPTURE);
 
 			assert("zam-701", spin_txnh_is_locked(txnh));
 			assert("zam-702", spin_jnode_is_locked(node));
@@ -2006,25 +1992,11 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode,
 
 		} else {
 
-			/* In this case, neither txnh nor page are assigned to an atom. */
-			block_atom = atom_begin_andlock(atom_alloc, node, txnh);
-
-			if (!IS_ERR(block_atom)) {
-				/* Assign both, release atom lock. */
-				assert("jmacd-125",
-				       block_atom->stage ==
-				       ASTAGE_CAPTURE_FUSE);
-
-				capture_assign_txnh_nolock(block_atom, txnh);
-				capture_assign_block_nolock(block_atom, node);
-
-				UNLOCK_ATOM(block_atom);
-			} else {
-				/* all locks are released already */
-				return PTR_ERR(block_atom);
-			}
-
-			/* Success: Locks are still held. */
+			/* In this case, neither txnh nor page are assigned to
+			 * an atom. */
+			UNLOCK_JNODE(node);
+			UNLOCK_TXNH(txnh);
+			return atom_begin_and_assign_to_txnh(atom_alloc, txnh);
 		}
 
 	} else {
