@@ -922,8 +922,11 @@ static int has_anonymous_pages(struct inode *inode)
 	int result;
 
 	read_lock_irq(&inode->i_mapping->tree_lock);
-	result = radix_tree_tagged(&inode->i_mapping->page_tree, PAGECACHE_TAG_REISER4_MOVED) |
-		radix_tree_tagged(jnode_tree_by_inode(inode), EFLUSH_TAG_ANONYMOUS);
+	result = radix_tree_tagged(&inode->i_mapping->page_tree, PAGECACHE_TAG_REISER4_MOVED)
+#if REISER4_USE_EFLUSH
+		| radix_tree_tagged(jnode_tree_by_inode(inode), EFLUSH_TAG_ANONYMOUS)
+#endif
+		;
 	read_unlock_irq(&inode->i_mapping->tree_lock);
 	return result;
 }

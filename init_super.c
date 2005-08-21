@@ -33,18 +33,7 @@
 
 #define _DONE_EMPTY(subsys) _DONE_(subsys) {}
 
-_INIT_(mount_flags_check)
-{
-/*	if (bdev_read_only(s->s_bdev) || (s->s_flags & MS_RDONLY)) {
-		warning("nikita-3322", "Readonly reiser4 is not yet supported");
-		return RETERR(-EROFS);
-	}*/
-	return 0;
-}
-
-_DONE_EMPTY(mount_flags_check)
-
-    _INIT_(sinfo)
+_INIT_(sinfo)
 {
 	reiser4_super_info_data *sbinfo;
 
@@ -62,8 +51,9 @@ _DONE_EMPTY(mount_flags_check)
 	sema_init(&sbinfo->delete_sema, 1);
 	sema_init(&sbinfo->flush_sema, 1);
 	spin_super_init(sbinfo);
+#if REISER4_USE_EFLUSH
 	spin_super_eflush_init(sbinfo);
-
+#endif
 	return 0;
 }
 
@@ -441,7 +431,6 @@ struct reiser4_subsys {
 
 #define _SUBSYS(subsys) {.init = &_init_##subsys, .done = &_done_##subsys}
 static struct reiser4_subsys subsys_array[] = {
-	_SUBSYS(mount_flags_check),
 	_SUBSYS(sinfo),
 	_SUBSYS(context),
 	_SUBSYS(parse_options),

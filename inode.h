@@ -142,9 +142,6 @@ struct reiser4_inode {
 	   tagged in that tree by EFLUSH_TAG_ANONYMOUS */
 	struct radix_tree_root jnodes_tree;
 #if REISER4_DEBUG
-	/* numbers of eflushed jnodes of each type in the above tree */
-	atomic_t anonymous_eflushed;
-	atomic_t captured_eflushed;
 	/* number of unformatted node jnodes of this file in jnode hash table */
 	unsigned long nr_jnodes;
 #endif

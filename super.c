@@ -354,26 +354,6 @@ void dec_unalloc_unfm_ptrs(int nr)
 	reiser4_spin_unlock_sb(sbinfo);
 }
 
-void inc_unfm_ef(void)
-{
-	reiser4_super_info_data *sbinfo;
-
-	sbinfo = get_super_private(get_current_context()->super);
-	reiser4_spin_lock_sb(sbinfo);
-	sbinfo->eflushed_unformatted++;
-	reiser4_spin_unlock_sb(sbinfo);
-}
-
-void dec_unfm_ef(void)
-{
-	reiser4_super_info_data *sbinfo;
-
-	sbinfo = get_super_private(get_current_context()->super);
-	reiser4_spin_lock_sb(sbinfo);
-	BUG_ON(sbinfo->eflushed_unformatted == 0);
-	sbinfo->eflushed_unformatted--;
-	reiser4_spin_unlock_sb(sbinfo);
-}
 
 #endif
 

@@ -422,8 +422,6 @@ static void init_once(void *obj /* pointer to new inode */ ,
 				GFP_ATOMIC);
 #if REISER4_DEBUG
 		info->p.nr_jnodes = 0;
-		atomic_set(&info->p.captured_eflushed, 0);
-		atomic_set(&info->p.anonymous_eflushed, 0);
 #endif
 	}
 }
@@ -650,9 +648,8 @@ static void reiser4_clear_inode(struct inode *object)
 	r4_inode = reiser4_inode_data(object);
 	if (!inode_has_no_jnodes(r4_inode))
 		warning("vs-1732",
-			"reiser4 inode is not clear: ae %d, ce %d, jnodes %lu\n",
-			atomic_read(&r4_inode->anonymous_eflushed),
-			atomic_read(&r4_inode->captured_eflushed), r4_inode->nr_jnodes);
+			"reiser4 inode has jnodes: jnodes %lu\n",
+			r4_inode->nr_jnodes);
 #endif
 }
 

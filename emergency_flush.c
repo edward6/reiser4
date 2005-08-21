@@ -504,6 +504,27 @@ static eflush_node_t *ef_alloc(unsigned int flags)
 	return kmem_cache_alloc(eflush_slab, flags);
 }
 
+static void inc_unfm_ef(void)
+{
+	reiser4_super_info_data *sbinfo;
+
+	sbinfo = get_super_private(get_current_context()->super);
+	reiser4_spin_lock_sb(sbinfo);
+	sbinfo->eflushed_unformatted++;
+	reiser4_spin_unlock_sb(sbinfo);
+}
+
+static void dec_unfm_ef(void)
+{
+	reiser4_super_info_data *sbinfo;
+
+	sbinfo = get_super_private(get_current_context()->super);
+	reiser4_spin_lock_sb(sbinfo);
+	BUG_ON(sbinfo->eflushed_unformatted == 0);
+	sbinfo->eflushed_unformatted--;
+	reiser4_spin_unlock_sb(sbinfo);
+}
+
 #define EFLUSH_MAGIC 4335203
 
 static int

@@ -47,10 +47,10 @@ extern int emergency_unflush(jnode * node);
 #else				/* REISER4_USE_EFLUSH */
 
 #define eflush_init()  (0)
-#define eflush_done()  (0)
+#define eflush_done()  do {} while (0)
 
 #define eflush_init_at(super) (0)
-#define eflush_done_at(super) (0)
+#define eflush_done_at(super) do {} while (0)
 
 #define eflush_get(node)  NULL
 #define eflush_del(node, flag) do{}while(0)
