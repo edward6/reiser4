@@ -563,9 +563,6 @@ eflush_add(jnode * node, reiser4_block_nr * blocknr, eflush_node_t * ef)
 					   index_jnode(node),
 					   EFLUSH_TAG_ANONYMOUS);
 			write_unlock_irq(&inode->i_mapping->tree_lock);
-			ON_DEBUG(atomic_inc(&info->anonymous_eflushed));
-		} else {
-			ON_DEBUG(atomic_inc(&info->captured_eflushed));
 		}
 		inc_unfm_ef();
 	}
@@ -662,9 +659,7 @@ void eflush_free(jnode * node)
 					     index_jnode(node),
 					     EFLUSH_TAG_ANONYMOUS);
 			write_unlock_irq(&inode->i_mapping->tree_lock);
-			ON_DEBUG(atomic_dec(&info->anonymous_eflushed));
-		} else
-			ON_DEBUG(atomic_dec(&info->captured_eflushed));
+		}
 
 		assert("nikita-3355",
 		       jnode_tree_by_reiser4_inode(info)->rnode != NULL);

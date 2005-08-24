@@ -702,19 +702,6 @@ void inode_invariant(const struct inode *inode)
 
 	object = reiser4_inode_data(inode);
 	assert("nikita-3077", spin_inode_object_is_locked(object));
-
-#if REISER4_USE_EFLUSH
-	spin_lock_eflush(inode->i_sb);
-
-	assert("nikita-3146", (atomic_read(&object->anonymous_eflushed) >= 0 &&
-			       atomic_read(&object->captured_eflushed) >= 0));
-	assert("nikita-3441",
-	       ergo(atomic_read(&object->anonymous_eflushed) > 0 ||
-		    atomic_read(&object->captured_eflushed) > 0,
-		    jnode_tree_by_reiser4_inode(object)->rnode != NULL));
-
-	spin_unlock_eflush(inode->i_sb);
-#endif
 }
 
 int inode_has_no_jnodes(reiser4_inode * r4_inode)
