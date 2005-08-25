@@ -213,34 +213,61 @@ static struct {
 	reiser4_plugin_type type;
 } pset_descr[PSET_LAST] = {
 	[PSET_FILE] = {
-	.offset = offsetof(plugin_set, file),.type = REISER4_FILE_PLUGIN_TYPE},
-	    [PSET_DIR] = {
-	.offset = offsetof(plugin_set, dir),.type = REISER4_DIR_PLUGIN_TYPE},
-	    [PSET_PERM] = {
-	.offset = offsetof(plugin_set, perm),.type = REISER4_PERM_PLUGIN_TYPE},
-	    [PSET_FORMATTING] = {
-	.offset = offsetof(plugin_set, formatting),.type =
-		    REISER4_FORMATTING_PLUGIN_TYPE},[PSET_HASH] = {
-	.offset = offsetof(plugin_set, hash),.type =
-		    REISER4_HASH_PLUGIN_TYPE},[PSET_FIBRATION] = {
-	.offset = offsetof(plugin_set, fibration),.type =
-		    REISER4_FIBRATION_PLUGIN_TYPE},[PSET_SD] = {
-	.offset = offsetof(plugin_set, sd),.type =
-		    REISER4_ITEM_PLUGIN_TYPE},[PSET_DIR_ITEM] = {
-	.offset = offsetof(plugin_set, dir_item),.type =
-		    REISER4_ITEM_PLUGIN_TYPE},[PSET_CRYPTO] = {
-	.offset = offsetof(plugin_set, crypto),.type =
-		    REISER4_CRYPTO_PLUGIN_TYPE},[PSET_DIGEST] = {
-	.offset = offsetof(plugin_set, digest),.type =
-		    REISER4_DIGEST_PLUGIN_TYPE},[PSET_COMPRESSION] = {
-	.offset = offsetof(plugin_set, compression),.type =
-		    REISER4_COMPRESSION_PLUGIN_TYPE},[PSET_COMPRESSION_MODE] = {
-	.offset = offsetof(plugin_set, compression_mode),.type =
-		    REISER4_COMPRESSION_MODE_PLUGIN_TYPE},[PSET_CLUSTER] = {
-	.offset = offsetof(plugin_set, cluster),.type =
-		    REISER4_CLUSTER_PLUGIN_TYPE},[PSET_REGULAR_ENTRY] = {
-	.offset = offsetof(plugin_set, regular_entry),.type =
-		    REISER4_REGULAR_PLUGIN_TYPE}
+		.offset = offsetof(plugin_set, file),
+		.type = REISER4_FILE_PLUGIN_TYPE
+	},
+	[PSET_DIR] = {
+		.offset = offsetof(plugin_set, dir),
+		.type = REISER4_DIR_PLUGIN_TYPE
+	},
+	[PSET_PERM] = {
+		.offset = offsetof(plugin_set, perm),
+		.type = REISER4_PERM_PLUGIN_TYPE
+	},
+	[PSET_FORMATTING] = {
+		.offset = offsetof(plugin_set, formatting),
+		.type = REISER4_FORMATTING_PLUGIN_TYPE
+	},
+	[PSET_HASH] = {
+		.offset = offsetof(plugin_set, hash),
+		.type = REISER4_HASH_PLUGIN_TYPE
+	},
+	[PSET_FIBRATION] = {
+		.offset = offsetof(plugin_set, fibration),
+		.type = REISER4_FIBRATION_PLUGIN_TYPE
+	},
+	[PSET_SD] = {
+		.offset = offsetof(plugin_set, sd),
+		.type = REISER4_ITEM_PLUGIN_TYPE
+	},
+	[PSET_DIR_ITEM] = {
+		.offset = offsetof(plugin_set, dir_item),
+		.type = REISER4_ITEM_PLUGIN_TYPE
+	},
+	[PSET_CRYPTO] = {
+		.offset = offsetof(plugin_set, crypto),
+		.type = REISER4_CRYPTO_PLUGIN_TYPE
+	},
+	[PSET_DIGEST] = {
+		.offset = offsetof(plugin_set, digest),
+		.type = REISER4_DIGEST_PLUGIN_TYPE
+	},
+	[PSET_COMPRESSION] = {
+		.offset = offsetof(plugin_set, compression),
+		.type = REISER4_COMPRESSION_PLUGIN_TYPE
+	},
+	[PSET_COMPRESSION_MODE] = {
+		.offset = offsetof(plugin_set, compression_mode),
+		.type = REISER4_COMPRESSION_MODE_PLUGIN_TYPE
+	},
+	[PSET_CLUSTER] = {
+		.offset = offsetof(plugin_set, cluster),
+		.type = REISER4_CLUSTER_PLUGIN_TYPE
+	},
+	[PSET_REGULAR_ENTRY] = {
+		.offset = offsetof(plugin_set, regular_entry),
+		.type = REISER4_REGULAR_PLUGIN_TYPE
+	}
 };
 
 #if REISER4_DEBUG
@@ -300,7 +327,14 @@ DEFINE_PLUGIN_SET(file_plugin, file)
     DEFINE_PLUGIN_SET(cluster_plugin, cluster)
     DEFINE_PLUGIN_SET(regular_plugin, regular_entry)
 
-int plugin_set_init(void)
+
+/**
+ * init_plugin_set - create pset cache and hash table
+ *
+ * Initializes slab cache of plugin_set-s and their hash table. It is part of
+ * reiser4 module initialization.
+ */
+int init_plugin_set(void)
 {
 	int result;
 
@@ -316,7 +350,12 @@ int plugin_set_init(void)
 	return result;
 }
 
-void plugin_set_done(void)
+/**
+ * done_plugin_set - delete plugin_set cache and plugin_set hash table
+ *
+ * This is called on reiser4 module unloading or system shutdown.
+ */
+void done_plugin_set(void)
 {
 	plugin_set *cur, *next;
 
@@ -324,16 +363,16 @@ void plugin_set_done(void)
 		ps_hash_remove(&ps_table, cur);
 		kmem_cache_free(plugin_set_slab, cur);
 	}
-	kmem_cache_destroy(plugin_set_slab);
+	destroy_reiser4_cache(&plugin_set_slab);
 	ps_hash_done(&ps_table);
 }
 
-/* Make Linus happy.
-   Local variables:
-   c-indentation-style: "K&R"
-   mode-name: "LC"
-   c-basic-offset: 8
-   tab-width: 8
-   fill-column: 120
-   End:
-*/
+/*
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 120
+ * End:
+ */

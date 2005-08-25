@@ -1023,7 +1023,7 @@ static int set_plugin(struct file *file, const char *buf)
 			tograb = inode_file_plugin(host)->estimate.update(host);
 			result = reiser4_grab_space(tograb, BA_CAN_COMMIT);
 			if (result == 0)
-				result = reiser4_mark_inode_dirty(host);
+				result = reiser4_update_sd(host);
 		}
 	} else
 		result = RETERR(-ENOENT);

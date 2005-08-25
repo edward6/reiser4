@@ -27,49 +27,6 @@ TYPE_SAFE_LIST_DECLARE(context);
 
 ON_DEBUG(TYPE_SAFE_LIST_DECLARE(flushers);)
 
-#if REISER4_DEBUG
-/*
- * Stat-data update tracking.
- *
- * Some reiser4 functions (reiser4_{del,add}_nlink() take an additional
- * parameter indicating whether stat-data update should be performed. This is
- * because sometimes fields of the same inode are modified several times
- * during single system and updating stat-data (which implies tree lookup and,
- * sometimes, tree balancing) on each inode modification is too expensive. To
- * avoid unnecessary stat-data updates, we pass flag to not update it during
- * inode field updates, and update it manually at the end of the system call.
- *
- * This introduces a possibility of "missed stat data update" when final
- * stat-data update is not performed in some code path. To detect and track
- * down such situations following code was developed.
- *
- * dirty_inode_info is an array of slots. Each slot keeps information about
- * "delayed stat data update", that is about a call to a function modifying
- * inode field that was instructed to not update stat data. Direct call to
- * reiser4_update_sd() clears corresponding slot. On leaving reiser4 context
- * all slots are scanned and information about still not forced updates is
- * printed.
- */
-/* how many delayed stat data update slots to remember */
-#define TRACKED_DELAYED_UPDATE (0)
-typedef struct {
-	ino_t ino;		/* inode number of object with delayed stat data
-				 * update */
-	int delayed;		/* 1 if update is delayed, 0 if update for forced */
-} dirty_inode_info[TRACKED_DELAYED_UPDATE];
-
-extern void mark_inode_update(struct inode *object, int immediate);
-extern int delayed_inode_updates(dirty_inode_info info);
-
-#else
-typedef struct {
-} dirty_inode_info;
-
-#define mark_inode_update(object, immediate) noop
-#define delayed_inode_updates(info) noop
-
-#endif
-
 /* reiser4 per-thread context */
 struct reiser4_context {
 	/* magic constant. For identification of reiser4 contexts. */
@@ -145,8 +102,6 @@ struct reiser4_context {
 	flushers_list_link flushers_link;
 	/* information about last error encountered by reiser4 */
 	err_site err;
-	/* information about delayed stat data updates. See above. */
-	dirty_inode_info dirty;
 #endif
 };
 

@@ -447,143 +447,10 @@ static void move_entry(readdir_pos * pos, coord_t * coord)
  *
  */
 
-TYPE_SAFE_LIST_DECLARE(d_cursor);
-TYPE_SAFE_LIST_DECLARE(a_cursor);
 
-typedef struct {
-	__u16 cid;
-	__u64 oid;
-} d_cursor_key;
 
-struct dir_cursor {
-	int ref;
-	reiser4_file_fsdata *fsdata;
-	d_cursor_hash_link hash;
-	d_cursor_list_link list;
-	d_cursor_key key;
-	d_cursor_info *info;
-	a_cursor_list_link alist;
-};
 
-static kmem_cache_t *d_cursor_slab;
-static struct shrinker *d_cursor_shrinker;
-static unsigned long d_cursor_unused = 0;
-static spinlock_t d_lock = SPIN_LOCK_UNLOCKED;
-static a_cursor_list_head cursor_cache = TYPE_SAFE_LIST_HEAD_INIT(cursor_cache);
 
-#define D_CURSOR_TABLE_SIZE (256)
-
-static inline unsigned long
-d_cursor_hash(d_cursor_hash_table * table, const d_cursor_key * key)
-{
-	assert("nikita-3555", IS_POW(D_CURSOR_TABLE_SIZE));
-	return (key->oid + key->cid) & (D_CURSOR_TABLE_SIZE - 1);
-}
-
-static inline int d_cursor_eq(const d_cursor_key * k1, const d_cursor_key * k2)
-{
-	return k1->cid == k2->cid && k1->oid == k2->oid;
-}
-
-#define KMALLOC(size) kmalloc((size), GFP_KERNEL)
-#define KFREE(ptr, size) kfree(ptr)
-TYPE_SAFE_HASH_DEFINE(d_cursor,
-		      dir_cursor,
-		      d_cursor_key, key, hash, d_cursor_hash, d_cursor_eq);
-#undef KFREE
-#undef KMALLOC
-
-TYPE_SAFE_LIST_DEFINE(d_cursor, dir_cursor, list);
-TYPE_SAFE_LIST_DEFINE(a_cursor, dir_cursor, alist);
-
-static void kill_cursor(dir_cursor * cursor);
-
-/*
- * shrink d_cursors cache. Scan LRU list of unused cursors, freeing requested
- * number. Return number of still freeable cursors.
- */
-static int d_cursor_shrink(int nr, unsigned int gfp_mask)
-{
-	if (nr != 0) {
-		dir_cursor *scan;
-		int killed;
-
-		killed = 0;
-		spin_lock(&d_lock);
-		while (!a_cursor_list_empty(&cursor_cache)) {
-			scan = a_cursor_list_front(&cursor_cache);
-			assert("nikita-3567", scan->ref == 0);
-			kill_cursor(scan);
-			++killed;
-			--nr;
-			if (nr == 0)
-				break;
-		}
-		spin_unlock(&d_lock);
-	}
-	return d_cursor_unused;
-}
-
-/*
- * perform global initializations for the d_cursor sub-system.
- */
-int d_cursor_init(void)
-{
-	d_cursor_slab = kmem_cache_create("d_cursor", sizeof(dir_cursor), 0,
-					  SLAB_HWCACHE_ALIGN, NULL, NULL);
-	if (d_cursor_slab == NULL)
-		return RETERR(-ENOMEM);
-	else {
-		/* actually, d_cursors are "priceless", because there is no
-		 * way to recover information stored in them. On the other
-		 * hand, we don't want to consume all kernel memory by
-		 * them. As a compromise, just assign higher "seeks" value to
-		 * d_cursor cache, so that it will be shrunk only if system is
-		 * really tight on memory. */
-		d_cursor_shrinker = set_shrinker(DEFAULT_SEEKS << 3,
-						 d_cursor_shrink);
-		if (d_cursor_shrinker == NULL)
-			return RETERR(-ENOMEM);
-		else
-			return 0;
-	}
-}
-
-/*
- * Dual to d_cursor_init(): release global d_cursor resources.
- */
-void d_cursor_done(void)
-{
-	if (d_cursor_shrinker != NULL) {
-		remove_shrinker(d_cursor_shrinker);
-		d_cursor_shrinker = NULL;
-	}
-	if (d_cursor_slab != NULL) {
-		kmem_cache_destroy(d_cursor_slab);
-		d_cursor_slab = NULL;
-	}
-}
-
-/*
- * initialize per-super-block d_cursor resources
- */
-int d_cursor_init_at(struct super_block *s)
-{
-	d_cursor_info *p;
-
-	p = &get_super_private(s)->d_info;
-
-	INIT_RADIX_TREE(&p->tree, GFP_KERNEL);
-	return d_cursor_hash_init(&p->table, D_CURSOR_TABLE_SIZE);
-}
-
-/*
- * Dual to d_cursor_init_at: release per-super-block d_cursor resources
- */
-void d_cursor_done_at(struct super_block *s)
-{
-	d_cursor_hash_done(&get_super_private(s)->d_info.table);
-}
 
 /*
  * return d_cursor data for the file system @inode is in.
@@ -620,52 +487,6 @@ static void bind_cursor(dir_cursor * cursor, unsigned long index)
 	}
 }
 
-/*
- * remove @cursor from indices and free it
- */
-static void kill_cursor(dir_cursor * cursor)
-{
-	unsigned long index;
-
-	assert("nikita-3566", cursor->ref == 0);
-	assert("nikita-3572", cursor->fsdata != NULL);
-
-	index = (unsigned long)cursor->key.oid;
-	readdir_list_remove_clean(cursor->fsdata);
-	reiser4_free_fsdata(cursor->fsdata);
-	cursor->fsdata = NULL;
-
-	if (d_cursor_list_is_clean(cursor))
-		/* this is last cursor for a file. Kill radix-tree entry */
-		radix_tree_delete(&cursor->info->tree, index);
-	else {
-		void **slot;
-
-		/*
-		 * there are other cursors for the same oid.
-		 */
-
-		/*
-		 * if radix tree point to the cursor being removed, re-target
-		 * radix tree slot to the next cursor in the (non-empty as was
-		 * checked above) element of the circular list of all cursors
-		 * for this oid.
-		 */
-		slot = radix_tree_lookup_slot(&cursor->info->tree, index);
-		assert("nikita-3571", *slot != NULL);
-		if (*slot == cursor)
-			*slot = d_cursor_list_next(cursor);
-		/* remove cursor from circular list */
-		d_cursor_list_remove_clean(cursor);
-	}
-	/* remove cursor from the list of unused cursors */
-	a_cursor_list_remove_clean(cursor);
-	/* remove cursor from the hash table */
-	d_cursor_hash_remove(&cursor->info->table, cursor);
-	/* and free it */
-	kmem_cache_free(d_cursor_slab, cursor);
-	--d_cursor_unused;
-}
 
 /* possible actions that can be performed on all cursors for the given file */
 enum cursor_action {
@@ -814,7 +635,7 @@ insert_cursor(dir_cursor * cursor, struct file *f, struct inode *inode)
 
 	/* this is either first call to readdir, or rewind. Anyway, create new
 	 * cursor. */
-	fsdata = create_fsdata(NULL, GFP_KERNEL);
+	fsdata = create_fsdata(NULL);
 	if (fsdata != NULL) {
 		result = radix_tree_preload(GFP_KERNEL);
 		if (result == 0) {
@@ -1130,3 +951,13 @@ int readdir_common(struct file *f /* directory file being read */ ,
 
 	return (result <= 0) ? result : 0;
 }
+
+/*
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 79
+ * End:
+ */

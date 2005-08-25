@@ -355,8 +355,8 @@ static inline int jnode_is_in_deleteset(const jnode * node)
 	return JF_ISSET(node, JNODE_RELOC);
 }
 
-extern int jnode_init_static(void);
-extern int jnode_done_static(void);
+extern int init_jnodes(void);
+extern void done_jnodes(void);
 
 /* Jnode routines */
 extern jnode *jalloc(void);

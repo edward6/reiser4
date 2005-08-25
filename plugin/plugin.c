@@ -195,7 +195,13 @@ static reiser4_plugin_type find_type(const char *label);
 static reiser4_plugin *find_plugin(reiser4_plugin_type_data * ptype,
 				   const char *label);
 
-/* initialise plugin sub-system. Just call this once on reiser4 startup. */
+/**
+ * init_plugins - initialize plugins
+ *
+ * Initializes plugin sub-system. It is part of reiser4 module
+ * initialization. For each plugin of each type init method is called and each
+ * plugin is put into list of plugins.
+ */
 int init_plugins(void)
 {
 	reiser4_plugin_type type_id;
@@ -585,12 +591,12 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 	}
 };
 
-/* Make Linus happy.
-   Local variables:
-   c-indentation-style: "K&R"
-   mode-name: "LC"
-   c-basic-offset: 8
-   tab-width: 8
-   fill-column: 120
-   End:
-*/
+/*
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 120
+ * End:
+ */

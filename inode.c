@@ -723,40 +723,6 @@ int inode_has_no_jnodes(reiser4_inode * r4_inode)
 		r4_inode->nr_jnodes == 0;
 }
 
-void mark_inode_update(struct inode *object, int immediate)
-{
-	int i;
-	int pos;
-	reiser4_context *ctx;
-
-	ctx = get_current_context();
-	for (i = 0, pos = -1; i < TRACKED_DELAYED_UPDATE; ++i) {
-		if (ctx->dirty[i].ino == object->i_ino) {
-			pos = i;
-			break;
-		} else if (ctx->dirty[i].ino == 0)
-			pos = i;
-	}
-	if (pos == -1) ;	/*warning("nikita-3402", "Too many delayed inode updates"); */
-	else if (immediate) {
-		ctx->dirty[pos].ino = 0;
-	} else {
-		ctx->dirty[pos].ino = object->i_ino;
-		ctx->dirty[pos].delayed = 1;
-	}
-}
-
-int delayed_inode_updates(dirty_inode_info info)
-{
-	int i;
-
-	for (i = 0; i < TRACKED_DELAYED_UPDATE; ++i) {
-		if (info[i].ino != 0 && info[i].delayed)
-			return 1;
-	}
-	return 0;
-}
-
 #endif
 
 /* true if directory is empty (only contains dot and dotdot) */

@@ -37,7 +37,14 @@
 
 static int scan_mgr(txn_mgr * mgr);
 
-int init_ktxnmgrd_context(txn_mgr * mgr)
+/**
+ * init_ktxnmgrd_context - initialize ktxnmgrd context
+ * @mgr:pointer to transaction manager embedded in reiser4 super block
+ *
+ * Allocates and initializes ktxnmgrd_context, attaches it to transaction
+ * manager. This is called on mount.
+ */
+int init_ktxnmgrd_context(txn_mgr *mgr)
 {
 	ktxnmgrd_context *ctx;
 

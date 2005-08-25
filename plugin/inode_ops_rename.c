@@ -525,7 +525,7 @@ int rename_common(struct inode *old_dir /* directory where @old is located */ ,
 	}
 
 	if (new_inode != NULL)
-		reiser4_mark_inode_dirty(new_inode);
+		reiser4_update_sd(new_inode);
 
 	if (result == 0) {
 		old_entry->obj = old_inode;
@@ -590,7 +590,7 @@ int rename_common(struct inode *old_dir /* directory where @old is located */ ,
 	}
 	reiser4_update_dir(new_dir);
 	reiser4_update_dir(old_dir);
-	reiser4_mark_inode_dirty(old_inode);
+	reiser4_update_sd(old_inode);
 	if (result == 0) {
 		file_plugin *fplug;
 
@@ -811,7 +811,7 @@ int rename_common(struct inode *old_dir /* directory where @old is located */ ,
 	}
 
 	if (new_inode != NULL)
-		reiser4_mark_inode_dirty(new_inode);
+		reiser4_update_sd(new_inode);
 
 	if (result == 0) {
 		memset(&old_entry, 0, sizeof old_entry);
@@ -884,7 +884,7 @@ int rename_common(struct inode *old_dir /* directory where @old is located */ ,
 	}
 	reiser4_update_dir(new_dir);
 	reiser4_update_dir(old_dir);
-	reiser4_mark_inode_dirty(old_inode);
+	reiser4_update_sd(old_inode);
 	if (result == 0) {
 		file_plugin *fplug;
 

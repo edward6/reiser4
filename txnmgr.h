@@ -455,10 +455,10 @@ extern int is_cced(const jnode *node);
 /* These are the externally (within Reiser4) visible transaction functions, therefore they
    are prefixed with "txn_".  For comments, see txnmgr.c. */
 
-extern int txnmgr_init_static(void);
-extern void txnmgr_init(txn_mgr * mgr);
+extern int init_txnmgr_static(void);
+extern void done_txnmgr_static(void);
 
-extern int txnmgr_done_static(void);
+extern void txnmgr_init(txn_mgr * mgr);
 extern int txnmgr_done(txn_mgr * mgr);
 
 extern int txn_reserve(int reserved);

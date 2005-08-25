@@ -192,12 +192,6 @@ static const oid_t fake_ino = 0x1;
 static const oid_t bitmap_ino = 0x2;
 static const oid_t cc_ino = 0x3;
 
-/* one-time initialization of fake inodes handling functions. */
-int init_fakes(void)
-{
-	return 0;
-}
-
 static void
 init_fake_inode(struct super_block *super, struct inode *fake,
 		struct inode **pfake)

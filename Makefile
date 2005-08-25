@@ -34,6 +34,9 @@ reiser4-y := \
 		   ktxnmgrd.o \
 		   blocknrset.o \
 		   super.o \
+		   super_ops.o \
+		   fsdata.o \
+		   export_ops.o \
 		   oid.o \
 		   tree_walk.o \
 		   inode.o \

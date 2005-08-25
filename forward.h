@@ -44,7 +44,6 @@ typedef struct reiser4_super_info_data reiser4_super_info_data;
 /* next two objects are fields of reiser4_super_info_data */
 typedef struct reiser4_oid_allocator reiser4_oid_allocator;
 typedef struct reiser4_space_allocator reiser4_space_allocator;
-typedef struct reiser4_file_fsdata reiser4_file_fsdata;
 
 typedef struct flush_scan flush_scan;
 typedef struct flush_position flush_pos_t;

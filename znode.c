@@ -200,29 +200,33 @@ static kmem_cache_t *znode_slab;
 
 int znode_shift_order;
 
-/* ZNODE INITIALIZATION */
-
-/* call this once on reiser4 initialisation */
-int znodes_init(void)
+/**
+ * init_znodes - create znode cache
+ *
+ * Initializes slab cache of znodes. It is part of reiser4 module initialization.
+ */
+int init_znodes(void)
 {
 	znode_slab = kmem_cache_create("znode", sizeof(znode), 0,
 				       SLAB_HWCACHE_ALIGN |
 				       SLAB_RECLAIM_ACCOUNT, NULL, NULL);
-	if (znode_slab == NULL) {
+	if (znode_slab == NULL)
 		return RETERR(-ENOMEM);
-	} else {
-		for (znode_shift_order = 0;
-		     (1 << znode_shift_order) < sizeof(znode);
-		     ++znode_shift_order) ;
-		--znode_shift_order;
-		return 0;
-	}
+
+	for (znode_shift_order = 0; (1 << znode_shift_order) < sizeof(znode);
+	     ++znode_shift_order);
+	--znode_shift_order;
+	return 0;
 }
 
-/* call this before unloading reiser4 */
-int znodes_done(void)
+/**
+ * done_znodes - delete znode cache
+ *
+ * This is called on reiser4 module unloading or system shutdown.
+ */
+void done_znodes(void)
 {
-	return kmem_cache_destroy(znode_slab);
+	destroy_reiser4_cache(&znode_slab);
 }
 
 /* call this to initialise tree of znodes */

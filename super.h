@@ -9,6 +9,7 @@
 #include "tree.h"
 #include "entd.h"
 #include "wander.h"
+#include "fsdata.h"
 #include "plugin/object.h"
 #include "plugin/space/space_allocator.h"
 
@@ -272,7 +273,10 @@ struct reiser4_super_info_data {
 	/* operations for objects on this file system */
 	object_ops ops;
 
-	/* dir_cursor_info see plugin/dir/dir.[ch] for more details */
+	/* 
+	 * structure to maintain d_cursors. See plugin/file_ops_readdir.c for
+	 * more details
+	 */
 	d_cursor_info d_info;
 
 #ifdef CONFIG_REISER4_BADBLOCKS
@@ -489,15 +493,17 @@ void dec_unalloc_unfm_ptrs(int nr);
 
 #endif
 
+extern void destroy_reiser4_cache(kmem_cache_t **);
+
 /* __REISER4_SUPER_H__ */
 #endif
 
-/* Make Linus happy.
-   Local variables:
-   c-indentation-style: "K&R"
-   mode-name: "LC"
-   c-basic-offset: 8
-   tab-width: 8
-   fill-column: 120
-   End:
-*/
+/*
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 120
+ * End:
+ */

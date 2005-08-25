@@ -20,6 +20,7 @@
 #include "plugin/pseudo/pseudo.h"
 #include "vfs_ops.h"
 #include "jnode.h"
+#include "fsdata.h"
 
 #include <linux/types.h>	/* for __u?? , ino_t */
 #include <linux/fs.h>		/* for struct super_block, struct

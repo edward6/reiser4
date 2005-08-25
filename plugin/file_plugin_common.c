@@ -23,8 +23,6 @@ int write_sd_by_inode_common(struct inode *inode /* object to save */ )
 
 	assert("nikita-730", inode != NULL);
 
-	mark_inode_update(inode, 1);
-
 	if (inode_get_flag(inode, REISER4_NO_SD))
 		/* object doesn't have stat-data yet */
 		result = insert_new_sd(inode);

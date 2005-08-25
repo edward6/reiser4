@@ -28,8 +28,8 @@ struct eflush_node {
 #endif
 };
 
-int eflush_init(void);
-int eflush_done(void);
+extern int init_eflush(void);
+extern void done_eflush(void);
 
 extern int eflush_init_at(struct super_block *super);
 extern void eflush_done_at(struct super_block *super);
@@ -46,8 +46,8 @@ extern int emergency_unflush(jnode * node);
 
 #else				/* REISER4_USE_EFLUSH */
 
-#define eflush_init()  (0)
-#define eflush_done()  do {} while (0)
+#define init_eflush()  (0)
+#define done_eflush()  do {} while (0)
 
 #define eflush_init_at(super) (0)
 #define eflush_done_at(super) do {} while (0)

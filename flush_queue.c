@@ -113,17 +113,31 @@ static void init_fq(flush_queue_t * fq)
 /* slab for flush queues */
 static kmem_cache_t *fq_slab;
 
+
+/**
+ * init_fqs - create flush queue cache
+ *
+ * Initializes slab cache of flush queues. It is part of reiser4 module
+ * initialization.
+ */
 int init_fqs(void)
 {
 	fq_slab = kmem_cache_create("fq",
 				    sizeof(flush_queue_t),
 				    0, SLAB_HWCACHE_ALIGN, NULL, NULL);
-	return (fq_slab == NULL) ? RETERR(-ENOMEM) : 0;
+	if (fq_slab == NULL)
+		return RETERR(-ENOMEM);
+	return 0;
 }
 
+/**
+ * done_fqs - delete flush queue cache
+ *
+ * This is called on reiser4 module unloading or system shutdown.
+ */
 void done_fqs(void)
 {
-	kmem_cache_destroy(fq_slab);
+	destroy_reiser4_cache(&fq_slab);
 }
 
 /* create new flush queue object */

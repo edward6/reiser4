@@ -56,8 +56,7 @@ obj_key_id;
    For alignment issues see &obj_key_id above.
 */
 typedef struct de_id {
-	ON_LARGE_KEY(d8 ordering[sizeof(__u64)];
-	    )
+	ON_LARGE_KEY(d8 ordering[sizeof(__u64)];)
 	d8 objectid[sizeof(__u64)];
 	d8 offset[sizeof(__u64)];
 }
