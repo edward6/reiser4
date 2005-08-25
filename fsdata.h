@@ -1,0 +1,237 @@
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
+
+#if !defined( __REISER4_FSDATA_H__ )
+#define __REISER4_FSDATA_H__
+
+#include "debug.h"
+#include "kassign.h"
+#include "seal.h"
+#include "type_safe_list.h"
+#include "type_safe_hash.h"
+#include "plugin/file/file.h"
+#include "readahead.h"
+
+/*
+ * comment about reiser4_dentry_fsdata
+ *
+ *
+ */
+
+/*
+ * locking: fields of per file descriptor readdir_pos and ->f_pos are
+ * protected by ->i_sem on inode. Under this lock following invariant
+ * holds:
+ *
+ *     file descriptor is "looking" at the entry_no-th directory entry from
+ *     the beginning of directory. This entry has key dir_entry_key and is
+ *     pos-th entry with duplicate-key sequence.
+ *
+ */
+
+/* logical position within directory */
+typedef struct {
+	/* key of directory entry (actually, part of a key sufficient to
+	   identify directory entry)  */
+	de_id dir_entry_key;
+	/* ordinal number of directory entry among all entries with the same
+	   key. (Starting from 0.) */
+	unsigned pos;
+} dir_pos;
+
+typedef struct {
+	/* f_pos corresponding to this readdir position */
+	__u64 fpos;
+	/* logical position within directory */
+	dir_pos position;
+	/* logical number of directory entry within
+	   directory  */
+	__u64 entry_no;
+} readdir_pos;
+
+/*
+ * this is used to speed up lookups for directory entry: on initial call to
+ * ->lookup() seal and coord of directory entry (if found, that is) are stored
+ * in struct dentry and reused later to avoid tree traversals.
+ */
+typedef struct de_location {
+	/* seal covering directory entry */
+	seal_t entry_seal;
+	/* coord of directory entry */
+	coord_t entry_coord;
+	/* ordinal number of directory entry among all entries with the same
+	   key. (Starting from 0.) */
+	int pos;
+} de_location;
+
+/**
+ * reiser4_dentry_fsdata - reiser4-specific data attached to dentries
+ *
+ * This is allocated dynamically and released in d_op->d_release()
+ *
+ * Currently it only contains cached location (hint) of directory entry, but
+ * it is expected that other information will be accumulated here.
+ */
+typedef struct reiser4_dentry_fsdata {
+	/*
+	 * here will go fields filled by ->lookup() to speedup next
+	 * create/unlink, like blocknr of znode with stat-data, or key of
+	 * stat-data.
+	 */
+	de_location dec;
+	int stateless;		/* created through reiser4_decode_fh, needs special
+				 * treatment in readdir. */
+} reiser4_dentry_fsdata;
+
+extern int init_dentry_fsdata(void);
+extern void done_dentry_fsdata(void);
+extern reiser4_dentry_fsdata *reiser4_get_dentry_fsdata(struct dentry *);
+extern void reiser4_free_dentry_fsdata(struct dentry *dentry);
+
+
+/*
+ * comment about reiser4_file_fsdata
+ *
+ *
+ */
+
+/* define struct readdir_list_head and struct readdir_list_link */
+TYPE_SAFE_LIST_DECLARE(readdir);
+
+/**
+ * reiser4_dentry_fsdata - reiser4-specific data attached to file->private_data
+ *
+ * This is allocated dynamically and released in inode->i_fop->release
+ */
+typedef struct reiser4_file_fsdata {
+	/*
+	 * pointer back to the struct file which this reiser4_file_fsdata is
+	 * part of
+	 */
+	struct file *back;
+	/* detached cursor for stateless readdir. */
+	struct dir_cursor *cursor;
+	/*
+	 * We need both directory and regular file parts here, because there
+	 * are file system objects that are files and directories.
+	 */
+	struct {
+		/*
+		 * position in directory. It is updated each time directory is
+		 * modified
+		 */
+		readdir_pos readdir;
+		readdir_list_link linkage;
+	} dir;
+	/* hints to speed up operations with regular files: read and write. */
+	struct {
+		hint_t hint;
+	} reg;
+	/* */
+	struct {
+		/* this is called by reiser4_readpages if set */
+		void (*readpages) (struct address_space *,
+				   struct list_head * pages, void *data);
+		/* reiser4_readpaextended coord. It is set by read_extent before
+		   calling page_cache_readahead */
+		void *data;
+	} ra2;
+	struct reiser4_file_ra_state ra1;
+
+} reiser4_file_fsdata;
+
+/*
+ * define functions to manipulate readdir lists. Head of this list is
+ * reiser4_inode->lists.readdir_list. List links are in
+ * reiser4_file_fsdata->dir.linkage
+ */
+TYPE_SAFE_LIST_DEFINE(readdir, reiser4_file_fsdata, dir.linkage);
+
+extern int init_file_fsdata(void);
+extern void done_file_fsdata(void);
+extern reiser4_file_fsdata *reiser4_get_file_fsdata(struct file *);
+extern void reiser4_free_file_fsdata(struct file *);
+extern reiser4_file_fsdata *create_fsdata(struct file *);
+extern void free_fsdata(reiser4_file_fsdata *);
+
+
+/*
+ * d_cursor is reiser4_file_fsdata not attached to struct file. d_cursors are
+ * used to address problem reiser4 has with readdir accesses via NFS. See
+ * plugin/file_ops_readdir.c for more details.
+ */
+
+TYPE_SAFE_LIST_DECLARE(d_cursor);
+TYPE_SAFE_LIST_DECLARE(a_cursor);
+
+typedef struct {
+	__u16 cid;
+	__u64 oid;
+} d_cursor_key;
+
+/*
+ * define structures d_cursor_hash_table d_cursor_hash_link which are used to
+ * maintain hash table of dir_cursor-s in reiser4's super block
+ */
+typedef struct dir_cursor dir_cursor;
+TYPE_SAFE_HASH_DECLARE(d_cursor, dir_cursor);
+
+typedef struct d_cursor_info d_cursor_info;
+
+struct dir_cursor {
+	int ref;
+	reiser4_file_fsdata *fsdata;
+
+	/* link to reiser4 super block hash table of cursors */
+	d_cursor_hash_link hash;
+
+	/*
+	 * this is to link cursors to reiser4 super block's radix tree of
+	 * cursors if there are more than one cursor of the same objectid
+	 */
+	d_cursor_list_link list;
+	d_cursor_key key;
+	d_cursor_info *info;
+	/* list of unused cursors */
+	a_cursor_list_link alist;
+};
+
+TYPE_SAFE_LIST_DEFINE(d_cursor, dir_cursor, list);
+TYPE_SAFE_LIST_DEFINE(a_cursor, dir_cursor, alist);
+
+extern int init_d_cursor(void);
+extern void done_d_cursor(void);
+
+
+/* these are needed for "stateless" readdir. See plugin/file_ops_readdir.c for
+   more details */
+void dispose_cursors(struct inode *inode);
+void load_cursors(struct inode *inode);
+void kill_cursors(struct inode *inode);
+
+
+int d_cursor_init_at(struct super_block *s);
+void d_cursor_done_at(struct super_block *s);
+void adjust_dir_file(struct inode *dir, const struct dentry *de, int offset, int adj);
+
+/*
+ * this structure is embedded to reise4_super_info_data. It maintains d_cursors
+ * (detached readdir state). See plugin/file_ops_readdir.c for more details.
+ */
+struct d_cursor_info {
+	d_cursor_hash_table table;
+	struct radix_tree_root tree;
+};
+
+/* __REISER4_FSDATA_H__ */
+#endif
+
+/*
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 120
+ * End:
+ */
