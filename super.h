@@ -512,6 +512,33 @@ extern struct super_operations reiser4_super_operations;
 extern struct export_operations reiser4_export_operations;
 extern struct dentry_operations reiser4_dentry_operations;
 
+
+/* FS_ stands for fill_super */
+typedef enum {
+	FS_init_fs_info = 0,
+	FS_init_super_data = 1,
+	FS_init_read_super = 2,
+	FS_init_formatted_fake = 3,
+	FS_init_format = 4,
+	FS_init_root_inode = 5,
+	FAIL_LAST = 6
+	
+} init_where_to_fail_t;
+
+int fail_if_should(init_where_to_fail_t where_am_i);
+
+#define SIMULATE_FAILURE(where)				\
+{							\
+	int ret;					\
+							\
+	ret = fail_if_should(where);			\
+	if (ret) {					\
+		printk("%s failed\n", __FUNCTION__);	\
+		return ret;				\
+	}						\
+}
+
+
 /* __REISER4_SUPER_H__ */
 #endif
 

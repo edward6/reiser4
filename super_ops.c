@@ -365,6 +365,23 @@ struct super_operations reiser4_super_operations = {
 	.show_options = reiser4_show_options
 };
 
+
+init_where_to_fail_t where_to_fail = FS_init_fs_info;
+
+/*
+ * XXXX add call to this function on top of all function you wish to simulate
+ * failure of.
+ */
+int fail_if_should(init_where_to_fail_t where_am_i)
+{
+	if (where_am_i == where_to_fail)
+		return -ENOMEM;
+	where_am_i ++;
+	if (where_am_i == FAIL_LAST)
+		where_am_i = 0;
+	return 0;
+}
+
 /**
  * fill_super - initialize super block on mount
  * @super: super block to fill
@@ -411,7 +428,7 @@ static int fill_super(struct super_block *super, void *data, int silent)
 		goto failed_init_formatted_fake;
 
 	/* initialize disk format plugin */
-	if ((result = get_super_private(super)->df_plug->get_ready(super, data)) != 0 )
+	if ((result = get_super_private(super)->df_plug->init_format(super, data)) != 0 )
 		goto failed_init_disk_format;
 
 	/*

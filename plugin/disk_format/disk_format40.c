@@ -356,10 +356,12 @@ static int try_init_format40(struct super_block *s, format40_init_stage * stage)
 }
 
 /* plugin->u.format.get_ready */
-int get_ready_format40(struct super_block *s, void *data UNUSED_ARG)
+int init_format_format40(struct super_block *s, void *data UNUSED_ARG)
 {
 	int result;
 	format40_init_stage stage;
+
+	/*XXX*/SIMULATE_FAILURE(FS_init_format);
 
 	result = try_init_format40(s, &stage);
 	switch (stage) {

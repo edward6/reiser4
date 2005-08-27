@@ -574,7 +574,7 @@ typedef struct disk_format_plugin {
 	/* generic fields */
 	plugin_header h;
 	/* replay journal, initialize super_info_data, etc */
-	int (*get_ready) (struct super_block *, void *data);
+	int (*init_format) (struct super_block *, void *data);
 
 	/* key of root directory stat data */
 	const reiser4_key *(*root_dir_key) (const struct super_block *);

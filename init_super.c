@@ -18,6 +18,8 @@ int init_fs_info(struct super_block *super)
 {
 	reiser4_super_info_data *sbinfo;
 
+	/*XXX*/SIMULATE_FAILURE(FS_init_fs_info);
+	
 	sbinfo = kmalloc(sizeof(reiser4_super_info_data), GFP_KERNEL);
 	if (!sbinfo)
 		return RETERR(-ENOMEM);
@@ -308,6 +310,8 @@ int init_super_data(struct super_block *super, char *opt_string)
 	opt_desc_t *opts, *p;
 	reiser4_super_info_data *sbinfo = get_super_private(super);
  
+	/*XXX*/SIMULATE_FAILURE(FS_init_super_data);
+
 	/* initialize super, export, dentry operations */
 	sbinfo->ops.super = reiser4_super_operations;
 	sbinfo->ops.export = reiser4_export_operations;
@@ -530,6 +534,8 @@ int init_read_super(struct super_block *super, int silent)
 	reiser4_super_info_data *sbinfo = get_super_private(super);
 	unsigned long blocksize;
 
+	/*XXX*/SIMULATE_FAILURE(FS_init_read_super);
+
  read_super_block:
 #ifdef CONFIG_REISER4_BADBLOCKS
 	if (sbinfo->altsuper)
@@ -681,6 +687,8 @@ int init_root_inode(struct super_block *super)
 	reiser4_super_info_data *sbinfo = get_super_private(super);
 	struct inode *inode;
 	int result = 0;
+
+	/*XXX*/SIMULATE_FAILURE(FS_init_root_inode);
 
 	inode = reiser4_iget(super, sbinfo->df_plug->root_dir_key(super), 0);
 	if (IS_ERR(inode))
