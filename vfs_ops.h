@@ -32,9 +32,6 @@ extern int reiser4_update_sd(struct inode *object);
 extern int reiser4_add_nlink(struct inode *, struct inode *, int);
 extern int reiser4_del_nlink(struct inode *, struct inode *, int);
 
-extern struct super_operations reiser4_super_operations;
-extern struct export_operations reiser4_export_operations;
-extern struct dentry_operations reiser4_dentry_operations;
 
 extern int reiser4_start_up_io(struct page *page);
 extern void reiser4_clear_page_dirty(struct page *);

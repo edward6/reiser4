@@ -308,6 +308,7 @@ int reiser4_blocknr_is_sane(const reiser4_block_nr * blk)
 	return reiser4_blocknr_is_sane_for(reiser4_get_current_sb(), blk);
 }
 
+#if 0
 /*
  * construct various VFS related operation vectors that are embedded into @ops
  * inside of @super.
@@ -328,6 +329,7 @@ void build_object_ops(struct super_block *super, object_ops * ops)
 	super->s_export_op = &ops->export;
 	ops->dentry  = reiser4_dentry_operations;
 }
+#endif
 
 #if REISER4_DEBUG
 

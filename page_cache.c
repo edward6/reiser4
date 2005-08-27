@@ -207,7 +207,13 @@ init_fake_inode(struct super_block *super, struct inode *fake,
 	unlock_new_inode(fake);
 }
 
-/* initialize fake inode to which formatted nodes are bound in the page cache. */
+/**
+ * init_formatted_fake - iget inodes for formatted nodes and bitmaps
+ * @super: super block to init fake inode for
+ *
+ * Initializes fake inode to which formatted nodes are bound in the page cache
+ * and inode for bitmaps.
+ */
 int init_formatted_fake(struct super_block *super)
 {
 	struct inode *fake;
@@ -245,8 +251,14 @@ int init_formatted_fake(struct super_block *super)
 	return RETERR(-ENOMEM);
 }
 
-/* release fake inode for @super */
-int done_formatted_fake(struct super_block *super)
+/**
+ * done_formatted_fake - release inode used by formatted nodes and bitmaps
+ * @super: super block to init fake inode for
+ *
+ * Releases inodes which were used as address spaces of bitmap and formatted
+ * nodes.
+ */
+void done_formatted_fake(struct super_block *super)
 {
 	reiser4_super_info_data *sinfo;
 
@@ -267,7 +279,7 @@ int done_formatted_fake(struct super_block *super)
 		iput(sinfo->cc);
 		sinfo->cc = NULL;
 	}
-	return 0;
+	return;
 }
 
 void reiser4_wait_page_writeback(struct page *page)
@@ -761,13 +773,13 @@ void print_page(const char *prefix, struct page *page)
 #endif
 
 
-/* Make Linus happy.
-   Local variables:
-   c-indentation-style: "K&R"
-   mode-name: "LC"
-   c-basic-offset: 8
-   tab-width: 8
-   fill-column: 120
-   scroll-step: 1
-   End:
-*/
+/*
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 120
+ * scroll-step: 1
+ * End:
+ */

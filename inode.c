@@ -403,14 +403,17 @@ static void loading_up(reiser4_inode * info)
 	up(&info->loading);
 }
 
-/*
- * this is our helper function a la iget(). This is be called by
+/**
+ * reiser4_iget - obtain inode via iget5_locked, read from disk if necessary
+ * @super: super block of filesystem
+ * @key: key of inode's stat-data
+ * @silent:
+ *
+ * This is our helper function a la iget(). This is be called by
  * reiser4_lookup() and reiser4_read_super(). Return inode locked or error
  * encountered.
  */
-struct inode *reiser4_iget(struct super_block *super /* super block  */ ,
-			   const reiser4_key *
-			   key /* key of inode's stat-data */ ,
+struct inode *reiser4_iget(struct super_block *super, const reiser4_key *key,
 			   int silent)
 {
 	struct inode *inode;

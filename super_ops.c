@@ -6,6 +6,7 @@
 #include "ktxnmgrd.h"
 #include "flush.h"
 #include "emergency_flush.h"
+#include "safe_link.h"
 
 #include <linux/vfs.h>
 #include <linux/writeback.h>
@@ -137,31 +138,20 @@ static void reiser4_put_super(struct super_block *super)
 		warning("vs-17", "failed to init context");
 		return;
 	}
-	stop_ktxnmgrd(&sbinfo->tmgr);
-
+	
 	/* have disk format plugin to free its resources */
 	if (get_super_private(super)->df_plug->release)
 		get_super_private(super)->df_plug->release(super);
 
-	/* stop daemons: ktxnmgr and entd */
-	done_ktxnmgrd_context(&sbinfo->tmgr);
-	done_entd_context(super);
-
-	check_block_counters(super);
-
-	rcu_barrier();
-	done_tree(&sbinfo->tree);
-	/*
-	 * call finish_rcu(), because some znode were "released" in
-	 * done_tree().
-	 */
-	rcu_barrier();
-
 	done_formatted_fake(super);
-	reiser4_exit_context(ctx);
 
-	kfree(sbinfo);
-	super->s_fs_info = NULL;
+	/* stop daemons: ktxnmgr and entd */
+	done_entd(super);
+	done_ktxnmgrd(&sbinfo->tmgr);
+	done_txnmgr(&sbinfo->tmgr);
+
+	done_fs_info(super);
+	reiser4_exit_context(ctx);
 }
 
 /**
@@ -287,10 +277,8 @@ static void reiser4_clear_inode(struct inode *inode)
 
 	r4_inode = reiser4_inode_data(inode);
 	if (!inode_has_no_jnodes(r4_inode))
-		warning("vs-1732",
-			"reiser4 inode is not clear: ae %d, ce %d, jnodes %lu\n",
-			atomic_read(&r4_inode->anonymous_eflushed),
-			atomic_read(&r4_inode->captured_eflushed), r4_inode->nr_jnodes);
+		warning("vs-1732", "reiser4 inode has %ld jnodes\n",
+			r4_inode->nr_jnodes);
 #endif
 }
 
@@ -378,6 +366,88 @@ struct super_operations reiser4_super_operations = {
 };
 
 /**
+ * fill_super - initialize super block on mount
+ * @super: super block to fill
+ * @data: reiser4 specific mount option
+ * @silent: 
+ *
+ * This is to be called by reiser4_get_sb. Mounts filesystem.
+ */
+static int fill_super(struct super_block *super, void *data, int silent)
+{
+	reiser4_context ctx;
+	int result;
+	reiser4_super_info_data *sbinfo;
+
+	assert("zam-989", super != NULL);
+
+	super->s_op = NULL;
+	init_stack_context(&ctx, super);
+
+	/* allocate reiser4 specific super block */
+	if ((result = init_fs_info(super)) != 0)
+		goto failed_init_sinfo;
+
+	sbinfo = get_super_private(super);
+	/* initialize various reiser4 parameters, parse mount options */
+	if ((result = init_super_data(super, data)) != 0)
+		goto failed_init_super_data;
+
+	/* read reiser4 master super block, initialize disk format plugin */
+	if ((result = init_read_super(super, silent)) != 0)
+		goto failed_init_read_super;
+
+	/* initialize transaction manager */
+	init_txnmgr(&sbinfo->tmgr);
+
+	/* initialize ktxnmgrd context and start kernel thread ktxnmrgd */
+	init_ktxnmgrd(&sbinfo->tmgr);
+
+	/* initialize entd context and start kernel thread entd */
+	init_entd(super);
+
+	/* initialize address spaces for formatted nodes and bitmaps */
+	if ((result = init_formatted_fake(super)) != 0)
+		goto failed_init_formatted_fake;
+
+	/* initialize disk format plugin */
+	if ((result = get_super_private(super)->df_plug->get_ready(super, data)) != 0 )
+		goto failed_init_disk_format;
+
+	/*
+	 * There are some 'committed' versions of reiser4 super block counters,
+	 * which correspond to reiser4 on-disk state. These counters are
+	 * initialized here
+	 */
+	sbinfo->blocks_free_committed = sbinfo->blocks_free;
+	sbinfo->nr_files_committed = oids_used(super);
+
+	/* get inode of root directory */
+	if ((result = init_root_inode(super)) != 0)
+		goto failed_init_root_inode;
+
+	process_safelinks(super);
+	reiser4_exit_context(&ctx);
+	return 0;
+
+ failed_init_root_inode:
+	if (sbinfo->df_plug->release)
+		sbinfo->df_plug->release(super);
+ failed_init_disk_format:
+	done_formatted_fake(super);
+ failed_init_formatted_fake:
+	done_entd(super);
+	done_ktxnmgrd(&sbinfo->tmgr);
+	done_txnmgr(&sbinfo->tmgr);
+ failed_init_read_super:
+ failed_init_super_data:
+	done_fs_info(super);
+ failed_init_sinfo:
+	reiser4_exit_context(&ctx);
+	return result;
+}
+
+/**
  * reiser4_get_sb - get_sb of file_system_type operations
  * @fs_type: 
  * @flags: mount flags MS_RDONLY, MS_VERBOSE, etc
@@ -391,7 +461,7 @@ static struct super_block *reiser4_get_sb(struct file_system_type *fs_type,
 					  const char *dev_name,
 					  void *data)
 {
-	return get_sb_bdev(fs_type, flags, dev_name, data, reiser4_fill_super);
+	return get_sb_bdev(fs_type, flags, dev_name, data, fill_super);
 }
 
 /* structure describing the reiser4 filesystem implementation */

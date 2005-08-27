@@ -19,11 +19,6 @@
 #include <linux/spinlock.h>
 #include <linux/sched.h>	/* for struct task_struct */
 
-#if REISER4_DEBUG
-/* list of active lock stacks */
-extern spinlock_t active_contexts_lock;
-TYPE_SAFE_LIST_DECLARE(context);
-#endif
 
 ON_DEBUG(TYPE_SAFE_LIST_DECLARE(flushers);)
 
@@ -84,8 +79,6 @@ struct reiser4_context {
 	int nr_captured;
 	int nr_children;	/* number of child contexts */
 #if REISER4_DEBUG
-	/* A link of all active contexts. */
-	context_list_link contexts_link;
 	/* debugging information about reiser4 locks held by the current
 	 * thread */
 	lock_counters_info locks;
@@ -106,14 +99,12 @@ struct reiser4_context {
 };
 
 #if REISER4_DEBUG
-TYPE_SAFE_LIST_DEFINE(context, reiser4_context, contexts_link);
 TYPE_SAFE_LIST_DEFINE(flushers, reiser4_context, flushers_link);
 #endif
 
 extern reiser4_context *get_context_by_lock_stack(lock_stack *);
 
 /* Debugging helps. */
-extern int init_context_mgr(void);
 #if REISER4_DEBUG
 extern void print_contexts(void);
 #endif

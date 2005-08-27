@@ -459,6 +459,12 @@ int release_format40(struct super_block *s)
 	eflush_done_at(s);
 	done_super_jnode(s);
 
+	rcu_barrier();		
+	done_tree(&sbinfo->tree);
+	/* call finish_rcu(), because some znode were "released" in
+	 * done_tree(). */
+	rcu_barrier();
+
 	return 0;
 }
 

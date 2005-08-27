@@ -39,14 +39,10 @@ struct ktxnmgrd_context {
 	unsigned int rescan:1;
 };
 
-extern int init_ktxnmgrd_context(txn_mgr *);
-extern void done_ktxnmgrd_context(txn_mgr *);
-
-extern int start_ktxnmgrd(txn_mgr *);
-extern void stop_ktxnmgrd(txn_mgr *);
+extern int init_ktxnmgrd(txn_mgr *);
+extern void done_ktxnmgrd(txn_mgr *);
 
 extern void ktxnmgrd_kick(txn_mgr * mgr);
-
 extern int is_current_ktxnmgrd(void);
 
 /* __KTXNMGRD_H__ */

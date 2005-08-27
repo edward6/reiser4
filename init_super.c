@@ -1,46 +1,20 @@
 /* Copyright by Hans Reiser, 2003 */
 
-#include "forward.h"
-#include "debug.h"
-#include "dformat.h"
-#include "txnmgr.h"
-#include "jnode.h"
-#include "znode.h"
-#include "tree.h"
-#include "vfs_ops.h"
-#include "inode.h"
-#include "page_cache.h"
-#include "ktxnmgrd.h"
 #include "super.h"
-#include "reiser4.h"
-#include "entd.h"
-#include "emergency_flush.h"
-#include "safe_link.h"
+#include "inode.h"
+#include "plugin/plugin_set.h"
 
-#include <linux/errno.h>
-#include <linux/types.h>
-#include <linux/mount.h>
-#include <linux/vfs.h>
-#include <linux/mm.h>
-#include <linux/buffer_head.h>
-#include <linux/rcupdate.h>
+#include <linux/swap.h>
 
-#define _INIT_PARAM_LIST (struct super_block * s, reiser4_context * ctx, void * data, int silent)
-#define _DONE_PARAM_LIST (struct super_block * s)
-
-#define _INIT_(subsys) static int _init_##subsys _INIT_PARAM_LIST
-#define _DONE_(subsys) static void _done_##subsys _DONE_PARAM_LIST
-
-#define _DONE_EMPTY(subsys) _DONE_(subsys) {}
 
 /**
  * init_fs_info - allocate reiser4 specific super block
- * @super:
+ * @super: super block of filesystem
  *
  * Allocates and initialize reiser4_super_info_data, attaches it to
- * super->s_fs_info.
+ * super->s_fs_info, initializes structures maintaining d_cursor-s.
  */
-static int init_fs_info(struct super_block *super)
+int init_fs_info(struct super_block *super)
 {
 	reiser4_super_info_data *sbinfo;
 
@@ -61,45 +35,32 @@ static int init_fs_info(struct super_block *super)
 #if REISER4_USE_EFLUSH
 	spin_super_eflush_init(sbinfo);
 #endif
+	/*  initialize per-super-block d_cursor resources */
+	init_super_d_info(super);
+	
 	return 0;
 }
 
-static void done_sinfo(struct super_block *super)
+/**
+ * done_fs_info - free reiser4 specific super block
+ * @super: super block of filesystem
+ *
+ * Performs some sanity checks, releases structures maintaining d_cursor-s,
+ * frees reiser4_super_info_data.
+ */
+void done_fs_info(struct super_block *super)
 {
 	assert("zam-990", super->s_fs_info != NULL);
-	rcu_barrier();
+
+	/* release per-super-block d_cursor resources */
+	done_super_d_info(super);
+
+	/* make sure that there are not jnodes already */
+	assert("", list_empty(&get_super_private(super)->all_jnodes));
+	assert("", get_current_context()->trans->atom == NULL);
+	check_block_counters(super);
 	kfree(super->s_fs_info);
 	super->s_fs_info = NULL;
-}
-
-_DONE_(context)
-{
-	reiser4_super_info_data *sbinfo;
-
-	sbinfo = get_super_private(s);
-
-	/* we don't want ->write_super to be called any more. */
-	if (s->s_op)
-		s->s_op->write_super = NULL;
-#if REISER4_DEBUG
-	{
-		struct list_head *scan;
-
-		/* print jnodes that survived umount. */
-		list_for_each(scan, &sbinfo->all_jnodes) {
-			jnode *busy;
-
-			busy = list_entry(scan, jnode, jnodes);
-			info_jnode("\nafter umount", busy);
-		}
-	}
-	if (sbinfo->kmallocs > 0)
-		warning("nikita-2622",
-			"%i areas still allocated", sbinfo->kmallocs);
-#endif
-
-	get_current_context()->trans = NULL;
-	done_context(get_current_context());
 }
 
 /* type of option parseable by parse_option() */
@@ -176,16 +137,15 @@ typedef struct opt_desc {
  * @opt_strin: starting point of parsing
  * @opt: option description
  *
- * 
+ * foo=bar,
+ * ^   ^  ^
+ * |   |  +-- replaced to '\0'
+ * |   +-- val_start
+ * +-- opt_string
+ * Figures out option type and handles option correspondingly.
  */
 static int parse_option(char *opt_string, opt_desc_t *opt)
 {
-	/* foo=bar,
-	   ^   ^  ^
-	   |   |  +-- replaced to '\0'
-	   |   +-- val_start
-	   +-- opt_string
-	 */
 	char *val_start;
 	int result;
 	const char *err_msg;
@@ -262,7 +222,7 @@ static int parse_option(char *opt_string, opt_desc_t *opt)
 }
 
 /**
- * parse_options - 
+ * parse_options - parse reiser4 mount options
  * @opt_string: starting point
  * @opts: array of option description
  * @nr_opts: number of elements in @opts
@@ -342,20 +302,29 @@ static int parse_options(char *opt_string, opt_desc_t *opts, int nr_opts)
  * Sets various reiser4 parameters to default values. Parses mount options and
  * overwrites default settings.
  */
-static int init_super_data(reiser4_super_info_data *sbinfo, char *opt_string)
+int init_super_data(struct super_block *super, char *opt_string)
 {
 	int result;
-	reiser4_super_info_data *sbinfo = get_super_private(super);
 	opt_desc_t *opts, *p;
+	reiser4_super_info_data *sbinfo = get_super_private(super);
+ 
+	/* initialize super, export, dentry operations */
+	sbinfo->ops.super = reiser4_super_operations;
+	sbinfo->ops.export = reiser4_export_operations;
+	sbinfo->ops.dentry = reiser4_dentry_operations;
+	super->s_op = &sbinfo->ops.super;
+	super->s_export_op = &sbinfo->ops.export;
 
-	/* initialize reiser4 super block to default values */
-	sbinfo->tmgr.atom_max_size = txnmgr_get_max_atom_size(super);
+	/* initialize transaction manager parameters to default values */
+	sbinfo->tmgr.atom_max_size = totalram_pages / 4;
 	sbinfo->tmgr.atom_max_age = REISER4_ATOM_MAX_AGE / HZ;
 	sbinfo->tmgr.atom_min_size = 256;
 	sbinfo->tmgr.atom_max_flushers = ATOM_MAX_FLUSHERS;
 
+	/* initialize cbk cache parameter */
 	sbinfo->tree.cbk_cache.nr_slots = CBK_CACHE_SLOTS;
 
+	/* initialize flush parameters */
 	sbinfo->flush.relocate_threshold = FLUSH_RELOCATE_THRESHOLD;
 	sbinfo->flush.relocate_distance = FLUSH_RELOCATE_DISTANCE;
 	sbinfo->flush.written_threshold = FLUSH_WRITTEN_THRESHOLD;
@@ -368,7 +337,7 @@ static int init_super_data(reiser4_super_info_data *sbinfo, char *opt_string)
 	sbinfo->tree.carry.paste_flags = REISER4_PASTE_FLAGS;
 	sbinfo->tree.carry.insert_flags = REISER4_INSERT_FLAGS;
 
-	/* init default readahead params */
+	/* initialize default readahead params */
 	sbinfo->ra_params.max = num_physpages / 4;
 	sbinfo->ra_params.flags = 0;
 
@@ -554,11 +523,11 @@ do {						\
  * Reads reiser4 master super block either from predefined location or from
  * location specified by altsuper mount option, initializes disk format plugin.
  */
-static int init_read_super(struct super_block *super, int silent)
+int init_read_super(struct super_block *super, int silent)
 {
 	struct buffer_head *super_bh;
 	struct reiser4_master_sb *master_sb;
-	reiser4_super_info_data *sbinfo = get_super_private(s);
+	reiser4_super_info_data *sbinfo = get_super_private(super);
 	unsigned long blocksize;
 
  read_super_block:
@@ -569,11 +538,12 @@ static int init_read_super(struct super_block *super, int silent)
 		 * mount option
 		 */
 		super_bh = sb_bread(super,
-				    (sector_t)(sbinfo->altsuper >> s->s_blocksize_bits));
+				    (sector_t)(sbinfo->altsuper / super->s_blocksize));
 	else
 #endif
 		/* read reiser4 master super block at 16-th 4096 block */
-		super_bh = sb_bread(s, (sector_t)(REISER4_MAGIC_OFFSET / s->s_blocksize));	
+		super_bh = sb_bread(super,
+				    (sector_t)(REISER4_MAGIC_OFFSET / super->s_blocksize));	
 	if (!super_bh)
 		return RETERR(-EIO);
 
@@ -591,18 +561,18 @@ static int init_read_super(struct super_block *super, int silent)
 			 */
 			if (!silent)
 				warning("nikita-2609",
-					"%s: wrong block size %ld\n", s->s_id,
+					"%s: wrong block size %ld\n", super->s_id,
 					blocksize);
 			brelse(super_bh);
 			return RETERR(-EINVAL);
 		}
-		if (blocksize != s->s_blocksize) {
+		if (blocksize != super->s_blocksize) {
 			/*
 			 * filesystem uses different blocksize. Reread master
 			 * super block with correct blocksize
 			 */
 			brelse(super_bh);
-			if (!sb_set_blocksize(s, (int)blocksize))
+			if (!sb_set_blocksize(super, (int)blocksize))
 				return RETERR(-EINVAL);
 			goto read_super_block;
 		}
@@ -612,7 +582,7 @@ static int init_read_super(struct super_block *super, int silent)
 			if (!silent)
 				warning("nikita-26091",
 					"%s: unknown disk format plugin %d\n",
-					s->s_id,
+					super->s_id,
 					d16tocpu(&master_sb->disk_plugin_id));
 			brelse(super_bh);
 			return RETERR(-EINVAL);
@@ -625,124 +595,9 @@ static int init_read_super(struct super_block *super, int silent)
 	/* there is no reiser4 on the device */
 	if (!silent)
 		warning("nikita-2608",
-			"%s: wrong master super block magic.", s->s_id);
+			"%s: wrong master super block magic", super->s_id);
 	brelse(super_bh);
 	return RETERR(-EINVAL);
-}
-
-_INIT_(tree0)
-{
-	reiser4_super_info_data *sbinfo = get_super_private(s);
-
-	init_tree_0(&sbinfo->tree);
-	sbinfo->tree.super = s;
-	return 0;
-}
-
-
-    _INIT_(txnmgr)
-{
-	txnmgr_init(&get_super_private(s)->tmgr);
-	return 0;
-}
-
-_DONE_(txnmgr)
-{
-	txnmgr_done(&get_super_private(s)->tmgr);
-}
-
-_INIT_(ktxnmgrd_context)
-{
-	return init_ktxnmgrd_context(&get_super_private(s)->tmgr);
-}
-
-_DONE_(ktxnmgrd_context)
-{
-	done_ktxnmgrd_context(&get_super_private(s)->tmgr);
-}
-
-_INIT_(ktxnmgrd)
-{
-	return start_ktxnmgrd(&get_super_private(s)->tmgr);
-}
-
-_DONE_(ktxnmgrd)
-{
-	stop_ktxnmgrd(&get_super_private(s)->tmgr);
-}
-
-_INIT_(formatted_fake)
-{
-	return init_formatted_fake(s);
-}
-
-_DONE_(formatted_fake)
-{
-	reiser4_super_info_data *sbinfo;
-
-	sbinfo = get_super_private(s);
-
-	rcu_barrier();
-
-	/* done_formatted_fake just has finished with last jnodes (bitmap
-	 * ones) */
-	done_tree(&sbinfo->tree);
-	/* call finish_rcu(), because some znode were "released" in
-	 * done_tree(). */
-	rcu_barrier();
-	done_formatted_fake(s);
-}
-
-_INIT_(entd)
-{
-	init_entd_context(s);
-	return 0;
-}
-
-_DONE_(entd)
-{
-	done_entd_context(s);
-}
-
-_DONE_(disk_format);
-
-_INIT_(disk_format)
-{
-	return get_super_private(s)->df_plug->get_ready(s, data);
-}
-
-_DONE_(disk_format)
-{
-	reiser4_super_info_data *sbinfo = get_super_private(s);
-
-	sbinfo->df_plug->release(s);
-}
-
-_INIT_(sb_counters)
-{
-	/* There are some 'committed' versions of reiser4 super block
-	   counters, which correspond to reiser4 on-disk state. These counters
-	   are initialized here */
-	reiser4_super_info_data *sbinfo = get_super_private(s);
-
-	sbinfo->blocks_free_committed = sbinfo->blocks_free;
-	sbinfo->nr_files_committed = oids_used(s);
-
-	return 0;
-}
-
-_DONE_EMPTY(sb_counters)
-
-    _INIT_(d_cursor)
-{
-	/* this should be done before reading inode of root directory, because
-	 * reiser4_iget() used load_cursors(). */
-	return d_cursor_init_at(s);
-}
-
-_DONE_(d_cursor)
-{
-	d_cursor_done_at(s);
 }
 
 static struct {
@@ -814,23 +669,30 @@ reiser4_plugin *get_default_plugin(pset_member memb)
 			    default_plugins[memb].id);
 }
 
-_INIT_(fs_root)
+/**
+ * init_root_inode - obtain inode of root directory
+ * @super: super block of filesystem
+ *
+ * Obtains inode of root directory (reading it from disk), initializes plugin
+ * set it was not initialized.
+ */
+int init_root_inode(struct super_block *super)
 {
-	reiser4_super_info_data *sbinfo = get_super_private(s);
+	reiser4_super_info_data *sbinfo = get_super_private(super);
 	struct inode *inode;
 	int result = 0;
 
-	inode = reiser4_iget(s, sbinfo->df_plug->root_dir_key(s), 0);
+	inode = reiser4_iget(super, sbinfo->df_plug->root_dir_key(super), 0);
 	if (IS_ERR(inode))
 		return RETERR(PTR_ERR(inode));
 
-	s->s_root = d_alloc_root(inode);
-	if (!s->s_root) {
+	super->s_root = d_alloc_root(inode);
+	if (!super->s_root) {
 		iput(inode);
 		return RETERR(-ENOMEM);
 	}
 
-	s->s_root->d_op = &sbinfo->ops.dentry;
+	super->s_root->d_op = &sbinfo->ops.dentry;
 
 	if (!is_inode_loaded(inode)) {
 		pset_member memb;
@@ -858,137 +720,25 @@ _INIT_(fs_root)
 				result);
 		reiser4_iget_complete(inode);
 	}
-	s->s_maxbytes = MAX_LFS_FILESIZE;
+	super->s_maxbytes = MAX_LFS_FILESIZE;
 	return result;
-}
-
-_DONE_(fs_root)
-{
-	shrink_dcache_parent(s->s_root);
-	assert("vs-1714", hlist_empty(&s->s_anon));
-	dput(s->s_root);
-	s->s_root = NULL;
-	invalidate_inodes(s);
-
-}
-
-_INIT_(safelink)
-{
-	process_safelinks(s);
-	/* failure to process safe-links is not critical. Continue with
-	 * mount. */
-	return 0;
-}
-
-_DONE_(safelink)
-{
-}
-
-_INIT_(exit_context)
-{
-	reiser4_exit_context(ctx);
-	return 0;
-}
-
-_DONE_EMPTY(exit_context)
-
-struct reiser4_subsys {
-	int (*init) _INIT_PARAM_LIST;
-	void (*done) _DONE_PARAM_LIST;
-};
-
-#define _SUBSYS(subsys) {.init = &_init_##subsys, .done = &_done_##subsys}
-static struct reiser4_subsys subsys_array[] = {
-	_SUBSYS(sinfo),
-	_SUBSYS(context),
-	_SUBSYS(init_super_block),
-	_SUBSYS(object_ops),
-	_SUBSYS(read_super),
-	_SUBSYS(tree0),
-	_SUBSYS(txnmgr),
-	_SUBSYS(ktxnmgrd_context),
-	_SUBSYS(ktxnmgrd),
-	_SUBSYS(entd),
-	_SUBSYS(formatted_fake),
-	_SUBSYS(disk_format),
-	_SUBSYS(sb_counters),
-	_SUBSYS(d_cursor),
-	_SUBSYS(fs_root),
-	_SUBSYS(safelink),
-	_SUBSYS(exit_context)
-};
-
-#define REISER4_NR_SUBSYS (sizeof(subsys_array) / sizeof(struct reiser4_subsys))
-
-static void done_super(struct super_block *s, int last_done)
-{
-	int i;
-	for (i = last_done; i >= 0; i--)
-		subsys_array[i].done(s);
 }
 
 /**
- * reiser4_fill_super 
- * @super:
- * @data:
- * @silent:
+ * done_root_inode - put inode of root directory
+ * @super: super block of filesystem
  *
- * read super block from device and fill remaining fields in @s.
+ * Puts inode of root directory. 
  */
-int reiser4_fill_super(struct super_block *super, void *data, int silent)
+void done_root_inode(struct super_block *super)
 {
-	reiser4_context ctx;
-	int i;
-	int result;
-	reiser4_super_info_data *sbinfo;
-
-	assert("zam-989", super != NULL);
-
-	init_stack_context(&ctx, super);
-
-	/* allocate reiser4 specific super block */
-	if ((result = init_fs_info(super)) != 0)
-		goto failed_init_sinfo;
-
-	sbinfo = get_super_private(super);
-	/* initialize various reiser4 parameters, parse mount options */
-	if ((result = init_super_data(sbinfo, data)) != 0)
-		goto failed_init_super_data;
-
-	/* initialize super, export, dentry operations */
-	sbinfo->ops.super = reiser4_super_operations;
-	sbinfo->ops.export = reiser4_export_operations;
-	sbinfo->ops.dentry = reiser4_dentry_operations;
-	super->s_op = &sbinfo->ops.super;
-	super->s_export_op = &sbinfo->ops.export;
-
-	/* read reiser4 master super block, initialize disk format plugin */
-	if ((result = init_read_super(super, silent)) != 0)
-		goto failed_init_read_super;
-
-	/* initialize transaction manager */
-	init_txnmgr(&sbinfo->tmgr);
-
-	if ((result = init_ktxnmgr_context(&sbinfo->tmgr)) != 0)
-		goto failed_init_ktxnmgr_context;
-	start_ktxnmgrd(&get_super_private(s)->tmgr);
-
-	for (i = 0; i < REISER4_NR_SUBSYS; i++) {
-		ret = subsys_array[i].init(s, &ctx, data, silent);
-		if (ret) {
-			done_super(s, i - 1);
-			return ret;
-		}
-	}
-
-	
- failed_init_ktxnmgr_context:
- failed_init_read_super:
- failed_init_super_data:
-	done_sinfo(super);
- failed_init_sinfo:
-	done_context(&ctx);
-	return result;
+	/* remove unused children of the parent dentry */
+	shrink_dcache_parent(super->s_root);
+	assert("vs-1714", hlist_empty(&super->s_anon));
+	dput(super->s_root);
+	super->s_root = NULL;
+	/* discard all inodes of filesystem */
+	invalidate_inodes(super);
 }
 
 /*

@@ -357,12 +357,17 @@ void init_txnmgr(txn_mgr *mgr)
 	sema_init(&mgr->commit_semaphore, 1);
 }
 
-/* Free transaction manager. */
-int done_txnmgr_done(txn_mgr * mgr UNUSED_ARG)
+/**
+ * done_txnmgr - stop transaction manager
+ * @mgr: pointer to transaction manager embedded in reiser4 super block
+ *
+ * This is called on umount. Does sanity checks.
+ */
+void done_txnmgr(txn_mgr *mgr)
 {
 	assert("umka-170", mgr != NULL);
-
-	return 0;
+	assert("umka-1701", atom_list_empty(&mgr->atoms_list));
+	assert("umka-1702", mgr->atom_count == 0);
 }
 
 /* Initialize a transaction handle. */
@@ -4137,12 +4142,6 @@ void insert_into_atom_ovrwr_list(txn_atom * atom, jnode * node)
 	ON_DEBUG(count_jnode(atom, node, NODE_LIST(node), OVRWR_LIST, 1));
 }
 
-/* when atom becomes that big, commit it as soon as possible. This was found
- * to be most effective by testing. */
-unsigned int txnmgr_get_max_atom_size(struct super_block *super UNUSED_ARG)
-{
-	return totalram_pages / 4;
-}
 
 #if REISER4_DEBUG
 

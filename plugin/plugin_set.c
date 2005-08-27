@@ -22,7 +22,7 @@
  */
 
 #include "../debug.h"
-
+#include "../super.h"
 #include "plugin_set.h"
 
 #include <linux/slab.h>

@@ -202,6 +202,14 @@ TYPE_SAFE_LIST_DEFINE(a_cursor, dir_cursor, alist);
 extern int init_d_cursor(void);
 extern void done_d_cursor(void);
 
+extern int init_super_d_info(struct super_block *);
+extern void done_super_d_info(struct super_block *);
+
+extern int file_is_stateless(struct file *);
+extern loff_t get_dir_fpos(struct file *);
+extern int try_to_attach_fsdata(struct file *, struct inode *);
+extern void detach_fsdata(struct file *);
+
 
 /* these are needed for "stateless" readdir. See plugin/file_ops_readdir.c for
    more details */
@@ -210,8 +218,8 @@ void load_cursors(struct inode *inode);
 void kill_cursors(struct inode *inode);
 
 
-int d_cursor_init_at(struct super_block *s);
-void d_cursor_done_at(struct super_block *s);
+
+
 void adjust_dir_file(struct inode *dir, const struct dentry *de, int offset, int adj);
 
 /*

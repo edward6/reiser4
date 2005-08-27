@@ -44,8 +44,14 @@ static inline entd_context *get_entd_context(struct super_block *super)
 	return &get_super_private(super)->entd;
 }
 
-/* initialize ent thread context */
-void init_entd_context(struct super_block *super)
+/**
+ * init_entd - initialize entd context and start kernel daemon
+ * @super: super block to start ent thread for
+ *
+ * Creates entd contexts, starts kernel thread and waits until it
+ * initializes.
+ */
+void init_entd(struct super_block *super)
 {
 	entd_context *ctx;
 
@@ -206,8 +212,14 @@ static int entd(void *arg)
 	return 0;
 }
 
-/* called by umount */
-void done_entd_context(struct super_block *super)
+/**
+ * done_entd - stop entd kernel thread
+ * @super: super block to stop ent thread for
+ *
+ * It is called on umount. Sends stop signal to entd and wait until it handles
+ * it.
+ */
+void done_entd(struct super_block *super)
 {
 	entd_context *ent;
 

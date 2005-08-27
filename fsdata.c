@@ -144,9 +144,9 @@ int init_super_d_info(struct super_block *super)
  * Frees hash table. Radix tree of d_cursors has nothing to free. It is called
  * on umount.
  */
-void d_cursor_done_at(struct super_block *super)
+void done_super_d_info(struct super_block *super)
 {
-	BUG_ON(get_super_private(super)->d_info.tree.rnode == NULL);
+	BUG_ON(get_super_private(super)->d_info.tree.rnode != NULL);
 	d_cursor_hash_done(&get_super_private(super)->d_info.table);
 }
 
@@ -202,7 +202,384 @@ static void kill_cursor(dir_cursor *cursor)
 	--d_cursor_unused;
 }
 
+/* possible actions that can be performed on all cursors for the given file */
+enum cursor_action {
+	/*
+	 * load all detached state: this is called when stat-data is loaded
+	 * from the disk to recover information about all pending readdirs
+	 */
+	CURSOR_LOAD,
+	/*
+	 * detach all state from inode, leaving it in the cache. This is called
+	 * when inode is removed form the memory by memory pressure
+	 */
+	CURSOR_DISPOSE,
+	/*
+	 * detach cursors from the inode, and free them. This is called when
+	 * inode is destroyed
+	 */
+	CURSOR_KILL
+};
 
+/*
+ * return d_cursor data for the file system @inode is in.
+ */
+static inline d_cursor_info *d_info(struct inode *inode)
+{
+	return &get_super_private(inode->i_sb)->d_info;
+}
+
+/*
+ * lookup d_cursor in the per-super-block radix tree.
+ */
+static inline dir_cursor *lookup(d_cursor_info * info, unsigned long index)
+{
+	return (dir_cursor *) radix_tree_lookup(&info->tree, index);
+}
+
+/*
+ * attach @cursor to the radix tree. There may be multiple cursors for the
+ * same oid, they are chained into circular list.
+ */
+static void bind_cursor(dir_cursor * cursor, unsigned long index)
+{
+	dir_cursor *head;
+
+	head = lookup(cursor->info, index);
+	if (head == NULL) {
+		/* this is the first cursor for this index */
+		d_cursor_list_clean(cursor);
+		radix_tree_insert(&cursor->info->tree, index, cursor);
+	} else {
+		/* some cursor already exists. Chain ours */
+		d_cursor_list_insert_after(head, cursor);
+	}
+}
+
+/*
+ * detach fsdata (if detachable) from file descriptor, and put cursor on the
+ * "unused" list. Called when file descriptor is not longer in active use.
+ */
+static void clean_fsdata(struct file *file)
+{
+	dir_cursor *cursor;
+	reiser4_file_fsdata *fsdata;
+
+	assert("nikita-3570", file_is_stateless(file));
+
+	fsdata = (reiser4_file_fsdata *) file->private_data;
+	if (fsdata != NULL) {
+		cursor = fsdata->cursor;
+		if (cursor != NULL) {
+			spin_lock(&d_lock);
+			--cursor->ref;
+			if (cursor->ref == 0) {
+				a_cursor_list_push_back(&cursor_cache, cursor);
+				++d_cursor_unused;
+			}
+			spin_unlock(&d_lock);
+			file->private_data = NULL;
+		}
+	}
+}
+
+/*
+ * global counter used to generate "client ids". These ids are encoded into
+ * high bits of fpos.
+ */
+static __u32 cid_counter = 0;
+#define CID_SHIFT (20)
+#define CID_MASK  (0xfffffull)
+
+/**
+ * insert_cursor - allocate file_fsdata, insert cursor to tree and hash table
+ * @cursor:
+ * @file:
+ * @inode:
+ *
+ * Allocates reiser4_file_fsdata, attaches it to @cursor, inserts cursor to
+ * reiser4 super block's hash table and radix tree.
+ add detachable readdir
+ * state to the @f
+ */
+static int insert_cursor(dir_cursor *cursor, struct file *file,
+			 struct inode *inode)
+{
+	int result;
+	reiser4_file_fsdata *fsdata;
+
+	memset(cursor, 0, sizeof *cursor);
+
+	/* this is either first call to readdir, or rewind. Anyway, create new
+	 * cursor. */
+	fsdata = create_fsdata(NULL);
+	if (fsdata != NULL) {
+		result = radix_tree_preload(GFP_KERNEL);
+		if (result == 0) {
+			d_cursor_info *info;
+			oid_t oid;
+
+			info = d_info(inode);
+			oid = get_inode_oid(inode);
+			/* cid occupies higher 12 bits of f->f_pos. Don't
+			 * allow it to become negative: this confuses
+			 * nfsd_readdir() */
+			cursor->key.cid = (++cid_counter) & 0x7ff;
+			cursor->key.oid = oid;
+			cursor->fsdata = fsdata;
+			cursor->info = info;
+			cursor->ref = 1;
+			spin_lock_inode(inode);
+			/* install cursor as @f's private_data, discarding old
+			 * one if necessary */
+#if REISER4_DEBUG
+			if (file->private_data)
+				warning("", "file has fsdata already");
+#endif
+			clean_fsdata(file);
+			reiser4_free_file_fsdata(file);
+			file->private_data = fsdata;
+			fsdata->cursor = cursor;
+			spin_unlock_inode(inode);
+			spin_lock(&d_lock);
+			/* insert cursor into hash table */
+			d_cursor_hash_insert(&info->table, cursor);
+			/* and chain it into radix-tree */
+			bind_cursor(cursor, (unsigned long)oid);
+			spin_unlock(&d_lock);
+			radix_tree_preload_end();
+			file->f_pos = ((__u64) cursor->key.cid) << CID_SHIFT;
+		}
+	} else
+		result = RETERR(-ENOMEM);
+	return result;
+}
+
+/**
+ * process_cursors - do action on each cursor attached to inode
+ * @inode:
+ * @act: action to do
+ *
+ * Finds all cursors of @inode in reiser4's super block radix tree of cursors
+ * and performs action specified by @act on each of cursors.
+ */
+static void process_cursors(struct inode *inode, enum cursor_action act)
+{
+	oid_t oid;
+	dir_cursor *start;
+	readdir_list_head *head;
+	reiser4_context *ctx;
+	d_cursor_info *info;
+
+	/* this can be called by
+	 *
+	 * kswapd->...->prune_icache->..reiser4_destroy_inode
+	 *
+	 * without reiser4_context
+	 */
+	ctx = init_context(inode->i_sb);
+	if (IS_ERR(ctx)) {
+		warning("vs-23", "failed to init context");
+		return;
+	}
+
+	assert("nikita-3558", inode != NULL);
+
+	info = d_info(inode);
+	oid = get_inode_oid(inode);
+	spin_lock_inode(inode);
+	head = get_readdir_list(inode);
+	spin_lock(&d_lock);
+	/* find any cursor for this oid: reference to it is hanging of radix
+	 * tree */
+	start = lookup(info, (unsigned long)oid);
+	if (start != NULL) {
+		dir_cursor *scan;
+		reiser4_file_fsdata *fsdata;
+
+		/* process circular list of cursors for this oid */
+		scan = start;
+		do {
+			dir_cursor *next;
+
+			next = d_cursor_list_next(scan);
+			fsdata = scan->fsdata;
+			assert("nikita-3557", fsdata != NULL);
+			if (scan->key.oid == oid) {
+				switch (act) {
+				case CURSOR_DISPOSE:
+					readdir_list_remove_clean(fsdata);
+					break;
+				case CURSOR_LOAD:
+					readdir_list_push_front(head, fsdata);
+					break;
+				case CURSOR_KILL:
+					kill_cursor(scan);
+					break;
+				}
+			}
+			if (scan == next)
+				/* last cursor was just killed */
+				break;
+			scan = next;
+		} while (scan != start);
+	}
+	spin_unlock(&d_lock);
+	/* check that we killed 'em all */
+	assert("nikita-3568", ergo(act == CURSOR_KILL,
+				   readdir_list_empty(get_readdir_list
+						      (inode))));
+	assert("nikita-3569",
+	       ergo(act == CURSOR_KILL, lookup(info, oid) == NULL));
+	spin_unlock_inode(inode);
+	reiser4_exit_context(ctx);
+}
+
+/**
+ * dispose_cursors - removes cursors from inode's list
+ * @inode: inode to dispose cursors of
+ *
+ * For each of cursors corresponding to @inode - removes reiser4_file_fsdata
+ * attached to cursor from inode's readdir list. This is called when inode is
+ * removed from the memory by memory pressure.
+ */
+void dispose_cursors(struct inode *inode)
+{
+	process_cursors(inode, CURSOR_DISPOSE);
+}
+
+/**
+ * load_cursors - attach cursors to inode
+ * @inode: inode to load cursors to
+ *
+ * For each of cursors corresponding to @inode - attaches reiser4_file_fsdata
+ * attached to cursor to inode's readdir list. This is done when inode is
+ * loaded into memory.
+ */
+void load_cursors(struct inode *inode)
+{
+	process_cursors(inode, CURSOR_LOAD);
+}
+
+/**
+ * kill_cursors - kill all inode cursors
+ * @inode: inode to kill cursors of
+ *
+ * Frees all cursors for this inode. This is called when inode is destroyed.
+ */
+void kill_cursors(struct inode *inode)
+{
+	process_cursors(inode, CURSOR_KILL);
+}
+
+/**
+ * file_is_stateless - 
+ * @file:
+ *
+ * true, if file descriptor @f is created by NFS server by "demand" to serve
+ * one file system operation. This means that there may be "detached state"
+ * for underlying inode.
+ */
+int file_is_stateless(struct file *file)
+{
+	return reiser4_get_dentry_fsdata(file->f_dentry)->stateless;
+}
+
+/**
+ * get_dir_fpos - 
+ * @dir:
+ *
+ * Calculates ->fpos from user-supplied cookie. Normally it is dir->f_pos, but
+ * in the case of stateless directory operation (readdir-over-nfs), client id
+ * was encoded in the high bits of cookie and should me masked off.
+ */
+loff_t get_dir_fpos(struct file *dir)
+{
+	if (file_is_stateless(dir))
+		return dir->f_pos & CID_MASK;
+	else
+		return dir->f_pos;
+}
+
+/**
+ * try_to_attach_fsdata - ???
+ * @file:
+ * @inode:
+ *
+ * Finds or creates cursor for readdir-over-nfs.
+ */
+int try_to_attach_fsdata(struct file *file, struct inode *inode)
+{
+	loff_t pos;
+	int result;
+	dir_cursor *cursor;
+
+	/*
+	 * we are serialized by inode->i_sem
+	 */
+	if (!file_is_stateless(file))
+		return 0;
+
+	pos = file->f_pos;
+	result = 0;
+	if (pos == 0) {
+		/*
+		 * first call to readdir (or rewind to the beginning of
+		 * directory)
+		 */
+		cursor = kmem_cache_alloc(d_cursor_cache, GFP_KERNEL);
+		if (cursor != NULL)
+			result = insert_cursor(cursor, file, inode);
+		else
+			result = RETERR(-ENOMEM);
+	} else {
+		/* try to find existing cursor */
+		d_cursor_key key;
+
+		key.cid = pos >> CID_SHIFT;
+		key.oid = get_inode_oid(inode);
+		spin_lock(&d_lock);
+		cursor = d_cursor_hash_find(&d_info(inode)->table, &key);
+		if (cursor != NULL) {
+			/* cursor was found */
+			if (cursor->ref == 0) {
+				/* move it from unused list */
+				a_cursor_list_remove_clean(cursor);
+				--d_cursor_unused;
+			}
+			++cursor->ref;
+		}
+		spin_unlock(&d_lock);
+		if (cursor != NULL) {
+			spin_lock_inode(inode);
+			assert("nikita-3556", cursor->fsdata->back == NULL);
+			clean_fsdata(file);
+			reiser4_free_file_fsdata(file);
+			file->private_data = cursor->fsdata;
+			spin_unlock_inode(inode);
+		}
+	}
+	return result;
+}
+
+/**
+ * detach_fsdata - ???
+ * @file:
+ *
+ * detach fsdata, if necessary
+ */
+void detach_fsdata(struct file *file)
+{
+	struct inode *inode;
+
+	if (!file_is_stateless(file))
+		return;
+
+	inode = file->f_dentry->d_inode;
+	spin_lock_inode(inode);
+	clean_fsdata(file);
+	spin_unlock_inode(inode);
+}
 
 /* slab for reiser4_dentry_fsdata */
 static kmem_cache_t *dentry_fsdata_cache;

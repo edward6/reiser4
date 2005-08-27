@@ -458,8 +458,8 @@ extern int is_cced(const jnode *node);
 extern int init_txnmgr_static(void);
 extern void done_txnmgr_static(void);
 
-extern void txnmgr_init(txn_mgr * mgr);
-extern int txnmgr_done(txn_mgr * mgr);
+extern void init_txnmgr(txn_mgr *);
+extern void done_txnmgr(txn_mgr *);
 
 extern int txn_reserve(int reserved);
 
@@ -623,7 +623,6 @@ extern int write_fq(flush_queue_t *, long *, int);
 extern int current_atom_finish_all_fq(void);
 extern void init_atom_fq_parts(txn_atom *);
 
-extern unsigned int txnmgr_get_max_atom_size(struct super_block *super);
 extern reiser4_block_nr txnmgr_count_deleted_blocks(void);
 
 extern void znode_make_dirty(znode * node);

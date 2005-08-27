@@ -61,11 +61,11 @@ typedef struct entd_context {
 	wbq_list_head wbq_list;
 } entd_context;
 
-extern void init_entd_context(struct super_block *super);
-extern void done_entd_context(struct super_block *super);
+extern void init_entd(struct super_block *);
+extern void done_entd(struct super_block *);
 
-extern void enter_flush(struct super_block *super);
-extern void leave_flush(struct super_block *super);
+extern void enter_flush(struct super_block *);
+extern void leave_flush(struct super_block *);
 
 extern int write_page_by_ent(struct page *, struct writeback_control *);
 extern int wbq_available(void);

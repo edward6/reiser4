@@ -12,9 +12,9 @@
 #include <linux/mm.h>		/* for struct page  */
 #include <linux/pagemap.h>	/* for lock_page()  */
 
-extern int init_fakes(void);
-extern int init_formatted_fake(struct super_block *super);
-extern int done_formatted_fake(struct super_block *super);
+
+extern int init_formatted_fake(struct super_block *);
+extern void done_formatted_fake(struct super_block *);
 
 extern reiser4_tree *tree_by_page(const struct page *page);
 

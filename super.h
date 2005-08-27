@@ -143,12 +143,16 @@ struct reiser4_super_info_data {
 	/* reiser4 internal tree */
 	reiser4_tree tree;
 
-	/* default user id used for light-weight files without their own
-	   stat-data. */
+	/*
+	 * default user id used for light-weight files without their own
+	 * stat-data.
+	 */
 	uid_t default_uid;
 
-	/* default group id used for light-weight files without their own
-	   stat-data. */
+	/*
+	 * default group id used for light-weight files without their own
+	 * stat-data.
+	 */
 	gid_t default_gid;
 
 	/* mkfs identifier generated at mkfs time. */
@@ -243,8 +247,10 @@ struct reiser4_super_info_data {
 	/* head block number of last committed transaction */
 	__u64 last_committed_tx;
 
-	/* we remember last written location for using as a hint for
-	   new block allocation */
+	/*
+	 * we remember last written location for using as a hint for new block
+	 * allocation
+	 */
 	__u64 blocknr_hint_default;
 
 	/* committed number of files (oid allocator state variable ) */
@@ -288,12 +294,11 @@ struct reiser4_super_info_data {
 	struct bio *status_bio;
 
 #if REISER4_DEBUG
-	/* minimum used blocks value (includes super blocks, bitmap blocks and
-	 * other fs reserved areas), depends on fs format and fs size. */
+	/*
+	 * minimum used blocks value (includes super blocks, bitmap blocks and
+	 * other fs reserved areas), depends on fs format and fs size.
+	 */
 	__u64 min_blocks_used;
-
-	/* number of space allocated by kmalloc. For debugging. */
-	int kmallocs;
 
 	/*
 	 * when debugging is on, all jnodes (including znodes, bitmaps, etc.)
@@ -303,15 +308,16 @@ struct reiser4_super_info_data {
 	 * contexts (by RCU).
 	 */
 	spinlock_t all_guard;
-	struct list_head all_jnodes;	/* list of all jnodes */
-	__u64 unalloc_extent_pointers;	/* number of unallocated extent pointers in the tree */
+	/* list of all jnodes */
+	struct list_head all_jnodes;
+	/* number of unallocated extent pointers in the tree */
+	__u64 unalloc_extent_pointers;
 #endif
 };
 
 extern reiser4_super_info_data *get_super_private_nocheck(const struct
 							  super_block *super);
 
-extern struct super_operations reiser4_super_operations;
 
 /* Return reiser4-specific part of super block */
 static inline reiser4_super_info_data *get_super_private(const struct
@@ -462,6 +468,13 @@ extern int reiser4_fill_super(struct super_block *s, void *data, int silent);
 extern int reiser4_done_super(struct super_block *s);
 extern reiser4_plugin * get_default_plugin(pset_member memb);
 
+/* step of fill super */
+extern int init_fs_info(struct super_block *);
+extern void done_fs_info(struct super_block *);
+extern int init_super_data(struct super_block *, char *opt_string);
+extern int init_read_super(struct super_block *, int silent);
+extern int init_root_inode(struct super_block *);
+extern void done_root_inode(struct super_block *);
 
 
 /* Maximal possible object id. */
@@ -494,6 +507,10 @@ void dec_unalloc_unfm_ptrs(int nr);
 #endif
 
 extern void destroy_reiser4_cache(kmem_cache_t **);
+
+extern struct super_operations reiser4_super_operations;
+extern struct export_operations reiser4_export_operations;
+extern struct dentry_operations reiser4_dentry_operations;
 
 /* __REISER4_SUPER_H__ */
 #endif
