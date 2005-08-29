@@ -185,18 +185,16 @@ static int entd(void *arg)
 		}
 
 		entd_set_comm(".");
-
-		/* wait for work */
-		result = kcond_wait(&ent->wait, &ent->guard, 1);
-		if (result != -EINTR && result != 0)
-			/* some other error */
-			warning("nikita-3099", "Error: %i", result);
-
 		/* we are asked to exit */
 		if (ent->done) {
 			spin_unlock(&ent->guard);
 			break;
 		}
+		/* wait for work */
+		result = kcond_wait(&ent->wait, &ent->guard, 1);
+		if (result != -EINTR && result != 0)
+			/* some other error */
+			warning("nikita-3099", "Error: %i", result);
 
 		spin_unlock(&ent->guard);
 	}
