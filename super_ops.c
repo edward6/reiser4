@@ -57,7 +57,7 @@ static void init_once(void *obj, kmem_cache_t *cache, unsigned long flags)
  *
  * Initializes slab cache of inodes. It is part of reiser4 module initialization.
  */
-int init_inodes(void)
+static int init_inodes(void)
 {
 	inode_cache = kmem_cache_create("reiser4_inode",
 					sizeof(reiser4_inode_object),
@@ -74,7 +74,7 @@ int init_inodes(void)
  *
  * This is called on reiser4 module unloading or system shutdown.
  */
-void done_inodes(void)
+static void done_inodes(void)
 {
 	destroy_reiser4_cache(&inode_cache);
 }

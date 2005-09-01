@@ -24,7 +24,7 @@ int mknod_common(struct inode *parent, struct dentry *dentry,
 int rename_common(struct inode *old_dir, struct dentry *old_name,
 		  struct inode *new_dir, struct dentry *new_name);
 int readlink_common(struct dentry *, char __user *buf, int buflen);
-int follow_link_common(struct dentry *, struct nameidata *data);
+void *follow_link_common(struct dentry *, struct nameidata *data);
 int permission_common(struct inode *, int mask,	/* mode bits to check permissions for */
 		      struct nameidata *nameidata);
 int setattr_common(struct dentry *, struct iattr *);

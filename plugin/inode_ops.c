@@ -418,7 +418,7 @@ int readlink_common(struct dentry *dentry, char __user *buf, int buflen)
 }
 
 /**
- * followlink_common - follow of inode operations
+ * follow_link_common - follow_link of inode operations
  * @dentry: dentry of symlink
  * @data: 
  *
@@ -426,14 +426,14 @@ int readlink_common(struct dentry *dentry, char __user *buf, int buflen)
  * inode_operations.
  * Assumes that inode's generic_ip points to the content of symbolic link.
  */
-int follow_link_common(struct dentry *dentry, struct nameidata *data)
+void *follow_link_common(struct dentry *dentry, struct nameidata *data)
 {
 	assert("vs-851", S_ISLNK(dentry->d_inode->i_mode));
 
 	if (!dentry->d_inode->u.generic_ip
 	    || !inode_get_flag(dentry->d_inode, REISER4_GENERIC_PTR_USED))
-		return RETERR(-EINVAL);
-	return vfs_follow_link(data, dentry->d_inode->u.generic_ip);
+		return ERR_PTR(RETERR(-EINVAL));
+	return dentry->d_inode->u.generic_ip;
 }
 
 /* this is common implementation of vfs's permission method of struct
