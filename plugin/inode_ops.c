@@ -931,5 +931,5 @@ int reiser4_update_dir(struct inode *dir)
 	assert("nikita-2525", dir != NULL);
 
 	dir->i_ctime = dir->i_mtime = CURRENT_TIME;
-	return reiser4_mark_inode_dirty(dir);
+	return reiser4_update_sd(dir);
 }

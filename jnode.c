@@ -201,39 +201,32 @@ int jnodes_tree_done(reiser4_tree * tree /* tree to destroy jnodes for */ )
 	return 0;
 }
 
-/* Initialize static variables in this file. */
-int jnode_init_static(void)
+/**
+ * init_jnodes - create jnode cache
+ *
+ * Initializes slab cache jnodes. It is part of reiser4 module initialization.
+ */
+int init_jnodes(void)
 {
 	assert("umka-168", _jnode_slab == NULL);
 
 	_jnode_slab = kmem_cache_create("jnode", sizeof(jnode), 0,
 					SLAB_HWCACHE_ALIGN |
 					SLAB_RECLAIM_ACCOUNT, NULL, NULL);
-
 	if (_jnode_slab == NULL)
-		goto error;
+		return RETERR(-ENOMEM);
 
 	return 0;
-
-      error:
-
-	if (_jnode_slab != NULL)
-		kmem_cache_destroy(_jnode_slab);
-
-	return RETERR(-ENOMEM);
 }
 
-/* Dual to jnode_init_static */
-int jnode_done_static(void)
+/**
+ * done_znodes - delete znode cache
+ *
+ * This is called on reiser4 module unloading or system shutdown.
+ */
+void done_jnodes(void)
 {
-	int ret = 0;
-
-	if (_jnode_slab != NULL) {
-		ret = kmem_cache_destroy(_jnode_slab);
-		_jnode_slab = NULL;
-	}
-
-	return ret;
+	destroy_reiser4_cache(&_jnode_slab);
 }
 
 /* Initialize a jnode. */

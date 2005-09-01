@@ -9,21 +9,21 @@
 /* initialization of disk layout plugins */
 disk_format_plugin format_plugins[LAST_FORMAT_ID] = {
 	[FORMAT40_ID] = {
-			 .h = {
-			       .type_id = REISER4_FORMAT_PLUGIN_TYPE,
-			       .id = FORMAT40_ID,
-			       .pops = NULL,
-			       .label = "reiser40",
-			       .desc = "standard disk layout for reiser40",
-			       .linkage = TYPE_SAFE_LIST_LINK_ZERO,
-			       }
-			 ,
-			 .get_ready = get_ready_format40,
-			 .root_dir_key = root_dir_key_format40,
-			 .release = release_format40,
-			 .log_super = log_super_format40,
-			 .print_info = print_info_format40,
-			 .check_open = check_open_format40}
+		.h = {
+			.type_id = REISER4_FORMAT_PLUGIN_TYPE,
+			.id = FORMAT40_ID,
+			.pops = NULL,
+			.label = "reiser40",
+			.desc = "standard disk layout for reiser40",
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+		},
+		.init_format = init_format_format40,
+		.root_dir_key = root_dir_key_format40,
+		.release = release_format40,
+		.log_super = log_super_format40,
+		.print_info = print_info_format40,
+		.check_open = check_open_format40
+	}
 };
 
 /* Make Linus happy.

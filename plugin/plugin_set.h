@@ -65,8 +65,8 @@ extern int plugin_set_compression_mode(plugin_set ** set,
 extern int plugin_set_cluster(plugin_set ** set, cluster_plugin * plug);
 extern int plugin_set_regular_entry(plugin_set ** set, regular_plugin * plug);
 
-extern int plugin_set_init(void);
-extern void plugin_set_done(void);
+extern int init_plugin_set(void);
+extern void done_plugin_set(void);
 
 extern int pset_set(plugin_set ** set, pset_member memb,
 		    reiser4_plugin * plugin);

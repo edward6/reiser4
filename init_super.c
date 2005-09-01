@@ -1,39 +1,20 @@
 /* Copyright by Hans Reiser, 2003 */
 
-#include "forward.h"
-#include "debug.h"
-#include "dformat.h"
-#include "txnmgr.h"
-#include "jnode.h"
-#include "znode.h"
-#include "tree.h"
-#include "vfs_ops.h"
-#include "inode.h"
-#include "page_cache.h"
-#include "ktxnmgrd.h"
 #include "super.h"
-#include "reiser4.h"
-#include "entd.h"
-#include "emergency_flush.h"
-#include "safe_link.h"
+#include "inode.h"
+#include "plugin/plugin_set.h"
 
-#include <linux/errno.h>
-#include <linux/types.h>
-#include <linux/mount.h>
-#include <linux/vfs.h>
-#include <linux/mm.h>
-#include <linux/buffer_head.h>
-#include <linux/rcupdate.h>
+#include <linux/swap.h>
 
-#define _INIT_PARAM_LIST (struct super_block * s, reiser4_context * ctx, void * data, int silent)
-#define _DONE_PARAM_LIST (struct super_block * s)
 
-#define _INIT_(subsys) static int _init_##subsys _INIT_PARAM_LIST
-#define _DONE_(subsys) static void _done_##subsys _DONE_PARAM_LIST
-
-#define _DONE_EMPTY(subsys) _DONE_(subsys) {}
-
-_INIT_(sinfo)
+/**
+ * init_fs_info - allocate reiser4 specific super block
+ * @super: super block of filesystem
+ *
+ * Allocates and initialize reiser4_super_info_data, attaches it to
+ * super->s_fs_info, initializes structures maintaining d_cursor-s.
+ */
+int init_fs_info(struct super_block *super)
 {
 	reiser4_super_info_data *sbinfo;
 
@@ -41,8 +22,8 @@ _INIT_(sinfo)
 	if (!sbinfo)
 		return RETERR(-ENOMEM);
 
-	s->s_fs_info = sbinfo;
-	s->s_op = NULL;
+	super->s_fs_info = sbinfo;
+	super->s_op = NULL;
 	memset(sbinfo, 0, sizeof(*sbinfo));
 
 	ON_DEBUG(INIT_LIST_HEAD(&sbinfo->all_jnodes));
@@ -54,260 +35,571 @@ _INIT_(sinfo)
 #if REISER4_USE_EFLUSH
 	spin_super_eflush_init(sbinfo);
 #endif
+	/*  initialize per-super-block d_cursor resources */
+	init_super_d_info(super);
+	
 	return 0;
 }
 
-_DONE_(sinfo)
+/**
+ * done_fs_info - free reiser4 specific super block
+ * @super: super block of filesystem
+ *
+ * Performs some sanity checks, releases structures maintaining d_cursor-s,
+ * frees reiser4_super_info_data.
+ */
+void done_fs_info(struct super_block *super)
 {
-	assert("zam-990", s->s_fs_info != NULL);
-	rcu_barrier();
-	kfree(s->s_fs_info);
-	s->s_fs_info = NULL;
+	assert("zam-990", super->s_fs_info != NULL);
+
+	/* release per-super-block d_cursor resources */
+	done_super_d_info(super);
+
+	/* make sure that there are not jnodes already */
+	assert("", list_empty(&get_super_private(super)->all_jnodes));
+	assert("", get_current_context()->trans->atom == NULL);
+	check_block_counters(super);
+	kfree(super->s_fs_info);
+	super->s_fs_info = NULL;
 }
 
-_INIT_(context)
+/* type of option parseable by parse_option() */
+typedef enum {
+	/* value of option is arbitrary string */
+	OPT_STRING,
+
+	/*
+	 * option specifies bit in a bitmask. When option is set - bit in
+	 * sbinfo->fs_flags is set. Examples are bsdgroups, 32bittimes, mtflush,
+	 * nopseudo, dont_load_bitmap, atomic_write.
+	 */
+	OPT_BIT,
+
+	/* 
+	 * value of option should conform to sprintf() format. Examples are
+	 * tmgr.atom_max_size=N, tmgr.atom_max_age=N
+	 */
+	OPT_FORMAT,
+
+	/*
+	 * option can take one of predefined values. Example is onerror=panic or
+	 * onerror=remount-ro
+	 */
+	OPT_ONEOF,
+} opt_type_t;
+
+typedef struct opt_bitmask_bit {
+	const char *bit_name;
+	int bit_nr;
+} opt_bitmask_bit;
+
+/* description of option parseable by parse_option() */
+typedef struct opt_desc {
+	/* option name.
+
+	   parsed portion of string has a form "name=value".
+	 */
+	const char *name;
+	/* type of option */
+	opt_type_t type;
+	union {
+		/* where to store value of string option (type == OPT_STRING) */
+		char **string;
+		/* description of bits for bit option (type == OPT_BIT) */
+		struct {
+			int nr;
+			void *addr;
+		} bit;
+		/* description of format and targets for format option (type
+		   == OPT_FORMAT) */
+		struct {
+			const char *format;
+			int nr_args;
+			void *arg1;
+			void *arg2;
+			void *arg3;
+			void *arg4;
+		} f;
+		struct {
+			int *result;
+			const char *list[10];
+		} oneof;
+		struct {
+			void *addr;
+			int nr_bits;
+			opt_bitmask_bit *bits;
+		} bitmask;
+	} u;
+} opt_desc_t;
+
+/**
+ * parse_option - parse one option
+ * @opt_strin: starting point of parsing
+ * @opt: option description
+ *
+ * foo=bar,
+ * ^   ^  ^
+ * |   |  +-- replaced to '\0'
+ * |   +-- val_start
+ * +-- opt_string
+ * Figures out option type and handles option correspondingly.
+ */
+static int parse_option(char *opt_string, opt_desc_t *opt)
 {
-	init_stack_context(ctx, s);
-	return 0;
-}
+	char *val_start;
+	int result;
+	const char *err_msg;
 
-_DONE_(context)
-{
-	reiser4_super_info_data *sbinfo;
+	/* NOTE-NIKITA think about using lib/cmdline.c functions here. */
 
-	sbinfo = get_super_private(s);
-
-	/* we don't want ->write_super to be called any more. */
-	if (s->s_op)
-		s->s_op->write_super = NULL;
-#if REISER4_DEBUG
-	{
-		struct list_head *scan;
-
-		/* print jnodes that survived umount. */
-		list_for_each(scan, &sbinfo->all_jnodes) {
-			jnode *busy;
-
-			busy = list_entry(scan, jnode, jnodes);
-			info_jnode("\nafter umount", busy);
-		}
+	val_start = strchr(opt_string, '=');
+	if (val_start != NULL) {
+		*val_start = '\0';
+		++val_start;
 	}
-	if (sbinfo->kmallocs > 0)
-		warning("nikita-2622",
-			"%i areas still allocated", sbinfo->kmallocs);
+
+	err_msg = NULL;
+	result = 0;
+	switch (opt->type) {
+	case OPT_STRING:
+		if (val_start == NULL) {
+			err_msg = "String arg missing";
+			result = RETERR(-EINVAL);
+		} else
+			*opt->u.string = val_start;
+		break;
+	case OPT_BIT:
+		if (val_start != NULL)
+			err_msg = "Value ignored";
+		else
+			set_bit(opt->u.bit.nr, opt->u.bit.addr);
+		break;
+	case OPT_FORMAT:
+		if (val_start == NULL) {
+			err_msg = "Formatted arg missing";
+			result = RETERR(-EINVAL);
+			break;
+		}
+		if (sscanf(val_start, opt->u.f.format,
+			   opt->u.f.arg1, opt->u.f.arg2, opt->u.f.arg3,
+			   opt->u.f.arg4) != opt->u.f.nr_args) {
+			err_msg = "Wrong conversion";
+			result = RETERR(-EINVAL);
+		}
+		break;
+	case OPT_ONEOF:
+		{
+			int i = 0;
+
+			if (val_start == NULL) {
+				err_msg = "Value is missing";
+				result = RETERR(-EINVAL);
+				break;
+			}
+			err_msg = "Wrong option value";
+			result = RETERR(-EINVAL);
+			while (opt->u.oneof.list[i]) {
+				if (!strcmp(opt->u.oneof.list[i], val_start)) {
+					result = 0;
+					err_msg = NULL;
+					*opt->u.oneof.result = i;
+					break;
+				}
+				i++;
+			}
+			break;
+		}
+	default:
+		wrong_return_value("nikita-2100", "opt -> type");
+		break;
+	}
+	if (err_msg != NULL) {
+		warning("nikita-2496", "%s when parsing option \"%s%s%s\"",
+			err_msg, opt->name, val_start ? "=" : "",
+			val_start ? : "");
+	}
+	return result;
+}
+
+/**
+ * parse_options - parse reiser4 mount options
+ * @opt_string: starting point
+ * @opts: array of option description
+ * @nr_opts: number of elements in @opts
+ *
+ * Parses comma separated list of reiser4 mount options.
+ */
+static int parse_options(char *opt_string, opt_desc_t *opts, int nr_opts)
+{
+	int result;
+
+	result = 0;
+	while ((result == 0) && opt_string && *opt_string) {
+		int j;
+		char *next;
+
+		next = strchr(opt_string, ',');
+		if (next != NULL) {
+			*next = '\0';
+			++next;
+		}
+		for (j = 0; j < nr_opts; ++j) {
+			if (!strncmp(opt_string, opts[j].name,
+				     strlen(opts[j].name))) {
+				result = parse_option(opt_string, &opts[j]);
+				break;
+			}
+		}
+		if (j == nr_opts) {
+			warning("nikita-2307", "Unrecognized option: \"%s\"",
+				opt_string);
+			/* traditionally, -EINVAL is returned on wrong mount
+			   option */
+			result = RETERR(-EINVAL);
+		}
+		opt_string = next;
+	}
+	return result;
+}
+
+#define NUM_OPT( label, fmt, addr )				\
+		{						\
+			.name = ( label ),			\
+			.type = OPT_FORMAT,			\
+			.u = {					\
+				.f = {				\
+					.format  = ( fmt ),	\
+					.nr_args = 1,		\
+					.arg1 = ( addr ),	\
+					.arg2 = NULL,		\
+					.arg3 = NULL,		\
+					.arg4 = NULL		\
+				}				\
+			}					\
+		}
+
+#define SB_FIELD_OPT( field, fmt ) NUM_OPT( #field, fmt, &sbinfo -> field )
+
+#define BIT_OPT(label, bitnr)					\
+	{							\
+		.name = label,					\
+		.type = OPT_BIT,				\
+		.u = {						\
+			.bit = {				\
+				.nr = bitnr,			\
+				.addr = &sbinfo->fs_flags	\
+			}					\
+		}						\
+	}
+
+#define MAX_NR_OPTIONS (30)
+
+/**
+ * init_super_data - initialize reiser4 private super block
+ * @super: super block to initialize
+ * @opt_string: list of reiser4 mount options
+ *
+ * Sets various reiser4 parameters to default values. Parses mount options and
+ * overwrites default settings.
+ */
+int init_super_data(struct super_block *super, char *opt_string)
+{
+	int result;
+	opt_desc_t *opts, *p;
+	reiser4_super_info_data *sbinfo = get_super_private(super);
+ 
+	/* initialize super, export, dentry operations */
+	sbinfo->ops.super = reiser4_super_operations;
+	sbinfo->ops.export = reiser4_export_operations;
+	sbinfo->ops.dentry = reiser4_dentry_operations;
+	super->s_op = &sbinfo->ops.super;
+	super->s_export_op = &sbinfo->ops.export;
+
+	/* initialize transaction manager parameters to default values */
+	sbinfo->tmgr.atom_max_size = totalram_pages / 4;
+	sbinfo->tmgr.atom_max_age = REISER4_ATOM_MAX_AGE / HZ;
+	sbinfo->tmgr.atom_min_size = 256;
+	sbinfo->tmgr.atom_max_flushers = ATOM_MAX_FLUSHERS;
+
+	/* initialize cbk cache parameter */
+	sbinfo->tree.cbk_cache.nr_slots = CBK_CACHE_SLOTS;
+
+	/* initialize flush parameters */
+	sbinfo->flush.relocate_threshold = FLUSH_RELOCATE_THRESHOLD;
+	sbinfo->flush.relocate_distance = FLUSH_RELOCATE_DISTANCE;
+	sbinfo->flush.written_threshold = FLUSH_WRITTEN_THRESHOLD;
+	sbinfo->flush.scan_maxnodes = FLUSH_SCAN_MAXNODES;
+
+	sbinfo->optimal_io_size = REISER4_OPTIMAL_IO_SIZE;
+
+	/* preliminary tree initializations */
+	sbinfo->tree.super = super;
+	sbinfo->tree.carry.new_node_flags = REISER4_NEW_NODE_FLAGS;
+	sbinfo->tree.carry.new_extent_flags = REISER4_NEW_EXTENT_FLAGS;
+	sbinfo->tree.carry.paste_flags = REISER4_PASTE_FLAGS;
+	sbinfo->tree.carry.insert_flags = REISER4_INSERT_FLAGS;
+
+	/* initialize default readahead params */
+	sbinfo->ra_params.max = num_physpages / 4;
+	sbinfo->ra_params.flags = 0;
+
+	/* allocate memory for structure describing reiser4 mount options */
+	opts = kmalloc(sizeof(opt_desc_t) * MAX_NR_OPTIONS, GFP_KERNEL);
+	if (opts == NULL)
+		return RETERR(-ENOMEM);
+
+	/* initialize structure describing reiser4 mount options */
+	p = opts;
+
+#if REISER4_DEBUG
+#  define OPT_ARRAY_CHECK if ((p) > (opts) + MAX_NR_OPTIONS) {		\
+		warning ("zam-1046", "opt array is overloaded"); break;	\
+	}
+#else
+#   define OPT_ARRAY_CHECK noop
 #endif
 
-	get_current_context()->trans = NULL;
-	done_context(get_current_context());
+#define PUSH_OPT(...)				\
+do {						\
+	 opt_desc_t o = __VA_ARGS__;		\
+	 OPT_ARRAY_CHECK;			\
+	 *p ++ = o;				\
+} while (0)
+
+#define PUSH_SB_FIELD_OPT(field, format) PUSH_OPT(SB_FIELD_OPT(field, format))
+#define PUSH_BIT_OPT(name, bit) PUSH_OPT(BIT_OPT(name, bit))
+
+	/* 
+	 * tmgr.atom_max_size=N
+	 * Atoms containing more than N blocks will be forced to commit. N is
+	 * decimal.
+	 */
+	PUSH_SB_FIELD_OPT(tmgr.atom_max_size, "%u");
+	/*
+	 * tmgr.atom_max_age=N
+	 * Atoms older than N seconds will be forced to commit. N is decimal.
+	 */
+	PUSH_SB_FIELD_OPT(tmgr.atom_max_age, "%u");
+	/*
+	 * tmgr.atom_min_size=N
+	 * In committing an atom to free dirty pages, force the atom less than
+	 * N in size to fuse with another one.
+	 */
+	PUSH_SB_FIELD_OPT(tmgr.atom_min_size, "%u");
+	/*
+	 * tmgr.atom_max_flushers=N
+	 * limit of concurrent flushers for one atom. 0 means no limit.
+	 */
+	PUSH_SB_FIELD_OPT(tmgr.atom_max_flushers, "%u");
+	/*
+	 * tree.cbk_cache_slots=N
+	 * Number of slots in the cbk cache.
+	 */
+	PUSH_SB_FIELD_OPT(tree.cbk_cache.nr_slots, "%u");
+	/*
+	 * If flush finds more than FLUSH_RELOCATE_THRESHOLD adjacent dirty
+	 * leaf-level blocks it will force them to be relocated.
+	 */
+	PUSH_SB_FIELD_OPT(flush.relocate_threshold, "%u");
+	/*
+	 * If flush finds can find a block allocation closer than at most
+	 * FLUSH_RELOCATE_DISTANCE from the preceder it will relocate to that
+	 * position.
+	 */
+	PUSH_SB_FIELD_OPT(flush.relocate_distance, "%u");
+	/*
+	 * If we have written this much or more blocks before encountering busy
+	 * jnode in flush list - abort flushing hoping that next time we get
+	 * called this jnode will be clean already, and we will save some
+	 * seeks.
+	 */
+	PUSH_SB_FIELD_OPT(flush.written_threshold, "%u");
+	/* The maximum number of nodes to scan left on a level during flush. */
+	PUSH_SB_FIELD_OPT(flush.scan_maxnodes, "%u");
+	/* preferred IO size */
+	PUSH_SB_FIELD_OPT(optimal_io_size, "%u");
+	/* carry flags used for insertion of new nodes */
+	PUSH_SB_FIELD_OPT(tree.carry.new_node_flags, "%u");
+	/* carry flags used for insertion of new extents */
+	PUSH_SB_FIELD_OPT(tree.carry.new_extent_flags, "%u");
+	/* carry flags used for paste operations */
+	PUSH_SB_FIELD_OPT(tree.carry.paste_flags, "%u");
+	/* carry flags used for insert operations */
+	PUSH_SB_FIELD_OPT(tree.carry.insert_flags, "%u");
+
+#ifdef CONFIG_REISER4_BADBLOCKS
+	/*
+	 * Alternative master superblock location in case if it's original
+	 * location is not writeable/accessable. This is offset in BYTES.
+	 */
+	PUSH_SB_FIELD_OPT(altsuper, "%lu");
+#endif
+
+	/* turn on BSD-style gid assignment */
+	PUSH_BIT_OPT("bsdgroups", REISER4_BSD_GID);
+	/* turn on 32 bit times */
+	PUSH_BIT_OPT("32bittimes", REISER4_32_BIT_TIMES);
+	/* turn off concurrent flushing */
+	PUSH_BIT_OPT("mtflush", REISER4_MTFLUSH);
+	/* disable pseudo files support */
+	PUSH_BIT_OPT("nopseudo", REISER4_NO_PSEUDO);
+	/*
+	 * Don't load all bitmap blocks at mount time, it is useful for
+	 * machines with tiny RAM and large disks.
+	 */
+	PUSH_BIT_OPT("dont_load_bitmap", REISER4_DONT_LOAD_BITMAP);
+	/* disable transaction commits during write() */
+	PUSH_BIT_OPT("atomic_write", REISER4_ATOMIC_WRITE);
+
+	PUSH_OPT(
+	{
+		/*
+		 * tree traversal readahead parameters:
+		 * -o readahead:MAXNUM:FLAGS
+		 * MAXNUM - max number fo nodes to request readahead for: -1UL
+		 * will set it to max_sane_readahead()
+		 * FLAGS - combination of bits: RA_ADJCENT_ONLY, RA_ALL_LEVELS,
+		 * CONTINUE_ON_PRESENT
+		 */
+		.name = "readahead",
+		.type = OPT_FORMAT,
+		.u = {
+			.f = {
+				.format = "%u:%u",
+				.nr_args = 2,
+				.arg1 = &sbinfo->ra_params.max,
+				.arg2 = &sbinfo->ra_params.flags,
+				.arg3 = NULL,
+				.arg4 = NULL
+			}
+		}
+	}
+	);
+
+	/* What to do in case of fs error */
+	PUSH_OPT( 
+	{
+		.name = "onerror",
+		.type = OPT_ONEOF,
+		.u = {
+			.oneof = {
+				.result = &sbinfo->onerror,
+				.list = {
+					"panic", "remount-ro", NULL
+				},
+			}
+		}
+	}
+	);
+
+	/* modify default settings to values set by mount options */
+	result = parse_options(opt_string, opts, p - opts);
+	kfree(opts);
+	if (result != 0)
+		return result;
+
+	/* correct settings to sanity values */
+	sbinfo->tmgr.atom_max_age *= HZ;
+	if (sbinfo->tmgr.atom_max_age <= 0)
+		/* overflow */
+		sbinfo->tmgr.atom_max_age = REISER4_ATOM_MAX_AGE;
+
+	/* round optimal io size up to 512 bytes */
+	sbinfo->optimal_io_size >>= VFS_BLKSIZE_BITS;
+	sbinfo->optimal_io_size <<= VFS_BLKSIZE_BITS;
+	if (sbinfo->optimal_io_size == 0) {
+		warning("nikita-2497", "optimal_io_size is too small");
+		return RETERR(-EINVAL);
+	}
+
+	/* disable single-threaded flush as it leads to deadlock */
+	sbinfo->fs_flags |= (1 << REISER4_MTFLUSH);
+	return result;
 }
 
-_INIT_(parse_options)
-{
-	return reiser4_parse_options(s, data);
-}
-
-_DONE_(parse_options)
-{
-	return;
-}
-
-_INIT_(object_ops)
-{
-	build_object_ops(s, &get_super_private(s)->ops);
-	return 0;
-}
-
-_DONE_EMPTY(object_ops)
-
-    _INIT_(read_super)
+/**
+ * init_read_super - read reiser4 master super block
+ * @super: super block to fill
+ * @silent: if 0 - print warnings
+ *
+ * Reads reiser4 master super block either from predefined location or from
+ * location specified by altsuper mount option, initializes disk format plugin.
+ */
+int init_read_super(struct super_block *super, int silent)
 {
 	struct buffer_head *super_bh;
 	struct reiser4_master_sb *master_sb;
-	int plugin_id;
-	reiser4_super_info_data *sbinfo = get_super_private(s);
+	reiser4_super_info_data *sbinfo = get_super_private(super);
 	unsigned long blocksize;
 
-      read_super_block:
+ read_super_block:
 #ifdef CONFIG_REISER4_BADBLOCKS
 	if (sbinfo->altsuper)
-		super_bh =
-		    sb_bread(s,
-			     (sector_t) (sbinfo->altsuper >> s->
-					 s_blocksize_bits));
+		/*
+		 * read reiser4 master super block at position specified by
+		 * mount option
+		 */
+		super_bh = sb_bread(super,
+				    (sector_t)(sbinfo->altsuper / super->s_blocksize));
 	else
 #endif
-		/* look for reiser4 magic at hardcoded place */
-		super_bh =
-		    sb_bread(s,
-			     (sector_t) (REISER4_MAGIC_OFFSET /
-					 s->s_blocksize));
-
+		/* read reiser4 master super block at 16-th 4096 block */
+		super_bh = sb_bread(super,
+				    (sector_t)(REISER4_MAGIC_OFFSET / super->s_blocksize));	
 	if (!super_bh)
 		return RETERR(-EIO);
 
 	master_sb = (struct reiser4_master_sb *)super_bh->b_data;
 	/* check reiser4 magic string */
-	if (!strncmp
-	    (master_sb->magic, REISER4_SUPER_MAGIC_STRING,
-	     sizeof(REISER4_SUPER_MAGIC_STRING))) {
-		/* reset block size if it is not a right one FIXME-VS: better comment is needed */
+	if (!strncmp(master_sb->magic, REISER4_SUPER_MAGIC_STRING,
+		     sizeof(REISER4_SUPER_MAGIC_STRING))) {
+		/* reiser4 master super block contains filesystem blocksize */
 		blocksize = d16tocpu(&master_sb->blocksize);
 
 		if (blocksize != PAGE_CACHE_SIZE) {
+			/*
+			 * currenly reiser4's blocksize must be equal to
+			 * pagesize
+			 */
 			if (!silent)
 				warning("nikita-2609",
-					"%s: wrong block size %ld\n", s->s_id,
+					"%s: wrong block size %ld\n", super->s_id,
 					blocksize);
 			brelse(super_bh);
 			return RETERR(-EINVAL);
 		}
-		if (blocksize != s->s_blocksize) {
+		if (blocksize != super->s_blocksize) {
+			/*
+			 * filesystem uses different blocksize. Reread master
+			 * super block with correct blocksize
+			 */
 			brelse(super_bh);
-			if (!sb_set_blocksize(s, (int)blocksize)) {
+			if (!sb_set_blocksize(super, (int)blocksize))
 				return RETERR(-EINVAL);
-			}
 			goto read_super_block;
 		}
-
-		plugin_id = d16tocpu(&master_sb->disk_plugin_id);
-		/* only two plugins are available for now */
-		assert("vs-476", plugin_id == FORMAT40_ID);
-		sbinfo->df_plug = disk_format_plugin_by_id(plugin_id);
+		
+		sbinfo->df_plug = disk_format_plugin_by_id(d16tocpu(&master_sb->disk_plugin_id));
+		if (sbinfo->df_plug == NULL) {
+			if (!silent)
+				warning("nikita-26091",
+					"%s: unknown disk format plugin %d\n",
+					super->s_id,
+					d16tocpu(&master_sb->disk_plugin_id));
+			brelse(super_bh);
+			return RETERR(-EINVAL);
+		}
 		sbinfo->diskmap_block = d64tocpu(&master_sb->diskmap);
 		brelse(super_bh);
-	} else {
-		if (!silent) {
-			warning("nikita-2608",
-				"%s: wrong master super block magic.", s->s_id);
-		}
-
-		/* no standard reiser4 super block found */
-		brelse(super_bh);
-		/* FIXME-VS: call guess method for all available layout
-		   plugins */
-		/* umka (2002.06.12) Is it possible when format-specific super
-		   block exists but there no master super block? */
-		return RETERR(-EINVAL);
+		return 0;
 	}
-	return 0;
-}
 
-_DONE_EMPTY(read_super)
-
-    _INIT_(tree0)
-{
-	reiser4_super_info_data *sbinfo = get_super_private(s);
-
-	init_tree_0(&sbinfo->tree);
-	sbinfo->tree.super = s;
-	return 0;
-}
-
-_DONE_EMPTY(tree0)
-
-    _INIT_(txnmgr)
-{
-	txnmgr_init(&get_super_private(s)->tmgr);
-	return 0;
-}
-
-_DONE_(txnmgr)
-{
-	txnmgr_done(&get_super_private(s)->tmgr);
-}
-
-_INIT_(ktxnmgrd_context)
-{
-	return init_ktxnmgrd_context(&get_super_private(s)->tmgr);
-}
-
-_DONE_(ktxnmgrd_context)
-{
-	done_ktxnmgrd_context(&get_super_private(s)->tmgr);
-}
-
-_INIT_(ktxnmgrd)
-{
-	return start_ktxnmgrd(&get_super_private(s)->tmgr);
-}
-
-_DONE_(ktxnmgrd)
-{
-	stop_ktxnmgrd(&get_super_private(s)->tmgr);
-}
-
-_INIT_(formatted_fake)
-{
-	return init_formatted_fake(s);
-}
-
-_DONE_(formatted_fake)
-{
-	reiser4_super_info_data *sbinfo;
-
-	sbinfo = get_super_private(s);
-
-	rcu_barrier();
-
-	/* done_formatted_fake just has finished with last jnodes (bitmap
-	 * ones) */
-	done_tree(&sbinfo->tree);
-	/* call finish_rcu(), because some znode were "released" in
-	 * done_tree(). */
-	rcu_barrier();
-	done_formatted_fake(s);
-}
-
-_INIT_(entd)
-{
-	init_entd_context(s);
-	return 0;
-}
-
-_DONE_(entd)
-{
-	done_entd_context(s);
-}
-
-_DONE_(disk_format);
-
-_INIT_(disk_format)
-{
-	return get_super_private(s)->df_plug->get_ready(s, data);
-}
-
-_DONE_(disk_format)
-{
-	reiser4_super_info_data *sbinfo = get_super_private(s);
-
-	sbinfo->df_plug->release(s);
-}
-
-_INIT_(sb_counters)
-{
-	/* There are some 'committed' versions of reiser4 super block
-	   counters, which correspond to reiser4 on-disk state. These counters
-	   are initialized here */
-	reiser4_super_info_data *sbinfo = get_super_private(s);
-
-	sbinfo->blocks_free_committed = sbinfo->blocks_free;
-	sbinfo->nr_files_committed = oids_used(s);
-
-	return 0;
-}
-
-_DONE_EMPTY(sb_counters)
-
-    _INIT_(d_cursor)
-{
-	/* this should be done before reading inode of root directory, because
-	 * reiser4_iget() used load_cursors(). */
-	return d_cursor_init_at(s);
-}
-
-_DONE_(d_cursor)
-{
-	d_cursor_done_at(s);
+	/* there is no reiser4 on the device */
+	if (!silent)
+		warning("nikita-2608",
+			"%s: wrong master super block magic", super->s_id);
+	brelse(super_bh);
+	return RETERR(-EINVAL);
 }
 
 static struct {
@@ -315,28 +607,61 @@ static struct {
 	reiser4_plugin_id id;
 } default_plugins[PSET_LAST] = {
 	[PSET_FILE] = {
-	.type = REISER4_FILE_PLUGIN_TYPE,.id = UNIX_FILE_PLUGIN_ID},[PSET_DIR] = {
-	.type = REISER4_DIR_PLUGIN_TYPE,.id = HASHED_DIR_PLUGIN_ID},
-	    [PSET_HASH] = {
-	.type = REISER4_HASH_PLUGIN_TYPE,.id = R5_HASH_ID},[PSET_FIBRATION] = {
-	.type = REISER4_FIBRATION_PLUGIN_TYPE,.id = FIBRATION_DOT_O},
-	    [PSET_PERM] = {
-	.type = REISER4_PERM_PLUGIN_TYPE,.id = RWX_PERM_ID},[PSET_FORMATTING] = {
-	.type = REISER4_FORMATTING_PLUGIN_TYPE,.id = SMALL_FILE_FORMATTING_ID},
-	    [PSET_SD] = {
-	.type = REISER4_ITEM_PLUGIN_TYPE,.id = STATIC_STAT_DATA_ID},
-	    [PSET_DIR_ITEM] = {
-	.type = REISER4_ITEM_PLUGIN_TYPE,.id = COMPOUND_DIR_ID},[PSET_CRYPTO] = {
-	.type = REISER4_CRYPTO_PLUGIN_TYPE,.id = NONE_CRYPTO_ID},[PSET_DIGEST] = {
-	.type = REISER4_DIGEST_PLUGIN_TYPE,.id = NONE_DIGEST_ID},
-	    [PSET_COMPRESSION] = {
-	.type = REISER4_COMPRESSION_PLUGIN_TYPE,.id = LZO1_COMPRESSION_ID},
-	    [PSET_COMPRESSION_MODE] = {
-	.type = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,.id =
-		    SMART_COMPRESSION_MODE_ID},[PSET_CLUSTER] = {
-	.type = REISER4_CLUSTER_PLUGIN_TYPE,.id =
-		    CLUSTER_64K_ID},[PSET_REGULAR_ENTRY] = {
-	.type = REISER4_REGULAR_PLUGIN_TYPE,.id = UF_REGULAR_ID}
+		.type = REISER4_FILE_PLUGIN_TYPE,
+		.id = UNIX_FILE_PLUGIN_ID
+	},
+	[PSET_DIR] = {
+		.type = REISER4_DIR_PLUGIN_TYPE,
+		.id = HASHED_DIR_PLUGIN_ID
+	},
+	[PSET_HASH] = {
+		.type = REISER4_HASH_PLUGIN_TYPE,
+		.id = R5_HASH_ID
+	},
+	[PSET_FIBRATION] = {
+		.type = REISER4_FIBRATION_PLUGIN_TYPE,
+		.id = FIBRATION_DOT_O
+	},
+	[PSET_PERM] = {
+		.type = REISER4_PERM_PLUGIN_TYPE,
+		.id = RWX_PERM_ID
+	},
+	[PSET_FORMATTING] = {
+		.type = REISER4_FORMATTING_PLUGIN_TYPE,
+		.id = SMALL_FILE_FORMATTING_ID
+	},
+	[PSET_SD] = {
+		.type = REISER4_ITEM_PLUGIN_TYPE,
+		.id = STATIC_STAT_DATA_ID
+	},
+	[PSET_DIR_ITEM] = {
+		.type = REISER4_ITEM_PLUGIN_TYPE,
+		.id = COMPOUND_DIR_ID
+	},
+	[PSET_CRYPTO] = {
+		.type = REISER4_CRYPTO_PLUGIN_TYPE,
+		.id = NONE_CRYPTO_ID
+	},
+	[PSET_DIGEST] = {
+		.type = REISER4_DIGEST_PLUGIN_TYPE,
+		.id = NONE_DIGEST_ID
+	},
+	[PSET_COMPRESSION] = {
+		.type = REISER4_COMPRESSION_PLUGIN_TYPE,
+		.id = LZO1_COMPRESSION_ID
+	},
+	[PSET_COMPRESSION_MODE] = {
+		.type = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
+		.id = SMART_COMPRESSION_MODE_ID
+	},
+	[PSET_CLUSTER] = {
+		.type = REISER4_CLUSTER_PLUGIN_TYPE,
+		.id = CLUSTER_64K_ID
+	},
+	[PSET_REGULAR_ENTRY] = {
+		.type = REISER4_REGULAR_PLUGIN_TYPE,
+		.id = UF_REGULAR_ID
+	}
 };
 
 /* access to default plugin table */
@@ -346,23 +671,30 @@ reiser4_plugin *get_default_plugin(pset_member memb)
 			    default_plugins[memb].id);
 }
 
-_INIT_(fs_root)
+/**
+ * init_root_inode - obtain inode of root directory
+ * @super: super block of filesystem
+ *
+ * Obtains inode of root directory (reading it from disk), initializes plugin
+ * set it was not initialized.
+ */
+int init_root_inode(struct super_block *super)
 {
-	reiser4_super_info_data *sbinfo = get_super_private(s);
+	reiser4_super_info_data *sbinfo = get_super_private(super);
 	struct inode *inode;
 	int result = 0;
 
-	inode = reiser4_iget(s, sbinfo->df_plug->root_dir_key(s), 0);
+	inode = reiser4_iget(super, sbinfo->df_plug->root_dir_key(super), 0);
 	if (IS_ERR(inode))
 		return RETERR(PTR_ERR(inode));
 
-	s->s_root = d_alloc_root(inode);
-	if (!s->s_root) {
+	super->s_root = d_alloc_root(inode);
+	if (!super->s_root) {
 		iput(inode);
 		return RETERR(-ENOMEM);
 	}
 
-	s->s_root->d_op = &sbinfo->ops.dentry;
+	super->s_root->d_op = &sbinfo->ops.dentry;
 
 	if (!is_inode_loaded(inode)) {
 		pset_member memb;
@@ -390,115 +722,33 @@ _INIT_(fs_root)
 				result);
 		reiser4_iget_complete(inode);
 	}
-	s->s_maxbytes = MAX_LFS_FILESIZE;
+	super->s_maxbytes = MAX_LFS_FILESIZE;
 	return result;
 }
 
-_DONE_(fs_root)
+/**
+ * done_root_inode - put inode of root directory
+ * @super: super block of filesystem
+ *
+ * Puts inode of root directory. 
+ */
+void done_root_inode(struct super_block *super)
 {
-	shrink_dcache_parent(s->s_root);
-	assert("vs-1714", hlist_empty(&s->s_anon));
-	dput(s->s_root);
-	s->s_root = NULL;
-	invalidate_inodes(s);
-
+	/* remove unused children of the parent dentry */
+	shrink_dcache_parent(super->s_root);
+	assert("vs-1714", hlist_empty(&super->s_anon));
+	dput(super->s_root);
+	super->s_root = NULL;
+	/* discard all inodes of filesystem */
+	invalidate_inodes(super);
 }
 
-_INIT_(safelink)
-{
-	process_safelinks(s);
-	/* failure to process safe-links is not critical. Continue with
-	 * mount. */
-	return 0;
-}
-
-_DONE_(safelink)
-{
-}
-
-_INIT_(exit_context)
-{
-	reiser4_exit_context(ctx);
-	return 0;
-}
-
-_DONE_EMPTY(exit_context)
-
-struct reiser4_subsys {
-	int (*init) _INIT_PARAM_LIST;
-	void (*done) _DONE_PARAM_LIST;
-};
-
-#define _SUBSYS(subsys) {.init = &_init_##subsys, .done = &_done_##subsys}
-static struct reiser4_subsys subsys_array[] = {
-	_SUBSYS(sinfo),
-	_SUBSYS(context),
-	_SUBSYS(parse_options),
-	_SUBSYS(object_ops),
-	_SUBSYS(read_super),
-	_SUBSYS(tree0),
-	_SUBSYS(txnmgr),
-	_SUBSYS(ktxnmgrd_context),
-	_SUBSYS(ktxnmgrd),
-	_SUBSYS(entd),
-	_SUBSYS(formatted_fake),
-	_SUBSYS(disk_format),
-	_SUBSYS(sb_counters),
-	_SUBSYS(d_cursor),
-	_SUBSYS(fs_root),
-	_SUBSYS(safelink),
-	_SUBSYS(exit_context)
-};
-
-#define REISER4_NR_SUBSYS (sizeof(subsys_array) / sizeof(struct reiser4_subsys))
-
-static void done_super(struct super_block *s, int last_done)
-{
-	int i;
-	for (i = last_done; i >= 0; i--)
-		subsys_array[i].done(s);
-}
-
-/* read super block from device and fill remaining fields in @s.
-
-   This is read_super() of the past.  */
-int reiser4_fill_super(struct super_block *s, void *data, int silent)
-{
-	reiser4_context ctx;
-	int i;
-	int ret;
-
-	assert("zam-989", s != NULL);
-
-	for (i = 0; i < REISER4_NR_SUBSYS; i++) {
-		ret = subsys_array[i].init(s, &ctx, data, silent);
-		if (ret) {
-			done_super(s, i - 1);
-			return ret;
-		}
-	}
-	return 0;
-}
-
-#if 0
-
-int reiser4_done_super(struct super_block *s)
-{
-	reiser4_context ctx;
-
-	init_context(&ctx, s);
-	done_super(s, REISER4_NR_SUBSYS - 1);
-	return 0;
-}
-
-#endif
-
-/* Make Linus happy.
-   Local variables:
-   c-indentation-style: "K&R"
-   mode-name: "LC"
-   c-basic-offset: 8
-   tab-width: 8
-   fill-column: 80
-   End:
-*/
+/*
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 79
+ * End:
+ */

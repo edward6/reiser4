@@ -297,9 +297,13 @@ static kmem_cache_t *_atom_slab = NULL;
 /* this is for user-visible, cross system-call transactions. */
 static kmem_cache_t *_txnh_slab = NULL;
 
-/* TXN_INIT */
-/* Initialize static variables in this file. */
-int txnmgr_init_static(void)
+/**
+ * init_txnmgr_static - create transaction manager slab caches
+ *
+ * Initializes caches of txn-atoms and txn_handle. It is part of reiser4 module
+ * initialization.
+ */
+int init_txnmgr_static(void)
 {
 	assert("jmacd-600", _atom_slab == NULL);
 	assert("jmacd-601", _txnh_slab == NULL);
@@ -309,54 +313,38 @@ int txnmgr_init_static(void)
 	_atom_slab = kmem_cache_create("txn_atom", sizeof(txn_atom), 0,
 				       SLAB_HWCACHE_ALIGN |
 				       SLAB_RECLAIM_ACCOUNT, NULL, NULL);
+	if (_atom_slab == NULL)
+		return RETERR(-ENOMEM);
 
-	if (_atom_slab == NULL) {
-		goto error;
-	}
-
-	_txnh_slab =
-	    kmem_cache_create("txn_handle", sizeof(txn_handle), 0,
+	_txnh_slab = kmem_cache_create("txn_handle", sizeof(txn_handle), 0,
 			      SLAB_HWCACHE_ALIGN, NULL, NULL);
-
 	if (_txnh_slab == NULL) {
-		goto error;
+		kmem_cache_destroy(_atom_slab);
+		_atom_slab = NULL;
+		return RETERR(-ENOMEM);
 	}
 
 	return 0;
-
-      error:
-
-	if (_atom_slab != NULL) {
-		kmem_cache_destroy(_atom_slab);
-	}
-	if (_txnh_slab != NULL) {
-		kmem_cache_destroy(_txnh_slab);
-	}
-	return RETERR(-ENOMEM);
 }
 
-/* Un-initialize static variables in this file. */
-int txnmgr_done_static(void)
+/**
+ * done_txnmgr_static - delete txn_atom and txn_handle caches
+ *
+ * This is called on reiser4 module unloading or system shutdown.
+ */
+void done_txnmgr_static(void)
 {
-	int ret1, ret2, ret3;
-
-	ret1 = ret2 = ret3 = 0;
-
-	if (_atom_slab != NULL) {
-		ret1 = kmem_cache_destroy(_atom_slab);
-		_atom_slab = NULL;
-	}
-
-	if (_txnh_slab != NULL) {
-		ret2 = kmem_cache_destroy(_txnh_slab);
-		_txnh_slab = NULL;
-	}
-
-	return ret1 ? : ret2;
+	destroy_reiser4_cache(&_atom_slab);
+	destroy_reiser4_cache(&_txnh_slab);
 }
 
-/* Initialize a new transaction manager.  Called when the super_block is initialized. */
-void txnmgr_init(txn_mgr * mgr)
+/**
+ * init_txnmgr - initialize a new transaction manager
+ * @mgr: pointer to transaction manager embedded in reiser4 super block
+ *
+ * This is called on mount. Makes necessary initializations.
+ */
+void init_txnmgr(txn_mgr *mgr)
 {
 	assert("umka-169", mgr != NULL);
 
@@ -369,12 +357,17 @@ void txnmgr_init(txn_mgr * mgr)
 	sema_init(&mgr->commit_semaphore, 1);
 }
 
-/* Free transaction manager. */
-int txnmgr_done(txn_mgr * mgr UNUSED_ARG)
+/**
+ * done_txnmgr - stop transaction manager
+ * @mgr: pointer to transaction manager embedded in reiser4 super block
+ *
+ * This is called on umount. Does sanity checks.
+ */
+void done_txnmgr(txn_mgr *mgr)
 {
 	assert("umka-170", mgr != NULL);
-
-	return 0;
+	assert("umka-1701", atom_list_empty(&mgr->atoms_list));
+	assert("umka-1702", mgr->atom_count == 0);
 }
 
 /* Initialize a transaction handle. */
@@ -4149,12 +4142,6 @@ void insert_into_atom_ovrwr_list(txn_atom * atom, jnode * node)
 	ON_DEBUG(count_jnode(atom, node, NODE_LIST(node), OVRWR_LIST, 1));
 }
 
-/* when atom becomes that big, commit it as soon as possible. This was found
- * to be most effective by testing. */
-unsigned int txnmgr_get_max_atom_size(struct super_block *super UNUSED_ARG)
-{
-	return totalram_pages / 4;
-}
 
 #if REISER4_DEBUG
 

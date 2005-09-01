@@ -109,29 +109,6 @@ int locate_inode_sd(struct inode *, reiser4_key *, coord_t *, lock_handle *);
 int lookup_sd(struct inode *, znode_lock_mode, coord_t *, lock_handle *,
 	      const reiser4_key *, int silent);
 
-/* these are needed for "stateless" readdir. See plugin/file_ops_readdir.c for
-   more details */
-void dispose_cursors(struct inode *inode);
-void load_cursors(struct inode *inode);
-void kill_cursors(struct inode *inode);
-
-typedef struct dir_cursor dir_cursor;
-
-TYPE_SAFE_HASH_DECLARE(d_cursor, dir_cursor);
-
-int d_cursor_init_at(struct super_block *s);
-void d_cursor_done_at(struct super_block *s);
-void adjust_dir_file(struct inode *dir, const struct dentry *de, int offset, int adj);
-
-/*
- * information about d_cursors (detached readdir state) maintained in reiser4
- * specific portion of reiser4 super-block. See dir.c for more information on
- * d_cursors.
- */
-typedef struct d_cursor_info {
-	d_cursor_hash_table table;
-	struct radix_tree_root tree;
-} d_cursor_info;
 
 /* __FS_REISER4_PLUGIN_OBJECT_H__ */
 #endif

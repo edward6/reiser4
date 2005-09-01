@@ -196,33 +196,37 @@ TYPE_SAFE_HASH_DEFINE(z, znode, reiser4_block_nr, zjnode.key.z, zjnode.link.z,
 #undef KMALLOC
 
 /* slab for znodes */
-static kmem_cache_t *znode_slab;
+static kmem_cache_t *znode_cache;
 
 int znode_shift_order;
 
-/* ZNODE INITIALIZATION */
-
-/* call this once on reiser4 initialisation */
-int znodes_init(void)
+/**
+ * init_znodes - create znode cache
+ *
+ * Initializes slab cache of znodes. It is part of reiser4 module initialization.
+ */
+int init_znodes(void)
 {
-	znode_slab = kmem_cache_create("znode", sizeof(znode), 0,
-				       SLAB_HWCACHE_ALIGN |
-				       SLAB_RECLAIM_ACCOUNT, NULL, NULL);
-	if (znode_slab == NULL) {
+	znode_cache = kmem_cache_create("znode", sizeof(znode), 0,
+					SLAB_HWCACHE_ALIGN |
+					SLAB_RECLAIM_ACCOUNT, NULL, NULL);
+	if (znode_cache == NULL)
 		return RETERR(-ENOMEM);
-	} else {
-		for (znode_shift_order = 0;
-		     (1 << znode_shift_order) < sizeof(znode);
-		     ++znode_shift_order) ;
-		--znode_shift_order;
-		return 0;
-	}
+
+	for (znode_shift_order = 0; (1 << znode_shift_order) < sizeof(znode);
+	     ++znode_shift_order);
+	--znode_shift_order;
+	return 0;
 }
 
-/* call this before unloading reiser4 */
-int znodes_done(void)
+/**
+ * done_znodes - delete znode cache
+ *
+ * This is called on reiser4 module unloading or system shutdown.
+ */
+void done_znodes(void)
 {
-	return kmem_cache_destroy(znode_slab);
+	destroy_reiser4_cache(&znode_cache);
 }
 
 /* call this to initialise tree of znodes */
@@ -260,7 +264,7 @@ void zfree(znode * node /* znode to free */ )
 
 	/* poison memory. */
 	ON_DEBUG(memset(node, 0xde, sizeof *node));
-	kmem_cache_free(znode_slab, node);
+	kmem_cache_free(znode_cache, node);
 }
 
 /* call this to free tree of znodes */
@@ -309,7 +313,7 @@ znode *zalloc(unsigned int gfp_flag /* allocation flag */ )
 {
 	znode *node;
 
-	node = kmem_cache_alloc(znode_slab, gfp_flag);
+	node = kmem_cache_alloc(znode_cache, gfp_flag);
 	return node;
 }
 

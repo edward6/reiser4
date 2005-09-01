@@ -63,15 +63,17 @@ void reiser4_set_block_count(const struct super_block *super, __u64 nr)
 	assert("vs-501", super != NULL);
 	assert("vs-502", is_reiser4_super(super));
 	get_super_private(super)->block_count = nr;
-	/* The proper calculation of the reserved space counter (%5 of device
-	   block counter) we need a 64 bit division which is missing in Linux on
-	   i386 platform. Because we do not need a precise calculation here we
-	   can replace a div64 operation by this combination of multiplication
-	   and shift: 51. / (2^10) == .0498 . */
-	/* FIXME: this is a bug. It comes up only for very small filesystems
-	   which probably are never user. Nevertheless, it is a bug. Number of
-	   reserved blocks must be not less than maximal number of blocks which
-	   get grabbed with BA_RESERVED. */
+	/*
+	 * The proper calculation of the reserved space counter (%5 of device
+	 * block counter) we need a 64 bit division which is missing in Linux
+	 * on i386 platform. Because we do not need a precise calculation here
+	 * we can replace a div64 operation by this combination of
+	 * multiplication and shift: 51. / (2^10) == .0498 .
+	 * FIXME: this is a bug. It comes up only for very small filesystems
+	 * which probably are never used. Nevertheless, it is a bug. Number of
+	 * reserved blocks must be not less than maximal number of blocks which
+	 * get grabbed with BA_RESERVED.
+	 */
 	get_super_private(super)->blocks_reserved = ((nr * 51) >> 10);
 }
 
@@ -308,6 +310,7 @@ int reiser4_blocknr_is_sane(const reiser4_block_nr * blk)
 	return reiser4_blocknr_is_sane_for(reiser4_get_current_sb(), blk);
 }
 
+#if 0
 /*
  * construct various VFS related operation vectors that are embedded into @ops
  * inside of @super.
@@ -328,6 +331,7 @@ void build_object_ops(struct super_block *super, object_ops * ops)
 	super->s_export_op = &ops->export;
 	ops->dentry  = reiser4_dentry_operations;
 }
+#endif
 
 #if REISER4_DEBUG
 

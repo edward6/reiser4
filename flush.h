@@ -243,8 +243,8 @@ txn_atom *atom_locked_by_fq(flush_queue_t * fq);
 int alloc_extent(flush_pos_t *flush_pos);
 squeeze_result squalloc_extent(znode *left, const coord_t *, flush_pos_t *,
 			       reiser4_key *stop_key);
-int init_fqs(void);
-void done_fqs(void);
+extern int init_fqs(void);
+extern void done_fqs(void);
 
 #if REISER4_DEBUG
 

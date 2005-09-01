@@ -474,19 +474,29 @@ TYPE_SAFE_HASH_DEFINE(ef, eflush_node_t, jnode *, node, linkage, jnode_hfn,
 #undef KFREE
 #undef KMALLOC
 
-int eflush_init(void)
+/**
+ * init_eflush - create eflush node cache
+ *
+ * Initializes slab cache of eflush nodes. It is part of reiser4 module
+ * initialization.
+ */
+int init_eflush(void)
 {
 	eflush_slab = kmem_cache_create("eflush", sizeof(eflush_node_t),
 					0, SLAB_HWCACHE_ALIGN, NULL, NULL);
 	if (eflush_slab == NULL)
 		return RETERR(-ENOMEM);
-	else
-		return 0;
+	return 0;
 }
 
-int eflush_done(void)
+/**
+ * done_eflush - delete eflush nodeznode cache
+ *
+ * This is called on reiser4 module unloading or system shutdown.
+ */
+void done_eflush(void)
 {
-	return kmem_cache_destroy(eflush_slab);
+	destroy_reiser4_cache(&eflush_slab);
 }
 
 int eflush_init_at(struct super_block *super)
