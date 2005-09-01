@@ -73,7 +73,7 @@ int init_d_cursor(void)
 	d_cursor_shrinker = set_shrinker(DEFAULT_SEEKS << 3,
 					 d_cursor_shrink);
 	if (d_cursor_shrinker == NULL) {
-		kmem_cache_destroy(d_cursor_cache);
+		destroy_reiser4_cache(&d_cursor_cache);
 		d_cursor_cache = NULL;
 		return RETERR(-ENOMEM);
 	}
@@ -81,13 +81,13 @@ int init_d_cursor(void)
 }
 
 /**
- * done_d_cursor - delete d_cursor cache
+ * done_d_cursor - delete d_cursor cache and d_cursor shrinker
  *
  * This is called on reiser4 module unloading or system shutdown.
  */
 void done_d_cursor(void)
 {
-	BUG_ON(d_cursor_shrinker != NULL);
+	BUG_ON(d_cursor_shrinker == NULL);
 	remove_shrinker(d_cursor_shrinker);
 	d_cursor_shrinker = NULL;
 

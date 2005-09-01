@@ -16,12 +16,76 @@
 static kmem_cache_t *inode_cache;
 
 /**
+ * init_once - constructor for reiser4 inodes
+ * @obj: inode to be initialized
+ * @cache: cache @obj belongs to
+ * @flags: SLAB flags
+ *
+ * Initialization function to be called when new page is allocated by reiser4
+ * inode cache. It is set on inode cache creation.
+ */
+static void init_once(void *obj, kmem_cache_t *cache, unsigned long flags)
+{
+	reiser4_inode_object *info;
+
+	info = obj;
+
+	if ((flags & (SLAB_CTOR_VERIFY | SLAB_CTOR_CONSTRUCTOR)) ==
+	    SLAB_CTOR_CONSTRUCTOR) {
+		/* initialize vfs inode */
+		inode_init_once(&info->vfs_inode);
+
+		/* 
+		 * initialize reiser4 specific part fo inode.
+		 * NOTE-NIKITA add here initializations for locks, list heads,
+		 * etc. that will be added to our private inode part.
+		 */
+		readdir_list_init(get_readdir_list(&info->vfs_inode));
+		init_rwsem(&info->p.coc_sem);
+		/* init semaphore which is used during inode loading */
+		loading_init_once(&info->p);
+		INIT_RADIX_TREE(jnode_tree_by_reiser4_inode(&info->p),
+				GFP_ATOMIC);
+#if REISER4_DEBUG
+		info->p.nr_jnodes = 0;
+#endif
+	}
+}
+
+/**
+ * init_inodes - create znode cache
+ *
+ * Initializes slab cache of inodes. It is part of reiser4 module initialization.
+ */
+int init_inodes(void)
+{
+	inode_cache = kmem_cache_create("reiser4_inode",
+					sizeof(reiser4_inode_object),
+					0,
+					SLAB_HWCACHE_ALIGN |
+					SLAB_RECLAIM_ACCOUNT, init_once, NULL);	
+	if (inode_cache == NULL)
+		RETERR(-ENOMEM);
+	return 0;
+}
+
+/**
+ * done_inodes - delete inode cache
+ *
+ * This is called on reiser4 module unloading or system shutdown.
+ */
+void done_inodes(void)
+{
+	destroy_reiser4_cache(&inode_cache);
+}
+
+/**
  * reiser4_alloc_inode - alloc_inode of super operations
  * @super: super block new inode is allocated for
  *
  * Allocates new inode, initializes reiser4 specific part of it.
  */
-static struct inode *reiser4_alloc_inode(struct super_block *super UNUSED_ARG)
+static struct inode *reiser4_alloc_inode(struct super_block *super)
 {
 	reiser4_inode_object *obj;
 
@@ -147,7 +211,7 @@ static void reiser4_put_super(struct super_block *super)
 
 	/* stop daemons: ktxnmgr and entd */
 	done_entd(super);
-	done_ktxnmgrd(&sbinfo->tmgr);
+	done_ktxnmgrd(super);
 	done_txnmgr(&sbinfo->tmgr);
 
 	done_fs_info(super);
@@ -365,23 +429,6 @@ struct super_operations reiser4_super_operations = {
 	.show_options = reiser4_show_options
 };
 
-
-init_where_to_fail_t where_to_fail = FS_init_fs_info;
-
-/*
- * XXXX add call to this function on top of all function you wish to simulate
- * failure of.
- */
-int fail_if_should(init_where_to_fail_t where_am_i)
-{
-	if (where_am_i == where_to_fail)
-		return -ENOMEM;
-	where_am_i ++;
-	if (where_am_i == FAIL_LAST)
-		where_am_i = 0;
-	return 0;
-}
-
 /**
  * fill_super - initialize super block on mount
  * @super: super block to fill
@@ -418,7 +465,7 @@ static int fill_super(struct super_block *super, void *data, int silent)
 	init_txnmgr(&sbinfo->tmgr);
 
 	/* initialize ktxnmgrd context and start kernel thread ktxnmrgd */
-	init_ktxnmgrd(&sbinfo->tmgr);
+	init_ktxnmgrd(super);
 
 	/* initialize entd context and start kernel thread entd */
 	init_entd(super);
@@ -454,7 +501,7 @@ static int fill_super(struct super_block *super, void *data, int silent)
 	done_formatted_fake(super);
  failed_init_formatted_fake:
 	done_entd(super);
-	done_ktxnmgrd(&sbinfo->tmgr);
+	done_ktxnmgrd(super);
 	done_txnmgr(&sbinfo->tmgr);
  failed_init_read_super:
  failed_init_super_data:
@@ -501,45 +548,6 @@ void destroy_reiser4_cache(kmem_cache_t **cachep)
 	*cachep = NULL;
 }
 
-
-/**
- * init_once - constructor for reiser4 inodes
- * @obj: inode to be initialized
- * @cache: cache @obj belongs to
- * @flags: SLAB flags
- *
- * Initialization function to be called when new page is allocated by reiser4
- * inode cache. It is set on inode cache creation.
- */
-static void init_once(void *obj, kmem_cache_t *cache, unsigned long flags)
-{
-	reiser4_inode_object *info;
-
-	info = obj;
-
-	if ((flags & (SLAB_CTOR_VERIFY | SLAB_CTOR_CONSTRUCTOR)) ==
-	    SLAB_CTOR_CONSTRUCTOR) {
-		/* initialize vfs inode */
-		inode_init_once(&info->vfs_inode);
-
-		/* 
-		 * initialize reiser4 specific part fo inode.
-		 * NOTE-NIKITA add here initializations for locks, list heads,
-		 * etc. that will be added to our private inode part.
-		 */
-		readdir_list_init(get_readdir_list(&info->vfs_inode));
-		init_rwsem(&info->p.coc_sem);
-		/* init semaphore which is used during inode loading */
-		loading_init_once(&info->p);
-		INIT_RADIX_TREE(jnode_tree_by_reiser4_inode(&info->p),
-				GFP_ATOMIC);
-#if REISER4_DEBUG
-		info->p.nr_jnodes = 0;
-#endif
-	}
-}
-
-
 /**
  * init_reiser4 - reiser4 initialization entry point
  *
@@ -554,16 +562,9 @@ static int __init init_reiser4(void)
 	       "Loading Reiser4. "
 	       "See www.namesys.com for a description of Reiser4.\n");
 
-	/* initialize slab cache where reiser4 inodes will live */
-	inode_cache = kmem_cache_create("reiser4_inode",
-					sizeof(reiser4_inode_object),
-					0,
-					SLAB_HWCACHE_ALIGN |
-					SLAB_RECLAIM_ACCOUNT, init_once, NULL);
-	if (inode_cache == NULL) {
-		result = -ENOMEM;
+	/* initialize slab cache of inodes */
+	if ((result = init_inodes()) != 0)
 		goto failed_inode_cache;
-	}
 
 	/* initialize cache of znodes */
 	if ((result = init_znodes()) != 0)
@@ -630,7 +631,7 @@ static int __init init_reiser4(void)
  failed_init_plugins:
 	done_znodes();
  failed_init_znodes:
-	destroy_reiser4_cache(&inode_cache);
+	done_inodes();
  failed_inode_cache:
 	return result;
 }

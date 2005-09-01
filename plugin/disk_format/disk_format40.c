@@ -392,8 +392,6 @@ int init_format_format40(struct super_block *s, void *data UNUSED_ARG)
 	int result;
 	format40_init_stage stage;
 
-	/*XXX*/SIMULATE_FAILURE(FS_init_format);
-
 	result = try_init_format40(s, &stage);
 	switch (stage) {
 	case ALL_DONE:

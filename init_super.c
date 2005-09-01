@@ -18,8 +18,6 @@ int init_fs_info(struct super_block *super)
 {
 	reiser4_super_info_data *sbinfo;
 
-	/*XXX*/SIMULATE_FAILURE(FS_init_fs_info);
-	
 	sbinfo = kmalloc(sizeof(reiser4_super_info_data), GFP_KERNEL);
 	if (!sbinfo)
 		return RETERR(-ENOMEM);

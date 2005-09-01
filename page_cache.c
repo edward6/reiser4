@@ -221,8 +221,6 @@ int init_formatted_fake(struct super_block *super)
 	struct inode *cc;
 	reiser4_super_info_data *sinfo;
 
-	/*XXX*/SIMULATE_FAILURE(FS_init_formatted_fake);
-
 	assert("nikita-1703", super != NULL);
 
 	sinfo = get_super_private_nocheck(super);
