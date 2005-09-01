@@ -310,29 +310,6 @@ int reiser4_blocknr_is_sane(const reiser4_block_nr * blk)
 	return reiser4_blocknr_is_sane_for(reiser4_get_current_sb(), blk);
 }
 
-#if 0
-/*
- * construct various VFS related operation vectors that are embedded into @ops
- * inside of @super.
- */
-void build_object_ops(struct super_block *super, object_ops * ops)
-{
-	assert("nikita-3248", super != NULL);
-	assert("nikita-3249", ops != NULL);
-
-	/* setup super_operations... */
-	ops->super = reiser4_super_operations;
-	/* ...and export operations for NFS */
-	ops->export = reiser4_export_operations;
-
-	/* install pointers to the per-super-block vectors into super-block
-	 * fields */
-	super->s_op = &ops->super;
-	super->s_export_op = &ops->export;
-	ops->dentry  = reiser4_dentry_operations;
-}
-#endif
-
 #if REISER4_DEBUG
 
 /* this is caller when unallocated extent pointer is added */

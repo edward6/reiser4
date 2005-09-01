@@ -782,15 +782,6 @@ static void sync_dkeys(znode * spot /* node to update */ )
 		if (spot == NULL)
 			break;
 
-#if 0
-		/* on the leaf level we can only increase right delimiting key
-		 * of a node on which we don't hold a long term lock. */
-		assert("nikita-2930",
-		       ergo(!znode_is_write_locked(spot) &&
-			    znode_get_level(spot) == LEAF_LEVEL,
-			    keyge(&pivot, znode_get_rd_key(spot))));
-#endif
-
 		znode_set_rd_key(spot, &pivot);
 		/* don't sink into the domain of another balancing */
 		if (!znode_is_write_locked(spot))

@@ -741,21 +741,6 @@ void eflush_del(jnode * node, int page_locked)
 		if (mapping_cap_account_dirty(page->mapping))
 			inc_page_state(nr_dirty);
 	}
-#if 0
-	if (JF_ISSET(node, JNODE_KEEPME))
-		/* jnode is already tagged in reiser4_inode's tree of jnodes */
-		reiser4_set_page_dirty2(page);
-	else
-		/* jnode had atom when */
-		/*
-		 * either jnode was dirty or page was dirtied through mmap. Page's dirty
-		 * bit was cleared before io was submitted. If page is left clean, we
-		 * would have dirty jnode with clean page. Neither ->writepage() nor
-		 * ->releasepage() can free it. Re-dirty page, so ->writepage() will be
-		 * called again if necessary.
-		 */
-		set_page_dirty_internal(page, 0);
-#endif
 
 	assert("nikita-2766", atomic_read(&node->x_count) > 1);
 	/* release allocated disk block and in-memory structures  */

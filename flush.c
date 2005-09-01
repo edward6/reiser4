@@ -1368,16 +1368,6 @@ static int set_preceder(const coord_t * coord_in, flush_pos_t * pos)
 	lock_handle left_lock;
 	load_count left_load;
 
-#if 0
-	/* do not trust to allocation of nodes above twigs, use the block number of last
-	 * write (write optimized approach). */
-	if (znode_get_level(coord_in->node) > TWIG_LEVEL + 1) {
-		get_blocknr_hint_default(&pos->preceder.blk);
-		reiser4_stat_inc(block_alloc.nohint);
-		return 0;
-	}
-#endif
-
 	coord_dup(&coord, coord_in);
 
 	init_lh(&left_lock);
@@ -1714,24 +1704,6 @@ static int squeeze_right_twig_and_advance_coord(flush_pos_t * pos,
 	coord_init_last_unit(&pos->coord, pos->lock.node);
 	return 0;
 }
-
-#if 0
-/* "prepped" check for parent node without long-term locking it */
-static inline int fast_check_parent_flushprepped(znode * node)
-{
-	reiser4_tree *tree = current_tree;
-	int prepped = 1;
-
-	RLOCK_TREE(tree);
-
-	if (node->in_parent.node || !jnode_is_flushprepped(ZJNODE(node)))
-		prepped = 0;
-
-	RUNLOCK_TREE(tree);
-
-	return prepped;
-}
-#endif
 
 /* forward declaration */
 static int squalloc_upper_levels(flush_pos_t *, znode *, znode *);
