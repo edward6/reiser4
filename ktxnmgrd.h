@@ -20,9 +20,9 @@
  * with ktxnmgrd are kept. */
 struct ktxnmgrd_context {
 	/* conditional variable used to synchronize start up of ktxnmgrd */
-	kcond_t startup;
+/*	kcond_t startup;*/
 	/* completion used to synchronize shut down of ktxnmgrd */
-	struct completion finish;
+	struct completion start_finish_completion;
 	/* condition variable on which ktxnmgrd sleeps */
 	kcond_t wait;
 	/* spin lock protecting all fields of this structure */
@@ -39,8 +39,8 @@ struct ktxnmgrd_context {
 	unsigned int rescan:1;
 };
 
-extern int init_ktxnmgrd(txn_mgr *);
-extern void done_ktxnmgrd(txn_mgr *);
+extern int init_ktxnmgrd(struct super_block *);
+extern void done_ktxnmgrd(struct super_block *);
 
 extern void ktxnmgrd_kick(txn_mgr * mgr);
 extern int is_current_ktxnmgrd(void);

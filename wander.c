@@ -2111,10 +2111,8 @@ int reiser4_journal_replay(struct super_block *s)
 {
 	reiser4_super_info_data *sbinfo = get_super_private(s);
 	jnode *jh, *jf;
-
 	struct journal_header *header;
 	int nr_tx_replayed = 0;
-
 	int ret;
 
 	assert("zam-582", sbinfo != NULL);
@@ -2212,6 +2210,7 @@ void done_journal_info(struct super_block *s)
 
 	unload_journal_control_block(&sbinfo->journal_header);
 	unload_journal_control_block(&sbinfo->journal_footer);
+	rcu_barrier();
 }
 
 /* load journal control blocks */

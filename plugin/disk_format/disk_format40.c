@@ -189,7 +189,38 @@ typedef enum format40_init_stage {
 	ALL_DONE
 } format40_init_stage;
 
-static int try_init_format40(struct super_block *s, format40_init_stage * stage)
+static format40_disk_super_block *copy_sb(const struct buffer_head *super_bh)
+{
+	format40_disk_super_block *sb_copy;
+
+	sb_copy = kmalloc(sizeof(format40_disk_super_block), GFP_KERNEL);
+	if (sb_copy == NULL)
+		return ERR_PTR(RETERR(-ENOMEM));
+	memcpy(sb_copy, ((format40_disk_super_block *) super_bh->b_data),
+	       sizeof(format40_disk_super_block));
+	return sb_copy;
+}
+
+static int check_key_format(const format40_disk_super_block *sb_copy)
+{
+	if (!equi(REISER4_LARGE_KEY,
+		  get_format40_flags(sb_copy) & (1 << FORMAT40_LARGE_KEYS))) {
+		warning("nikita-3228", "Key format mismatch. "
+			"Only %s keys are supported.",
+			REISER4_LARGE_KEY ? "large" : "small");
+		return RETERR(-EINVAL);
+	}
+	return 0;
+}
+
+/**
+ * try_init_format40
+ * @super:
+ * @stage:
+ *
+ */
+static int try_init_format40(struct super_block *super,
+			     format40_init_stage *stage)
 {
 	int result;
 	struct buffer_head *super_bh;
@@ -199,32 +230,30 @@ static int try_init_format40(struct super_block *s, format40_init_stage * stage)
 	reiser4_block_nr root_block;
 	node_plugin *nplug;
 
-	assert("vs-475", s != NULL);
-	assert("vs-474", get_super_private(s));
-
-	/* initialize reiser4_super_info_data */
-	sbinfo = get_super_private(s);
+	assert("vs-475", super != NULL);
+	assert("vs-474", get_super_private(super));
 
 	*stage = NONE_DONE;
 
-	result = consult_diskmap(s);
+	result = consult_diskmap(super);
 	if (result)
 		return result;
 	*stage = CONSULT_DISKMAP;
 
-	super_bh = find_a_disk_format40_super_block(s);
+	super_bh = find_a_disk_format40_super_block(super);
 	if (IS_ERR(super_bh))
 		return PTR_ERR(super_bh);
 	brelse(super_bh);
 	*stage = FIND_A_SUPER;
 
 	/* map jnodes for journal control blocks (header, footer) to disk  */
-	result = init_journal_info(s);
+	result = init_journal_info(super);
 	if (result)
 		return result;
 	*stage = INIT_JOURNAL_INFO;
 
-	result = eflush_init_at(s);
+	/* FIXME: this has to be in fill_super */
+	result = eflush_init_at(super);
 	if (result)
 		return result;
 	*stage = INIT_EFLUSH;
@@ -248,38 +277,32 @@ static int try_init_format40(struct super_block *s, format40_init_stage * stage)
 		 * only it is unsupported yet. */
 	}
 
-	result = reiser4_journal_replay(s);
+	result = reiser4_journal_replay(super);
 	if (result)
 		return result;
 	*stage = JOURNAL_REPLAY;
 
-	super_bh = read_super_block(s);
+	super_bh = read_super_block(super);
 	if (IS_ERR(super_bh))
 		return PTR_ERR(super_bh);
 	*stage = READ_SUPER;
 
-	sb_copy = kmalloc(sizeof(*sb_copy), GFP_KERNEL);
-	if (sb_copy == NULL) {
-		brelse(super_bh);
-		return RETERR(-ENOMEM);
-	}
-	memcpy(sb_copy, ((format40_disk_super_block *) super_bh->b_data),
-	       sizeof(*sb_copy));
+	/* allocate and make a copy of format40_disk_super_block */
+	sb_copy = copy_sb(super_bh);
 	brelse(super_bh);
+	if (IS_ERR(sb_copy))
+		return PTR_ERR(sb_copy);
 
-	if (!equi(REISER4_LARGE_KEY,
-		  get_format40_flags(sb_copy) & (1 << FORMAT40_LARGE_KEYS))) {
-		warning("nikita-3228", "Key format mismatch. "
-			"Only %s keys are supported.",
-			REISER4_LARGE_KEY ? "large" : "small");
+	/* make sure that key format of kernel and filesyste match */
+	result = check_key_format(sb_copy);
+	if (result) {
 		kfree(sb_copy);
-		return RETERR(-EINVAL);
+		return result;
 	}
 	*stage = KEY_CHECK;
 
-	result =
-	    oid_init_allocator(s, get_format40_file_count(sb_copy),
-			       get_format40_oid(sb_copy));
+	result = oid_init_allocator(super, get_format40_file_count(sb_copy),
+				    get_format40_oid(sb_copy));
 	if (result) {
 		kfree(sb_copy);
 		return result;
@@ -291,7 +314,10 @@ static int try_init_format40(struct super_block *s, format40_init_stage * stage)
 	height = get_format40_tree_height(sb_copy);
 	nplug = node_plugin_by_id(NODE40_ID);
 
-	sbinfo->tree.super = s;
+
+	/* initialize reiser4_super_info_data */
+	sbinfo = get_super_private(super);
+	assert("", sbinfo->tree.super == super);
 	/* init reiser4_tree for the filesystem */
 	result = init_tree(&sbinfo->tree, &root_block, height, nplug);
 	if (result) {
@@ -300,13 +326,16 @@ static int try_init_format40(struct super_block *s, format40_init_stage * stage)
 	}
 	*stage = INIT_TREE;
 
-	/* initialize reiser4_super_info_data */
+	/*
+	 * initialize reiser4_super_info_data with data from format40 super
+	 * block
+	 */
 	sbinfo->default_uid = 0;
 	sbinfo->default_gid = 0;
-
-	reiser4_set_mkfs_id(s, get_format40_mkfs_id(sb_copy));
-	reiser4_set_block_count(s, get_format40_block_count(sb_copy));
-	reiser4_set_free_blocks(s, get_format40_free_blocks(sb_copy));
+	sbinfo->mkfs_id = get_format40_mkfs_id(sb_copy);
+	/* number of blocks in filesystem and reserved space */
+	reiser4_set_block_count(super, get_format40_block_count(sb_copy));
+	sbinfo->blocks_free = get_format40_free_blocks(sb_copy);
 	kfree(sb_copy);
 
 	sbinfo->fsuid = 0;
@@ -323,33 +352,35 @@ static int try_init_format40(struct super_block *s, format40_init_stage * stage)
 	/* NOTE-NIKITA: reiser4_journal_recover_sb_data() calls
 	 * oid_init_allocator() and reiser4_set_free_blocks() with new
 	 * data. What's the reason to call them above? */
-	result = reiser4_journal_recover_sb_data(s);
+	result = reiser4_journal_recover_sb_data(super);
 	if (result != 0)
 		return result;
 	*stage = JOURNAL_RECOVER;
 
-	/* Set number of used blocks.  The number of used blocks is not stored
-	   neither in on-disk super block nor in the journal footer blocks.  At
-	   this moment actual values of total blocks and free block counters are
-	   set in the reiser4 super block (in-memory structure) and we can
-	   calculate number of used blocks from them. */
-	reiser4_set_data_blocks(s,
-				reiser4_block_count(s) -
-				reiser4_free_blocks(s));
+	/*
+	 * Set number of used blocks.  The number of used blocks is not stored
+	 * neither in on-disk super block nor in the journal footer blocks.  At
+	 * this moment actual values of total blocks and free block counters
+	 * are set in the reiser4 super block (in-memory structure) and we can
+	 * calculate number of used blocks from them.
+	 */
+	reiser4_set_data_blocks(super,
+				reiser4_block_count(super) -
+				reiser4_free_blocks(super));
 
 #if REISER4_DEBUG
 	sbinfo->min_blocks_used = 16 /* reserved area */  +
-	    2 /* super blocks */  +
-	    2 /* journal footer and header */ ;
+		2 /* super blocks */  +
+		2 /* journal footer and header */ ;
 #endif
 
 	/* init disk space allocator */
-	result = sa_init_allocator(get_space_allocator(s), s, NULL);
+	result = sa_init_allocator(get_space_allocator(super), super, NULL);
 	if (result)
 		return result;
 	*stage = INIT_SA;
 
-	result = get_super_jnode(s);
+	result = get_super_jnode(super);
 	if (result == 0)
 		*stage = ALL_DONE;
 	return result;

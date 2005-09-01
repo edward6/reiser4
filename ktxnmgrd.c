@@ -35,7 +35,7 @@
 #include <linux/kernel.h>
 #include <linux/writeback.h>
 
-static int scan_mgr(txn_mgr * mgr);
+static int scan_mgr(struct super_block *);
 
 /*
  * change current->comm so that ps, top, and friends will see changed
@@ -48,7 +48,7 @@ static int scan_mgr(txn_mgr * mgr);
 
 /**
  * ktxnmgrd - kernel txnmgr daemon
- * @arg: pointer to transaction manager embedded in reiser4 super block
+ * @arg: pointer to super block
  *
  * The background transaction manager daemon, started as a kernel thread during
  * reiser4 initialization.
@@ -59,6 +59,9 @@ static int ktxnmgrd(void *arg)
 	struct super_block *super;
 	ktxnmgrd_context *ctx;
 	txn_mgr *mgr;
+
+	super = arg;
+	mgr = &get_super_private(super)->tmgr;
 
 	/* standard kernel thread prologue */
 	me = current;
@@ -78,12 +81,13 @@ static int ktxnmgrd(void *arg)
 	 */
 	me->journal_info = NULL;
 
-	mgr = arg;
 	ctx = mgr->daemon;
 	spin_lock(&ctx->guard);
 	ctx->tsk = me;
-	super = container_of(mgr, reiser4_super_info_data, tmgr)->tree.super;
-	kcond_broadcast(&ctx->startup);
+
+	/* initialization is done */
+	complete(&ctx->start_finish_completion);
+
 	while (1) {
 		int result;
 
@@ -125,7 +129,7 @@ static int ktxnmgrd(void *arg)
 		 */
 		do {
 			ctx->rescan = 0;
-			scan_mgr(mgr);
+			scan_mgr(super);
 			spin_lock(&ctx->guard);
 			if (ctx->rescan) {
 				/*
@@ -140,7 +144,7 @@ static int ktxnmgrd(void *arg)
 
 	spin_unlock(&ctx->guard);
 
-	complete_and_exit(&ctx->finish, 0);
+	complete_and_exit(&ctx->start_finish_completion, 0);
 	/* not reached. */
 	return 0;
 }
@@ -153,49 +157,52 @@ static int ktxnmgrd(void *arg)
  *
  * Starts ktxnmgrd and wait untils it initializes.
  */
-static int start_ktxnmgrd(txn_mgr *mgr)
+static int start_ktxnmgrd(struct super_block *super)
 {
+	txn_mgr *mgr;
 	ktxnmgrd_context *ctx;
 
-	assert("nikita-2448", mgr != NULL);
+	mgr = &get_super_private(super)->tmgr;
 	assert("zam-1015", mgr->daemon != NULL);
 
 	ctx = mgr->daemon;
 
 	spin_lock(&ctx->guard);
-
 	ctx->rescan = 1;
 	ctx->done = 0;
-
 	spin_unlock(&ctx->guard);
 
-	kernel_thread(ktxnmgrd, mgr, CLONE_KERNEL);
+	/*
+	 * prepare synchronization object to synchronize with ktxnmgrd
+	 * initialization
+	 */
+	init_completion(&ctx->start_finish_completion);
 
-	spin_lock(&ctx->guard);
+	/* start ktxnmgrd */
+	kernel_thread(ktxnmgrd, super, CLONE_KERNEL);
 
-	/* daemon thread is not yet initialized */
-	if (ctx->tsk == NULL)
-		/* wait until initialization completes */
-		kcond_wait(&ctx->startup, &ctx->guard, 0);
+ 	/* wait for ktxnmgrd initialization */
+	wait_for_completion(&ctx->start_finish_completion);
 
 	assert("nikita-2452", ctx->tsk != NULL);
 
-	spin_unlock(&ctx->guard);
 	return 0;
 }
 
 /**
  * init_ktxnmgrd - initialize ktxnmgrd context and start kernel daemon
- * @mgr: pointer to transaction manager embedded in reiser4 super block
+ * @super: pointer to super block
  *
  * Allocates and initializes ktxnmgrd_context, attaches it to transaction
  * manager. Starts kernel txnmgr daemon. This is called on mount.
  */
-int init_ktxnmgrd(txn_mgr *mgr)
+int init_ktxnmgrd(struct super_block *super)
 {
+	txn_mgr *mgr;
 	ktxnmgrd_context *ctx;
 
-	assert("zam-1013", mgr != NULL);
+	mgr = &get_super_private(super)->tmgr;
+
 	assert("zam-1014", mgr->daemon == NULL);
 
 	ctx = kmalloc(sizeof(ktxnmgrd_context), GFP_KERNEL);
@@ -205,20 +212,20 @@ int init_ktxnmgrd(txn_mgr *mgr)
 	assert("nikita-2442", ctx != NULL);
 
 	memset(ctx, 0, sizeof *ctx);
-	init_completion(&ctx->finish);
-	kcond_init(&ctx->startup);
 	kcond_init(&ctx->wait);
+
+	/*kcond_init(&ctx->startup);*/
 	spin_lock_init(&ctx->guard);
 	ctx->timeout = REISER4_TXNMGR_TIMEOUT;
 	mgr->daemon = ctx;
 
 	/* start txnmgr daemon */
-	start_ktxnmgrd(mgr);
+	start_ktxnmgrd(super);
 
 	return 0;
 }
 
-void ktxnmgrd_kick(txn_mgr * mgr)
+void ktxnmgrd_kick(txn_mgr *mgr)
 {
 	assert("nikita-3234", mgr != NULL);
 	assert("nikita-3235", mgr->daemon != NULL);
@@ -230,24 +237,20 @@ int is_current_ktxnmgrd(void)
 	return (get_current_super_private()->tmgr.daemon->tsk == current);
 }
 
-/* scan one transaction manager for old atoms; should be called with ktxnmgrd
- * spinlock, releases this spin lock at exit */
-static int scan_mgr(txn_mgr * mgr)
+/**
+ * scan_mgr - commit atoms which are to be committed
+ * @super: super block to commit atoms of
+ *
+ * Commits old atoms.
+ */
+static int scan_mgr(struct super_block *super)
 {
 	int ret;
 	reiser4_context ctx;
-	reiser4_tree *tree;
 
-	assert("nikita-2454", mgr != NULL);
+	init_stack_context(&ctx, super);
 
-	/* NOTE-NIKITA this only works for atoms embedded into super blocks. */
-	tree = &container_of(mgr, reiser4_super_info_data, tmgr)->tree;
-	assert("nikita-2455", tree != NULL);
-	assert("nikita-2456", tree->super != NULL);
-
-	init_stack_context(&ctx, tree->super);
-
-	ret = commit_some_atoms(mgr);
+	ret = commit_some_atoms(&get_super_private(super)->tmgr);
 
 	reiser4_exit_context(&ctx);
 	return ret;
@@ -268,6 +271,12 @@ static void stop_ktxnmgrd(txn_mgr *mgr)
 
 	ctx = mgr->daemon;
 
+	/*
+	 * prepare synchronization object to synchronize with ktxnmgrd
+	 * completion
+	 */
+	init_completion(&ctx->start_finish_completion);
+
 	spin_lock(&ctx->guard);
 	ctx->tsk = NULL;
 	ctx->done = 1;
@@ -275,8 +284,8 @@ static void stop_ktxnmgrd(txn_mgr *mgr)
 
 	kcond_signal(&ctx->wait);
 
-	/* wait until daemon finishes */
-	wait_for_completion(&ctx->finish);
+	/* wait until ktxnmgrd finishes */
+	wait_for_completion(&ctx->start_finish_completion);
 }
 
 /**
@@ -285,9 +294,11 @@ static void stop_ktxnmgrd(txn_mgr *mgr)
  *
  * This is called on umount. Stops ktxnmgrd and free t
  */
-void done_ktxnmgrd(txn_mgr *mgr)
+void done_ktxnmgrd(struct super_block *super)
 {
-	assert("zam-1011", mgr != NULL);
+	txn_mgr *mgr;
+
+	mgr = &get_super_private(super)->tmgr;
 	assert("zam-1012", mgr->daemon != NULL);
 
 	stop_ktxnmgrd(mgr);

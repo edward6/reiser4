@@ -29,16 +29,18 @@ struct wbq {
 /* ent-thread context. This is used to synchronize starting/stopping ent
  * threads. */
 typedef struct entd_context {
+#if 0
 	/*
 	 * condition variable that is signaled by ent thread after it
 	 * successfully started up.
 	 */
 	kcond_t startup;
+#endif
 	/*
 	 * completion that is signaled by ent thread just before it
 	 * terminates.
 	 */
-	struct completion finish;
+	struct completion start_finish_completion;
 	/*
 	 * condition variable that ent thread waits on for more work. It's
 	 * signaled by write_page_by_ent().

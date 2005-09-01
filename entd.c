@@ -60,19 +60,21 @@ void init_entd(struct super_block *super)
 	ctx = get_entd_context(super);
 
 	memset(ctx, 0, sizeof *ctx);
-	kcond_init(&ctx->startup);
-	kcond_init(&ctx->wait);
-	init_completion(&ctx->finish);
 	spin_lock_init(&ctx->guard);
+	kcond_init(&ctx->wait);
 
-	/* start ent thread.. */
+	/*
+	 * prepare synchronization object to synchronize with ent thread
+	 * initialization
+	 */
+	init_completion(&ctx->start_finish_completion);
+
+	/* start entd */
 	kernel_thread(entd, super, CLONE_VM | CLONE_FS | CLONE_FILES);
 
-	spin_lock(&ctx->guard);
-	/* and wait for its initialization to finish */
-	while (ctx->tsk == NULL)
-		kcond_wait(&ctx->startup, &ctx->guard, 0);
-	spin_unlock(&ctx->guard);
+ 	/* wait for entd initialization */
+	wait_for_completion(&ctx->start_finish_completion);
+
 #if REISER4_DEBUG
 	flushers_list_init(&ctx->flushers_list);
 #endif
@@ -156,9 +158,11 @@ static int entd(void *arg)
 
 	spin_lock(&ent->guard);
 	ent->tsk = me;
-	/* signal waiters that initialization is completed */
-	kcond_broadcast(&ent->startup);
 	spin_unlock(&ent->guard);
+
+	/* initialization is done */
+	complete(&ent->start_finish_completion);
+
 	while (1) {
 		int result = 0;
 
@@ -192,22 +196,22 @@ static int entd(void *arg)
 
 		entd_set_comm(".");
 
+		/* check whether we are asked to exit */
+		if (ent->done) {
+			spin_unlock(&ent->guard);
+			break;
+		}
+
 		/* wait for work */
 		result = kcond_wait(&ent->wait, &ent->guard, 1);
 		if (result != -EINTR && result != 0)
 			/* some other error */
 			warning("nikita-3099", "Error: %i", result);
 
-		/* we are asked to exit */
-		if (ent->done) {
-			spin_unlock(&ent->guard);
-			break;
-		}
-
 		spin_unlock(&ent->guard);
 	}
 	wakeup_all_wbq(ent);
-	complete_and_exit(&ent->finish, 0);
+	complete_and_exit(&ent->start_finish_completion, 0);
 	/* not reached. */
 	return 0;
 }
@@ -227,13 +231,19 @@ void done_entd(struct super_block *super)
 
 	ent = get_entd_context(super);
 
+	/*
+	 * prepare synchronization object to synchronize with entd
+	 * completion
+	 */
+	init_completion(&ent->start_finish_completion);
+
 	spin_lock(&ent->guard);
 	ent->done = 1;
 	kcond_signal(&ent->wait);
 	spin_unlock(&ent->guard);
 
-	/* wait until daemon finishes */
-	wait_for_completion(&ent->finish);
+	/* wait until entd finishes */
+	wait_for_completion(&ent->start_finish_completion);
 }
 
 /* called at the beginning of jnode_flush to register flusher thread with ent

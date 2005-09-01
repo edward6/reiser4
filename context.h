@@ -115,7 +115,6 @@ extern void print_contexts(void);
 
 extern reiser4_context *init_context(struct super_block *);
 extern void init_stack_context(reiser4_context *, struct super_block *);
-extern void done_context(reiser4_context *);
 extern void reiser4_exit_context(reiser4_context *);
 
 /* magic constant we store in reiser4_context allocated at the stack. Used to

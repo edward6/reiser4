@@ -137,23 +137,81 @@ int is_in_reiser4_context(void)
  * because some important lock (like ->i_sem on the parent directory) is
  * held. To achieve this, ->nobalance flag can be set in the current context.
  */
-static void balance_dirty_pages_at(reiser4_context * context)
+static void balance_dirty_pages_at(reiser4_context *context)
 {
 	reiser4_super_info_data *sbinfo = get_super_private(context->super);
 
 	/*
 	 * call balance_dirty_pages_ratelimited() to process formatted nodes
-	 * dirtied during this system call.
+	 * dirtied during this system call. Do that only if we are not in mount
+	 * and there were nodes dirtied in this context and we are not in
+	 * writepage (to avoid deadlock) and not in pdflush
 	 */
-	if (context->nr_marked_dirty != 0 &&	/* were any nodes dirtied? */
-	    /* aren't we called early during mount? */
-	    sbinfo->fake &&
-	    /* don't call balance dirty pages from ->writepage(): it's
-	     * deadlock prone */
+	if (sbinfo != NULL && sbinfo->fake != NULL &&
+	    context->nr_marked_dirty != 0 &&
 	    !(current->flags & PF_MEMALLOC) &&
-	    /* and don't stall pdflush */
 	    !current_is_pdflush())
 		balance_dirty_pages_ratelimited(sbinfo->fake->i_mapping);
+}
+
+/* release resources associated with context.
+
+   This function should be called at the end of "session" with reiser4,
+   typically just before leaving reiser4 driver back to VFS.
+
+   This is good place to put some degugging consistency checks, like that
+   thread released all locks and closed transcrash etc.
+
+*/
+static void done_context(reiser4_context * context /* context being released */ )
+{
+	assert("nikita-860", context != NULL);
+	assert("nikita-859", context->magic == context_magic);
+	assert("vs-646", (reiser4_context *) current->journal_info == context);
+	assert("zam-686", !in_interrupt() && !in_irq());
+
+	/* only do anything when leaving top-level reiser4 context. All nested
+	 * contexts are just dummies. */
+	if (context->nr_children == 0) {
+		assert("jmacd-673", context->trans == NULL);
+		assert("jmacd-1002", lock_stack_isclean(&context->stack));
+		assert("nikita-1936", no_counters_are_held());
+		assert("nikita-2626", tap_list_empty(taps_list()));
+		assert("zam-1004", ergo(get_super_private(context->super),
+					get_super_private(context->super)->delete_sema_owner !=
+					current));
+
+		/* release all grabbed but as yet unused blocks */
+		if (context->grabbed_blocks != 0)
+			all_grabbed2free();
+
+		/*
+		 * synchronize against longterm_unlock_znode():
+		 * wake_up_requestor() wakes up requestors without holding
+		 * zlock (otherwise they will immediately bump into that lock
+		 * after wake up on another CPU). To work around (rare)
+		 * situation where requestor has been woken up asynchronously
+		 * and managed to run until completion (and destroy its
+		 * context and lock stack) before wake_up_requestor() called
+		 * wake_up() on it, wake_up_requestor() synchronize on lock
+		 * stack spin lock. It has actually been observed that spin
+		 * lock _was_ locked at this point, because
+		 * wake_up_requestor() took interrupt.
+		 */
+		spin_lock_stack(&context->stack);
+		spin_unlock_stack(&context->stack);
+
+		assert("zam-684", context->nr_children == 0);
+		/* restore original ->fs_context value */
+		current->journal_info = context->outer;
+		if (context->on_stack == 0)
+			kfree(context);
+	} else {
+		context->nr_children--;
+#if REISER4_DEBUG
+		assert("zam-685", context->nr_children >= 0);
+#endif
+	}
 }
 
 /*
@@ -192,67 +250,6 @@ void reiser4_exit_context(reiser4_context * context)
 	}
 	done_context(context);
 }
-
-/* release resources associated with context.
-
-   This function should be called at the end of "session" with reiser4,
-   typically just before leaving reiser4 driver back to VFS.
-
-   This is good place to put some degugging consistency checks, like that
-   thread released all locks and closed transcrash etc.
-
-*/
-void done_context(reiser4_context * context /* context being released */ )
-{
-	assert("nikita-860", context != NULL);
-	assert("nikita-859", context->magic == context_magic);
-	assert("vs-646", (reiser4_context *) current->journal_info == context);
-	assert("zam-686", !in_interrupt() && !in_irq());
-
-	/* only do anything when leaving top-level reiser4 context. All nested
-	 * contexts are just dummies. */
-	if (context->nr_children == 0) {
-		assert("jmacd-673", context->trans == NULL);
-		assert("jmacd-1002", lock_stack_isclean(&context->stack));
-		assert("nikita-1936", no_counters_are_held());
-		assert("nikita-2626", tap_list_empty(taps_list()));
-		assert("zam-1004",
-		       get_super_private(context->super)->delete_sema_owner !=
-		       current);
-
-		/* release all grabbed but as yet unused blocks */
-		if (context->grabbed_blocks != 0)
-			all_grabbed2free();
-
-		/*
-		 * synchronize against longterm_unlock_znode():
-		 * wake_up_requestor() wakes up requestors without holding
-		 * zlock (otherwise they will immediately bump into that lock
-		 * after wake up on another CPU). To work around (rare)
-		 * situation where requestor has been woken up asynchronously
-		 * and managed to run until completion (and destroy its
-		 * context and lock stack) before wake_up_requestor() called
-		 * wake_up() on it, wake_up_requestor() synchronize on lock
-		 * stack spin lock. It has actually been observed that spin
-		 * lock _was_ locked at this point, because
-		 * wake_up_requestor() took interrupt.
-		 */
-		spin_lock_stack(&context->stack);
-		spin_unlock_stack(&context->stack);
-
-		assert("zam-684", context->nr_children == 0);
-		/* restore original ->fs_context value */
-		current->journal_info = context->outer;
-		if (context->on_stack == 0)
-			kfree(context);
-	} else {
-		context->nr_children--;
-#if REISER4_DEBUG
-		assert("zam-685", context->nr_children >= 0);
-#endif
-	}
-}
-
 
 /*
  * Local variables:
