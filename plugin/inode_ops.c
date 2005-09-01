@@ -11,6 +11,7 @@
 #include "../safe_link.h"
 
 #include <linux/quotaops.h>
+#include <linux/namei.h>
 
 
 int create_vfs_object(struct inode *parent, struct dentry *dentry,
@@ -426,14 +427,15 @@ int readlink_common(struct dentry *dentry, char __user *buf, int buflen)
  * inode_operations.
  * Assumes that inode's generic_ip points to the content of symbolic link.
  */
-void *follow_link_common(struct dentry *dentry, struct nameidata *data)
+void *follow_link_common(struct dentry *dentry, struct nameidata *nd)
 {
 	assert("vs-851", S_ISLNK(dentry->d_inode->i_mode));
 
 	if (!dentry->d_inode->u.generic_ip
 	    || !inode_get_flag(dentry->d_inode, REISER4_GENERIC_PTR_USED))
 		return ERR_PTR(RETERR(-EINVAL));
-	return dentry->d_inode->u.generic_ip;
+	nd_set_link(nd, dentry->d_inode->u.generic_ip);
+	return NULL;
 }
 
 /* this is common implementation of vfs's permission method of struct
