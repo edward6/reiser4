@@ -65,7 +65,7 @@ static int init_inodes(void)
 					SLAB_HWCACHE_ALIGN |
 					SLAB_RECLAIM_ACCOUNT, init_once, NULL);	
 	if (inode_cache == NULL)
-		RETERR(-ENOMEM);
+		return RETERR(-ENOMEM);
 	return 0;
 }
 
