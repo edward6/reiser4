@@ -1104,8 +1104,8 @@ static level_lookup_result cbk_node_lookup(cbk_handle * h /* search handle */ )
 	assert("vs-361", h->level > h->stop_level);
 
 	if (handle_eottl(h, &result)) {
-		assert("vs-1674", result == LOOKUP_DONE
-		       || result == LOOKUP_REST);
+		assert("vs-1674", (result == LOOKUP_DONE ||
+				   result == LOOKUP_REST));
 		return result;
 	}
 

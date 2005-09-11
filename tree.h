@@ -438,7 +438,7 @@ typedef struct cbk_handle {
 extern znode_lock_mode cbk_lock_mode(tree_level level, cbk_handle * h);
 
 /* eottl.c */
-extern int handle_eottl(cbk_handle * h, int *outcome);
+extern int handle_eottl(cbk_handle *h, int *outcome);
 
 int lookup_multikey(cbk_handle * handle, int nr_keys);
 int lookup_couple(reiser4_tree * tree,
