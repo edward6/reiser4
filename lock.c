@@ -234,7 +234,6 @@ static void wake_up_all_lopri_owners(znode * node)
 
 	assert("nikita-1824", rw_zlock_is_locked(&node->lock));
 	list_for_each(pos, &node->lock.owners) {
-	//for_all_type_safe_list(owners, &node->lock.owners, handle) {
 		handle = list_entry(pos, lock_handle, owners_link);
 		spin_lock_stack(handle->owner);
 
@@ -268,16 +267,13 @@ link_object(lock_handle * handle, lock_stack * owner, znode * node)
 
 	assert("reiser4-4",
 	       ergo(list_empty_careful(&owner->locks), owner->nr_locks == 0));
-//	       ergo(locks_list_empty(&owner->locks), owner->nr_locks == 0));
 
 	/* add lock handle to the end of lock_stack's list of locks */
 	list_add_tail(&handle->locks_link, &owner->locks);
-	//locks_list_push_back(&owner->locks, handle);
 	owner->nr_locks++;
 
 	/* add lock handle to the head of znode's list of owners */
 	list_add(&handle->owners_link, &node->lock.owners);
-	//owners_list_push_front(&node->lock.owners, handle);
 	handle->signaled = 0;
 }
 
@@ -292,16 +288,13 @@ static inline void unlink_object(lock_handle * handle)
 
 	/* remove lock handle from lock_stack's list of locks */
 	list_del_init(&handle->locks_link);
-	//locks_list_remove_clean(handle);
 	handle->owner->nr_locks--;
 	assert("reiser4-6",
 	       ergo(list_empty_careful(&handle->owner->locks),
-		    //ergo(locks_list_empty(&handle->owner->locks),
 		    handle->owner->nr_locks == 0));
 
 	/* remove lock handle from znode's list of owners */
 	list_del_init(&handle->owners_link);
-	//owners_list_remove_clean(handle);
 
 	/* indicates that lock handle is free now */
 	handle->owner = NULL;
@@ -345,14 +338,12 @@ static int recursive(lock_stack * owner)
 
 	/* Owners list is not empty for a locked node */
 	assert("zam-314", !list_empty_careful(&node->lock.owners));
-	//assert("zam-314", !owners_list_empty(&node->lock.owners));
 	assert("nikita-1841", owner == get_current_lock_stack());
 	assert("nikita-1848", rw_zlock_is_locked(&node->lock));
 
 
 	lh = list_entry(node->lock.owners.next, lock_handle, owners_link);
 	ret = (lh->owner == owner);
-	//ret = (owners_list_front(&node->lock.owners)->owner == owner);
 
 	/* Recursive read locking should be done usual way */
 	assert("zam-315", !ret || owner->request.mode == ZNODE_WRITE_LOCK);
@@ -383,7 +374,6 @@ int znode_is_any_locked(const znode * node)
 
 	list_for_each(pos, &stack->locks) {
 		handle = list_entry(pos, lock_handle, locks_link);
-	//for_all_type_safe_list(locks, &stack->locks, handle) {
 		if (handle->node == node) {
 			ret = 1;
 			break;
@@ -417,7 +407,6 @@ int znode_is_write_locked(const znode * node)
 	 * znode's owner list
 	 */
 	handle = list_entry(node->lock.owners.next, lock_handle, owners_link);
-	//handle = owners_list_front(&node->lock.owners);
 
 	return (handle->owner == stack);
 }
@@ -492,9 +481,7 @@ static void set_high_priority(lock_stack * owner)
 		 * (Interrupts also are not involved.)
 		 */
 		lock_handle *item = list_entry(owner->locks.next, lock_handle, locks_link);
-		//lock_handle *item = locks_list_front(&owner->locks);
 		while (&owner->locks != &item->locks_link) {
-		//while (!locks_list_end(&owner->locks, item)) {
 			znode *node = item->node;
 
 			WLOCK_ZLOCK(&node->lock);
@@ -508,7 +495,6 @@ static void set_high_priority(lock_stack * owner)
 			WUNLOCK_ZLOCK(&node->lock);
 
 			item = list_entry(item->locks_link.next, lock_handle, locks_link);
-			//item = locks_list_next(item);
 		}
 		owner->curpri = 1;
 		atomic_set(&owner->nr_signaled, 0);
@@ -526,9 +512,7 @@ static void set_low_priority(lock_stack * owner)
 		   deadlock possibility anywhere.
 		 */
 		lock_handle *handle = list_entry(owner->locks.next, lock_handle, locks_link);
-		//lock_handle *handle = locks_list_front(&owner->locks);
 		while (&owner->locks != &handle->locks_link) {
-		//while (!locks_list_end(&owner->locks, handle)) {
 			znode *node = handle->node;
 			WLOCK_ZLOCK(&node->lock);
 			/* this thread just was hipri owner of @node, so
@@ -548,7 +532,6 @@ static void set_low_priority(lock_stack * owner)
 			}
 			WUNLOCK_ZLOCK(&node->lock);
 			handle = list_entry(handle->locks_link.next, lock_handle, locks_link);
-			//handle = locks_list_next(handle);
 		}
 		owner->curpri = 0;
 	}
@@ -585,7 +568,6 @@ static void wake_up_requestor(znode * node)
 {
 #if NR_CPUS > 2
 	struct list_head *creditors;
-//	requestors_list_head *creditors;
 	lock_stack *convoy[MAX_CONVOY_SIZE];
 	int convoyused;
 	int convoylimit;
@@ -597,9 +579,7 @@ static void wake_up_requestor(znode * node)
 	convoylimit = min(num_online_cpus() - 1, MAX_CONVOY_SIZE);
 	creditors = &node->lock.requestors;
 	if (!list_empty_careful(creditors)) {
-//	if (!requestors_list_empty(creditors)) {
 		convoy[0] = list_entry(creditors->next, lock_stack, requestors_link);
-//		convoy[0] = requestors_list_front(creditors);
 		convoyused = 1;
 		/*
 		 * it has been verified experimentally, that there are no
@@ -613,9 +593,6 @@ static void wake_up_requestor(znode * node)
 			for (item = list_entry(convoy[0]->requestors_link.next, lock_stack, requestors_link);
 			     creditors != &item->requestors_link;
 			     item = list_entry(item->requestors_link.next, lock_stack, requestors_link)) {
-//			for (item = requestors_list_next(convoy[0]);
-//			     !requestors_list_end(creditors, item);
-//			     item = requestors_list_next(item)) {
 				if (item->request.mode == ZNODE_READ_LOCK) {
 					convoy[convoyused] = item;
 					++convoyused;
@@ -650,12 +627,10 @@ static void wake_up_requestor(znode * node)
 #else
 	/* uniprocessor case: keep it simple */
 	if (!list_empty_careful(&node->lock.requestors)) {
-	//if (!requestors_list_empty(&node->lock.requestors)) {
 		lock_stack *requestor;
 
 		requestor = list_entry(node->lock.requestors.next, lock_stack,
 				       requestors_link);
-		//requestor = requestors_list_front(&node->lock.requestors);
 		reiser4_wake_up(requestor);
 	}
 
@@ -734,7 +709,6 @@ void longterm_unlock_znode(lock_handle * handle)
 	   the node is unlocked it must have an empty owners list. */
 	assert("zam-319", equi(znode_is_locked(node),
 			       !list_empty_careful(&node->lock.owners)));
-				//!owners_list_empty(&node->lock.owners)));
 
 #if REISER4_DEBUG
 	if (!znode_is_locked(node))
@@ -1060,14 +1034,12 @@ int longterm_lock_znode(
 				wake_up_all_lopri_owners(node);
 			/* And prepare a lock request */
 			list_add(&owner->requestors_link, &lock->requestors);
-			//requestors_list_push_front(&lock->requestors, owner);
 		} else {
 			/* If we are going in low priority direction then we
 			   set low priority to our process. This is the only
 			   case  when a process may become low priority */
 			/* And finally prepare a lock request */
 			list_add_tail(&owner->requestors_link, &lock->requestors);
-			//requestors_list_push_back(&lock->requestors, owner);
 		}
 
 		/* Ok, here we have prepared a lock request, so unlock
@@ -1084,7 +1056,6 @@ int longterm_lock_znode(
 		}
 
 		list_del_init(&owner->requestors_link);
-		//requestors_list_remove(owner);
 	}
 
 	assert("jmacd-807/a", rw_zlock_is_locked(&node->lock));
@@ -1120,7 +1091,6 @@ void invalidate_lock(lock_handle * handle	/* path to lock
 
 	/* all requestors will be informed that lock is invalidated. */
 	list_for_each(pos, &node->lock.requestors) {
-	//for_all_type_safe_list(requestors, &node->lock.requestors, rq) {
 		rq = list_entry(pos, lock_stack, requestors_link);
 		reiser4_wake_up(rq);
 	}
@@ -1128,9 +1098,7 @@ void invalidate_lock(lock_handle * handle	/* path to lock
 	/* We use that each unlock() will wakeup first item from requestors
 	   list; our lock stack is the last one. */
 	while (!list_empty_careful(&node->lock.requestors)) {
-	//while (!requestors_list_empty(&node->lock.requestors)) {
 		list_add_tail(&owner->requestors_link, &node->lock.requestors);
-		//requestors_list_push_back(&node->lock.requestors, owner);
 
 		prepare_to_sleep(owner);
 
@@ -1139,7 +1107,6 @@ void invalidate_lock(lock_handle * handle	/* path to lock
 		WLOCK_ZLOCK(&node->lock);
 
 		list_del_init(&owner->requestors_link);
-		//requestors_list_remove(owner);
 	}
 
 	WUNLOCK_ZLOCK(&node->lock);
@@ -1151,9 +1118,7 @@ void init_lock_stack(lock_stack * owner	/* pointer to
 					 * structure. */ )
 {
 	INIT_LIST_HEAD(&owner->locks);
-	//locks_list_init(&owner->locks);
 	INIT_LIST_HEAD(&owner->requestors_link);
-	//requestors_list_clean(owner);
 	spin_stack_init(owner);
 	owner->curpri = 1;
 	sema_init(&owner->sema, 0);
@@ -1167,9 +1132,7 @@ void reiser4_init_lock(zlock * lock	/* pointer on allocated
 	memset(lock, 0, sizeof(zlock));
 	rw_zlock_init(lock);
 	INIT_LIST_HEAD(&lock->requestors);
-	//requestors_list_init(&lock->requestors);
 	INIT_LIST_HEAD(&lock->owners);
-	//owners_list_init(&lock->owners);
 }
 
 /* lock handle initialization */
@@ -1177,9 +1140,7 @@ void init_lh(lock_handle * handle)
 {
 	memset(handle, 0, sizeof *handle);
 	INIT_LIST_HEAD(&handle->locks_link);
-	//locks_list_clean(handle);
 	INIT_LIST_HEAD(&handle->owners_link);
-	//owners_list_clean(handle);
 }
 
 /* freeing of lock handle resources */
@@ -1306,7 +1267,6 @@ void go_to_sleep(lock_stack * owner)
 int lock_stack_isclean(lock_stack * owner)
 {
 	if (list_empty_careful(&owner->locks)) {
-	//if (locks_list_empty(&owner->locks)) {
 		assert("zam-353", atomic_read(&owner->nr_signaled) == 0);
 		return 1;
 	}
@@ -1338,7 +1298,6 @@ void print_lock_stack(const char *prefix, lock_stack * owner)
 
 	list_for_each(pos, &owner->locks) {
 		handle = list_entry(pos, lock_handle, locks_link);
-	//for_all_type_safe_list(locks, &owner->locks, handle) {
 		if (handle->node != NULL)
 			print_address(znode_is_rlocked(handle->node) ?
 				      "......  read" : "...... write",
@@ -1404,7 +1363,6 @@ request_is_deadlock_safe(znode * node, znode_lock_mode mode,
 		lock_handle *item;
 
 		list_for_each(pos, &owner->locks) {
-		//for_all_type_safe_list(locks, &owner->locks, item) {
 			znode *other;
 
 			item = list_entry(pos, lock_handle, locks_link);

@@ -122,7 +122,6 @@ adjust_dir_file(struct inode *dir, const struct dentry *de, int offset, int adj)
 
 	list_for_each(pos, get_readdir_list(dir)) {
 		scan = list_entry(pos, reiser4_file_fsdata, dir.linkage);
-//	for_all_type_safe_list(readdir, get_readdir_list(dir), scan)
 		adjust_dir_pos(scan->back, &scan->dir.readdir, &mod_point, adj);
 	}
 
@@ -463,8 +462,6 @@ static int dir_readdir_init(struct file *f, tap_t * tap, readdir_pos ** pos)
 	spin_lock_inode(inode);
 	if (list_empty_careful(&fsdata->dir.linkage))
 		list_add(&fsdata->dir.linkage, get_readdir_list(inode));
-//	if (readdir_list_is_clean(fsdata))
-//		readdir_list_push_front(get_readdir_list(inode), fsdata);
 	*pos = &fsdata->dir.readdir;
 	spin_unlock_inode(inode);
 

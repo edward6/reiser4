@@ -98,7 +98,6 @@ static struct wbq *__get_wbq(entd_context * ent)
 	wbq = list_entry(ent->wbq_list.next, struct wbq, link);
 	list_del_init(&wbq->link);
 	return wbq;
-//	return wbq_list_pop_front(&ent->wbq_list);
 }
 
 struct wbq * get_wbq(struct super_block * super)
@@ -180,7 +179,6 @@ static int entd(void *arg)
 			       ent->nr_synchronous_requests);
 			if (ent->nr_synchronous_requests != 0) {
 				struct wbq *rq = list_entry(ent->wbq_list.next, struct wbq, link);
-//				struct wbq *rq = wbq_list_front(&ent->wbq_list);
 
 				if (++rq->nr_entd_iters > MAX_ENTD_ITERS) {
 					rq = __get_wbq(ent);
@@ -265,7 +263,6 @@ void enter_flush(struct super_block *super)
 	ent->flushers++;
 #if REISER4_DEBUG
 	list_add(&get_current_context()->flushers_link, &ent->flushers_list);
-//	flushers_list_push_front(&ent->flushers_list, get_current_context());
 #endif
 	spin_unlock(&ent->guard);
 }
@@ -286,7 +283,6 @@ void leave_flush(struct super_block *super)
 		kcond_signal(&ent->wait);
 #if REISER4_DEBUG
 	list_del_init(&get_current_context()->flushers_link);
-//	flushers_list_remove_clean(get_current_context());
 #endif
 	spin_unlock(&ent->guard);
 }
@@ -403,7 +399,6 @@ int write_page_by_ent(struct page *page, struct writeback_control *wbc)
 
 	/* init wbq */
 	INIT_LIST_HEAD(&rq.link);
-	//wbq_list_clean(&rq);
 	rq.nr_entd_iters = 0;
 	rq.page = page;
 	rq.wbc = wbc;
@@ -423,7 +418,6 @@ int write_page_by_ent(struct page *page, struct writeback_control *wbc)
 
 	sema_init(&rq.sem, 0);
 	list_add_tail(&rq.link, &ent->wbq_list);
-//	wbq_list_push_back(&ent->wbq_list, &rq);
 	ent->nr_synchronous_requests++;
 	spin_unlock(&ent->guard);
 	down(&rq.sem);

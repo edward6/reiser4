@@ -57,7 +57,6 @@ static void _init_context(reiser4_context * context, struct super_block *super)
 
 	/* initialize head of tap list */
 	INIT_LIST_HEAD(&context->taps);
-	//tap_list_init(&context->taps);
 #if REISER4_DEBUG
 	context->task = current;
 #endif

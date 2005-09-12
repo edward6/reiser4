@@ -184,7 +184,6 @@ lock_handle *znode_lh(znode *node)
 	assert("vs-1371", znode_is_write_locked(node));
 	assert("vs-1372", znode_is_wlocked_once(node));
 	return list_entry(node->lock.owners.next, lock_handle, owners_link);
-//	return owners_list_front(&node->lock.owners);
 }
 
 /*

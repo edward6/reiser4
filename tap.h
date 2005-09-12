@@ -55,11 +55,6 @@ extern struct list_head *taps_list(void);
 	     taps_list() != &tap->linkage;				\
 	     tap = list_entry(tap->linkage.next, tap_t, linkage))
 
-//#define for_all_taps( tap )				
-//	for (tap = tap_list_front ( taps_list() ); 	
-//	         ! tap_list_end   ( taps_list(), tap );	
-//	     tap = tap_list_next  ( tap ) )
-
 /* __REISER4_TAP_H__ */
 #endif
 /* Make Linus happy.

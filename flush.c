@@ -941,9 +941,7 @@ static jnode * find_flush_start_jnode(
 		if (JF_ISSET(node, JNODE_WRITEBACK)) {
 			/* move node to the end of atom's writeback list */
 			list_del_init(&node->capture_link);
-			//capture_list_remove_clean(node);
 			list_add_tail(&node->capture_link, ATOM_WB_LIST(atom));
-			//capture_list_push_back(ATOM_WB_LIST(atom), node);
 
 			ON_DEBUG(count_jnode(atom, node, DIRTY_LIST,
 					     WB_LIST, 1));

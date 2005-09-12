@@ -508,18 +508,18 @@ carry_node *add_carry_skip(carry_level * level	/* &carry_level to add node
 		reference = find_left_carry(reference, level);
 		if (reference == NULL)
 			reference = list_entry(level->nodes.next, carry_node,
-					       header.level_linkage); //carry_node_front(level);
+					       header.level_linkage);
 		else
 			reference = list_entry(reference->header.level_linkage.next,
-					       carry_node, header.level_linkage); //carry_node_next(reference);
+					       carry_node, header.level_linkage);
 	} else if (order == POOLO_AFTER) {
 		reference = find_right_carry(reference, level);
 		if (reference == NULL)
 			reference = list_entry(level->nodes.prev, carry_node,
-					       header.level_linkage); //carry_node_back(level);
+					       header.level_linkage);
 		else
 			reference = list_entry(reference->header.level_linkage.prev,
-					       carry_node, header.level_linkage); //carry_node_prev(reference);
+					       carry_node, header.level_linkage);
 	}
 	assert("nikita-2209",
 	       ergo(orig_ref != NULL,
@@ -592,11 +592,10 @@ static carry_node *find_begetting_brother(carry_node * node	/* node to start sea
 	assert("nikita-1619", ergo(carry_real(node) != NULL,
 				   ZF_ISSET(carry_real(node), JNODE_ORPHAN)));
 
-	//for (scan = node;; scan = carry_node_prev(scan)) {
 	for (scan = node;; 
 	     scan = list_entry(scan->header.level_linkage.prev, carry_node,
 			       header.level_linkage)) {
-		assert("nikita-1617", &kin->nodes != &scan->header.level_linkage); // !carry_node_end(kin, scan));
+		assert("nikita-1617", &kin->nodes != &scan->header.level_linkage);
 		if ((scan->node != node->node) &&
 		    !ZF_ISSET(scan->node, JNODE_ORPHAN)) {
 			assert("nikita-1618", carry_real(scan) != NULL);
@@ -855,8 +854,8 @@ static void done_carry_level(carry_level * level /* level to finish */ )
 
 	unlock_carry_level(level, 0);
 	for_all_nodes(level, node, tmp_node) {
-		assert("nikita-2113", list_empty_careful(&node->lock_handle.locks_link));// locks_list_is_clean(&node->lock_handle));
-		assert("nikita-2114", list_empty_careful(&node->lock_handle.owners_link)); //owners_list_is_clean(&node->lock_handle));
+		assert("nikita-2113", list_empty_careful(&node->lock_handle.locks_link));
+		assert("nikita-2114", list_empty_careful(&node->lock_handle.owners_link));
 		reiser4_pool_free(&level->pool->node_pool, &node->header);
 	}
 	for_all_ops(level, op, tmp_op)
@@ -1040,9 +1039,9 @@ unlock_carry_node(carry_level * level,
 		}
 		if (node->free) {
 			assert("nikita-2177",
-			       list_empty_careful(&node->lock_handle.locks_link));//locks_list_is_clean(&node->lock_handle));
+			       list_empty_careful(&node->lock_handle.locks_link));
 			assert("nikita-2112",
-			       list_empty_careful(&node->lock_handle.owners_link));//owners_list_is_clean(&node->lock_handle));
+			       list_empty_careful(&node->lock_handle.owners_link));
 			reiser4_pool_free(&level->pool->node_pool,
 					  &node->header);
 		}

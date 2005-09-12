@@ -1466,10 +1466,8 @@ int pre_commit_hook_bitmap(void)
 				 * mark corresponded bits in COMMIT BITMAP as used */
 		struct list_head *head = ATOM_CLEAN_LIST(atom);
 		jnode *node = list_entry(head->next, jnode, capture_link);
-//		jnode *node = capture_list_front(head);
 
 		while (head != &node->capture_link) {
-//		while (!capture_list_end(head, node)) {
 			/* we detect freshly allocated jnodes */
 			if (JF_ISSET(node, JNODE_RELOC)) {
 				int ret;
@@ -1522,7 +1520,6 @@ int pre_commit_hook_bitmap(void)
 			}
 
 			node = list_entry(node->capture_link.next, jnode, capture_link);
-//			node = capture_list_next(node);
 		}
 	}
 

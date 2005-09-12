@@ -170,12 +170,10 @@ struct dir_cursor {
 	 * cursors if there are more than one cursor of the same objectid
 	 */
 	struct list_head list;
-	//d_cursor_list_link list;
 	d_cursor_key key;
 	d_cursor_info *info;
 	/* list of unused cursors */
 	struct list_head alist;
-//	a_cursor_list_link alist;
 };
 
 extern int init_d_cursor(void);

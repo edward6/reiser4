@@ -362,27 +362,18 @@ extern znode *carry_real(const carry_node * node);
 	list_entry((node)->header.level_linkage.next, carry_node,	\
 		   header.level_linkage)
 
-//	( ( carry_node * ) pool_level_list_next( &( node ) -> header ) )
-
 #define carry_node_prev( node )					\
 	list_entry((node)->header.level_linkage.prev, carry_node,	\
 		   header.level_linkage)
-//	( ( carry_node * ) pool_level_list_prev( &( node ) -> header ) )
 
 #define carry_node_front( level )						\
 	list_entry((level)->nodes.next, carry_node, header.level_linkage)
 
-//	( ( carry_node * ) pool_level_list_front( &( level ) -> nodes ) )
-
 #define carry_node_back( level )						\
 	list_entry((level)->nodes.prev, carry_node, header.level_linkage)
 
-//	( ( carry_node * ) pool_level_list_back( &( level ) -> nodes ) )
-
 #define carry_node_end( level, node )				\
 	(&(level)->nodes == &(node)->header.level_linkage)
-
-//	( pool_level_list_end( &( level ) -> nodes, &( node ) -> header ) )
 
 /* macro to iterate over all operations in a @level */
 #define for_all_ops( level /* carry level (of type carry_level *) */,			\

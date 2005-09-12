@@ -80,7 +80,6 @@ void tap_monitor(tap_t * tap)
 	assert("nikita-2623", tap != NULL);
 	tap_check(tap);
 	list_add(&tap->linkage, taps_list());
-	//tap_list_push_front(taps_list(), tap);
 	tap_check(tap);
 }
 
@@ -97,7 +96,6 @@ void tap_copy(tap_t * dst, tap_t * src)
 	dst->mode = src->mode;
 	dst->loaded = 0;
 	INIT_LIST_HEAD(&dst->linkage);
-	//tap_list_clean(dst);
 	dst->ra_info = src->ra_info;
 }
 
@@ -111,7 +109,6 @@ void tap_done(tap_t * tap)
 	done_lh(tap->lh);
 	tap->loaded = 0;
 	list_del_init(&tap->linkage);
-	//tap_list_remove_clean(tap);
 	tap->coord->node = NULL;
 }
 

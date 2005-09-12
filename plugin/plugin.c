@@ -215,7 +215,6 @@ int init_plugins(void)
 		assert("nikita-3509", ptype->type_id == type_id);
 
 		INIT_LIST_HEAD(&ptype->plugins_list);
-//		plugin_list_init(&ptype->plugins_list);
 /* NIKITA-FIXME-HANS: change builtin_num to some other name lacking the term builtin. */
 		for (i = 0; i < ptype->builtin_num; ++i) {
 			reiser4_plugin *plugin;
@@ -236,9 +235,7 @@ int init_plugins(void)
 					return result;
 			}
 			INIT_LIST_HEAD(&plugin->h.linkage);
-//			plugin_list_clean(plugin);
 			list_add_tail(&plugin->h.linkage, &ptype->plugins_list);
-//			plugin_list_push_back(&ptype->plugins_list, plugin);
 		}
 	}
 	return 0;

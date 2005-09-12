@@ -59,7 +59,7 @@ static carry_node *find_left_neighbor(carry_op * op	/* node to find left
 			left = node;
 			do {
 				left = list_entry(left->header.level_linkage.prev,
-						  carry_node, header.level_linkage);// carry_node_prev(left);
+						  carry_node, header.level_linkage);
 				assert("nikita-3408", !carry_node_end(doing,
 								      left));
 			} while (carry_real(left) == carry_real(node));
@@ -187,7 +187,7 @@ static carry_node *find_right_neighbor(carry_op * op	/* node to find right
 			right = node;
 			do {
 				right = list_entry(right->header.level_linkage.next,
-						   carry_node, header.level_linkage);//carry_node_next(right);
+						   carry_node, header.level_linkage);
 				assert("nikita-3408", !carry_node_end(doing,
 								      right));
 			} while (carry_real(right) == carry_real(node));
@@ -1911,8 +1911,6 @@ static carry_node *find_dir_carry(carry_node * node	/* node to start scanning
 		if (carry_node_end(level, neighbor))
 			/* list head is reached */
 			return NULL;
-		//if (pool_level_list_end(&level->nodes, &neighbor->header))
-		//return NULL;
 		if (carry_real(neighbor) != carry_real(node))
 			return neighbor;
 	}

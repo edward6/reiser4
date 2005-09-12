@@ -878,11 +878,6 @@ for (plugin = list_entry(get_plugin_list(ptype)->next, reiser4_plugin, h.linkage
      get_plugin_list(ptype) != &plugin->h.linkage;					\
      plugin = list_entry(plugin->h.linkage.next, reiser4_plugin, h.linkage))
 
-//#define for_all_plugins( ptype, plugin )			
-//for( plugin = plugin_list_front( get_plugin_list( ptype ) ) ;	
-//     ! plugin_list_end( get_plugin_list( ptype ), plugin ) ;	
-//     plugin = plugin_list_next( plugin ) )
-
 
 /* enumeration of fields within plugin_set */
 typedef enum {

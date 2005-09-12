@@ -414,9 +414,6 @@ protected_list_split(struct list_head *head_split,
 	node->capture_link.prev->next = head_split;
 	head_split->prev = node->capture_link.prev;
 
-	//item->LINK_NAME._prev->_next = (PREFIX##_list_link*)head_split;
-	//head_split->_prev = item->LINK_NAME._prev;
-
 	/* link new list */
 	head_new->next->prev = head_new;
 	head_new->prev->next = head_new;
@@ -433,15 +430,12 @@ unprotect_extent_nodes(flush_pos_t *flush_pos, __u64 count,
 	LIST_HEAD(unprotected_nodes);
 	txn_atom *atom;
 
-	//capture_list_init(&unprotected_nodes);
-
 	atom = atom_locked_by_fq(pos_fq(flush_pos));
 	assert("vs-1468", atom);
 
 	assert("vs-1469", !list_empty_careful(protected_nodes));
 	assert("vs-1474", count > 0);
 	node = list_entry(protected_nodes->prev, jnode, capture_link);
-//	node = capture_list_back(protected_nodes);
 	do {
 		count--;
 		junprotect(node);
@@ -452,10 +446,8 @@ unprotect_extent_nodes(flush_pos_t *flush_pos, __u64 count,
 			break;
 		}
 		tmp = list_entry(node->capture_link.prev, jnode, capture_link);
-//		tmp = capture_list_prev(node);
 		node = tmp;
 		assert("vs-1470", protected_nodes != &node->capture_link);
-//		assert("vs-1470", !capture_list_end(protected_nodes, node));
 	} while (1);
 
 	/* move back to dirty list */
@@ -478,9 +470,7 @@ static void protect_reloc_node(struct list_head *jnodes, jnode *node)
 
 	JF_SET(node, JNODE_EPROTECTED);
 	list_del_init(&node->capture_link);
-//	capture_list_remove_clean(node);
 	list_add_tail(&node->capture_link, jnodes);
-//	capture_list_push_back(jnodes, node);
 	ON_DEBUG(count_jnode(node->atom, node, DIRTY_LIST, PROTECT_LIST, 0));
 }
 
@@ -719,7 +709,6 @@ assign_real_blocknrs(flush_pos_t *flush_pos, reiser4_block_nr first,
 	i = 0;
 	list_for_each(pos, protected_nodes) {
 		node = list_entry(pos, jnode, capture_link);
-//	for_all_type_safe_list(capture, protected_nodes, node) {
 		LOCK_JNODE(node);
 		assert("vs-1132",
 		       ergo(state == UNALLOCATED_EXTENT,
@@ -766,9 +755,7 @@ static void make_node_ovrwr(struct list_head *jnodes, jnode *node)
 
 	JF_SET(node, JNODE_OVRWR);
 	list_del_init(&node->capture_link);
-	//capture_list_remove_clean(node);
 	list_add_tail(&node->capture_link, jnodes);
-	//capture_list_push_back(jnodes, node);
 	ON_DEBUG(count_jnode(node->atom, node, DIRTY_LIST, OVRWR_LIST, 0));
 
 	UNLOCK_JNODE(node);

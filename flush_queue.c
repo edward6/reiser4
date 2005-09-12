@@ -102,7 +102,6 @@ static void init_fq(flush_queue_t * fq)
 	atomic_set(&fq->nr_submitted, 0);
 
 	INIT_LIST_HEAD(ATOM_FQ_LIST(fq));
-//	capture_list_init(ATOM_FQ_LIST(fq));
 
 	sema_init(&fq->io_sem, 0);
 	spin_fq_init(fq);
@@ -167,7 +166,6 @@ static void attach_fq(txn_atom *atom, flush_queue_t *fq)
 {
 	assert("zam-718", spin_atom_is_locked(atom));
 	list_add(&fq->alink, &atom->flush_queues);
-//	fq_list_push_front(&atom->flush_queues, fq);
 	fq->atom = atom;
 	ON_DEBUG(atom->nr_flush_queues++);
 }
@@ -178,7 +176,6 @@ static void detach_fq(flush_queue_t * fq)
 
 	spin_lock_fq(fq);
 	list_del_init(&fq->alink);
-//	fq_list_remove_clean(fq);
 	assert("vs-1456", fq->atom->nr_flush_queues > 0);
 	ON_DEBUG(fq->atom->nr_flush_queues--);
 	fq->atom = NULL;
@@ -219,9 +216,7 @@ void queue_jnode(flush_queue_t * fq, jnode * node)
 
 	mark_jnode_queued(fq, node);
 	list_del(&node->capture_link);
-	//capture_list_remove_clean(node);
 	list_add_tail(&node->capture_link, ATOM_FQ_LIST(fq));
-	//capture_list_push_back(ATOM_FQ_LIST(fq), node);
 
 	ON_DEBUG(count_jnode(node->atom, node, NODE_LIST(node),
 			     FQ_LIST, 1));
@@ -296,7 +291,6 @@ static int finish_all_fq(txn_atom * atom, int *nr_io_errors)
 
 	list_for_each(pos, &atom->flush_queues) {
 		fq = list_entry(pos, flush_queue_t, alink);
-//	for_all_type_safe_list(fq, &atom->flush_queues, fq) {
 		if (fq_ready(fq)) {
 			int ret;
 
@@ -366,7 +360,6 @@ scan_fq_and_update_atom_ref(struct list_head *list, txn_atom *atom)
 
 	list_for_each(pos, list) {
 		cur = list_entry(pos, jnode, capture_link);
-//	for_all_type_safe_list(capture, list, cur) {
 		LOCK_JNODE(cur);
 		cur->atom = atom;
 		UNLOCK_JNODE(cur);
@@ -384,7 +377,6 @@ void fuse_fq(txn_atom *to, txn_atom *from)
 
 	list_for_each(pos, &from->flush_queues) {
 		fq = list_entry(pos, flush_queue_t, alink);
-//	for_all_type_safe_list(fq, &from->flush_queues, fq) {
 		scan_fq_and_update_atom_ref(ATOM_FQ_LIST(fq), to);
 		spin_lock_fq(fq);
 		fq->atom = to;
@@ -489,9 +481,7 @@ static void release_prepped_list(flush_queue_t * fq)
 		jnode *cur;
 
 		cur = list_entry(ATOM_FQ_LIST(fq)->next, jnode, capture_link);
-//		cur = capture_list_front(ATOM_FQ_LIST(fq));
 		list_del_init(&cur->capture_link);
-//		capture_list_remove_clean(cur);
 
 		count_dequeued_node(fq);
 		LOCK_JNODE(cur);
@@ -503,14 +493,10 @@ static void release_prepped_list(flush_queue_t * fq)
 		if (JF_ISSET(cur, JNODE_DIRTY)) {
 			list_add_tail(&cur->capture_link,
 				      ATOM_DIRTY_LIST(atom, jnode_get_level(cur)));
-//			capture_list_push_back(ATOM_DIRTY_LIST
-//					       (atom, jnode_get_level(cur)),
-//					       cur);
 			ON_DEBUG(count_jnode(atom, cur, FQ_LIST,
 					     DIRTY_LIST, 1));
 		} else {
 			list_add_tail(&cur->capture_link, ATOM_CLEAN_LIST(atom));
-//			capture_list_push_back(ATOM_CLEAN_LIST(atom), cur);
 			ON_DEBUG(count_jnode(atom, cur, FQ_LIST,
 					     CLEAN_LIST, 1));
 		}
@@ -567,9 +553,7 @@ static int fq_by_atom_gfp(txn_atom *atom, flush_queue_t **new_fq, int gfp)
 	assert("zam-745", spin_atom_is_locked(atom));
 
 	fq = list_entry(atom->flush_queues.next, flush_queue_t, alink);
-//	fq = fq_list_front(&atom->flush_queues);
 	while (&atom->flush_queues != &fq->alink) {
-//	while (!fq_list_end(&atom->flush_queues, fq)) {
 		spin_lock_fq(fq);
 
 		if (fq_ready(fq)) {
@@ -589,7 +573,6 @@ static int fq_by_atom_gfp(txn_atom *atom, flush_queue_t **new_fq, int gfp)
 		spin_unlock_fq(fq);
 
 		fq = list_entry(fq->alink.next, flush_queue_t, alink);
-//		fq = fq_list_next(fq);
 	}
 
 	/* Use previously allocated fq object */
@@ -667,7 +650,6 @@ void fq_put(flush_queue_t * fq)
 void init_atom_fq_parts(txn_atom *atom)
 {
 	INIT_LIST_HEAD(&atom->flush_queues);
-//	fq_list_init(&atom->flush_queues);
 }
 
 /* get a flush queue for an atom pointed by given jnode (spin-locked) ; returns
@@ -746,10 +728,8 @@ void check_fq(const txn_atom *atom)
 	count = 0;
 	list_for_each(pos1, &atom->flush_queues) {
 		fq = list_entry(pos1, flush_queue_t, alink);
-//	for_all_type_safe_list(fq, &atom->flush_queues, fq) {
 		spin_lock_fq(fq);
 		list_for_each(pos2, ATOM_FQ_LIST(fq))
-//		for_all_type_safe_list(capture, ATOM_FQ_LIST(fq), node)
 			count++;
 		spin_unlock_fq(fq);
 	}
@@ -760,13 +740,13 @@ void check_fq(const txn_atom *atom)
 
 #endif
 
-/* Make Linus happy.
-   Local variables:
-   c-indentation-style: "K&R"
-   mode-name: "LC"
-   c-basic-offset: 8
-   tab-width: 8
-   fill-column: 80
-   scroll-step: 1
-   End:
-*/
+/*
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 79
+ * scroll-step: 1
+ * End:
+ */

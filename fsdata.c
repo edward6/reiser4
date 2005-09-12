@@ -38,7 +38,6 @@ static int d_cursor_shrink(int nr, unsigned int mask)
 		spin_lock(&d_lock);
 		while (!list_empty(&cursor_cache)) {			
 			scan = list_entry(cursor_cache.next, dir_cursor, alist);
-//			scan = a_cursor_list_front(&cursor_cache);
 			assert("nikita-3567", scan->ref == 0);
 			kill_cursor(scan);
 			++killed;
@@ -168,12 +167,10 @@ static void kill_cursor(dir_cursor *cursor)
 
 	index = (unsigned long)cursor->key.oid;
 	list_del_init(&cursor->fsdata->dir.linkage);
-//	readdir_list_remove_clean(cursor->fsdata);
 	free_fsdata(cursor->fsdata);
 	cursor->fsdata = NULL;
 
 	if (list_empty_careful(&cursor->list))
-//	if (d_cursor_list_is_clean(cursor))
 		/* this is last cursor for a file. Kill radix-tree entry */
 		radix_tree_delete(&cursor->info->tree, index);
 	else {
@@ -193,14 +190,11 @@ static void kill_cursor(dir_cursor *cursor)
 		assert("nikita-3571", *slot != NULL);
 		if (*slot == cursor)
 			*slot = list_entry(cursor->list.next, dir_cursor, list);
-//			*slot = d_cursor_list_next(cursor);
 		/* remove cursor from circular list */
 		list_del_init(&cursor->list);
-//		d_cursor_list_remove_clean(cursor);
 	}
 	/* remove cursor from the list of unused cursors */
 	list_del_init(&cursor->alist);
-//	a_cursor_list_remove_clean(cursor);
 	/* remove cursor from the hash table */
 	d_cursor_hash_remove(&cursor->info->table, cursor);
 	/* and free it */
@@ -255,12 +249,10 @@ static void bind_cursor(dir_cursor * cursor, unsigned long index)
 	if (head == NULL) {
 		/* this is the first cursor for this index */
 		INIT_LIST_HEAD(&cursor->list);
-//		d_cursor_list_clean(cursor);
 		radix_tree_insert(&cursor->info->tree, index, cursor);
 	} else {
 		/* some cursor already exists. Chain ours */
 		list_add(&cursor->list, &head->list);
-//		d_cursor_list_insert_after(head, cursor);
 	}
 }
 
@@ -283,7 +275,6 @@ static void clean_fsdata(struct file *file)
 			--cursor->ref;
 			if (cursor->ref == 0) {
 				list_add_tail(&cursor->alist, &cursor_cache);
-//				a_cursor_list_push_back(&cursor_cache, cursor);
 				++d_cursor_unused;
 			}
 			spin_unlock(&d_lock);
@@ -377,7 +368,6 @@ static void process_cursors(struct inode *inode, enum cursor_action act)
 	oid_t oid;
 	dir_cursor *start;
 	struct list_head *head;
-//	readdir_list_head *head;
 	reiser4_context *ctx;
 	d_cursor_info *info;
 
@@ -413,18 +403,15 @@ static void process_cursors(struct inode *inode, enum cursor_action act)
 			dir_cursor *next;
 
 			next = list_entry(scan->list.next, dir_cursor, list);
-//			next = d_cursor_list_next(scan);
 			fsdata = scan->fsdata;
 			assert("nikita-3557", fsdata != NULL);
 			if (scan->key.oid == oid) {
 				switch (act) {
 				case CURSOR_DISPOSE:
 					list_del_init(&fsdata->dir.linkage);
-//					readdir_list_remove_clean(fsdata);
 					break;
 				case CURSOR_LOAD:
 					list_add(&fsdata->dir.linkage, head);
-//					readdir_list_push_front(head, fsdata);
 					break;
 				case CURSOR_KILL:
 					kill_cursor(scan);
@@ -558,7 +545,6 @@ int try_to_attach_fsdata(struct file *file, struct inode *inode)
 			if (cursor->ref == 0) {
 				/* move it from unused list */
 				list_del_init(&cursor->alist);
-//				a_cursor_list_remove_clean(cursor);
 				--d_cursor_unused;
 			}
 			++cursor->ref;
@@ -710,7 +696,6 @@ reiser4_file_fsdata *create_fsdata(struct file *file)
 		fsdata->ra1.max_window_size = VM_MAX_READAHEAD * 1024;
 		fsdata->back = file;
 		INIT_LIST_HEAD(&fsdata->dir.linkage);
-//		readdir_list_clean(fsdata);
 	}
 	return fsdata;
 }
@@ -776,7 +761,6 @@ void reiser4_free_file_fsdata(struct file *file)
 	fsdata = file->private_data;
 	if (fsdata != NULL) {
 		list_del_init(&fsdata->dir.linkage);
-//		readdir_list_remove_clean(fsdata);
 		if (fsdata->cursor == NULL)
 			free_fsdata(fsdata);
 	}

@@ -44,7 +44,6 @@ struct blocknr_set_entry {
 	unsigned nr_singles;
 	unsigned nr_pairs;
 	struct list_head link;
-//	blocknr_set_list_link link;
 	reiser4_block_nr entries[BLOCKNR_SET_ENTRIES_NUMBER];
 };
 
@@ -72,7 +71,6 @@ static void bse_init(blocknr_set_entry *bse)
 	bse->nr_singles = 0;
 	bse->nr_pairs = 0;
 	INIT_LIST_HEAD(&bse->link);
-	//blocknr_set_list_clean(bse);
 }
 
 /* Allocate and initialize a blocknr_set_entry. */
@@ -156,7 +154,6 @@ static int blocknr_set_add(txn_atom *atom, blocknr_set *bset,
 	entries_needed = (b == NULL) ? 1 : 2;
 	if (list_empty(&bset->entries) ||
 	    bse_avail(list_entry(bset->entries.next, blocknr_set_entry, link)) < entries_needed) {
-//	    bse_avail(blocknr_set_list_front(&bset->entries)) < entries_needed) {
 		/* See if a bse was previously allocated. */
 		if (*new_bsep == NULL) {
 			UNLOCK_ATOM(atom);
@@ -167,14 +164,12 @@ static int blocknr_set_add(txn_atom *atom, blocknr_set *bset,
 
 		/* Put it on the head of the list. */
 		list_add(&((*new_bsep)->link), &bset->entries);
-//		blocknr_set_list_push_front(&bset->entries, *new_bsep);
 
 		*new_bsep = NULL;
 	}
 
 	/* Add the single or pair. */
 	bse = list_entry(bset->entries.next, blocknr_set_entry, link);
-//	bse = blocknr_set_list_front(&bset->entries);
 	if (b == NULL) {
 		bse_put_single(bse, a);
 	} else {
@@ -228,7 +223,6 @@ blocknr_set_add_pair(txn_atom * atom,
 void blocknr_set_init(blocknr_set *bset)
 {
 	INIT_LIST_HEAD(&bset->entries);
-	//blocknr_set_list_init(&bset->entries);
 }
 
 /* Release the entries of a blocknr_set. */
@@ -240,7 +234,6 @@ void blocknr_set_destroy(blocknr_set *bset)
 		bse = list_entry(bset->entries.next, blocknr_set_entry, link);
 		list_del_init(&bse->link);
 		bse_free(bse);
-//		bse_free(blocknr_set_list_pop_front(&bset->entries));
 	}
 }
 
@@ -272,10 +265,8 @@ void blocknr_set_merge(blocknr_set * from, blocknr_set * into)
 
 		bse_into = list_entry(into->entries.next, blocknr_set_entry, link);
 		list_del_init(&bse_into->link);
-//		bse_into = blocknr_set_list_pop_front(&into->entries);
 		bse_from = list_entry(from->entries.next, blocknr_set_entry, link);
 		list_del_init(&bse_from->link);
-//		bse_from = blocknr_set_list_pop_front(&from->entries);
 
 		/* Combine singles. */
 		for (into_avail = bse_avail(bse_into);
@@ -303,7 +294,6 @@ void blocknr_set_merge(blocknr_set * from, blocknr_set * into)
 			   pair left).  Push it back onto the list.  bse_from
 			   becomes bse_into, which will be the new partial. */
 			list_add(&bse_into->link, &into->entries);
-//			blocknr_set_list_push_front(&into->entries, bse_into);
 			bse_into = bse_from;
 		}
 	}
@@ -315,7 +305,6 @@ void blocknr_set_merge(blocknr_set * from, blocknr_set * into)
 	/* Add the partial entry back to the head of the list. */
 	if (bse_into != NULL) {
 		list_add(&bse_into->link, &into->entries);
-//		blocknr_set_list_push_front(&into->entries, bse_into);
 	}
 }
 
@@ -332,11 +321,8 @@ int blocknr_set_iterator(txn_atom *atom, blocknr_set *bset,
 	assert("zam-432", actor != NULL);
 
 	entry = list_entry(bset->entries.next, blocknr_set_entry, link);
-//	entry = blocknr_set_list_front(&bset->entries);
 	while (&bset->entries != &entry->link) {
-//	while (!blocknr_set_list_end(&bset->entries, entry)) {
 		blocknr_set_entry *tmp = list_entry(entry->link.next, blocknr_set_entry, link);
-//		blocknr_set_entry *tmp = blocknr_set_list_next(entry);
 		unsigned int i;
 		int ret;
 
@@ -361,7 +347,6 @@ int blocknr_set_iterator(txn_atom *atom, blocknr_set *bset,
 
 		if (delete) {
 			list_del(&entry->link);
-			//blocknr_set_list_remove(entry);
 			bse_free(entry);
 		}
 
