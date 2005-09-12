@@ -61,7 +61,6 @@ reiser4-y := \
 		   plugin/file_ops_readdir.o \
 		   plugin/file_plugin_common.o \
 		   plugin/file/file.o \
-		   plugin/file/pseudo.o \
 		   plugin/file/tail_conversion.o \
 		   plugin/file/symlink.o \
 		   plugin/file/cryptcompress.o \
@@ -93,9 +92,6 @@ reiser4-y := \
 		   plugin/item/item.o \
            \
 		   plugin/security/perm.o \
-           \
-		   plugin/pseudo/pseudo.o \
-           \
 		   plugin/space/bitmap.o \
            \
 		   plugin/disk_format/disk_format40.o \

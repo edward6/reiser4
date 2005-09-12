@@ -11,6 +11,7 @@
 #include <linux/vfs.h>
 #include <linux/writeback.h>
 #include <linux/mount.h>
+#include <linux/seq_file.h>
 
 /* slab cache for inodes */
 static kmem_cache_t *inode_cache;

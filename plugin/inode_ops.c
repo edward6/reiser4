@@ -14,7 +14,7 @@
 #include <linux/namei.h>
 
 
-int create_vfs_object(struct inode *parent, struct dentry *dentry,
+static int create_vfs_object(struct inode *parent, struct dentry *dentry,
 		      reiser4_object_create_data *data);
 
 /**
@@ -790,9 +790,8 @@ static int do_create_vfs_child(reiser4_object_create_data * data,	/* parameters 
 
 /* this is helper for common implementations of reiser4_mkdir, reiser4_create,
    reiser4_mknod and reiser4_symlink
-   it is also used in plugin/pseudo/pseudo.c, so it is not static
 */
-int
+static int
 create_vfs_object(struct inode *parent,
 		  struct dentry *dentry, reiser4_object_create_data * data)
 {

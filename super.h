@@ -46,25 +46,14 @@ typedef enum {
 	REISER4_32_BIT_TIMES = 3,
 	/* allow concurrent flushes */
 	REISER4_MTFLUSH = 4,
-	/*
-	 * disable support for pseudo files. Don't treat regular files as
-	 * directories.
-	 */
-	REISER4_NO_PSEUDO = 5,
 	/* load all bitmap blocks at mount time */
-	REISER4_DONT_LOAD_BITMAP = 6,
+	REISER4_DONT_LOAD_BITMAP = 5,
 	/* enforce atomicity during write(2) */
-	REISER4_ATOMIC_WRITE = 7
+	REISER4_ATOMIC_WRITE = 6
 } reiser4_fs_flag;
 
 /*
  * VFS related operation vectors.
- *
- * Usually file system has one instance of those, but in reiser4 we sometimes
- * want to be able to modify vectors on per-mount basis. For example, reiser4
- * needs ->open method to handle pseudo files correctly, but if file system is
- * mounted with "nopseudo" mount option, it's better to have ->open set to
- * NULL, as this makes sys_open() a little bit more efficient.
  */
 typedef struct object_ops {
 	struct super_operations super;

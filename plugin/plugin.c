@@ -551,16 +551,6 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.plugins_list = {NULL, NULL},
 		.size = sizeof(jnode_plugin)
 	},
-	[REISER4_PSEUDO_PLUGIN_TYPE] = {
-		.type_id = REISER4_PSEUDO_PLUGIN_TYPE,
-		.label = "pseudo_file",
-		.desc = "pseudo file",
-		.builtin_num =
-		sizeof_array(pseudo_plugins),
-		.builtin = pseudo_plugins,
-		.plugins_list = {NULL, NULL},
-		.size = sizeof(pseudo_plugin)
-	},
 	[REISER4_COMPRESSION_MODE_PLUGIN_TYPE] = {
 		.type_id = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
 		.label = "compression_mode",
