@@ -1,7 +1,6 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
 #include "debug.h"
-#include "type_safe_list.h"
 #include "super.h"
 #include "txnmgr.h"
 #include "jnode.h"
@@ -22,8 +21,6 @@
    by the jnode_flush() function for writing to disk. Those "queued" jnodes are
    kept on the flush queue until memory pressure or atom commit asks
    flush queues to write some or all from their jnodes. */
-
-TYPE_SAFE_LIST_DEFINE(fq, flush_queue_t, alink);
 
 #if REISER4_DEBUG
 #   define spin_ordering_pred_fq(fq)  (1)
@@ -104,7 +101,8 @@ static void init_fq(flush_queue_t * fq)
 
 	atomic_set(&fq->nr_submitted, 0);
 
-	capture_list_init(ATOM_FQ_LIST(fq));
+	INIT_LIST_HEAD(ATOM_FQ_LIST(fq));
+//	capture_list_init(ATOM_FQ_LIST(fq));
 
 	sema_init(&fq->io_sem, 0);
 	spin_fq_init(fq);
@@ -165,10 +163,11 @@ static void count_dequeued_node(flush_queue_t * fq)
 }
 
 /* attach flush queue object to the atom */
-static void attach_fq(txn_atom * atom, flush_queue_t * fq)
+static void attach_fq(txn_atom *atom, flush_queue_t *fq)
 {
 	assert("zam-718", spin_atom_is_locked(atom));
-	fq_list_push_front(&atom->flush_queues, fq);
+	list_add(&fq->alink, &atom->flush_queues);
+//	fq_list_push_front(&atom->flush_queues, fq);
 	fq->atom = atom;
 	ON_DEBUG(atom->nr_flush_queues++);
 }
@@ -178,7 +177,8 @@ static void detach_fq(flush_queue_t * fq)
 	assert("zam-731", spin_atom_is_locked(fq->atom));
 
 	spin_lock_fq(fq);
-	fq_list_remove_clean(fq);
+	list_del_init(&fq->alink);
+//	fq_list_remove_clean(fq);
 	assert("vs-1456", fq->atom->nr_flush_queues > 0);
 	ON_DEBUG(fq->atom->nr_flush_queues--);
 	fq->atom = NULL;
@@ -188,7 +188,7 @@ static void detach_fq(flush_queue_t * fq)
 /* destroy flush queue object */
 static void done_fq(flush_queue_t * fq)
 {
-	assert("zam-763", capture_list_empty(ATOM_FQ_LIST(fq)));
+	assert("zam-763", list_empty_careful(ATOM_FQ_LIST(fq)));
 	assert("zam-766", atomic_read(&fq->nr_submitted) == 0);
 
 	kmem_cache_free(fq_slab, fq);
@@ -218,8 +218,10 @@ void queue_jnode(flush_queue_t * fq, jnode * node)
 	assert("vs-1481", NODE_LIST(node) != FQ_LIST);
 
 	mark_jnode_queued(fq, node);
-	capture_list_remove_clean(node);
-	capture_list_push_back(ATOM_FQ_LIST(fq), node);
+	list_del(&node->capture_link);
+	//capture_list_remove_clean(node);
+	list_add_tail(&node->capture_link, ATOM_FQ_LIST(fq));
+	//capture_list_push_back(ATOM_FQ_LIST(fq), node);
 
 	ON_DEBUG(count_jnode(node->atom, node, NODE_LIST(node),
 			     FQ_LIST, 1));
@@ -231,7 +233,7 @@ static int wait_io(flush_queue_t * fq, int *nr_io_errors)
 	assert("zam-738", fq->atom != NULL);
 	assert("zam-739", spin_atom_is_locked(fq->atom));
 	assert("zam-736", fq_in_use(fq));
-	assert("zam-911", capture_list_empty(ATOM_FQ_LIST(fq)));
+	assert("zam-911", list_empty_careful(ATOM_FQ_LIST(fq)));
 
 	if (atomic_read(&fq->nr_submitted) != 0) {
 		struct super_block *super;
@@ -285,13 +287,16 @@ static int finish_fq(flush_queue_t * fq, int *nr_io_errors)
 static int finish_all_fq(txn_atom * atom, int *nr_io_errors)
 {
 	flush_queue_t *fq;
+	struct list_head *pos;
 
 	assert("zam-730", spin_atom_is_locked(atom));
 
-	if (fq_list_empty(&atom->flush_queues))
+	if (list_empty_careful(&atom->flush_queues))
 		return 0;
 
-	for_all_type_safe_list(fq, &atom->flush_queues, fq) {
+	list_for_each(pos, &atom->flush_queues) {
+		fq = list_entry(pos, flush_queue_t, alink);
+//	for_all_type_safe_list(fq, &atom->flush_queues, fq) {
 		if (fq_ready(fq)) {
 			int ret;
 
@@ -354,11 +359,14 @@ int current_atom_finish_all_fq(void)
 
 /* change node->atom field for all jnode from given list */
 static void
-scan_fq_and_update_atom_ref(capture_list_head * list, txn_atom * atom)
+scan_fq_and_update_atom_ref(struct list_head *list, txn_atom *atom)
 {
 	jnode *cur;
+	struct list_head *pos;
 
-	for_all_type_safe_list(capture, list, cur) {
+	list_for_each(pos, list) {
+		cur = list_entry(pos, jnode, capture_link);
+//	for_all_type_safe_list(capture, list, cur) {
 		LOCK_JNODE(cur);
 		cur->atom = atom;
 		UNLOCK_JNODE(cur);
@@ -366,21 +374,26 @@ scan_fq_and_update_atom_ref(capture_list_head * list, txn_atom * atom)
 }
 
 /* support for atom fusion operation */
-void fuse_fq(txn_atom * to, txn_atom * from)
+void fuse_fq(txn_atom *to, txn_atom *from)
 {
 	flush_queue_t *fq;
+	struct list_head *pos;
 
 	assert("zam-720", spin_atom_is_locked(to));
 	assert("zam-721", spin_atom_is_locked(from));
 
-	for_all_type_safe_list(fq, &from->flush_queues, fq) {
+	list_for_each(pos, &from->flush_queues) {
+		fq = list_entry(pos, flush_queue_t, alink);
+//	for_all_type_safe_list(fq, &from->flush_queues, fq) {
 		scan_fq_and_update_atom_ref(ATOM_FQ_LIST(fq), to);
 		spin_lock_fq(fq);
 		fq->atom = to;
 		spin_unlock_fq(fq);
 	}
 
-	fq_list_splice(&to->flush_queues, &from->flush_queues);
+	list_splice(&from->flush_queues, &to->flush_queues);
+	INIT_LIST_HEAD(&from->flush_queues);
+
 
 #if REISER4_DEBUG
 	to->num_queued += from->num_queued;
@@ -393,7 +406,7 @@ void fuse_fq(txn_atom * to, txn_atom * from)
 int atom_fq_parts_are_clean(txn_atom * atom)
 {
 	assert("zam-915", atom != NULL);
-	return fq_list_empty(&atom->flush_queues);
+	return list_empty_careful(&atom->flush_queues);
 }
 #endif
 /* Bio i/o completion routine for reiser4 write operations. */
@@ -472,11 +485,13 @@ static void release_prepped_list(flush_queue_t * fq)
 	assert("zam-904", fq_in_use(fq));
 	atom = UNDER_SPIN(fq, fq, atom_get_locked_by_fq(fq));
 
-	while (!capture_list_empty(ATOM_FQ_LIST(fq))) {
+	while (!list_empty(ATOM_FQ_LIST(fq))) {
 		jnode *cur;
 
-		cur = capture_list_front(ATOM_FQ_LIST(fq));
-		capture_list_remove_clean(cur);
+		cur = list_entry(ATOM_FQ_LIST(fq)->next, jnode, capture_link);
+//		cur = capture_list_front(ATOM_FQ_LIST(fq));
+		list_del_init(&cur->capture_link);
+//		capture_list_remove_clean(cur);
 
 		count_dequeued_node(fq);
 		LOCK_JNODE(cur);
@@ -486,15 +501,18 @@ static void release_prepped_list(flush_queue_t * fq)
 		JF_CLR(cur, JNODE_FLUSH_QUEUED);
 
 		if (JF_ISSET(cur, JNODE_DIRTY)) {
-			capture_list_push_back(ATOM_DIRTY_LIST
-					       (atom, jnode_get_level(cur)),
-					       cur);
-			ON_DEBUG(count_jnode
-				 (atom, cur, FQ_LIST, DIRTY_LIST, 1));
+			list_add_tail(&cur->capture_link,
+				      ATOM_DIRTY_LIST(atom, jnode_get_level(cur)));
+//			capture_list_push_back(ATOM_DIRTY_LIST
+//					       (atom, jnode_get_level(cur)),
+//					       cur);
+			ON_DEBUG(count_jnode(atom, cur, FQ_LIST,
+					     DIRTY_LIST, 1));
 		} else {
-			capture_list_push_back(ATOM_CLEAN_LIST(atom), cur);
-			ON_DEBUG(count_jnode
-				 (atom, cur, FQ_LIST, CLEAN_LIST, 1));
+			list_add_tail(&cur->capture_link, ATOM_CLEAN_LIST(atom));
+//			capture_list_push_back(ATOM_CLEAN_LIST(atom), cur);
+			ON_DEBUG(count_jnode(atom, cur, FQ_LIST,
+					     CLEAN_LIST, 1));
 		}
 
 		UNLOCK_JNODE(cur);
@@ -542,14 +560,16 @@ int write_fq(flush_queue_t * fq, long *nr_submitted, int flags)
    atom lock is obtained by different ways in different parts of reiser4,
    usually it is current atom, but we need a possibility for getting fq for the
    atom of given jnode. */
-static int fq_by_atom_gfp(txn_atom * atom, flush_queue_t ** new_fq, int gfp)
+static int fq_by_atom_gfp(txn_atom *atom, flush_queue_t **new_fq, int gfp)
 {
 	flush_queue_t *fq;
 
 	assert("zam-745", spin_atom_is_locked(atom));
 
-	fq = fq_list_front(&atom->flush_queues);
-	while (!fq_list_end(&atom->flush_queues, fq)) {
+	fq = list_entry(atom->flush_queues.next, flush_queue_t, alink);
+//	fq = fq_list_front(&atom->flush_queues);
+	while (&atom->flush_queues != &fq->alink) {
+//	while (!fq_list_end(&atom->flush_queues, fq)) {
 		spin_lock_fq(fq);
 
 		if (fq_ready(fq)) {
@@ -568,7 +588,8 @@ static int fq_by_atom_gfp(txn_atom * atom, flush_queue_t ** new_fq, int gfp)
 
 		spin_unlock_fq(fq);
 
-		fq = fq_list_next(fq);
+		fq = list_entry(fq->alink.next, flush_queue_t, alink);
+//		fq = fq_list_next(fq);
 	}
 
 	/* Use previously allocated fq object */
@@ -615,10 +636,10 @@ flush_queue_t *get_fq_for_current_atom(void)
 }
 
 /* Releasing flush queue object after exclusive use */
-void fq_put_nolock(flush_queue_t * fq)
+void fq_put_nolock(flush_queue_t *fq)
 {
 	assert("zam-747", fq->atom != NULL);
-	assert("zam-902", capture_list_empty(ATOM_FQ_LIST(fq)));
+	assert("zam-902", list_empty_careful(ATOM_FQ_LIST(fq)));
 	mark_fq_ready(fq);
 	assert("vs-1245", fq->owner == current);
 	ON_DEBUG(fq->owner = NULL);
@@ -643,9 +664,10 @@ void fq_put(flush_queue_t * fq)
 /* A part of atom object initialization related to the embedded flush queue
    list head */
 
-void init_atom_fq_parts(txn_atom * atom)
+void init_atom_fq_parts(txn_atom *atom)
 {
-	fq_list_init(&atom->flush_queues);
+	INIT_LIST_HEAD(&atom->flush_queues);
+//	fq_list_init(&atom->flush_queues);
 }
 
 /* get a flush queue for an atom pointed by given jnode (spin-locked) ; returns
@@ -714,18 +736,21 @@ int fq_by_jnode_gfp(jnode * node, flush_queue_t ** fq, int gfp)
 
 #if REISER4_DEBUG
 
-void check_fq(const txn_atom * atom)
+void check_fq(const txn_atom *atom)
 {
 	/* check number of nodes on all atom's flush queues */
 	flush_queue_t *fq;
 	int count;
-	jnode *node;
+	struct list_head *pos1, *pos2;
 
 	count = 0;
-	for_all_type_safe_list(fq, &atom->flush_queues, fq) {
+	list_for_each(pos1, &atom->flush_queues) {
+		fq = list_entry(pos1, flush_queue_t, alink);
+//	for_all_type_safe_list(fq, &atom->flush_queues, fq) {
 		spin_lock_fq(fq);
-		for_all_type_safe_list(capture, ATOM_FQ_LIST(fq), node)
-		    count++;
+		list_for_each(pos2, ATOM_FQ_LIST(fq))
+//		for_all_type_safe_list(capture, ATOM_FQ_LIST(fq), node)
+			count++;
 		spin_unlock_fq(fq);
 	}
 	if (count != atom->fq)

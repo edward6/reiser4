@@ -55,7 +55,9 @@ static void _init_context(reiser4_context * context, struct super_block *super)
 
 	txn_begin(context);
 
-	tap_list_init(&context->taps);
+	/* initialize head of tap list */
+	INIT_LIST_HEAD(&context->taps);
+	//tap_list_init(&context->taps);
 #if REISER4_DEBUG
 	context->task = current;
 #endif
@@ -176,7 +178,7 @@ static void done_context(reiser4_context * context /* context being released */ 
 		assert("jmacd-673", context->trans == NULL);
 		assert("jmacd-1002", lock_stack_isclean(&context->stack));
 		assert("nikita-1936", no_counters_are_held());
-		assert("nikita-2626", tap_list_empty(taps_list()));
+		assert("nikita-2626", list_empty_careful(taps_list()));
 		assert("zam-1004", ergo(get_super_private(context->super),
 					get_super_private(context->super)->delete_sema_owner !=
 					current));

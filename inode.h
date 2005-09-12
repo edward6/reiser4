@@ -122,7 +122,7 @@ struct reiser4_inode {
 	/* bitmask of non-default plugins for this inode */
 	__u16 plugin_mask;
 	union {
-		readdir_list_head readdir_list;
+		struct list_head readdir_list;
 		struct list_head not_used;
 	} lists;
 	/* per-inode flags. Filled by values of reiser4_file_plugin_flags */
@@ -374,7 +374,7 @@ extern void inode_check_scale_nolock(struct inode * inode, __u64 old, __u64 new)
 })
 
 /* See comment before readdir_common() for description. */
-static inline readdir_list_head *get_readdir_list(const struct inode *inode)
+static inline struct list_head *get_readdir_list(const struct inode *inode)
 {
 	return &reiser4_inode_data(inode)->lists.readdir_list;
 }

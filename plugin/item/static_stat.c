@@ -917,7 +917,7 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 			.pops = NULL,
 			.label = "light-weight sd",
 			.desc = "sd for light-weight files",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL,NULL}
 		},
 		.present = present_lw_sd,
 		.absent = NULL,
@@ -932,7 +932,7 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 			.pops = NULL,
 			.label = "unix-sd",
 			.desc = "unix stat-data fields",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL,NULL}
 		},
 		.present = present_unix_sd,
 		.absent = absent_unix_sd,
@@ -947,7 +947,7 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 			.pops = NULL,
 			.label = "64time-sd",
 			.desc = "nanosecond resolution for times",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL,NULL}
 		},
 		.present = present_large_times_sd,
 		.absent = NULL,
@@ -964,7 +964,7 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 			.label = "symlink-sd",
 			.desc =
 			"stat data is appended with symlink name",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL,NULL}
 		},
 		.present = present_symlink_sd,
 		.absent = NULL,
@@ -979,7 +979,7 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 			.pops = NULL,
 			.label = "plugin-sd",
 			.desc = "plugin stat-data fields",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL,NULL}
 		},
 		.present = present_plugin_sd,
 		.absent = absent_plugin_sd,
@@ -994,7 +994,7 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 			.pops = NULL,
 			.label = "flags-sd",
 			.desc = "inode bit flags",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.present = present_flags_sd,
 		.absent = NULL,
@@ -1009,8 +1009,8 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 			.pops = NULL,
 			.label = "capabilities-sd",
 			.desc = "capabilities",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO}
-		,
+			.linkage = {NULL, NULL}
+		},
 		.present = eio,
 		.absent = NULL,
 		.save_len = save_len_flags_sd,
@@ -1024,7 +1024,7 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 			.pops = NULL,
 			.label = "crypto-sd",
 			.desc = "secret key size and id",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.present = present_crypto_sd,
 		.absent = absent_crypto_sd,

@@ -19,8 +19,6 @@
 /* in this structure all data necessary to start up, shut down and communicate
  * with ktxnmgrd are kept. */
 struct ktxnmgrd_context {
-	/* conditional variable used to synchronize start up of ktxnmgrd */
-/*	kcond_t startup;*/
 	/* completion used to synchronize shut down of ktxnmgrd */
 	struct completion start_finish_completion;
 	/* condition variable on which ktxnmgrd sleeps */
@@ -32,7 +30,7 @@ struct ktxnmgrd_context {
 	/* kernel thread running ktxnmgrd */
 	struct task_struct *tsk;
 	/* list of all file systems served by this ktxnmgrd */
-	txn_mgrs_list_head queue;
+	struct list_head queue;
 	/* is ktxnmgrd being shut down? */
 	unsigned int done:1;
 	/* should ktxnmgrd repeat scanning of atoms? */

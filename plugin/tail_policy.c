@@ -70,25 +70,23 @@ have_formatting_default(const struct inode *inode UNUSED_ARG
 formatting_plugin formatting_plugins[LAST_TAIL_FORMATTING_ID] = {
 	[NEVER_TAILS_FORMATTING_ID] = {
 		.h = {
-			.type_id =
-			REISER4_FORMATTING_PLUGIN_TYPE,
+			.type_id = REISER4_FORMATTING_PLUGIN_TYPE,
 			.id = NEVER_TAILS_FORMATTING_ID,
 			.pops = NULL,
 			.label = "never",
 			.desc = "Never store file's tail",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.have_tail = have_formatting_never
 	},
 	[ALWAYS_TAILS_FORMATTING_ID] = {
 		.h = {
-			.type_id =
-			REISER4_FORMATTING_PLUGIN_TYPE,
+			.type_id = REISER4_FORMATTING_PLUGIN_TYPE,
 			.id = ALWAYS_TAILS_FORMATTING_ID,
 			.pops = NULL,
 			.label = "always",
 			.desc =	"Always store file's tail",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.have_tail = have_formatting_always
 	},
@@ -99,18 +97,18 @@ formatting_plugin formatting_plugins[LAST_TAIL_FORMATTING_ID] = {
 			.pops = NULL,
 			.label = "4blocks",
 			.desc = "store files shorter than 4 blocks in tail items",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.have_tail = have_formatting_default
 	}
 };
 
-/* Make Linus happy.
-   Local variables:
-   c-indentation-style: "K&R"
-   mode-name: "LC"
-   c-basic-offset: 8
-   tab-width: 8
-   fill-column: 120
-   End:
-*/
+/*
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 79
+ * End:
+ */

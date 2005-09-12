@@ -51,17 +51,17 @@
 #include <linux/types.h>
 #include <linux/err.h>
 
-/* initialise new pool object */
+/* initialize new pool object */
 static void reiser4_init_pool_obj(reiser4_pool_header * h	/* pool object to
-								 * initialise */ )
+								 * initialize */ )
 {
-	pool_usage_list_clean(h);
-	pool_level_list_clean(h);
-	pool_extra_list_clean(h);
+	INIT_LIST_HEAD(&h->usage_linkage);
+	INIT_LIST_HEAD(&h->level_linkage);
+	INIT_LIST_HEAD(&h->extra_linkage);
 }
 
-/* initialise new pool */
-void reiser4_init_pool(reiser4_pool * pool /* pool to initialise */ ,
+/* initialize new pool */
+void reiser4_init_pool(reiser4_pool * pool /* pool to initialize */ ,
 		       size_t obj_size /* size of objects in @pool */ ,
 		       int num_of_objs /* number of preallocated objects */ ,
 		       char *data /* area for preallocated objects */ )
@@ -77,14 +77,15 @@ void reiser4_init_pool(reiser4_pool * pool /* pool to initialise */ ,
 	memset(pool, 0, sizeof *pool);
 	pool->obj_size = obj_size;
 	pool->data = data;
-	pool_usage_list_init(&pool->free);
-	pool_usage_list_init(&pool->used);
-	pool_extra_list_init(&pool->extra);
+	INIT_LIST_HEAD(&pool->free);
+	INIT_LIST_HEAD(&pool->used);
+	INIT_LIST_HEAD(&pool->extra);
 	memset(data, 0, obj_size * num_of_objs);
 	for (i = 0; i < num_of_objs; ++i) {
 		h = (reiser4_pool_header *) (data + i * obj_size);
 		reiser4_init_pool_obj(h);
-		pool_usage_list_push_back(&pool->free, h);
+		/* add pool header to the end of pool's free list */
+		list_add_tail(&h->usage_linkage, &pool->free);
 	}
 }
 
@@ -111,23 +112,29 @@ static void *reiser4_pool_alloc(reiser4_pool * pool	/* pool to allocate object
 
 	assert("nikita-959", pool != NULL);
 
-	if (!pool_usage_list_empty(&pool->free)) {
-		result = pool_usage_list_pop_front(&pool->free);
-		pool_usage_list_clean(result);
-		assert("nikita-965", pool_extra_list_is_clean(result));
+	if (!list_empty(&pool->free)) {
+		struct list_head *linkage;
+
+		linkage = pool->free.next;
+		list_del(linkage);
+		INIT_LIST_HEAD(linkage);
+		result = list_entry(linkage, reiser4_pool_header, usage_linkage);
+		BUG_ON(!list_empty(&result->level_linkage) || 
+		       !list_empty(&result->extra_linkage));
 	} else {
 		/* pool is empty. Extra allocations don't deserve dedicated
 		   slab to be served from, as they are expected to be rare. */
 		result = kmalloc(pool->obj_size, GFP_KERNEL);
 		if (result != 0) {
 			reiser4_init_pool_obj(result);
-			pool_extra_list_push_front(&pool->extra, result);
+			list_add(&result->extra_linkage, &pool->extra);
 		} else
 			return ERR_PTR(RETERR(-ENOMEM));
+		BUG_ON(!list_empty(&result->usage_linkage) || 
+		       !list_empty(&result->level_linkage));
 	}
 	++pool->objs;
-	pool_level_list_clean(result);
-	pool_usage_list_push_front(&pool->used, result);
+	list_add(&result->usage_linkage, &pool->used);
 	memset(result + 1, 0, pool->obj_size - sizeof *result);
 	return result;
 }
@@ -142,12 +149,18 @@ void reiser4_pool_free(reiser4_pool * pool, reiser4_pool_header * h	/* pool to r
 	--pool->objs;
 	assert("nikita-963", pool->objs >= 0);
 
-	pool_usage_list_remove_clean(h);
-	pool_level_list_remove_clean(h);
-	if (pool_extra_list_is_clean(h))
-		pool_usage_list_push_front(&pool->free, h);
+	list_del_init(&h->usage_linkage);
+	list_del_init(&h->level_linkage);
+
+	if (list_empty(&h->extra_linkage))
+		/*
+		 * pool header is not an extra one. Push it onto free list
+		 * using usage_linkage
+		 */
+		list_add(&h->usage_linkage, &pool->free);
 	else {
-		pool_extra_list_remove_clean(h);
+		/* remove pool header from pool's extra list and kfree it */
+		list_del(&h->extra_linkage);
 		kfree(h);
 	}
 }
@@ -170,8 +183,8 @@ void reiser4_pool_free(reiser4_pool * pool, reiser4_pool_header * h	/* pool to r
 */
 reiser4_pool_header *add_obj(reiser4_pool * pool	/* pool from which to
 							 * allocate new object */ ,
-			     pool_level_list_head * list	/* list where to add
-								 * object */ ,
+			     struct list_head *list,	/* list where to add
+							 * object */
 			     pool_ordering order /* where to add */ ,
 			     reiser4_pool_header * reference	/* after (or
 								 * before) which
@@ -191,16 +204,20 @@ reiser4_pool_header *add_obj(reiser4_pool * pool	/* pool from which to
 
 	switch (order) {
 	case POOLO_BEFORE:
-		pool_level_list_insert_before(reference, result);
+		__list_add(&result->level_linkage,
+			   reference->level_linkage.prev,
+			   &reference->level_linkage);
 		break;
 	case POOLO_AFTER:
-		pool_level_list_insert_after(reference, result);
+		__list_add(&result->level_linkage,
+			   &reference->level_linkage,
+			   reference->level_linkage.next);
 		break;
 	case POOLO_LAST:
-		pool_level_list_push_back(list, result);
+		list_add_tail(&result->level_linkage, list);
 		break;
 	case POOLO_FIRST:
-		pool_level_list_push_front(list, result);
+		list_add(&result->level_linkage, list);
 		break;
 	default:
 		wrong_return_value("nikita-927", "order");

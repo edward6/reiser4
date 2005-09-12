@@ -10,7 +10,6 @@
 #include "forward.h"
 #include "spin_macros.h"
 #include "dformat.h"
-#include "type_safe_list.h"
 
 #include <linux/fs.h>
 #include <linux/mm.h>
@@ -18,54 +17,6 @@
 #include <linux/spinlock.h>
 #include <asm/atomic.h>
 #include <asm/semaphore.h>
-
-/* LIST TYPES */
-
-/* list of all atoms controlled by single transaction manager (that is, file
- * system) */
-TYPE_SAFE_LIST_DECLARE(atom);
-/* list of transaction handles attached to given atom */
-TYPE_SAFE_LIST_DECLARE(txnh);
-
-/*
- * ->fwaitfor and ->fwaiting lists.
- *
- * Each atom has one of these lists: one for its own handles waiting on
- * another atom and one for reverse mapping.  Used to prevent deadlock in the
- * ASTAGE_CAPTURE_WAIT state.
- *
- * Thread that needs to wait for a given atom, attaches itself to the atom's
- * ->fwaitfor list. This is done in atom_wait_event() (and, in
- * capture_fuse_wait()). All threads waiting on this list are waked up
- * whenever "event" occurs for this atom: it changes stage, commits, flush
- * queue is released, etc. This is used, in particular, to implement sync(),
- * where thread has to wait until atom commits.
- */
-TYPE_SAFE_LIST_DECLARE(fwaitfor);
-
-/*
- * This list is used to wait for atom fusion (in capture_fuse_wait()). Threads
- * waiting on this list are waked up if atom commits or is fused into another.
- *
- * This is used in capture_fuse_wait() which see for more comments.
- */
-TYPE_SAFE_LIST_DECLARE(fwaiting);
-
-/* The transaction's list of captured jnodes */
-TYPE_SAFE_LIST_DECLARE(capture);
-#if REISER4_DEBUG
-TYPE_SAFE_LIST_DECLARE(inode_jnodes);
-#endif
-
-TYPE_SAFE_LIST_DECLARE(blocknr_set);	/* Used for the transaction's delete set
-					 * and wandered mapping. */
-
-/* list of flush queues attached to a given atom */
-TYPE_SAFE_LIST_DECLARE(fq);
-
-/* list of lists of jnodes that threads take into exclusive ownership during
- * allocate-on-flush.*/
-TYPE_SAFE_LIST_DECLARE(prot);
 
 /* TYPE DECLARATIONS */
 
@@ -246,7 +197,7 @@ typedef enum {
 
 /* A block number set consists of only the list head. */
 struct blocknr_set {
-	blocknr_set_list_head entries;	/* blocknr_set_list_head defined from a template from tslist.h */
+	struct list_head entries;
 };
 
 /* An atomic transaction: this is the underlying system representation
@@ -312,33 +263,33 @@ struct txn_atom {
 
 	/* The transaction's list of dirty captured nodes--per level.  Index
 	   by (level). dirty_nodes[0] is for znode-above-root */
-	capture_list_head dirty_nodes1[REAL_MAX_ZTREE_HEIGHT + 1];
+	struct list_head dirty_nodes[REAL_MAX_ZTREE_HEIGHT + 1];
 
 	/* The transaction's list of clean captured nodes. */
-	capture_list_head clean_nodes1;
+	struct list_head clean_nodes;
 
 	/* The atom's overwrite set */
-	capture_list_head ovrwr_nodes1;
+	struct list_head ovrwr_nodes;
 
 	/* nodes which are being written to disk */
-	capture_list_head writeback_nodes1;
+	struct list_head writeback_nodes;
 
 	/* list of inodes */
-	capture_list_head inodes;
+	struct list_head inodes;
 
 	/* List of handles associated with this atom. */
-	txnh_list_head txnh_list;
+	struct list_head txnh_list;
 
 	/* Transaction list link: list of atoms in the transaction manager. */
-	atom_list_link atom_link;
+	struct list_head atom_link;
 
 	/* List of handles waiting FOR this atom: see 'capture_fuse_wait' comment. */
-	fwaitfor_list_head fwaitfor_list;
+	struct list_head fwaitfor_list;
 
 	/* List of this atom's handles that are waiting: see 'capture_fuse_wait' comment. */
-	fwaiting_list_head fwaiting_list;
+	struct list_head fwaiting_list;
 
-	prot_list_head protected;
+	struct list_head protected;
 
 	/* Numbers of objects which were deleted/created in this transaction
 	   thereby numbers of objects IDs which were released/deallocated. */
@@ -347,7 +298,7 @@ struct txn_atom {
 	/* number of blocks allocated during the transaction */
 	__u64 nr_blocks_allocated;
 	/* All atom's flush queue objects are on this list  */
-	fq_list_head flush_queues;
+	struct list_head flush_queues;
 #if REISER4_DEBUG
 	/* number of flush queues for this atom. */
 	int nr_flush_queues;
@@ -371,26 +322,22 @@ struct txn_atom {
 	struct super_block *super;
 };
 
-#define ATOM_DIRTY_LIST(atom, level) (&(atom)->dirty_nodes1[level])
-#define ATOM_CLEAN_LIST(atom) (&(atom)->clean_nodes1)
-#define ATOM_OVRWR_LIST(atom) (&(atom)->ovrwr_nodes1)
-#define ATOM_WB_LIST(atom) (&(atom)->writeback_nodes1)
-#define ATOM_FQ_LIST(fq) (&(fq)->prepped1)
+#define ATOM_DIRTY_LIST(atom, level) (&(atom)->dirty_nodes[level])
+#define ATOM_CLEAN_LIST(atom) (&(atom)->clean_nodes)
+#define ATOM_OVRWR_LIST(atom) (&(atom)->ovrwr_nodes)
+#define ATOM_WB_LIST(atom) (&(atom)->writeback_nodes)
+#define ATOM_FQ_LIST(fq) (&(fq)->prepped)
 
-#define NODE_LIST(node) (node)->list1
+#define NODE_LIST(node) (node)->list
 #define ASSIGN_NODE_LIST(node, list) ON_DEBUG(NODE_LIST(node) = list)
 ON_DEBUG(void
 	 count_jnode(txn_atom *, jnode *, atom_list old_list,
 		     atom_list new_list, int check_lists));
 
 typedef struct protected_jnodes {
-	prot_list_link inatom;
-	capture_list_head nodes;
+	struct list_head inatom; /* link to atom's list these structures */
+	struct list_head nodes; /* head of list of protected nodes */
 } protected_jnodes;
-
-TYPE_SAFE_LIST_DEFINE(prot, protected_jnodes, inatom);
-
-TYPE_SAFE_LIST_DEFINE(atom, txn_atom, atom_link);
 
 /* A transaction handle: the client obtains and commits this handle which is assigned by
    the system to a txn_atom. */
@@ -408,11 +355,9 @@ struct txn_handle {
 	/* If assigned, the atom it is part of. */
 	txn_atom *atom;
 
-	/* Transaction list link. */
-	txnh_list_link txnh_link;
+	/* Transaction list link. Head is in txn_atom. */
+	struct list_head txnh_link;
 };
-
-TYPE_SAFE_LIST_DECLARE(txn_mgrs);
 
 /* The transaction manager: one is contained in the reiser4_super_info_data */
 struct txn_mgr {
@@ -420,7 +365,7 @@ struct txn_mgr {
 	reiser4_spin_data tmgr_lock;
 
 	/* List of atoms. */
-	atom_list_head atoms_list;
+	struct list_head atoms_list;
 
 	/* Number of atoms. */
 	int atom_count;
@@ -432,7 +377,7 @@ struct txn_mgr {
 	struct semaphore commit_semaphore;
 
 	/* a list of all txnmrgs served by particular daemon. */
-	txn_mgrs_list_link linkage;
+	struct list_head linkage;
 
 	/* description of daemon for this txnmgr */
 	ktxnmgrd_context *daemon;
@@ -444,9 +389,6 @@ struct txn_mgr {
 	/* max number of concurrent flushers for one atom, 0 - unlimited.  */
 	unsigned int atom_max_flushers;
 };
-
-/* list of all transaction managers in a system */
-TYPE_SAFE_LIST_DEFINE(txn_mgrs, txn_mgr, linkage);
 
 /* FUNCTION DECLARATIONS */
 
@@ -588,14 +530,14 @@ typedef struct flush_queue flush_queue_t;
 struct flush_queue {
 	/* linkage element is the first in this structure to make debugging
 	   easier.  See field in atom struct for description of list. */
-	fq_list_link alink;
+	struct list_head alink;
 	/* A spinlock to protect changes of fq state and fq->atom pointer */
 	reiser4_spin_data guard;
 	/* flush_queue state: [in_use | ready] */
 	flush_queue_state_t state;
 	/* A list which contains queued nodes, queued nodes are removed from any
 	 * atom's list and put on this ->prepped one. */
-	capture_list_head prepped1;
+	struct list_head prepped;
 	/* number of submitted i/o requests */
 	atomic_t nr_submitted;
 	/* number of i/o errors */
@@ -639,7 +581,7 @@ extern flush_queue_t *get_fq_for_current_atom(void);
 
 void protected_jnodes_init(protected_jnodes * list);
 void protected_jnodes_done(protected_jnodes * list);
-void invalidate_list(capture_list_head * head);
+void invalidate_list(struct list_head * head);
 
 #if REISER4_DEBUG
 void info_atom(const char *prefix, const txn_atom * atom);

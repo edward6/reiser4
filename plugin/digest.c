@@ -22,7 +22,7 @@ digest_plugin digest_plugins[LAST_DIGEST_ID] = {
 			.pops = NULL,
 			.label = "none",
 			.desc = "trivial digest",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.dsize = NONE_DIGEST_SIZE,
 		.alloc = alloc_none_digest,

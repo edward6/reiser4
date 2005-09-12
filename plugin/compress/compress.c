@@ -369,13 +369,12 @@ lzo1_decompress(coa_t coa, __u8 * src_first, unsigned src_len,
 compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 	[LZO1_COMPRESSION_ID] = {
 		.h = {
-			.type_id =
-			REISER4_COMPRESSION_PLUGIN_TYPE,
+			.type_id = REISER4_COMPRESSION_PLUGIN_TYPE,
 			.id = LZO1_COMPRESSION_ID,
 			.pops = &compression_plugin_ops,
 			.label = "lzo1",
 			.desc = "lzo1 compression transform",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.dual = LZO1_NO_COMPRESSION_ID,
 		.init = NULL,
@@ -389,14 +388,12 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 	},
 	[LZO1_NO_COMPRESSION_ID] = {
 		.h = {
-			.type_id =
-			REISER4_COMPRESSION_PLUGIN_TYPE,
+			.type_id = REISER4_COMPRESSION_PLUGIN_TYPE,
 			.id = LZO1_NO_COMPRESSION_ID,
 			.pops = &compression_plugin_ops,
 			.label = "lzo1_no",
-			.desc =
-			"lzo1 no compression transform",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.desc = "lzo1 no compression transform",
+			.linkage = {NULL, NULL}
 		},
 		.dual = LZO1_COMPRESSION_ID,
 		.init = NULL,
@@ -410,13 +407,12 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 	},
 	[GZIP1_COMPRESSION_ID] = {
 		.h = {
-			.type_id =
-			REISER4_COMPRESSION_PLUGIN_TYPE,
+			.type_id = REISER4_COMPRESSION_PLUGIN_TYPE,
 			.id = GZIP1_COMPRESSION_ID,
 			.pops = &compression_plugin_ops,
 			.label = "gzip1",
 			.desc = "gzip1 compression transform",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.dual = GZIP1_NO_COMPRESSION_ID,
 		.init = gzip1_init,
@@ -430,14 +426,12 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 	},
 	[GZIP1_NO_COMPRESSION_ID] = {
 		.h = {
-			.type_id =
-			REISER4_COMPRESSION_PLUGIN_TYPE,
+			.type_id = REISER4_COMPRESSION_PLUGIN_TYPE,
 			.id = GZIP1_NO_COMPRESSION_ID,
 			.pops = &compression_plugin_ops,
 			.label = "gzip1_no",
-			.desc =
-			"gzip1 no compression transform",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.desc =	"gzip1 no compression transform",
+			.linkage = {NULL, NULL}
 		},
 		.dual = GZIP1_COMPRESSION_ID,
 		.init = gzip1_init,
@@ -451,13 +445,12 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 	},
 	[NONE_COMPRESSION_ID] = {
 		.h = {
-			.type_id =
-			REISER4_COMPRESSION_PLUGIN_TYPE,
+			.type_id = REISER4_COMPRESSION_PLUGIN_TYPE,
 			.id = NONE_COMPRESSION_ID,
 			.pops = &compression_plugin_ops,
 			.label = "none",
 			.desc = "No compression transform",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.dual = NONE_COMPRESSION_ID,
 		.init = NULL,

@@ -90,7 +90,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.pops = &file_plugin_ops,
 			.label = "reg",
 			.desc = "regular file",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL},
 		},
 		.inode_ops = {
 			.permission = permission_common,
@@ -112,16 +112,12 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.readpage = readpage_unix_file,
 			.sync_page = block_sync_page,
 			.writepages = writepages_unix_file,
-			.set_page_dirty =
-			reiser4_set_page_dirty,
+			.set_page_dirty = reiser4_set_page_dirty,
 			.readpages = reiser4_readpages,
-			.prepare_write =
-			prepare_write_unix_file,
-			.commit_write =
-			commit_write_unix_file,
+			.prepare_write = prepare_write_unix_file,
+			.commit_write =	commit_write_unix_file,
 			.bmap = bmap_unix_file,
-			.invalidatepage =
-			reiser4_invalidatepage,
+			.invalidatepage = reiser4_invalidatepage,
 			.releasepage = reiser4_releasepage
 		},
 		.write_sd_by_inode = write_sd_by_inode_common,
@@ -153,7 +149,6 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.done = wire_done_common
 		}
 	},
-
 	[DIRECTORY_FILE_PLUGIN_ID] = {
 		.h = {
 			.type_id = REISER4_FILE_PLUGIN_TYPE,
@@ -161,8 +156,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.pops = &file_plugin_ops,
 			.label = "dir",
 			.desc = "directory",
-			.linkage =
-			TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.inode_ops = {NULL,},
 		.file_ops = {NULL,},
@@ -184,12 +178,9 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.bind = bind_common_dir,
 		.safelink = safelink_common,
 		.estimate = {
-			.create =
-			estimate_create_common_dir,
-			.update =
-			estimate_update_common,
-			.unlink =
-			estimate_unlink_common_dir
+			.create = estimate_create_common_dir,
+			.update = estimate_update_common,
+			.unlink = estimate_unlink_common_dir
 		},
 		.wire = {
 			.write = wire_write_common,
@@ -208,7 +199,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.pops = &file_plugin_ops,
 			.label = "symlink",
 			.desc = "symbolic link",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL,NULL}
 		},
 		.inode_ops = {
 			.readlink = readlink_common,
@@ -224,7 +215,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.write_sd_by_inode = write_sd_by_inode_common,
 		.set_plug_in_inode = set_plug_in_inode_common,
 		.adjust_to_parent = adjust_to_parent_common,
-		.create_object = create_symlink,	/* this is not inode_operations's create */
+		.create_object = create_symlink,
 		.delete_object = delete_object_common,
 		.add_link = add_link_common,
 		.rem_link = rem_link_common,
@@ -248,7 +239,6 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.done = wire_done_common
 		}
 	},
-
 	[SPECIAL_FILE_PLUGIN_ID] = {
 		.h = {
 			.type_id = REISER4_FILE_PLUGIN_TYPE,
@@ -257,11 +247,10 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.label = "special",
 			.desc =
 			"special: fifo, device or socket",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.inode_ops = {
-			.permission =
-			permission_common,
+			.permission = permission_common,
 			.setattr = setattr_common,
 			.getattr = getattr_common
 		},
@@ -273,7 +262,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.write_sd_by_inode = write_sd_by_inode_common,
 		.set_plug_in_inode = set_plug_in_inode_common,
 		.adjust_to_parent = adjust_to_parent_common,
-		.create_object = create_object_common,	/* this is not inode_operations's create */
+		.create_object = create_object_common,
 		.delete_object = delete_object_common,
 		.add_link = add_link_common,
 		.rem_link = rem_link_common,
@@ -304,7 +293,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.pops = &cryptcompress_plugin_ops,
 			.label = "cryptcompress",
 			.desc = "cryptcompress file",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.inode_ops = {
 			.permission = permission_common,
@@ -323,13 +312,10 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.writepage = reiser4_writepage,
 			.readpage = readpage_cryptcompress,
 			.sync_page = block_sync_page,
-			.writepages =
-			writepages_cryptcompress,
-			.set_page_dirty =
-			reiser4_set_page_dirty,
+			.writepages = writepages_cryptcompress,
+			.set_page_dirty = reiser4_set_page_dirty,
 			.readpages = reiser4_readpages,
-			.prepare_write =
-			prepare_write_common
+			.prepare_write = prepare_write_common
 		},
 		.write_sd_by_inode = write_sd_by_inode_common,
 		.flow_by_inode = flow_by_inode_cryptcompress,
@@ -386,7 +372,7 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 			.pops = &dir_plugin_ops,
 			.label = "dir",
 			.desc = "hashed directory",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.inode_ops = {
 			.create = create_common,
@@ -447,7 +433,7 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 			.pops = &dir_plugin_ops,
 			.label = "dir32",
 			.desc = "directory hashed with 31 bit hash",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.inode_ops = {
 			.create = create_common,

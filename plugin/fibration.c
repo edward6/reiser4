@@ -118,52 +118,57 @@ static reiser4_plugin_ops fibration_plugin_ops = {
 /* fibration plugins */
 fibration_plugin fibration_plugins[LAST_FIBRATION_ID] = {
 	[FIBRATION_LEXICOGRAPHIC] = {
-				     .h = {
-					   .type_id =
-					   REISER4_FIBRATION_PLUGIN_TYPE,
-					   .id = FIBRATION_LEXICOGRAPHIC,
-					   .pops = &fibration_plugin_ops,
-					   .label = "lexicographic",
-					   .desc = "no fibration",
-					   .linkage = TYPE_SAFE_LIST_LINK_ZERO},
-				     .fibre = fibre_trivial},
+		.h = {
+			.type_id = REISER4_FIBRATION_PLUGIN_TYPE,
+			.id = FIBRATION_LEXICOGRAPHIC,
+			.pops = &fibration_plugin_ops,
+			.label = "lexicographic",
+			.desc = "no fibration",
+			.linkage = {NULL, NULL}
+		},
+		.fibre = fibre_trivial
+	},
 	[FIBRATION_DOT_O] = {
-			     .h = {
-				   .type_id = REISER4_FIBRATION_PLUGIN_TYPE,
-				   .id = FIBRATION_DOT_O,
-				   .pops = &fibration_plugin_ops,
-				   .label = "dot-o",
-				   .desc = "fibrate .o files separately",
-				   .linkage = TYPE_SAFE_LIST_LINK_ZERO},
-			     .fibre = fibre_dot_o},
+		.h = {
+			.type_id = REISER4_FIBRATION_PLUGIN_TYPE,
+			.id = FIBRATION_DOT_O,
+			.pops = &fibration_plugin_ops,
+			.label = "dot-o",
+			.desc = "fibrate .o files separately",
+			.linkage = {NULL, NULL}
+		},
+		.fibre = fibre_dot_o
+	},
 	[FIBRATION_EXT_1] = {
-			     .h = {
-				   .type_id = REISER4_FIBRATION_PLUGIN_TYPE,
-				   .id = FIBRATION_EXT_1,
-				   .pops = &fibration_plugin_ops,
-				   .label = "ext-1",
-				   .desc =
-				   "fibrate file by single character extension",
-				   .linkage = TYPE_SAFE_LIST_LINK_ZERO},
-			     .fibre = fibre_ext_1},
+		.h = {
+			.type_id = REISER4_FIBRATION_PLUGIN_TYPE,
+			.id = FIBRATION_EXT_1,
+			.pops = &fibration_plugin_ops,
+			.label = "ext-1",
+			.desc = "fibrate file by single character extension",
+			.linkage = {NULL, NULL}
+		},
+		.fibre = fibre_ext_1
+	},
 	[FIBRATION_EXT_3] = {
-			     .h = {
-				   .type_id = REISER4_FIBRATION_PLUGIN_TYPE,
-				   .id = FIBRATION_EXT_3,
-				   .pops = &fibration_plugin_ops,
-				   .label = "ext-3",
-				   .desc =
-				   "fibrate file by three character extension",
-				   .linkage = TYPE_SAFE_LIST_LINK_ZERO},
-			     .fibre = fibre_ext_3}
+		.h = {
+			.type_id = REISER4_FIBRATION_PLUGIN_TYPE,
+			.id = FIBRATION_EXT_3,
+			.pops = &fibration_plugin_ops,
+			.label = "ext-3",
+			.desc = "fibrate file by three character extension",
+			.linkage = {NULL, NULL}
+		},
+		.fibre = fibre_ext_3
+	}
 };
 
-/* Make Linus happy.
-   Local variables:
-   c-indentation-style: "K&R"
-   mode-name: "LC"
-   c-basic-offset: 8
-   tab-width: 8
-   fill-column: 120
-   End:
-*/
+/*
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 79
+ * End:
+ */

@@ -304,8 +304,8 @@ struct carry_level {
 	/* this level may be restarted */
 	__u32 restartable:1;
 	/* list of carry nodes on this level, ordered by key order */
-	pool_level_list_head nodes;
-	pool_level_list_head ops;
+	struct list_head nodes;
+	struct list_head ops;
 	/* pool where new objects are allocated from */
 	carry_pool *pool;
 	int ops_num;
@@ -358,43 +358,70 @@ extern znode *carry_real(const carry_node * node);
 
 /* helper macros to iterate over carry queues */
 
-#define carry_node_next( node ) 					\
-	( ( carry_node * ) pool_level_list_next( &( node ) -> header ) )
+#define carry_node_next( node )					\
+	list_entry((node)->header.level_linkage.next, carry_node,	\
+		   header.level_linkage)
 
-#define carry_node_prev( node ) 					\
-	( ( carry_node * ) pool_level_list_prev( &( node ) -> header ) )
+//	( ( carry_node * ) pool_level_list_next( &( node ) -> header ) )
 
-#define carry_node_front( level )					\
-	( ( carry_node * ) pool_level_list_front( &( level ) -> nodes ) )
+#define carry_node_prev( node )					\
+	list_entry((node)->header.level_linkage.prev, carry_node,	\
+		   header.level_linkage)
+//	( ( carry_node * ) pool_level_list_prev( &( node ) -> header ) )
 
-#define carry_node_back( level )					\
-	( ( carry_node * ) pool_level_list_back( &( level ) -> nodes ) )
+#define carry_node_front( level )						\
+	list_entry((level)->nodes.next, carry_node, header.level_linkage)
 
-#define carry_node_end( level, node ) 					\
-	( pool_level_list_end( &( level ) -> nodes, &( node ) -> header ) )
+//	( ( carry_node * ) pool_level_list_front( &( level ) -> nodes ) )
+
+#define carry_node_back( level )						\
+	list_entry((level)->nodes.prev, carry_node, header.level_linkage)
+
+//	( ( carry_node * ) pool_level_list_back( &( level ) -> nodes ) )
+
+#define carry_node_end( level, node )				\
+	(&(level)->nodes == &(node)->header.level_linkage)
+
+//	( pool_level_list_end( &( level ) -> nodes, &( node ) -> header ) )
 
 /* macro to iterate over all operations in a @level */
-#define for_all_ops( level /* carry level (of type carry_level *) */, 		\
-		     op    /* pointer to carry operation, modified by loop (of	\
-			    * type carry_op *) */, 				\
-		     tmp   /* pointer to carry operation (of type carry_op *),	\
-			    * used to make iterator stable in the face of	\
-			    * deletions from the level */ )			\
+#define for_all_ops( level /* carry level (of type carry_level *) */,			\
+		     op    /* pointer to carry operation, modified by loop (of 		\
+			    * type carry_op *) */,					\
+		     tmp   /* pointer to carry operation (of type carry_op *), 		\
+			    * used to make iterator stable in the face of 		\
+			    * deletions from the level */ )				\
+for (op = list_entry(level->ops.next, carry_op, header.level_linkage),			\
+     tmp = list_entry(op->header.level_linkage.next, carry_op, header.level_linkage); 	\
+     &op->header.level_linkage != &level->ops;						\
+     op = tmp,										\
+     tmp = list_entry(op->header.level_linkage.next, carry_op, header.level_linkage))
+
+#if 0
 for( op = ( carry_op * ) pool_level_list_front( &level -> ops ),		\
      tmp = ( carry_op * ) pool_level_list_next( &op -> header ) ;		\
      ! pool_level_list_end( &level -> ops, &op -> header ) ;			\
      op = tmp, tmp = ( carry_op * ) pool_level_list_next( &op -> header ) )
+#endif
 
-/* macro to iterate over all nodes in a @level */
-#define for_all_nodes( level /* carry level (of type carry_level *) */,		\
-		       node  /* pointer to carry node, modified by loop (of	\
-			      * type carry_node *) */,				\
-		       tmp   /* pointer to carry node (of type carry_node *),	\
-			      * used to make iterator stable in the face of *	\
-			      * deletions from the level */ )			\
+/* macro to iterate over all nodes in a @level */						\
+#define for_all_nodes( level /* carry level (of type carry_level *) */,				\
+		       node  /* pointer to carry node, modified by loop (of 			\
+			      * type carry_node *) */,						\
+		       tmp   /* pointer to carry node (of type carry_node *), 			\
+			      * used to make iterator stable in the face of * 			\
+			      * deletions from the level */ )					\
+for (node = list_entry(level->nodes.next, carry_node, header.level_linkage),			\
+     tmp = list_entry(node->header.level_linkage.next, carry_node, header.level_linkage); 	\
+     &node->header.level_linkage != &level->nodes;						\
+     node = tmp, 										\
+     tmp = list_entry(node->header.level_linkage.next, carry_node, header.level_linkage))
+
+#if 0
 for( node = carry_node_front( level ),						\
      tmp = carry_node_next( node ) ; ! carry_node_end( level, node ) ;		\
      node = tmp, tmp = carry_node_next( node ) )
+#endif
 
 /* macro to iterate over all nodes in a @level in reverse order
 

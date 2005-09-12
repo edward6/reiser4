@@ -40,7 +40,8 @@ static void init_once(void *obj, kmem_cache_t *cache, unsigned long flags)
 		 * NOTE-NIKITA add here initializations for locks, list heads,
 		 * etc. that will be added to our private inode part.
 		 */
-		readdir_list_init(get_readdir_list(&info->vfs_inode));
+		INIT_LIST_HEAD(get_readdir_list(&info->vfs_inode));
+//		readdir_list_init(get_readdir_list(&info->vfs_inode));
 		init_rwsem(&info->p.coc_sem);
 		/* init semaphore which is used during inode loading */
 		loading_init_once(&info->p);
@@ -145,7 +146,7 @@ static void reiser4_destroy_inode(struct inode *inode)
 	 */
 	assert("nikita-2895", list_empty(&inode->i_dentry));
 	assert("nikita-2896", hlist_unhashed(&inode->i_hash));
-	assert("nikita-2898", readdir_list_empty(get_readdir_list(inode)));
+	assert("nikita-2898", list_empty_careful(get_readdir_list(inode)));
 
 	/* this deals with info's loading semaphore */
 	loading_destroy(info);

@@ -22,8 +22,6 @@
 #include <linux/time.h>		/* INITIAL_JIFFIES */
 #include <linux/backing-dev.h>	/* bdi_write_congested */
 
-TYPE_SAFE_LIST_DEFINE(wbq, struct wbq, link);
-
 #define DEF_PRIORITY 12
 #define MAX_ENTD_ITERS 10
 #define ENTD_ASYNC_REQUESTS_LIMIT 0
@@ -76,9 +74,9 @@ void init_entd(struct super_block *super)
 	wait_for_completion(&ctx->start_finish_completion);
 
 #if REISER4_DEBUG
-	flushers_list_init(&ctx->flushers_list);
+	INIT_LIST_HEAD(&ctx->flushers_list);
 #endif
-	wbq_list_init(&ctx->wbq_list);
+	INIT_LIST_HEAD(&ctx->wbq_list);
 }
 
 static void __put_wbq(entd_context * ent, struct wbq *rq)
@@ -90,12 +88,17 @@ static void __put_wbq(entd_context * ent, struct wbq *rq)
 /* ent should be locked */
 static struct wbq *__get_wbq(entd_context * ent)
 {
-	if (wbq_list_empty(&ent->wbq_list)) {
+	struct wbq *wbq;
+
+	if (list_empty_careful(&ent->wbq_list)) {
 		return NULL;
 	}
 	ent->nr_synchronous_requests --;
 	ent->nr_all_requests --;
-	return wbq_list_pop_front(&ent->wbq_list);
+	wbq = list_entry(ent->wbq_list.next, struct wbq, link);
+	list_del_init(&wbq->link);
+	return wbq;
+//	return wbq_list_pop_front(&ent->wbq_list);
 }
 
 struct wbq * get_wbq(struct super_block * super)
@@ -176,7 +179,8 @@ static int entd(void *arg)
 			       ent->nr_all_requests >=
 			       ent->nr_synchronous_requests);
 			if (ent->nr_synchronous_requests != 0) {
-				struct wbq *rq = wbq_list_front(&ent->wbq_list);
+				struct wbq *rq = list_entry(ent->wbq_list.next, struct wbq, link);
+//				struct wbq *rq = wbq_list_front(&ent->wbq_list);
 
 				if (++rq->nr_entd_iters > MAX_ENTD_ITERS) {
 					rq = __get_wbq(ent);
@@ -260,7 +264,8 @@ void enter_flush(struct super_block *super)
 	spin_lock(&ent->guard);
 	ent->flushers++;
 #if REISER4_DEBUG
-	flushers_list_push_front(&ent->flushers_list, get_current_context());
+	list_add(&get_current_context()->flushers_link, &ent->flushers_list);
+//	flushers_list_push_front(&ent->flushers_list, get_current_context());
 #endif
 	spin_unlock(&ent->guard);
 }
@@ -280,7 +285,8 @@ void leave_flush(struct super_block *super)
 	if (ent->flushers == 0 && ent->nr_synchronous_requests != 0)
 		kcond_signal(&ent->wait);
 #if REISER4_DEBUG
-	flushers_list_remove_clean(get_current_context());
+	list_del_init(&get_current_context()->flushers_link);
+//	flushers_list_remove_clean(get_current_context());
 #endif
 	spin_unlock(&ent->guard);
 }
@@ -396,7 +402,8 @@ int write_page_by_ent(struct page *page, struct writeback_control *wbc)
 #endif
 
 	/* init wbq */
-	wbq_list_clean(&rq);
+	INIT_LIST_HEAD(&rq.link);
+	//wbq_list_clean(&rq);
 	rq.nr_entd_iters = 0;
 	rq.page = page;
 	rq.wbc = wbc;
@@ -415,7 +422,8 @@ int write_page_by_ent(struct page *page, struct writeback_control *wbc)
 	}
 
 	sema_init(&rq.sem, 0);
-	wbq_list_push_back(&ent->wbq_list, &rq);
+	list_add_tail(&rq.link, &ent->wbq_list);
+//	wbq_list_push_back(&ent->wbq_list, &rq);
 	ent->nr_synchronous_requests++;
 	spin_unlock(&ent->guard);
 	down(&rq.sem);

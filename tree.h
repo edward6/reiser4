@@ -10,10 +10,8 @@
 #include "debug.h"
 #include "spin_macros.h"
 #include "dformat.h"
-#include "type_safe_list.h"
 #include "plugin/node/node.h"
 #include "plugin/plugin.h"
-/*#include "jnode.h"*/
 #include "znode.h"
 #include "tap.h"
 
@@ -25,9 +23,6 @@
 /* fictive block number never actually used */
 extern const reiser4_block_nr UBER_TREE_ADDR;
 
-/* define typed list for cbk_cache lru */
-TYPE_SAFE_LIST_DECLARE(cbk_cache);
-
 /* &cbk_cache_slot - entry in a coord cache.
 
    This is entry in a coord_by_key (cbk) cache, represented by
@@ -38,7 +33,7 @@ typedef struct cbk_cache_slot {
 	/* cached node */
 	znode *node;
 	/* linkage to the next cbk cache slot in a LRU order */
-	cbk_cache_list_link lru;
+	struct list_head lru;
 } cbk_cache_slot;
 
 /* &cbk_cache - coord cache. This is part of reiser4_tree.
@@ -67,7 +62,7 @@ typedef struct cbk_cache {
 	reiser4_rw_data guard;
 	int nr_slots;
 	/* head of LRU list of cache slots */
-	cbk_cache_list_head lru;
+	struct list_head lru;
 	/* actual array of slots */
 	cbk_cache_slot *slot;
 } cbk_cache;
@@ -76,9 +71,6 @@ typedef struct cbk_cache {
 
 /* defined read-write locking functions for cbk_cache */
 RW_LOCK_FUNCTIONS(cbk_cache, cbk_cache, guard);
-
-/* define list manipulation functions for cbk_cache LRU list */
-TYPE_SAFE_LIST_DEFINE(cbk_cache, cbk_cache_slot, lru);
 
 /* level_lookup_result - possible outcome of looking up key at some level.
    This is used by coord_by_key when traversing tree downward. */

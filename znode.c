@@ -249,10 +249,10 @@ void zfree(znode * node /* znode to free */ )
 {
 	assert("nikita-465", node != NULL);
 	assert("nikita-2120", znode_page(node) == NULL);
-	assert("nikita-2301", owners_list_empty(&node->lock.owners));
-	assert("nikita-2302", requestors_list_empty(&node->lock.requestors));
-	assert("nikita-2663", capture_list_is_clean(ZJNODE(node))
-	       && NODE_LIST(ZJNODE(node)) == NOT_CAPTURED);
+	assert("nikita-2301", list_empty_careful(&node->lock.owners));
+	assert("nikita-2302", list_empty_careful(&node->lock.requestors));
+	assert("nikita-2663", (list_empty_careful(&ZJNODE(node)->capture_link) &&
+			       NODE_LIST(ZJNODE(node)) == NOT_CAPTURED));
 	assert("nikita-2773", !JF_ISSET(ZJNODE(node), JNODE_EFLUSH));
 	assert("nikita-3220", list_empty(&ZJNODE(node)->jnodes));
 	assert("nikita-3293", !znode_is_right_connected(node));

@@ -8,7 +8,6 @@
 
 #include "forward.h"
 #include "type_safe_hash.h"
-#include "type_safe_list.h"
 #include "txnmgr.h"
 #include "key.h"
 #include "debug.h"
@@ -155,12 +154,12 @@ struct jnode {
 	/*   52 */ txn_atom *atom;
 
 	/* capture list */
-	/*   56 */ capture_list_link capture_link;
+	/*   56 */ struct list_head capture_link;
 
 	/* FIFTH CACHE LINE */
 
-					/*   64 */ struct rcu_head rcu;
-					/* crosses cache line */
+	/*   64 */ struct rcu_head rcu;
+	/* crosses cache line */
 
 	/* SIXTH CACHE LINE */
 
@@ -177,9 +176,9 @@ struct jnode {
 	/* list of all jnodes for debugging purposes. */
 	struct list_head jnodes;
 	/* how many times this jnode was written in one transaction */
-	int written1;
+	int written;
 	/* this indicates which atom's list the jnode is on */
-	atom_list list1;
+	atom_list list;
 #endif
 } __attribute__ ((aligned(16)));
 
@@ -195,8 +194,6 @@ typedef enum {
 	JNODE_INODE,		/* jnode embedded into inode */
 	LAST_JNODE_TYPE
 } jnode_type;
-
-TYPE_SAFE_LIST_DEFINE(capture, jnode, capture_link);
 
 /* jnode states */
 typedef enum {

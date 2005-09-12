@@ -39,16 +39,17 @@ static const char *bias_name(lookup_bias bias);
  */
 
 /* Initialise coord cache slot */
-static void cbk_cache_init_slot(cbk_cache_slot * slot)
+static void cbk_cache_init_slot(cbk_cache_slot *slot)
 {
 	assert("nikita-345", slot != NULL);
 
-	cbk_cache_list_clean(slot);
+	INIT_LIST_HEAD(&slot->lru);
+	//cbk_cache_list_clean(slot);
 	slot->node = NULL;
 }
 
-/* Initialise coord cache */
-int cbk_cache_init(cbk_cache * cache /* cache to init */ )
+/* Initialize coord cache */
+int cbk_cache_init(cbk_cache *cache /* cache to init */ )
 {
 	int i;
 
@@ -59,10 +60,12 @@ int cbk_cache_init(cbk_cache * cache /* cache to init */ )
 	if (cache->slot == NULL)
 		return RETERR(-ENOMEM);
 
-	cbk_cache_list_init(&cache->lru);
+	INIT_LIST_HEAD(&cache->lru);
+//	cbk_cache_list_init(&cache->lru);
 	for (i = 0; i < cache->nr_slots; ++i) {
 		cbk_cache_init_slot(cache->slot + i);
-		cbk_cache_list_push_back(&cache->lru, cache->slot + i);
+		list_add_tail(&((cache->slot + i)->lru), &cache->lru);
+//		cbk_cache_list_push_back(&cache->lru, cache->slot + i);
 	}
 	rw_cbk_cache_init(cache);
 	return 0;
@@ -78,15 +81,24 @@ void cbk_cache_done(cbk_cache * cache /* cache to release */ )
 	}
 }
 
+#if 0
 /* macro to iterate over all cbk cache slots */
 #define for_all_slots( cache, slot )					\
 	for( ( slot ) = cbk_cache_list_front( &( cache ) -> lru ) ;	\
 	     !cbk_cache_list_end( &( cache ) -> lru, ( slot ) ) ; 	\
 	     ( slot ) = cbk_cache_list_next( slot ) )
+#endif
+
+/* macro to iterate over all cbk cache slots */
+#define for_all_slots(cache, slot)						\
+	for ((slot) = list_entry((cache)->lru.next, cbk_cache_slot, lru);	\
+	     &(cache)->lru != &(slot)->lru;					\
+	     (slot) = list_entry(slot->lru.next, cbk_cache_slot, lru))
+
 
 #if REISER4_DEBUG
 /* this function assures that [cbk-cache-invariant] invariant holds */
-static int cbk_cache_invariant(const cbk_cache * cache)
+static int cbk_cache_invariant(const cbk_cache *cache)
 {
 	cbk_cache_slot *slot;
 	int result;
@@ -111,8 +123,10 @@ static int cbk_cache_invariant(const cbk_cache * cache)
 			/* all cached nodes are different */
 			scan = slot;
 			while (result) {
-				scan = cbk_cache_list_next(scan);
-				if (cbk_cache_list_end(&cache->lru, scan))
+				scan = list_entry(scan->lru.next, cbk_cache_slot, lru);
+//				scan = cbk_cache_list_next(scan);
+				if (&cache->lru == &scan->lru)
+//				if (cbk_cache_list_end(&cache->lru, scan))
 					break;
 				if (slot->node == scan->node)
 					result = 0;
@@ -144,8 +158,10 @@ void cbk_cache_invalidate(const znode * node /* node to remove from cache */ ,
 	write_lock_cbk_cache(cache);
 	for (i = 0, slot = cache->slot; i < cache->nr_slots; ++i, ++slot) {
 		if (slot->node == node) {
-			cbk_cache_list_remove(slot);
-			cbk_cache_list_push_back(&cache->lru, slot);
+			list_del(&slot->lru);
+//			cbk_cache_list_remove(slot);
+			list_add_tail(&slot->lru, &cache->lru);
+//			cbk_cache_list_push_back(&cache->lru, slot);
 			slot->node = NULL;
 			break;
 		}
@@ -156,7 +172,7 @@ void cbk_cache_invalidate(const znode * node /* node to remove from cache */ ,
 
 /* add to the cbk-cache in the "tree" information about "node". This
     can actually be update of existing slot in a cache. */
-static void cbk_cache_add(const znode * node /* node to add to the cache */ )
+static void cbk_cache_add(const znode *node /* node to add to the cache */ )
 {
 	cbk_cache *cache;
 	cbk_cache_slot *slot;
@@ -179,11 +195,14 @@ static void cbk_cache_add(const znode * node /* node to add to the cache */ )
 	}
 	/* if all slots are used, reuse least recently used one */
 	if (i == cache->nr_slots) {
-		slot = cbk_cache_list_back(&cache->lru);
+		slot = list_entry(cache->lru.prev, cbk_cache_slot, lru);
+//		slot = cbk_cache_list_back(&cache->lru);
 		slot->node = (znode *) node;
 	}
-	cbk_cache_list_remove(slot);
-	cbk_cache_list_push_front(&cache->lru, slot);
+	list_del(&slot->lru);
+//	cbk_cache_list_remove(slot);
+	list_add(&slot->lru, &cache->lru);
+//	cbk_cache_list_push_front(&cache->lru, slot);
 	write_unlock_cbk_cache(cache);
 	assert("nikita-2473", cbk_cache_invariant(cache));
 }
@@ -1167,17 +1186,22 @@ static int cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 	 *
 	 * We acquire reference to the node without holding tree lock, and
 	 * later, check node's RIP bit. This avoids races with jput().
-	 *
 	 */
 
 	rcu_read_lock();
 	read_lock_cbk_cache(cache);
-	slot = cbk_cache_list_prev(cbk_cache_list_front(&cache->lru));
+
+	slot = list_entry(cache->lru.next, cbk_cache_slot, lru);
+	slot = list_entry(slot->lru.prev, cbk_cache_slot, lru);
+	BUG_ON(&slot->lru != &cache->lru);/*????*/
+//	slot = cbk_cache_list_prev(cbk_cache_list_front(&cache->lru));
 	while (1) {
 
-		slot = cbk_cache_list_next(slot);
+		slot = list_entry(slot->lru.next, cbk_cache_slot, lru);
+//		slot = cbk_cache_list_next(slot);
 
-		if (!cbk_cache_list_end(&cache->lru, slot))
+		if (&cache->lru != &slot->lru)
+//		if (!cbk_cache_list_end(&cache->lru, slot))
 			node = slot->node;
 		else
 			node = NULL;
@@ -1251,8 +1275,10 @@ static int cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 			if (slot->node == h->active_lh->node /*node */ ) {
 				/* if this node is still in cbk cache---move
 				   its slot to the head of the LRU list. */
-				cbk_cache_list_remove(slot);
-				cbk_cache_list_push_front(&cache->lru, slot);
+				list_del(&slot->lru);
+//				cbk_cache_list_remove(slot);
+				list_add(&slot->lru, &cache->lru);
+//				cbk_cache_list_push_front(&cache->lru, slot);
 			}
 			write_unlock_cbk_cache(cache);
 		}

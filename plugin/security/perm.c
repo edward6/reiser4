@@ -1,6 +1,9 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
-/* NIKITA-FIXME-HANS: this comment describes what code? */
-/* definition of item plugins. */
+
+/*
+ * this file contains implementation of permission plugins. Currently, only
+ * RWX_PERM_ID is implemented
+ */
 
 #include "../plugin.h"
 #include "../plugin_header.h"
@@ -52,37 +55,35 @@ write_ok_common(struct file *file, const char __user *buf, size_t size, loff_t *
 }
 
 perm_plugin perm_plugins[LAST_PERM_ID] = {
-/* NIKITA-FIXME-HANS: what file contains rwx permissions methods code? */
 	[RWX_PERM_ID] = {
-			 .h = {
-			       .type_id = REISER4_PERM_PLUGIN_TYPE,
-			       .id = RWX_PERM_ID,
-			       .pops = NULL,
-			       .label = "rwx",
-			       .desc = "standard UNIX permissions",
-			       .linkage = TYPE_SAFE_LIST_LINK_ZERO}
-			 ,
-			 .read_ok = read_ok_common,
-			 .write_ok = write_ok_common,
-			 .lookup_ok = NULL,
-			 .create_ok = NULL,
-			 .link_ok = NULL,
-			 .unlink_ok = NULL,
-			 .delete_ok = NULL,
-			 .mask_ok = mask_ok_common,
-			 .setattr_ok = setattr_ok_common,
-			 .getattr_ok = NULL,
-			 .rename_ok = NULL,
-			 }
-	,
+		.h = {
+			.type_id = REISER4_PERM_PLUGIN_TYPE,
+			.id = RWX_PERM_ID,
+			.pops = NULL,
+			.label = "rwx",
+			.desc = "standard UNIX permissions",
+			.linkage = {NULL, NULL}
+		},
+		.read_ok = read_ok_common,
+		.write_ok = write_ok_common,
+		.lookup_ok = NULL,
+		.create_ok = NULL,
+		.link_ok = NULL,
+		.unlink_ok = NULL,
+		.delete_ok = NULL,
+		.mask_ok = mask_ok_common,
+		.setattr_ok = setattr_ok_common,
+		.getattr_ok = NULL,
+		.rename_ok = NULL,
+	}
 };
 
-/* Make Linus happy.
-   Local variables:
-   c-indentation-style: "K&R"
-   mode-name: "LC"
-   c-basic-offset: 8
-   tab-width: 8
-   fill-column: 120
-   End:
-*/
+/*
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 79
+ * End:
+ */

@@ -103,6 +103,7 @@ adjust_dir_file(struct inode *dir, const struct dentry *de, int offset, int adj)
 {
 	reiser4_file_fsdata *scan;
 	dir_pos mod_point;
+	struct list_head *pos;
 
 	assert("nikita-2536", dir != NULL);
 	assert("nikita-2538", de != NULL);
@@ -119,8 +120,11 @@ adjust_dir_file(struct inode *dir, const struct dentry *de, int offset, int adj)
 	 * update them.
 	 */
 
-	for_all_type_safe_list(readdir, get_readdir_list(dir), scan)
-	    adjust_dir_pos(scan->back, &scan->dir.readdir, &mod_point, adj);
+	list_for_each(pos, get_readdir_list(dir)) {
+		scan = list_entry(pos, reiser4_file_fsdata, dir.linkage);
+//	for_all_type_safe_list(readdir, get_readdir_list(dir), scan)
+		adjust_dir_pos(scan->back, &scan->dir.readdir, &mod_point, adj);
+	}
 
 	spin_unlock_inode(dir);
 }
@@ -457,8 +461,10 @@ static int dir_readdir_init(struct file *f, tap_t * tap, readdir_pos ** pos)
 	 * inode. This list is used to scan "readdirs-in-progress" while
 	 * inserting or removing names in the directory. */
 	spin_lock_inode(inode);
-	if (readdir_list_is_clean(fsdata))
-		readdir_list_push_front(get_readdir_list(inode), fsdata);
+	if (list_empty_careful(&fsdata->dir.linkage))
+		list_add(&fsdata->dir.linkage, get_readdir_list(inode));
+//	if (readdir_list_is_clean(fsdata))
+//		readdir_list_push_front(get_readdir_list(inode), fsdata);
 	*pos = &fsdata->dir.readdir;
 	spin_unlock_inode(inode);
 

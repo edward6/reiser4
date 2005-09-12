@@ -67,7 +67,7 @@ crypto_plugin crypto_plugins[LAST_CRYPTO_ID] = {
 			   transformed, specify this crypto pluigin */
 			.label = "none",
 			.desc = "absence of crypto transform",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.alloc = alloc_none_crypt,
 		.free = free_none_crypt,

@@ -10,7 +10,6 @@
 #include "../debug.h"
 #include "../dformat.h"
 #include "../key.h"
-#include "../type_safe_list.h"
 #include "compress/compress.h"
 #include "plugin_header.h"
 #include "item/static_stat.h"
@@ -872,14 +871,18 @@ PLUGIN_BY_ID(regular_plugin, REISER4_REGULAR_PLUGIN_TYPE, regular);
 
 extern int save_plugin_id(reiser4_plugin * plugin, d16 * area);
 
-TYPE_SAFE_LIST_DEFINE(plugin, reiser4_plugin, h.linkage);
+extern struct list_head *get_plugin_list(reiser4_plugin_type type_id);
 
-extern plugin_list_head *get_plugin_list(reiser4_plugin_type type_id);
+#define for_all_plugins(ptype, plugin)							\
+for (plugin = list_entry(get_plugin_list(ptype)->next, reiser4_plugin, h.linkage);	\
+     get_plugin_list(ptype) != &plugin->h.linkage;					\
+     plugin = list_entry(plugin->h.linkage.next, reiser4_plugin, h.linkage))
 
-#define for_all_plugins( ptype, plugin )			\
-for( plugin = plugin_list_front( get_plugin_list( ptype ) ) ;	\
-     ! plugin_list_end( get_plugin_list( ptype ), plugin ) ;	\
-     plugin = plugin_list_next( plugin ) )
+//#define for_all_plugins( ptype, plugin )			
+//for( plugin = plugin_list_front( get_plugin_list( ptype ) ) ;	
+//     ! plugin_list_end( get_plugin_list( ptype ), plugin ) ;	
+//     plugin = plugin_list_next( plugin ) )
+
 
 /* enumeration of fields within plugin_set */
 typedef enum {

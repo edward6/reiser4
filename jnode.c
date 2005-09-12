@@ -243,7 +243,7 @@ void jnode_init(jnode * node, reiser4_tree * tree, jnode_type type)
 	spin_jload_init(node);
 	node->atom = NULL;
 	node->tree = tree;
-	capture_list_clean(node);
+	INIT_LIST_HEAD(&node->capture_link);
 
 	ASSIGN_NODE_LIST(node, NOT_CAPTURED);
 
@@ -300,8 +300,8 @@ inline void jfree(jnode * node)
 {
 	assert("zam-449", node != NULL);
 
-	assert("nikita-2663", capture_list_is_clean(node)
-	       && NODE_LIST(node) == NOT_CAPTURED);
+	assert("nikita-2663", (list_empty_careful(&node->capture_link) &&
+			       NODE_LIST(node) == NOT_CAPTURED));
 	assert("nikita-2774", !JF_ISSET(node, JNODE_EFLUSH));
 	assert("nikita-3222", list_empty(&node->jnodes));
 	assert("nikita-3221", jnode_page(node) == NULL);
@@ -1381,7 +1381,7 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 			.pops = NULL,
 			.label = "unformatted",
 			.desc = "unformatted node",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.init = init_noinit,
 		.parse = parse_noparse,
@@ -1396,7 +1396,7 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 			.pops = NULL,
 			.label = "formatted",
 			.desc = "formatted tree node",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.init = init_znode,
 		.parse = parse_znode,
@@ -1411,7 +1411,7 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 			.pops = NULL,
 			.label = "bitmap",
 			.desc = "bitmap node",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.init = init_noinit,
 		.parse = parse_noparse,
@@ -1426,7 +1426,7 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 			.pops = NULL,
 			.label = "io head",
 			.desc = "io head",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.init = init_noinit,
 		.parse = parse_noparse,
@@ -1441,7 +1441,7 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 			.pops = NULL,
 			.label = "inode",
 			.desc = "inode's builtin jnode",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.init = NULL,
 		.parse = NULL,

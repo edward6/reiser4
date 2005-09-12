@@ -38,63 +38,57 @@ static int discard_deflate_first(struct inode *inode, cloff_t index)
 /* compression mode_plugins */
 compression_mode_plugin compression_mode_plugins[LAST_COMPRESSION_MODE_ID] = {
 	[SMART_COMPRESSION_MODE_ID] = {
-				       .h = {
-					     .type_id =
-					     REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
-					     .id = SMART_COMPRESSION_MODE_ID,
-					     .pops = NULL,
-					     .label = "if-0-compressible",
-					     .desc =
-					     "If-first-cluster-compressible heuristic",
-					     .linkage = TYPE_SAFE_LIST_LINK_ZERO}
-				       ,
-				       .should_deflate = NULL,
-				       .save_deflate = NULL,
-				       .discard_deflate = discard_deflate_first}
-	,
+		.h = {
+			.type_id = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
+			.id = SMART_COMPRESSION_MODE_ID,
+			.pops = NULL,
+			.label = "if-0-compressible",
+			.desc = "If-first-cluster-compressible heuristic",
+			.linkage = {NULL, NULL}
+		},
+		.should_deflate = NULL,
+		.save_deflate = NULL,
+		.discard_deflate = discard_deflate_first
+	},
 	[LAZY_COMPRESSION_MODE_ID] = {
-				      .h = {
-					    .type_id =
-					    REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
-					    .id = LAZY_COMPRESSION_MODE_ID,
-					    .pops = NULL,
-					    .label = "if-all-compressible",
-					    .desc =
-					    "If-all-compressible heuristic",
-					    .linkage = TYPE_SAFE_LIST_LINK_ZERO}
-				      ,
-				      .should_deflate = NULL,
-				      .save_deflate = NULL,
-				      .discard_deflate = discard_deflate_nocond}
-	,
+		.h = {
+			.type_id = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
+			.id = LAZY_COMPRESSION_MODE_ID,
+			.pops = NULL,
+			.label = "if-all-compressible",
+			.desc = "If-all-compressible heuristic",
+			.linkage = {NULL, NULL}
+		},
+		.should_deflate = NULL,
+		.save_deflate = NULL,
+		.discard_deflate = discard_deflate_nocond
+	},
 	[FORCE_COMPRESSION_MODE_ID] = {
-				       .h = {
-					     .type_id =
-					     REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
-					     .id = FORCE_COMPRESSION_MODE_ID,
-					     .pops = NULL,
-					     .label = "force",
-					     .desc = "Compress everything",
-					     .linkage = TYPE_SAFE_LIST_LINK_ZERO}
-				       ,
-				       .should_deflate = NULL,
-				       .save_deflate = NULL,
-				       .discard_deflate = NULL}
-	,
+		.h = {
+			.type_id = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
+			.id = FORCE_COMPRESSION_MODE_ID,
+			.pops = NULL,
+			.label = "force",
+			.desc = "Compress everything",
+			.linkage = {NULL, NULL}
+		},
+		.should_deflate = NULL,
+		.save_deflate = NULL,
+		.discard_deflate = NULL
+	},
 	[TEST_COMPRESSION_MODE_ID] = {
-				      .h = {
-					    .type_id =
-					    REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
-					    .id = TEST_COMPRESSION_MODE_ID,
-					    .pops = NULL,
-					    .label = "test",	/* This mode is only for benchmarks */
-					    .desc =
-					    "Don't compress odd clusters",
-					    .linkage = TYPE_SAFE_LIST_LINK_ZERO}
-				      ,
-				      .should_deflate = should_deflate_test,
-				      .save_deflate = NULL,
-				      .discard_deflate = NULL}
+		.h = {
+			.type_id = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
+			.id = TEST_COMPRESSION_MODE_ID,
+			.pops = NULL,
+			.label = "test",	/* This mode is only for benchmarks */
+			.desc = "Don't compress odd clusters",
+			.linkage = {NULL, NULL}
+		},
+		.should_deflate = should_deflate_test,
+		.save_deflate = NULL,
+		.discard_deflate = NULL
+	}
 };
 
 /*

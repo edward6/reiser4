@@ -443,8 +443,8 @@ carry_op *post_carry(carry_level * level	/* queue where new operation is to
 	return result;
 }
 
-/* initialise carry queue */
-void init_carry_level(carry_level * level /* level to initialise */ ,
+/* initialize carry queue */
+void init_carry_level(carry_level * level /* level to initialize */ ,
 		      carry_pool * pool	/* pool @level will allocate objects
 					 * from */ )
 {
@@ -454,11 +454,11 @@ void init_carry_level(carry_level * level /* level to initialise */ ,
 	memset(level, 0, sizeof *level);
 	level->pool = pool;
 
-	pool_level_list_init(&level->nodes);
-	pool_level_list_init(&level->ops);
+	INIT_LIST_HEAD(&level->nodes);
+	INIT_LIST_HEAD(&level->ops);
 }
 
-/* allocate carry pool and initialise pools within queue */
+/* allocate carry pool and initialize pools within queue */
 carry_pool *init_carry_pool(int size)
 {
 	carry_pool *pool;
@@ -507,15 +507,19 @@ carry_node *add_carry_skip(carry_level * level	/* &carry_level to add node
 	if (order == POOLO_BEFORE) {
 		reference = find_left_carry(reference, level);
 		if (reference == NULL)
-			reference = carry_node_front(level);
+			reference = list_entry(level->nodes.next, carry_node,
+					       header.level_linkage); //carry_node_front(level);
 		else
-			reference = carry_node_next(reference);
+			reference = list_entry(reference->header.level_linkage.next,
+					       carry_node, header.level_linkage); //carry_node_next(reference);
 	} else if (order == POOLO_AFTER) {
 		reference = find_right_carry(reference, level);
 		if (reference == NULL)
-			reference = carry_node_back(level);
+			reference = list_entry(level->nodes.prev, carry_node,
+					       header.level_linkage); //carry_node_back(level);
 		else
-			reference = carry_node_prev(reference);
+			reference = list_entry(reference->header.level_linkage.prev,
+					       carry_node, header.level_linkage); //carry_node_prev(reference);
 	}
 	assert("nikita-2209",
 	       ergo(orig_ref != NULL,
@@ -588,10 +592,13 @@ static carry_node *find_begetting_brother(carry_node * node	/* node to start sea
 	assert("nikita-1619", ergo(carry_real(node) != NULL,
 				   ZF_ISSET(carry_real(node), JNODE_ORPHAN)));
 
-	for (scan = node;; scan = carry_node_prev(scan)) {
-		assert("nikita-1617", !carry_node_end(kin, scan));
-		if ((scan->node != node->node)
-		    && !ZF_ISSET(scan->node, JNODE_ORPHAN)) {
+	//for (scan = node;; scan = carry_node_prev(scan)) {
+	for (scan = node;; 
+	     scan = list_entry(scan->header.level_linkage.prev, carry_node,
+			       header.level_linkage)) {
+		assert("nikita-1617", &kin->nodes != &scan->header.level_linkage); // !carry_node_end(kin, scan));
+		if ((scan->node != node->node) &&
+		    !ZF_ISSET(scan->node, JNODE_ORPHAN)) {
 			assert("nikita-1618", carry_real(scan) != NULL);
 			break;
 		}
@@ -848,8 +855,8 @@ static void done_carry_level(carry_level * level /* level to finish */ )
 
 	unlock_carry_level(level, 0);
 	for_all_nodes(level, node, tmp_node) {
-		assert("nikita-2113", locks_list_is_clean(&node->lock_handle));
-		assert("nikita-2114", owners_list_is_clean(&node->lock_handle));
+		assert("nikita-2113", list_empty_careful(&node->lock_handle.locks_link));// locks_list_is_clean(&node->lock_handle));
+		assert("nikita-2114", list_empty_careful(&node->lock_handle.owners_link)); //owners_list_is_clean(&node->lock_handle));
 		reiser4_pool_free(&level->pool->node_pool, &node->header);
 	}
 	for_all_ops(level, op, tmp_op)
@@ -1033,9 +1040,9 @@ unlock_carry_node(carry_level * level,
 		}
 		if (node->free) {
 			assert("nikita-2177",
-			       locks_list_is_clean(&node->lock_handle));
+			       list_empty_careful(&node->lock_handle.locks_link));//locks_list_is_clean(&node->lock_handle));
 			assert("nikita-2112",
-			       owners_list_is_clean(&node->lock_handle));
+			       list_empty_careful(&node->lock_handle.owners_link));//owners_list_is_clean(&node->lock_handle));
 			reiser4_pool_free(&level->pool->node_pool,
 					  &node->header);
 		}

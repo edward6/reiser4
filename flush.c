@@ -7,7 +7,6 @@
 #include "dformat.h"
 #include "key.h"
 #include "coord.h"
-#include "type_safe_list.h"
 #include "plugin/item/item.h"
 #include "plugin/plugin.h"
 #include "plugin/object.h"
@@ -928,9 +927,11 @@ static jnode * find_flush_start_jnode(
 		}
 		UNLOCK_JNODE(start);
 	}
-	/* In this loop we process all already prepped (RELOC or OVRWR) and dirtied again
+	/*
+	 * In this loop we process all already prepped (RELOC or OVRWR) and dirtied again
 	 * nodes. The atom spin lock is not released until all dirty nodes processed or
-	 * not prepped node found in the atom dirty lists. */
+	 * not prepped node found in the atom dirty lists.
+	 */
 	while ((node = find_first_dirty_jnode(atom, flags))) {
 		LOCK_JNODE(node);
 	enter:
@@ -938,23 +939,28 @@ static jnode * find_flush_start_jnode(
 		assert("zam-898", !JF_ISSET(node, JNODE_OVRWR));
 
 		if (JF_ISSET(node, JNODE_WRITEBACK)) {
-			capture_list_remove_clean(node);
-			capture_list_push_back(ATOM_WB_LIST(atom), node);
+			/* move node to the end of atom's writeback list */
+			list_del_init(&node->capture_link);
+			//capture_list_remove_clean(node);
+			list_add_tail(&node->capture_link, ATOM_WB_LIST(atom));
+			//capture_list_push_back(ATOM_WB_LIST(atom), node);
 
 			ON_DEBUG(count_jnode(atom, node, DIRTY_LIST,
 					     WB_LIST, 1));
 
 		} else if (jnode_is_znode(node)
 			   && znode_above_root(JZNODE(node))) {
-			/* A special case for znode-above-root.  The above-root (fake)
-			   znode is captured and dirtied when the tree height changes or
-			   when the root node is relocated.  This causes atoms to fuse so
-			   that changes at the root are serialized.  However, this node is
-			   never flushed.  This special case used to be in lock.c to
-			   prevent the above-root node from ever being captured, but now
-			   that it is captured we simply prevent it from flushing.  The
-			   log-writer code relies on this to properly log superblock
-			   modifications of the tree height. */
+			/*
+			 * A special case for znode-above-root.  The above-root (fake)
+			 * znode is captured and dirtied when the tree height changes or
+			 * when the root node is relocated.  This causes atoms to fuse so
+			 * that changes at the root are serialized.  However, this node is
+			 * never flushed.  This special case used to be in lock.c to
+			 * prevent the above-root node from ever being captured, but now
+			 * that it is captured we simply prevent it from flushing.  The
+			 * log-writer code relies on this to properly log superblock
+			 * modifications of the tree height.
+			 */
 			jnode_make_wander_nolock(node);
 		} else if (JF_ISSET(node, JNODE_RELOC)) {
 			queue_jnode(fq, node);

@@ -98,17 +98,17 @@ static reiser4_plugin_ops cluster_plugin_ops = {
 	.change = &change_cluster
 };
 
-#define SUPPORT_CLUSTER(SHIFT, ID, LABEL, DESC)                    \
-	[CLUSTER_ ## ID ## _ID] = {                                \
-		.h = {                                             \
-			.type_id = REISER4_CLUSTER_PLUGIN_TYPE,    \
-			.id = CLUSTER_ ## ID ## _ID,               \
-			.pops = &cluster_plugin_ops,               \
-			.label = LABEL,                            \
-			.desc = DESC,                              \
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO        \
-		},                                                 \
-		.shift = SHIFT                                     \
+#define SUPPORT_CLUSTER(SHIFT, ID, LABEL, DESC)			\
+	[CLUSTER_ ## ID ## _ID] = {				\
+		.h = {						\
+			.type_id = REISER4_CLUSTER_PLUGIN_TYPE,	\
+			.id = CLUSTER_ ## ID ## _ID,		\
+			.pops = &cluster_plugin_ops,		\
+			.label = LABEL,				\
+			.desc = DESC,				\
+			.linkage = {NULL, NULL}			\
+		},						\
+		.shift = SHIFT					\
 	}
 
 cluster_plugin cluster_plugins[LAST_CLUSTER_ID] = {

@@ -12,7 +12,6 @@
 #include "spin_macros.h"
 #include "key.h"
 #include "coord.h"
-#include "type_safe_list.h"
 #include "plugin/node/node.h"
 #include "jnode.h"
 #include "lock.h"

@@ -6,10 +6,7 @@
 #define __REISER4_TAP_H__
 
 #include "forward.h"
-#include "type_safe_list.h"
 #include "readahead.h"
-
-TYPE_SAFE_LIST_DECLARE(tap);
 
 /**
     tree_access_pointer aka tap. Data structure combining coord_t and lock
@@ -28,12 +25,10 @@ struct tree_access_pointer {
 	/* incremented by tap_load(). Decremented by tap_relse(). */
 	int loaded;
 	/* list of taps */
-	tap_list_link linkage;
+	struct list_head linkage;
 	/* read-ahead hint */
 	ra_info_t ra_info;
 };
-
-TYPE_SAFE_LIST_DEFINE(tap, tap_t, linkage);
 
 typedef int (*go_actor_t) (tap_t * tap);
 
@@ -53,12 +48,17 @@ extern int go_prev_unit(tap_t * tap);
 extern int rewind_right(tap_t * tap, int shift);
 extern int rewind_left(tap_t * tap, int shift);
 
-extern tap_list_head *taps_list(void);
+extern struct list_head *taps_list(void);
 
-#define for_all_taps( tap )				\
-	for (tap = tap_list_front ( taps_list() ); 	\
-	         ! tap_list_end   ( taps_list(), tap );	\
-	     tap = tap_list_next  ( tap ) )
+#define for_all_taps(tap)						\
+	for (tap = list_entry(taps_list()->next, tap_t, linkage);	\
+	     taps_list() != &tap->linkage;				\
+	     tap = list_entry(tap->linkage.next, tap_t, linkage))
+
+//#define for_all_taps( tap )				
+//	for (tap = tap_list_front ( taps_list() ); 	
+//	         ! tap_list_end   ( taps_list(), tap );	
+//	     tap = tap_list_next  ( tap ) )
 
 /* __REISER4_TAP_H__ */
 #endif

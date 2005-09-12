@@ -12,13 +12,10 @@
 #include <linux/completion.h>
 #include <linux/spinlock.h>
 #include <linux/sched.h>	/* for struct task_struct */
-#include "type_safe_list.h"
-
-TYPE_SAFE_LIST_DECLARE(wbq);
 
 /* write-back request. */
 struct wbq {
-	wbq_list_link link;
+	struct list_head link; /* list head of this list is in entd context */
 	struct writeback_control *wbc;
 	struct page *page;
 	struct semaphore sem;
@@ -29,13 +26,6 @@ struct wbq {
 /* ent-thread context. This is used to synchronize starting/stopping ent
  * threads. */
 typedef struct entd_context {
-#if 0
-	/*
-	 * condition variable that is signaled by ent thread after it
-	 * successfully started up.
-	 */
-	kcond_t startup;
-#endif
 	/*
 	 * completion that is signaled by ent thread just before it
 	 * terminates.
@@ -56,11 +46,11 @@ typedef struct entd_context {
 	int flushers;
 #if REISER4_DEBUG
 	/* list of all active flushers */
-	flushers_list_head flushers_list;
+	struct list_head flushers_list;
 #endif
 	int nr_all_requests;
 	int nr_synchronous_requests;
-	wbq_list_head wbq_list;
+	struct list_head wbq_list; /* struct wbq are elements of this list */
 } entd_context;
 
 extern void init_entd(struct super_block *);

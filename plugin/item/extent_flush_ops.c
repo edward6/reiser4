@@ -399,24 +399,49 @@ static inline void junprotect(jnode * node)
 	JF_CLR(node, JNODE_EPROTECTED);
 }
 
-/* this is used to unprotect nodes which were protected before allocating but which will not be allocated either because
-   space allocator allocates less blocks than were protected and/or if allocation of those nodes failed */
 static void
-unprotect_extent_nodes(flush_pos_t * flush_pos, __u64 count,
-		       capture_list_head * protected_nodes)
+protected_list_split(struct list_head *head_split,
+		     struct list_head *head_new,
+		     jnode *node)
+{
+	assert("vs-1471", list_empty_careful(head_new));
+
+	/* attach to new list */
+	head_new->next = &node->capture_link;
+	head_new->prev = head_split->prev;
+
+	/* cut from old list */
+	node->capture_link.prev->next = head_split;
+	head_split->prev = node->capture_link.prev;
+
+	//item->LINK_NAME._prev->_next = (PREFIX##_list_link*)head_split;
+	//head_split->_prev = item->LINK_NAME._prev;
+
+	/* link new list */
+	head_new->next->prev = head_new;
+	head_new->prev->next = head_new;
+}
+
+/* this is used to unprotect nodes which were protected before allocating but
+   which will not be allocated either because space allocator allocates less
+   blocks than were protected and/or if allocation of those nodes failed */
+static void
+unprotect_extent_nodes(flush_pos_t *flush_pos, __u64 count,
+		       struct list_head *protected_nodes)
 {
 	jnode *node, *tmp;
-	capture_list_head unprotected_nodes;
+	LIST_HEAD(unprotected_nodes);
 	txn_atom *atom;
 
-	capture_list_init(&unprotected_nodes);
+	//capture_list_init(&unprotected_nodes);
 
 	atom = atom_locked_by_fq(pos_fq(flush_pos));
 	assert("vs-1468", atom);
 
-	assert("vs-1469", !capture_list_empty(protected_nodes));
+	assert("vs-1469", !list_empty_careful(protected_nodes));
 	assert("vs-1474", count > 0);
-	node = capture_list_back(protected_nodes);
+	node = list_entry(protected_nodes->prev, jnode, capture_link);
+//	node = capture_list_back(protected_nodes);
 	do {
 		count--;
 		junprotect(node);
@@ -426,15 +451,17 @@ unprotect_extent_nodes(flush_pos_t * flush_pos, __u64 count,
 		if (count == 0) {
 			break;
 		}
-		tmp = capture_list_prev(node);
+		tmp = list_entry(node->capture_link.prev, jnode, capture_link);
+//		tmp = capture_list_prev(node);
 		node = tmp;
-		assert("vs-1470", !capture_list_end(protected_nodes, node));
+		assert("vs-1470", protected_nodes != &node->capture_link);
+//		assert("vs-1470", !capture_list_end(protected_nodes, node));
 	} while (1);
 
 	/* move back to dirty list */
-	capture_list_split(protected_nodes, &unprotected_nodes, node);
-	capture_list_splice(ATOM_DIRTY_LIST(atom, LEAF_LEVEL),
-			    &unprotected_nodes);
+	protected_list_split(protected_nodes, &unprotected_nodes, node);
+	list_splice(&unprotected_nodes, ATOM_DIRTY_LIST(atom, LEAF_LEVEL));
+	INIT_LIST_HEAD(&unprotected_nodes);
 
 	UNLOCK_ATOM(atom);
 }
@@ -442,7 +469,7 @@ unprotect_extent_nodes(flush_pos_t * flush_pos, __u64 count,
 extern int getjevent(void);
 
 /* remove node from atom's list and put to the end of list @jnodes */
-static void protect_reloc_node(capture_list_head * jnodes, jnode * node)
+static void protect_reloc_node(struct list_head *jnodes, jnode *node)
 {
 	assert("zam-836", !JF_ISSET(node, JNODE_EPROTECTED));
 	assert("vs-1216", jnode_is_unformatted(node));
@@ -450,21 +477,26 @@ static void protect_reloc_node(capture_list_head * jnodes, jnode * node)
 	assert("nikita-3390", spin_jnode_is_locked(node));
 
 	JF_SET(node, JNODE_EPROTECTED);
-	capture_list_remove_clean(node);
-	capture_list_push_back(jnodes, node);
+	list_del_init(&node->capture_link);
+//	capture_list_remove_clean(node);
+	list_add_tail(&node->capture_link, jnodes);
+//	capture_list_push_back(jnodes, node);
 	ON_DEBUG(count_jnode(node->atom, node, DIRTY_LIST, PROTECT_LIST, 0));
 }
 
 #define JNODES_TO_UNFLUSH (16)
 
-/* @count nodes of file (objectid @oid) starting from @index are going to be allocated. Protect those nodes from
-   e-flushing. Nodes which are eflushed already will be un-eflushed. There will be not more than JNODES_TO_UNFLUSH
-   un-eflushed nodes. If a node is not found or flushprepped - stop protecting */
-/* FIXME: it is likely that not flushprepped jnodes are on dirty capture list in sequential order.. */
+/* @count nodes of file (objectid @oid) starting from @index are going to be
+   allocated. Protect those nodes from e-flushing. Nodes which are eflushed
+   already will be un-eflushed. There will be not more than JNODES_TO_UNFLUSH
+   un-eflushed nodes. If a node is not found or flushprepped - stop
+   protecting */
+/* FIXME: it is likely that not flushprepped jnodes are on dirty capture list
+ * in sequential order.. */
 static int
-protect_extent_nodes(flush_pos_t * flush_pos, oid_t oid, unsigned long index,
-		     reiser4_block_nr count, reiser4_block_nr * protected,
-		     reiser4_extent * ext, capture_list_head * protected_nodes)
+protect_extent_nodes(flush_pos_t *flush_pos, oid_t oid, unsigned long index,
+		     reiser4_block_nr count, reiser4_block_nr *protected,
+		     reiser4_extent *ext, struct list_head *protected_nodes)
 {
 	__u64 i;
 	__u64 j;
@@ -474,7 +506,7 @@ protect_extent_nodes(flush_pos_t * flush_pos, oid_t oid, unsigned long index,
 	jnode *buf[JNODES_TO_UNFLUSH];
 	txn_atom *atom;
 
-	assert("nikita-3394", capture_list_empty(protected_nodes));
+	assert("nikita-3394", list_empty_careful(protected_nodes));
 
 	tree = current_tree;
 
@@ -666,16 +698,18 @@ static int conv_extent(coord_t *coord, reiser4_extent *replace)
 	return result;
 }
 
-/* for every jnode from @protected_nodes list assign block number and mark it RELOC and FLUSH_QUEUED. Attach whole
-   @protected_nodes list to flush queue's prepped list */
+/* for every jnode from @protected_nodes list assign block number and mark it
+   RELOC and FLUSH_QUEUED. Attach whole @protected_nodes list to flush queue's
+   prepped list */
 static void
-assign_real_blocknrs(flush_pos_t * flush_pos, reiser4_block_nr first,
+assign_real_blocknrs(flush_pos_t *flush_pos, reiser4_block_nr first,
 		     reiser4_block_nr count, extent_state state,
-		     capture_list_head * protected_nodes)
+		     struct list_head *protected_nodes)
 {
 	jnode *node;
 	txn_atom *atom;
 	flush_queue_t *fq;
+	struct list_head *pos;
 	int i;
 
 	fq = pos_fq(flush_pos);
@@ -683,7 +717,9 @@ assign_real_blocknrs(flush_pos_t * flush_pos, reiser4_block_nr first,
 	assert("vs-1468", atom);
 
 	i = 0;
-	for_all_type_safe_list(capture, protected_nodes, node) {
+	list_for_each(pos, protected_nodes) {
+		node = list_entry(pos, jnode, capture_link);
+//	for_all_type_safe_list(capture, protected_nodes, node) {
 		LOCK_JNODE(node);
 		assert("vs-1132",
 		       ergo(state == UNALLOCATED_EXTENT,
@@ -703,14 +739,25 @@ assign_real_blocknrs(flush_pos_t * flush_pos, reiser4_block_nr first,
 		i++;
 	}
 
-	capture_list_splice(ATOM_FQ_LIST(fq), protected_nodes);
+	list_splice(protected_nodes, ATOM_FQ_LIST(fq));
+	INIT_LIST_HEAD(protected_nodes);
+
 	assert("vs-1687", count == i);
 	if (state == UNALLOCATED_EXTENT)
 		dec_unalloc_unfm_ptrs(count);
 	UNLOCK_ATOM(atom);
 }
 
-static void make_node_ovrwr(capture_list_head * jnodes, jnode * node)
+/**
+ * make_node_ovrwr - assign node to overwrite set
+ * @jnodes: overwrite set list head
+ * @node: jnode to belong to overwrite set
+ *
+ * Sets OVRWR jnode state bit and puts @node to the end of list head @jnodes
+ * which is an accumulator for nodes before they get to overwrite set list of
+ * atom.
+ */
+static void make_node_ovrwr(struct list_head *jnodes, jnode *node)
 {
 	LOCK_JNODE(node);
 
@@ -718,27 +765,35 @@ static void make_node_ovrwr(capture_list_head * jnodes, jnode * node)
 	assert("zam-918", !JF_ISSET(node, JNODE_OVRWR));
 
 	JF_SET(node, JNODE_OVRWR);
-	capture_list_remove_clean(node);
-	capture_list_push_back(jnodes, node);
+	list_del_init(&node->capture_link);
+	//capture_list_remove_clean(node);
+	list_add_tail(&node->capture_link, jnodes);
+	//capture_list_push_back(jnodes, node);
 	ON_DEBUG(count_jnode(node->atom, node, DIRTY_LIST, OVRWR_LIST, 0));
 
 	UNLOCK_JNODE(node);
 }
 
-/* put nodes of one extent (file objectid @oid, extent width @width) to overwrite set. Starting from the one with index
-   @index. If end of slum is detected (node is not found or flushprepped) - stop iterating and set flush position's
-   state to POS_INVALID */
-static void
-mark_jnodes_overwrite(flush_pos_t * flush_pos, oid_t oid, unsigned long index,
-		      reiser4_block_nr width)
+/**
+ * mark_jnodes_overwrite - put bunch of jnodes to overwrite set
+ * @flush_pos: flush position
+ * @oid: objectid of file jnodes belong to
+ * @index: starting index
+ * @width: extent width
+ *
+ * Puts nodes of one extent (file objectid @oid, extent width @width) to atom's
+ * overwrite set. Starting from the one with index @index. If end of slum is
+ * detected (node is not found or flushprepped) - stop iterating and set flush
+ * position's state to POS_INVALID.
+ */
+static void mark_jnodes_overwrite(flush_pos_t *flush_pos, oid_t oid,
+				  unsigned long index, reiser4_block_nr width)
 {
 	unsigned long i;
 	reiser4_tree *tree;
 	jnode *node;
 	txn_atom *atom;
-	capture_list_head jnodes;
-
-	capture_list_init(&jnodes);
+	LIST_HEAD(jnodes);
 
 	tree = current_tree;
 
@@ -760,7 +815,8 @@ mark_jnodes_overwrite(flush_pos_t * flush_pos, oid_t oid, unsigned long index,
 		atomic_dec(&node->x_count);
 	}
 
-	capture_list_splice(ATOM_OVRWR_LIST(atom), &jnodes);
+	list_splice(&jnodes, ATOM_OVRWR_LIST(atom));
+	INIT_LIST_HEAD(&jnodes);
 	UNLOCK_ATOM(atom);
 }
 

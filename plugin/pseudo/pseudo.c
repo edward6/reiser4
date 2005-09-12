@@ -1397,7 +1397,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.pops = NULL,
 			.label = "....",
 			.desc = "meta-files",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.parent = TOP_LEVEL,
 		.try = try_by_label,
@@ -1415,7 +1415,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.pops = NULL,
 			.label = "uid",
 			.desc = "returns owner",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.parent = PSEUDO_METAS_ID,
 		.try = try_by_label,
@@ -1438,7 +1438,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.pops = NULL,
 			.label = "gid",
 			.desc = "returns group",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.parent = PSEUDO_METAS_ID,
 		.try = try_by_label,
@@ -1461,7 +1461,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.pops = NULL,
 			.label = "rwx",
 			.desc = "returns rwx permissions",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.parent = PSEUDO_METAS_ID,
 		.try = try_by_label,
@@ -1484,7 +1484,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.pops = NULL,
 			.label = "oid",
 			.desc = "returns object id",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.parent = PSEUDO_METAS_ID,
 		.try = try_by_label,
@@ -1504,8 +1504,8 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.pops = NULL,
 			.label = "key",
 			.desc = "returns object's key",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO}
-		,
+			.linkage = {NULL, NULL}
+		}		,
 		.parent = PSEUDO_METAS_ID,
 		.try = try_by_label,
 		.readdirable = 1,
@@ -1524,7 +1524,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.pops = NULL,
 			.label = "size",
 			.desc = "returns object's size",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.parent = PSEUDO_METAS_ID,
 		.try = try_by_label,
@@ -1544,7 +1544,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.pops = NULL,
 			.label = "nlink",
 			.desc = "returns nlink count",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.parent = PSEUDO_METAS_ID,
 		.try = try_by_label,
@@ -1564,7 +1564,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.pops = NULL,
 			.label = "locality",
 			.desc = "returns object's locality",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.parent = PSEUDO_METAS_ID,
 		.try = try_by_label,
@@ -1584,7 +1584,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.pops = NULL,
 			.label = "pseudo",
 			.desc = "returns a list of pseudo files",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.parent = PSEUDO_METAS_ID,
 		.try = try_by_label,
@@ -1609,7 +1609,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.pops = NULL,
 			.label = "bmap",
 			.desc = "returns a list blocks for this file",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.parent = PSEUDO_METAS_ID,
 		.try = try_by_label,
@@ -1635,7 +1635,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.label = "readdir",
 			.desc =
 			"returns a list of names in the dir",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.parent = PSEUDO_METAS_ID,
 		.try = try_by_label,
@@ -1660,7 +1660,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.pops = NULL,
 			.label = "plugin",
 			.desc = "plugin",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.parent = PSEUDO_PLUGINS_ID,
 		.try = NULL,
@@ -1696,7 +1696,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.pops = NULL,
 			.label = "plugin",
 			.desc = "list of plugins",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.parent = PSEUDO_METAS_ID,
 		.try = try_by_label,
@@ -1714,7 +1714,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.pops = NULL,
 			.label = "plugin-field",
 			.desc = "plugin field",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.parent = PSEUDO_PLUGIN_ID,
 		.try = NULL,
@@ -1736,7 +1736,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.label = "items",
 			.desc =
 			"returns a list of items for this file",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.parent = PSEUDO_METAS_ID,
 		.try = try_by_label,
@@ -1761,7 +1761,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.pops = NULL,
 			.label = "new",
 			.desc = "creates new file in the host",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.parent = PSEUDO_METAS_ID,
 		.try = try_by_label,
@@ -1779,13 +1779,13 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 	}
 };
 
-/* Make Linus happy.
-   Local variables:
-   c-indentation-style: "K&R"
-   mode-name: "LC"
-   c-basic-offset: 8
-   tab-width: 8
-   fill-column: 120
-   scroll-step: 1
-   End:
-*/
+/*
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 79
+ * scroll-step: 1
+ * End:
+ */

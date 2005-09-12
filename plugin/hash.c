@@ -283,56 +283,60 @@ static reiser4_plugin_ops hash_plugin_ops = {
 /* hash plugins */
 hash_plugin hash_plugins[LAST_HASH_ID] = {
 	[RUPASOV_HASH_ID] = {
-			     .h = {
-				   .type_id = REISER4_HASH_PLUGIN_TYPE,
-				   .id = RUPASOV_HASH_ID,
-				   .pops = &hash_plugin_ops,
-				   .label = "rupasov",
-				   .desc = "Original Yura's hash",
-				   .linkage = TYPE_SAFE_LIST_LINK_ZERO}
-			     ,
-			     .hash = hash_rupasov},
+		.h = {
+			.type_id = REISER4_HASH_PLUGIN_TYPE,
+			.id = RUPASOV_HASH_ID,
+			.pops = &hash_plugin_ops,
+			.label = "rupasov",
+			.desc = "Original Yura's hash",
+			.linkage = {NULL, NULL}
+		},
+		.hash = hash_rupasov
+	},
 	[R5_HASH_ID] = {
-			.h = {
-			      .type_id = REISER4_HASH_PLUGIN_TYPE,
-			      .id = R5_HASH_ID,
-			      .pops = &hash_plugin_ops,
-			      .label = "r5",
-			      .desc = "r5 hash",
-			      .linkage = TYPE_SAFE_LIST_LINK_ZERO}
-			,
-			.hash = hash_r5},
+		.h = {
+			.type_id = REISER4_HASH_PLUGIN_TYPE,
+			.id = R5_HASH_ID,
+			.pops = &hash_plugin_ops,
+			.label = "r5",
+			.desc = "r5 hash",
+			.linkage = {NULL, NULL}
+		},
+		.hash = hash_r5
+	},
 	[TEA_HASH_ID] = {
-			 .h = {
-			       .type_id = REISER4_HASH_PLUGIN_TYPE,
-			       .id = TEA_HASH_ID,
-			       .pops = &hash_plugin_ops,
-			       .label = "tea",
-			       .desc = "tea hash",
-			       .linkage = TYPE_SAFE_LIST_LINK_ZERO}
-			 ,
-			 .hash = hash_tea},
+		.h = {
+			.type_id = REISER4_HASH_PLUGIN_TYPE,
+			.id = TEA_HASH_ID,
+			.pops = &hash_plugin_ops,
+			.label = "tea",
+			.desc = "tea hash",
+			.linkage = {NULL, NULL}
+		},
+		.hash = hash_tea
+	},
 	[FNV1_HASH_ID] = {
-			  .h = {
-				.type_id = REISER4_HASH_PLUGIN_TYPE,
-				.id = FNV1_HASH_ID,
-				.pops = &hash_plugin_ops,
-				.label = "fnv1",
-				.desc = "fnv1 hash",
-				.linkage = TYPE_SAFE_LIST_LINK_ZERO}
-			  ,
-			  .hash = hash_fnv1},
+		.h = {
+			.type_id = REISER4_HASH_PLUGIN_TYPE,
+			.id = FNV1_HASH_ID,
+			.pops = &hash_plugin_ops,
+			.label = "fnv1",
+			.desc = "fnv1 hash",
+			.linkage = {NULL, NULL}
+		},
+		.hash = hash_fnv1
+	},
 	[DEGENERATE_HASH_ID] = {
-				.h = {
-				      .type_id = REISER4_HASH_PLUGIN_TYPE,
-				      .id = DEGENERATE_HASH_ID,
-				      .pops = &hash_plugin_ops,
-				      .label = "degenerate hash",
-				      .desc =
-				      "Degenerate hash: only for testing",
-				      .linkage = TYPE_SAFE_LIST_LINK_ZERO}
-				,
-				.hash = hash_deg}
+		.h = {
+			.type_id = REISER4_HASH_PLUGIN_TYPE,
+			.id = DEGENERATE_HASH_ID,
+			.pops = &hash_plugin_ops,
+			.label = "degenerate hash",
+			.desc = "Degenerate hash: only for testing",
+			.linkage = {NULL, NULL}
+		},
+		.hash = hash_deg
+	}
 };
 
 /* Make Linus happy.
