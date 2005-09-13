@@ -9,7 +9,6 @@
 #include "debug.h"
 #include "spin_macros.h"
 #include "key.h"
-#include "kcond.h"
 #include "seal.h"
 #include "plugin/plugin.h"
 #include "plugin/file/cryptcompress.h"
