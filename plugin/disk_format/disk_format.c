@@ -15,7 +15,7 @@ disk_format_plugin format_plugins[LAST_FORMAT_ID] = {
 			.pops = NULL,
 			.label = "reiser40",
 			.desc = "standard disk layout for reiser40",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.init_format = init_format_format40,
 		.root_dir_key = root_dir_key_format40,

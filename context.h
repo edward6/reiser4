@@ -10,7 +10,6 @@
 #include "debug.h"
 #include "spin_macros.h"
 #include "dformat.h"
-#include "type_safe_list.h"
 #include "tap.h"
 #include "lock.h"
 
@@ -19,8 +18,6 @@
 #include <linux/spinlock.h>
 #include <linux/sched.h>	/* for struct task_struct */
 
-
-ON_DEBUG(TYPE_SAFE_LIST_DECLARE(flushers);)
 
 /* reiser4 per-thread context */
 struct reiser4_context {
@@ -49,7 +46,7 @@ struct reiser4_context {
 	reiser4_block_nr grabbed_blocks;
 
 	/* list of taps currently monitored. See tap.c */
-	tap_list_head taps;
+	struct list_head taps;
 
 	/* grabbing space is enabled */
 	unsigned int grab_enabled:1;
@@ -92,15 +89,11 @@ struct reiser4_context {
 	reiser4_block_nr grabbed_initially;
 
 	/* list of all threads doing flush currently */
-	flushers_list_link flushers_link;
+	struct list_head flushers_link;
 	/* information about last error encountered by reiser4 */
 	err_site err;
 #endif
 };
-
-#if REISER4_DEBUG
-TYPE_SAFE_LIST_DEFINE(flushers, reiser4_context, flushers_link);
-#endif
 
 extern reiser4_context *get_context_by_lock_stack(lock_stack *);
 

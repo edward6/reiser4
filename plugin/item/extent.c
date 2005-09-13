@@ -179,20 +179,20 @@ int replace_extent(struct replace_handle *h, int return_inserted_position)
 	return result;
 }
 
-lock_handle *znode_lh(znode * node)
+lock_handle *znode_lh(znode *node)
 {
 	assert("vs-1371", znode_is_write_locked(node));
 	assert("vs-1372", znode_is_wlocked_once(node));
-	return owners_list_front(&node->lock.owners);
+	return list_entry(node->lock.owners.next, lock_handle, owners_link);
 }
 
 /*
-   Local variables:
-   c-indentation-style: "K&R"
-   mode-name: "LC"
-   c-basic-offset: 8
-   tab-width: 8
-   fill-column: 120
-   scroll-step: 1
-   End:
-*/
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 79
+ * scroll-step: 1
+ * End:
+ */

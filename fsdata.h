@@ -7,7 +7,6 @@
 #include "debug.h"
 #include "kassign.h"
 #include "seal.h"
-#include "type_safe_list.h"
 #include "type_safe_hash.h"
 #include "plugin/file/file.h"
 #include "readahead.h"
@@ -89,17 +88,8 @@ extern reiser4_dentry_fsdata *reiser4_get_dentry_fsdata(struct dentry *);
 extern void reiser4_free_dentry_fsdata(struct dentry *dentry);
 
 
-/*
- * comment about reiser4_file_fsdata
- *
- *
- */
-
-/* define struct readdir_list_head and struct readdir_list_link */
-TYPE_SAFE_LIST_DECLARE(readdir);
-
 /**
- * reiser4_dentry_fsdata - reiser4-specific data attached to file->private_data
+ * reiser4_file_fsdata - reiser4-specific data attached to file->private_data
  *
  * This is allocated dynamically and released in inode->i_fop->release
  */
@@ -121,7 +111,8 @@ typedef struct reiser4_file_fsdata {
 		 * modified
 		 */
 		readdir_pos readdir;
-		readdir_list_link linkage;
+		/* head of this list is reiser4_inode->lists.readdir_list */
+		struct list_head linkage;
 	} dir;
 	/* hints to speed up operations with regular files: read and write. */
 	struct {
@@ -140,13 +131,6 @@ typedef struct reiser4_file_fsdata {
 
 } reiser4_file_fsdata;
 
-/*
- * define functions to manipulate readdir lists. Head of this list is
- * reiser4_inode->lists.readdir_list. List links are in
- * reiser4_file_fsdata->dir.linkage
- */
-TYPE_SAFE_LIST_DEFINE(readdir, reiser4_file_fsdata, dir.linkage);
-
 extern int init_file_fsdata(void);
 extern void done_file_fsdata(void);
 extern reiser4_file_fsdata *reiser4_get_file_fsdata(struct file *);
@@ -160,10 +144,6 @@ extern void free_fsdata(reiser4_file_fsdata *);
  * used to address problem reiser4 has with readdir accesses via NFS. See
  * plugin/file_ops_readdir.c for more details.
  */
-
-TYPE_SAFE_LIST_DECLARE(d_cursor);
-TYPE_SAFE_LIST_DECLARE(a_cursor);
-
 typedef struct {
 	__u16 cid;
 	__u64 oid;
@@ -189,15 +169,12 @@ struct dir_cursor {
 	 * this is to link cursors to reiser4 super block's radix tree of
 	 * cursors if there are more than one cursor of the same objectid
 	 */
-	d_cursor_list_link list;
+	struct list_head list;
 	d_cursor_key key;
 	d_cursor_info *info;
 	/* list of unused cursors */
-	a_cursor_list_link alist;
+	struct list_head alist;
 };
-
-TYPE_SAFE_LIST_DEFINE(d_cursor, dir_cursor, list);
-TYPE_SAFE_LIST_DEFINE(a_cursor, dir_cursor, alist);
 
 extern int init_d_cursor(void);
 extern void done_d_cursor(void);

@@ -58,7 +58,8 @@ static carry_node *find_left_neighbor(carry_op * op	/* node to find left
 			RUNLOCK_TREE(tree);
 			left = node;
 			do {
-				left = carry_node_prev(left);
+				left = list_entry(left->header.level_linkage.prev,
+						  carry_node, header.level_linkage);
 				assert("nikita-3408", !carry_node_end(doing,
 								      left));
 			} while (carry_real(left) == carry_real(node));
@@ -185,7 +186,8 @@ static carry_node *find_right_neighbor(carry_op * op	/* node to find right
 			 */
 			right = node;
 			do {
-				right = carry_node_next(right);
+				right = list_entry(right->header.level_linkage.next,
+						   carry_node, header.level_linkage);
 				assert("nikita-3408", !carry_node_end(doing,
 								      right));
 			} while (carry_real(right) == carry_real(node));
@@ -1845,18 +1847,28 @@ typedef carry_node *(*carry_iterator) (carry_node * node);
 static carry_node *find_dir_carry(carry_node * node, carry_level * level,
 				  carry_iterator iterator);
 
+static carry_node *pool_level_list_prev(carry_node *node)
+{
+	return list_entry(node->header.level_linkage.prev, carry_node, header.level_linkage);
+}
+
 /* look for the left neighbor of given carry node in a carry queue.
 
    This is used by find_left_neighbor(), but I am not sure that this
    really gives any advantage. More statistics required.
 
 */
-carry_node *find_left_carry(carry_node * node	/* node to fine left neighbor
+carry_node *find_left_carry(carry_node * node	/* node to find left neighbor
 						 * of */ ,
 			    carry_level * level /* level to scan */ )
 {
 	return find_dir_carry(node, level,
 			      (carry_iterator) pool_level_list_prev);
+}
+
+static carry_node *pool_level_list_next(carry_node *node)
+{
+	return list_entry(node->header.level_linkage.next, carry_node, header.level_linkage);
 }
 
 /* look for the right neighbor of given carry node in a
@@ -1866,7 +1878,7 @@ carry_node *find_left_carry(carry_node * node	/* node to fine left neighbor
    really gives any advantage. More statistics required.
 
 */
-carry_node *find_right_carry(carry_node * node	/* node to fine right neighbor
+carry_node *find_right_carry(carry_node * node	/* node to find right neighbor
 						 * of */ ,
 			     carry_level * level /* level to scan */ )
 {
@@ -1896,7 +1908,8 @@ static carry_node *find_dir_carry(carry_node * node	/* node to start scanning
 	neighbor = node;
 	while (1) {
 		neighbor = iterator(neighbor);
-		if (pool_level_list_end(&level->nodes, &neighbor->header))
+		if (carry_node_end(level, neighbor))
+			/* list head is reached */
 			return NULL;
 		if (carry_real(neighbor) != carry_real(node))
 			return neighbor;

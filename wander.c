@@ -183,18 +183,18 @@
 #include <linux/bio.h>		/* for struct bio */
 #include <linux/blkdev.h>
 
-static int write_jnodes_to_disk_extent(capture_list_head * head, jnode *, int,
+static int write_jnodes_to_disk_extent(struct list_head *head, jnode *, int,
 				       const reiser4_block_nr *,
 				       flush_queue_t *, int);
 
 /* The commit_handle is a container for objects needed at atom commit time  */
 struct commit_handle {
-	/* A pointer to the list of OVRWR nodes */
-	capture_list_head *overwrite_set;
+	/* A pointer to atom's list of OVRWR nodes */
+	struct list_head *overwrite_set;
 	/* atom's overwrite set size */
 	int overwrite_set_size;
 	/* jnodes for wander record blocks */
-	capture_list_head tx_list;
+	struct list_head tx_list;
 	/* number of wander records */
 	int tx_size;
 	/* 'committed' sb counters are saved here until atom is completely
@@ -210,18 +210,18 @@ struct commit_handle {
 	reiser4_block_nr nr_bitmap;
 };
 
-static void init_commit_handle(struct commit_handle *ch, txn_atom * atom)
+static void init_commit_handle(struct commit_handle *ch, txn_atom *atom)
 {
 	memset(ch, 0, sizeof(struct commit_handle));
-	capture_list_init(&ch->tx_list);
+	INIT_LIST_HEAD(&ch->tx_list);
 
 	ch->atom = atom;
 	ch->super = reiser4_get_current_sb();
 }
 
-static void done_commit_handle(struct commit_handle *ch UNUSED_ARG)
+static void done_commit_handle(struct commit_handle *ch)
 {
-	assert("zam-690", capture_list_empty(&ch->tx_list));
+	assert("zam-690", list_empty(&ch->tx_list));
 }
 
 /* fill journal header block data  */
@@ -235,7 +235,7 @@ static void format_journal_header(struct commit_handle *ch)
 	assert("zam-479", sbinfo != NULL);
 	assert("zam-480", sbinfo->journal_header != NULL);
 
-	txhead = capture_list_front(&ch->tx_list);
+	txhead = list_entry(ch->tx_list.next, jnode, capture_link);
 
 	jload(sbinfo->journal_header);
 
@@ -252,12 +252,11 @@ static void format_journal_footer(struct commit_handle *ch)
 {
 	struct reiser4_super_info_data *sbinfo;
 	struct journal_footer *footer;
-
 	jnode *tx_head;
 
 	sbinfo = get_super_private(ch->super);
 
-	tx_head = capture_list_front(&ch->tx_list);
+	tx_head = list_entry(ch->tx_list.next, jnode, capture_link);
 
 	assert("zam-493", sbinfo != NULL);
 	assert("zam-494", sbinfo->journal_header != NULL);
@@ -291,11 +290,11 @@ static void format_tx_head(struct commit_handle *ch)
 	jnode *next;
 	struct tx_header *header;
 
-	tx_head = capture_list_front(&ch->tx_list);
-	assert("zam-692", !capture_list_end(&ch->tx_list, tx_head));
+	tx_head = list_entry(ch->tx_list.next, jnode, capture_link);
+	assert("zam-692", &ch->tx_list != &tx_head->capture_link);
 
-	next = capture_list_next(tx_head);
-	if (capture_list_end(&ch->tx_list, next))
+	next = list_entry(tx_head->capture_link.next, jnode, capture_link);
+	if (&ch->tx_list == &next->capture_link)
 		next = tx_head;
 
 	header = (struct tx_header *)jdata(tx_head);
@@ -318,7 +317,7 @@ static void format_tx_head(struct commit_handle *ch)
 
 /* prepare ordinary wander record block (fill all service fields) */
 static void
-format_wander_record(struct commit_handle *ch, jnode * node, int serial)
+format_wander_record(struct commit_handle *ch, jnode *node, int serial)
 {
 	struct wander_record_header *LRH;
 	jnode *next;
@@ -326,10 +325,10 @@ format_wander_record(struct commit_handle *ch, jnode * node, int serial)
 	assert("zam-464", node != NULL);
 
 	LRH = (struct wander_record_header *)jdata(node);
-	next = capture_list_next(node);
+	next = list_entry(node->capture_link.next, jnode, capture_link);
 
-	if (capture_list_end(&ch->tx_list, next))
-		next = capture_list_front(&ch->tx_list);
+	if (&ch->tx_list == &next->capture_link)
+		next = list_entry(ch->tx_list.next, jnode, capture_link);
 
 	assert("zam-465", LRH != NULL);
 	assert("zam-463",
@@ -384,7 +383,7 @@ struct store_wmap_params {
 	int capacity;		/* capacity  */
 
 #if REISER4_DEBUG
-	capture_list_head *tx_list;
+	struct list_head *tx_list;
 #endif
 };
 
@@ -398,9 +397,9 @@ store_wmap_actor(txn_atom * atom UNUSED_ARG, const reiser4_block_nr * a,
 
 	if (params->idx >= params->capacity) {
 		/* a new wander record should be taken from the tx_list */
-		params->cur = capture_list_next(params->cur);
+		params->cur = list_entry(params->cur->capture_link.next, jnode, capture_link);
 		assert("zam-454",
-		       !capture_list_end(params->tx_list, params->cur));
+		       params->tx_list != &params->cur->capture_link);
 
 		params->idx = 0;
 	}
@@ -418,18 +417,14 @@ store_wmap_actor(txn_atom * atom UNUSED_ARG, const reiser4_block_nr * a,
 static int update_journal_header(struct commit_handle *ch)
 {
 	struct reiser4_super_info_data *sbinfo = get_super_private(ch->super);
-
 	jnode *jh = sbinfo->journal_header;
-	jnode *head = capture_list_front(&ch->tx_list);
-
+	jnode *head = list_entry(ch->tx_list.next, jnode, capture_link);
 	int ret;
 
 	format_journal_header(ch);
 
-	ret =
-	    write_jnodes_to_disk_extent(&ch->tx_list, jh, 1,
-					jnode_get_block(jh), NULL, 0);
-
+	ret = write_jnodes_to_disk_extent(&ch->tx_list, jh, 1,
+					  jnode_get_block(jh), NULL, 0);
 	if (ret)
 		return ret;
 
@@ -478,10 +473,10 @@ static int update_journal_footer(struct commit_handle *ch)
 /* free block numbers of wander records of already written in place transaction */
 static void dealloc_tx_list(struct commit_handle *ch)
 {
-	while (!capture_list_empty(&ch->tx_list)) {
-		jnode *cur = capture_list_pop_front(&ch->tx_list);
-
-		ON_DEBUG(capture_list_clean(cur));
+	while (!list_empty(&ch->tx_list)) {
+		jnode *cur = list_entry(ch->tx_list.next, jnode, capture_link);
+		list_del(&cur->capture_link);
+		ON_DEBUG(INIT_LIST_HEAD(&cur->capture_link));
 		reiser4_dealloc_block(jnode_get_block(cur), BLOCK_NOT_COUNTED,
 				      BA_FORMATTED);
 
@@ -1079,9 +1074,12 @@ static int alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 static void put_overwrite_set(struct commit_handle *ch)
 {
 	jnode *cur;
+	struct list_head *pos;
 
-	for_all_type_safe_list(capture, ch->overwrite_set, cur)
-	    jrelse_tail(cur);
+	list_for_each(pos, ch->overwrite_set) {
+		cur = list_entry(pos, jnode, capture_link);
+		jrelse_tail(cur);
+	}
 }
 
 /* Count overwrite set size, grab disk space for wandered blocks allocation.
@@ -1101,10 +1099,10 @@ static int get_overwrite_set(struct commit_handle *ch)
 	assert("zam-697", ch->overwrite_set_size == 0);
 
 	ch->overwrite_set = ATOM_OVRWR_LIST(ch->atom);
-	cur = capture_list_front(ch->overwrite_set);
+	cur = list_entry(ch->overwrite_set->next, jnode, capture_link);
 
-	while (!capture_list_end(ch->overwrite_set, cur)) {
-		jnode *next = capture_list_next(cur);
+	while (ch->overwrite_set != &cur->capture_link) {
+		jnode *next = list_entry(cur->capture_link.next, jnode, capture_link);
 
 		/* Count bitmap locks for getting correct statistics what number
 		 * of blocks were cleared by the transaction commit. */
@@ -1223,7 +1221,7 @@ static int get_overwrite_set(struct commit_handle *ch)
  * Why that layer needed? Why BIOs cannot be constructed here?
  */
 static int
-write_jnodes_to_disk_extent(capture_list_head *head, jnode *first, int nr,
+write_jnodes_to_disk_extent(struct list_head *head, jnode *first, int nr,
 			    const reiser4_block_nr *block_p,
 			    flush_queue_t *fq, int flags)
 {
@@ -1283,7 +1281,7 @@ write_jnodes_to_disk_extent(capture_list_head *head, jnode *first, int nr,
 			assert("nikita-3165", !jnode_is_releasable(cur));
 			JF_SET(cur, JNODE_WRITEBACK);
 			JF_CLR(cur, JNODE_DIRTY);
-			ON_DEBUG(cur->written1++);
+			ON_DEBUG(cur->written++);
 			UNLOCK_JNODE(cur);
 
 			set_page_writeback(pg);
@@ -1294,7 +1292,7 @@ write_jnodes_to_disk_extent(capture_list_head *head, jnode *first, int nr,
 
 			unlock_page(pg);
 
-			cur = capture_list_next(cur);
+			cur = list_entry(cur->capture_link.next, jnode, capture_link);
 			nr_used++;
 		}
 		if (nr_used > 0) {
@@ -1326,21 +1324,21 @@ write_jnodes_to_disk_extent(capture_list_head *head, jnode *first, int nr,
    numbers in the given list of j-nodes and submits write requests on this
    per-sequence basis */
 int
-write_jnode_list(capture_list_head * head, flush_queue_t * fq,
+write_jnode_list(struct list_head *head, flush_queue_t *fq,
 		 long *nr_submitted, int flags)
 {
 	int ret;
-	jnode *beg = capture_list_front(head);
+	jnode *beg = list_entry(head->next, jnode, capture_link);
 
-	while (!capture_list_end(head, beg)) {
+	while (head != &beg->capture_link) {
 		int nr = 1;
-		jnode *cur = capture_list_next(beg);
+		jnode *cur = list_entry(beg->capture_link.next, jnode, capture_link);
 
-		while (!capture_list_end(head, cur)) {
+		while (head != &cur->capture_link) {
 			if (*jnode_get_block(cur) != *jnode_get_block(beg) + nr)
 				break;
 			++nr;
-			cur = capture_list_next(cur);
+			cur = list_entry(cur->capture_link.next, jnode, capture_link);
 		}
 
 		ret =
@@ -1399,7 +1397,7 @@ add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
 
 		UNLOCK_ATOM(atom);
 
-		cur = capture_list_next(cur);
+		cur = list_entry(cur->capture_link.next, jnode, capture_link);
 		++block;
 	}
 
@@ -1409,7 +1407,7 @@ add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
 /* Allocate wandered blocks for current atom's OVERWRITE SET and immediately
    submit IO for allocated blocks.  We assume that current atom is in a stage
    when any atom fusion is impossible and atom is unlocked and it is safe. */
-static int alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
+static int alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t *fq)
 {
 	reiser4_block_nr block;
 
@@ -1423,8 +1421,8 @@ static int alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 
 	rest = ch->overwrite_set_size;
 
-	cur = capture_list_front(ch->overwrite_set);
-	while (!capture_list_end(ch->overwrite_set, cur)) {
+	cur = list_entry(ch->overwrite_set->next, jnode, capture_link);
+	while (ch->overwrite_set != &cur->capture_link) {
 		assert("zam-567", JF_ISSET(cur, JNODE_OVRWR));
 
 		ret = get_more_wandered_blocks(rest, &block, &len);
@@ -1437,16 +1435,15 @@ static int alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 		if (ret)
 			return ret;
 
-		ret =
-		    write_jnodes_to_disk_extent(ch->overwrite_set, cur, len,
-						&block, fq, 0);
+		ret = write_jnodes_to_disk_extent(ch->overwrite_set, cur, len,
+						  &block, fq, 0);
 		if (ret)
 			return ret;
 
 		while ((len--) > 0) {
 			assert("zam-604",
-			       !capture_list_end(ch->overwrite_set, cur));
-			cur = capture_list_next(cur);
+			       ch->overwrite_set != &cur->capture_link);
+			cur = list_entry(cur->capture_link.next, jnode, capture_link);
 		}
 	}
 
@@ -1460,16 +1457,14 @@ static int alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 static int alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 {
 	reiser4_blocknr_hint hint;
-
 	reiser4_block_nr allocated = 0;
 	reiser4_block_nr first, len;
-
 	jnode *cur;
 	jnode *txhead;
 	int ret;
 
 	assert("zam-698", ch->tx_size > 0);
-	assert("zam-699", capture_list_empty(&ch->tx_list));
+	assert("zam-699", list_empty_careful(&ch->tx_list));
 
 	while (allocated < (unsigned)ch->tx_size) {
 		len = (ch->tx_size - allocated);
@@ -1512,31 +1507,30 @@ static int alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 
 			pin_jnode_data(cur);
 
-			capture_list_push_back(&ch->tx_list, cur);
+			list_add_tail(&cur->capture_link, &ch->tx_list);
 
 			first++;
 		}
 	}
 
-	{			/* format a on-disk linked list of wander records */
+	{ /* format a on-disk linked list of wander records */
 		int serial = 1;
 
-		txhead = capture_list_front(&ch->tx_list);
+		txhead = list_entry(ch->tx_list.next, jnode, capture_link);
 		format_tx_head(ch);
 
-		cur = capture_list_next(txhead);
-		while (!capture_list_end(&ch->tx_list, cur)) {
+		cur = list_entry(txhead->capture_link.next, jnode, capture_link);
+		while (&ch->tx_list != &cur->capture_link) {
 			format_wander_record(ch, cur, serial++);
-			cur = capture_list_next(cur);
+			cur = list_entry(cur->capture_link.next, jnode, capture_link);
 		}
-
 	}
 
-	{			/* Fill wander records with Wandered Set */
+	{ /* Fill wander records with Wandered Set */
 		struct store_wmap_params params;
 		txn_atom *atom;
 
-		params.cur = capture_list_next(txhead);
+		params.cur = list_entry(txhead->capture_link.next, jnode, capture_link);
 
 		params.idx = 0;
 		params.capacity =
@@ -1548,11 +1542,11 @@ static int alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 		UNLOCK_ATOM(atom);
 	}
 
-	{			/* relse all jnodes from tx_list */
-		cur = capture_list_front(&ch->tx_list);
-		while (!capture_list_end(&ch->tx_list, cur)) {
+	{ /* relse all jnodes from tx_list */
+		cur = list_entry(ch->tx_list.next, jnode, capture_link);
+		while (&ch->tx_list != &cur->capture_link) {
 			jrelse(cur);
-			cur = capture_list_next(cur);
+			cur = list_entry(cur->capture_link.next, jnode, capture_link);
 		}
 	}
 
@@ -1613,8 +1607,7 @@ int reiser4_write_logs(long *nr_submitted)
 
 		for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; ++level)
 			assert("nikita-3352",
-			       capture_list_empty(ATOM_DIRTY_LIST
-						  (atom, level)));
+			       list_empty_careful(ATOM_DIRTY_LIST(atom, level)));
 	}
 
 	sbinfo->nr_files_committed += (unsigned)atom->nr_objects_created;
@@ -1755,12 +1748,14 @@ static int check_journal_header(const jnode * node UNUSED_ARG)
 }
 
 /* wait for write completion for all jnodes from given list */
-static int wait_on_jnode_list(capture_list_head * head)
+static int wait_on_jnode_list(struct list_head *head)
 {
 	jnode *scan;
+	struct list_head *pos;
 	int ret = 0;
 
-	for_all_type_safe_list(capture, head, scan) {
+	list_for_each(pos, head) {
+		scan = list_entry(pos, jnode, capture_link);
 		struct page *pg = jnode_page(scan);
 
 		if (pg) {
@@ -1810,13 +1805,12 @@ static int check_wander_record(const jnode * node)
 }
 
 /* fill commit_handler structure by everything what is needed for update_journal_footer */
-static int restore_commit_handle(struct commit_handle *ch, jnode * tx_head)
+static int restore_commit_handle(struct commit_handle *ch, jnode *tx_head)
 {
 	struct tx_header *TXH;
 	int ret;
 
 	ret = jload(tx_head);
-
 	if (ret)
 		return ret;
 
@@ -1828,27 +1822,25 @@ static int restore_commit_handle(struct commit_handle *ch, jnode * tx_head)
 
 	jrelse(tx_head);
 
-	capture_list_push_front(&ch->tx_list, tx_head);
+	list_add(&tx_head->capture_link, &ch->tx_list);
 
 	return 0;
 }
 
 /* replay one transaction: restore and write overwrite set in place */
-static int
-replay_transaction(const struct super_block *s,
-		   jnode * tx_head,
-		   const reiser4_block_nr * log_rec_block_p,
-		   const reiser4_block_nr * end_block,
-		   unsigned int nr_wander_records)
+static int replay_transaction(const struct super_block *s,
+			      jnode * tx_head,
+			      const reiser4_block_nr * log_rec_block_p,
+			      const reiser4_block_nr * end_block,
+			      unsigned int nr_wander_records)
 {
 	reiser4_block_nr log_rec_block = *log_rec_block_p;
 	struct commit_handle ch;
-	capture_list_head overwrite_set;
+	LIST_HEAD(overwrite_set);
 	jnode *log;
 	int ret;
 
 	init_commit_handle(&ch, NULL);
-	capture_list_init(&overwrite_set);
 	ch.overwrite_set = &overwrite_set;
 
 	restore_commit_handle(&ch, tx_head);
@@ -1928,7 +1920,7 @@ replay_transaction(const struct super_block *s,
 
 			jnode_set_block(node, &block);
 
-			capture_list_push_back(ch.overwrite_set, node);
+			list_add_tail(&node->capture_link, ch.overwrite_set);
 
 			++entry;
 		}
@@ -1960,14 +1952,14 @@ replay_transaction(const struct super_block *s,
 
       free_ow_set:
 
-	while (!capture_list_empty(ch.overwrite_set)) {
-		jnode *cur = capture_list_front(ch.overwrite_set);
-		capture_list_remove_clean(cur);
+	while (!list_empty(ch.overwrite_set)) {
+		jnode *cur = list_entry(ch.overwrite_set->next, jnode, capture_link);
+		list_del_init(&cur->capture_link);
 		jrelse(cur);
 		drop_io_head(cur);
 	}
 
-	capture_list_remove_clean(tx_head);
+	list_del_init(&tx_head->capture_link);
 
 	done_commit_handle(&ch);
 

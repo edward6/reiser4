@@ -11,7 +11,6 @@
 #include "spin_macros.h"
 #include "key.h"
 #include "coord.h"
-#include "type_safe_list.h"
 #include "plugin/node/node.h"
 #include "txnmgr.h"
 #include "readahead.h"
@@ -21,23 +20,6 @@
 #include <linux/pagemap.h>	/* for PAGE_CACHE_SIZE */
 #include <asm/atomic.h>
 #include <asm/semaphore.h>
-
-/* per-znode lock requests queue; list items are lock owner objects
-   which want to lock given znode.
-
-   Locking: protected by znode spin lock. */
-TYPE_SAFE_LIST_DECLARE(requestors);
-/* per-znode list of lock handles for this znode
-
-   Locking: protected by znode spin lock. */
-TYPE_SAFE_LIST_DECLARE(owners);
-/* per-owner list of lock handles that point to locked znodes which
-   belong to one lock owner
-
-   Locking: this list is only accessed by the thread owning the lock stack this
-   list is attached to. Hence, no locking is necessary.
-*/
-TYPE_SAFE_LIST_DECLARE(locks);
 
 /* Per-znode lock object */
 struct zlock {
@@ -52,9 +34,9 @@ struct zlock {
 	unsigned nr_hipri_requests;
 	/* A linked list of lock_handle objects that contains pointers
 	   for all lock_stacks which have this lock object locked */
-	owners_list_head owners;
+	struct list_head owners;
 	/* A linked list of lock_stacks that wait for this lock */
-	requestors_list_head requestors;
+	struct list_head requestors;
 };
 
 #define rw_ordering_pred_zlock(lock)			\
@@ -90,9 +72,9 @@ struct lock_handle {
 	/* A link to znode locked */
 	znode *node;
 	/* A list of all locks for a process */
-	locks_list_link locks_link;
+	struct list_head locks_link;
 	/* A list of all owners for a znode */
-	owners_list_link owners_link;
+	struct list_head owners_link;
 };
 
 typedef struct lock_request {
@@ -119,11 +101,11 @@ struct lock_stack {
 	/* A list of all locks owned by this process. Elements can be added to
 	 * this list only by the current thread. ->node pointers in this list
 	 * can be only changed by the current thread. */
-	locks_list_head locks;
+	struct list_head locks;
 	int nr_locks;		/* number of lock handles in the above list */
 	/* When lock_stack waits for the lock, it puts itself on double-linked
 	   requestors list of that lock */
-	requestors_list_link requestors_link;
+	struct list_head requestors_link;
 	/* Current lock request info.
 
 	   This is only accessed by the current thread and thus requires no
@@ -159,10 +141,6 @@ struct lock_stack {
 	struct semaphore sema;
 };
 
-/* defining of list manipulation functions for lists above */
-TYPE_SAFE_LIST_DEFINE(requestors, lock_stack, requestors_link);
-TYPE_SAFE_LIST_DEFINE(owners, lock_handle, owners_link);
-TYPE_SAFE_LIST_DEFINE(locks, lock_handle, locks_link);
 
 /*
   User-visible znode locking functions

@@ -219,7 +219,6 @@ year old --- define all technical terms used.
  */
 
 #include "debug.h"
-#include "type_safe_list.h"
 #include "txnmgr.h"
 #include "jnode.h"
 #include "znode.h"
@@ -272,7 +271,7 @@ static void capture_fuse_into(txn_atom * small, txn_atom * large);
 static int capture_copy(jnode * node, txn_handle * txnh, txn_atom * atomf,
 			txn_atom * atomh, txn_capture mode, int can_coc);
 
-void invalidate_list(capture_list_head *);
+void invalidate_list(struct list_head *);
 
 /* GENERIC STRUCTURES */
 
@@ -280,16 +279,11 @@ typedef struct _txn_wait_links txn_wait_links;
 
 struct _txn_wait_links {
 	lock_stack *_lock_stack;
-	fwaitfor_list_link _fwaitfor_link;
-	fwaiting_list_link _fwaiting_link;
+	struct list_head _fwaitfor_link;
+	struct list_head _fwaiting_link;
 	int (*waitfor_cb) (txn_atom * atom, struct _txn_wait_links * wlinks);
 	int (*waiting_cb) (txn_atom * atom, struct _txn_wait_links * wlinks);
 };
-
-TYPE_SAFE_LIST_DEFINE(txnh, txn_handle, txnh_link);
-
-TYPE_SAFE_LIST_DEFINE(fwaitfor, txn_wait_links, _fwaitfor_link);
-TYPE_SAFE_LIST_DEFINE(fwaiting, txn_wait_links, _fwaiting_link);
 
 /* FIXME: In theory, we should be using the slab cache init & destructor
    methods instead of, e.g., jnode_init, etc. */
@@ -351,7 +345,7 @@ void init_txnmgr(txn_mgr *mgr)
 	mgr->atom_count = 0;
 	mgr->id_count = 1;
 
-	atom_list_init(&mgr->atoms_list);
+	INIT_LIST_HEAD(&mgr->atoms_list);
 	spin_txnmgr_init(mgr);
 
 	sema_init(&mgr->commit_semaphore, 1);
@@ -366,7 +360,7 @@ void init_txnmgr(txn_mgr *mgr)
 void done_txnmgr(txn_mgr *mgr)
 {
 	assert("umka-170", mgr != NULL);
-	assert("umka-1701", atom_list_empty(&mgr->atoms_list));
+	assert("umka-1701", list_empty_careful(&mgr->atoms_list));
 	assert("umka-1702", mgr->atom_count == 0);
 }
 
@@ -382,7 +376,7 @@ static void txnh_init(txn_handle * txnh, txn_mode mode)
 
 	spin_txnh_init(txnh);
 
-	txnh_list_clean(txnh);
+	INIT_LIST_HEAD(&txnh->txnh_link);
 }
 
 #if REISER4_DEBUG
@@ -407,18 +401,20 @@ static void atom_init(txn_atom * atom)
 	atom->start_time = jiffies;
 
 	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1)
-		capture_list_init(ATOM_DIRTY_LIST(atom, level));
+		INIT_LIST_HEAD(ATOM_DIRTY_LIST(atom, level));
 
-	capture_list_init(ATOM_CLEAN_LIST(atom));
-	capture_list_init(ATOM_OVRWR_LIST(atom));
-	capture_list_init(ATOM_WB_LIST(atom));
-	capture_list_init(&atom->inodes);
+	INIT_LIST_HEAD(ATOM_CLEAN_LIST(atom));
+	INIT_LIST_HEAD(ATOM_OVRWR_LIST(atom));
+	INIT_LIST_HEAD(ATOM_WB_LIST(atom));
+	INIT_LIST_HEAD(&atom->inodes);
 	spin_atom_init(atom);
-	txnh_list_init(&atom->txnh_list);
-	atom_list_clean(atom);
-	fwaitfor_list_init(&atom->fwaitfor_list);
-	fwaiting_list_init(&atom->fwaiting_list);
-	prot_list_init(&atom->protected);
+	/* list of transaction handles */
+	INIT_LIST_HEAD(&atom->txnh_list);
+	/* link to transaction manager's list of atoms */
+	INIT_LIST_HEAD(&atom->atom_link);
+	INIT_LIST_HEAD(&atom->fwaitfor_list);
+	INIT_LIST_HEAD(&atom->fwaiting_list);
+	INIT_LIST_HEAD(&atom->protected);
 	blocknr_set_init(&atom->delete_set);
 	blocknr_set_init(&atom->wandered_map);
 
@@ -434,24 +430,25 @@ static int atom_isclean(txn_atom * atom)
 	assert("umka-174", atom != NULL);
 
 	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {
-		if (!capture_list_empty(ATOM_DIRTY_LIST(atom, level))) {
+		if (!list_empty_careful(ATOM_DIRTY_LIST(atom, level))) {
 			return 0;
 		}
 	}
 
-	return
-	    atom->stage == ASTAGE_FREE &&
-	    atom->txnh_count == 0 &&
-	    atom->capture_count == 0 &&
-	    atomic_read(&atom->refcount) == 0 &&
-	    atom_list_is_clean(atom) &&
-	    txnh_list_empty(&atom->txnh_list) &&
-	    capture_list_empty(ATOM_CLEAN_LIST(atom)) &&
-	    capture_list_empty(ATOM_OVRWR_LIST(atom)) &&
-	    capture_list_empty(ATOM_WB_LIST(atom)) &&
-	    fwaitfor_list_empty(&atom->fwaitfor_list) &&
-	    fwaiting_list_empty(&atom->fwaiting_list) &&
-	    prot_list_empty(&atom->protected) && atom_fq_parts_are_clean(atom);
+	return	atom->stage == ASTAGE_FREE &&
+		atom->txnh_count == 0 &&
+		atom->capture_count == 0 &&
+		atomic_read(&atom->refcount) == 0 &&
+		(&atom->atom_link == atom->atom_link.next &&
+		 &atom->atom_link == atom->atom_link.prev) &&
+		list_empty_careful(&atom->txnh_list) &&
+		list_empty_careful(ATOM_CLEAN_LIST(atom)) &&
+		list_empty_careful(ATOM_OVRWR_LIST(atom)) &&
+		list_empty_careful(ATOM_WB_LIST(atom)) &&
+		list_empty_careful(&atom->fwaitfor_list) &&
+		list_empty_careful(&atom->fwaiting_list) &&
+		list_empty_careful(&atom->protected) && 
+		atom_fq_parts_are_clean(atom);
 }
 #endif
 
@@ -760,7 +757,8 @@ static int atom_begin_and_assign_to_txnh(txn_atom ** atom_alloc, txn_handle * tx
 	   @atom is new and inaccessible for others. */
 	spin_lock_atom_no_ord(atom);
 
-	atom_list_push_back(&mgr->atoms_list, atom);
+	/* add atom to the end of transaction manager's list of atoms */
+	list_add_tail(&atom->atom_link, &mgr->atoms_list);
 	atom->atom_id = mgr->id_count++;
 	mgr->atom_count += 1;
 
@@ -813,7 +811,7 @@ static void atom_free(txn_atom * atom)
 	/* Remove from the txn_mgr's atom list */
 	assert("nikita-2657", spin_txnmgr_is_locked(mgr));
 	mgr->atom_count -= 1;
-	atom_list_remove_clean(atom);
+	list_del_init(&atom->atom_link);
 
 	/* Clean the atom */
 	assert("jmacd-16",
@@ -882,17 +880,20 @@ static int atom_should_commit_asap(const txn_atom * atom)
 	return (pinnedpages > (totalram_pages >> 3)) || (atom->flushed > 100);
 }
 
-static jnode *find_first_dirty_in_list(capture_list_head * head, int flags)
+static jnode *find_first_dirty_in_list(struct list_head *head, int flags)
 {
 	jnode *first_dirty;
+	struct list_head *pos;
 
-	for_all_type_safe_list(capture, head, first_dirty) {
+	list_for_each(pos, head) {
+		first_dirty = list_entry(pos, jnode, capture_link);
 		if (!(flags & JNODE_FLUSH_COMMIT)) {
-			if (
-				   /* skip jnodes which have "heard banshee" */
-				   JF_ISSET(first_dirty, JNODE_HEARD_BANSHEE) ||
-				   /* and with active I/O */
-				   JF_ISSET(first_dirty, JNODE_WRITEBACK))
+			/*
+			 * skip jnodes which "heard banshee" or having active
+			 * I/O
+			 */
+			if (JF_ISSET(first_dirty, JNODE_HEARD_BANSHEE) ||
+			    JF_ISSET(first_dirty, JNODE_WRITEBACK))
 				continue;
 		}
 		return first_dirty;
@@ -911,7 +912,7 @@ jnode *find_first_dirty_jnode(txn_atom * atom, int flags)
 
 	/* The flush starts from LEAF_LEVEL (=1). */
 	for (level = 1; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {
-		if (capture_list_empty(ATOM_DIRTY_LIST(atom, level)))
+		if (list_empty_careful(ATOM_DIRTY_LIST(atom, level)))
 			continue;
 
 		first_dirty =
@@ -995,18 +996,19 @@ static void dispatch_wb_list(txn_atom * atom, flush_queue_t * fq)
 
 	assert("zam-905", atom_is_protected(atom));
 
-	cur = capture_list_front(ATOM_WB_LIST(atom));
-	while (!capture_list_end(ATOM_WB_LIST(atom), cur)) {
-		jnode *next = capture_list_next(cur);
+	cur = list_entry(ATOM_WB_LIST(atom)->next, jnode, capture_link);
+	while (ATOM_WB_LIST(atom) != &cur->capture_link) {
+		jnode *next = list_entry(cur->capture_link.next, jnode, capture_link);
 
 		LOCK_JNODE(cur);
 		if (!JF_ISSET(cur, JNODE_WRITEBACK)) {
 			if (JF_ISSET(cur, JNODE_DIRTY)) {
 				queue_jnode(fq, cur);
 			} else {
-				capture_list_remove(cur);
-				capture_list_push_back(ATOM_CLEAN_LIST(atom),
-						       cur);
+				/* move jnode to atom's clean list */
+				list_del(&cur->capture_link);
+				list_add_tail(&cur->capture_link,
+					      ATOM_CLEAN_LIST(atom));
 			}
 		}
 		UNLOCK_JNODE(cur);
@@ -1142,7 +1144,7 @@ static int commit_current_atom(long *nr_submitted, txn_atom ** atom)
 	if (ret)
 		return ret;
 
-	assert("zam-906", capture_list_empty(ATOM_WB_LIST(*atom)));
+	assert("zam-906", list_empty(ATOM_WB_LIST(*atom)));
 
 	/* isolate critical code path which should be executed by only one
 	 * thread using tmgr semaphore */
@@ -1162,7 +1164,7 @@ static int commit_current_atom(long *nr_submitted, txn_atom ** atom)
 
 	invalidate_list(ATOM_CLEAN_LIST(*atom));
 	invalidate_list(ATOM_WB_LIST(*atom));
-	assert("zam-927", capture_list_empty(&(*atom)->inodes));
+	assert("zam-927", list_empty(&(*atom)->inodes));
 
 	LOCK_ATOM(*atom);
 	done:
@@ -1225,6 +1227,7 @@ int txnmgr_force_commit_all(struct super_block *super, int commit_all_atoms)
 	txn_handle *txnh;
 	unsigned long start_time = jiffies;
 	reiser4_context *ctx = get_current_context();
+	struct list_head *pos;
 
 	assert("nikita-2965", lock_stack_isclean(get_current_lock_stack()));
 	assert("nikita-3058", commit_check_locks());
@@ -1239,7 +1242,8 @@ int txnmgr_force_commit_all(struct super_block *super, int commit_all_atoms)
 
 	spin_lock_txnmgr(mgr);
 
-	for_all_type_safe_list(atom, &mgr->atoms_list, atom) {
+	list_for_each(pos, &mgr->atoms_list) {
+		atom = list_entry(pos, txn_atom, atom_link);
 		LOCK_ATOM(atom);
 
 		/* Commit any atom which can be committed.  If @commit_new_atoms
@@ -1299,9 +1303,9 @@ int commit_some_atoms(txn_mgr * mgr)
 {
 	int ret = 0;
 	txn_atom *atom;
-	txn_atom *next_atom;
 	txn_handle *txnh;
 	reiser4_context *ctx;
+	struct list_head *pos, *tmp;
 
 	ctx = get_current_context();
 	assert("nikita-2444", ctx != NULL);
@@ -1309,10 +1313,19 @@ int commit_some_atoms(txn_mgr * mgr)
 	txnh = ctx->trans;
 	spin_lock_txnmgr(mgr);
 
+	/*
+	 * this is to avoid gcc complain that atom might be used
+	 * uninitialized
+	 */
+	atom = NULL;
+
 	/* look for atom to commit */
-	for_all_type_safe_list_safe(atom, &mgr->atoms_list, atom, next_atom) {
-		/* first test without taking atom spin lock, whether it is
-		 * eligible for committing at all */
+	list_for_each_safe(pos, tmp, &mgr->atoms_list) {		
+		atom = list_entry(pos, txn_atom, atom_link);
+		/*
+		 * first test without taking atom spin lock, whether it is
+		 * eligible for committing at all
+		 */
 		if (atom_is_committable(atom)) {
 			/* now, take spin lock and re-check */
 			LOCK_ATOM(atom);
@@ -1322,7 +1335,7 @@ int commit_some_atoms(txn_mgr * mgr)
 		}
 	}
 
-	ret = atom_list_end(&mgr->atoms_list, atom);
+	ret = (&mgr->atoms_list == pos);
 	spin_unlock_txnmgr(mgr);
 
 	if (ret) {
@@ -1333,6 +1346,7 @@ int commit_some_atoms(txn_mgr * mgr)
 
 	LOCK_TXNH(txnh);
 
+	BUG_ON(atom == NULL);
 	/* Set the atom to force committing */
 	atom->flags |= ATOM_FORCE_COMMIT;
 
@@ -1355,6 +1369,7 @@ static int txn_try_to_fuse_small_atom(txn_mgr * tmgr, txn_atom * atom)
 	int atom_stage;
 	txn_atom *atom_2;
 	int repeat;
+	struct list_head *pos;
 
 	assert("zam-1051", atom->stage < ASTAGE_PRE_COMMIT);
 
@@ -1370,11 +1385,14 @@ static int txn_try_to_fuse_small_atom(txn_mgr * tmgr, txn_atom * atom)
 			goto out;
 	}
 
-	for_all_type_safe_list(atom, &tmgr->atoms_list, atom_2) {
+	list_for_each(pos, &tmgr->atoms_list) {
+		atom_2 = list_entry(pos, txn_atom, atom_link);
 		if (atom == atom_2)
 			continue;
-		/* if trylock does not succeed we just do not fuse with that
-		 * atom. */
+		/*
+		 * if trylock does not succeed we just do not fuse with that
+		 * atom.
+		 */
 		if (spin_trylock_atom(atom_2)) {
 			if (atom_2->stage < ASTAGE_PRE_COMMIT) {
 				spin_unlock_txnmgr(tmgr);
@@ -1417,6 +1435,7 @@ flush_some_atom(jnode * start, long *nr_submitted, const struct writeback_contro
 	txn_handle *txnh = ctx->trans;
 	txn_atom *atom;
 	int ret;
+	struct list_head *pos;
 
 	BUG_ON(wbc->nr_to_write == 0);
 	BUG_ON(*nr_submitted != 0);
@@ -1427,15 +1446,18 @@ flush_some_atom(jnode * start, long *nr_submitted, const struct writeback_contro
 		spin_lock_txnmgr(tmgr);
 
 		/* traverse the list of all atoms */
-		for_all_type_safe_list(atom, &tmgr->atoms_list, atom) {
+		list_for_each(pos, &tmgr->atoms_list) {
+			atom = list_entry(pos, txn_atom, atom_link);
 			/* lock atom before checking its state */
 			LOCK_ATOM(atom);
 
-			/* we need an atom which is not being committed and which has no
-			 * flushers (jnode_flush() add one flusher at the beginning and
-			 * subtract one at the end). */
-			if (atom->stage < ASTAGE_PRE_COMMIT
-			    && atom->nr_flushers == 0) {
+			/*
+			 * we need an atom which is not being committed and
+			 * which has no flushers (jnode_flush() add one flusher
+			 * at the beginning and subtract one at the end).
+			 */
+			if (atom->stage < ASTAGE_PRE_COMMIT &&
+			    atom->nr_flushers == 0) {
 				LOCK_TXNH(txnh);
 				capture_assign_txnh_nolock(atom, txnh);
 				UNLOCK_TXNH(txnh);
@@ -1446,10 +1468,13 @@ flush_some_atom(jnode * start, long *nr_submitted, const struct writeback_contro
 			UNLOCK_ATOM(atom);
 		}
 
-		/* Write throttling is case of no one atom can be
-		 * flushed/committed.  */
+		/*
+		 * Write throttling is case of no one atom can be
+		 * flushed/committed.
+		 */
 		if (!current_is_pdflush() && !wbc->nonblocking) {
-			for_all_type_safe_list(atom, &tmgr->atoms_list, atom) {
+			list_for_each(pos, &tmgr->atoms_list) {
+				atom = list_entry(pos, txn_atom, atom_link);
 				LOCK_ATOM(atom);
 				/* Repeat the check from the above. */
 				if (atom->stage < ASTAGE_PRE_COMMIT
@@ -1462,9 +1487,11 @@ flush_some_atom(jnode * start, long *nr_submitted, const struct writeback_contro
 				}
 				if (atom->stage <= ASTAGE_POST_COMMIT) {
 					spin_unlock_txnmgr(tmgr);
-					/* we just wait until atom's flusher
-					   makes a progress in flushing or
-					   committing the atom */
+					/* 
+					 * we just wait until atom's flusher
+					 * makes a progress in flushing or
+					 * committing the atom
+					 */
 					atom_wait_event(atom);
 					goto repeat;
 				}
@@ -1555,12 +1582,12 @@ void invalidate_list(capture_list_head * head)
 #else
 
 /* Remove processed nodes from atom's clean list (thereby remove them from transaction). */
-void invalidate_list(capture_list_head * head)
+void invalidate_list(struct list_head *head)
 {
-	while (!capture_list_empty(head)) {
+	while (!list_empty(head)) {
 		jnode *node;
 
-		node = capture_list_front(head);
+		node = list_entry(head->next, jnode, capture_link);
 		LOCK_JNODE(node);
 		uncapture_block(node);
 		jput(node);
@@ -1572,8 +1599,8 @@ void invalidate_list(capture_list_head * head)
 static void init_wlinks(txn_wait_links * wlinks)
 {
 	wlinks->_lock_stack = get_current_lock_stack();
-	fwaitfor_list_clean(wlinks);
-	fwaiting_list_clean(wlinks);
+	INIT_LIST_HEAD(&wlinks->_fwaitfor_link);
+	INIT_LIST_HEAD(&wlinks->_fwaiting_link);
 	wlinks->waitfor_cb = NULL;
 	wlinks->waiting_cb = NULL;
 }
@@ -1589,7 +1616,7 @@ void atom_wait_event(txn_atom * atom)
 	       atom->nr_running_queues > 0);
 
 	init_wlinks(&_wlinks);
-	fwaitfor_list_push_back(&atom->fwaitfor_list, &_wlinks);
+	list_add_tail(&_wlinks._fwaitfor_link, &atom->fwaitfor_list);
 	atomic_inc(&atom->refcount);
 	UNLOCK_ATOM(atom);
 
@@ -1597,7 +1624,7 @@ void atom_wait_event(txn_atom * atom)
 	go_to_sleep(_wlinks._lock_stack);
 
 	LOCK_ATOM(atom);
-	fwaitfor_list_remove(&_wlinks);
+	list_del(&_wlinks._fwaitfor_link);
 	atom_dec_and_unlock(atom);
 }
 
@@ -1785,7 +1812,8 @@ static int commit_txnh(txn_handle * txnh)
 
 	cd.atom->txnh_count -= 1;
 	txnh->atom = NULL;
-	txnh_list_remove(txnh);
+	/* remove transaction handle from atom's list of transaction handles */
+	list_del_init(&txnh->txnh_link);
 
 	UNLOCK_TXNH(txnh);
 	atom_dec_and_unlock(cd.atom);
@@ -2180,6 +2208,7 @@ static int fuse_not_fused_lock_owners(txn_handle * txnh, znode * node)
 	lock_handle *lh;
 	int repeat = 0;
 	txn_atom *atomh = txnh->atom;
+	struct list_head *pos;
 
 /*	assert ("zam-689", znode_is_rlocked (node));*/
 	assert("zam-690", spin_znode_is_locked(node));
@@ -2194,10 +2223,11 @@ static int fuse_not_fused_lock_owners(txn_handle * txnh, znode * node)
 	}
 
 	/* inspect list of lock owners */
-	for_all_type_safe_list(owners, &node->lock.owners, lh) {
+	list_for_each(pos, &node->lock.owners) {
 		reiser4_context *ctx;
 		txn_atom *atomf;
 
+		lh = list_entry(pos, lock_handle, owners_link);
 		ctx = get_context_by_lock_stack(lh->owner);
 
 		if (ctx == get_current_context())
@@ -2412,7 +2442,7 @@ static void capture_assign_txnh_nolock(txn_atom *atom, txn_handle *txnh)
 
 	atomic_inc(&atom->refcount);
 	txnh->atom = atom;
-	txnh_list_push_back(&atom->txnh_list, txnh);
+	list_add_tail(&txnh->txnh_link, &atom->txnh_list);
 	atom->txnh_count += 1;
 }
 
@@ -2425,13 +2455,13 @@ static void capture_assign_block_nolock(txn_atom *atom, jnode *node)
 	assert("jmacd-321", spin_jnode_is_locked(node));
 	assert("umka-295", spin_atom_is_locked(atom));
 	assert("jmacd-323", node->atom == NULL);
-	BUG_ON(!capture_list_is_clean(node));
+	BUG_ON(!list_empty_careful(&node->capture_link));
 	assert("nikita-3470", !jnode_is_dirty(node));
 
 	/* Pointer from jnode to atom is not counted in atom->refcount. */
 	node->atom = atom;
 
-	capture_list_push_back(ATOM_CLEAN_LIST(atom), node);
+	list_add_tail(&node->capture_link, ATOM_CLEAN_LIST(atom));
 	atom->capture_count += 1;
 	/* reference to jnode is acquired by atom. */
 	jref(node);
@@ -2499,8 +2529,9 @@ static void do_jnode_make_dirty(jnode * node, txn_atom * atom)
 		assert("nikita-2607", 0 <= level);
 		assert("nikita-2606", level <= REAL_MAX_ZTREE_HEIGHT);
 
-		capture_list_remove(node);
-		capture_list_push_back(ATOM_DIRTY_LIST(atom, level), node);
+		/* move node to atom's dirty list */
+		list_del(&node->capture_link);
+		list_add_tail(&node->capture_link, ATOM_DIRTY_LIST(atom, level));
 		ON_DEBUG(count_jnode
 			 (atom, node, NODE_LIST(node), DIRTY_LIST, 1));
 		/*
@@ -2622,6 +2653,7 @@ void
 count_jnode(txn_atom * atom, jnode * node, atom_list old_list,
 	    atom_list new_list, int check_lists)
 {
+	struct list_head *pos;
 #if REISER4_COPY_ON_CAPTURE
 	assert("", spin_atom_is_locked(atom));
 #else
@@ -2695,7 +2727,6 @@ count_jnode(txn_atom * atom, jnode * node, atom_list old_list,
 	if (0 && check_lists) {
 		int count;
 		tree_level level;
-		jnode *node;
 
 		count = 0;
 
@@ -2704,11 +2735,9 @@ count_jnode(txn_atom * atom, jnode * node, atom_list old_list,
 
 		/* dirty list */
 		count = 0;
-		for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {
-			for_all_type_safe_list(capture,
-					       ATOM_DIRTY_LIST(atom, level),
-					       node)
-			    count++;
+		for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {			
+			list_for_each(pos, ATOM_DIRTY_LIST(atom, level))
+				count++;
 		}
 		if (count != atom->dirty)
 			warning("", "dirty counter %d, real %d\n", atom->dirty,
@@ -2716,24 +2745,24 @@ count_jnode(txn_atom * atom, jnode * node, atom_list old_list,
 
 		/* clean list */
 		count = 0;
-		for_all_type_safe_list(capture, ATOM_CLEAN_LIST(atom), node)
-		    count++;
+		list_for_each(pos, ATOM_CLEAN_LIST(atom))
+			count++;
 		if (count != atom->clean)
 			warning("", "clean counter %d, real %d\n", atom->clean,
 				count);
 
 		/* wb list */
 		count = 0;
-		for_all_type_safe_list(capture, ATOM_WB_LIST(atom), node)
-		    count++;
+		list_for_each(pos, ATOM_WB_LIST(atom))
+			count++;
 		if (count != atom->wb)
 			warning("", "wb counter %d, real %d\n", atom->wb,
 				count);
 
 		/* overwrite list */
 		count = 0;
-		for_all_type_safe_list(capture, ATOM_OVRWR_LIST(atom), node)
-		    count++;
+		list_for_each(pos, ATOM_OVRWR_LIST(atom))
+			count++;
 
 		if (count != atom->ovrwr)
 			warning("", "ovrwr counter %d, real %d\n", atom->ovrwr,
@@ -2774,8 +2803,9 @@ void jnode_make_wander_nolock(jnode * node)
 	assert("zam-894", atom_is_protected(atom));
 
 	JF_SET(node, JNODE_OVRWR);
-	capture_list_remove_clean(node);
-	capture_list_push_back(ATOM_OVRWR_LIST(atom), node);
+	/* move node to atom's overwrite list */
+	list_del(&node->capture_link);
+	list_add_tail(&node->capture_link, ATOM_OVRWR_LIST(atom));
 	ON_DEBUG(count_jnode(atom, node, DIRTY_LIST, OVRWR_LIST, 1));
 }
 
@@ -3080,11 +3110,13 @@ int capture_super_block(struct super_block *s)
 static void wakeup_atom_waitfor_list(txn_atom * atom)
 {
 	txn_wait_links *wlinks;
+	struct list_head *pos;
 
 	assert("umka-210", atom != NULL);
 
 	/* atom is locked */
-	for_all_type_safe_list(fwaitfor, &atom->fwaitfor_list, wlinks) {
+	list_for_each(pos, &atom->fwaitfor_list) {
+		wlinks = list_entry(pos, txn_wait_links, _fwaitfor_link);
 		if (wlinks->waitfor_cb == NULL ||
 		    wlinks->waitfor_cb(atom, wlinks))
 			/* Wake up. */
@@ -3096,11 +3128,13 @@ static void wakeup_atom_waitfor_list(txn_atom * atom)
 static void wakeup_atom_waiting_list(txn_atom * atom)
 {
 	txn_wait_links *wlinks;
+	struct list_head *pos;
 
 	assert("umka-211", atom != NULL);
 
 	/* atom is locked */
-	for_all_type_safe_list(fwaiting, &atom->fwaiting_list, wlinks) {
+	list_for_each(pos, &atom->fwaiting_list) {
+		wlinks = list_entry(pos, txn_wait_links, _fwaiting_link);
 		if (wlinks->waiting_cb == NULL ||
 		    wlinks->waiting_cb(atom, wlinks))
 			/* Wake up. */
@@ -3141,8 +3175,6 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf,
 		  txn_atom * atomh, txn_capture mode)
 {
 	int ret;
-
-	/* Initialize the waiting list links. */
 	txn_wait_links wlinks;
 
 	assert("umka-212", node != NULL);
@@ -3163,17 +3195,18 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf,
 		return RETERR(-E_BLOCK);
 	}
 
+	/* Initialize the waiting list links. */
 	init_wlinks(&wlinks);
 
 	/* Add txnh to atomf's waitfor list, unlock atomf. */
-	fwaitfor_list_push_back(&atomf->fwaitfor_list, &wlinks);
+	list_add_tail(&wlinks._fwaitfor_link, &atomf->fwaitfor_list);
 	wlinks.waitfor_cb = wait_for_fusion;
 	atomic_inc(&atomf->refcount);
 	UNLOCK_ATOM(atomf);
 
 	if (atomh) {
 		/* Add txnh to atomh's waiting list, unlock atomh. */
-		fwaiting_list_push_back(&atomh->fwaiting_list, &wlinks);
+		list_add_tail(&wlinks._fwaiting_link, &atomh->fwaiting_list);
 		atomic_inc(&atomh->refcount);
 		UNLOCK_ATOM(atomh);
 	}
@@ -3189,13 +3222,14 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf,
 
 	/* Remove from the waitfor list. */
 	LOCK_ATOM(atomf);
-	fwaitfor_list_remove(&wlinks);
+	
+	list_del(&wlinks._fwaitfor_link);
 	atom_dec_and_unlock(atomf);
 
 	if (atomh) {
 		/* Remove from the waiting list. */
 		LOCK_ATOM(atomh);
-		fwaiting_list_remove(&wlinks);
+		list_del(&wlinks._fwaiting_link);
 		atom_dec_and_unlock(atomh);
 	}
 
@@ -3304,11 +3338,12 @@ capture_init_fusion(jnode * node, txn_handle * txnh, txn_capture mode,
 /* This function splices together two jnode lists (small and large) and sets all jnodes in
    the small list to point to the large atom.  Returns the length of the list. */
 static int
-capture_fuse_jnode_lists(txn_atom * large, capture_list_head * large_head,
-			 capture_list_head * small_head)
+capture_fuse_jnode_lists(txn_atom *large, struct list_head *large_head,
+			 struct list_head *small_head)
 {
 	int count = 0;
 	jnode *node;
+	struct list_head *pos;
 
 	assert("umka-218", large != NULL);
 	assert("umka-219", large_head != NULL);
@@ -3317,7 +3352,8 @@ capture_fuse_jnode_lists(txn_atom * large, capture_list_head * large_head,
 	assert("zam-968", spin_atom_is_locked(large));
 
 	/* For every jnode on small's capture list... */
-	for_all_type_safe_list(capture, small_head, node) {
+	list_for_each(pos, small_head) {
+		node = list_entry(pos, jnode, capture_link);
 		count += 1;
 
 		/* With the jnode lock held, update atom pointer. */
@@ -3325,27 +3361,30 @@ capture_fuse_jnode_lists(txn_atom * large, capture_list_head * large_head,
 	}
 
 	/* Splice the lists. */
-	capture_list_splice(large_head, small_head);
+	list_splice(small_head, large_head);
+	/* list_splice does not clean small_head */
+	INIT_LIST_HEAD(small_head);
 
 	return count;
 }
 
 /* This function splices together two txnh lists (small and large) and sets all txn handles in
    the small list to point to the large atom.  Returns the length of the list. */
-/* Audited by: umka (2002.06.13) */
 static int
-capture_fuse_txnh_lists(txn_atom * large, txnh_list_head * large_head,
-			txnh_list_head * small_head)
+capture_fuse_txnh_lists(txn_atom *large, struct list_head *large_head,
+			struct list_head *small_head)
 {
 	int count = 0;
 	txn_handle *txnh;
+	struct list_head *pos;
 
 	assert("umka-221", large != NULL);
 	assert("umka-222", large_head != NULL);
 	assert("umka-223", small_head != NULL);
 
 	/* Adjust every txnh to the new atom. */
-	for_all_type_safe_list(txnh, small_head, txnh) {
+	list_for_each(pos, small_head) {
+		txnh = list_entry(pos, txn_handle, txnh_link);
 		count += 1;
 
 		/* With the txnh lock held, update atom pointer. */
@@ -3353,7 +3392,9 @@ capture_fuse_txnh_lists(txn_atom * large, txnh_list_head * large_head,
 	}
 
 	/* Splice the txn_handle list. */
-	txnh_list_splice(large_head, small_head);
+	list_splice(small_head, large_head);
+	/* list_splice does not clean small_head */
+	INIT_LIST_HEAD(small_head);
 
 	return count;
 }
@@ -3369,6 +3410,7 @@ static void capture_fuse_into(txn_atom * small, txn_atom * large)
 	unsigned zcount = 0;
 	unsigned tcount = 0;
 	protected_jnodes *prot_list;
+	struct list_head *pos1, *pos2;
 
 	assert("umka-224", small != NULL);
 	assert("umka-225", small != NULL);
@@ -3403,10 +3445,13 @@ static void capture_fuse_into(txn_atom * small, txn_atom * large)
 	    capture_fuse_txnh_lists(large, &large->txnh_list,
 				    &small->txnh_list);
 
-	for_all_type_safe_list(prot, &small->protected, prot_list) {
+
+	list_for_each(pos1, &small->protected) {
+		prot_list = list_entry(pos1, protected_jnodes, inatom);
 		jnode *node;
 
-		for_all_type_safe_list(capture, &prot_list->nodes, node) {
+		list_for_each(pos2, &prot_list->nodes) {
+			node = list_entry(pos2, jnode, capture_link);
 			zcount += 1;
 
 			LOCK_JNODE(node);
@@ -3417,7 +3462,11 @@ static void capture_fuse_into(txn_atom * small, txn_atom * large)
 		}
 	}
 	/* Splice the lists of lists. */
-	prot_list_splice(&large->protected, &small->protected);
+	list_splice(&small->protected, &large->protected);
+	/* list_splice does not clean &small->protected */
+	if (!list_empty(&small->protected))
+		warning("XXX", "list-splice does not clean list");
+	INIT_LIST_HEAD(&small->protected);
 
 	/* Check our accounting. */
 	assert("jmacd-1063",
@@ -3507,26 +3556,26 @@ static void capture_fuse_into(txn_atom * small, txn_atom * large)
 	atom_dec_and_unlock(small);
 }
 
-void protected_jnodes_init(protected_jnodes * list)
+void protected_jnodes_init(protected_jnodes *list)
 {
 	txn_atom *atom;
 
 	assert("nikita-3376", list != NULL);
 
 	atom = get_current_atom_locked();
-	prot_list_push_front(&atom->protected, list);
-	capture_list_init(&list->nodes);
+	list_add(&list->inatom, &atom->protected);
+	INIT_LIST_HEAD(&list->nodes);
 	UNLOCK_ATOM(atom);
 }
 
-void protected_jnodes_done(protected_jnodes * list)
+void protected_jnodes_done(protected_jnodes *list)
 {
 	txn_atom *atom;
 
-	assert("nikita-3379", capture_list_empty(&list->nodes));
+	assert("nikita-3379", list_empty(&list->nodes));
 
 	atom = get_current_atom_locked();
-	prot_list_remove(list);
+	list_del_init(&list->inatom);
 	UNLOCK_ATOM(atom);
 }
 
@@ -4104,11 +4153,8 @@ void uncapture_block(jnode * node)
 	JF_CLR(node, JNODE_WRITEBACK);
 	JF_CLR(node, JNODE_REPACK);
 	clear_cced_bits(node);
-#if REISER4_DEBUG
-	/*node->written = 0;*/
-#endif
 
-	capture_list_remove_clean(node);
+	list_del_init(&node->capture_link);
 	if (JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
 		assert("zam-925", atom_isopen(atom));
 		assert("vs-1623", NODE_LIST(node) == FQ_LIST);
@@ -4135,7 +4181,7 @@ void insert_into_atom_ovrwr_list(txn_atom * atom, jnode * node)
 	assert("zam-543", node->atom == NULL);
 	assert("vs-1433", !jnode_is_unformatted(node) && !jnode_is_znode(node));
 
-	capture_list_push_front(ATOM_OVRWR_LIST(atom), node);
+	list_add(&node->capture_link, ATOM_OVRWR_LIST(atom));
 	jref(node);
 	node->atom = atom;
 	atom->capture_count++;
@@ -4181,11 +4227,13 @@ reiser4_block_nr txnmgr_count_deleted_blocks(void)
 	reiser4_block_nr result;
 	txn_mgr *tmgr = &get_super_private(reiser4_get_current_sb())->tmgr;
 	txn_atom *atom;
+	struct list_head *pos;
 
 	result = 0;
 
 	spin_lock_txnmgr(tmgr);
-	for_all_type_safe_list(atom, &tmgr->atoms_list, atom) {
+	list_for_each(pos, &tmgr->atoms_list) {
+		atom = list_entry(pos, txn_atom, atom_link);
 		LOCK_ATOM(atom);
 		blocknr_set_iterator(atom, &atom->delete_set,
 				     count_deleted_blocks_actor, &result, 0);
@@ -4196,12 +4244,12 @@ reiser4_block_nr txnmgr_count_deleted_blocks(void)
 	return result;
 }
 
-/* Make Linus happy.
-   Local variables:
-   c-indentation-style: "K&R"
-   mode-name: "LC"
-   c-basic-offset: 8
-   tab-width: 8
-   fill-column: 80
-   End:
-*/
+/*
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 79
+ * End:
+ */

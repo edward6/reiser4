@@ -7,7 +7,7 @@
 
 /* plugin data-types and constants */
 
-#include "../type_safe_list.h"
+#include "../debug.h"
 #include "../dformat.h"
 
 typedef enum {
@@ -25,7 +25,6 @@ typedef enum {
 	REISER4_CRYPTO_PLUGIN_TYPE,
 	REISER4_DIGEST_PLUGIN_TYPE,
 	REISER4_COMPRESSION_PLUGIN_TYPE,
-	REISER4_PSEUDO_PLUGIN_TYPE,
 	REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
 	REISER4_CLUSTER_PLUGIN_TYPE,
 	REISER4_REGULAR_PLUGIN_TYPE,
@@ -36,8 +35,6 @@ struct reiser4_plugin_ops;
 /* generic plugin operations, supported by each
     plugin type. */
 typedef struct reiser4_plugin_ops reiser4_plugin_ops;
-
-TYPE_SAFE_LIST_DECLARE(plugin);
 
 /* the common part of all plugin instances. */
 typedef struct plugin_header {
@@ -53,7 +50,7 @@ typedef struct plugin_header {
 	/* descriptive string.. */
 	const char *desc;
 	/* list linkage */
-	plugin_list_link linkage;
+	struct list_head linkage;
 } plugin_header;
 
 /* PRIVATE INTERFACES */
@@ -74,7 +71,7 @@ typedef struct reiser4_plugin_type_data {
 	int builtin_num;
 	/* array of built-in plugins */
 	void *builtin;
-	plugin_list_head plugins_list;
+	struct list_head plugins_list;
 	size_t size;
 } reiser4_plugin_type_data;
 

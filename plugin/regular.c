@@ -15,7 +15,7 @@ regular_plugin regular_plugins[LAST_REGULAR_ID] = {
 			.pops = NULL,
 			.label = "unixfile",
 			.desc = "Unix file regular plugin",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.id = UNIX_FILE_PLUGIN_ID
 	},
@@ -26,7 +26,7 @@ regular_plugin regular_plugins[LAST_REGULAR_ID] = {
 			.pops = NULL,
 			.label = "cryptcompress",
 			.desc = "Cryptcompress regular plugin",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.id = CRC_FILE_PLUGIN_ID
 	}

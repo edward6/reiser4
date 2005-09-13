@@ -70,7 +70,7 @@ tap_init(tap_t * tap, coord_t * coord, lock_handle * lh, znode_lock_mode mode)
 	tap->lh = lh;
 	tap->mode = mode;
 	tap->loaded = 0;
-	tap_list_clean(tap);
+	INIT_LIST_HEAD(&tap->linkage);
 	init_ra_info(&tap->ra_info);
 }
 
@@ -79,7 +79,7 @@ void tap_monitor(tap_t * tap)
 {
 	assert("nikita-2623", tap != NULL);
 	tap_check(tap);
-	tap_list_push_front(taps_list(), tap);
+	list_add(&tap->linkage, taps_list());
 	tap_check(tap);
 }
 
@@ -95,7 +95,7 @@ void tap_copy(tap_t * dst, tap_t * src)
 		copy_lh(dst->lh, src->lh);
 	dst->mode = src->mode;
 	dst->loaded = 0;
-	tap_list_clean(dst);
+	INIT_LIST_HEAD(&dst->linkage);
 	dst->ra_info = src->ra_info;
 }
 
@@ -108,7 +108,7 @@ void tap_done(tap_t * tap)
 		zrelse(tap->coord->node);
 	done_lh(tap->lh);
 	tap->loaded = 0;
-	tap_list_remove_clean(tap);
+	list_del_init(&tap->linkage);
 	tap->coord->node = NULL;
 }
 
@@ -186,7 +186,7 @@ int tap_to_coord(tap_t * tap, coord_t * target)
 }
 
 /** return list of all taps */
-tap_list_head *taps_list(void)
+struct list_head *taps_list(void)
 {
 	return &get_current_context()->taps;
 }
@@ -316,7 +316,9 @@ static void print_tap(const char *prefix, const tap_t * tap)
 		return;
 	}
 	printk("%s: loaded: %i, in-list: %i, node: %p, mode: %s\n", prefix,
-	       tap->loaded, tap_list_is_clean(tap), tap->lh->node,
+	       tap->loaded, (&tap->linkage == tap->linkage.next &&
+			     &tap->linkage == tap->linkage.prev),
+	       tap->lh->node,
 	       lock_mode_name(tap->mode));
 	print_coord("\tcoord", tap->coord, 0);
 }

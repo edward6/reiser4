@@ -316,12 +316,11 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.pops = &item_plugin_ops,
 			.label = "sd",
 			.desc = "stat-data",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.b = {
 			.item_type = STAT_DATA_ITEM_TYPE,
-			.max_key_inside =
-			max_key_inside_single_key,
+			.max_key_inside = max_key_inside_single_key,
 			.can_contain_key = NULL,
 			.mergeable = not_mergeable,
 			.nr_units = nr_units_single_unit,
@@ -353,8 +352,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		},
 		.s = {
 			.sd = {
-				.init_inode =
-				init_inode_static_sd,
+				.init_inode = init_inode_static_sd,
 				.save_len = save_len_static_sd,
 				.save = save_static_sd
 			}
@@ -367,12 +365,11 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.pops = &item_plugin_ops,
 			.label = "de",
 			.desc = "directory entry",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.b = {
 			.item_type = DIR_ENTRY_ITEM_TYPE,
-			.max_key_inside =
-			max_key_inside_single_key,
+			.max_key_inside = max_key_inside_single_key,
 			.can_contain_key = NULL,
 			.mergeable = NULL,
 			.nr_units = nr_units_single_unit,
@@ -407,8 +404,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				.extract_key = extract_key_de,
 				.update_key = update_key_de,
 				.extract_name = extract_name_de,
-				.extract_file_type =
-				extract_file_type_de,
+				.extract_file_type = extract_file_type_de,
 				.add_entry = add_entry_de,
 				.rem_entry = rem_entry_de,
 				.max_name_len = max_name_len_de
@@ -422,7 +418,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.pops = &item_plugin_ops,
 			.label = "cde",
 			.desc = "compressed directory entry",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.b = {
 			.item_type = DIR_ENTRY_ITEM_TYPE,
@@ -461,8 +457,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				.extract_key = extract_key_cde,
 				.update_key = update_key_cde,
 				.extract_name = extract_name_cde,
-				.extract_file_type =
-				extract_file_type_de,
+				.extract_file_type = extract_file_type_de,
 				.add_entry = add_entry_cde,
 				.rem_entry = rem_entry_cde,
 				.max_name_len = max_name_len_cde
@@ -476,7 +471,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.pops = NULL,
 			.label = "internal",
 			.desc = "internal item",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.b = {
 			.item_type = INTERNAL_ITEM_TYPE,
@@ -525,7 +520,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.pops = NULL,
 			.label = "extent",
 			.desc = "extent item",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.b = {
 			.item_type = UNIX_FILE_METADATA_ITEM_TYPE,
@@ -567,8 +562,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				.read = read_extent,
 				.readpage = readpage_extent,
 				.capture = capture_extent,
-				.get_block =
-				get_block_address_extent,
+				.get_block = get_block_address_extent,
 				.readpages = readpages_extent,
 				.append_key = append_key_extent,
 				.init_coord_extension =
@@ -583,7 +577,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.pops = NULL,
 			.label = "body",
 			.desc = "body (or tail?) item",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.b = {
 			.item_type = UNIX_FILE_METADATA_ITEM_TYPE,
@@ -638,7 +632,8 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.pops = NULL,
 			.label = "ctail",
 			.desc = "cryptcompress tail item",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO},
+			.linkage = {NULL, NULL}
+		},
 		.b = {
 			.item_type = UNIX_FILE_METADATA_ITEM_TYPE,
 			.max_key_inside = max_key_inside_tail,
@@ -693,7 +688,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.pops = NULL,
 			.label = "blackbox",
 			.desc = "black box item",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
+			.linkage = {NULL, NULL}
 		},
 		.b = {
 			.item_type = OTHER_ITEM_TYPE,

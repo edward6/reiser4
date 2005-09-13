@@ -17,7 +17,6 @@
 #include "plugin/dir/dir.h"
 #include "plugin/plugin_set.h"
 #include "plugin/security/perm.h"
-#include "plugin/pseudo/pseudo.h"
 #include "vfs_ops.h"
 #include "jnode.h"
 #include "fsdata.h"
@@ -122,7 +121,7 @@ struct reiser4_inode {
 	/* bitmask of non-default plugins for this inode */
 	__u16 plugin_mask;
 	union {
-		readdir_list_head readdir_list;
+		struct list_head readdir_list;
 		struct list_head not_used;
 	} lists;
 	/* per-inode flags. Filled by values of reiser4_file_plugin_flags */
@@ -132,8 +131,6 @@ struct reiser4_inode {
 		unix_file_info_t unix_file_info;
 		/* fields specific to cryptcompress plugin */
 		cryptcompress_info_t cryptcompress_info;
-		/* fields specific to pseudo file plugin */
-		pseudo_info_t pseudo_info;
 	} file_plugin_data;
 	struct rw_semaphore coc_sem;	/* filemap_nopage takes it for read, copy_on_capture - for write. Under this it
 					   tries to unmap page for which it is called. This prevents process from using page which
@@ -374,7 +371,7 @@ extern void inode_check_scale_nolock(struct inode * inode, __u64 old, __u64 new)
 })
 
 /* See comment before readdir_common() for description. */
-static inline readdir_list_head *get_readdir_list(const struct inode *inode)
+static inline struct list_head *get_readdir_list(const struct inode *inode)
 {
 	return &reiser4_inode_data(inode)->lists.readdir_list;
 }

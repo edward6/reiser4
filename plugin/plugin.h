@@ -10,14 +10,12 @@
 #include "../debug.h"
 #include "../dformat.h"
 #include "../key.h"
-#include "../type_safe_list.h"
 #include "compress/compress.h"
 #include "plugin_header.h"
 #include "item/static_stat.h"
 #include "item/internal.h"
 #include "item/sde.h"
 #include "item/cde.h"
-#include "pseudo/pseudo.h"
 #include "item/item.h"
 #include "node/node.h"
 #include "node/node40.h"
@@ -164,8 +162,6 @@ typedef enum {
 	SPECIAL_FILE_PLUGIN_ID,
 	/* Plugin id for crypto-compression objects */
 	CRC_FILE_PLUGIN_ID,
-	/* pseudo file */
-	PSEUDO_FILE_PLUGIN_ID,
 	/* number of file plugins. Used as size of arrays to hold
 	   file plugins. */
 	LAST_FILE_PLUGIN_ID
@@ -366,7 +362,6 @@ struct reiser4_object_on_wire {
 typedef enum {
 	HASHED_DIR_PLUGIN_ID,
 	SEEKABLE_HASHED_DIR_PLUGIN_ID,
-	PSEUDO_DIR_PLUGIN_ID,
 	LAST_DIR_ID
 } reiser4_dir_id;
 
@@ -641,8 +636,6 @@ union reiser4_plugin {
 	oid_allocator_plugin oid_allocator;
 	/* plugin for different jnode types */
 	jnode_plugin jnode;
-	/* plugin for pseudo files */
-	pseudo_plugin pseudo;
 	/* compression_mode_plugin, used by object plugin */
 	compression_mode_plugin compression_mode;
 	/* cluster_plugin, used by object plugin */
@@ -864,7 +857,6 @@ PLUGIN_BY_ID(compression_plugin, REISER4_COMPRESSION_PLUGIN_TYPE, compression);
 PLUGIN_BY_ID(formatting_plugin, REISER4_FORMATTING_PLUGIN_TYPE, formatting);
 PLUGIN_BY_ID(disk_format_plugin, REISER4_FORMAT_PLUGIN_TYPE, format);
 PLUGIN_BY_ID(jnode_plugin, REISER4_JNODE_PLUGIN_TYPE, jnode);
-PLUGIN_BY_ID(pseudo_plugin, REISER4_PSEUDO_PLUGIN_TYPE, pseudo);
 PLUGIN_BY_ID(compression_mode_plugin, REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
 	     compression_mode);
 PLUGIN_BY_ID(cluster_plugin, REISER4_CLUSTER_PLUGIN_TYPE, clust);
@@ -872,14 +864,13 @@ PLUGIN_BY_ID(regular_plugin, REISER4_REGULAR_PLUGIN_TYPE, regular);
 
 extern int save_plugin_id(reiser4_plugin * plugin, d16 * area);
 
-TYPE_SAFE_LIST_DEFINE(plugin, reiser4_plugin, h.linkage);
+extern struct list_head *get_plugin_list(reiser4_plugin_type type_id);
 
-extern plugin_list_head *get_plugin_list(reiser4_plugin_type type_id);
+#define for_all_plugins(ptype, plugin)							\
+for (plugin = list_entry(get_plugin_list(ptype)->next, reiser4_plugin, h.linkage);	\
+     get_plugin_list(ptype) != &plugin->h.linkage;					\
+     plugin = list_entry(plugin->h.linkage.next, reiser4_plugin, h.linkage))
 
-#define for_all_plugins( ptype, plugin )			\
-for( plugin = plugin_list_front( get_plugin_list( ptype ) ) ;	\
-     ! plugin_list_end( get_plugin_list( ptype ), plugin ) ;	\
-     plugin = plugin_list_next( plugin ) )
 
 /* enumeration of fields within plugin_set */
 typedef enum {
@@ -939,8 +930,6 @@ extern item_plugin item_plugins[LAST_ITEM_ID];
 extern node_plugin node_plugins[LAST_NODE_ID];
 /* defined in fs/reiser4/plugin/disk_format/disk_format.c */
 extern disk_format_plugin format_plugins[LAST_FORMAT_ID];
-/* defined in plugin/pseudo.c */
-extern pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID];
 
 /* __FS_REISER4_PLUGIN_TYPES_H__ */
 #endif

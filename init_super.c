@@ -71,7 +71,7 @@ typedef enum {
 	/*
 	 * option specifies bit in a bitmask. When option is set - bit in
 	 * sbinfo->fs_flags is set. Examples are bsdgroups, 32bittimes, mtflush,
-	 * nopseudo, dont_load_bitmap, atomic_write.
+	 * dont_load_bitmap, atomic_write.
 	 */
 	OPT_BIT,
 
@@ -441,8 +441,6 @@ do {						\
 	PUSH_BIT_OPT("32bittimes", REISER4_32_BIT_TIMES);
 	/* turn off concurrent flushing */
 	PUSH_BIT_OPT("mtflush", REISER4_MTFLUSH);
-	/* disable pseudo files support */
-	PUSH_BIT_OPT("nopseudo", REISER4_NO_PSEUDO);
 	/*
 	 * Don't load all bitmap blocks at mount time, it is useful for
 	 * machines with tiny RAM and large disks.

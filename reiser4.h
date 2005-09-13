@@ -56,12 +56,6 @@
 #define REISER4_LARGE_KEY (1)
 /*#define REISER4_LARGE_KEY (0)*/
 
-/*
- * This will be turned on automatically when viewmasks are for
- * obvious reasons.
- */
-#define ENABLE_REISER4_PSEUDO (0)
-
 /*#define GUESS_EXISTS 1*/
 
 /*

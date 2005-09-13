@@ -601,10 +601,8 @@ int write_tail(struct inode *inode, flow_t * f, hint_t * hint, int grabbed,	/* t
 		result = tail_balance_dirty_pages(inode->i_mapping, f, hint);
 		if (!grabbed)
 			all_grabbed2free();
-		if (result) {
-			// reiser4_stat_tail_add(bdp_caused_repeats);
+		if (result)
 			break;
-		}
 	}
 
 	return result;

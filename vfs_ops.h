@@ -9,7 +9,6 @@
 #include "forward.h"
 #include "coord.h"
 #include "seal.h"
-#include "type_safe_list.h"
 #include "plugin/file/file.h"
 #include "super.h"
 #include "readahead.h"
