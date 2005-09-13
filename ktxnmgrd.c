@@ -88,9 +88,7 @@ static int ktxnmgrd(void *arg)
 	complete(&ctx->start_finish_completion);
 
 	while (1) {
-		/* software suspend support. */
-		if (freezing(me))
-			refrigerator();
+		try_to_freeze();
 		set_comm("wait");
 		{
 			DEFINE_WAIT(__wait);

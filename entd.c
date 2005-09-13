@@ -166,11 +166,9 @@ static int entd(void *arg)
 	complete(&ent->start_finish_completion);
 
 	while (!ent->done) {
-		if (freezing(me))
-			refrigerator();
+		try_to_freeze();
 
 		spin_lock(&ent->guard);
-
 		while (ent->nr_all_requests != 0) {
 			assert("zam-1043",
 			       ent->nr_all_requests >=
