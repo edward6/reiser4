@@ -20,7 +20,6 @@
 #include "plugin.h"
 #include "node/node.h"
 #include "plugin_header.h"
-#include "../lib.h"
 
 #include <linux/pagemap.h>
 #include <linux/fs.h>		/* For struct inode */

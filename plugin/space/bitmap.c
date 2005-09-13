@@ -7,7 +7,6 @@
 #include "../../block_alloc.h"
 #include "../../tree.h"
 #include "../../super.h"
-#include "../../lib.h"
 #include "../plugin.h"
 #include "space_allocator.h"
 #include "bitmap.h"
@@ -554,31 +553,57 @@ adler32_recalc(__u32 adler, unsigned char old_data, unsigned char data,
 
 #define LIMIT(val, boundary) ((val) > (boundary) ? (boundary) : (val))
 
-/* A number of bitmap blocks for given fs. This number can be stored on disk
-   or calculated on fly; it depends on disk format.
-VS-FIXME-HANS: explain calculation, using device with block count of 8 * 4096 blocks as an example.
-   FIXME-VS: number of blocks in a filesystem is taken from reiser4
-   super private data */
-/* Audited by: green(2002.06.12) */
+/**
+ * get_nr_bitmap - calculate number of bitmap blocks
+ * @super: super block with initialized blocksize and block count
+ *
+ * Calculates number of bitmap blocks of a filesystem which uses bitmaps to
+ * maintain free disk space. It assumes that each bitmap addresses the same
+ * number of blocks which is calculated by bmap_block_count macro defined in
+ * above. Number of blocks in the filesystem has to be initialized in reiser4
+ * private data of super block already so that it can be obtained via
+ * reiser4_block_count(). Unfortunately, number of blocks addressed by a bitmap
+ * is not power of 2 because 4 bytes are used for checksum. Therefore, we have
+ * to use special function to divide and modulo 64bits filesystem block
+ * counters.
+ *
+ * Example: suppose filesystem have 32768 blocks. Blocksize is 4096. Each bitmap
+ * block addresses (4096 - 4) * 8 = 32736 blocks. Number of bitmaps to address
+ * all 32768 blocks is calculated as (32768 - 1) / 32736 + 1 = 2.
+ */
 static bmap_nr_t get_nr_bmap(const struct super_block *super)
 {
 	assert("zam-393", reiser4_block_count(super) != 0);
+	unsigned long long quotient;
 
-	return div64_32(reiser4_block_count(super) - 1,
-			bmap_bit_count(super->s_blocksize), NULL) + 1;
-
+	quotient = reiser4_block_count(super) - 1;
+	__div64_32(&quotient, bmap_bit_count(super->s_blocksize));
+	return quotient + 1;
 }
 
-/* calculate bitmap block number and offset within that bitmap block */
+/**
+ * parse_blocknr - calculate bitmap number and offset in it by block number
+ * @block: pointer to block number to calculate location in bitmap of
+ * @bmap: pointer where to store bitmap block number
+ * @offset: pointer where to store offset within bitmap block
+ *
+ * Calculates location of bit which is responsible for allocation/freeing of
+ * block @*block. That location is represented by bitmap block number and offset
+ * within that bitmap block.
+ */
 static void
-parse_blocknr(const reiser4_block_nr * block, bmap_nr_t * bmap,
-	      bmap_off_t * offset)
+parse_blocknr(const reiser4_block_nr *block, bmap_nr_t *bmap,
+	      bmap_off_t *offset)
 {
 	struct super_block *super = get_current_context()->super;
+	unsigned long long quotient;
 
-	*bmap = div64_32(*block, bmap_bit_count(super->s_blocksize), offset);
-
+	quotient = *block;
+	*offset = __div64_32(&quotient, bmap_bit_count(super->s_blocksize));
+	*bmap = quotient;
+		
 	assert("zam-433", *bmap < get_nr_bmap(super));
+	assert("", *offset < bmap_bit_count(super->s_blocksize));
 }
 
 #if REISER4_DEBUG

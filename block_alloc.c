@@ -8,7 +8,6 @@
 #include "block_alloc.h"
 #include "tree.h"
 #include "super.h"
-#include "lib.h"
 
 #include <linux/types.h>	/* for __u??  */
 #include <linux/fs.h>		/* for struct super_block  */

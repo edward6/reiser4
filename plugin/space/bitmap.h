@@ -33,6 +33,8 @@ extern int pre_commit_hook_bitmap(void);
 typedef __u64 bmap_nr_t;
 typedef __u32 bmap_off_t;
 
+extern uint32_t __div64_32(uint64_t *dividend, uint32_t divisor);
+
 #endif				/* __REISER4_PLUGIN_SPACE_BITMAP_H__ */
 
 /* Make Linus happy.
