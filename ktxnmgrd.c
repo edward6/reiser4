@@ -82,7 +82,6 @@ static int ktxnmgrd(void *arg)
 	me->journal_info = NULL;
 
 	ctx = mgr->daemon;
-	spin_lock(&ctx->guard);
 	ctx->tsk = me;
 
 	/* initialization is done */
@@ -90,11 +89,8 @@ static int ktxnmgrd(void *arg)
 
 	while (1) {
 		/* software suspend support. */
-		if (freezing(me)) {
-			spin_unlock(&ctx->guard);
+		if (freezing(me))
 			refrigerator();
-			spin_lock(&ctx->guard);
-		}
 		set_comm("wait");
 		{
 			DEFINE_WAIT(__wait);
@@ -103,11 +99,12 @@ static int ktxnmgrd(void *arg)
 			/* we are asked to exit */
 			if (ctx->done)
 				break;
-			schedule();
+			schedule_timeout(ctx->timeout);
 			finish_wait(&ctx->wait, &__wait);
 		}
 		set_comm("run");
 
+		spin_lock(&ctx->guard);
 		/*
 		 * wait timed out or ktxnmgrd was woken up by explicit request
 		 * to commit something. Scan list of atoms in txnmgr and look
@@ -126,9 +123,8 @@ static int ktxnmgrd(void *arg)
 				break;
 			}
 		} while (ctx->rescan);
+		spin_unlock(&ctx->guard);
 	}
-
-	spin_unlock(&ctx->guard);
 
 	complete_and_exit(&ctx->start_finish_completion, 0);
 	/* not reached. */
