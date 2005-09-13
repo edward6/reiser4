@@ -191,7 +191,9 @@ static int entd(void *arg)
 			spin_unlock(&ent->guard);
 			entd_set_comm("!");
 			entd_flush(super);
+			spin_lock(&ent->guard);
 		}
+		spin_unlock(&ent->guard);
 
 		entd_set_comm(".");
 
