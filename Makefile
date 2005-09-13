@@ -27,7 +27,6 @@ reiser4-y := \
 		   eottl.o \
 		   search.o \
 		   page_cache.o \
-		   kcond.o \
 		   seal.o \
 		   dscale.o \
 		   flush_queue.o \

@@ -4,7 +4,6 @@
 /* Ent daemon. */
 
 #include "debug.h"
-#include "kcond.h"
 #include "txnmgr.h"
 #include "tree.h"
 #include "entd.h"
@@ -21,6 +20,7 @@
 #include <linux/writeback.h>
 #include <linux/time.h>		/* INITIAL_JIFFIES */
 #include <linux/backing-dev.h>	/* bdi_write_congested */
+#include <linux/wait.h>
 
 TYPE_SAFE_LIST_DEFINE(wbq, struct wbq, link);
 
@@ -61,7 +61,7 @@ void init_entd(struct super_block *super)
 
 	memset(ctx, 0, sizeof *ctx);
 	spin_lock_init(&ctx->guard);
-	kcond_init(&ctx->wait);
+	init_waitqueue_head(&ctx->wait);
 
 	/*
 	 * prepare synchronization object to synchronize with ent thread
@@ -163,9 +163,7 @@ static int entd(void *arg)
 	/* initialization is done */
 	complete(&ent->start_finish_completion);
 
-	while (1) {
-		int result = 0;
-
+	while (!ent->done) {
 		if (freezing(me))
 			refrigerator();
 
@@ -191,24 +189,26 @@ static int entd(void *arg)
 			spin_unlock(&ent->guard);
 			entd_set_comm("!");
 			entd_flush(super);
-			spin_lock(&ent->guard);
 		}
 
 		entd_set_comm(".");
 
-		/* check whether we are asked to exit */
-		if (ent->done) {
-			spin_unlock(&ent->guard);
-			break;
+		{
+			DEFINE_WAIT(__wait);
+
+			for (;;) {
+				int dontsleep;
+
+				prepare_to_wait(&ent->wait, &__wait, TASK_UNINTERRUPTIBLE);
+				spin_lock(&ent->guard);
+				dontsleep = ent->done || ent->nr_all_requests != 0;
+				spin_unlock(&ent->guard);
+				if (dontsleep)
+					break;
+				schedule();
+			}
+			finish_wait(&ent->wait, &__wait);
 		}
-
-		/* wait for work */
-		result = kcond_wait(&ent->wait, &ent->guard, 1);
-		if (result != -EINTR && result != 0)
-			/* some other error */
-			warning("nikita-3099", "Error: %i", result);
-
-		spin_unlock(&ent->guard);
 	}
 	wakeup_all_wbq(ent);
 	complete_and_exit(&ent->start_finish_completion, 0);
@@ -239,8 +239,8 @@ void done_entd(struct super_block *super)
 
 	spin_lock(&ent->guard);
 	ent->done = 1;
-	kcond_signal(&ent->wait);
 	spin_unlock(&ent->guard);
+	wake_up(&ent->wait);
 
 	/* wait until entd finishes */
 	wait_for_completion(&ent->start_finish_completion);
@@ -269,6 +269,7 @@ void enter_flush(struct super_block *super)
 void leave_flush(struct super_block *super)
 {
 	entd_context *ent;
+	int wake_up_ent;
 
 	assert("zam-1027", super != NULL);
 	ent = get_entd_context(super);
@@ -277,18 +278,13 @@ void leave_flush(struct super_block *super)
 
 	spin_lock(&ent->guard);
 	ent->flushers--;
-	if (ent->flushers == 0 && ent->nr_synchronous_requests != 0)
-		kcond_signal(&ent->wait);
+	wake_up_ent = (ent->flushers == 0 && ent->nr_synchronous_requests != 0);
 #if REISER4_DEBUG
 	flushers_list_remove_clean(get_current_context());
 #endif
 	spin_unlock(&ent->guard);
-}
-
-/* signal to ent thread that it has more work to do */
-static void kick_entd(entd_context * ent)
-{
-	kcond_signal(&ent->wait);
+	if (wake_up_ent)
+		wake_up(&ent->wait);
 }
 
 #define ENTD_CAPTURE_APAGE_BURST (32l)
@@ -374,6 +370,7 @@ int write_page_by_ent(struct page *page, struct writeback_control *wbc)
 	entd_context *ent;
 	struct wbq rq;
 	int phantom;
+	int wake_up_entd;
 
 	sb = page->mapping->host->i_sb;
 	ent = get_entd_context(sb);
@@ -403,13 +400,14 @@ int write_page_by_ent(struct page *page, struct writeback_control *wbc)
 	rq.phantom = phantom;
 
 	spin_lock(&ent->guard);
-	if (ent->flushers == 0)
-		kick_entd(ent);
+	wake_up_entd = (ent->flushers == 0);
 	ent->nr_all_requests++;
 	if (ent->nr_all_requests <=
 	    ent->nr_synchronous_requests + ENTD_ASYNC_REQUESTS_LIMIT) {
 		BUG_ON(1);
 		spin_unlock(&ent->guard);
+		if (wake_up_entd)
+			wake_up(&ent->wait);
 		lock_page(page);
 		return 0;
 	}
@@ -418,6 +416,8 @@ int write_page_by_ent(struct page *page, struct writeback_control *wbc)
 	wbq_list_push_back(&ent->wbq_list, &rq);
 	ent->nr_synchronous_requests++;
 	spin_unlock(&ent->guard);
+	if (wake_up_entd)
+		wake_up(&ent->wait);
 	down(&rq.sem);
 
 	/* don't release rq until wakeup_wbq stops using it. */

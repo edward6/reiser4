@@ -23,7 +23,6 @@
  */
 
 #include "debug.h"
-#include "kcond.h"
 #include "txnmgr.h"
 #include "tree.h"
 #include "ktxnmgrd.h"
@@ -31,6 +30,7 @@
 #include "reiser4.h"
 
 #include <linux/sched.h>	/* for struct task_struct */
+#include <linux/wait.h>
 #include <linux/suspend.h>
 #include <linux/kernel.h>
 #include <linux/writeback.h>
@@ -89,38 +89,24 @@ static int ktxnmgrd(void *arg)
 	complete(&ctx->start_finish_completion);
 
 	while (1) {
-		int result;
-
 		/* software suspend support. */
 		if (freezing(me)) {
 			spin_unlock(&ctx->guard);
 			refrigerator();
 			spin_lock(&ctx->guard);
 		}
-
 		set_comm("wait");
-		/*
-		 * wait for @ctx -> timeout or explicit wake up.
-		 *
-		 * kcond_wait() is called with last argument 1 enabling wakeup
-		 * by signals so that this thread is not counted in
-		 * load-average. This doesn't require any special handling,
-		 * because all signals were blocked.
-		 */
-		result = kcond_timedwait(&ctx->wait,
-					 &ctx->guard, ctx->timeout, 1);
+		{
+			DEFINE_WAIT(__wait);
 
-		if (result != -ETIMEDOUT && result != -EINTR && result != 0) {
-			/* some other error */
-			warning("nikita-2443", "Error: %i", result);
-			continue;
+			prepare_to_wait(&ctx->wait, &__wait, TASK_INTERRUPTIBLE);
+			/* we are asked to exit */
+			if (ctx->done)
+				break;
+			schedule();
+			finish_wait(&ctx->wait, &__wait);
 		}
-
-		/* we are asked to exit */
-		if (ctx->done)
-			break;
-
-		set_comm(result ? "timed" : "run");
+		set_comm("run");
 
 		/*
 		 * wait timed out or ktxnmgrd was woken up by explicit request
@@ -212,7 +198,7 @@ int init_ktxnmgrd(struct super_block *super)
 	assert("nikita-2442", ctx != NULL);
 
 	memset(ctx, 0, sizeof *ctx);
-	kcond_init(&ctx->wait);
+	init_waitqueue_head(&ctx->wait);
 
 	/*kcond_init(&ctx->startup);*/
 	spin_lock_init(&ctx->guard);
@@ -229,7 +215,7 @@ void ktxnmgrd_kick(txn_mgr *mgr)
 {
 	assert("nikita-3234", mgr != NULL);
 	assert("nikita-3235", mgr->daemon != NULL);
-	kcond_signal(&mgr->daemon->wait);
+	wake_up(&mgr->daemon->wait);
 }
 
 int is_current_ktxnmgrd(void)
@@ -282,7 +268,7 @@ static void stop_ktxnmgrd(txn_mgr *mgr)
 	ctx->done = 1;
 	spin_unlock(&ctx->guard);
 
-	kcond_signal(&ctx->wait);
+	wake_up(&ctx->wait);
 
 	/* wait until ktxnmgrd finishes */
 	wait_for_completion(&ctx->start_finish_completion);

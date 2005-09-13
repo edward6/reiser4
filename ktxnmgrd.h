@@ -6,11 +6,11 @@
 #ifndef __KTXNMGRD_H__
 #define __KTXNMGRD_H__
 
-#include "kcond.h"
 #include "txnmgr.h"
 #include "spin_macros.h"
 
 #include <linux/fs.h>
+#include <linux/wait.h>
 #include <linux/completion.h>
 #include <linux/spinlock.h>
 #include <asm/atomic.h>
@@ -23,8 +23,8 @@ struct ktxnmgrd_context {
 /*	kcond_t startup;*/
 	/* completion used to synchronize shut down of ktxnmgrd */
 	struct completion start_finish_completion;
-	/* condition variable on which ktxnmgrd sleeps */
-	kcond_t wait;
+	/* wait queue head on which ktxnmgrd sleeps */
+	wait_queue_head_t wait;
 	/* spin lock protecting all fields of this structure */
 	spinlock_t guard;
 	/* timeout of sleeping on ->wait */

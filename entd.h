@@ -5,11 +5,11 @@
 #ifndef __ENTD_H__
 #define __ENTD_H__
 
-#include "kcond.h"
 #include "context.h"
 
 #include <linux/fs.h>
 #include <linux/completion.h>
+#include <linux/wait.h>
 #include <linux/spinlock.h>
 #include <linux/sched.h>	/* for struct task_struct */
 #include "type_safe_list.h"
@@ -41,11 +41,9 @@ typedef struct entd_context {
 	 * terminates.
 	 */
 	struct completion start_finish_completion;
-	/*
-	 * condition variable that ent thread waits on for more work. It's
-	 * signaled by write_page_by_ent().
-	 */
-	kcond_t wait;
+	 /* wait queue that ent thread waits on for more work. It's
+	  * signaled by write_page_by_ent(). */
+	wait_queue_head_t wait;
 	/* spinlock protecting other fields */
 	spinlock_t guard;
 	/* ent thread */
