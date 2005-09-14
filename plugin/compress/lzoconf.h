@@ -54,32 +54,11 @@ extern "C" {
 // LZO requires a conforming <limits.h>
 ************************************************************************/
 
-#define CHAR_BIT  8		/* -edward */
-#define USHRT_MAX 0xffff	/* -edward */
+#define CHAR_BIT  8
+#define USHRT_MAX 0xffff
 
-#if 0				/* -edward */
-#if !defined(CHAR_BIT) || (CHAR_BIT != 8)
-#  error "invalid CHAR_BIT"
-#endif
-#if !defined(UCHAR_MAX) || !defined(UINT_MAX) || !defined(ULONG_MAX)
-#  error "check your compiler installation"
-#endif
-#if (USHRT_MAX < 1) || (UINT_MAX < 1) || (ULONG_MAX < 1)
-#  error "your limits.h macros are broken"
-#endif
-#endif				/* -edward */
 /* workaround a cpp bug under hpux 10.20 */
 #define LZO_0xffffffffL         4294967295ul
-
-#if 0				/* -edward */
-#if !defined(LZO_UINT32_C)
-#  if (UINT_MAX < LZO_0xffffffffL)
-#    define LZO_UINT32_C(c)     c ## UL
-#  else
-#    define LZO_UINT32_C(c)     c ## U
-#  endif
-#endif
-#endif				/* -edward */
 
 /***********************************************************************
 // architecture defines

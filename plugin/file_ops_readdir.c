@@ -632,6 +632,14 @@ int readdir_common(struct file *f /* directory file being read */ ,
 	tap_done(&tap);
 	detach_fsdata(f);
 
+	/* try to update directory's atime */
+	if (reiser4_grab_space(inode_file_plugin(inode)->estimate.update(inode),
+			       BA_CAN_COMMIT) != 0)
+		warning("", "failed to update atime on readdir: %llu",
+			get_inode_oid(inode));
+	else
+		update_atime(inode);
+
 	context_set_commit_async(ctx);
 	reiser4_exit_context(ctx);
 

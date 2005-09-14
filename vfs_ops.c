@@ -53,11 +53,6 @@
 #include <linux/rcupdate.h>
 
 
-extern struct dentry_operations reiser4_dentry_operation;
-
-
-
-
 /* update inode stat-data by calling plugin */
 int reiser4_update_sd(struct inode *object)
 {
@@ -253,8 +248,6 @@ void reiser4_handle_error(void)
 		break;
 	}
 }
-
-
 
 struct dentry_operations reiser4_dentry_operations = {
 	.d_revalidate = NULL,

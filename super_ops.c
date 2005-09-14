@@ -156,6 +156,28 @@ static void reiser4_destroy_inode(struct inode *inode)
 }
 
 /**
+ * reiser4_dirty_inode - dirty_inode of super operations
+ * @inode: inode being dirtied
+ *
+ * Updates stat data.
+ */
+static void reiser4_dirty_inode(struct inode *inode)
+{
+	int result;
+
+	if (!is_in_reiser4_context())
+		return;
+	assert("", !IS_RDONLY(inode));
+	assert("", (inode_file_plugin(inode)->estimate.update(inode) <=
+		    get_current_context()->grabbed_blocks));
+
+	result = reiser4_update_sd(inode);
+	if (result)
+		warning("", "failed to dirty inode for %llu: %d",
+			get_inode_oid(inode), result);
+}
+
+/**
  * reiser4_delete_inode - delete_inode of super operations
  * @inode: inode to delete
  *
@@ -421,6 +443,7 @@ static int reiser4_show_options(struct seq_file *m, struct vfsmount *mnt)
 struct super_operations reiser4_super_operations = {
 	.alloc_inode = reiser4_alloc_inode,
 	.destroy_inode = reiser4_destroy_inode,
+	.dirty_inode = reiser4_dirty_inode,
 	.delete_inode = reiser4_delete_inode,
 	.put_super = reiser4_put_super,
 	.write_super = reiser4_write_super,

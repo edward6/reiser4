@@ -59,12 +59,6 @@
 #  define LZO_HAVE_CONFIG_H
 #endif
 
-#if 0				/* -edward */
-#if !defined(LZO_NO_SYS_TYPES_H)
-#  include <sys/types.h>
-#endif
-#include <stdio.h>
-#endif				/* -edward */
 
 #ifndef __LZO_CONF_H
 #define __LZO_CONF_H
@@ -82,30 +76,10 @@
 #  define BOUNDS_CHECKING_OFF_IN_EXPR(expr)     (expr)
 #endif
 
-#if 0				/* edward */
-#if !defined(LZO_HAVE_CONFIG_H)
-#  include <stddef.h>
-#  include <string.h>
-#  if !defined(NO_STDLIB_H)
-#    include <stdlib.h>
-#  endif
-#endif				/* edward */
 #  define HAVE_MEMCMP
 #  define HAVE_MEMCPY
 #  define HAVE_MEMMOVE
 #  define HAVE_MEMSET
-#if 0				/* edward */
-#else
-#  include <sys/types.h>
-#  if defined(HAVE_STDDEF_H)
-#    include <stddef.h>
-#  endif
-#  if defined(STDC_HEADERS)
-#    include <string.h>
-#    include <stdlib.h>
-#  endif
-#endif
-#endif				/* edward */
 
 #if defined(__LZO_DOS16) || defined(__LZO_WIN16)
 #  define HAVE_MALLOC_H
@@ -157,11 +131,7 @@
 #  define memset    lzo_memset
 #endif
 
-#if 0
-#  define LZO_BYTE(x)       ((unsigned char) (x))
-#else
 #  define LZO_BYTE(x)       ((unsigned char) ((x) & 0xff))
-#endif
 
 #define LZO_MAX(a,b)        ((a) >= (b) ? (a) : (b))
 #define LZO_MIN(a,b)        ((a) <= (b) ? (a) : (b))
@@ -300,22 +270,6 @@ __LZO_EXTERN_C const lzo_uint32 _lzo_crc32_table[256];
 #define _LZO_ECONCAT3(a,b,c)        _LZO_CONCAT3(a,b,c)
 #define _LZO_ECONCAT4(a,b,c,d)      _LZO_CONCAT4(a,b,c,d)
 #define _LZO_ECONCAT5(a,b,c,d,e)    _LZO_CONCAT5(a,b,c,d,e)
-
-#if 0
-
-#define __LZO_IS_COMPRESS_QUERY(i,il,o,ol,w)    ((lzo_voidp)(o) == (w))
-#define __LZO_QUERY_COMPRESS(i,il,o,ol,w,n,s) \
-		(*ol = (n)*(s), LZO_E_OK)
-
-#define __LZO_IS_DECOMPRESS_QUERY(i,il,o,ol,w)  ((lzo_voidp)(o) == (w))
-#define __LZO_QUERY_DECOMPRESS(i,il,o,ol,w,n,s) \
-		(*ol = (n)*(s), LZO_E_OK)
-
-#define __LZO_IS_OPTIMIZE_QUERY(i,il,o,ol,w)    ((lzo_voidp)(o) == (w))
-#define __LZO_QUERY_OPTIMIZE(i,il,o,ol,w,n,s) \
-		(*ol = (n)*(s), LZO_E_OK)
-
-#endif
 
 #ifndef __LZO_PTR_H
 #define __LZO_PTR_H
@@ -484,12 +438,7 @@ static unsigned __lzo_align_gap(const lzo_voidp ptr, lzo_uint size)
 
 	p = __lzo_ptr_linear(ptr);
 	s = (lzo_ptr_t) (size - 1);
-#if 0
-	assert((size & (size - 1)) == 0);
-	n = ((p + s) & ~s) - p;
-#else
 	n = (((p + s) / size) * size) - p;
-#endif
 
 	assert("lzo-02", (long)n >= 0);
 	assert("lzo-03", n <= s);
@@ -518,23 +467,6 @@ extern "C" {
 #endif
 #endif
 
-#if 0 && !defined(MEMCPY8_DS)
-
-#define MEMCPY8_DS(dest,src,len) \
-    { do { \
-	*dest++ = *src++; \
-	*dest++ = *src++; \
-	*dest++ = *src++; \
-	*dest++ = *src++; \
-	*dest++ = *src++; \
-	*dest++ = *src++; \
-	*dest++ = *src++; \
-	*dest++ = *src++; \
-	len -= 8; \
-    } while (len > 0); }
-
-#endif
-
 #if !defined(MEMCPY8_DS)
 
 #define MEMCPY8_DS(dest,src,len) \
@@ -560,60 +492,16 @@ extern "C" {
     do *dest++ = *src++; \
     while (--len > 0)
 
-#if 0 && defined(LZO_OPTIMIZE_GNUC_i386)
 
-#define BZERO8_PTR(s,l,n) \
-__asm__ __volatile__( \
-    "movl  %0,%%eax \n"             \
-    "movl  %1,%%edi \n"             \
-    "movl  %2,%%ecx \n"             \
-    "cld \n"                        \
-    "rep \n"                        \
-    "stosl %%eax,(%%edi) \n"        \
-    :               \
-    :"g" (0),"g" (s),"g" (n)        \
-    :"eax","edi","ecx", "memory", "cc" \
-)
+#if (LZO_UINT_MAX <= SIZE_T_MAX) && defined(HAVE_MEMSET)
 
-#elif (LZO_UINT_MAX <= SIZE_T_MAX) && defined(HAVE_MEMSET)
-
-#if 1
 #define BZERO8_PTR(s,l,n)   memset((s),0,(lzo_uint)(l)*(n))
-#else
-#define BZERO8_PTR(s,l,n)   memset((lzo_voidp)(s),0,(lzo_uint)(l)*(n))
-#endif
 
 #else
 
 #define BZERO8_PTR(s,l,n) \
     lzo_memset((lzo_voidp)(s),0,(lzo_uint)(l)*(n))
 
-#endif
-
-#if 0
-#if defined(__GNUC__) && defined(__i386__)
-
-	unsigned char lzo_rotr8(unsigned char value, int shift);
-	extern __inline__ unsigned char lzo_rotr8(unsigned char value,
-						  int shift) {
-		unsigned char result;
-
-		__asm__
-		    __volatile__("movb %b1, %b0; rorb %b2, %b0":"=a"(result):"g"
-				 (value), "c"(shift));
-		 return result;
-	} unsigned short lzo_rotr16(unsigned short value, int shift);
-	extern __inline__ unsigned short lzo_rotr16(unsigned short value,
-						    int shift) {
-		unsigned short result;
-
-		__asm__
-		    __volatile__("movw %b1, %b0; rorw %b2, %b0":"=a"(result):"g"
-				 (value), "c"(shift));
-		return result;
-	}
-
-#endif
 #endif
 
 #ifdef __cplusplus
@@ -712,57 +600,19 @@ static const lzo_byte __lzo_copyright[] =
 #define LZO_DO8(buf,i)  LZO_DO4(buf,i); LZO_DO4(buf,i+4);
 #define LZO_DO16(buf,i) LZO_DO8(buf,i); LZO_DO8(buf,i+8);
 
-static lzo_voidp lzo_memset(lzo_voidp s, int c, lzo_uint len)
-{
-#if (LZO_UINT_MAX <= SIZE_T_MAX) && defined(HAVE_MEMSET)
-	return memset(s, c, len);
-#else
-	lzo_byte *p = (lzo_byte *) s;
-
-	if (len > 0)
-		do
-			*p++ = LZO_BYTE(c);
-		while (--len > 0);
-	return s;
-#endif
-}
-
-#if 0
-#  define IS_SIGNED(type)       (((type) (1ul << (8 * sizeof(type) - 1))) < 0)
-#  define IS_UNSIGNED(type)     (((type) (1ul << (8 * sizeof(type) - 1))) > 0)
-#else
 #  define IS_SIGNED(type)       (((type) (-1)) < ((type) 0))
 #  define IS_UNSIGNED(type)     (((type) (-1)) > ((type) 0))
-#endif
 
 #define IS_POWER_OF_2(x)        (((x) & ((x) - 1)) == 0)
 
 static lzo_bool schedule_insns_bug(void);
 static lzo_bool strength_reduce_bug(int *);
 
-#if 0 || defined(LZO_DEBUG)
-#include <stdio.h>
-static lzo_bool __lzo_assert_fail(const char *s, unsigned line)
-{
-#if defined(__palmos__)
-	printf("LZO assertion failed in line %u: '%s'\n", line, s);
-#else
-	fprintf(stderr, "LZO assertion failed in line %u: '%s'\n", line, s);
-#endif
-	return 0;
-}
-
-#  define __lzo_assert(x)   ((x) ? 1 : __lzo_assert_fail(#x,__LINE__))
-#else
 #  define __lzo_assert(x)   ((x) ? 1 : 0)
-#endif
 
 #undef COMPILE_TIME_ASSERT
-#if 0
-#  define COMPILE_TIME_ASSERT(expr)     r &= __lzo_assert(expr)
-#else
+
 #  define COMPILE_TIME_ASSERT(expr)     LZO_COMPILE_TIME_ASSERT(expr)
-#endif
 
 static lzo_bool basic_integral_check(void)
 {
@@ -913,13 +763,8 @@ static lzo_bool ptr_check(void)
 	wrkmem =
 	    LZO_PTR_ALIGN_UP((lzo_byte *) _wrkmem, sizeof(lzo_full_align_t));
 
-#if 0
-	dict = (lzo_bytepp) wrkmem;
-#else
-
 	u.a_lzo_bytep = wrkmem;
 	dict = u.a_lzo_bytepp;
-#endif
 
 	d = (long)((const lzo_bytep)dict - (const lzo_bytep)_wrkmem);
 	r &= __lzo_assert(d >= 0);
@@ -983,16 +828,12 @@ static lzo_bool ptr_check(void)
 
 		if (r == 1) {
 			lzo_uint32 v0, v1;
-#if 0
-			v0 = *(lzo_uint32 *) & x[k];
-			v1 = *(lzo_uint32 *) & x[k + n];
-#else
 
 			u.a_uchar_p = &x[k];
 			v0 = *u.a_lzo_uint32_p;
 			u.a_uchar_p = &x[k + n];
 			v1 = *u.a_lzo_uint32_p;
-#endif
+
 			r &= __lzo_assert(v0 > 0);
 			r &= __lzo_assert(v1 > 0);
 		}
@@ -1016,13 +857,6 @@ static int _lzo_config_check(void)
 	COMPILE_TIME_ASSERT((int)((unsigned char)((signed char)-1)) == 255);
 	COMPILE_TIME_ASSERT((((unsigned char)128) << (int)(8 * sizeof(int) - 8))
 			    < 0);
-
-#if 0
-	r &= __lzo_assert((const void *)&u == (const void *)&u.a);
-	r &= __lzo_assert((const void *)&u == (const void *)&u.b);
-	r &= __lzo_assert((const void *)&u == (const void *)&u.x[0]);
-	r &= __lzo_assert((const void *)&u == (const void *)&u.aa[0]);
-#endif
 
 	r &= basic_integral_check();
 	r &= basic_ptr_check();
@@ -1464,11 +1298,7 @@ static
 lzo_uint do_compress(const lzo_byte * in, lzo_uint in_len,
 		     lzo_byte * out, lzo_uintp out_len, lzo_voidp wrkmem)
 {
-#if 0 && defined(__GNUC__) && defined(__i386__)
-	register const lzo_byte *ip __asm__("%esi");
-#else
 	register const lzo_byte *ip;
-#endif
 	lzo_byte *op;
 	const lzo_byte *const in_end = in + in_len;
 	const lzo_byte *const ip_end = in + in_len - M2_MAX_LEN - 5;
@@ -1481,11 +1311,8 @@ lzo_uint do_compress(const lzo_byte * in, lzo_uint in_len,
 
 	ip += 4;
 	for (;;) {
-#if 0 && defined(__GNUC__) && defined(__i386__)
-		register const lzo_byte *m_pos __asm__("%edi");
-#else
 		register const lzo_byte *m_pos;
-#endif
+
 		lzo_moff_t m_off;
 		lzo_uint m_len;
 		lzo_uint dindex;
@@ -1508,56 +1335,16 @@ lzo_uint do_compress(const lzo_byte * in, lzo_uint in_len,
 
 	      try_match:
 #if 1 && defined(LZO_UNALIGNED_OK_2)
-		if (*(const lzo_ushortp)m_pos != *(const lzo_ushortp)ip)
+		if (*(const lzo_ushortp)m_pos != *(const lzo_ushortp)ip) {
 #else
-		if (m_pos[0] != ip[0] || m_pos[1] != ip[1])
+		if (m_pos[0] != ip[0] || m_pos[1] != ip[1]) {
 #endif
-		{
+			;
 		} else {
 			if (m_pos[2] == ip[2]) {
-#if 0
-				if (m_off <= M2_MAX_OFFSET)
-					goto match;
-				if (lit <= 3)
-					goto match;
-				if (lit == 3) {
-					assert(op - 2 > out);
-					op[-2] |= LZO_BYTE(3);
-					*op++ = *ii++;
-					*op++ = *ii++;
-					*op++ = *ii++;
-					goto code_match;
-				}
-				if (m_pos[3] == ip[3])
-#endif
-					goto match;
+				goto match;
 			} else {
-#if 0
-#if 0
-				if (m_off <= M1_MAX_OFFSET && lit > 0
-				    && lit <= 3)
-#else
-				if (m_off <= M1_MAX_OFFSET && lit == 3)
-#endif
-				{
-					register lzo_uint t;
-
-					t = lit;
-					assert(op - 2 > out);
-					op[-2] |= LZO_BYTE(t);
-					do
-						*op++ = *ii++;
-					while (--t > 0);
-					assert(ii == ip);
-					m_off -= 1;
-					*op++ =
-					    LZO_BYTE(M1_MARKER |
-						     ((m_off & 3) << 2));
-					*op++ = LZO_BYTE(m_off >> 2);
-					ip += 2;
-					goto match_done;
-				}
-#endif
+				;
 			}
 		}
 
@@ -1692,9 +1479,6 @@ lzo_uint do_compress(const lzo_byte * in, lzo_uint in_len,
 			*op++ = LZO_BYTE(m_off >> 6);
 		}
 
-#if 0
-	      match_done:
-#endif
 		ii = ip;
 		if (ip >= ip_end)
 			break;
