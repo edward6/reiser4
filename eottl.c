@@ -145,10 +145,8 @@ is_next_item_internal(coord_t *coord, const reiser4_key *key,
 	result = UNDER_RW(dk, current_tree, read,
 			  keycmp(key, znode_get_rd_key(coord->node)));
 	assert("vs-6", result != EQUAL_TO);
-	if (result == GREATER_THAN) {
-		done_lh(&rn);
+	if (result == GREATER_THAN)
 		return 2;
-	}
 
 	/* lock right neighbor */
 	init_lh(&rn);
