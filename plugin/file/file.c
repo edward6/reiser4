@@ -2297,11 +2297,24 @@ int mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 	int result;
 	struct inode *inode;
 	unix_file_info_t *uf_info;
+	reiser4_block_nr needed;
 
 	inode = file->f_dentry->d_inode;
 	ctx = init_context(inode->i_sb);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
+
+	/*
+	 * generic_file_mmap will do update_atime. Grab space for stat data
+	 * update
+	 */
+	needed = inode_file_plugin(inode)->estimate.update(inode);
+	result = reiser4_grab_space(needed, BA_CAN_COMMIT);
+	if (result) {
+		reiser4_exit_context(ctx);
+		return result;
+	}
+
 	uf_info = unix_file_inode_data(inode);
 
 	down(&uf_info->write);
