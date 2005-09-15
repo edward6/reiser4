@@ -517,31 +517,6 @@ const reiser4_key *root_dir_key_format40(const struct super_block *super
 	return &FORMAT40_ROOT_DIR_KEY;
 }
 
-/* plugin->u.format.print_info */
-void print_info_format40(const struct super_block *s)
-{
-#if 0
-	format40_disk_super_block *sb_copy;
-
-	sb_copy = &get_super_private(s)->u.format40.actual_sb;
-
-	printk("\tblock count %llu\n"
-	       "\tfree blocks %llu\n"
-	       "\troot_block %llu\n"
-	       "\ttail policy %s\n"
-	       "\tmin free oid %llu\n"
-	       "\tfile count %llu\n"
-	       "\ttree height %d\n",
-	       get_format40_block_count(sb_copy),
-	       get_format40_free_blocks(sb_copy),
-	       get_format40_root_block(sb_copy),
-	       formatting_plugin_by_id(get_format40_formatting_policy
-				       (sb_copy))->h.label,
-	       get_format40_oid(sb_copy), get_format40_file_count(sb_copy),
-	       get_format40_tree_height(sb_copy));
-#endif
-}
-
 /* plugin->u.format.check_open.
    Check the opened object for validness. For now it checks for the valid oid &
    locality only, can be improved later and it its work may depend on the mount

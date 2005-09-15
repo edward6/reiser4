@@ -453,7 +453,7 @@ overwrite_one_block(struct make_extent_handle *h)
 		break;
 
 	case HOLE_EXTENT:
-		if (h->inode != NULL && DQUOT_ALLOC_BLOCK(h->inode, 1))
+		if (h->inode != NULL && DQUOT_ALLOC_BLOCK_NODIRTY(h->inode, 1))
 			return RETERR(-EDQUOT);
 		result = plug_hole(h);
 		if (!result) {
@@ -461,7 +461,7 @@ overwrite_one_block(struct make_extent_handle *h)
 			h->created = 1;
 		} else {
 			if (h->inode != NULL)
-				DQUOT_FREE_BLOCK(h->inode, 1);
+				DQUOT_FREE_BLOCK_NODIRTY(h->inode, 1);
 		}
 		break;
 
@@ -546,26 +546,26 @@ make_extent(struct make_extent_handle *h, write_mode_t mode)
 	switch (mode) {
 	case FIRST_ITEM:
 		/* new block will be inserted into file. Check quota */
-		if (h->inode != NULL && DQUOT_ALLOC_BLOCK(h->inode, 1))
+		if (h->inode != NULL && DQUOT_ALLOC_BLOCK_NODIRTY(h->inode, 1))
 			return RETERR(-EDQUOT);
 
 		/* create first item of the file */
 		result = insert_first_block(h->uf_coord, h->u.replace.pkey, &h->blocknr);
 		if (result && h->inode != NULL)
-			DQUOT_FREE_BLOCK(h->inode, 1);
+			DQUOT_FREE_BLOCK_NODIRTY(h->inode, 1);
 		h->created = 1;
 		break;
 
 	case APPEND_ITEM:
 		/* new block will be inserted into file. Check quota */
-		if (h->inode != NULL && DQUOT_ALLOC_BLOCK(h->inode, 1))
+		if (h->inode != NULL && DQUOT_ALLOC_BLOCK_NODIRTY(h->inode, 1))
 			return RETERR(-EDQUOT);
 
 		/* append one block to the file */
 		assert("vs-1316", coord_extension_is_ok(h->uf_coord));
 		result = append_one_block(h->uf_coord, h->u.replace.pkey, &h->blocknr);
 		if (result && h->inode != NULL)
-			DQUOT_FREE_BLOCK(h->inode, 1);
+			DQUOT_FREE_BLOCK_NODIRTY(h->inode, 1);
 		h->created = 1;
 		break;
 

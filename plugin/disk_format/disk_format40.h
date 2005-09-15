@@ -82,7 +82,6 @@ int init_format_format40(struct super_block *, void *data);
 const reiser4_key *root_dir_key_format40(const struct super_block *);
 int release_format40(struct super_block *s);
 jnode *log_super_format40(struct super_block *s);
-void print_info_format40(const struct super_block *s);
 int check_open_format40(const struct inode *object);
 
 /* __DISK_FORMAT40_H__ */
