@@ -15,6 +15,7 @@
 #include <linux/fs.h>		/* for struct super_block  */
 #include <asm/semaphore.h>
 #include <linux/vmalloc.h>
+#include <asm/div64.h>
 
 /* Proposed (but discarded) optimization: dynamic loading/unloading of bitmap
  * blocks
@@ -573,11 +574,12 @@ adler32_recalc(__u32 adler, unsigned char old_data, unsigned char data,
  */
 static bmap_nr_t get_nr_bmap(const struct super_block *super)
 {
+	u64 quotient;
+
 	assert("zam-393", reiser4_block_count(super) != 0);
-	unsigned long long quotient;
 
 	quotient = reiser4_block_count(super) - 1;
-	__div64_32(&quotient, bmap_bit_count(super->s_blocksize));
+	do_div(quotient, bmap_bit_count(super->s_blocksize));
 	return quotient + 1;
 }
 
@@ -596,10 +598,9 @@ parse_blocknr(const reiser4_block_nr *block, bmap_nr_t *bmap,
 	      bmap_off_t *offset)
 {
 	struct super_block *super = get_current_context()->super;
-	unsigned long long quotient;
+	u64 quotient = *block;
 
-	quotient = *block;
-	*offset = __div64_32(&quotient, bmap_bit_count(super->s_blocksize));
+	*offset = do_div(quotient, bmap_bit_count(super->s_blocksize));
 	*bmap = quotient;
 
 	assert("zam-433", *bmap < get_nr_bmap(super));
