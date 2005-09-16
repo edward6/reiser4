@@ -68,12 +68,6 @@ static int ktxnmgrd(void *arg)
 	/* reparent_to_init() is done by daemonize() */
 	daemonize(__FUNCTION__);
 
-	/* block all signals */
-	spin_lock_irq(&me->sighand->siglock);
-	siginitsetinv(&me->blocked, 0);
-	recalc_sigpending();
-	spin_unlock_irq(&me->sighand->siglock);
-
 	/*
 	 * do_fork() just copies task_struct into the new thread. ->fs_context
 	 * shouldn't be copied of course. This shouldn't be a problem for the
