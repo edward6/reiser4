@@ -2040,7 +2040,7 @@ read_unix_file(struct file *file, char __user *buf, size_t read_amount,
 		 * update atime
 		 */
 		needed = unix_file_estimate_read(inode, read_amount);
-		result = reiser4_grab_space(needed, BA_CAN_COMMIT);
+		result = reiser4_grab_space_force(needed, BA_CAN_COMMIT);
 		if (result == 0)
 			update_atime(inode);
 		else
