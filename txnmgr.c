@@ -3447,8 +3447,9 @@ static void capture_fuse_into(txn_atom * small, txn_atom * large)
 
 
 	list_for_each(pos1, &small->protected) {
-		prot_list = list_entry(pos1, protected_jnodes, inatom);
 		jnode *node;
+
+		prot_list = list_entry(pos1, protected_jnodes, inatom);
 
 		list_for_each(pos2, &prot_list->nodes) {
 			node = list_entry(pos2, jnode, capture_link);

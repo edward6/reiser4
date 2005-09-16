@@ -1750,12 +1750,11 @@ static int check_journal_header(const jnode * node UNUSED_ARG)
 /* wait for write completion for all jnodes from given list */
 static int wait_on_jnode_list(struct list_head *head)
 {
-	jnode *scan;
 	struct list_head *pos;
 	int ret = 0;
 
 	list_for_each(pos, head) {
-		scan = list_entry(pos, jnode, capture_link);
+		jnode *scan = list_entry(pos, jnode, capture_link);
 		struct page *pg = jnode_page(scan);
 
 		if (pg) {
