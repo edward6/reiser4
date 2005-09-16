@@ -1947,14 +1947,6 @@ read_unix_file(struct file *file, char __user *buf, size_t read_amount,
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 
-	needed = unix_file_estimate_read(inode, read_amount);
-	result = reiser4_grab_space(needed, BA_CAN_COMMIT);
-	if (result != 0) {
-		context_set_commit_async(ctx);
-		reiser4_exit_context(ctx);
-		return result;
-	}
-
 	hint = kmalloc(sizeof(*hint), GFP_KERNEL);
 	if (hint == NULL) {
 		context_set_commit_async(ctx);
@@ -2043,8 +2035,16 @@ read_unix_file(struct file *file, char __user *buf, size_t read_amount,
 	kfree(hint);
 
 	if (count) {
-		/* something was read. Update inode's atime and stat data */
-		update_atime(inode);
+		/*
+		 * something was read. Grab space for stat data update and
+		 * update atime
+		 */
+		needed = unix_file_estimate_read(inode, read_amount);
+		result = reiser4_grab_space(needed, BA_CAN_COMMIT);
+		if (result == 0)
+			update_atime(inode);
+		else
+			warning("", "failed to grab space for atime update");
 	}
 
 	context_set_commit_async(ctx);
