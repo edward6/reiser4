@@ -158,7 +158,7 @@ static int blocknr_set_add(txn_atom *atom, blocknr_set *bset,
 		if (*new_bsep == NULL) {
 			UNLOCK_ATOM(atom);
 			*new_bsep = bse_alloc();
-			return (*new_bsep != NULL) ? -E_REPEAT : 
+			return (*new_bsep != NULL) ? -E_REPEAT :
 				RETERR(-ENOMEM);
 		}
 

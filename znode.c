@@ -301,7 +301,7 @@ void znodes_tree_done(reiser4_tree * tree /* tree to finish with znodes of */ )
 			assert("nikita-2179", atomic_read(&ZJNODE(node)->x_count) == 0);
 			zdrop(node);
 		}
-		
+
 		z_hash_done(&tree->zfake_table);
 	}
 }

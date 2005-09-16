@@ -447,7 +447,7 @@ static int atom_isclean(txn_atom * atom)
 		list_empty_careful(ATOM_WB_LIST(atom)) &&
 		list_empty_careful(&atom->fwaitfor_list) &&
 		list_empty_careful(&atom->fwaiting_list) &&
-		list_empty_careful(&atom->protected) && 
+		list_empty_careful(&atom->protected) &&
 		atom_fq_parts_are_clean(atom);
 }
 #endif
@@ -1320,7 +1320,7 @@ int commit_some_atoms(txn_mgr * mgr)
 	atom = NULL;
 
 	/* look for atom to commit */
-	list_for_each_safe(pos, tmp, &mgr->atoms_list) {		
+	list_for_each_safe(pos, tmp, &mgr->atoms_list) {
 		atom = list_entry(pos, txn_atom, atom_link);
 		/*
 		 * first test without taking atom spin lock, whether it is
@@ -1487,7 +1487,7 @@ flush_some_atom(jnode * start, long *nr_submitted, const struct writeback_contro
 				}
 				if (atom->stage <= ASTAGE_POST_COMMIT) {
 					spin_unlock_txnmgr(tmgr);
-					/* 
+					/*
 					 * we just wait until atom's flusher
 					 * makes a progress in flushing or
 					 * committing the atom
@@ -2735,7 +2735,7 @@ count_jnode(txn_atom * atom, jnode * node, atom_list old_list,
 
 		/* dirty list */
 		count = 0;
-		for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {			
+		for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {
 			list_for_each(pos, ATOM_DIRTY_LIST(atom, level))
 				count++;
 		}
@@ -3222,7 +3222,7 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf,
 
 	/* Remove from the waitfor list. */
 	LOCK_ATOM(atomf);
-	
+
 	list_del(&wlinks._fwaitfor_link);
 	atom_dec_and_unlock(atomf);
 
@@ -3720,7 +3720,7 @@ static void remove_from_capture_list(jnode * node)
 	capture_list_remove_clean(node);
 	node->atom->capture_count--;
 	atomic_dec(&node->x_count);
-	
+
 	ON_DEBUG(count_jnode(node->atom, node, NODE_LIST(node),
 			     NOT_CAPTURED, 1));
 	node->atom = 0;

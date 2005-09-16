@@ -396,7 +396,7 @@ int detach_common(struct inode *object, struct inode *parent)
 	reiser4_free_dentry_fsdata(&goodby_dots);
 	if (result == 0) {
 		/* the dot should be the only entry remaining at this time... */
-		assert("nikita-3400", object->i_size == 1 && 
+		assert("nikita-3400", object->i_size == 1 &&
 		       (object->i_nlink >= 0 && object->i_nlink <= 2));
 #if 0
 		/* and, together with the only name directory can have, they

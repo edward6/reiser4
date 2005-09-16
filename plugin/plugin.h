@@ -240,7 +240,7 @@ typedef struct file_plugin {
 	int (*adjust_to_parent) (struct inode *object, struct inode *parent,
 				 struct inode *root);
 
-	/* 
+	/*
 	 * this does whatever is necessary to do when object is created. For
 	 * instance, for unix files stat data is inserted. It is supposed to be
 	 * called by create of struct inode_operations.

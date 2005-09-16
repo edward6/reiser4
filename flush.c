@@ -911,9 +911,9 @@ static int rapid_flush(flush_pos_t * pos)
 
 static jnode * find_flush_start_jnode(
 	jnode * start,
-	txn_atom * atom, 
+	txn_atom * atom,
 	flush_queue_t * fq,
-	int *nr_queued, 
+	int *nr_queued,
 	int flags)
 {
 	jnode * node;

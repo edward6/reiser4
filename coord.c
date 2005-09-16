@@ -883,7 +883,7 @@ static const char *coord_tween_tostring(between_enum n)
 	default:
 	{
 		static char buf[30];
-		
+
 		sprintf(buf, "unknown: %i", n);
 		return buf;
 	}

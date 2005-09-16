@@ -211,7 +211,7 @@ int delete_directory_common(struct inode *inode)
 	int result;
 	dir_plugin *dplug;
 
-	assert("", (get_current_context() && 
+	assert("", (get_current_context() &&
 		    get_current_context()->trans->atom == NULL));
 
 	dplug = inode_dir_plugin(inode);

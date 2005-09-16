@@ -195,7 +195,7 @@ int jnodes_tree_done(reiser4_tree * tree /* tree to destroy jnodes for */ )
 			assert("nikita-2361", !atomic_read(&node->x_count));
 			jdrop(node);
 		}
-		
+
 		j_hash_done(&tree->jhash_table);
 	}
 	return 0;

@@ -601,7 +601,7 @@ parse_blocknr(const reiser4_block_nr *block, bmap_nr_t *bmap,
 	quotient = *block;
 	*offset = __div64_32(&quotient, bmap_bit_count(super->s_blocksize));
 	*bmap = quotient;
-		
+
 	assert("zam-433", *bmap < get_nr_bmap(super));
 	assert("", *offset < bmap_bit_count(super->s_blocksize));
 }
@@ -860,7 +860,7 @@ static int load_and_lock_bnode(struct bitmap_node *bnode)
 			 * busy initializing data. */
 			check_bnode_loaded(bnode);
 	}
-	
+
 	if (wjnode != NULL) {
 		release(wjnode);
 		bnode->wjnode = NULL;

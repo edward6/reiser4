@@ -199,7 +199,7 @@ is_next_item_internal(coord_t *coord, const reiser4_key *key,
 		return 1;
 	}
 
-	/* 
+	/*
 	 * next unit is unit of extent item. Return without chaning @lh and
 	 * @coord.
 	 */
@@ -390,7 +390,7 @@ int handle_eottl(cbk_handle *h, int *outcome)
 
 	coord = h->coord;
 
-	if (h->level != TWIG_LEVEL || 
+	if (h->level != TWIG_LEVEL ||
 	    (coord_is_existing_item(coord) && item_is_internal(coord))) {
 		/* Continue to traverse tree downward. */
 		return 0;

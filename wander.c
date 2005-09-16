@@ -1200,9 +1200,9 @@ static int get_overwrite_set(struct commit_handle *ch)
 /**
  * write_jnodes_to_disk_extent - submit write request
  * @head:
- * @first: first jnode of the list 
+ * @first: first jnode of the list
  * @nr: number of jnodes on the list
- * @block_p: 
+ * @block_p:
  * @fq:
  * @flags: used to decide whether page is to get PG_reclaim flag
  *

@@ -592,7 +592,7 @@ static carry_node *find_begetting_brother(carry_node * node	/* node to start sea
 	assert("nikita-1619", ergo(carry_real(node) != NULL,
 				   ZF_ISSET(carry_real(node), JNODE_ORPHAN)));
 
-	for (scan = node;; 
+	for (scan = node;;
 	     scan = list_entry(scan->header.level_linkage.prev, carry_node,
 			       header.level_linkage)) {
 		assert("nikita-1617", &kin->nodes != &scan->header.level_linkage);

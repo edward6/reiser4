@@ -36,7 +36,7 @@ static void init_once(void *obj, kmem_cache_t *cache, unsigned long flags)
 		/* initialize vfs inode */
 		inode_init_once(&info->vfs_inode);
 
-		/* 
+		/*
 		 * initialize reiser4 specific part fo inode.
 		 * NOTE-NIKITA add here initializations for locks, list heads,
 		 * etc. that will be added to our private inode part.
@@ -64,7 +64,7 @@ static int init_inodes(void)
 					sizeof(reiser4_inode_object),
 					0,
 					SLAB_HWCACHE_ALIGN |
-					SLAB_RECLAIM_ACCOUNT, init_once, NULL);	
+					SLAB_RECLAIM_ACCOUNT, init_once, NULL);
 	if (inode_cache == NULL)
 		return RETERR(-ENOMEM);
 	return 0;
@@ -225,7 +225,7 @@ static void reiser4_put_super(struct super_block *super)
 		warning("vs-17", "failed to init context");
 		return;
 	}
-	
+
 	/* have disk format plugin to free its resources */
 	if (get_super_private(super)->df_plug->release)
 		get_super_private(super)->df_plug->release(super);
@@ -457,7 +457,7 @@ struct super_operations reiser4_super_operations = {
  * fill_super - initialize super block on mount
  * @super: super block to fill
  * @data: reiser4 specific mount option
- * @silent: 
+ * @silent:
  *
  * This is to be called by reiser4_get_sb. Mounts filesystem.
  */
@@ -537,7 +537,7 @@ static int fill_super(struct super_block *super, void *data, int silent)
 
 /**
  * reiser4_get_sb - get_sb of file_system_type operations
- * @fs_type: 
+ * @fs_type:
  * @flags: mount flags MS_RDONLY, MS_VERBOSE, etc
  * @dev_name: block device file name
  * @data: specific mount options
@@ -681,7 +681,7 @@ static void __exit done_reiser4(void)
 	done_txnmgr_static();
 	done_plugin_set();
 	done_znodes();
-	destroy_reiser4_cache(&inode_cache);	
+	destroy_reiser4_cache(&inode_cache);
 }
 
 module_init(init_reiser4);

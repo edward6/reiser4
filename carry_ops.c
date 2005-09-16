@@ -888,7 +888,7 @@ static size_t flow_insertion_overhead(carry_op * op)
 	    !can_paste(flow_insert_point(op), &flow_insert_flow(op)->key,
 		       flow_insert_data(op)))
 		insertion_overhead =
-		    node->nplug->item_overhead(node, NULL) + 
+		    node->nplug->item_overhead(node, NULL) +
 			item_data_overhead(op);
 	return insertion_overhead;
 }

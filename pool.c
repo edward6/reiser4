@@ -119,7 +119,7 @@ static void *reiser4_pool_alloc(reiser4_pool * pool	/* pool to allocate object
 		list_del(linkage);
 		INIT_LIST_HEAD(linkage);
 		result = list_entry(linkage, reiser4_pool_header, usage_linkage);
-		BUG_ON(!list_empty(&result->level_linkage) || 
+		BUG_ON(!list_empty(&result->level_linkage) ||
 		       !list_empty(&result->extra_linkage));
 	} else {
 		/* pool is empty. Extra allocations don't deserve dedicated
@@ -130,7 +130,7 @@ static void *reiser4_pool_alloc(reiser4_pool * pool	/* pool to allocate object
 			list_add(&result->extra_linkage, &pool->extra);
 		} else
 			return ERR_PTR(RETERR(-ENOMEM));
-		BUG_ON(!list_empty(&result->usage_linkage) || 
+		BUG_ON(!list_empty(&result->usage_linkage) ||
 		       !list_empty(&result->level_linkage));
 	}
 	++pool->objs;

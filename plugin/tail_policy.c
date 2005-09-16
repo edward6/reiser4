@@ -25,7 +25,7 @@
 #include <linux/fs.h>		/* For struct inode */
 
 /**
- * have_formatting_never - 
+ * have_formatting_never -
  * @inode:
  * @size:
  *

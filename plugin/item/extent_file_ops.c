@@ -420,7 +420,7 @@ static int plug_hole(struct make_extent_handle *h)
 		return_inserted_position = 1;
 	}
 	unit_key_by_coord(coord, &rh->paste_key);
-	set_key_offset(&rh->paste_key, get_key_offset(&rh->paste_key) + 
+	set_key_offset(&rh->paste_key, get_key_offset(&rh->paste_key) +
 		       extent_get_width(&rh->overwrite) * current_blocksize);
 
 	h->uf_coord->valid = 0;
@@ -428,7 +428,7 @@ static int plug_hole(struct make_extent_handle *h)
 }
 
 /**
- * overwrite_one_block - 
+ * overwrite_one_block -
  * @h:
  *
  * make unallocated node pointer in the position @uf_coord is set to
@@ -1492,7 +1492,7 @@ int read_extent(struct file *file, flow_t * flow, hint_t * hint)
 		/* user area is already get_user_pages-ed in read_unix_file,
 		   which makes major page faults impossible */
 		result =
-		    __copy_to_user((char __user *)flow->data, 
+		    __copy_to_user((char __user *)flow->data,
 				   (char *)kmap(page) + page_off,
 				   count);
 		kunmap(page);
@@ -1563,7 +1563,7 @@ int readpage_extent(void *vp, struct page *page)
  * capture_extent - capture page, make sure there is non hole extent for it
  * @key: key of first byte in @page
  * @uf_coord: coordinate and lock handle of position in the tree
- * @page: page to create 
+ * @page: page to create
  * @mode: preliminary hint obtained via search
  *
  * This implements capture method of item plugin for extent items.  At the
@@ -1611,11 +1611,11 @@ capture_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page,
 		return PTR_ERR(j);
 	}
 	UNDER_SPIN_VOID(jnode, j, eflush_del(j, 1));
-	
+
 	unlock_page(page);
 
 	LOCK_JNODE(j);
-	
+
 	BUG_ON(JF_ISSET(j, JNODE_EFLUSH));
 	if (h->created) {
 		/* extent corresponding to this jnode was just created */

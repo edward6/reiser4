@@ -346,8 +346,8 @@ static reiser4_block_nr extent_unit_start(const coord_t * item)
 }
 
 /**
- * split_allocated_extent - 
- * @coord: 
+ * split_allocated_extent -
+ * @coord:
  * @pos_in_unit:
  *
  * replace allocated extent with two allocated extents
@@ -716,7 +716,7 @@ assign_real_blocknrs(flush_pos_t *flush_pos, reiser4_block_nr first,
 		assert("vs-1475", node->atom == atom);
 		assert("vs-1476", atomic_read(&node->x_count) > 0);
 		JF_CLR(node, JNODE_FLUSH_RESERVED);
-		jnode_set_block(node, &first);		
+		jnode_set_block(node, &first);
 
 		unformatted_make_reloc(node, fq);
 		ON_DEBUG(count_jnode(node->atom, node, PROTECT_LIST,

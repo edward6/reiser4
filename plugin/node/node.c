@@ -58,7 +58,7 @@
 
 /**
  * leftmost_key_in_node - get the smallest key in node
- * @node: 
+ * @node:
  * @key: store result here
  *
  * Stores the leftmost key of @node in @key.

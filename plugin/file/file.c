@@ -336,12 +336,12 @@ set_file_state(struct inode *inode, int cbk_result, tree_level level)
  * find_file_item - look for file item in the tree
  * @hint: provides coordinate, lock handle, seal
  * @key: key for search
- * @mode: mode of lock to put on returned node 
+ * @mode: mode of lock to put on returned node
  * @ra_info:
  * @inode:
  *
  * This finds position in the tree corresponding to @key. It first tries to use
- * @hint's seal if it is set. 
+ * @hint's seal if it is set.
  */
 static int find_file_item(hint_t *hint, const reiser4_key *key,
 			  znode_lock_mode lock_mode,
@@ -382,7 +382,7 @@ static int find_file_item(hint_t *hint, const reiser4_key *key,
 	coord_init_zero(coord);
 	result = object_lookup(inode, key, coord, lh, lock_mode,
 			       FIND_MAX_NOT_MORE_THAN,
-			       TWIG_LEVEL, LEAF_LEVEL, 
+			       TWIG_LEVEL, LEAF_LEVEL,
 			       (lock_mode == ZNODE_READ_LOCK) ? CBK_UNIQUE :
 			       (CBK_UNIQUE | CBK_FOR_INSERT), NULL);
 
@@ -1114,7 +1114,7 @@ capture_anonymous_pages(struct address_space *mapping, pgoff_t *index,
 	/* clear tag for all found pages */
 	for (i = 0; i < pagevec_count(&pvec); i++) {
 		void *p;
-		
+
 		page_cache_get(pvec.pages[i]);
 		p = radix_tree_tag_clear(&mapping->page_tree, pvec.pages[i]->index,
 					 PAGECACHE_TAG_REISER4_MOVED);
@@ -1138,7 +1138,7 @@ capture_anonymous_pages(struct address_space *mapping, pgoff_t *index,
 					"failed to capture page: "
 					"result=%d, captured=%d)\n",
 					result, i);
-				
+
 				/* set MOVED tag to all pages which
 				   left not captured */
 				write_lock_irq(&mapping->tree_lock);
@@ -1148,7 +1148,7 @@ capture_anonymous_pages(struct address_space *mapping, pgoff_t *index,
 							   PAGECACHE_TAG_REISER4_MOVED);
 				}
 				write_unlock_irq(&mapping->tree_lock);
-				
+
 				pagevec_release(&pvec);
 				return result;
 			} else {
@@ -2975,7 +2975,7 @@ int delete_object_unix_file(struct inode *inode)
 	unix_file_info_t *uf_info;
 	int result;
 
-	assert("", (get_current_context() && 
+	assert("", (get_current_context() &&
 		    get_current_context()->trans->atom == NULL));
 
 	if (inode_get_flag(inode, REISER4_NO_SD))

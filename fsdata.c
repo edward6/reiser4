@@ -36,7 +36,7 @@ static int d_cursor_shrink(int nr, unsigned int mask)
 
 		killed = 0;
 		spin_lock(&d_lock);
-		while (!list_empty(&cursor_cache)) {			
+		while (!list_empty(&cursor_cache)) {
 			scan = list_entry(cursor_cache.next, dir_cursor, alist);
 			assert("nikita-3567", scan->ref == 0);
 			kill_cursor(scan);
@@ -473,7 +473,7 @@ void kill_cursors(struct inode *inode)
 }
 
 /**
- * file_is_stateless - 
+ * file_is_stateless -
  * @file:
  *
  * true, if file descriptor @f is created by NFS server by "demand" to serve
@@ -486,7 +486,7 @@ int file_is_stateless(struct file *file)
 }
 
 /**
- * get_dir_fpos - 
+ * get_dir_fpos -
  * @dir:
  *
  * Calculates ->fpos from user-supplied cookie. Normally it is dir->f_pos, but
@@ -614,7 +614,7 @@ void done_dentry_fsdata(void)
 }
 
 /**
- * reiser4_get_dentry_fsdata - get fs-specific dentry data 
+ * reiser4_get_dentry_fsdata - get fs-specific dentry data
  * @dentry: queried dentry
  *
  * Allocates if necessary and returns per-dentry data that we attach to each
@@ -713,7 +713,7 @@ void free_fsdata(reiser4_file_fsdata *fsdata)
 }
 
 /**
- * reiser4_get_file_fsdata - get fs-specific file data 
+ * reiser4_get_file_fsdata - get fs-specific file data
  * @file: queried file
  *
  * Returns fs-specific data of @file. If it is NULL, allocates it and attaches

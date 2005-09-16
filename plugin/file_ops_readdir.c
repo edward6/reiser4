@@ -515,9 +515,9 @@ loff_t llseek_common_dir(struct file * file, loff_t off, int origin)
 
 /* this is common implementation of vfs's readdir method of struct
    file_operations
- 
+
    readdir problems:
- 
+
    readdir(2)/getdents(2) interface is based on implicit assumption that
    readdir can be restarted from any particular point by supplying file system
    with off_t-full of data. That is, file system fills ->d_off field in struct
@@ -536,13 +536,13 @@ loff_t llseek_common_dir(struct file * file, loff_t off, int origin)
    particular, it is implied that each name within given directory (directory
    entry) can be uniquely identified by scalar offset and that such offset is
    stable across the life-time of the name is identifies.
- 
+
    This is manifestly not so for reiser4. In reiser4 the only stable unique
    identifies for the directory entry is its key that doesn't fit into
    seekdir/telldir API.
- 
+
    solution:
- 
+
    Within each file descriptor participating in readdir-ing of directory
    plugin/dir/dir.h:readdir_pos is maintained. This structure keeps track of
    the "current" directory entry that file descriptor looks at. It contains a
@@ -550,11 +550,11 @@ loff_t llseek_common_dir(struct file * file, loff_t off, int origin)
    keys that we wouldn't dwell onto here) and a logical position of this
    directory entry starting from the beginning of the directory, that is
    ordinal number of this entry in the readdir order.
- 
+
    Obviously this logical position is not stable in the face of directory
    modifications. To work around this, on each addition or removal of directory
    entry all file descriptors for directory inode are scanned and their
-   readdir_pos are updated accordingly (adjust_dir_pos()). 
+   readdir_pos are updated accordingly (adjust_dir_pos()).
 */
 int readdir_common(struct file *f /* directory file being read */ ,
 		   void *dirent /* opaque data passed to us by VFS */ ,

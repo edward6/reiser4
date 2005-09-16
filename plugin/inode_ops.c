@@ -421,7 +421,7 @@ int readlink_common(struct dentry *dentry, char __user *buf, int buflen)
 /**
  * follow_link_common - follow_link of inode operations
  * @dentry: dentry of symlink
- * @data: 
+ * @data:
  *
  * This is common implementation of vfs's followlink method of struct
  * inode_operations.

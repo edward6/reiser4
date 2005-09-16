@@ -155,7 +155,7 @@ struct reiser4_super_info_data {
 	/* amount of blocks used by file system data and meta-data. */
 	__u64 blocks_used;
 
-	/* 
+	/*
 	 * amount of free blocks. This is "working" free blocks counter. It is
 	 * like "working" bitmap, please see block_alloc.c for description.
 	 */
@@ -247,7 +247,7 @@ struct reiser4_super_info_data {
 
 	ra_params_t ra_params;
 
-	/* 
+	/*
 	 * A semaphore for serializing cut tree operation if out-of-free-space:
 	 * the only one cut_tree thread is allowed to grab space from reserved
 	 * area (it is 5% of disk space)
@@ -268,7 +268,7 @@ struct reiser4_super_info_data {
 	/* operations for objects on this file system */
 	object_ops ops;
 
-	/* 
+	/*
 	 * structure to maintain d_cursors. See plugin/file_ops_readdir.c for
 	 * more details
 	 */

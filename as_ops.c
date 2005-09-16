@@ -72,7 +72,7 @@ void reiser4_clear_page_dirty(struct page *page)
  * @page: page to be dirtied
  *
  * Operation of struct address_space_operations. This implementation is used by
- * unix and crc file plugins. 
+ * unix and crc file plugins.
  *
  * This is called when reiser4 page gets dirtied outside of reiser4, for
  * example, when dirty bit is moved from pte to physical page.
@@ -224,7 +224,7 @@ int reiser4_invalidatepage(struct page *page, unsigned long offset)
 	       page->mapping == jnode_get_mapping(jnode_by_page(page)));
 	assert("", jprivate(page) != NULL);
 	assert("", offset == 0);
-	
+
 	node = jprivate(page);
 	LOCK_JNODE(node);
 	if (!JF_ISSET(node, JNODE_DIRTY) && !JF_ISSET(node, JNODE_FLUSH_QUEUED) &&
@@ -239,7 +239,7 @@ int reiser4_invalidatepage(struct page *page, unsigned long offset)
 		return 0;
 	}
 	UNLOCK_JNODE(node);
-			
+
 
 	ctx = init_context(inode->i_sb);
 	if (IS_ERR(ctx))
@@ -260,13 +260,13 @@ int reiser4_invalidatepage(struct page *page, unsigned long offset)
 		/* page cannot be detached from jnode concurrently, because it
 		 * is locked */
 		uncapture_page(page);
-		
+
 		/* this detaches page from jnode, so that jdelete will not try
 		 * to lock page which is already locked */
 		UNDER_SPIN_VOID(jnode,
 				node, page_clear_jnode(page, node));
 		unhash_unformatted_jnode(node);
-		
+
 		jput(node);
 	}
 

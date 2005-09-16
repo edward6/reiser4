@@ -37,7 +37,7 @@ int init_fs_info(struct super_block *super)
 #endif
 	/*  initialize per-super-block d_cursor resources */
 	init_super_d_info(super);
-	
+
 	return 0;
 }
 
@@ -75,7 +75,7 @@ typedef enum {
 	 */
 	OPT_BIT,
 
-	/* 
+	/*
 	 * value of option should conform to sprintf() format. Examples are
 	 * tmgr.atom_max_size=N, tmgr.atom_max_age=N
 	 */
@@ -307,7 +307,7 @@ int init_super_data(struct super_block *super, char *opt_string)
 	int result;
 	opt_desc_t *opts, *p;
 	reiser4_super_info_data *sbinfo = get_super_private(super);
- 
+
 	/* initialize super, export, dentry operations */
 	sbinfo->ops.super = reiser4_super_operations;
 	sbinfo->ops.export = reiser4_export_operations;
@@ -369,7 +369,7 @@ do {						\
 #define PUSH_SB_FIELD_OPT(field, format) PUSH_OPT(SB_FIELD_OPT(field, format))
 #define PUSH_BIT_OPT(name, bit) PUSH_OPT(BIT_OPT(name, bit))
 
-	/* 
+	/*
 	 * tmgr.atom_max_size=N
 	 * Atoms containing more than N blocks will be forced to commit. N is
 	 * decimal.
@@ -475,7 +475,7 @@ do {						\
 	);
 
 	/* What to do in case of fs error */
-	PUSH_OPT( 
+	PUSH_OPT(
 	{
 		.name = "onerror",
 		.type = OPT_ONEOF,
@@ -543,7 +543,7 @@ int init_read_super(struct super_block *super, int silent)
 #endif
 		/* read reiser4 master super block at 16-th 4096 block */
 		super_bh = sb_bread(super,
-				    (sector_t)(REISER4_MAGIC_OFFSET / super->s_blocksize));	
+				    (sector_t)(REISER4_MAGIC_OFFSET / super->s_blocksize));
 	if (!super_bh)
 		return RETERR(-EIO);
 
@@ -576,7 +576,7 @@ int init_read_super(struct super_block *super, int silent)
 				return RETERR(-EINVAL);
 			goto read_super_block;
 		}
-		
+
 		sbinfo->df_plug = disk_format_plugin_by_id(d16tocpu(&master_sb->disk_plugin_id));
 		if (sbinfo->df_plug == NULL) {
 			if (!silent)
@@ -728,7 +728,7 @@ int init_root_inode(struct super_block *super)
  * done_root_inode - put inode of root directory
  * @super: super block of filesystem
  *
- * Puts inode of root directory. 
+ * Puts inode of root directory.
  */
 void done_root_inode(struct super_block *super)
 {
