@@ -144,12 +144,6 @@ static int entd(void *arg)
 	/* reparent_to_init() is done by daemonize() */
 	daemonize("ent:%s", super->s_id);
 
-	/* block all signals */
-	spin_lock_irq(&me->sighand->siglock);
-	siginitsetinv(&me->blocked, 0);
-	recalc_sigpending();
-	spin_unlock_irq(&me->sighand->siglock);
-
 	/* do_fork() just copies task_struct into the new
 	   thread. ->fs_context shouldn't be copied of course. This shouldn't
 	   be a problem for the rest of the code though.
@@ -166,11 +160,9 @@ static int entd(void *arg)
 	complete(&ent->start_finish_completion);
 
 	while (!ent->done) {
-		if (freezing(me))
-			refrigerator();
+		try_to_freeze();
 
 		spin_lock(&ent->guard);
-
 		while (ent->nr_all_requests != 0) {
 			assert("zam-1043",
 			       ent->nr_all_requests >=
