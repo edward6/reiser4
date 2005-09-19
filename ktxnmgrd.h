@@ -19,8 +19,6 @@
 /* in this structure all data necessary to start up, shut down and communicate
  * with ktxnmgrd are kept. */
 struct ktxnmgrd_context {
-	/* completion used to synchronize shut down of ktxnmgrd */
-	struct completion start_finish_completion;
 	/* wait queue head on which ktxnmgrd sleeps */
 	wait_queue_head_t wait;
 	/* spin lock protecting all fields of this structure */
@@ -31,8 +29,6 @@ struct ktxnmgrd_context {
 	struct task_struct *tsk;
 	/* list of all file systems served by this ktxnmgrd */
 	struct list_head queue;
-	/* is ktxnmgrd being shut down? */
-	unsigned int done:1;
 	/* should ktxnmgrd repeat scanning of atoms? */
 	unsigned int rescan:1;
 };

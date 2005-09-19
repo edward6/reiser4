@@ -34,6 +34,7 @@
 #include <linux/suspend.h>
 #include <linux/kernel.h>
 #include <linux/writeback.h>
+#include <linux/kthread.h>
 
 static int scan_mgr(struct super_block *);
 
@@ -55,32 +56,21 @@ static int scan_mgr(struct super_block *);
  */
 static int ktxnmgrd(void *arg)
 {
-	struct task_struct *me;
 	struct super_block *super;
 	ktxnmgrd_context *ctx;
 	txn_mgr *mgr;
+	int done = 0;
 
 	super = arg;
 	mgr = &get_super_private(super)->tmgr;
-
-	/* standard kernel thread prologue */
-	me = current;
-	/* reparent_to_init() is done by daemonize() */
-	daemonize(__FUNCTION__);
 
 	/*
 	 * do_fork() just copies task_struct into the new thread. ->fs_context
 	 * shouldn't be copied of course. This shouldn't be a problem for the
 	 * rest of the code though.
 	 */
-	me->journal_info = NULL;
-
+	current->journal_info = NULL;
 	ctx = mgr->daemon;
-	ctx->tsk = me;
-
-	/* initialization is done */
-	complete(&ctx->start_finish_completion);
-
 	while (1) {
 		try_to_freeze();
 		set_comm("wait");
@@ -88,14 +78,15 @@ static int ktxnmgrd(void *arg)
 			DEFINE_WAIT(__wait);
 
 			prepare_to_wait(&ctx->wait, &__wait, TASK_INTERRUPTIBLE);
-			/* we are asked to exit */
-			if (ctx->done)
-				break;
-			schedule_timeout(ctx->timeout);
+			if (kthread_should_stop()) {
+				done = 1;
+			} else 
+				schedule_timeout(ctx->timeout);
 			finish_wait(&ctx->wait, &__wait);
 		}
+		if (done)
+			break;
 		set_comm("run");
-
 		spin_lock(&ctx->guard);
 		/*
 		 * wait timed out or ktxnmgrd was woken up by explicit request
@@ -117,51 +108,10 @@ static int ktxnmgrd(void *arg)
 		} while (ctx->rescan);
 		spin_unlock(&ctx->guard);
 	}
-
-	complete_and_exit(&ctx->start_finish_completion, 0);
-	/* not reached. */
 	return 0;
 }
 
 #undef set_comm
-
-/**
- * start_ktxnmgrd - start txnmgr daemon
- * @mgr: pointer to transaction manager embedded in reiser4 super block
- *
- * Starts ktxnmgrd and wait untils it initializes.
- */
-static int start_ktxnmgrd(struct super_block *super)
-{
-	txn_mgr *mgr;
-	ktxnmgrd_context *ctx;
-
-	mgr = &get_super_private(super)->tmgr;
-	assert("zam-1015", mgr->daemon != NULL);
-
-	ctx = mgr->daemon;
-
-	spin_lock(&ctx->guard);
-	ctx->rescan = 1;
-	ctx->done = 0;
-	spin_unlock(&ctx->guard);
-
-	/*
-	 * prepare synchronization object to synchronize with ktxnmgrd
-	 * initialization
-	 */
-	init_completion(&ctx->start_finish_completion);
-
-	/* start ktxnmgrd */
-	kernel_thread(ktxnmgrd, super, CLONE_KERNEL);
-
- 	/* wait for ktxnmgrd initialization */
-	wait_for_completion(&ctx->start_finish_completion);
-
-	assert("nikita-2452", ctx->tsk != NULL);
-
-	return 0;
-}
 
 /**
  * init_ktxnmgrd - initialize ktxnmgrd context and start kernel daemon
@@ -191,11 +141,16 @@ int init_ktxnmgrd(struct super_block *super)
 	/*kcond_init(&ctx->startup);*/
 	spin_lock_init(&ctx->guard);
 	ctx->timeout = REISER4_TXNMGR_TIMEOUT;
+	ctx->rescan = 1;
 	mgr->daemon = ctx;
 
-	/* start txnmgr daemon */
-	start_ktxnmgrd(super);
-
+	ctx->tsk = kthread_run(ktxnmgrd, super, "ktxnmgrd");
+	if (IS_ERR(ctx->tsk)) {
+		int ret = PTR_ERR(ctx->tsk);
+		mgr->daemon = NULL;
+		kfree(ctx);
+		return RETERR(ret);
+	}
 	return 0;
 }
 
@@ -231,38 +186,6 @@ static int scan_mgr(struct super_block *super)
 }
 
 /**
- * stop_ktxnmgrd - ktxnmgrd stop kernel thread
- * @mgr: pointer to transaction manager embedded in reiser4 super block
- *
- * Sends stop signal to ktxnmgrd and wait until it handles it.
- */
-static void stop_ktxnmgrd(txn_mgr *mgr)
-{
-	ktxnmgrd_context *ctx;
-
-	assert("zam-1016", mgr != NULL);
-	assert("zam-1017", mgr->daemon != NULL);
-
-	ctx = mgr->daemon;
-
-	/*
-	 * prepare synchronization object to synchronize with ktxnmgrd
-	 * completion
-	 */
-	init_completion(&ctx->start_finish_completion);
-
-	spin_lock(&ctx->guard);
-	ctx->tsk = NULL;
-	ctx->done = 1;
-	spin_unlock(&ctx->guard);
-
-	wake_up(&ctx->wait);
-
-	/* wait until ktxnmgrd finishes */
-	wait_for_completion(&ctx->start_finish_completion);
-}
-
-/**
  * done_ktxnmgrd - stop kernel thread and frees ktxnmgrd context
  * @mgr:
  *
@@ -275,8 +198,7 @@ void done_ktxnmgrd(struct super_block *super)
 	mgr = &get_super_private(super)->tmgr;
 	assert("zam-1012", mgr->daemon != NULL);
 
-	stop_ktxnmgrd(mgr);
-
+	kthread_stop(mgr->daemon->tsk);
 	kfree(mgr->daemon);
 	mgr->daemon = NULL;
 }

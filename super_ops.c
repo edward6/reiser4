@@ -489,10 +489,12 @@ static int fill_super(struct super_block *super, void *data, int silent)
 	init_txnmgr(&sbinfo->tmgr);
 
 	/* initialize ktxnmgrd context and start kernel thread ktxnmrgd */
-	init_ktxnmgrd(super);
+	if ((result = init_ktxnmgrd(super)) != 0)
+		goto failed_init_ktxnmgrd;
 
 	/* initialize entd context and start kernel thread entd */
-	init_entd(super);
+	if ((result = init_entd(super)) != 0)
+		goto failed_init_entd;
 
 	/* initialize address spaces for formatted nodes and bitmaps */
 	if ((result = init_formatted_fake(super)) != 0)
@@ -525,7 +527,9 @@ static int fill_super(struct super_block *super, void *data, int silent)
 	done_formatted_fake(super);
  failed_init_formatted_fake:
 	done_entd(super);
+ failed_init_entd:
 	done_ktxnmgrd(super);
+ failed_init_ktxnmgrd:
 	done_txnmgr(&sbinfo->tmgr);
  failed_init_read_super:
  failed_init_super_data:

@@ -26,11 +26,6 @@ struct wbq {
 /* ent-thread context. This is used to synchronize starting/stopping ent
  * threads. */
 typedef struct entd_context {
-	/*
-	 * completion that is signaled by ent thread just before it
-	 * terminates.
-	 */
-	struct completion start_finish_completion;
 	 /* wait queue that ent thread waits on for more work. It's
 	  * signaled by write_page_by_ent(). */
 	wait_queue_head_t wait;
@@ -51,7 +46,7 @@ typedef struct entd_context {
 	struct list_head wbq_list; /* struct wbq are elements of this list */
 } entd_context;
 
-extern void init_entd(struct super_block *);
+extern int  init_entd(struct super_block *);
 extern void done_entd(struct super_block *);
 
 extern void enter_flush(struct super_block *);

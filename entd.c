@@ -21,6 +21,7 @@
 #include <linux/time.h>		/* INITIAL_JIFFIES */
 #include <linux/backing-dev.h>	/* bdi_write_congested */
 #include <linux/wait.h>
+#include <linux/kthread.h>
 
 #define DEF_PRIORITY 12
 #define MAX_ENTD_ITERS 10
@@ -49,7 +50,7 @@ static inline entd_context *get_entd_context(struct super_block *super)
  * Creates entd contexts, starts kernel thread and waits until it
  * initializes.
  */
-void init_entd(struct super_block *super)
+int init_entd(struct super_block *super)
 {
 	entd_context *ctx;
 
@@ -60,23 +61,15 @@ void init_entd(struct super_block *super)
 	memset(ctx, 0, sizeof *ctx);
 	spin_lock_init(&ctx->guard);
 	init_waitqueue_head(&ctx->wait);
-
-	/*
-	 * prepare synchronization object to synchronize with ent thread
-	 * initialization
-	 */
-	init_completion(&ctx->start_finish_completion);
-
-	/* start entd */
-	kernel_thread(entd, super, CLONE_VM | CLONE_FS | CLONE_FILES);
-
- 	/* wait for entd initialization */
-	wait_for_completion(&ctx->start_finish_completion);
-
 #if REISER4_DEBUG
 	INIT_LIST_HEAD(&ctx->flushers_list);
 #endif
 	INIT_LIST_HEAD(&ctx->wbq_list);
+	/* start entd */
+	ctx->tsk = kthread_run(entd, super, "ent:%s", super->s_id);
+	if (IS_ERR(ctx->tsk))
+		return PTR_ERR(ctx->tsk);
+	return 0;
 }
 
 static void __put_wbq(entd_context * ent, struct wbq *rq)
@@ -135,31 +128,19 @@ static void wakeup_all_wbq(entd_context * ent)
 static int entd(void *arg)
 {
 	struct super_block *super;
-	struct task_struct *me;
 	entd_context *ent;
+	int done = 0;
 
 	super = arg;
-	/* standard kernel thread prologue */
-	me = current;
-	/* reparent_to_init() is done by daemonize() */
-	daemonize("ent:%s", super->s_id);
-
 	/* do_fork() just copies task_struct into the new
 	   thread. ->fs_context shouldn't be copied of course. This shouldn't
 	   be a problem for the rest of the code though.
 	 */
-	me->journal_info = NULL;
+	current->journal_info = NULL;
 
 	ent = get_entd_context(super);
 
-	spin_lock(&ent->guard);
-	ent->tsk = me;
-	spin_unlock(&ent->guard);
-
-	/* initialization is done */
-	complete(&ent->start_finish_completion);
-
-	while (!ent->done) {
+	while (!done) {
 		try_to_freeze();
 
 		spin_lock(&ent->guard);
@@ -193,13 +174,12 @@ static int entd(void *arg)
 			DEFINE_WAIT(__wait);
 
 			for (;;) {
-				int dontsleep;
-
 				prepare_to_wait(&ent->wait, &__wait, TASK_UNINTERRUPTIBLE);
-				spin_lock(&ent->guard);
-				dontsleep = ent->done || ent->nr_all_requests != 0;
-				spin_unlock(&ent->guard);
-				if (dontsleep)
+				if (kthread_should_stop()) {
+					done = 1;
+					break;
+				}
+				if (ent->nr_all_requests != 0)
 					break;
 				schedule();
 			}
@@ -207,8 +187,6 @@ static int entd(void *arg)
 		}
 	}
 	wakeup_all_wbq(ent);
-	complete_and_exit(&ent->start_finish_completion, 0);
-	/* not reached. */
 	return 0;
 }
 
@@ -226,20 +204,8 @@ void done_entd(struct super_block *super)
 	assert("nikita-3103", super != NULL);
 
 	ent = get_entd_context(super);
-
-	/*
-	 * prepare synchronization object to synchronize with entd
-	 * completion
-	 */
-	init_completion(&ent->start_finish_completion);
-
-	spin_lock(&ent->guard);
-	ent->done = 1;
-	spin_unlock(&ent->guard);
-	wake_up(&ent->wait);
-
-	/* wait until entd finishes */
-	wait_for_completion(&ent->start_finish_completion);
+	assert("zam-1055", ent->tsk != NULL);
+	kthread_stop(ent->tsk);
 }
 
 /* called at the beginning of jnode_flush to register flusher thread with ent
