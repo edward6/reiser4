@@ -282,15 +282,13 @@ static int finish_fq(flush_queue_t * fq, int *nr_io_errors)
 static int finish_all_fq(txn_atom * atom, int *nr_io_errors)
 {
 	flush_queue_t *fq;
-	struct list_head *pos;
 
 	assert("zam-730", spin_atom_is_locked(atom));
 
 	if (list_empty_careful(&atom->flush_queues))
 		return 0;
 
-	list_for_each(pos, &atom->flush_queues) {
-		fq = list_entry(pos, flush_queue_t, alink);
+	list_for_each_entry(fq, &atom->flush_queues, alink) {
 		if (fq_ready(fq)) {
 			int ret;
 
@@ -356,10 +354,8 @@ static void
 scan_fq_and_update_atom_ref(struct list_head *list, txn_atom *atom)
 {
 	jnode *cur;
-	struct list_head *pos;
 
-	list_for_each(pos, list) {
-		cur = list_entry(pos, jnode, capture_link);
+	list_for_each_entry(cur, list, capture_link) {
 		LOCK_JNODE(cur);
 		cur->atom = atom;
 		UNLOCK_JNODE(cur);
@@ -370,13 +366,11 @@ scan_fq_and_update_atom_ref(struct list_head *list, txn_atom *atom)
 void fuse_fq(txn_atom *to, txn_atom *from)
 {
 	flush_queue_t *fq;
-	struct list_head *pos;
 
 	assert("zam-720", spin_atom_is_locked(to));
 	assert("zam-721", spin_atom_is_locked(from));
 
-	list_for_each(pos, &from->flush_queues) {
-		fq = list_entry(pos, flush_queue_t, alink);
+	list_for_each_entry(fq, &from->flush_queues, alink) {
 		scan_fq_and_update_atom_ref(ATOM_FQ_LIST(fq), to);
 		spin_lock_fq(fq);
 		fq->atom = to;
@@ -723,13 +717,13 @@ void check_fq(const txn_atom *atom)
 	/* check number of nodes on all atom's flush queues */
 	flush_queue_t *fq;
 	int count;
-	struct list_head *pos1, *pos2;
+	struct list_head *pos;
 
 	count = 0;
-	list_for_each(pos1, &atom->flush_queues) {
-		fq = list_entry(pos1, flush_queue_t, alink);
+	list_for_each_entry(fq, &atom->flush_queues, alink) {
 		spin_lock_fq(fq);
-		list_for_each(pos2, ATOM_FQ_LIST(fq))
+		/* calculate number of jnodes on fq' list of prepped jnodes */
+		list_for_each(pos, ATOM_FQ_LIST(fq))
 			count++;
 		spin_unlock_fq(fq);
 	}

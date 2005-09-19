@@ -230,11 +230,9 @@ lock_stack *get_current_lock_stack(void)
 static void wake_up_all_lopri_owners(znode * node)
 {
 	lock_handle *handle;
-	struct list_head *pos;
 
 	assert("nikita-1824", rw_zlock_is_locked(&node->lock));
-	list_for_each(pos, &node->lock.owners) {
-		handle = list_entry(pos, lock_handle, owners_link);
+	list_for_each_entry(handle, &node->lock.owners, owners_link) {
 		spin_lock_stack(handle->owner);
 
 		assert("nikita-1832", handle->node == node);
@@ -360,7 +358,6 @@ int znode_is_any_locked(const znode * node)
 	lock_handle *handle;
 	lock_stack *stack;
 	int ret;
-	struct list_head *pos;
 
 	if (!znode_is_locked(node)) {
 		return 0;
@@ -372,8 +369,7 @@ int znode_is_any_locked(const znode * node)
 
 	ret = 0;
 
-	list_for_each(pos, &stack->locks) {
-		handle = list_entry(pos, lock_handle, locks_link);
+	list_for_each_entry(handle, &stack->locks, locks_link) {
 		if (handle->node == node) {
 			ret = 1;
 			break;
@@ -1072,7 +1068,6 @@ void invalidate_lock(lock_handle * handle	/* path to lock
 	znode *node = handle->node;
 	lock_stack *owner = handle->owner;
 	lock_stack *rq;
-	struct list_head *pos;
 
 	assert("zam-325", owner == get_current_lock_stack());
 	assert("zam-103", znode_is_write_locked(node));
@@ -1090,10 +1085,8 @@ void invalidate_lock(lock_handle * handle	/* path to lock
 	node->lock.nr_readers = 0;
 
 	/* all requestors will be informed that lock is invalidated. */
-	list_for_each(pos, &node->lock.requestors) {
-		rq = list_entry(pos, lock_stack, requestors_link);
+	list_for_each_entry(rq, &node->lock.requestors, requestors_link)
 		reiser4_wake_up(rq);
-	}
 
 	/* We use that each unlock() will wakeup first item from requestors
 	   list; our lock stack is the last one. */
@@ -1279,7 +1272,6 @@ int lock_stack_isclean(lock_stack * owner)
 void print_lock_stack(const char *prefix, lock_stack * owner)
 {
 	lock_handle *handle;
-	struct list_head *pos;
 
 	spin_lock_stack(owner);
 
@@ -1296,8 +1288,7 @@ void print_lock_stack(const char *prefix, lock_stack * owner)
 
 	printk(".... current locks:\n");
 
-	list_for_each(pos, &owner->locks) {
-		handle = list_entry(pos, lock_handle, locks_link);
+	list_for_each_entry(handle, &owner->locks, locks_link) {
 		if (handle->node != NULL)
 			print_address(znode_is_rlocked(handle->node) ?
 				      "......  read" : "...... write",
@@ -1311,11 +1302,11 @@ void print_lock_stack(const char *prefix, lock_stack * owner)
  * debugging functions
  */
 
-void list_check(struct list_head *head)
+static void list_check(struct list_head *head)
 {
 	struct list_head *pos;
 
-	list_for_each (pos, head)
+	list_for_each(pos, head)
 		assert("", (pos->prev != NULL && pos->next != NULL &&
 			    pos->prev->next == pos && pos->next->prev == pos));
 }
@@ -1351,7 +1342,6 @@ request_is_deadlock_safe(znode * node, znode_lock_mode mode,
 			 znode_lock_request request)
 {
 	lock_stack *owner;
-	struct list_head *pos;
 
 	owner = get_current_lock_stack();
 	/*
@@ -1362,10 +1352,9 @@ request_is_deadlock_safe(znode * node, znode_lock_mode mode,
 	    znode_get_level(node) != 0) {
 		lock_handle *item;
 
-		list_for_each(pos, &owner->locks) {
+		list_for_each_entry(item, &owner->locks, locks_link) {
 			znode *other;
 
-			item = list_entry(pos, lock_handle, locks_link);
 			other = item->node;
 
 			if (znode_get_level(other) == 0)

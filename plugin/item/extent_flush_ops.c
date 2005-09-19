@@ -699,7 +699,6 @@ assign_real_blocknrs(flush_pos_t *flush_pos, reiser4_block_nr first,
 	jnode *node;
 	txn_atom *atom;
 	flush_queue_t *fq;
-	struct list_head *pos;
 	int i;
 
 	fq = pos_fq(flush_pos);
@@ -707,8 +706,7 @@ assign_real_blocknrs(flush_pos_t *flush_pos, reiser4_block_nr first,
 	assert("vs-1468", atom);
 
 	i = 0;
-	list_for_each(pos, protected_nodes) {
-		node = list_entry(pos, jnode, capture_link);
+	list_for_each_entry(node, protected_nodes, capture_link) {
 		LOCK_JNODE(node);
 		assert("vs-1132",
 		       ergo(state == UNALLOCATED_EXTENT,

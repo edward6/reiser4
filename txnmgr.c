@@ -883,10 +883,8 @@ static int atom_should_commit_asap(const txn_atom * atom)
 static jnode *find_first_dirty_in_list(struct list_head *head, int flags)
 {
 	jnode *first_dirty;
-	struct list_head *pos;
 
-	list_for_each(pos, head) {
-		first_dirty = list_entry(pos, jnode, capture_link);
+	list_for_each_entry(first_dirty, head, capture_link) {
 		if (!(flags & JNODE_FLUSH_COMMIT)) {
 			/*
 			 * skip jnodes which "heard banshee" or having active
@@ -1227,7 +1225,6 @@ int txnmgr_force_commit_all(struct super_block *super, int commit_all_atoms)
 	txn_handle *txnh;
 	unsigned long start_time = jiffies;
 	reiser4_context *ctx = get_current_context();
-	struct list_head *pos;
 
 	assert("nikita-2965", lock_stack_isclean(get_current_lock_stack()));
 	assert("nikita-3058", commit_check_locks());
@@ -1242,8 +1239,7 @@ int txnmgr_force_commit_all(struct super_block *super, int commit_all_atoms)
 
 	spin_lock_txnmgr(mgr);
 
-	list_for_each(pos, &mgr->atoms_list) {
-		atom = list_entry(pos, txn_atom, atom_link);
+	list_for_each_entry(atom, &mgr->atoms_list, atom_link) {
 		LOCK_ATOM(atom);
 
 		/* Commit any atom which can be committed.  If @commit_new_atoms
@@ -1369,7 +1365,6 @@ static int txn_try_to_fuse_small_atom(txn_mgr * tmgr, txn_atom * atom)
 	int atom_stage;
 	txn_atom *atom_2;
 	int repeat;
-	struct list_head *pos;
 
 	assert("zam-1051", atom->stage < ASTAGE_PRE_COMMIT);
 
@@ -1385,8 +1380,7 @@ static int txn_try_to_fuse_small_atom(txn_mgr * tmgr, txn_atom * atom)
 			goto out;
 	}
 
-	list_for_each(pos, &tmgr->atoms_list) {
-		atom_2 = list_entry(pos, txn_atom, atom_link);
+	list_for_each_entry(atom_2, &tmgr->atoms_list, atom_link) {
 		if (atom == atom_2)
 			continue;
 		/*
@@ -1435,7 +1429,6 @@ flush_some_atom(jnode * start, long *nr_submitted, const struct writeback_contro
 	txn_handle *txnh = ctx->trans;
 	txn_atom *atom;
 	int ret;
-	struct list_head *pos;
 
 	BUG_ON(wbc->nr_to_write == 0);
 	BUG_ON(*nr_submitted != 0);
@@ -1446,8 +1439,7 @@ flush_some_atom(jnode * start, long *nr_submitted, const struct writeback_contro
 		spin_lock_txnmgr(tmgr);
 
 		/* traverse the list of all atoms */
-		list_for_each(pos, &tmgr->atoms_list) {
-			atom = list_entry(pos, txn_atom, atom_link);
+		list_for_each_entry(atom, &tmgr->atoms_list, atom_link) {
 			/* lock atom before checking its state */
 			LOCK_ATOM(atom);
 
@@ -1473,8 +1465,7 @@ flush_some_atom(jnode * start, long *nr_submitted, const struct writeback_contro
 		 * flushed/committed.
 		 */
 		if (!current_is_pdflush() && !wbc->nonblocking) {
-			list_for_each(pos, &tmgr->atoms_list) {
-				atom = list_entry(pos, txn_atom, atom_link);
+			list_for_each_entry(atom, &tmgr->atoms_list, atom_link) {
 				LOCK_ATOM(atom);
 				/* Repeat the check from the above. */
 				if (atom->stage < ASTAGE_PRE_COMMIT
@@ -2208,7 +2199,6 @@ static int fuse_not_fused_lock_owners(txn_handle * txnh, znode * node)
 	lock_handle *lh;
 	int repeat = 0;
 	txn_atom *atomh = txnh->atom;
-	struct list_head *pos;
 
 /*	assert ("zam-689", znode_is_rlocked (node));*/
 	assert("zam-690", spin_znode_is_locked(node));
@@ -2223,11 +2213,10 @@ static int fuse_not_fused_lock_owners(txn_handle * txnh, znode * node)
 	}
 
 	/* inspect list of lock owners */
-	list_for_each(pos, &node->lock.owners) {
+	list_for_each_entry(lh, &node->lock.owners, owners_link) {
 		reiser4_context *ctx;
 		txn_atom *atomf;
 
-		lh = list_entry(pos, lock_handle, owners_link);
 		ctx = get_context_by_lock_stack(lh->owner);
 
 		if (ctx == get_current_context())
@@ -3110,13 +3099,11 @@ int capture_super_block(struct super_block *s)
 static void wakeup_atom_waitfor_list(txn_atom * atom)
 {
 	txn_wait_links *wlinks;
-	struct list_head *pos;
 
 	assert("umka-210", atom != NULL);
 
 	/* atom is locked */
-	list_for_each(pos, &atom->fwaitfor_list) {
-		wlinks = list_entry(pos, txn_wait_links, _fwaitfor_link);
+	list_for_each_entry(wlinks, &atom->fwaitfor_list, _fwaitfor_link) {
 		if (wlinks->waitfor_cb == NULL ||
 		    wlinks->waitfor_cb(atom, wlinks))
 			/* Wake up. */
@@ -3128,13 +3115,11 @@ static void wakeup_atom_waitfor_list(txn_atom * atom)
 static void wakeup_atom_waiting_list(txn_atom * atom)
 {
 	txn_wait_links *wlinks;
-	struct list_head *pos;
 
 	assert("umka-211", atom != NULL);
 
 	/* atom is locked */
-	list_for_each(pos, &atom->fwaiting_list) {
-		wlinks = list_entry(pos, txn_wait_links, _fwaiting_link);
+	list_for_each_entry(wlinks, &atom->fwaiting_list, _fwaiting_link) {
 		if (wlinks->waiting_cb == NULL ||
 		    wlinks->waiting_cb(atom, wlinks))
 			/* Wake up. */
@@ -3343,7 +3328,6 @@ capture_fuse_jnode_lists(txn_atom *large, struct list_head *large_head,
 {
 	int count = 0;
 	jnode *node;
-	struct list_head *pos;
 
 	assert("umka-218", large != NULL);
 	assert("umka-219", large_head != NULL);
@@ -3352,8 +3336,7 @@ capture_fuse_jnode_lists(txn_atom *large, struct list_head *large_head,
 	assert("zam-968", spin_atom_is_locked(large));
 
 	/* For every jnode on small's capture list... */
-	list_for_each(pos, small_head) {
-		node = list_entry(pos, jnode, capture_link);
+	list_for_each_entry(node, small_head, capture_link) {
 		count += 1;
 
 		/* With the jnode lock held, update atom pointer. */
@@ -3376,15 +3359,13 @@ capture_fuse_txnh_lists(txn_atom *large, struct list_head *large_head,
 {
 	int count = 0;
 	txn_handle *txnh;
-	struct list_head *pos;
 
 	assert("umka-221", large != NULL);
 	assert("umka-222", large_head != NULL);
 	assert("umka-223", small_head != NULL);
 
 	/* Adjust every txnh to the new atom. */
-	list_for_each(pos, small_head) {
-		txnh = list_entry(pos, txn_handle, txnh_link);
+	list_for_each_entry(txnh, small_head, txnh_link) {
 		count += 1;
 
 		/* With the txnh lock held, update atom pointer. */
@@ -3410,7 +3391,6 @@ static void capture_fuse_into(txn_atom * small, txn_atom * large)
 	unsigned zcount = 0;
 	unsigned tcount = 0;
 	protected_jnodes *prot_list;
-	struct list_head *pos1, *pos2;
 
 	assert("umka-224", small != NULL);
 	assert("umka-225", small != NULL);
@@ -3445,14 +3425,10 @@ static void capture_fuse_into(txn_atom * small, txn_atom * large)
 	    capture_fuse_txnh_lists(large, &large->txnh_list,
 				    &small->txnh_list);
 
-
-	list_for_each(pos1, &small->protected) {
+	list_for_each_entry(prot_list, &small->protected, inatom) {
 		jnode *node;
 
-		prot_list = list_entry(pos1, protected_jnodes, inatom);
-
-		list_for_each(pos2, &prot_list->nodes) {
-			node = list_entry(pos2, jnode, capture_link);
+		list_for_each_entry(node, &prot_list->nodes, capture_link) {
 			zcount += 1;
 
 			LOCK_JNODE(node);
@@ -4228,13 +4204,11 @@ reiser4_block_nr txnmgr_count_deleted_blocks(void)
 	reiser4_block_nr result;
 	txn_mgr *tmgr = &get_super_private(reiser4_get_current_sb())->tmgr;
 	txn_atom *atom;
-	struct list_head *pos;
 
 	result = 0;
 
 	spin_lock_txnmgr(tmgr);
-	list_for_each(pos, &tmgr->atoms_list) {
-		atom = list_entry(pos, txn_atom, atom_link);
+	list_for_each_entry(atom, &tmgr->atoms_list, atom_link) {
 		LOCK_ATOM(atom);
 		blocknr_set_iterator(atom, &atom->delete_set,
 				     count_deleted_blocks_actor, &result, 0);

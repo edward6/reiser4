@@ -1074,12 +1074,9 @@ static int alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 static void put_overwrite_set(struct commit_handle *ch)
 {
 	jnode *cur;
-	struct list_head *pos;
 
-	list_for_each(pos, ch->overwrite_set) {
-		cur = list_entry(pos, jnode, capture_link);
+	list_for_each_entry(cur, ch->overwrite_set, capture_link)
 		jrelse_tail(cur);
-	}
 }
 
 /* Count overwrite set size, grab disk space for wandered blocks allocation.
@@ -1750,11 +1747,10 @@ static int check_journal_header(const jnode * node UNUSED_ARG)
 /* wait for write completion for all jnodes from given list */
 static int wait_on_jnode_list(struct list_head *head)
 {
-	struct list_head *pos;
+	jnode *scan;
 	int ret = 0;
 
-	list_for_each(pos, head) {
-		jnode *scan = list_entry(pos, jnode, capture_link);
+	list_for_each_entry(scan, head, capture_link) {
 		struct page *pg = jnode_page(scan);
 
 		if (pg) {
