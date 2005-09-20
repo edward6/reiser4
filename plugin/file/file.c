@@ -3017,7 +3017,7 @@ sendfile_unix_file(struct file *file, loff_t *ppos, size_t count,
 
 	uf_info = unix_file_inode_data(inode);
 	get_nonexclusive_access(uf_info, 0);
-	result = do_sendfile(file, ppos, count, actor, target);
+	result = generic_file_sendfile(file, ppos, count, actor, target);
 	drop_nonexclusive_access(uf_info);
 	reiser4_exit_context(ctx);
 	return result;

@@ -100,8 +100,6 @@ reiser4_block_nr dir_estimate_unlink_common(const struct inode *,
 
 /* these are essential parts of common implementations, they are to make
    customized implementations easier */
-ssize_t do_sendfile(struct file *, loff_t *ppos, size_t count,
-		    read_actor_t, void *target);
 int do_prepare_write(struct file *, struct page *, unsigned from, unsigned to);
 
 /* merely useful functions */
