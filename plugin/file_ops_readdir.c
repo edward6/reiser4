@@ -103,7 +103,6 @@ adjust_dir_file(struct inode *dir, const struct dentry *de, int offset, int adj)
 {
 	reiser4_file_fsdata *scan;
 	dir_pos mod_point;
-	struct list_head *pos;
 
 	assert("nikita-2536", dir != NULL);
 	assert("nikita-2538", de != NULL);
@@ -120,10 +119,8 @@ adjust_dir_file(struct inode *dir, const struct dentry *de, int offset, int adj)
 	 * update them.
 	 */
 
-	list_for_each(pos, get_readdir_list(dir)) {
-		scan = list_entry(pos, reiser4_file_fsdata, dir.linkage);
+	list_for_each_entry(scan, get_readdir_list(dir), dir.linkage)
 		adjust_dir_pos(scan->back, &scan->dir.readdir, &mod_point, adj);
-	}
 
 	spin_unlock_inode(dir);
 }
