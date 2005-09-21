@@ -48,7 +48,7 @@ static ctail_item_format *ctail_formatted_at(const coord_t * coord)
 
 int cluster_shift_by_coord(const coord_t * coord)
 {
-	return d8tocpu(&ctail_formatted_at(coord)->cluster_shift);
+	return get_unaligned(&ctail_formatted_at(coord)->cluster_shift);
 }
 
 static unsigned long off_by_coord(const coord_t * coord)
@@ -205,7 +205,7 @@ int init_ctail(coord_t * to /* coord of item */ ,
 		assert("edward-855", ctail_ok(from));
 		cluster_shift = (int)(cluster_shift_by_coord(from));
 	}
-	cputod8(cluster_shift, &ctail_formatted_at(to)->cluster_shift);
+	put_unaligned((d8)cluster_shift, &ctail_formatted_at(to)->cluster_shift);
 	assert("edward-856", ctail_ok(to));
 	return 0;
 }
@@ -1608,7 +1608,7 @@ int convert_ctail(flush_pos_t * pos)
 			shift =
 			    inode_cluster_shift(item_convert_data(pos)->inode);
 			assert("edward-1259", cluster_shift_ok(shift));
-			cputod8(shift,
+			put_unaligned((d8)shift,
 				&ctail_formatted_at(&pos->coord)->
 				cluster_shift);
 		}

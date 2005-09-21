@@ -100,34 +100,34 @@ typedef enum {
 
 /* minimal stat-data. This allows to support light-weight files. */
 typedef struct reiser4_stat_data_base {
-	/*  0 */ d16 extmask;
+	/*  0 */ __le16 extmask;
 	/*  2 */
 } PACKED reiser4_stat_data_base;
 
 typedef struct reiser4_light_weight_stat {
-	/*  0 */ d16 mode;
-	/*  2 */ d32 nlink;
-	/*  8 */ d64 size;
+	/*  0 */ __le16 mode;
+	/*  2 */ __le32 nlink;
+	/*  8 */ __le64 size;
 	/* size in bytes */
 	/* 16 */
 } PACKED reiser4_light_weight_stat;
 
 typedef struct reiser4_unix_stat {
 	/* owner id */
-	/*  0 */ d32 uid;
+	/*  0 */ __le32 uid;
 	/* group id */
-	/*  4 */ d32 gid;
+	/*  4 */ __le32 gid;
 	/* access time */
-	/*  8 */ d32 atime;
+	/*  8 */ __le32 atime;
 	/* modification time */
-	/* 12 */ d32 mtime;
+	/* 12 */ __le32 mtime;
 	/* change time */
-	/* 16 */ d32 ctime;
+	/* 16 */ __le32 ctime;
 	union {
 		/* minor:major for device files */
-		/* 20 */ d64 rdev;
+		/* 20 */ __le64 rdev;
 		/* bytes used by file */
-		/* 20 */ d64 bytes;
+		/* 20 */ __le64 bytes;
 	} u;
 	/* 28 */
 } PACKED reiser4_unix_stat;
@@ -138,15 +138,15 @@ typedef struct reiser4_symlink_stat {
 } PACKED reiser4_symlink_stat;
 
 typedef struct reiser4_plugin_slot {
-	/*  0 */ d16 pset_memb;
-	/*  2 */ d16 id;
+	/*  0 */ __le16 pset_memb;
+	/*  2 */ __le16 id;
 	/*  4 *//* here plugin stores its persistent state */
 } PACKED reiser4_plugin_slot;
 
 /* stat-data extension for files with non-standard plugin. */
 typedef struct reiser4_plugin_stat {
 	/* number of additional plugins, associated with this object */
-	/*  0 */ d16 plugins_no;
+	/*  0 */ __le16 plugins_no;
 	/*  2 */ reiser4_plugin_slot slot[0];
 	/*  2 */
 } PACKED reiser4_plugin_stat;
@@ -155,13 +155,13 @@ typedef struct reiser4_plugin_stat {
  * bit mask. If need arise, this can be replaced with variable width
  * bitmask. */
 typedef struct reiser4_flags_stat {
-	/*  0 */ d32 flags;
+	/*  0 */ __le32 flags;
 	/*  4 */
 } PACKED reiser4_flags_stat;
 
 typedef struct reiser4_capabilities_stat {
-	/*  0 */ d32 effective;
-	/*  8 */ d32 permitted;
+	/*  0 */ __le32 effective;
+	/*  8 */ __le32 permitted;
 	/* 16 */
 } PACKED reiser4_capabilities_stat;
 

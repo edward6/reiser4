@@ -196,7 +196,7 @@ struct commit_handle {
 	/* jnodes for wander record blocks */
 	struct list_head tx_list;
 	/* number of wander records */
-	int tx_size;
+	__u32 tx_size;
 	/* 'committed' sb counters are saved here until atom is completely
 	   flushed  */
 	__u64 free_blocks;
@@ -242,7 +242,8 @@ static void format_journal_header(struct commit_handle *ch)
 	header = (struct journal_header *)jdata(sbinfo->journal_header);
 	assert("zam-484", header != NULL);
 
-	cputod64(*jnode_get_block(txhead), &header->last_committed_tx);
+	put_unaligned(cpu_to_le64(*jnode_get_block(txhead)),
+		      &header->last_committed_tx);
 
 	jrelse(sbinfo->journal_header);
 }
@@ -266,11 +267,12 @@ static void format_journal_footer(struct commit_handle *ch)
 	footer = (struct journal_footer *)jdata(sbinfo->journal_footer);
 	assert("zam-495", footer != NULL);
 
-	cputod64(*jnode_get_block(tx_head), &footer->last_flushed_tx);
-	cputod64(ch->free_blocks, &footer->free_blocks);
+	put_unaligned(cpu_to_le64(*jnode_get_block(tx_head)),
+		      &footer->last_flushed_tx);
+	put_unaligned(cpu_to_le64(ch->free_blocks), &footer->free_blocks);
 
-	cputod64(ch->nr_files, &footer->nr_files);
-	cputod64(ch->next_oid, &footer->next_oid);
+	put_unaligned(cpu_to_le64(ch->nr_files), &footer->nr_files);
+	put_unaligned(cpu_to_le64(ch->next_oid), &footer->next_oid);
 
 	jrelse(sbinfo->journal_footer);
 }
@@ -305,19 +307,18 @@ static void format_tx_head(struct commit_handle *ch)
 	memset(jdata(tx_head), 0, (size_t) ch->super->s_blocksize);
 	memcpy(jdata(tx_head), TX_HEADER_MAGIC, TX_HEADER_MAGIC_SIZE);
 
-	cputod32((__u32) ch->tx_size, &header->total);
-	cputod64(get_super_private(ch->super)->last_committed_tx,
-		 &header->prev_tx);
-	cputod64(*jnode_get_block(next), &header->next_block);
-
-	cputod64(ch->free_blocks, &header->free_blocks);
-	cputod64(ch->nr_files, &header->nr_files);
-	cputod64(ch->next_oid, &header->next_oid);
+	put_unaligned(cpu_to_le32(ch->tx_size), &header->total);
+	put_unaligned(cpu_to_le64(get_super_private(ch->super)->last_committed_tx),
+		      &header->prev_tx);
+	put_unaligned(cpu_to_le64(*jnode_get_block(next)), &header->next_block);
+	put_unaligned(cpu_to_le64(ch->free_blocks), &header->free_blocks);
+	put_unaligned(cpu_to_le64(ch->nr_files), &header->nr_files);
+	put_unaligned(cpu_to_le64(ch->next_oid), &header->next_oid);
 }
 
 /* prepare ordinary wander record block (fill all service fields) */
 static void
-format_wander_record(struct commit_handle *ch, jnode *node, int serial)
+format_wander_record(struct commit_handle *ch, jnode *node, __u32 serial)
 {
 	struct wander_record_header *LRH;
 	jnode *next;
@@ -337,9 +338,9 @@ format_wander_record(struct commit_handle *ch, jnode *node, int serial)
 	memset(jdata(node), 0, (size_t) ch->super->s_blocksize);
 	memcpy(jdata(node), WANDER_RECORD_MAGIC, WANDER_RECORD_MAGIC_SIZE);
 
-	cputod32((__u32) ch->tx_size, &LRH->total);
-	cputod32((__u32) serial, &LRH->serial);
-	cputod64((__u64) * jnode_get_block(next), &LRH->next_block);
+	put_unaligned(cpu_to_le32(ch->tx_size), &LRH->total);
+	put_unaligned(cpu_to_le32(serial), &LRH->serial);
+	put_unaligned(cpu_to_le64(*jnode_get_block(next)), &LRH->next_block);
 }
 
 /* add one wandered map entry to formatted wander record */
@@ -356,8 +357,8 @@ store_entry(jnode * node, int index, const reiser4_block_nr * a,
 	pairs =
 	    (struct wander_entry *)(data + sizeof(struct wander_record_header));
 
-	cputod64(*a, &pairs[index].original);
-	cputod64(*b, &pairs[index].wandered);
+	put_unaligned(cpu_to_le64(*a), &pairs[index].original);
+	put_unaligned(cpu_to_le64(*b), &pairs[index].wandered);
 }
 
 /* currently, wander records contains contain only wandered map, which depend on
@@ -1811,9 +1812,9 @@ static int restore_commit_handle(struct commit_handle *ch, jnode *tx_head)
 
 	TXH = (struct tx_header *)jdata(tx_head);
 
-	ch->free_blocks = d64tocpu(&TXH->free_blocks);
-	ch->nr_files = d64tocpu(&TXH->nr_files);
-	ch->next_oid = d64tocpu(&TXH->next_oid);
+	ch->free_blocks = le64_to_cpu(get_unaligned(&TXH->free_blocks));
+	ch->nr_files = le64_to_cpu(get_unaligned(&TXH->nr_files));
+	ch->next_oid = le64_to_cpu(get_unaligned(&TXH->next_oid));
 
 	jrelse(tx_head);
 
@@ -1872,7 +1873,7 @@ static int replay_transaction(const struct super_block *s,
 		}
 
 		header = (struct wander_record_header *)jdata(log);
-		log_rec_block = d64tocpu(&header->next_block);
+		log_rec_block = le64_to_cpu(get_unaligned(&header->next_block));
 
 		entry = (struct wander_entry *)(header + 1);
 
@@ -1881,8 +1882,7 @@ static int replay_transaction(const struct super_block *s,
 			reiser4_block_nr block;
 			jnode *node;
 
-			block = d64tocpu(&entry->wandered);
-
+			block = le64_to_cpu(get_unaligned(&entry->wandered));
 			if (block == 0)
 				break;
 
@@ -1909,7 +1909,7 @@ static int replay_transaction(const struct super_block *s,
 				goto free_ow_set;
 			}
 
-			block = d64tocpu(&entry->original);
+			block = le64_to_cpu(get_unaligned(&entry->original));
 
 			assert("zam-603", block != 0);
 
@@ -1988,7 +1988,7 @@ static int replay_oldest_transaction(struct super_block *s)
 
 	F = (struct journal_footer *)jdata(jf);
 
-	last_flushed_tx = d64tocpu(&F->last_flushed_tx);
+	last_flushed_tx = le64_to_cpu(get_unaligned(&F->last_flushed_tx));
 
 	jrelse(jf);
 
@@ -2020,7 +2020,7 @@ static int replay_oldest_transaction(struct super_block *s)
 
 		T = (struct tx_header *)jdata(tx_head);
 
-		prev_tx = d64tocpu(&T->prev_tx);
+		prev_tx = le64_to_cpu(get_unaligned(&T->prev_tx));
 
 		if (prev_tx == last_flushed_tx)
 			break;
@@ -2029,8 +2029,8 @@ static int replay_oldest_transaction(struct super_block *s)
 		drop_io_head(tx_head);
 	}
 
-	total = d32tocpu(&T->total);
-	log_rec_block = d64tocpu(&T->next_block);
+	total = le32_to_cpu(get_unaligned(&T->total));
+	log_rec_block = le64_to_cpu(get_unaligned(&T->next_block));
 
 	pin_jnode_data(tx_head);
 	jrelse(tx_head);
@@ -2078,15 +2078,15 @@ int reiser4_journal_recover_sb_data(struct super_block *s)
 	jf = (struct journal_footer *)jdata(sbinfo->journal_footer);
 
 	/* was there at least one flushed transaction?  */
-	if (d64tocpu(&jf->last_flushed_tx)) {
+	if (jf->last_flushed_tx) {
 
 		/* restore free block counter logged in this transaction */
-		reiser4_set_free_blocks(s, d64tocpu(&jf->free_blocks));
+		reiser4_set_free_blocks(s, le64_to_cpu(get_unaligned(&jf->free_blocks)));
 
 		/* restore oid allocator state */
 		oid_init_allocator(s,
-				   d64tocpu(&jf->nr_files),
-				   d64tocpu(&jf->next_oid));
+				   le64_to_cpu(get_unaligned(&jf->nr_files)),
+				   le64_to_cpu(get_unaligned(&jf->next_oid)));
 	}
       out:
 	jrelse(sbinfo->journal_footer);
@@ -2143,7 +2143,7 @@ int reiser4_journal_replay(struct super_block *s)
 	}
 
 	header = (struct journal_header *)jdata(jh);
-	sbinfo->last_committed_tx = d64tocpu(&header->last_committed_tx);
+	sbinfo->last_committed_tx = le64_to_cpu(get_unaligned(&header->last_committed_tx));
 
 	jrelse(jh);
 

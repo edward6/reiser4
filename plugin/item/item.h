@@ -299,7 +299,7 @@ static inline item_id item_id_by_plugin(item_plugin * plugin)
 static inline char get_iplugid(item_plugin * iplug)
 {
 	assert("nikita-2838", iplug != NULL);
-	assert("nikita-2839", 0 <= iplug->h.id && iplug->h.id < 0xff);
+	assert("nikita-2839", iplug->h.id < 0xff);
 	return (char)item_id_by_plugin(iplug);
 }
 

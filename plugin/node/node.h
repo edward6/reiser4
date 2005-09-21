@@ -251,20 +251,22 @@ extern void print_node_content(const char *prefix, const znode * node,
 extern void indent_znode(const znode * node);
 
 typedef struct common_node_header {
-	/* identifier of node plugin. Must be located at the very beginning
-	   of a node. */
-	d16 plugin_id;
+	/*
+	 * identifier of node plugin. Must be located at the very beginning of
+	 * a node.
+	 */
+	__le16 plugin_id;
 } common_node_header;
 
 /* __REISER4_NODE_H__ */
 #endif
 /*
-   Local variables:
-   c-indentation-style: "K&R"
-   mode-name: "LC"
-   c-basic-offset: 8
-   tab-width: 8
-   fill-column: 120
-   scroll-step: 1
-   End:
-*/
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 79
+ * scroll-step: 1
+ * End:
+ */

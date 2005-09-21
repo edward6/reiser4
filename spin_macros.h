@@ -82,6 +82,7 @@ typedef struct reiser4_rw_data {
 static inline void spin_ ## NAME ## _init(TYPE *x)				\
 {										\
 	__ODCA("nikita-2987", x != NULL);					\
+	cassert(sizeof(x->FIELD) != 0);						\
 	memset(& x->FIELD, 0, sizeof x->FIELD);					\
 	spin_lock_init(& x->FIELD.lock);					\
 }										\

@@ -83,7 +83,7 @@ int init_inode_static_sd(struct inode *inode /* object being processed */ ,
 	result = 0;
 	sd_base = (reiser4_stat_data_base *) sd;
 	state = reiser4_inode_data(inode);
-	mask = d16tocpu(&sd_base->extmask);
+	mask = le16_to_cpu(get_unaligned(&sd_base->extmask));
 	bigmask = mask;
 	inode_set_flag(inode, REISER4_SDLEN_KNOWN);
 
@@ -132,7 +132,7 @@ int init_inode_static_sd(struct inode *inode /* object being processed */ ,
 				result = RETERR(-EINVAL);
 				break;
 			}
-			mask = d16tocpu((d16 *) sd);
+			mask = le16_to_cpu(get_unaligned((d16 *)sd));
 			bigmask <<= 16;
 			bigmask |= mask;
 			move_on(&len, &sd, sizeof(d16));
@@ -218,7 +218,8 @@ int save_static_sd(struct inode *inode /* object being processed */ ,
 	result = 0;
 	emask = reiser4_inode_data(inode)->extmask;
 	sd_base = (reiser4_stat_data_base *) * area;
-	cputod16((unsigned)(emask & 0xffff), &sd_base->extmask);
+	put_unaligned(cpu_to_le16((__u16)(emask & 0xffff)), &sd_base->extmask);
+	/*cputod16((unsigned)(emask & 0xffff), &sd_base->extmask);*/
 
 	*area += sizeof *sd_base;
 	len = 0xffffffffu;
@@ -235,8 +236,10 @@ int save_static_sd(struct inode *inode /* object being processed */ ,
 				if (result)
 					break;
 			} else {
-				cputod16((unsigned)(emask & 0xffff),
-					 (d16 *) * area);
+				put_unaligned(cpu_to_le16((__u16)(emask & 0xffff)),
+					      (d16 *)(*area));
+				/*cputod16((unsigned)(emask & 0xffff),
+				  (d16 *) * area);*/
 				*area += sizeof(d16);
 			}
 		}
@@ -255,9 +258,9 @@ static int present_lw_sd(struct inode *inode /* object being processed */ ,
 
 		sd_lw = (reiser4_light_weight_stat *) * area;
 
-		inode->i_mode = d16tocpu(&sd_lw->mode);
-		inode->i_nlink = d32tocpu(&sd_lw->nlink);
-		inode->i_size = d64tocpu(&sd_lw->size);
+		inode->i_mode = le16_to_cpu(get_unaligned(&sd_lw->mode));
+		inode->i_nlink = le32_to_cpu(get_unaligned(&sd_lw->nlink));
+		inode->i_size = le64_to_cpu(get_unaligned(&sd_lw->size));
 		if ((inode->i_mode & S_IFMT) == (S_IFREG | S_IFIFO)) {
 			inode->i_mode &= ~S_IFIFO;
 			inode_set_flag(inode, REISER4_PART_CONV);
@@ -287,9 +290,9 @@ static int save_lw_sd(struct inode *inode /* object being processed */ ,
 	sd = (reiser4_light_weight_stat *) * area;
 
 	delta = inode_get_flag(inode, REISER4_PART_CONV) ? S_IFIFO : 0;
-	cputod16(inode->i_mode | delta, &sd->mode);
-	cputod32(inode->i_nlink, &sd->nlink);
-	cputod64((__u64) inode->i_size, &sd->size);
+	put_unaligned(cpu_to_le16(inode->i_mode | delta), &sd->mode);
+	put_unaligned(cpu_to_le32(inode->i_nlink), &sd->nlink);
+	put_unaligned(cpu_to_le64((__u64) inode->i_size), &sd->size);
 	*area += sizeof *sd;
 	return 0;
 }
@@ -309,15 +312,15 @@ static int present_unix_sd(struct inode *inode /* object being processed */ ,
 
 		sd = (reiser4_unix_stat *) * area;
 
-		inode->i_uid = d32tocpu(&sd->uid);
-		inode->i_gid = d32tocpu(&sd->gid);
-		inode->i_atime.tv_sec = d32tocpu(&sd->atime);
-		inode->i_mtime.tv_sec = d32tocpu(&sd->mtime);
-		inode->i_ctime.tv_sec = d32tocpu(&sd->ctime);
+		inode->i_uid = le32_to_cpu(get_unaligned(&sd->uid));
+		inode->i_gid = le32_to_cpu(get_unaligned(&sd->gid));
+		inode->i_atime.tv_sec = le32_to_cpu(get_unaligned(&sd->atime));
+		inode->i_mtime.tv_sec = le32_to_cpu(get_unaligned(&sd->mtime));
+		inode->i_ctime.tv_sec = le32_to_cpu(get_unaligned(&sd->ctime));
 		if (S_ISBLK(inode->i_mode) || S_ISCHR(inode->i_mode))
-			inode->i_rdev = d64tocpu(&sd->u.rdev);
+			inode->i_rdev = le64_to_cpu(get_unaligned(&sd->u.rdev));
 		else
-			inode_set_bytes(inode, (loff_t) d64tocpu(&sd->u.bytes));
+			inode_set_bytes(inode, (loff_t) le64_to_cpu(get_unaligned(&sd->u.bytes)));
 		move_on(len, area, sizeof *sd);
 		return 0;
 	} else
@@ -353,15 +356,15 @@ static int save_unix_sd(struct inode *inode /* object being processed */ ,
 	assert("nikita-644", *area != NULL);
 
 	sd = (reiser4_unix_stat *) * area;
-	cputod32(inode->i_uid, &sd->uid);
-	cputod32(inode->i_gid, &sd->gid);
-	cputod32((__u32) inode->i_atime.tv_sec, &sd->atime);
-	cputod32((__u32) inode->i_ctime.tv_sec, &sd->ctime);
-	cputod32((__u32) inode->i_mtime.tv_sec, &sd->mtime);
+	put_unaligned(cpu_to_le32(inode->i_uid), &sd->uid);
+	put_unaligned(cpu_to_le32(inode->i_gid), &sd->gid);
+	put_unaligned(cpu_to_le32((__u32) inode->i_atime.tv_sec), &sd->atime);
+	put_unaligned(cpu_to_le32((__u32) inode->i_ctime.tv_sec), &sd->ctime);
+	put_unaligned(cpu_to_le32((__u32) inode->i_mtime.tv_sec), &sd->mtime);
 	if (S_ISBLK(inode->i_mode) || S_ISCHR(inode->i_mode))
-		cputod64(inode->i_rdev, &sd->u.rdev);
+		put_unaligned(cpu_to_le64(inode->i_rdev), &sd->u.rdev);
 	else
-		cputod64((__u64) inode_get_bytes(inode), &sd->u.bytes);
+		put_unaligned(cpu_to_le64((__u64) inode_get_bytes(inode)), &sd->u.bytes);
 	*area += sizeof *sd;
 	return 0;
 }
@@ -376,9 +379,9 @@ present_large_times_sd(struct inode *inode /* object being processed */ ,
 
 		sd_lt = (reiser4_large_times_stat *) * area;
 
-		inode->i_atime.tv_nsec = d32tocpu(&sd_lt->atime);
-		inode->i_mtime.tv_nsec = d32tocpu(&sd_lt->mtime);
-		inode->i_ctime.tv_nsec = d32tocpu(&sd_lt->ctime);
+		inode->i_atime.tv_nsec = le32_to_cpu(get_unaligned(&sd_lt->atime));
+		inode->i_mtime.tv_nsec = le32_to_cpu(get_unaligned(&sd_lt->mtime));
+		inode->i_ctime.tv_nsec = le32_to_cpu(get_unaligned(&sd_lt->ctime));
 
 		move_on(len, area, sizeof *sd_lt);
 		return 0;
@@ -405,9 +408,9 @@ save_large_times_sd(struct inode *inode /* object being processed */ ,
 
 	sd = (reiser4_large_times_stat *) * area;
 
-	cputod32((__u32) inode->i_atime.tv_nsec, &sd->atime);
-	cputod32((__u32) inode->i_ctime.tv_nsec, &sd->ctime);
-	cputod32((__u32) inode->i_mtime.tv_nsec, &sd->mtime);
+	put_unaligned(cpu_to_le32((__u32) inode->i_atime.tv_nsec), &sd->atime);
+	put_unaligned(cpu_to_le32((__u32) inode->i_ctime.tv_nsec), &sd->ctime);
+	put_unaligned(cpu_to_le32((__u32) inode->i_mtime.tv_nsec), &sd->mtime);
 
 	*area += sizeof *sd;
 	return 0;
@@ -517,7 +520,7 @@ static int present_flags_sd(struct inode *inode /* object being processed */ ,
 		reiser4_flags_stat *sd;
 
 		sd = (reiser4_flags_stat *) * area;
-		inode->i_flags = d32tocpu(&sd->flags);
+		inode->i_flags = le32_to_cpu(get_unaligned(&sd->flags));
 		move_on(len, area, sizeof *sd);
 		return 0;
 	} else
@@ -541,7 +544,7 @@ static int save_flags_sd(struct inode *inode /* object being processed */ ,
 	assert("nikita-652", *area != NULL);
 
 	sd = (reiser4_flags_stat *) * area;
-	cputod32(inode->i_flags, &sd->flags);
+	put_unaligned(cpu_to_le32(inode->i_flags), &sd->flags);
 	*area += sizeof *sd;
 	return 0;
 }
@@ -570,7 +573,7 @@ static int present_plugin_sd(struct inode *inode /* object being processed */ ,
 	sd = (reiser4_plugin_stat *) * area;
 
 	mask = 0;
-	num_of_plugins = d16tocpu(&sd->plugins_no);
+	num_of_plugins = le16_to_cpu(get_unaligned(&sd->plugins_no));
 	move_on(len, area, sizeof *sd);
 	result = 0;
 	for (i = 0; i < num_of_plugins; ++i) {
@@ -582,7 +585,7 @@ static int present_plugin_sd(struct inode *inode /* object being processed */ ,
 		if (*len < (int)sizeof *slot)
 			return not_enough_space(inode, "additional plugin");
 
-		memb = d16tocpu(&slot->pset_memb);
+		memb = le16_to_cpu(get_unaligned(&slot->pset_memb));
 		type = pset_member_to_type_unsafe(memb);
 		if (type == REISER4_PLUGIN_TYPES) {
 			warning("nikita-3502",
@@ -593,7 +596,7 @@ static int present_plugin_sd(struct inode *inode /* object being processed */ ,
 		plugin = plugin_by_disk_id(tree_by_inode(inode),
 					   type, &slot->id);
 		if (plugin == NULL)
-			return unknown_plugin(d16tocpu(&slot->id), inode);
+			return unknown_plugin(le16_to_cpu(get_unaligned(&slot->id)), inode);
 
 		/* plugin is loaded into inode, mark this into inode's
 		   bitmask of loaded non-standard plugins */
@@ -755,8 +758,8 @@ static int save_plug(reiser4_plugin * plugin /* plugin to save */ ,
 	if (!(reiser4_inode_data(inode)->plugin_mask & (1 << memb)))
 		return 0;
 	slot = (reiser4_plugin_slot *) * area;
-	cputod16(memb, &slot->pset_memb);
-	cputod16((unsigned)plugin->h.id, &slot->id);
+	put_unaligned(cpu_to_le16(memb), &slot->pset_memb);
+	put_unaligned(cpu_to_le16(plugin->h.id), &slot->id);
 	fake_len = (int)0xffff;
 	move_on(&fake_len, area, sizeof *slot);
 	++*count;
@@ -798,7 +801,7 @@ static int save_plugin_sd(struct inode *inode /* object being processed */ ,
 			break;
 	}
 
-	cputod16((unsigned)num_of_plugins, &sd->plugins_no);
+	put_unaligned(cpu_to_le16((__u16)num_of_plugins), &sd->plugins_no);
 	return result;
 }
 
@@ -824,7 +827,7 @@ static int crypto_stat_to_inode(struct inode *inode,
 		return RETERR(-ENOMEM);
 	}
 	/* load inode crypto-stat */
-	stat->keysize = d16tocpu(&sd->keysize);
+	stat->keysize = le16_to_cpu(get_unaligned(&sd->keysize));
 	memcpy(stat->keyid, sd->keyid, (size_t) size);
 	cryptcompress_inode_data(inode)->crypt = stat;
 
@@ -894,7 +897,7 @@ static int save_crypto_sd(struct inode *inode, char **area)
 		assert("edward-15", stat != NULL);
 
 		/* copy everything but private key to the disk stat-data */
-		cputod16(stat->keysize, &sd->keysize);
+		put_unaligned(cpu_to_le16(stat->keysize), &sd->keysize);
 		memcpy(sd->keyid, stat->keyid, (size_t) dplug->dsize);
 		inode_set_flag(inode, REISER4_CRYPTO_STAT_LOADED);
 	} else {

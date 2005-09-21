@@ -104,7 +104,7 @@ typedef enum {
     We declare this as union with second component dummy to suppress
     inconvenient array<->pointer casts implied in C. */
 union reiser4_key {
-	d64 el[KEY_LAST_INDEX];
+	__le64 el[KEY_LAST_INDEX];
 	int pad;
 };
 
@@ -146,7 +146,7 @@ get_key_el(const reiser4_key * key, reiser4_key_field_index off)
 {
 	assert("nikita-753", key != NULL);
 	assert("nikita-754", off < KEY_LAST_INDEX);
-	return d64tocpu(&key->el[off]);
+	return le64_to_cpu(get_unaligned(&key->el[off]));
 }
 
 static inline void
@@ -154,7 +154,7 @@ set_key_el(reiser4_key * key, reiser4_key_field_index off, __u64 value)
 {
 	assert("nikita-755", key != NULL);
 	assert("nikita-756", off < KEY_LAST_INDEX);
-	cputod64(value, &key->el[off]);
+	put_unaligned(cpu_to_le64(value), &key->el[off]);
 }
 
 /* macro to define getter and setter functions for field F with type T */

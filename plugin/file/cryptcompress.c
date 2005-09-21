@@ -739,8 +739,8 @@ static void dc_set_checksum(compression_plugin * cplug, tfm_cluster_t * tc)
 	assert("edward-1311", cplug->checksum != NULL);
 
 	checksum = cplug->checksum(tfm_stream_data(tc, OUTPUT_STREAM), tc->len);
-	cputod32(checksum,
-		 (d32 *) (tfm_stream_data(tc, OUTPUT_STREAM) + tc->len));
+	put_unaligned(cpu_to_le32(checksum),
+		 (d32 *)(tfm_stream_data(tc, OUTPUT_STREAM) + tc->len));
 	tc->len += (int)DC_CHECKSUM_SIZE;
 }
 
@@ -755,13 +755,13 @@ static int dc_check_checksum(compression_plugin * cplug, tfm_cluster_t * tc)
 	if (cplug->
 	    checksum(tfm_stream_data(tc, INPUT_STREAM),
 		     tc->len - (int)DC_CHECKSUM_SIZE) !=
-	    d32tocpu((d32 *) (tfm_stream_data(tc, INPUT_STREAM) + tc->len -
-			      (int)DC_CHECKSUM_SIZE))) {
+	    le32_to_cpu(get_unaligned((d32 *) (tfm_stream_data(tc, INPUT_STREAM) + tc->len -
+			      (int)DC_CHECKSUM_SIZE)))) {
 		warning("edward-156",
 			"bad disk cluster checksum %d, (should be %d)\n",
 			(int)
-			d32tocpu((d32 *) (tfm_stream_data(tc, INPUT_STREAM) +
-					  tc->len - (int)DC_CHECKSUM_SIZE)),
+			le32_to_cpu(get_unaligned((d32 *) (tfm_stream_data(tc, INPUT_STREAM) +
+					  tc->len - (int)DC_CHECKSUM_SIZE))),
 			(int)cplug->checksum(tfm_stream_data(tc, INPUT_STREAM),
 					     tc->len - (int)DC_CHECKSUM_SIZE));
 		return 1;

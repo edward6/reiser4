@@ -262,8 +262,6 @@ void zfree(znode * node /* znode to free */ )
 
 	/* not yet phash_jnode_destroy(ZJNODE(node)); */
 
-	/* poison memory. */
-	ON_DEBUG(memset(node, 0xde, sizeof *node));
 	kmem_cache_free(znode_cache, node);
 }
 

@@ -623,7 +623,7 @@ char *build_inode_onwire(const struct inode *inode, char *start)
 	start += dscale_write(start, get_inode_oid(inode));
 
 	if (REISER4_LARGE_KEY) {
-		cputod64(get_inode_ordering(inode), (d64 *) start);
+		put_unaligned(cpu_to_le64(get_inode_ordering(inode)), (__le64 *)start);
 		start += sizeof(get_inode_ordering(inode));
 	}
 	return start;
@@ -638,9 +638,9 @@ char *extract_obj_key_id_from_onwire(char *addr, obj_key_id * key_id)
 
 	addr += dscale_read(addr, &val);
 	val = (val << KEY_LOCALITY_SHIFT) | KEY_SD_MINOR;
-	cputod64(val, (d64 *) key_id->locality);
+	put_unaligned(cpu_to_le64(val), (__le64 *)key_id->locality);
 	addr += dscale_read(addr, &val);
-	cputod64(val, (d64 *) key_id->objectid);
+	put_unaligned(cpu_to_le64(val), (__le64 *)key_id->objectid);
 #if REISER4_LARGE_KEY
 	memcpy(&key_id->ordering, addr, sizeof key_id->ordering);
 	addr += sizeof key_id->ordering;

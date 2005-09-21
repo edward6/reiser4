@@ -50,67 +50,20 @@ static inline node40_header *node40_node_header(const znode * node	/* node to
 }
 
 /* functions to get/set fields of node40_header */
+#define nh40_get_magic(nh) le32_to_cpu(get_unaligned(&(nh)->magic))
+#define nh40_get_free_space(nh) le16_to_cpu(get_unaligned(&(nh)->free_space))
+#define nh40_get_free_space_start(nh) le16_to_cpu(get_unaligned(&(nh)->free_space_start))
+#define nh40_get_level(nh) get_unaligned(&(nh)->level)
+#define nh40_get_num_items(nh) le16_to_cpu(get_unaligned(&(nh)->nr_items))
+#define nh40_get_flush_id(nh) le64_to_cpu(get_unaligned(&(nh)->flush_id))
 
-static __u32 nh40_get_magic(node40_header * nh)
-{
-	return d32tocpu(&nh->magic);
-}
+#define nh40_set_magic(nh, value) put_unaligned(cpu_to_le32(value), &(nh)->magic)
+#define nh40_set_free_space(nh, value) put_unaligned(cpu_to_le16(value), &(nh)->free_space)
+#define nh40_set_free_space_start(nh, value) put_unaligned(cpu_to_le16(value), &(nh)->free_space_start)
+#define nh40_set_level(nh, value) put_unaligned(value, &(nh)->level)
+#define nh40_set_num_items(nh, value) put_unaligned(cpu_to_le16(value), &(nh)->nr_items)
+#define nh40_set_mkfs_id(nh, value) put_unaligned(cpu_to_le32(value), &(nh)->mkfs_id)
 
-static void nh40_set_magic(node40_header * nh, __u32 magic)
-{
-	cputod32(magic, &nh->magic);
-}
-
-static void nh40_set_free_space(node40_header * nh, unsigned value)
-{
-	cputod16(value, &nh->free_space);
-	/*node->free_space = value; */
-}
-
-static inline unsigned nh40_get_free_space(node40_header * nh)
-{
-	return d16tocpu(&nh->free_space);
-}
-
-static void nh40_set_free_space_start(node40_header * nh, unsigned value)
-{
-	cputod16(value, &nh->free_space_start);
-}
-
-static inline unsigned nh40_get_free_space_start(node40_header * nh)
-{
-	return d16tocpu(&nh->free_space_start);
-}
-
-static inline void nh40_set_level(node40_header * nh, unsigned value)
-{
-	cputod8(value, &nh->level);
-}
-
-static unsigned nh40_get_level(node40_header * nh)
-{
-	return d8tocpu(&nh->level);
-}
-
-static void nh40_set_num_items(node40_header * nh, unsigned value)
-{
-	cputod16(value, &nh->nr_items);
-}
-
-static inline unsigned nh40_get_num_items(node40_header * nh)
-{
-	return d16tocpu(&nh->nr_items);
-}
-
-static void nh40_set_mkfs_id(node40_header * nh, __u32 id)
-{
-	cputod32(id, &nh->mkfs_id);
-}
-
-static inline __u64 nh40_get_flush_id(node40_header * nh)
-{
-	return d64tocpu(&nh->flush_id);
-}
 
 /* plugin field of node header should be read/set by
    plugin_by_disk_id/save_disk_plugin */
@@ -131,15 +84,9 @@ static inline item_header40 *node40_ih_at_coord(const coord_t * coord)
 }
 
 /* functions to get/set fields of item_header40 */
-static void ih40_set_offset(item_header40 * ih, unsigned offset)
-{
-	cputod16(offset, &ih->offset);
-}
+#define ih40_get_offset(ih) le16_to_cpu(get_unaligned(&(ih)->offset))
 
-static inline unsigned ih40_get_offset(item_header40 * ih)
-{
-	return d16tocpu(&ih->offset);
-}
+#define ih40_set_offset(ih, value) put_unaligned(cpu_to_le16(value), &(ih)->offset)
 
 /* plugin field of item header should be read/set by
    plugin_by_disk_id/save_disk_plugin */
@@ -457,7 +404,7 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 
 	if (unlikely(iplug == NULL)) {
 		warning("nikita-588", "Unknown plugin %i",
-			d16tocpu(&bstop->plugin_id));
+			le16_to_cpu(get_unaligned(&bstop->plugin_id)));
 		print_key("key", key);
 		print_znode("node", node);
 		print_coord_content("coord", coord);
@@ -716,12 +663,14 @@ int parse_node40(znode * node /* node to parse */ )
 {
 	node40_header *header;
 	int result;
+	d8 level;
 
 	header = node40_node_header((znode *) node);
 	result = -EIO;
-	if (unlikely(((__u8) znode_get_level(node)) != nh40_get_level(header)))
+	level = nh40_get_level(header);
+	if (unlikely(((__u8) znode_get_level(node)) != level))
 		warning("nikita-494", "Wrong level found in node: %i != %i",
-			znode_get_level(node), nh40_get_level(header));
+			znode_get_level(node), level);
 	else if (unlikely(nh40_get_magic(header) != REISER4_NODE_MAGIC))
 		warning("nikita-495",
 			"Wrong magic in tree node: want %x, got %x",
@@ -2550,7 +2499,7 @@ void *shift_check_prepare(const znode * left, const znode * right)
 			ih = node40_ih_at_coord(&coord);
 
 			data[i].key = ih->key;
-			data[i].plugin_id = d16tocpu(&ih->plugin_id);
+			data[i].plugin_id = le16_to_cpu(get_unaligned(&ih->plugin_id));
 			switch (data[i].plugin_id) {
 			case CTAIL_ID:
 			case FORMATTING_ID:
@@ -2580,7 +2529,7 @@ void *shift_check_prepare(const znode * left, const znode * right)
 
 			assert("vs-1589",
 			       data[i - 1].plugin_id ==
-			       d16tocpu(&ih->plugin_id));
+			       le16_to_cpu(get_unaligned(&ih->plugin_id)));
 			switch (data[i - 1].plugin_id) {
 			case CTAIL_ID:
 			case FORMATTING_ID:
@@ -2610,7 +2559,7 @@ void *shift_check_prepare(const znode * left, const znode * right)
 			ih = node40_ih_at_coord(&coord);
 
 			data[i].key = ih->key;
-			data[i].plugin_id = d16tocpu(&ih->plugin_id);
+			data[i].plugin_id = le16_to_cpu(get_unaligned(&ih->plugin_id));
 			switch (data[i].plugin_id) {
 			case CTAIL_ID:
 			case FORMATTING_ID:
@@ -2678,7 +2627,7 @@ void shift_check(void *vp, const znode * left, const znode * right)
 		assert("vs-1611", i == item_pos);
 		assert("vs-1590", keyeq(&ih->key, &data[i].key));
 		assert("vs-1591",
-		       d16tocpu(&ih->plugin_id) == data[i].plugin_id);
+		       le16_to_cpu(get_unaligned(&ih->plugin_id)) == data[i].plugin_id);
 		if ((i < (node40_num_of_items_internal(left) - 1))
 		    || !mergeable) {
 			switch (data[i].plugin_id) {
@@ -2731,7 +2680,7 @@ void shift_check(void *vp, const znode * left, const znode * right)
 		ih = node40_ih_at_coord(&coord);
 
 		assert("vs-1589",
-		       data[i - 1].plugin_id == d16tocpu(&ih->plugin_id));
+		       data[i - 1].plugin_id == le16_to_cpu(get_unaligned(&ih->plugin_id)));
 		assert("vs-1608", last_bytes != 0);
 		switch (data[i - 1].plugin_id) {
 		case CTAIL_ID:
@@ -2769,7 +2718,7 @@ void shift_check(void *vp, const znode * left, const znode * right)
 
 		assert("vs-1612", keyeq(&ih->key, &data[i].key));
 		assert("vs-1613",
-		       d16tocpu(&ih->plugin_id) == data[i].plugin_id);
+		       le16_to_cpu(get_unaligned(&ih->plugin_id)) == data[i].plugin_id);
 		switch (data[i].plugin_id) {
 		case CTAIL_ID:
 		case FORMATTING_ID:
@@ -2950,12 +2899,12 @@ int max_item_size_node40(void)
 }
 
 /* plugin->u.node.set_item_plugin */
-int set_item_plugin_node40(coord_t * coord, item_id id)
+int set_item_plugin_node40(coord_t *coord, item_id id)
 {
 	item_header40 *ih;
 
 	ih = node40_ih_at_coord(coord);
-	cputod16(id, &ih->plugin_id);
+	put_unaligned(cpu_to_le16(id), &ih->plugin_id);
 	coord->iplugid = id;
 	return 0;
 }

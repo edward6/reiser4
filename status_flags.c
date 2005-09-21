@@ -104,7 +104,7 @@ int reiser4_status_query(u64 * status, u64 * extended)
 	}
 	statuspage = (struct reiser4_status *)
 	    kmap_atomic(get_super_private(sb)->status_page, KM_USER0);
-	switch ((long)d64tocpu(&statuspage->status)) {	// FIXME: this cast is a hack for 32 bit arches to work.
+	switch ((long)le64_to_cpu(get_unaligned(&statuspage->status))) {	// FIXME: this cast is a hack for 32 bit arches to work.
 	case REISER4_STATUS_OK:
 		retval = REISER4_STATUS_MOUNT_OK;
 		break;
@@ -122,9 +122,9 @@ int reiser4_status_query(u64 * status, u64 * extended)
 	}
 
 	if (status)
-		*status = d64tocpu(&statuspage->status);
+		*status = le64_to_cpu(get_unaligned(&statuspage->status));
 	if (extended)
-		*extended = d64tocpu(&statuspage->extended_status);
+		*extended = le64_to_cpu(get_unaligned(&statuspage->extended_status));
 
 	kunmap_atomic((char *)statuspage, KM_USER0);
 	return retval;
@@ -132,7 +132,7 @@ int reiser4_status_query(u64 * status, u64 * extended)
 
 /* This function should be called when something bad happens (e.g. from reiser4_panic).
    It fills the status structure and tries to push it to disk. */
-int reiser4_status_write(u64 status, u64 extended_status, char *message)
+int reiser4_status_write(__u64 status, __u64 extended_status, char *message)
 {
 	struct super_block *sb = reiser4_get_current_sb();
 	struct reiser4_status *statuspage;
@@ -144,28 +144,10 @@ int reiser4_status_write(u64 status, u64 extended_status, char *message)
 	statuspage = (struct reiser4_status *)
 	    kmap_atomic(get_super_private(sb)->status_page, KM_USER0);
 
-	cputod64(status, &statuspage->status);
-	cputod64(extended_status, &statuspage->extended_status);
+	put_unaligned(cpu_to_le64(status), &statuspage->status);
+	put_unaligned(cpu_to_le64(extended_status), &statuspage->extended_status);
 	strncpy(statuspage->texterror, message, REISER4_TEXTERROR_LEN);
 
-#ifdef CONFIG_FRAME_POINTER
-#define GETFRAME(no)						\
-	cputod64((unsigned long)__builtin_return_address(no),	\
-		 &statuspage->stacktrace[no])
-
-	GETFRAME(0);
-	GETFRAME(1);
-	GETFRAME(2);
-	GETFRAME(3);
-	GETFRAME(4);
-	GETFRAME(5);
-	GETFRAME(6);
-	GETFRAME(7);
-	GETFRAME(8);
-	GETFRAME(9);
-
-#undef GETFRAME
-#endif
 	kunmap_atomic((char *)statuspage, KM_USER0);
 	bio->bi_bdev = sb->s_bdev;
 	bio->bi_io_vec[0].bv_page = get_super_private(sb)->status_page;

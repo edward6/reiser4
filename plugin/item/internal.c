@@ -67,14 +67,14 @@ void update_internal(const coord_t * coord, const reiser4_block_nr * blocknr)
 	internal_item_layout *item = internal_at(coord);
 	assert("nikita-2959", reiser4_blocknr_is_sane(blocknr));
 
-	cpu_to_dblock(*blocknr, &item->pointer);
+	put_unaligned(cpu_to_le64(*blocknr), &item->pointer);
 }
 
 /* return child block number stored in the internal item at @coord */
 static reiser4_block_nr pointer_at(const coord_t * coord /* coord of item */ )
 {
 	assert("nikita-608", coord != NULL);
-	return dblock_to_cpu(&internal_at(coord)->pointer);
+	return le64_to_cpu(get_unaligned(&internal_at(coord)->pointer));
 }
 
 /* get znode pointed to by internal @item */

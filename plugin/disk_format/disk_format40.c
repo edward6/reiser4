@@ -30,42 +30,42 @@
 /* functions to access fields of format40_disk_super_block */
 static __u64 get_format40_block_count(const format40_disk_super_block * sb)
 {
-	return d64tocpu(&sb->block_count);
+	return le64_to_cpu(get_unaligned(&sb->block_count));
 }
 
 static __u64 get_format40_free_blocks(const format40_disk_super_block * sb)
 {
-	return d64tocpu(&sb->free_blocks);
+	return le64_to_cpu(get_unaligned(&sb->free_blocks));
 }
 
 static __u64 get_format40_root_block(const format40_disk_super_block * sb)
 {
-	return d64tocpu(&sb->root_block);
+	return le64_to_cpu(get_unaligned(&sb->root_block));
 }
 
 static __u16 get_format40_tree_height(const format40_disk_super_block * sb)
 {
-	return d16tocpu(&sb->tree_height);
+	return le16_to_cpu(get_unaligned(&sb->tree_height));
 }
 
 static __u64 get_format40_file_count(const format40_disk_super_block * sb)
 {
-	return d64tocpu(&sb->file_count);
+	return le64_to_cpu(get_unaligned(&sb->file_count));
 }
 
 static __u64 get_format40_oid(const format40_disk_super_block * sb)
 {
-	return d64tocpu(&sb->oid);
+	return le64_to_cpu(get_unaligned(&sb->oid));
 }
 
 static __u32 get_format40_mkfs_id(const format40_disk_super_block * sb)
 {
-	return d32tocpu(&sb->mkfs_id);
+	return le32_to_cpu(get_unaligned(&sb->mkfs_id));
 }
 
 static __u64 get_format40_flags(const format40_disk_super_block * sb)
 {
-	return d64tocpu(&sb->flags);
+	return le64_to_cpu(get_unaligned(&sb->flags));
 }
 
 static format40_super_info *get_sb_info(struct super_block *super)
@@ -120,10 +120,10 @@ static struct buffer_head *find_a_disk_format40_super_block(struct super_block
 		return ERR_PTR(RETERR(-EINVAL));
 	}
 
-	reiser4_set_block_count(s, d64tocpu(&disk_sb->block_count));
-	reiser4_set_data_blocks(s, d64tocpu(&disk_sb->block_count) -
-				d64tocpu(&disk_sb->free_blocks));
-	reiser4_set_free_blocks(s, (d64tocpu(&disk_sb->free_blocks)));
+	reiser4_set_block_count(s, le64_to_cpu(get_unaligned(&disk_sb->block_count)));
+	reiser4_set_data_blocks(s, le64_to_cpu(get_unaligned(&disk_sb->block_count)) -
+				le64_to_cpu(get_unaligned(&disk_sb->free_blocks)));
+	reiser4_set_free_blocks(s, le64_to_cpu(get_unaligned(&disk_sb->free_blocks)));
 
 	return super_bh;
 }
@@ -436,13 +436,14 @@ static void pack_format40_super(const struct super_block *s, char *data)
 
 	assert("zam-591", data != NULL);
 
-	cputod64(reiser4_free_committed_blocks(s), &super_data->free_blocks);
-	cputod64(sbinfo->tree.root_block, &super_data->root_block);
+	put_unaligned(cpu_to_le64(reiser4_free_committed_blocks(s)),
+		      &super_data->free_blocks);
+	put_unaligned(cpu_to_le64(sbinfo->tree.root_block), &super_data->root_block);
 
-	cputod64(oid_next(s), &super_data->oid);
-	cputod64(oids_used(s), &super_data->file_count);
+	put_unaligned(cpu_to_le64(oid_next(s)), &super_data->oid);
+	put_unaligned(cpu_to_le64(oids_used(s)), &super_data->file_count);
 
-	cputod16(sbinfo->tree.height, &super_data->tree_height);
+	put_unaligned(cpu_to_le16(sbinfo->tree.height), &super_data->tree_height);
 }
 
 /* plugin->u.format.log_super
@@ -507,11 +508,14 @@ const reiser4_key *root_dir_key_format40(const struct super_block *super
 					 UNUSED_ARG)
 {
 	static const reiser4_key FORMAT40_ROOT_DIR_KEY = {
-		.el = {{(FORMAT40_ROOT_LOCALITY << 4) | KEY_SD_MINOR},
+		.el = {
+			cpu_to_le64((FORMAT40_ROOT_LOCALITY << 4) | KEY_SD_MINOR),
 #if REISER4_LARGE_KEY
-		       {0ull},
+			ON_LARGE_KEY(0ull,)
 #endif
-		       {FORMAT40_ROOT_OBJECTID}, {0ull}}
+			cpu_to_le64(FORMAT40_ROOT_OBJECTID),
+			0ull
+		}
 	};
 
 	return &FORMAT40_ROOT_DIR_KEY;

@@ -105,7 +105,7 @@ static inline cde_unit_header *header_at(const coord_t *
 /* return number of units in compound directory item at @coord */
 static int units(const coord_t * coord /* coord of item */ )
 {
-	return d16tocpu(&formatted_at(coord)->num_of_entries);
+	return le16_to_cpu(get_unaligned(&formatted_at(coord)->num_of_entries));
 }
 
 /* return offset of the body of @idx-th entry in @coord */
@@ -113,7 +113,7 @@ static unsigned int offset_of(const coord_t * coord /* coord of item */ ,
 			      int idx /* index of unit */ )
 {
 	if (idx < units(coord))
-		return d16tocpu(&header_at(coord, idx)->offset);
+		return le16_to_cpu(get_unaligned(&header_at(coord, idx)->offset));
 	else if (idx == units(coord))
 		return item_length_by_coord(coord);
 	else
@@ -126,7 +126,7 @@ static void set_offset(const coord_t * coord /* coord of item */ ,
 		       int idx /* index of unit */ ,
 		       unsigned int offset /* new offset */ )
 {
-	cputod16((__u16) offset, &header_at(coord, idx)->offset);
+	put_unaligned(cpu_to_le16((__u16) offset), &header_at(coord, idx)->offset);
 }
 
 static void adj_offset(const coord_t * coord /* coord of item */ ,
@@ -137,9 +137,9 @@ static void adj_offset(const coord_t * coord /* coord of item */ ,
 	__u16 offset;
 
 	doffset = &header_at(coord, idx)->offset;
-	offset = d16tocpu(doffset);
+	offset = le16_to_cpu(get_unaligned(doffset));
 	offset += delta;
-	cputod16((__u16) offset, doffset);
+	put_unaligned(cpu_to_le16((__u16) offset), doffset);
 }
 
 /* return pointer to @offset-th byte from the beginning of @coord */
@@ -270,7 +270,7 @@ static int expand_item(const coord_t * coord /* coord of item */ ,
 
 	/* increase counter */
 	entries += no;
-	cputod16((__u16) entries, &formatted_at(coord)->num_of_entries);
+	put_unaligned(cpu_to_le16((__u16) entries), &formatted_at(coord)->num_of_entries);
 
 	/* [ 0 ... pos ] entries were shifted by no * ( sizeof *header )
 	   bytes.  */
@@ -335,7 +335,7 @@ static int paste_entry(const coord_t * coord /* coord of item */ ,
 	len = entry->name->len;
 	if (is_longname(name, len)) {
 		strcpy((unsigned char *)dent->name, name);
-		cputod8(0, &dent->name[len]);
+		put_unaligned(0, &dent->name[len]);
 	}
 	return 0;
 }
@@ -514,7 +514,7 @@ int init_cde(coord_t * coord /* coord of item */ ,
 	     coord_t * from UNUSED_ARG, reiser4_item_data * data	/* structure used for insertion */
 	     UNUSED_ARG)
 {
-	cputod16(0u, &formatted_at(coord)->num_of_entries);
+	put_unaligned(cpu_to_le16(0), &formatted_at(coord)->num_of_entries);
 	return 0;
 }
 
@@ -815,8 +815,8 @@ int cut_units_cde(coord_t * coord /* coord of item */ ,
 	for (i = from; i < units(coord) - (int)count; ++i)
 		adj_offset(coord, i, -header_delta - entry_delta);
 
-	cputod16((__u16) units(coord) - count,
-		 &formatted_at(coord)->num_of_entries);
+	put_unaligned(cpu_to_le16((__u16) units(coord) - count),
+		      &formatted_at(coord)->num_of_entries);
 
 	if (from == 0) {
 		/* entries from head was removed - move remaining to right */

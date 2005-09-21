@@ -254,7 +254,7 @@ int is_plugin_id_valid(reiser4_plugin_type type_id /* plugin type id */ ,
 		       reiser4_plugin_id id /* plugin id */ )
 {
 	assert("nikita-1653", is_type_id_valid(type_id));
-	return ((id < plugins[type_id].builtin_num) && (id >= 0));
+	return id < plugins[type_id].builtin_num;
 }
 
 /* lookup plugin by scanning tables */
@@ -304,14 +304,20 @@ reiser4_plugin *plugin_by_unsafe_id(reiser4_plugin_type type_id	/* plugin
 	return NULL;
 }
 
-/* convert plugin id to the disk format */
-int save_plugin_id(reiser4_plugin * plugin /* plugin to convert */ ,
-		   d16 * area /* where to store result */ )
+/**
+ * save_plugin_id - store plugin id in disk format
+ * @plugin: plugin to convert
+ * @area: where to store result
+ *
+ * Puts id of @plugin in little endian format to address @area.
+ */
+int save_plugin_id(reiser4_plugin *plugin /* plugin to convert */ ,
+		   d16 *area /* where to store result */ )
 {
 	assert("nikita-1261", plugin != NULL);
 	assert("nikita-1262", area != NULL);
 
-	cputod16((__u16) plugin->h.id, area);
+	put_unaligned(cpu_to_le16(plugin->h.id), area);
 	return 0;
 }
 

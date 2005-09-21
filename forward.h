@@ -6,6 +6,7 @@
 #define __REISER4_FORWARD_H__
 
 #include <asm/errno.h>
+#include <linux/types.h>
 
 typedef struct zlock zlock;
 typedef struct lock_stack lock_stack;
@@ -18,12 +19,11 @@ typedef struct item_coord item_coord;
 typedef struct shift_params shift_params;
 typedef struct reiser4_object_create_data reiser4_object_create_data;
 typedef union reiser4_plugin reiser4_plugin;
-typedef int reiser4_plugin_id;
+typedef __u16 reiser4_plugin_id;
 typedef struct item_plugin item_plugin;
 typedef struct jnode_plugin jnode_plugin;
 typedef struct reiser4_item_data reiser4_item_data;
 typedef union reiser4_key reiser4_key;
-typedef union reiser4_dblock_nr reiser4_dblock_nr;
 typedef struct reiser4_tree reiser4_tree;
 typedef struct carry_cut_data carry_cut_data;
 typedef struct carry_kill_data carry_kill_data;
@@ -242,6 +242,8 @@ typedef enum {
 	OVRWR_LIST,
 	PROTECT_LIST
 } atom_list;
+
+
 
 /* __REISER4_FORWARD_H__ */
 #endif

@@ -131,7 +131,7 @@ int add_entry_de(struct inode *dir /* directory of item */ ,
 	build_inode_key_id(entry->obj, &dent->id);
 	if (longname) {
 		memcpy(dent->name, name, len);
-		cputod8(0, &dent->name[len]);
+		put_unaligned(0, &dent->name[len]);
 	}
 	return 0;
 }

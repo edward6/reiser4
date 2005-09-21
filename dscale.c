@@ -104,7 +104,7 @@ int dscale_read(unsigned char *address, __u64 * value)
 	case 3:
 		/* In this case tag is stored in an extra byte, skip this byte
 		 * and decode value stored in the next 8 bytes.*/
-		*value = __be64_to_cpu(get_unaligned((__u64 *) (address + 1)));
+		*value = __be64_to_cpu(get_unaligned((__be64 *)(address + 1)));
 		/* worst case: 8 bytes for value itself plus one byte for
 		 * tag. */
 		return 9;
@@ -112,10 +112,10 @@ int dscale_read(unsigned char *address, __u64 * value)
 		*value = get_unaligned(address);
 		break;
 	case 1:
-		*value = __be16_to_cpu(get_unaligned((__u16 *) address));
+		*value = __be16_to_cpu(get_unaligned((__be16 *)address));
 		break;
 	case 2:
-		*value = __be32_to_cpu(get_unaligned((__u32 *) address));
+		*value = __be32_to_cpu(get_unaligned((__be32 *)address));
 		break;
 	default:
 		return RETERR(-EIO);
@@ -131,13 +131,14 @@ int dscale_write(unsigned char *address, __u64 value)
 {
 	int tag;
 	int shift;
+	__be64 v;
 	unsigned char *valarr;
 
 	tag = dscale_range(value);
-	value = __cpu_to_be64(value);
-	valarr = (unsigned char *)&value;
+	v = __cpu_to_be64(value);
+	valarr = (unsigned char *)&v;
 	shift = (tag == 3) ? 1 : 0;
-	memcpy(address + shift, valarr + sizeof value - (1 << tag), 1 << tag);
+	memcpy(address + shift, valarr + sizeof v - (1 << tag), 1 << tag);
 	*address |= (tag << 6);
 	return shift + (1 << tag);
 }

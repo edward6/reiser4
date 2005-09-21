@@ -552,7 +552,7 @@ int init_read_super(struct super_block *super, int silent)
 	if (!strncmp(master_sb->magic, REISER4_SUPER_MAGIC_STRING,
 		     sizeof(REISER4_SUPER_MAGIC_STRING))) {
 		/* reiser4 master super block contains filesystem blocksize */
-		blocksize = d16tocpu(&master_sb->blocksize);
+		blocksize = le16_to_cpu(get_unaligned(&master_sb->blocksize));
 
 		if (blocksize != PAGE_CACHE_SIZE) {
 			/*
@@ -577,17 +577,19 @@ int init_read_super(struct super_block *super, int silent)
 			goto read_super_block;
 		}
 
-		sbinfo->df_plug = disk_format_plugin_by_id(d16tocpu(&master_sb->disk_plugin_id));
+		sbinfo->df_plug =
+			disk_format_plugin_by_id(
+				le16_to_cpu(get_unaligned(&master_sb->disk_plugin_id)));
 		if (sbinfo->df_plug == NULL) {
 			if (!silent)
 				warning("nikita-26091",
 					"%s: unknown disk format plugin %d\n",
 					super->s_id,
-					d16tocpu(&master_sb->disk_plugin_id));
+					le16_to_cpu(get_unaligned(&master_sb->disk_plugin_id)));
 			brelse(super_bh);
 			return RETERR(-EINVAL);
 		}
-		sbinfo->diskmap_block = d64tocpu(&master_sb->diskmap);
+		sbinfo->diskmap_block = le64_to_cpu(get_unaligned(&master_sb->diskmap));
 		brelse(super_bh);
 		return 0;
 	}

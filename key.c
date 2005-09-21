@@ -13,10 +13,10 @@
    independent of key scheme. */
 static const reiser4_key MINIMAL_KEY = {
 	.el = {
-		{0ull},
-		ON_LARGE_KEY({0ull},)
-		{0ull},
-		{0ull}
+		0ull,
+		ON_LARGE_KEY(0ull,)
+		0ull,
+		0ull
 	}
 };
 
@@ -24,14 +24,14 @@ static const reiser4_key MINIMAL_KEY = {
    independent of key scheme. */
 static const reiser4_key MAXIMAL_KEY = {
 	.el = {
-		{~0ull},
-		ON_LARGE_KEY({~0ull},)
-		{~0ull},
-		{~0ull}
+		cpu_to_le64(~0ull),
+		ON_LARGE_KEY(cpu_to_le64(~0ull),)
+		cpu_to_le64(~0ull),
+		cpu_to_le64(~0ull)
 	}
 };
 
-/* Initialise key. */
+/* Initialize key. */
 void reiser4_key_init(reiser4_key * key /* key to init */ )
 {
 	assert("nikita-1169", key != NULL);

@@ -110,7 +110,7 @@ static inline __u32 bnode_commit_crc(const struct bitmap_node *bnode)
 	data = jdata(bnode->cjnode);
 	assert("vpf-261", data != NULL);
 
-	return d32tocpu((d32 *) data);
+	return le32_to_cpu(get_unaligned((d32 *)data));
 }
 
 static inline void bnode_set_commit_crc(struct bitmap_node *bnode, __u32 crc)
@@ -120,7 +120,7 @@ static inline void bnode_set_commit_crc(struct bitmap_node *bnode, __u32 crc)
 	data = jdata(bnode->cjnode);
 	assert("vpf-261", data != NULL);
 
-	cputod32(crc, (d32 *) data);
+	put_unaligned(cpu_to_le32(crc), (d32 *)data);
 }
 
 /* ZAM-FIXME-HANS: is the idea that this might be a union someday? having

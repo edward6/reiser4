@@ -168,7 +168,7 @@ int safe_link_add(struct inode *inode, reiser4_safe_link_t link)
 		 * expand item.
 		 */
 		length += sizeof(sl.size);
-		cputod64(inode->i_size, &sl.size);
+		put_unaligned(cpu_to_le64(inode->i_size), &sl.size);
 	}
 	tree = tree_by_inode(inode);
 	build_link_key(tree, get_inode_oid(inode), link, &key);
@@ -229,7 +229,7 @@ static int safe_link_iter_next(safe_link_context * ctx)
 		ctx->link = get_key_offset(&ctx->key);
 		ctx->sdkey = sl.sdkey;
 		if (ctx->link == SAFE_TRUNCATE)
-			ctx->size = d64tocpu(&sl.size);
+			ctx->size = le64_to_cpu(get_unaligned(&sl.size));
 	}
 	return result;
 }

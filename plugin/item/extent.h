@@ -44,12 +44,12 @@ typedef struct {
 /* macros to set/get fields of on-disk extent */
 static inline reiser4_block_nr extent_get_start(const reiser4_extent * ext)
 {
-	return dblock_to_cpu(&ext->start);
+	return le64_to_cpu(ext->start);
 }
 
 static inline reiser4_block_nr extent_get_width(const reiser4_extent * ext)
 {
-	return dblock_to_cpu(&ext->width);
+	return le64_to_cpu(ext->width);
 }
 
 extern __u64 reiser4_current_block_count(void);
@@ -60,17 +60,17 @@ extent_set_start(reiser4_extent * ext, reiser4_block_nr start)
 	cassert(sizeof(ext->start) == 8);
 	assert("nikita-2510",
 	       ergo(start > 1, start < reiser4_current_block_count()));
-	cpu_to_dblock(start, &ext->start);
+	put_unaligned(cpu_to_le64(start), &ext->start);
 }
 
 static inline void
 extent_set_width(reiser4_extent * ext, reiser4_block_nr width)
 {
 	cassert(sizeof(ext->width) == 8);
-	cpu_to_dblock(width, &ext->width);
+	put_unaligned(cpu_to_le64(width), &ext->width);
 	assert("nikita-2511",
 	       ergo(extent_get_start(ext) > 1,
-		    extent_get_start(ext) + width <=
+		    extent_get_start(ext) + width <= 
 		    reiser4_current_block_count()));
 }
 

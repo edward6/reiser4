@@ -102,34 +102,35 @@ static inline reiser4_plugin *plugin_by_id(reiser4_plugin_type type_id
 extern reiser4_plugin *plugin_by_unsafe_id(reiser4_plugin_type type_id,
 					   reiser4_plugin_id id);
 
-/* get plugin whose id is stored in disk format */
-static inline reiser4_plugin *plugin_by_disk_id(reiser4_tree * tree UNUSED_ARG	/* tree,
-										 * plugin
-										 * belongs
-										 * to */ ,
-						reiser4_plugin_type type_id	/* plugin type
-										 * id */ ,
-						d16 *
-						did
-						/* plugin id in disk format */ )
+/**
+ * plugin_by_disk_id - get reiser4_plugin
+ * @type_id: plugin type id
+ * @did: plugin id in disk format
+ *
+ * Returns reiser4_plugin by plugin type id an dplugin_id.
+ */
+static inline reiser4_plugin *plugin_by_disk_id(reiser4_tree * tree UNUSED_ARG,
+						reiser4_plugin_type type_id,
+						__le16 *plugin_id)
 {
-	/* what we should do properly is to maintain within each
-	   file-system a dictionary that maps on-disk plugin ids to
-	   "universal" ids. This dictionary will be resolved on mount
-	   time, so that this function will perform just one additional
-	   array lookup. */
-	return plugin_by_unsafe_id(type_id, d16tocpu(did));
+	/*
+	 * what we should do properly is to maintain within each file-system a
+	 * dictionary that maps on-disk plugin ids to "universal" ids. This
+	 * dictionary will be resolved on mount time, so that this function
+	 * will perform just one additional array lookup.
+	 */
+	return plugin_by_unsafe_id(type_id, le16_to_cpu(*plugin_id));
 }
 
 /* __PLUGIN_HEADER_H__ */
 #endif
 
-/* Make Linus happy.
-   Local variables:
-   c-indentation-style: "K&R"
-   mode-name: "LC"
-   c-basic-offset: 8
-   tab-width: 8
-   fill-column: 120
-   End:
-*/
+/*
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 79
+ * End:
+ */

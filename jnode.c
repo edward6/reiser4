@@ -308,8 +308,6 @@ inline void jfree(jnode * node)
 
 	/* not yet phash_jnode_destroy(node); */
 
-	/* poison memory. */
-	ON_DEBUG(memset(node, 0xad, sizeof *node));
 	kmem_cache_free(_jnode_slab, node);
 }
 
@@ -845,7 +843,7 @@ static void check_jload(jnode * node, struct page *page)
 			/* this only works for node40-only file systems. For
 			 * debugging. */
 			assert("nikita-3253",
-			       z->nr_items == d16tocpu(&nh->nr_items));
+			       z->nr_items == le16_to_cpu(get_unaligned(&nh->nr_items)));
 			kunmap(page);
 		}
 		assert("nikita-3565", znode_invariant(z));
