@@ -173,7 +173,7 @@ static int entd(void *arg)
 		{
 			DEFINE_WAIT(__wait);
 
-			for (;;) {
+			do {
 				prepare_to_wait(&ent->wait, &__wait, TASK_INTERRUPTIBLE);
 				if (kthread_should_stop()) {
 					done = 1;
@@ -182,7 +182,7 @@ static int entd(void *arg)
 				if (ent->nr_all_requests != 0)
 					break;
 				schedule();
-			}
+			} while (0);
 			finish_wait(&ent->wait, &__wait);
 		}
 	}
