@@ -2995,8 +2995,17 @@ int delete_object_unix_file(struct inode *inode)
 	return delete_object_common(inode);
 }
 
-/* Reads @count bytes from @file and calls @actor for every page read. This is
-   needed for loop back devices support. */
+/**
+ * sendfile_unix_file - sendfile of struct file_operations
+ * @file: file to be sent
+ * @ppos: position to start from
+ * @count: number of bytes to send
+ * @actor: function to copy data
+ * @target: where to copy read data
+ *
+ * Reads @count bytes from @file and calls @actor for every page read. This is
+ * needed for loop back devices support.
+ */
 ssize_t
 sendfile_unix_file(struct file *file, loff_t *ppos, size_t count,
 		   read_actor_t actor, void *target)
@@ -3010,6 +3019,17 @@ sendfile_unix_file(struct file *file, loff_t *ppos, size_t count,
 	ctx = init_context(inode->i_sb);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
+
+	/*
+	 * generic_file_sndfile may want to call update_atime. Grab space for
+	 * stat data update
+	 */
+	result = reiser4_grab_space(estimate_update_common(inode),
+				    BA_CAN_COMMIT);
+	if (result) {
+		reiser4_exit_context(ctx);
+		return result;
+	}
 
 	down(&inode->i_sem);
 	inode_set_flag(inode, REISER4_HAS_MMAP);
