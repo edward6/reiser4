@@ -3026,11 +3026,8 @@ sendfile_unix_file(struct file *file, loff_t *ppos, size_t count,
 	 */
 	result = reiser4_grab_space(estimate_update_common(inode),
 				    BA_CAN_COMMIT);
-	if (result) {
-		reiser4_exit_context(ctx);
-		return result;
-	}
-
+	if (result)
+		goto error;
 	down(&inode->i_sem);
 	inode_set_flag(inode, REISER4_HAS_MMAP);
 	up(&inode->i_sem);
@@ -3039,6 +3036,7 @@ sendfile_unix_file(struct file *file, loff_t *ppos, size_t count,
 	get_nonexclusive_access(uf_info, 0);
 	result = generic_file_sendfile(file, ppos, count, actor, target);
 	drop_nonexclusive_access(uf_info);
+ error:
 	reiser4_exit_context(ctx);
 	return result;
 }
