@@ -426,7 +426,7 @@ static inline int check_deadlock_condition(znode * node)
 }
 
 /* checks lock/request compatibility */
-static int check_lock_object(lock_stack * owner)
+static int can_lock_object(lock_stack * owner)
 {
 	znode *node = owner->request.node;
 
@@ -450,15 +450,6 @@ static int check_lock_object(lock_stack * owner)
 	}
 
 	return 0;
-}
-
-/* check for lock/request compatibility and update tree statistics */
-static int can_lock_object(lock_stack * owner)
-{
-	int result;
-
-	result = check_lock_object(owner);
-	return result;
 }
 
 /* Setting of a high priority to the process. It clears "signaled" flags
