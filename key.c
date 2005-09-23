@@ -24,10 +24,10 @@ static const reiser4_key MINIMAL_KEY = {
    independent of key scheme. */
 static const reiser4_key MAXIMAL_KEY = {
 	.el = {
-		cpu_to_le64(~0ull),
-		ON_LARGE_KEY(cpu_to_le64(~0ull),)
-		cpu_to_le64(~0ull),
-		cpu_to_le64(~0ull)
+		__constant_cpu_to_le64(~0ull),
+		ON_LARGE_KEY(__constant_cpu_to_le64(~0ull),)
+		__constant_cpu_to_le64(~0ull),
+		__constant_cpu_to_le64(~0ull)
 	}
 };
 
