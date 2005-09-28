@@ -238,7 +238,7 @@ int create_hook_internal(const coord_t * item /* coord of item */ ,
 	assert("nikita-1450", item->unit_pos == 0);
 
 	child = znode_at(item, item->node);
-	if (!IS_ERR(child)) {
+	if (child != NULL && !IS_ERR(child)) {
 		znode *left;
 		int result = 0;
 		reiser4_tree *tree;
@@ -264,8 +264,11 @@ int create_hook_internal(const coord_t * item /* coord of item */ ,
 		WUNLOCK_TREE(tree);
 		zput(child);
 		return result;
-	} else
+	} else {
+		if (child == NULL)
+			child = ERR_PTR(-EIO);
 		return PTR_ERR(child);
+	}
 }
 
 /* hook called by ->cut_and_kill() method of node plugin just before internal
