@@ -299,8 +299,7 @@ void blocknr_set_merge(blocknr_set * from, blocknr_set * into)
 	}
 
 	/* Splice lists together. */
-	list_splice(&from->entries, &into->entries);
-	INIT_LIST_HEAD(&from->entries);
+	list_splice_init(&from->entries, into->entries.prev);
 
 	/* Add the partial entry back to the head of the list. */
 	if (bse_into != NULL) {

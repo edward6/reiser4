@@ -452,8 +452,7 @@ unprotect_extent_nodes(flush_pos_t *flush_pos, __u64 count,
 
 	/* move back to dirty list */
 	protected_list_split(protected_nodes, &unprotected_nodes, node);
-	list_splice(&unprotected_nodes, ATOM_DIRTY_LIST(atom, LEAF_LEVEL));
-	INIT_LIST_HEAD(&unprotected_nodes);
+	list_splice_init(&unprotected_nodes, ATOM_DIRTY_LIST(atom, LEAF_LEVEL)->prev);
 
 	UNLOCK_ATOM(atom);
 }
@@ -726,8 +725,7 @@ assign_real_blocknrs(flush_pos_t *flush_pos, reiser4_block_nr first,
 		i++;
 	}
 
-	list_splice(protected_nodes, ATOM_FQ_LIST(fq));
-	INIT_LIST_HEAD(protected_nodes);
+	list_splice_init(protected_nodes, ATOM_FQ_LIST(fq)->prev);
 
 	assert("vs-1687", count == i);
 	if (state == UNALLOCATED_EXTENT)
@@ -800,8 +798,7 @@ static void mark_jnodes_overwrite(flush_pos_t *flush_pos, oid_t oid,
 		atomic_dec(&node->x_count);
 	}
 
-	list_splice(&jnodes, ATOM_OVRWR_LIST(atom));
-	INIT_LIST_HEAD(&jnodes);
+	list_splice_init(&jnodes, ATOM_OVRWR_LIST(atom)->prev);
 	UNLOCK_ATOM(atom);
 }
 
