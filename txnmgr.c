@@ -3436,7 +3436,7 @@ static void capture_fuse_into(txn_atom * small, txn_atom * large)
 	}
 	/* Splice the lists of lists. */
 	list_splice_init(&small->protected, large->protected.prev);
-	
+
 	/* Check our accounting. */
 	assert("jmacd-1063",
 	       zcount + small->num_queued == small->capture_count);

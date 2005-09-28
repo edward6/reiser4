@@ -80,7 +80,7 @@ static int ktxnmgrd(void *arg)
 			prepare_to_wait(&ctx->wait, &__wait, TASK_INTERRUPTIBLE);
 			if (kthread_should_stop()) {
 				done = 1;
-			} else 
+			} else
 				schedule_timeout(ctx->timeout);
 			finish_wait(&ctx->wait, &__wait);
 		}

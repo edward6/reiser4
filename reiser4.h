@@ -97,7 +97,7 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 #define REISER4_USE_ENTD (1)
 
 /* Using of emergency flush is an option. */
-#define REISER4_USE_EFLUSH (1)
+#define REISER4_USE_EFLUSH (0)
 
 /* key allocation is Plan-A */
 #define REISER4_PLANA_KEY_ALLOCATION (1)
