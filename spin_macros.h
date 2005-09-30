@@ -82,8 +82,6 @@ typedef struct reiser4_rw_data {
 static inline void spin_ ## NAME ## _init(TYPE *x)				\
 {										\
 	__ODCA("nikita-2987", x != NULL);					\
-	cassert(sizeof(x->FIELD) != 0);						\
-	memset(& x->FIELD, 0, sizeof x->FIELD);					\
 	spin_lock_init(& x->FIELD.lock);					\
 }										\
 										\
@@ -236,7 +234,6 @@ typedef struct { int foo; } NAME ## _spin_dummy
 static inline void rw_ ## NAME ## _init(TYPE *x)				\
 {										\
 	__ODCA("nikita-2988", x != NULL);					\
-	memset(& x->FIELD, 0, sizeof x->FIELD);					\
 	rwlock_init(& x->FIELD.lock);						\
 }										\
 										\
