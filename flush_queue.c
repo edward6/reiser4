@@ -377,9 +377,7 @@ void fuse_fq(txn_atom *to, txn_atom *from)
 		spin_unlock_fq(fq);
 	}
 
-	list_splice(&from->flush_queues, &to->flush_queues);
-	INIT_LIST_HEAD(&from->flush_queues);
-
+	list_splice_init(&from->flush_queues, to->flush_queues.prev);
 
 #if REISER4_DEBUG
 	to->num_queued += from->num_queued;

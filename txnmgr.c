@@ -3344,9 +3344,7 @@ capture_fuse_jnode_lists(txn_atom *large, struct list_head *large_head,
 	}
 
 	/* Splice the lists. */
-	list_splice(small_head, large_head);
-	/* list_splice does not clean small_head */
-	INIT_LIST_HEAD(small_head);
+	list_splice_init(small_head, large_head->prev);
 
 	return count;
 }
@@ -3373,9 +3371,7 @@ capture_fuse_txnh_lists(txn_atom *large, struct list_head *large_head,
 	}
 
 	/* Splice the txn_handle list. */
-	list_splice(small_head, large_head);
-	/* list_splice does not clean small_head */
-	INIT_LIST_HEAD(small_head);
+	list_splice_init(small_head, large_head->prev);
 
 	return count;
 }
@@ -3439,11 +3435,7 @@ static void capture_fuse_into(txn_atom * small, txn_atom * large)
 		}
 	}
 	/* Splice the lists of lists. */
-	list_splice(&small->protected, &large->protected);
-	/* list_splice does not clean &small->protected */
-	if (!list_empty(&small->protected))
-		warning("XXX", "list-splice does not clean list");
-	INIT_LIST_HEAD(&small->protected);
+	list_splice_init(&small->protected, large->protected.prev);
 
 	/* Check our accounting. */
 	assert("jmacd-1063",

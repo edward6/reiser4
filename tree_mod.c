@@ -208,7 +208,12 @@ void build_child_ptr_data(znode * child	/* node pointer to which will be
 	assert("nikita-1116", child != NULL);
 	assert("nikita-1117", data != NULL);
 
-	/* this is subtle assignment to meditate upon */
+	/*
+	 * NOTE: use address of child's blocknr as address of data to be
+	 * inserted. As result of this data gets into on-disk structure in cpu
+	 * byte order. internal's create_hook converts it to little endian byte
+	 * order.
+	 */
 	data->data = (char *)znode_get_block(child);
 	/* data -> data is kernel space */
 	data->user = 0;

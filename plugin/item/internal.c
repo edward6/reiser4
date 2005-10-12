@@ -231,14 +231,25 @@ int create_hook_internal(const coord_t * item /* coord of item */ ,
 			 void *arg /* child's left neighbor, if any */ )
 {
 	znode *child;
+	__u64 child_ptr;
 
 	assert("nikita-1252", item != NULL);
 	assert("nikita-1253", item->node != NULL);
 	assert("nikita-1181", znode_get_level(item->node) > LEAF_LEVEL);
 	assert("nikita-1450", item->unit_pos == 0);
 
+	/*
+	 * preparing to item insertion build_child_ptr_data sets pointer to
+	 * data to be inserted to jnode's blocknr which is in cpu byte
+	 * order. Node's create_item simply copied those data. As result we
+	 * have child pointer in cpu's byte order. Convert content of internal
+	 * item to little endian byte order.
+	 */
+	child_ptr = get_unaligned((__u64 *)item_body_by_coord(item));
+	update_internal(item, &child_ptr);
+
 	child = znode_at(item, item->node);
-	if (!IS_ERR(child)) {
+	if (child != NULL && !IS_ERR(child)) {
 		znode *left;
 		int result = 0;
 		reiser4_tree *tree;
@@ -264,8 +275,11 @@ int create_hook_internal(const coord_t * item /* coord of item */ ,
 		WUNLOCK_TREE(tree);
 		zput(child);
 		return result;
-	} else
+	} else {
+		if (child == NULL)
+			child = ERR_PTR(-EIO);
 		return PTR_ERR(child);
+	}
 }
 
 /* hook called by ->cut_and_kill() method of node plugin just before internal

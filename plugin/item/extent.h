@@ -70,7 +70,7 @@ extent_set_width(reiser4_extent * ext, reiser4_block_nr width)
 	put_unaligned(cpu_to_le64(width), &ext->width);
 	assert("nikita-2511",
 	       ergo(extent_get_start(ext) > 1,
-		    extent_get_start(ext) + width <= 
+		    extent_get_start(ext) + width <=
 		    reiser4_current_block_count()));
 }
 
