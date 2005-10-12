@@ -34,6 +34,7 @@ struct zlock {
 	unsigned nr_hipri_requests;
 	/* A linked list of lock_handle objects that contains pointers
 	   for all lock_stacks which have this lock object locked */
+	unsigned nr_hipri_write_requests;
 	struct list_head owners;
 	/* A linked list of lock_stacks that wait for this lock */
 	struct list_head requestors;
