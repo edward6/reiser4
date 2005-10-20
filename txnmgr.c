@@ -344,10 +344,8 @@ void init_txnmgr(txn_mgr *mgr)
 
 	mgr->atom_count = 0;
 	mgr->id_count = 1;
-
 	INIT_LIST_HEAD(&mgr->atoms_list);
-	spin_txnmgr_init(mgr);
-
+	spin_lock_init(&mgr->tmgr_lock);
 	sema_init(&mgr->commit_semaphore, 1);
 }
 
@@ -373,9 +371,7 @@ static void txnh_init(txn_handle * txnh, txn_mode mode)
 	txnh->mode = mode;
 	txnh->atom = NULL;
 	txnh->flags = 0;
-
-	spin_txnh_init(txnh);
-
+	spin_lock_init(&txnh->hlock);
 	INIT_LIST_HEAD(&txnh->txnh_link);
 }
 
@@ -384,7 +380,8 @@ static void txnh_init(txn_handle * txnh, txn_mode mode)
 static int txnh_isclean(txn_handle * txnh)
 {
 	assert("umka-172", txnh != NULL);
-	return txnh->atom == NULL && spin_txnh_is_not_locked(txnh);
+	return txnh->atom == NULL &&
+		LOCK_CNT_NIL(spin_locked_txnh);
 }
 #endif
 
@@ -407,7 +404,7 @@ static void atom_init(txn_atom * atom)
 	INIT_LIST_HEAD(ATOM_OVRWR_LIST(atom));
 	INIT_LIST_HEAD(ATOM_WB_LIST(atom));
 	INIT_LIST_HEAD(&atom->inodes);
-	spin_atom_init(atom);
+	spin_lock_init(&atom->alock);
 	/* list of transaction handles */
 	INIT_LIST_HEAD(&atom->txnh_list);
 	/* link to transaction manager's list of atoms */
@@ -524,10 +521,10 @@ static txn_atom *txnh_get_atom(txn_handle * txnh)
 	txn_atom *atom;
 
 	assert("umka-180", txnh != NULL);
-	assert("jmacd-5108", spin_txnh_is_not_locked(txnh));
+	assert_spin_not_locked(&(txnh->hlock));
 
 	while (1) {
-		LOCK_TXNH(txnh);
+		spin_lock_txnh(txnh);
 		atom = txnh->atom;
 
 		if (atom == NULL)
@@ -538,16 +535,16 @@ static txn_atom *txnh_get_atom(txn_handle * txnh)
 
 		atomic_inc(&atom->refcount);
 
-		UNLOCK_TXNH(txnh);
-		LOCK_ATOM(atom);
-		LOCK_TXNH(txnh);
+		spin_unlock_txnh(txnh);
+		spin_lock_atom(atom);
+		spin_lock_txnh(txnh);
 
 		if (txnh->atom == atom) {
 			atomic_dec(&atom->refcount);
 			break;
 		}
 
-		UNLOCK_TXNH(txnh);
+		spin_unlock_txnh(txnh);
 		atom_dec_and_unlock(atom);
 	}
 
@@ -569,7 +566,7 @@ txn_atom *get_current_atom_locked_nocheck(void)
 
 	atom = txnh_get_atom(txnh);
 
-	UNLOCK_TXNH(txnh);
+	spin_unlock_txnh(txnh);
 	return atom;
 }
 
@@ -584,7 +581,7 @@ txn_atom *jnode_get_atom(jnode * node)
 	assert("umka-181", node != NULL);
 
 	while (1) {
-		assert("jmacd-5108", spin_jnode_is_locked(node));
+		assert_spin_locked(&(node->guard));
 
 		atom = node->atom;
 		/* node is not in any atom */
@@ -598,11 +595,11 @@ txn_atom *jnode_get_atom(jnode * node)
 		/* At least one jnode belongs to this atom it guarantees that
 		 * atom->refcount > 0, we can safely increment refcount. */
 		atomic_inc(&atom->refcount);
-		UNLOCK_JNODE(node);
+		spin_unlock_jnode(node);
 
 		/* re-acquire spin locks in the right order */
-		LOCK_ATOM(atom);
-		LOCK_JNODE(node);
+		spin_lock_atom(atom);
+		spin_lock_jnode(node);
 
 		/* check if node still points to the same atom. */
 		if (node->atom == atom) {
@@ -612,7 +609,7 @@ txn_atom *jnode_get_atom(jnode * node)
 
 		/* releasing of atom lock and reference requires not holding
 		 * locks on jnodes.  */
-		UNLOCK_JNODE(node);
+		spin_unlock_jnode(node);
 
 		/* We do not sure that this atom has extra references except our
 		 * one, so we should call proper function which may free atom if
@@ -621,7 +618,7 @@ txn_atom *jnode_get_atom(jnode * node)
 
 		/* lock jnode again for getting valid node->atom pointer
 		 * value. */
-		LOCK_JNODE(node);
+		spin_lock_jnode(node);
 	}
 
 	return atom;
@@ -650,14 +647,14 @@ same_slum_check(jnode * node, jnode * check, int alloc_check, int alloc_value)
 	   check->atom) because atom could be locked and being fused at that
 	   moment, jnodes of the atom of that state (being fused) can point to
 	   different objects, but the atom is the same. */
-	LOCK_JNODE(check);
+	spin_lock_jnode(check);
 
 	atom = jnode_get_atom(check);
 
 	if (atom == NULL) {
 		compat = 0;
 	} else {
-		compat = (node->atom == atom && jnode_is_dirty(check));
+		compat = (node->atom == atom && JF_ISSET(check, JNODE_DIRTY));
 
 		if (compat && jnode_is_znode(check)) {
 			compat &= znode_is_connected(JZNODE(check));
@@ -667,10 +664,10 @@ same_slum_check(jnode * node, jnode * check, int alloc_check, int alloc_value)
 			compat &= (alloc_value == jnode_is_flushprepped(check));
 		}
 
-		UNLOCK_ATOM(atom);
+		spin_unlock_atom(atom);
 	}
 
-	UNLOCK_JNODE(check);
+	spin_unlock_jnode(check);
 
 	return compat;
 }
@@ -681,7 +678,7 @@ void atom_dec_and_unlock(txn_atom * atom)
 	txn_mgr *mgr = &get_super_private(reiser4_get_current_sb())->tmgr;
 
 	assert("umka-186", atom != NULL);
-	assert("jmacd-1071", spin_atom_is_locked(atom));
+	assert_spin_locked(&(atom->alock));
 	assert("zam-1039", atomic_read(&atom->refcount) > 0);
 
 	if (atomic_dec_and_test(&atom->refcount)) {
@@ -690,21 +687,21 @@ void atom_dec_and_unlock(txn_atom * atom)
 			/* This atom should exist after we re-acquire its
 			 * spinlock, so we increment its reference counter. */
 			atomic_inc(&atom->refcount);
-			UNLOCK_ATOM(atom);
+			spin_unlock_atom(atom);
 			spin_lock_txnmgr(mgr);
-			LOCK_ATOM(atom);
+			spin_lock_atom(atom);
 
 			if (!atomic_dec_and_test(&atom->refcount)) {
-				UNLOCK_ATOM(atom);
+				spin_unlock_atom(atom);
 				spin_unlock_txnmgr(mgr);
 				return;
 			}
 		}
-		assert("nikita-2656", spin_txnmgr_is_locked(mgr));
+		assert_spin_locked(&(mgr->tmgr_lock));
 		atom_free(atom);
 		spin_unlock_txnmgr(mgr);
 	} else
-		UNLOCK_ATOM(atom);
+		spin_unlock_atom(atom);
 }
 
 /* Create new atom and connect it to given transaction handle.  This adds the
@@ -733,14 +730,14 @@ static int atom_begin_and_assign_to_txnh(txn_atom ** atom_alloc, txn_handle * tx
 	   locks. */
 	mgr = &get_super_private(reiser4_get_current_sb())->tmgr;
 	spin_lock_txnmgr(mgr);
-	LOCK_TXNH(txnh);
+	spin_lock_txnh(txnh);
 
 	/* Check whether new atom still needed */
 	if (txnh->atom != NULL) {
 		/* NOTE-NIKITA probably it is rather better to free
 		 * atom_alloc here than thread it up to try_capture(). */
 
-		UNLOCK_TXNH(txnh);
+		spin_unlock_txnh(txnh);
 		spin_unlock_txnmgr(mgr);
 
 		return -E_REPEAT;
@@ -753,9 +750,11 @@ static int atom_begin_and_assign_to_txnh(txn_atom ** atom_alloc, txn_handle * tx
 
 	assert("jmacd-17", atom_isclean(atom));
 
-	/* Take the atom and txnmgr lock. No checks for lock ordering, because
-	   @atom is new and inaccessible for others. */
-	spin_lock_atom_no_ord(atom);
+        /*
+	 * do not use spin_lock_atom because we have broken lock ordering here
+	 * which is ok, as long as @atom is new and inaccessible for others.
+	 */
+	spin_lock(&(atom->alock));
 
 	/* add atom to the end of transaction manager's list of atoms */
 	list_add_tail(&atom->atom_link, &mgr->atoms_list);
@@ -771,8 +770,8 @@ static int atom_begin_and_assign_to_txnh(txn_atom ** atom_alloc, txn_handle * tx
 	atom->super = reiser4_get_current_sb();
 	capture_assign_txnh_nolock(atom, txnh);
 
-	UNLOCK_ATOM(atom);
-	UNLOCK_TXNH(txnh);
+	spin_unlock(&(atom->alock));
+	spin_unlock_txnh(txnh);
 
 	return -E_REPEAT;
 }
@@ -806,10 +805,10 @@ static void atom_free(txn_atom * atom)
 	txn_mgr *mgr = &get_super_private(reiser4_get_current_sb())->tmgr;
 
 	assert("umka-188", atom != NULL);
-	assert("jmacd-18", spin_atom_is_locked(atom));
+	assert_spin_locked(&(atom->alock));
 
 	/* Remove from the txn_mgr's atom list */
-	assert("nikita-2657", spin_txnmgr_is_locked(mgr));
+	assert_spin_locked(&(mgr->tmgr_lock));
 	mgr->atom_count -= 1;
 	list_del_init(&atom->atom_link);
 
@@ -823,7 +822,7 @@ static void atom_free(txn_atom * atom)
 
 	assert("jmacd-16", atom_isclean(atom));
 
-	UNLOCK_ATOM(atom);
+	spin_unlock_atom(atom);
 
 	kmem_cache_free(_atom_slab, atom);
 }
@@ -836,7 +835,7 @@ static int atom_is_dotard(const txn_atom * atom)
 
 static int atom_can_be_committed(txn_atom * atom)
 {
-	assert("zam-884", spin_atom_is_locked(atom));
+	assert_spin_locked(&(atom->alock));
 	assert("zam-885", atom->txnh_count > atom->nr_waiters);
 	return atom->txnh_count == atom->nr_waiters + 1;
 }
@@ -862,7 +861,7 @@ int current_atom_should_commit(void)
 	atom = get_current_atom_locked_nocheck();
 	if (atom) {
 		result = atom_should_commit(atom);
-		UNLOCK_ATOM(atom);
+		spin_unlock_atom(atom);
 	}
 	return result;
 }
@@ -906,7 +905,7 @@ jnode *find_first_dirty_jnode(txn_atom * atom, int flags)
 	jnode *first_dirty;
 	tree_level level;
 
-	assert("zam-753", spin_atom_is_locked(atom));
+	assert_spin_locked(&(atom->alock));
 
 	/* The flush starts from LEAF_LEVEL (=1). */
 	for (level = 1; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {
@@ -940,7 +939,7 @@ static void dispatch_wb_list(txn_atom * atom, flush_queue_t * fq)
 	jnode *cur;
 	int total, moved;
 
-	assert("zam-905", spin_atom_is_locked(atom));
+	assert_spin_locked(&(atom->alock));
 
 	total = 0;
 	moved = 0;
@@ -998,7 +997,7 @@ static void dispatch_wb_list(txn_atom * atom, flush_queue_t * fq)
 	while (ATOM_WB_LIST(atom) != &cur->capture_link) {
 		jnode *next = list_entry(cur->capture_link.next, jnode, capture_link);
 
-		LOCK_JNODE(cur);
+		spin_lock_jnode(cur);
 		if (!JF_ISSET(cur, JNODE_WRITEBACK)) {
 			if (JF_ISSET(cur, JNODE_DIRTY)) {
 				queue_jnode(fq, cur);
@@ -1009,7 +1008,7 @@ static void dispatch_wb_list(txn_atom * atom, flush_queue_t * fq)
 					      ATOM_CLEAN_LIST(atom));
 			}
 		}
-		UNLOCK_JNODE(cur);
+		spin_unlock_jnode(cur);
 
 		cur = next;
 	}
@@ -1029,7 +1028,7 @@ static int submit_wb_list(void)
 		return PTR_ERR(fq);
 
 	dispatch_wb_list(fq->atom, fq);
-	UNLOCK_ATOM(fq->atom);
+	spin_unlock_atom(fq->atom);
 
 	ret = write_fq(fq, NULL, 1);
 	fq_put(fq);
@@ -1087,7 +1086,7 @@ static int commit_current_atom(long *nr_submitted, txn_atom ** atom)
 	int flushiters;
 
 	assert("zam-888", atom != NULL && *atom != NULL);
-	assert("zam-886", spin_atom_is_locked(*atom));
+	assert_spin_locked(&((*atom)->alock));
 	assert("zam-887", get_current_context()->trans->atom == *atom);
 	assert("jmacd-151", atom_isopen(*atom));
 
@@ -1121,10 +1120,10 @@ static int commit_current_atom(long *nr_submitted, txn_atom ** atom)
 	if (ret)
 		return ret;
 
-	assert("zam-882", spin_atom_is_locked(*atom));
+	assert_spin_locked(&((*atom)->alock));
 
 	if (!atom_can_be_committed(*atom)) {
-		UNLOCK_ATOM(*atom);
+		spin_unlock_atom(*atom);
 		return RETERR(-E_REPEAT);
 	}
 
@@ -1136,7 +1135,7 @@ static int commit_current_atom(long *nr_submitted, txn_atom ** atom)
 	   at this point, commit should be successful. */
 	atom_set_stage(*atom, ASTAGE_PRE_COMMIT);
 	ON_DEBUG(((*atom)->committer = current));
-	UNLOCK_ATOM(*atom);
+	spin_unlock_atom(*atom);
 
 	ret = current_atom_complete_writes();
 	if (ret)
@@ -1164,8 +1163,8 @@ static int commit_current_atom(long *nr_submitted, txn_atom ** atom)
 	invalidate_list(ATOM_WB_LIST(*atom));
 	assert("zam-927", list_empty(&(*atom)->inodes));
 
-	LOCK_ATOM(*atom);
-	done:
+	spin_lock_atom(*atom);
+ done:
 	atom_set_stage(*atom, ASTAGE_DONE);
 	ON_DEBUG((*atom)->committer = NULL);
 
@@ -1180,7 +1179,7 @@ static int commit_current_atom(long *nr_submitted, txn_atom ** atom)
 	assert("jmacd-1070", atomic_read(&(*atom)->refcount) > 0);
 	assert("jmacd-1062", (*atom)->capture_count == 0);
 	BUG_ON((*atom)->capture_count != 0);
-	assert("jmacd-1071", spin_atom_is_locked(*atom));
+	assert_spin_locked(&((*atom)->alock));
 
 	return ret;
 }
@@ -1194,21 +1193,21 @@ static int force_commit_atom_nolock(txn_handle * txnh)
 	txn_atom *atom;
 
 	assert("zam-837", txnh != NULL);
-	assert("zam-835", spin_txnh_is_locked(txnh));
+	assert_spin_locked(&(txnh->hlock));
 	assert("nikita-2966", lock_stack_isclean(get_current_lock_stack()));
 
 	atom = txnh->atom;
 
 	assert("zam-834", atom != NULL);
-	assert("zam-836", spin_atom_is_locked(atom));
+	assert_spin_locked(&(atom->alock));
 
 	/* Set flags for atom and txnh: forcing atom commit and waiting for
 	 * commit completion */
 	txnh->flags |= TXNH_WAIT_COMMIT;
 	atom->flags |= ATOM_FORCE_COMMIT;
 
-	UNLOCK_TXNH(txnh);
-	UNLOCK_ATOM(atom);
+	spin_unlock_txnh(txnh);
+	spin_unlock_atom(atom);
 
 	txn_restart_current();
 	return 0;
@@ -1240,7 +1239,7 @@ int txnmgr_force_commit_all(struct super_block *super, int commit_all_atoms)
 	spin_lock_txnmgr(mgr);
 
 	list_for_each_entry(atom, &mgr->atoms_list, atom_link) {
-		LOCK_ATOM(atom);
+		spin_lock_atom(atom);
 
 		/* Commit any atom which can be committed.  If @commit_new_atoms
 		 * is not set we commit only atoms which were created before
@@ -1251,7 +1250,7 @@ int txnmgr_force_commit_all(struct super_block *super, int commit_all_atoms)
 				spin_unlock_txnmgr(mgr);
 
 				if (atom->stage < ASTAGE_PRE_COMMIT) {
-					LOCK_TXNH(txnh);
+					spin_lock_txnh(txnh);
 					/* Add force-context txnh */
 					capture_assign_txnh_nolock(atom, txnh);
 					ret = force_commit_atom_nolock(txnh);
@@ -1265,17 +1264,17 @@ int txnmgr_force_commit_all(struct super_block *super, int commit_all_atoms)
 			}
 		}
 
-		UNLOCK_ATOM(atom);
+		spin_unlock_atom(atom);
 	}
 
 #if REISER4_DEBUG
 	if (commit_all_atoms) {
 		reiser4_super_info_data *sbinfo = get_super_private(super);
-		reiser4_spin_lock_sb(sbinfo);
+		spin_lock_reiser4_super(sbinfo);
 		assert("zam-813",
 		       sbinfo->blocks_fake_allocated_unformatted == 0);
 		assert("zam-812", sbinfo->blocks_fake_allocated == 0);
-		reiser4_spin_unlock_sb(sbinfo);
+		spin_unlock_reiser4_super(sbinfo);
 	}
 #endif
 
@@ -1324,10 +1323,10 @@ int commit_some_atoms(txn_mgr * mgr)
 		 */
 		if (atom_is_committable(atom)) {
 			/* now, take spin lock and re-check */
-			LOCK_ATOM(atom);
+			spin_lock_atom(atom);
 			if (atom_is_committable(atom))
 				break;
-			UNLOCK_ATOM(atom);
+			spin_unlock_atom(atom);
 		}
 	}
 
@@ -1340,7 +1339,7 @@ int commit_some_atoms(txn_mgr * mgr)
 		return 0;
 	}
 
-	LOCK_TXNH(txnh);
+	spin_lock_txnh(txnh);
 
 	BUG_ON(atom == NULL);
 	/* Set the atom to force committing */
@@ -1349,8 +1348,8 @@ int commit_some_atoms(txn_mgr * mgr)
 	/* Add force-context txnh */
 	capture_assign_txnh_nolock(atom, txnh);
 
-	UNLOCK_TXNH(txnh);
-	UNLOCK_ATOM(atom);
+	spin_unlock_txnh(txnh);
+	spin_unlock_atom(atom);
 
 	/* we are about to release daemon spin lock, notify daemon it
 	   has to rescan atoms */
@@ -1372,9 +1371,9 @@ static int txn_try_to_fuse_small_atom(txn_mgr * tmgr, txn_atom * atom)
 	repeat = 0;
 
 	if (!spin_trylock_txnmgr(tmgr)) {
-		UNLOCK_ATOM(atom);
+		spin_unlock_atom(atom);
 		spin_lock_txnmgr(tmgr);
-		LOCK_ATOM(atom);
+		spin_lock_atom(atom);
 		repeat = 1;
 		if (atom->stage != atom_stage)
 			goto out;
@@ -1394,14 +1393,14 @@ static int txn_try_to_fuse_small_atom(txn_mgr * tmgr, txn_atom * atom)
 				/* all locks are lost we can only repeat here */
 				return -E_REPEAT;
 			}
-			UNLOCK_ATOM(atom_2);
+			spin_unlock_atom(atom_2);
 		}
 	}
 	atom->flags |= ATOM_CANCEL_FUSION;
       out:
 	spin_unlock_txnmgr(tmgr);
 	if (repeat) {
-		UNLOCK_ATOM(atom);
+		spin_unlock_atom(atom);
 		return -E_REPEAT;
 	}
 	return 0;
@@ -1441,7 +1440,7 @@ flush_some_atom(jnode * start, long *nr_submitted, const struct writeback_contro
 		/* traverse the list of all atoms */
 		list_for_each_entry(atom, &tmgr->atoms_list, atom_link) {
 			/* lock atom before checking its state */
-			LOCK_ATOM(atom);
+			spin_lock_atom(atom);
 
 			/*
 			 * we need an atom which is not being committed and
@@ -1450,14 +1449,14 @@ flush_some_atom(jnode * start, long *nr_submitted, const struct writeback_contro
 			 */
 			if (atom->stage < ASTAGE_PRE_COMMIT &&
 			    atom->nr_flushers == 0) {
-				LOCK_TXNH(txnh);
+				spin_lock_txnh(txnh);
 				capture_assign_txnh_nolock(atom, txnh);
-				UNLOCK_TXNH(txnh);
+				spin_unlock_txnh(txnh);
 
 				goto found;
 			}
 
-			UNLOCK_ATOM(atom);
+			spin_unlock_atom(atom);
 		}
 
 		/*
@@ -1466,13 +1465,13 @@ flush_some_atom(jnode * start, long *nr_submitted, const struct writeback_contro
 		 */
 		if (!current_is_pdflush() && !wbc->nonblocking) {
 			list_for_each_entry(atom, &tmgr->atoms_list, atom_link) {
-				LOCK_ATOM(atom);
+				spin_lock_atom(atom);
 				/* Repeat the check from the above. */
 				if (atom->stage < ASTAGE_PRE_COMMIT
 				    && atom->nr_flushers == 0) {
-					LOCK_TXNH(txnh);
+					spin_lock_txnh(txnh);
 					capture_assign_txnh_nolock(atom, txnh);
-					UNLOCK_TXNH(txnh);
+					spin_unlock_txnh(txnh);
 
 					goto found;
 				}
@@ -1486,7 +1485,7 @@ flush_some_atom(jnode * start, long *nr_submitted, const struct writeback_contro
 					atom_wait_event(atom);
 					goto repeat;
 				}
-				UNLOCK_ATOM(atom);
+				spin_unlock_atom(atom);
 			}
 		}
 		spin_unlock_txnmgr(tmgr);
@@ -1521,7 +1520,7 @@ flush_some_atom(jnode * start, long *nr_submitted, const struct writeback_contro
 				txnh->flags |= TXNH_WAIT_COMMIT;
 			atom->flags |= ATOM_FORCE_COMMIT;
 		}
-		UNLOCK_ATOM(atom);
+		spin_unlock_atom(atom);
 	} else if (ret == -E_REPEAT) {
 		if (*nr_submitted == 0) {
 			/* let others who hampers flushing (hold longterm locks,
@@ -1556,12 +1555,12 @@ void invalidate_list(capture_list_head * head)
 		spin_unlock(&scan_lock);
 
 		atom = node->atom;
-		LOCK_ATOM(atom);
+		spin_lock_atom(atom);
 		LOCK_JNODE(node);
 		if (JF_ISSET(node, JNODE_CC) && node->pg)
 			page_cache_release(node->pg);
 		uncapture_block(node);
-		UNLOCK_ATOM(atom);
+		spin_unlock_atom(atom);
 		JF_CLR(node, JNODE_SCANNED);
 		jput(node);
 
@@ -1579,7 +1578,7 @@ void invalidate_list(struct list_head *head)
 		jnode *node;
 
 		node = list_entry(head->next, jnode, capture_link);
-		LOCK_JNODE(node);
+		spin_lock_jnode(node);
 		uncapture_block(node);
 		jput(node);
 	}
@@ -1601,7 +1600,7 @@ void atom_wait_event(txn_atom * atom)
 {
 	txn_wait_links _wlinks;
 
-	assert("zam-744", spin_atom_is_locked(atom));
+	assert_spin_locked(&(atom->alock));
 	assert("nikita-3156",
 	       lock_stack_isclean(get_current_lock_stack()) ||
 	       atom->nr_running_queues > 0);
@@ -1609,12 +1608,12 @@ void atom_wait_event(txn_atom * atom)
 	init_wlinks(&_wlinks);
 	list_add_tail(&_wlinks._fwaitfor_link, &atom->fwaitfor_list);
 	atomic_inc(&atom->refcount);
-	UNLOCK_ATOM(atom);
+	spin_unlock_atom(atom);
 
 	prepare_to_sleep(_wlinks._lock_stack);
 	go_to_sleep(_wlinks._lock_stack);
 
-	LOCK_ATOM(atom);
+	spin_lock_atom(atom);
 	list_del(&_wlinks._fwaitfor_link);
 	atom_dec_and_unlock(atom);
 }
@@ -1622,7 +1621,7 @@ void atom_wait_event(txn_atom * atom)
 void atom_set_stage(txn_atom * atom, txn_stage stage)
 {
 	assert("nikita-3535", atom != NULL);
-	assert("nikita-3538", spin_atom_is_locked(atom));
+	assert_spin_locked(&(atom->alock));
 	assert("nikita-3536", ASTAGE_FREE <= stage && stage <= ASTAGE_INVALID);
 	/* Excelsior! */
 	assert("nikita-3537", stage >= atom->stage);
@@ -1635,7 +1634,7 @@ void atom_set_stage(txn_atom * atom, txn_stage stage)
 /* wake all threads which wait for an event */
 void atom_send_event(txn_atom * atom)
 {
-	assert("zam-745", spin_atom_is_locked(atom));
+	assert_spin_locked(&(atom->alock));
 	wakeup_atom_waitfor_list(atom);
 }
 
@@ -1675,7 +1674,7 @@ static int try_commit_txnh(commit_data * cd)
 	/* Get the atom and txnh locked. */
 	cd->atom = txnh_get_atom(cd->txnh);
 	assert("jmacd-309", cd->atom != NULL);
-	UNLOCK_TXNH(cd->txnh);
+	spin_unlock_txnh(cd->txnh);
 
 	if (cd->wait) {
 		cd->atom->nr_waiters--;
@@ -1751,7 +1750,7 @@ static int try_commit_txnh(commit_data * cd)
 						    LONG_MAX, &cd->nr_written,
 						    &cd->atom, NULL);
 			if (result == 0) {
-				UNLOCK_ATOM(cd->atom);
+				spin_unlock_atom(cd->atom);
 				cd->preflush = 0;
 				result = RETERR(-E_REPEAT);
 			} else	/* Atoms wasn't flushed
@@ -1772,7 +1771,11 @@ static int try_commit_txnh(commit_data * cd)
 	} else
 		result = 0;
 
-	assert("jmacd-1027", ergo(result == 0, spin_atom_is_locked(cd->atom)));
+#if REISER4_DEBUG
+	if (result == 0)
+		assert_spin_locked(&(cd->atom->alock));
+#endif
+
 	/* perfectly valid assertion, except that when atom/txnh is not locked
 	 * fusion can take place, and cd->atom points nowhere. */
 	/*
@@ -1798,15 +1801,14 @@ static int commit_txnh(txn_handle * txnh)
 	while (try_commit_txnh(&cd) != 0)
 		preempt_point();
 
-	assert("nikita-3171", spin_txnh_is_not_locked(txnh));
-	LOCK_TXNH(txnh);
+	spin_lock_txnh(txnh);
 
 	cd.atom->txnh_count -= 1;
 	txnh->atom = NULL;
 	/* remove transaction handle from atom's list of transaction handles */
 	list_del_init(&txnh->txnh_link);
 
-	UNLOCK_TXNH(txnh);
+	spin_unlock_txnh(txnh);
 	atom_dec_and_unlock(cd.atom);
 	/* if we don't want to do a commit (TXNH_DONT_COMMIT is set, probably
 	 * because it takes time) by current thread, we do that work
@@ -1873,18 +1875,18 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode,
 	assert("umka-195", node != NULL);
 
 	/* The jnode is already locked!  Being called from try_capture(). */
-	assert("jmacd-567", spin_jnode_is_locked(node));
+	assert_spin_locked(&(node->guard));
 
 	block_atom = node->atom;
 
 	/* Get txnh spinlock, this allows us to compare txn_atom pointers but it doesn't
 	   let us touch the atoms themselves. */
-	LOCK_TXNH(txnh);
+	spin_lock_txnh(txnh);
 
 	txnh_atom = txnh->atom;
 
 	if (txnh_atom != NULL && block_atom == txnh_atom) {
-		UNLOCK_TXNH(txnh);
+		spin_unlock_txnh(txnh);
 		return 0;
 	}
 	/* NIKITA-HANS: nothing */
@@ -1928,17 +1930,14 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode,
 			if (ret) {
 				JF_SET(node, JNODE_MISSED_IN_CAPTURE);
 
-				assert("zam-687",
-				       spin_txnh_is_not_locked(txnh));
-				assert("zam-688",
-				       spin_jnode_is_not_locked(node));
-
+				assert_spin_not_locked(&(txnh->hlock));
+				assert_spin_not_locked(&(node->guard));
 				return ret;
 			} else
 				JF_CLR(node, JNODE_MISSED_IN_CAPTURE);
 
-			assert("zam-701", spin_txnh_is_locked(txnh));
-			assert("zam-702", spin_jnode_is_locked(node));
+			assert_spin_locked(&(txnh->hlock));
+			assert_spin_locked(&(node->guard));
 		}
 	}
 
@@ -1952,10 +1951,8 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode,
 			ret = capture_assign_txnh(node, txnh, mode, can_coc);
 			if (ret != 0) {
 				/* E_REPEAT or otherwise */
-				assert("jmacd-6129",
-				       spin_txnh_is_not_locked(txnh));
-				assert("jmacd-6130",
-				       spin_jnode_is_not_locked(node));
+				assert_spin_not_locked(&(txnh->hlock));
+				assert_spin_not_locked(&(node->guard));
 				return ret;
 			}
 
@@ -1963,8 +1960,8 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode,
 			   granted because the block is committing.  Locks still held. */
 		} else {
 			if (mode & TXN_CAPTURE_DONT_FUSE) {
-				UNLOCK_TXNH(txnh);
-				UNLOCK_JNODE(node);
+				spin_unlock_txnh(txnh);
+				spin_unlock_jnode(node);
 				/* we are in a "no-fusion" mode and @node is
 				 * already part of transaction. */
 				return RETERR(-E_NO_NEIGHBOR);
@@ -1973,10 +1970,8 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode,
 			   returns -E_REPEAT on successful fusion, 0 on the fall-through case. */
 			ret = capture_init_fusion(node, txnh, mode, can_coc);
 			if (ret != 0) {
-				assert("jmacd-6131",
-				       spin_txnh_is_not_locked(txnh));
-				assert("jmacd-6132",
-				       spin_jnode_is_not_locked(node));
+				assert_spin_not_locked(&(txnh->hlock));
+				assert_spin_not_locked(&(node->guard));
 				return ret;
 			}
 
@@ -1993,10 +1988,8 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode,
 			ret = capture_assign_block(txnh, node);
 			if (ret != 0) {
 				/* E_REPEAT or otherwise */
-				assert("jmacd-6133",
-				       spin_txnh_is_not_locked(txnh));
-				assert("jmacd-6134",
-				       spin_jnode_is_not_locked(node));
+				assert_spin_not_locked(&(txnh->hlock));
+				assert_spin_not_locked(&(node->guard));
 				return ret;
 			}
 
@@ -2006,8 +1999,8 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode,
 
 			/* In this case, neither txnh nor page are assigned to
 			 * an atom. */
-			UNLOCK_JNODE(node);
-			UNLOCK_TXNH(txnh);
+			spin_unlock_jnode(node);
+			spin_unlock_txnh(txnh);
 			return atom_begin_and_assign_to_txnh(atom_alloc, txnh);
 		}
 
@@ -2018,11 +2011,11 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode,
 	}
 
 	/* Successful case: both jnode and txnh are still locked. */
-	assert("jmacd-740", spin_txnh_is_locked(txnh));
-	assert("jmacd-741", spin_jnode_is_locked(node));
+	assert_spin_locked(&(txnh->hlock));
+	assert_spin_locked(&(node->guard));
 
 	/* Release txnh lock, return with the jnode still locked. */
-	UNLOCK_TXNH(txnh);
+	spin_unlock_txnh(txnh);
 
 	return 0;
 }
@@ -2032,7 +2025,7 @@ build_capture_mode(jnode * node, znode_lock_mode lock_mode, txn_capture flags)
 {
 	txn_capture cap_mode;
 
-	assert("nikita-3187", spin_jnode_is_locked(node));
+	assert_spin_locked(&(node->guard));
 
 	/* FIXME_JMACD No way to set TXN_CAPTURE_READ_MODIFY yet. */
 
@@ -2091,7 +2084,7 @@ try_capture(jnode * node, znode_lock_mode lock_mode,
 #endif
 	int ret;
 
-	assert("jmacd-604", spin_jnode_is_locked(node));
+	assert_spin_locked(&(node->guard));
 
       repeat:
 	cap_mode = build_capture_mode(node, lock_mode, flags);
@@ -2111,15 +2104,18 @@ try_capture(jnode * node, znode_lock_mode lock_mode,
 	   If ret == 0 then jnode is still locked.
 	   If ret != 0 then jnode is unlocked.
 	 */
-	assert("nikita-2674", ergo(ret == 0, spin_jnode_is_locked(node)));
-	assert("nikita-2675", ergo(ret != 0, spin_jnode_is_not_locked(node)));
-
-	assert("nikita-2974", spin_txnh_is_not_locked(txnh));
+#if REISER4_DEBUG
+	if (ret == 0)
+		assert_spin_locked(&(node->guard));
+	else
+		assert_spin_not_locked(&(node->guard));
+#endif
+	assert_spin_not_locked(&(txnh->guard));
 
 	if (ret == -E_REPEAT) {
 		/* E_REPEAT implies all locks were released, therefore we need
 		   to take the jnode's lock again. */
-		LOCK_JNODE(node);
+		spin_lock_jnode(node);
 
 		/* Although this may appear to be a busy loop, it is not.
 		   There are several conditions that cause E_REPEAT to be
@@ -2152,7 +2148,7 @@ try_capture(jnode * node, znode_lock_mode lock_mode,
 		reiser4_stat_inc(coc.coc_wait);
 		/* disable COC for the next loop iteration */
 		coc_enabled = 0;
-		LOCK_JNODE(node);
+		spin_lock_jnode(node);
 		goto repeat;
 	}
 #endif
@@ -2178,11 +2174,11 @@ try_capture(jnode * node, znode_lock_mode lock_mode,
 		   re-acquiring it, but there are cases were failure occurs
 		   when the lock is not held, and those cases would need to be
 		   modified to re-take the lock. */
-		LOCK_JNODE(node);
+		spin_lock_jnode(node);
 	}
 
 	/* Jnode is still locked. */
-	assert("jmacd-760", spin_jnode_is_locked(node));
+	assert_spin_locked(&(node->guard));
 	return ret;
 }
 
@@ -2200,12 +2196,11 @@ static int fuse_not_fused_lock_owners(txn_handle * txnh, znode * node)
 	int repeat = 0;
 	txn_atom *atomh = txnh->atom;
 
-/*	assert ("zam-689", znode_is_rlocked (node));*/
-	assert("zam-690", spin_znode_is_locked(node));
-	assert("zam-691", spin_txnh_is_locked(txnh));
+	assert_spin_locked(&(ZJNODE(node)->guard));
+	assert_spin_locked(&(txnh->hlock));
 	assert("zam-692", atomh != NULL);
 
-	RLOCK_ZLOCK(&node->lock);
+	read_lock_zlock(&node->lock);
 
 	if (!spin_trylock_atom(atomh)) {
 		repeat = 1;
@@ -2231,35 +2226,35 @@ static int fuse_not_fused_lock_owners(txn_handle * txnh, znode * node)
 
 		if (atomf == NULL) {
 			capture_assign_txnh_nolock(atomh, ctx->trans);
-			UNLOCK_TXNH(ctx->trans);
+			spin_unlock_txnh(ctx->trans);
 
 			reiser4_wake_up(lh->owner);
 			continue;
 		}
 
 		if (atomf == atomh) {
-			UNLOCK_TXNH(ctx->trans);
+			spin_unlock_txnh(ctx->trans);
 			continue;
 		}
 
 		if (!spin_trylock_atom(atomf)) {
-			UNLOCK_TXNH(ctx->trans);
+			spin_unlock_txnh(ctx->trans);
 			repeat = 1;
 			continue;
 		}
 
-		UNLOCK_TXNH(ctx->trans);
+		spin_unlock_txnh(ctx->trans);
 
 		if (atomf == atomh || atomf->stage > ASTAGE_CAPTURE_WAIT) {
-			UNLOCK_ATOM(atomf);
+			spin_unlock_atom(atomf);
 			continue;
 		}
 		// repeat = 1;
 
 		reiser4_wake_up(lh->owner);
 
-		UNLOCK_TXNH(txnh);
-		RUNLOCK_ZLOCK(&node->lock);
+		spin_unlock_txnh(txnh);
+		read_unlock_zlock(&node->lock);
 		spin_unlock_znode(node);
 
 		/* @atomf is "small" and @atomh is "large", by
@@ -2270,17 +2265,17 @@ static int fuse_not_fused_lock_owners(txn_handle * txnh, znode * node)
 		return RETERR(-E_REPEAT);
 	}
 
-	UNLOCK_ATOM(atomh);
+	spin_unlock_atom(atomh);
 
 	if (repeat) {
 	      fail:
-		UNLOCK_TXNH(txnh);
-		RUNLOCK_ZLOCK(&node->lock);
+		spin_unlock_txnh(txnh);
+		read_unlock_zlock(&node->lock);
 		spin_unlock_znode(node);
 		return RETERR(-E_REPEAT);
 	}
 
-	RUNLOCK_ZLOCK(&node->lock);
+	read_unlock_zlock(&node->lock);
 	return 0;
 }
 
@@ -2298,12 +2293,12 @@ int try_capture_page_to_invalidate(struct page *pg)
 		return PTR_ERR(node);
 	}
 
-	LOCK_JNODE(node);
+	spin_lock_jnode(node);
 	unlock_page(pg);
 
 	ret =
 	    try_capture(node, ZNODE_WRITE_LOCK, 0, 0 /* no copy on capture */ );
-	UNLOCK_JNODE(node);
+	spin_unlock_jnode(node);
 	jput(node);
 	lock_page(pg);
 	return ret;
@@ -2334,15 +2329,15 @@ void uncapture_page(struct page *pg)
 	node = (jnode *) (pg->private);
 	BUG_ON(node == NULL);
 
-	LOCK_JNODE(node);
+	spin_lock_jnode(node);
 
 	eflush_del(node, 1 /* page is locked */ );
 	/*assert ("zam-815", !JF_ISSET(node, JNODE_EFLUSH)); */
 
 	atom = jnode_get_atom(node);
 	if (atom == NULL) {
-		assert("jmacd-7111", !jnode_is_dirty(node));
-		UNLOCK_JNODE(node);
+		assert("jmacd-7111", !JF_ISSET(node, JNODE_DIRTY));
+		spin_unlock_jnode(node);
 		return;
 	}
 
@@ -2356,7 +2351,7 @@ void uncapture_page(struct page *pg)
 	 * wait all write_fq() for this atom to complete. This is not
 	 * significant overhead. */
 	while (JF_ISSET(node, JNODE_FLUSH_QUEUED) && atom->nr_running_queues) {
-		UNLOCK_JNODE(node);
+		spin_unlock_jnode(node);
 		/*
 		 * at this moment we want to wait for "atom event", viz. wait
 		 * until @node can be removed from flush queue. But
@@ -2373,18 +2368,18 @@ void uncapture_page(struct page *pg)
 		 * page may has been detached by ->writepage()->releasepage().
 		 */
 		reiser4_wait_page_writeback(pg);
-		LOCK_JNODE(node);
+		spin_lock_jnode(node);
 		eflush_del(node, 1);
 		page_cache_release(pg);
 		atom = jnode_get_atom(node);
 /* VS-FIXME-HANS: improve the commenting in this function */
 		if (atom == NULL) {
-			UNLOCK_JNODE(node);
+			spin_unlock_jnode(node);
 			return;
 		}
 	}
 	uncapture_block(node);
-	UNLOCK_ATOM(atom);
+	spin_unlock_atom(atom);
 	jput(node);
 }
 
@@ -2394,7 +2389,7 @@ void uncapture_jnode(jnode * node)
 {
 	txn_atom *atom;
 
-	assert("vs-1462", spin_jnode_is_locked(node));
+	assert_spin_locked(&(node->guard));
 	assert("", node->pg == 0);
 
 	if (JF_ISSET(node, JNODE_EFLUSH)) {
@@ -2406,13 +2401,13 @@ void uncapture_jnode(jnode * node)
 	/*jnode_make_clean(node); */
 	atom = jnode_get_atom(node);
 	if (atom == NULL) {
-		assert("jmacd-7111", !jnode_is_dirty(node));
-		UNLOCK_JNODE(node);
+		assert("jmacd-7111", !JF_ISSET(node, JNODE_DIRTY));
+		spin_unlock_jnode(node);
 		return;
 	}
 
 	uncapture_block(node);
-	UNLOCK_ATOM(atom);
+	spin_unlock_atom(atom);
 	jput(node);
 }
 
@@ -2423,8 +2418,8 @@ static void capture_assign_txnh_nolock(txn_atom *atom, txn_handle *txnh)
 	assert("umka-200", atom != NULL);
 	assert("umka-201", txnh != NULL);
 
-	assert("jmacd-822", spin_txnh_is_locked(txnh));
-	assert("jmacd-823", spin_atom_is_locked(atom));
+	assert_spin_locked(&(txnh->hlock));
+	assert_spin_locked(&(atom->alock));
 	assert("jmacd-824", txnh->atom == NULL);
 	assert("nikita-3540", atom_isopen(atom));
 	BUG_ON(txnh->atom != NULL);
@@ -2441,11 +2436,11 @@ static void capture_assign_block_nolock(txn_atom *atom, jnode *node)
 {
 	assert("umka-202", atom != NULL);
 	assert("umka-203", node != NULL);
-	assert("jmacd-321", spin_jnode_is_locked(node));
-	assert("umka-295", spin_atom_is_locked(atom));
+	assert_spin_locked(&(node->guard));
+	assert_spin_locked(&(atom->alock));
 	assert("jmacd-323", node->atom == NULL);
 	BUG_ON(!list_empty_careful(&node->capture_link));
-	assert("nikita-3470", !jnode_is_dirty(node));
+	assert("nikita-3470", !JF_ISSET(node, JNODE_DIRTY));
 
 	/* Pointer from jnode to atom is not counted in atom->refcount. */
 	node->atom = atom;
@@ -2481,9 +2476,9 @@ int is_cced(const jnode * node)
 /* common code for dirtying both unformatted jnodes and formatted znodes. */
 static void do_jnode_make_dirty(jnode * node, txn_atom * atom)
 {
-	assert("zam-748", spin_jnode_is_locked(node));
-	assert("zam-750", spin_atom_is_locked(atom));
-	assert("jmacd-3981", !jnode_is_dirty(node));
+	assert_spin_locked(&(node->guard));
+	assert_spin_locked(&(atom->alock));
+	assert("jmacd-3981", !JF_ISSET(node, JNODE_DIRTY));
 
 	JF_SET(node, JNODE_DIRTY);
 
@@ -2540,7 +2535,7 @@ static void do_jnode_make_dirty(jnode * node, txn_atom * atom)
 void jnode_make_dirty_locked(jnode * node)
 {
 	assert("umka-204", node != NULL);
-	assert("zam-7481", spin_jnode_is_locked(node));
+	assert_spin_locked(&(node->guard));
 
 	if (REISER4_DEBUG && rofs_jnode(node)) {
 		warning("nikita-3365", "Dirtying jnode on rofs");
@@ -2548,16 +2543,16 @@ void jnode_make_dirty_locked(jnode * node)
 	}
 
 	/* Fast check for already dirty node */
-	if (!jnode_is_dirty(node)) {
+	if (!JF_ISSET(node, JNODE_DIRTY)) {
 		txn_atom *atom;
 
 		atom = jnode_get_atom(node);
 		assert("vs-1094", atom);
 		/* Check jnode dirty status again because node spin lock might
 		 * be released inside jnode_get_atom(). */
-		if (likely(!jnode_is_dirty(node)))
+		if (likely(!JF_ISSET(node, JNODE_DIRTY)))
 			do_jnode_make_dirty(node, atom);
-		UNLOCK_ATOM(atom);
+		spin_unlock_atom(atom);
 	}
 }
 
@@ -2580,7 +2575,7 @@ void znode_make_dirty(znode * z)
 		return;
 	}
 
-	LOCK_JNODE(node);
+	spin_lock_jnode(node);
 	jnode_make_dirty_locked(node);
 	page = jnode_page(node);
 	if (page != NULL) {
@@ -2594,7 +2589,7 @@ void znode_make_dirty(znode * z)
 
 		/* jnode lock is not needed for the rest of
 		 * znode_set_dirty(). */
-		UNLOCK_JNODE(node);
+		spin_unlock_jnode(node);
 		/* reiser4 file write code calls set_page_dirty for
 		 * unformatted nodes, for formatted nodes we do it here. */
 		set_page_dirty_internal(page, 0);
@@ -2603,7 +2598,7 @@ void znode_make_dirty(znode * z)
 		z->version = znode_build_version(jnode_get_tree(node));
 	} else {
 		assert("zam-596", znode_above_root(JZNODE(node)));
-		UNLOCK_JNODE(node);
+		spin_unlock_jnode(node);
 	}
 
 	assert("nikita-1900", znode_is_write_locked(z));
@@ -2620,7 +2615,7 @@ int sync_atom(txn_atom * atom)
 	result = 0;
 	if (atom != NULL) {
 		if (atom->stage < ASTAGE_PRE_COMMIT) {
-			LOCK_TXNH(txnh);
+			spin_lock_txnh(txnh);
 			capture_assign_txnh_nolock(atom, txnh);
 			result = force_commit_atom_nolock(txnh);
 		} else if (atom->stage < ASTAGE_POST_COMMIT) {
@@ -2629,7 +2624,7 @@ int sync_atom(txn_atom * atom)
 			/* try once more */
 			result = RETERR(-E_REPEAT);
 		} else
-			UNLOCK_ATOM(atom);
+			spin_unlock_atom(atom);
 	}
 	return result;
 }
@@ -2644,11 +2639,11 @@ count_jnode(txn_atom * atom, jnode * node, atom_list old_list,
 {
 	struct list_head *pos;
 #if REISER4_COPY_ON_CAPTURE
-	assert("", spin_atom_is_locked(atom));
+	assert_spin_locked(&(atom->alock));
 #else
 	assert("zam-1018", atom_is_protected(atom));
 #endif
-	assert("", spin_jnode_is_locked(node));
+	assert_spin_locked(&(node->guard));
 	assert("", NODE_LIST(node) == old_list);
 
 	switch (NODE_LIST(node)) {
@@ -2782,7 +2777,7 @@ void jnode_make_wander_nolock(jnode * node)
 
 	assert("nikita-2431", node != NULL);
 	assert("nikita-2432", !JF_ISSET(node, JNODE_RELOC));
-	assert("nikita-3153", jnode_is_dirty(node));
+	assert("nikita-3153", JF_ISSET(node, JNODE_DIRTY));
 	assert("zam-897", !JF_ISSET(node, JNODE_FLUSH_QUEUED));
 	assert("nikita-3367", !blocknr_is_fake(jnode_get_block(node)));
 
@@ -2804,21 +2799,21 @@ void jnode_make_wander(jnode * node)
 {
 	txn_atom *atom;
 
-	LOCK_JNODE(node);
+	spin_lock_jnode(node);
 	atom = jnode_get_atom(node);
 	assert("zam-913", atom != NULL);
 	assert("zam-914", !JF_ISSET(node, JNODE_RELOC));
 
 	jnode_make_wander_nolock(node);
-	UNLOCK_ATOM(atom);
-	UNLOCK_JNODE(node);
+	spin_unlock_atom(atom);
+	spin_unlock_jnode(node);
 }
 
 /* this just sets RELOC bit  */
 static void jnode_make_reloc_nolock(flush_queue_t * fq, jnode * node)
 {
-	assert("vs-1480", spin_jnode_is_locked(node));
-	assert("zam-916", jnode_is_dirty(node));
+	assert_spin_locked(&(node->guard));
+	assert("zam-916", JF_ISSET(node, JNODE_DIRTY));
 	assert("zam-917", !JF_ISSET(node, JNODE_RELOC));
 	assert("zam-918", !JF_ISSET(node, JNODE_OVRWR));
 	assert("zam-920", !JF_ISSET(node, JNODE_FLUSH_QUEUED));
@@ -2834,7 +2829,7 @@ void znode_make_reloc(znode * z, flush_queue_t * fq)
 	txn_atom *atom;
 
 	node = ZJNODE(z);
-	LOCK_JNODE(node);
+	spin_lock_jnode(node);
 
 	atom = jnode_get_atom(node);
 	assert("zam-919", atom != NULL);
@@ -2842,8 +2837,8 @@ void znode_make_reloc(znode * z, flush_queue_t * fq)
 	jnode_make_reloc_nolock(fq, node);
 	queue_jnode(fq, node);
 
-	UNLOCK_ATOM(atom);
-	UNLOCK_JNODE(node);
+	spin_unlock_atom(atom);
+	spin_unlock_jnode(node);
 
 }
 
@@ -2861,10 +2856,10 @@ static int trylock_wait(txn_atom * atom, txn_handle * txnh, jnode * node)
 	if (unlikely(!spin_trylock_atom(atom))) {
 		atomic_inc(&atom->refcount);
 
-		UNLOCK_JNODE(node);
-		UNLOCK_TXNH(txnh);
+		spin_unlock_jnode(node);
+		spin_unlock_txnh(txnh);
 
-		LOCK_ATOM(atom);
+		spin_lock_atom(atom);
 		/* caller should eliminate extra reference by calling
 		 * atom_dec_and_unlock() for this atom. */
 		return 1;
@@ -2900,8 +2895,8 @@ static int trylock_throttle(txn_atom * atom, txn_handle * txnh, jnode * node)
 	assert("nikita-3225", txnh != NULL);
 	assert("nikita-3226", node != NULL);
 
-	assert("nikita-3227", spin_txnh_is_locked(txnh));
-	assert("nikita-3229", spin_jnode_is_locked(node));
+	assert_spin_locked(&(txnh->hlock));
+	assert_spin_locked(&(node->guard));
 
 	if (unlikely(trylock_wait(atom, txnh, node) != 0)) {
 		atom_dec_and_unlock(atom);
@@ -2937,7 +2932,7 @@ static int capture_assign_block(txn_handle * txnh, jnode * node)
 		capture_assign_block_nolock(atom, node);
 
 		/* Success holds onto jnode & txnh locks.  Unlock atom. */
-		UNLOCK_ATOM(atom);
+		spin_unlock_atom(atom);
 		return 0;
 	}
 }
@@ -2979,7 +2974,7 @@ capture_assign_txnh(jnode * node, txn_handle * txnh, txn_capture mode,
 	 * modify it somehow depending on its ->stage. In the simplest case,
 	 * where ->stage is ASTAGE_CAPTURE_FUSE, txnh should be added to
 	 * atom's list. Problem is that atom spin lock nests outside of jnode
-	 * and transaction handle ones. So, we cannot just LOCK_ATOM here.
+	 * and transaction handle ones. So, we cannot just spin_lock_atom here.
 	 *
 	 * Solutions tried here:
 	 *
@@ -2995,15 +2990,15 @@ capture_assign_txnh(jnode * node, txn_handle * txnh, txn_capture mode,
 	 *
 	 */
 	if (trylock_wait(atom, txnh, node) != 0) {
-		LOCK_JNODE(node);
-		LOCK_TXNH(txnh);
+		spin_lock_jnode(node);
+		spin_lock_txnh(txnh);
 		/* NOTE-NIKITA is it at all possible that current txnh
 		 * spontaneously changes ->atom from NULL to non-NULL? */
 		if (node->atom == NULL ||
 		    txnh->atom != NULL || atom != node->atom) {
 			/* something changed. Caller have to re-decide */
-			UNLOCK_TXNH(txnh);
-			UNLOCK_JNODE(node);
+			spin_unlock_txnh(txnh);
+			spin_unlock_jnode(node);
 			atom_dec_and_unlock(atom);
 			return RETERR(-E_REPEAT);
 		} else {
@@ -3067,7 +3062,7 @@ capture_assign_txnh(jnode * node, txn_handle * txnh, txn_capture mode,
 	}
 
 	/* Unlock the atom */
-	UNLOCK_ATOM(atom);
+	spin_unlock_atom(atom);
 	return 0;
 }
 
@@ -3131,7 +3126,7 @@ static void wakeup_atom_waiting_list(txn_atom * atom)
 static int wait_for_fusion(txn_atom * atom, txn_wait_links * wlinks)
 {
 	assert("nikita-3330", atom != NULL);
-	assert("nikita-3331", spin_atom_is_locked(atom));
+	assert_spin_locked(&(atom->alock));
 
 	/* atom->txnh_count == 1 is for waking waiters up if we are releasing
 	 * last transaction handle. */
@@ -3167,14 +3162,14 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf,
 	assert("umka-214", atomf != NULL);
 
 	/* We do not need the node lock. */
-	UNLOCK_JNODE(node);
+	spin_unlock_jnode(node);
 
 	if ((mode & TXN_CAPTURE_NONBLOCKING) != 0) {
-		UNLOCK_TXNH(txnh);
-		UNLOCK_ATOM(atomf);
+		spin_unlock_txnh(txnh);
+		spin_unlock_atom(atomf);
 
 		if (atomh) {
-			UNLOCK_ATOM(atomh);
+			spin_unlock_atom(atomh);
 		}
 
 		return RETERR(-E_BLOCK);
@@ -3187,17 +3182,17 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf,
 	list_add_tail(&wlinks._fwaitfor_link, &atomf->fwaitfor_list);
 	wlinks.waitfor_cb = wait_for_fusion;
 	atomic_inc(&atomf->refcount);
-	UNLOCK_ATOM(atomf);
+	spin_unlock_atom(atomf);
 
 	if (atomh) {
 		/* Add txnh to atomh's waiting list, unlock atomh. */
 		list_add_tail(&wlinks._fwaiting_link, &atomh->fwaiting_list);
 		atomic_inc(&atomh->refcount);
-		UNLOCK_ATOM(atomh);
+		spin_unlock_atom(atomh);
 	}
 
 	/* Go to sleep. */
-	UNLOCK_TXNH(txnh);
+	spin_unlock_txnh(txnh);
 
 	ret = prepare_to_sleep(wlinks._lock_stack);
 	if (ret == 0) {
@@ -3206,19 +3201,21 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf,
 	}
 
 	/* Remove from the waitfor list. */
-	LOCK_ATOM(atomf);
+	spin_lock_atom(atomf);
 
 	list_del(&wlinks._fwaitfor_link);
 	atom_dec_and_unlock(atomf);
 
 	if (atomh) {
 		/* Remove from the waiting list. */
-		LOCK_ATOM(atomh);
+		spin_lock_atom(atomh);
 		list_del(&wlinks._fwaiting_link);
 		atom_dec_and_unlock(atomh);
 	}
-
-	assert("nikita-2186", ergo(ret, spin_jnode_is_not_locked(node)));
+#if REISER4_DEBUG
+	if (ret)
+		assert_spin_not_locked(&(node->guard));
+#endif
 	return ret;
 }
 
@@ -3257,8 +3254,8 @@ capture_init_fusion_locked(jnode * node, txn_handle * txnh, txn_capture mode,
 			/* A read request for a committing block can be satisfied w/o
 			   COPY-ON-CAPTURE.  Success holds onto the jnode & txnh
 			   locks. */
-			UNLOCK_ATOM(atomf);
-			UNLOCK_ATOM(atomh);
+			spin_unlock_atom(atomf);
+			spin_unlock_atom(atomh);
 			return 0;
 		} else {
 			/* Perform COPY-ON-CAPTURE.  Copy and try again.  This function
@@ -3279,8 +3276,8 @@ capture_init_fusion_locked(jnode * node, txn_handle * txnh, txn_capture mode,
 	       || atomf->txnh_count == 0);
 
 	/* Now release the txnh lock: only holding the atoms at this point. */
-	UNLOCK_TXNH(txnh);
-	UNLOCK_JNODE(node);
+	spin_unlock_txnh(txnh);
+	spin_unlock_jnode(node);
 
 	/* Decide which should be kept and which should be merged. */
 	if (atom_pointer_count(atomf) < atom_pointer_count(atomh)) {
@@ -3311,12 +3308,12 @@ capture_init_fusion(jnode * node, txn_handle * txnh, txn_capture mode,
 			return capture_init_fusion_locked(node, txnh, mode,
 							  can_coc);
 		else {
-			UNLOCK_ATOM(node->atom);
+			spin_unlock_atom(node->atom);
 		}
 	}
 
-	UNLOCK_JNODE(node);
-	UNLOCK_TXNH(txnh);
+	spin_unlock_jnode(node);
+	spin_unlock_txnh(txnh);
 	return RETERR(-E_REPEAT);
 }
 
@@ -3333,14 +3330,16 @@ capture_fuse_jnode_lists(txn_atom *large, struct list_head *large_head,
 	assert("umka-219", large_head != NULL);
 	assert("umka-220", small_head != NULL);
 	/* small atom should be locked also. */
-	assert("zam-968", spin_atom_is_locked(large));
+	assert_spin_locked(&(large->alock));
 
 	/* For every jnode on small's capture list... */
 	list_for_each_entry(node, small_head, capture_link) {
 		count += 1;
 
 		/* With the jnode lock held, update atom pointer. */
-		UNDER_SPIN_VOID(jnode, node, node->atom = large);
+		spin_lock_jnode(node);
+		node->atom = large;
+		spin_unlock_jnode(node);
 	}
 
 	/* Splice the lists. */
@@ -3367,7 +3366,9 @@ capture_fuse_txnh_lists(txn_atom *large, struct list_head *large_head,
 		count += 1;
 
 		/* With the txnh lock held, update atom pointer. */
-		UNDER_SPIN_VOID(txnh, txnh, txnh->atom = large);
+		spin_lock_txnh(txnh);
+		txnh->atom = large;
+		spin_unlock_txnh(txnh);
 	}
 
 	/* Splice the txn_handle list. */
@@ -3391,8 +3392,8 @@ static void capture_fuse_into(txn_atom * small, txn_atom * large)
 	assert("umka-224", small != NULL);
 	assert("umka-225", small != NULL);
 
-	assert("umka-299", spin_atom_is_locked(large));
-	assert("umka-300", spin_atom_is_locked(small));
+	assert_spin_locked(&(large->alock));
+	assert_spin_locked(&(small->alock));
 
 	assert("jmacd-201", atom_isopen(small));
 	assert("jmacd-202", atom_isopen(large));
@@ -3427,11 +3428,11 @@ static void capture_fuse_into(txn_atom * small, txn_atom * large)
 		list_for_each_entry(node, &prot_list->nodes, capture_link) {
 			zcount += 1;
 
-			LOCK_JNODE(node);
+			spin_lock_jnode(node);
 			assert("nikita-3375", node->atom == small);
 			/* With the jnode lock held, update atom pointer. */
 			node->atom = large;
-			UNLOCK_JNODE(node);
+			spin_unlock_jnode(node);
 		}
 	}
 	/* Splice the lists of lists. */
@@ -3521,7 +3522,7 @@ static void capture_fuse_into(txn_atom * small, txn_atom * large)
 	wakeup_atom_waiting_list(small);
 
 	/* Unlock atoms */
-	UNLOCK_ATOM(large);
+	spin_unlock_atom(large);
 	atom_dec_and_unlock(small);
 }
 
@@ -3534,7 +3535,7 @@ void protected_jnodes_init(protected_jnodes *list)
 	atom = get_current_atom_locked();
 	list_add(&list->inatom, &atom->protected);
 	INIT_LIST_HEAD(&list->nodes);
-	UNLOCK_ATOM(atom);
+	spin_unlock_atom(atom);
 }
 
 void protected_jnodes_done(protected_jnodes *list)
@@ -3545,7 +3546,7 @@ void protected_jnodes_done(protected_jnodes *list)
 
 	atom = get_current_atom_locked();
 	list_del_init(&list->inatom);
-	UNLOCK_ATOM(atom);
+	spin_unlock_atom(atom);
 }
 
 /* TXNMGR STUFF */
@@ -3647,10 +3648,10 @@ static void fake_jload(jnode * node)
 }
 
 /* for now - refuse to copy-on-capture any suspicious nodes (WRITEBACK, DIRTY, FLUSH_QUEUED) */
-static int check_capturable(const jnode * node, const txn_atom * atom)
+static int check_capturable(jnode * node, const txn_atom * atom)
 {
-	assert("vs-1429", spin_jnode_is_locked(node));
-	assert("vs-1487", check_spin_is_locked(&scan_lock));
+	assert_spin_locked(&(node->guard));
+	assert_spin_locked(&scan_lock);
 
 	if (JF_ISSET(node, JNODE_WRITEBACK)) {
 		reiser4_stat_inc(coc.writeback);
@@ -3723,8 +3724,8 @@ static int copy_on_capture_clean(jnode * node, txn_atom * atom)
 {
 	int result;
 
-	assert("vs-1625", spin_atom_is_locked(atom));
-	assert("vs-1432", spin_jnode_is_locked(node));
+	assert_spin_locked(&(atom->alock));
+	assert_spin_locked(&(node->guard));
 	assert("vs-1627", !JF_ISSET(node, JNODE_WRITEBACK));
 
 	spin_lock(&scan_lock);
@@ -3735,8 +3736,8 @@ static int copy_on_capture_clean(jnode * node, txn_atom * atom)
 		reiser4_stat_inc(coc.ok_clean);
 	}
 	spin_unlock(&scan_lock);
-	UNLOCK_JNODE(node);
-	UNLOCK_ATOM(atom);
+	spin_unlock_jnode(node);
+	spin_unlock_atom(atom);
 
 	return result;
 }
@@ -3744,11 +3745,11 @@ static int copy_on_capture_clean(jnode * node, txn_atom * atom)
 static void lock_two_nodes(jnode * node1, jnode * node2)
 {
 	if (node1 > node2) {
-		LOCK_JNODE(node2);
-		LOCK_JNODE(node1);
+		spin_lock_jnode(node2);
+		spin_lock_jnode(node1);
 	} else {
-		LOCK_JNODE(node1);
-		LOCK_JNODE(node2);
+		spin_lock_jnode(node1);
+		spin_lock_jnode(node2);
 	}
 }
 
@@ -3759,12 +3760,13 @@ static int copy_on_capture_nopage(jnode * node, txn_atom * atom)
 	int result;
 	jnode *copy;
 
+	
 	assert("vs-1432", spin_atom_is_locked(atom));
 	assert("vs-1432", spin_jnode_is_locked(node));
 
 	jref(node);
-	UNLOCK_JNODE(node);
-	UNLOCK_ATOM(atom);
+	spin_unlock_jnode(node);
+	spin_unlock_atom(atom);
 	assert("nikita-3475", schedulable());
 	copy = jclone(node);
 	if (IS_ERR(copy)) {
@@ -3772,7 +3774,7 @@ static int copy_on_capture_nopage(jnode * node, txn_atom * atom)
 		return PTR_ERR(copy);
 	}
 
-	LOCK_ATOM(atom);
+	spin_lock_atom(atom);
 	lock_two_nodes(node, copy);
 	spin_lock(&scan_lock);
 
@@ -3791,9 +3793,9 @@ static int copy_on_capture_nopage(jnode * node, txn_atom * atom)
 	}
 
 	spin_unlock(&scan_lock);
-	UNLOCK_JNODE(node);
-	UNLOCK_JNODE(copy);
-	UNLOCK_ATOM(atom);
+	spin_unlock_jnode(node);
+	spin_unlock_jnode(copy);
+	spin_unlock_atom(atom);
 	assert("nikita-3476", schedulable());
 	jput(copy);
 	assert("nikita-3477", schedulable());
@@ -3822,7 +3824,7 @@ handle_coc(jnode * node, jnode * copy, struct page *page, struct page *new_page,
 	 * free space may not be re-used in insertion.
 	 */
 	radix_tree_preload(GFP_KERNEL);
-	LOCK_ATOM(atom);
+	spin_lock_atom(atom);
 	lock_two_nodes(node, copy);
 	spin_lock(&scan_lock);
 
@@ -3856,9 +3858,9 @@ handle_coc(jnode * node, jnode * copy, struct page *page, struct page *new_page,
 
 		assert("vs-1419", page_count(new_page) >= 3);
 		spin_unlock(&scan_lock);
-		UNLOCK_JNODE(node);
-		UNLOCK_JNODE(copy);
-		UNLOCK_ATOM(atom);
+		spin_unlock_jnode(node);
+		spin_unlock_jnode(copy);
+		spin_unlock_atom(atom);
 		radix_tree_preload_end();
 		unlock_page(page);
 
@@ -3879,9 +3881,9 @@ handle_coc(jnode * node, jnode * copy, struct page *page, struct page *new_page,
 		ON_TRACE(TRACE_CAPTURE_COPY, "copy on capture done\n");
 	} else {
 		spin_unlock(&scan_lock);
-		UNLOCK_JNODE(node);
-		UNLOCK_JNODE(copy);
-		UNLOCK_ATOM(atom);
+		spin_unlock_jnode(node);
+		spin_unlock_jnode(copy);
+		spin_unlock_atom(atom);
 		radix_tree_preload_end();
 		kunmap(page);
 		unlock_page(page);
@@ -3906,8 +3908,8 @@ static int real_copy_on_capture(jnode * node, txn_atom * atom)
 	page = node->pg;
 	page_cache_get(page);
 	jref(node);
-	UNLOCK_JNODE(node);
-	UNLOCK_ATOM(atom);
+	spin_unlock_jnode(node);
+	spin_unlock_atom(atom);
 
 	/* prevent node from eflushing */
 	result = jload(node);
@@ -3951,8 +3953,8 @@ static int create_copy_and_replace(jnode * node, txn_atom * atom)
 	if (JF_ISSET(node, JNODE_CCED)) {
 		/* node is under copy on capture already */
 		reiser4_stat_inc(coc.coc_race);
-		UNLOCK_JNODE(node);
-		UNLOCK_ATOM(atom);
+		spin_unlock_jnode(node);
+		spin_unlock_atom(atom);
 		return RETERR(-E_WAIT);
 	}
 
@@ -3962,8 +3964,8 @@ static int create_copy_and_replace(jnode * node, txn_atom * atom)
 	ON_TRACE(TRACE_CAPTURE_COPY, "copy_on_capture: node %p, atom %p..",
 		 node, atom);
 	if (JF_ISSET(node, JNODE_EFLUSH)) {
-		UNLOCK_JNODE(node);
-		UNLOCK_ATOM(atom);
+		spin_unlock_jnode(node);
+		spin_unlock_atom(atom);
 
 		reiser4_stat_inc(coc.eflush);
 		ON_TRACE(TRACE_CAPTURE_COPY, "eflushed\n");
@@ -3988,8 +3990,8 @@ static int create_copy_and_replace(jnode * node, txn_atom * atom)
 		assert("vs-1640", inode != NULL);
 		assert("vs-1641", page != NULL);
 		assert("vs-1642", page->mapping != NULL);
-		UNLOCK_JNODE(node);
-		UNLOCK_ATOM(atom);
+		spin_unlock_jnode(node);
+		spin_unlock_atom(atom);
 
 		down_write(&reiser4_inode_data(inode)->coc_sem);
 		lock_page(page);
@@ -4015,8 +4017,8 @@ static int create_copy_and_replace(jnode * node, txn_atom * atom)
 		}
 		pte_chain_unlock(page);
 		unlock_page(page);
-		LOCK_ATOM(atom);
-		LOCK_JNODE(node);
+		spin_lock_atom(atom);
+		spin_lock_jnode(node);
 	} else
 		inode = NULL;
 
@@ -4057,9 +4059,9 @@ capture_copy(jnode * node, txn_handle * txnh, txn_atom * atomf,
 
 		/* The txnh and its (possibly NULL) atom's locks are not needed
 		   at this point. */
-		UNLOCK_TXNH(txnh);
+		spin_unlock_txnh(txnh);
 		if (atomh != NULL)
-			UNLOCK_ATOM(atomh);
+			spin_unlock_atom(atomh);
 
 		/* create a copy of node, detach node from atom and attach its copy
 		   instead */
@@ -4067,7 +4069,7 @@ capture_copy(jnode * node, txn_handle * txnh, txn_atom * atomf,
 		result = create_copy_and_replace(node, atomf);
 		assert("nikita-3474", schedulable());
 		preempt_point();
-		LOCK_ATOM(atomf);
+		spin_lock_atom(atomf);
 		atom_dec_and_unlock(atomf);
 		preempt_point();
 
@@ -4108,9 +4110,9 @@ void uncapture_block(jnode * node)
 	assert("umka-228", atom != NULL);
 
 	assert("jmacd-1021", node->atom == atom);
-	assert("jmacd-1022", spin_jnode_is_locked(node));
+	assert_spin_locked(&(node->guard));
 #if REISER4_COPY_ON_CAPTURE
-	assert("jmacd-1023", spin_atom_is_locked(atom));
+	assert_spin_locked(&(atom->alock));
 #else
 	assert("jmacd-1023", atom_is_protected(atom));
 #endif
@@ -4134,7 +4136,7 @@ void uncapture_block(jnode * node)
 	ON_DEBUG(count_jnode(atom, node, NODE_LIST(node), NOT_CAPTURED, 1));
 	node->atom = NULL;
 
-	UNLOCK_JNODE(node);
+	spin_unlock_jnode(node);
 	LOCK_CNT_DEC(t_refs);
 }
 
@@ -4143,9 +4145,8 @@ void uncapture_block(jnode * node)
    transaction. @atom and @node are spin locked */
 void insert_into_atom_ovrwr_list(txn_atom * atom, jnode * node)
 {
-	assert("zam-538", spin_atom_is_locked(atom)
-	       || atom->stage >= ASTAGE_PRE_COMMIT);
-	assert("zam-539", spin_jnode_is_locked(node));
+	assert("zam-538", atom_is_protected(atom));
+	assert_spin_locked(&(node->guard));
 	assert("zam-899", JF_ISSET(node, JNODE_OVRWR));
 	assert("zam-543", node->atom == NULL);
 	assert("vs-1433", !jnode_is_unformatted(node) && !jnode_is_znode(node));
@@ -4201,10 +4202,10 @@ reiser4_block_nr txnmgr_count_deleted_blocks(void)
 
 	spin_lock_txnmgr(tmgr);
 	list_for_each_entry(atom, &tmgr->atoms_list, atom_link) {
-		LOCK_ATOM(atom);
+		spin_lock_atom(atom);
 		blocknr_set_iterator(atom, &atom->delete_set,
 				     count_deleted_blocks_actor, &result, 0);
-		UNLOCK_ATOM(atom);
+		spin_unlock_atom(atom);
 	}
 	spin_unlock_txnmgr(tmgr);
 

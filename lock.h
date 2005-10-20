@@ -8,7 +8,6 @@
 #include "forward.h"
 #include "debug.h"
 #include "dformat.h"
-#include "spin_macros.h"
 #include "key.h"
 #include "coord.h"
 #include "plugin/node/node.h"
@@ -23,7 +22,7 @@
 
 /* Per-znode lock object */
 struct zlock {
-	reiser4_rw_data guard;
+	rwlock_t guard;
 	/* The number of readers if positive; the number of recursively taken
 	   write locks if negative. Protected by zlock spin lock. */
 	int nr_readers;
@@ -40,20 +39,73 @@ struct zlock {
 	struct list_head requestors;
 };
 
-#define rw_ordering_pred_zlock(lock)			\
-	  (lock_counters()->spin_locked_stack == 0)
+static inline void read_lock_zlock(zlock *lock)
+{
+	/* check that zlock is not locked */
+	assert("", (LOCK_CNT_NIL(rw_locked_zlock) &&
+		    LOCK_CNT_NIL(read_locked_zlock) &&
+		    LOCK_CNT_NIL(write_locked_zlock)));
+	/* check that spinlocks of lower priorities are not held */
+	assert("", LOCK_CNT_NIL(spin_locked_stack));
 
-/* Define spin_lock_zlock, spin_unlock_zlock, etc. */
-RW_LOCK_FUNCTIONS(zlock, zlock, guard);
+	read_lock(&(lock->guard));
+
+	LOCK_CNT_INC(read_locked_zlock);
+	LOCK_CNT_INC(rw_locked_zlock);
+	LOCK_CNT_INC(spin_locked);
+}
+
+static inline void read_unlock_zlock(zlock *lock)
+{
+	assert("nikita-1375", LOCK_CNT_GTZ(read_locked_zlock));
+	assert("nikita-1376", LOCK_CNT_GTZ(rw_locked_zlock));
+	assert("nikita-1376", LOCK_CNT_GTZ(spin_locked));
+
+	LOCK_CNT_DEC(read_locked_zlock);
+	LOCK_CNT_DEC(rw_locked_zlock);
+	LOCK_CNT_DEC(spin_locked);
+
+	read_unlock(&(lock->guard));
+}
+
+static inline void write_lock_zlock(zlock *lock)
+{
+	/* check that zlock is not locked */
+	assert("", (LOCK_CNT_NIL(rw_locked_zlock) &&
+		    LOCK_CNT_NIL(read_locked_zlock) &&
+		    LOCK_CNT_NIL(write_locked_zlock)));
+	/* check that spinlocks of lower priorities are not held */
+	assert("", LOCK_CNT_NIL(spin_locked_stack));
+
+	write_lock(&(lock->guard));
+
+	LOCK_CNT_INC(write_locked_zlock);
+	LOCK_CNT_INC(rw_locked_zlock);
+	LOCK_CNT_INC(spin_locked);
+}
+
+static inline void write_unlock_zlock(zlock *lock)
+{
+	assert("nikita-1375", LOCK_CNT_GTZ(write_locked_zlock));
+	assert("nikita-1376", LOCK_CNT_GTZ(rw_locked_zlock));
+	assert("nikita-1376", LOCK_CNT_GTZ(spin_locked));
+
+	LOCK_CNT_DEC(write_locked_zlock);
+	LOCK_CNT_DEC(rw_locked_zlock);
+	LOCK_CNT_DEC(spin_locked);
+
+	write_unlock(&(lock->guard));
+}
+
 
 #define lock_is_locked(lock)          ((lock)->nr_readers != 0)
 #define lock_is_rlocked(lock)         ((lock)->nr_readers > 0)
 #define lock_is_wlocked(lock)         ((lock)->nr_readers < 0)
 #define lock_is_wlocked_once(lock)    ((lock)->nr_readers == -1)
 #define lock_can_be_rlocked(lock)     ((lock)->nr_readers >=0)
-#define lock_mode_compatible(lock, mode) \
-             (((mode) == ZNODE_WRITE_LOCK && !lock_is_locked(lock)) \
-           || ((mode) == ZNODE_READ_LOCK && lock_can_be_rlocked(lock)))
+#define lock_mode_compatible(lock, mode)				\
+             (((mode) == ZNODE_WRITE_LOCK && !lock_is_locked(lock)) ||	\
+              ((mode) == ZNODE_READ_LOCK && lock_can_be_rlocked(lock)))
 
 /* Since we have R/W znode locks we need additional bidirectional `link'
    objects to implement n<->m relationship between lock owners and lock
@@ -90,7 +142,7 @@ typedef struct lock_request {
 /* A lock stack structure for accumulating locks owned by a process */
 struct lock_stack {
 	/* A guard lock protecting a lock stack */
-	reiser4_spin_data sguard;
+	spinlock_t sguard;
 	/* number of znodes which were requested by high priority processes */
 	atomic_t nr_signaled;
 	/* Current priority of a process
@@ -177,26 +229,32 @@ extern int lock_stack_isclean(lock_stack * owner);
 extern int znode_is_write_locked(const znode *);
 extern void invalidate_lock(lock_handle *);
 
-#if REISER4_DEBUG
-#define spin_ordering_pred_stack_addendum (1)
-#else
-#define spin_ordering_pred_stack_addendum		\
-	 ((lock_counters()->rw_locked_dk == 0) &&	\
-	  (lock_counters()->rw_locked_tree == 0))
-#endif
 /* lock ordering is: first take zlock spin lock, then lock stack spin lock */
-#define spin_ordering_pred_stack(stack)				\
-	((lock_counters()->spin_locked_stack == 0) &&		\
-	 (lock_counters()->spin_locked_txnmgr == 0) &&		\
-	 (lock_counters()->spin_locked_super == 0) &&		\
-	 (lock_counters()->spin_locked_inode_object == 0) &&	\
-	 (lock_counters()->rw_locked_cbk_cache == 0) &&	\
-	 (lock_counters()->spin_locked_epoch == 0) &&		\
-	 (lock_counters()->spin_locked_super_eflush == 0) &&	\
-	 spin_ordering_pred_stack_addendum)
+#define spin_ordering_pred_stack(stack)			\
+	(LOCK_CNT_NIL(spin_locked_stack) &&		\
+	 LOCK_CNT_NIL(spin_locked_txnmgr) &&		\
+	 LOCK_CNT_NIL(spin_locked_inode) &&		\
+	 LOCK_CNT_NIL(rw_locked_cbk_cache) &&		\
+	 LOCK_CNT_NIL(spin_locked_super_eflush) )
 
-/* Same for lock_stack */
-SPIN_LOCK_FUNCTIONS(stack, lock_stack, sguard);
+static inline void spin_lock_stack(lock_stack *stack)
+{
+	assert("", spin_ordering_pred_stack(stack));
+	spin_lock(&(stack->sguard));
+	LOCK_CNT_INC(spin_locked_stack);
+	LOCK_CNT_INC(spin_locked);
+}
+
+static inline void spin_unlock_stack(lock_stack *stack)
+{
+	assert_spin_locked(&(stack->sguard));
+	assert("nikita-1375", LOCK_CNT_GTZ(spin_locked_stack));
+	assert("nikita-1376", LOCK_CNT_GTZ(spin_locked));
+	LOCK_CNT_DEC(spin_locked_stack);
+	LOCK_CNT_DEC(spin_locked);
+	spin_unlock(&(stack->sguard));
+}
+
 
 static inline void reiser4_wake_up(lock_stack * owner)
 {

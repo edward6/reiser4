@@ -899,8 +899,6 @@ void print_coord(const char *mes, const coord_t * coord, int node)
 	printk("%s: item_pos = %d, unit_pos %d, tween=%s, iplug=%d\n",
 	       mes, coord->item_pos, coord->unit_pos,
 	       coord_tween_tostring(coord->between), coord->iplugid);
-	if (node)
-		print_znode("\tnode", coord->node);
 }
 
 int

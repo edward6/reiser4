@@ -36,13 +36,13 @@ oid_t oid_allocate(struct super_block * super)
 
 	sbinfo = get_super_private(super);
 
-	reiser4_spin_lock_sb(sbinfo);
+	spin_lock_reiser4_super(sbinfo);
 	if (sbinfo->next_to_use != ABSOLUTE_MAX_OID) {
 		oid = sbinfo->next_to_use++;
 		sbinfo->oids_in_use++;
 	} else
 		oid = ABSOLUTE_MAX_OID;
-	reiser4_spin_unlock_sb(sbinfo);
+	spin_unlock_reiser4_super(sbinfo);
 	return oid;
 }
 
@@ -55,9 +55,9 @@ int oid_release(struct super_block *super, oid_t oid UNUSED_ARG)
 
 	sbinfo = get_super_private(super);
 
-	reiser4_spin_lock_sb(sbinfo);
+	spin_lock_reiser4_super(sbinfo);
 	sbinfo->oids_in_use--;
-	reiser4_spin_unlock_sb(sbinfo);
+	spin_unlock_reiser4_super(sbinfo);
 	return 0;
 }
 
@@ -73,9 +73,9 @@ oid_t oid_next(const struct super_block * super)
 
 	sbinfo = get_super_private(super);
 
-	reiser4_spin_lock_sb(sbinfo);
+	spin_lock_reiser4_super(sbinfo);
 	oid = sbinfo->next_to_use;
-	reiser4_spin_unlock_sb(sbinfo);
+	spin_unlock_reiser4_super(sbinfo);
 	return oid;
 }
 
@@ -91,9 +91,9 @@ long oids_used(const struct super_block *super)
 
 	sbinfo = get_super_private(super);
 
-	reiser4_spin_lock_sb(sbinfo);
+	spin_lock_reiser4_super(sbinfo);
 	used = sbinfo->oids_in_use;
-	reiser4_spin_unlock_sb(sbinfo);
+	spin_unlock_reiser4_super(sbinfo);
 	if (used < (__u64) ((long)~0) >> 1)
 		return (long)used;
 	else
@@ -111,9 +111,9 @@ long oids_free(const struct super_block *super)
 
 	sbinfo = get_super_private(super);
 
-	reiser4_spin_lock_sb(sbinfo);
+	spin_lock_reiser4_super(sbinfo);
 	oids = ABSOLUTE_MAX_OID - OIDS_RESERVED - sbinfo->next_to_use;
-	reiser4_spin_unlock_sb(sbinfo);
+	spin_unlock_reiser4_super(sbinfo);
 	if (oids < (__u64) ((long)~0) >> 1)
 		return (long)oids;
 	else
@@ -132,7 +132,7 @@ void oid_count_allocated(void)
 
 	atom = get_current_atom_locked();
 	atom->nr_objects_created++;
-	UNLOCK_ATOM(atom);
+	spin_unlock_atom(atom);
 }
 
 /*
@@ -146,7 +146,7 @@ void oid_count_released(void)
 
 	atom = get_current_atom_locked();
 	atom->nr_objects_deleted++;
-	UNLOCK_ATOM(atom);
+	spin_unlock_atom(atom);
 }
 
 /*

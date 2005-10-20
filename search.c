@@ -64,7 +64,7 @@ int cbk_cache_init(cbk_cache *cache /* cache to init */ )
 		cbk_cache_init_slot(cache->slot + i);
 		list_add_tail(&((cache->slot + i)->lru), &cache->lru);
 	}
-	rw_cbk_cache_init(cache);
+	rwlock_init(&cache->guard);
 	return 0;
 }
 
@@ -107,7 +107,7 @@ static int cbk_cache_invariant(const cbk_cache *cache)
 	assert("nikita-2469", cache != NULL);
 	unused = 0;
 	result = 1;
-	read_lock_cbk_cache((cbk_cache *) cache);
+	read_lock(&((cbk_cache *)cache)->guard);
 	for_all_slots(cache, slot) {
 		/* in LRU first go all `used' slots followed by `unused' */
 		if (unused && (slot->node != NULL))
@@ -130,7 +130,7 @@ static int cbk_cache_invariant(const cbk_cache *cache)
 		if (!result)
 			break;
 	}
-	read_unlock_cbk_cache((cbk_cache *) cache);
+	read_unlock(&((cbk_cache *)cache)->guard);
 	return result;
 }
 
@@ -150,7 +150,7 @@ void cbk_cache_invalidate(const znode * node /* node to remove from cache */ ,
 	cache = &tree->cbk_cache;
 	assert("nikita-2470", cbk_cache_invariant(cache));
 
-	write_lock_cbk_cache(cache);
+	write_lock(&(cache->guard));
 	for (i = 0, slot = cache->slot; i < cache->nr_slots; ++i, ++slot) {
 		if (slot->node == node) {
 			list_del(&slot->lru);
@@ -159,7 +159,7 @@ void cbk_cache_invalidate(const znode * node /* node to remove from cache */ ,
 			break;
 		}
 	}
-	write_unlock_cbk_cache(cache);
+	write_unlock(&(cache->guard));
 	assert("nikita-2471", cbk_cache_invariant(cache));
 }
 
@@ -179,7 +179,7 @@ static void cbk_cache_add(const znode *node /* node to add to the cache */ )
 	if (cache->nr_slots == 0)
 		return;
 
-	write_lock_cbk_cache(cache);
+	write_lock(&(cache->guard));
 	/* find slot to update/add */
 	for (i = 0, slot = cache->slot; i < cache->nr_slots; ++i, ++slot) {
 		/* oops, this node is already in a cache */
@@ -193,7 +193,7 @@ static void cbk_cache_add(const znode *node /* node to add to the cache */ )
 	}
 	list_del(&slot->lru);
 	list_add(&slot->lru, &cache->lru);
-	write_unlock_cbk_cache(cache);
+	write_unlock(&(cache->guard));
 	assert("nikita-2473", cbk_cache_invariant(cache));
 }
 
@@ -605,12 +605,10 @@ static int prepare_object_lookup(cbk_handle * h)
 
 		isunique = h->flags & CBK_UNIQUE;
 		/* check that key is inside vroot */
-		inside =
-		    UNDER_RW(dk, h->tree, read,
-			     znode_contains_key_strict(vroot,
-						       h->key,
-						       isunique)) &&
-		    !ZF_ISSET(vroot, JNODE_HEARD_BANSHEE);
+		read_lock_dk(h->tree);
+		inside = (znode_contains_key_strict(vroot, h->key, isunique) &&
+			  !ZF_ISSET(vroot, JNODE_HEARD_BANSHEE));
+		read_unlock_dk(h->tree);
 		if (inside) {
 			h->result = zload(vroot);
 			if (h->result == 0) {
@@ -736,8 +734,6 @@ static lookup_result traverse_tree(cbk_handle * h /* search handle */ )
 		print_address("block", &h->block);
 		print_key("key", h->key);
 		print_coord_content("coord", h->coord);
-		print_znode("active", h->active_lh->node);
-		print_znode("parent", h->parent_lh->node);
 	}
 	/* `unlikely' error case */
 	if (unlikely(IS_CBKERR(h->result))) {
@@ -774,7 +770,7 @@ static void find_child_delimiting_keys(znode * parent	/* parent znode, passed
 	coord_t neighbor;
 
 	assert("nikita-1484", parent != NULL);
-	assert("nikita-1485", rw_dk_is_locked(znode_get_tree(parent)));
+	assert_rw_locked(&(znode_get_tree(parent)->dk_lock));
 
 	coord_dup(&neighbor, parent_coord);
 
@@ -819,7 +815,7 @@ set_child_delimiting_keys(znode * parent, const coord_t * coord, znode * child)
 	 * JNODE_DKSET is never cleared once set. */
 	if (!ZF_ISSET(child, JNODE_DKSET)) {
 		tree = znode_get_tree(parent);
-		WLOCK_DK(tree);
+		write_lock_dk(tree);
 		if (likely(!ZF_ISSET(child, JNODE_DKSET))) {
 			find_child_delimiting_keys(parent, coord,
 						   &child->ld_key,
@@ -830,7 +826,7 @@ set_child_delimiting_keys(znode * parent, const coord_t * coord, znode * child)
 				 atomic_inc_return(&delim_key_version););
 			ZF_SET(child, JNODE_DKSET);
 		}
-		WUNLOCK_DK(tree);
+		write_unlock_dk(tree);
 		return 1;
 	}
 	return 0;
@@ -895,10 +891,10 @@ static level_lookup_result cbk_level_lookup(cbk_handle * h /* search handle */ )
 			setdk = set_child_delimiting_keys(parent,
 							  h->coord, active);
 		else {
-			UNDER_RW_VOID(dk, h->tree, read,
-				      find_child_delimiting_keys(parent,
-								 h->coord,
-								 &ldkey, &key));
+			read_lock_dk(h->tree);
+			find_child_delimiting_keys(parent, h->coord, &ldkey,
+						   &key);
+			read_unlock_dk(h->tree);
 			ldkeyset = 1;
 		}
 		zrelse(parent);
@@ -911,13 +907,13 @@ static level_lookup_result cbk_level_lookup(cbk_handle * h /* search handle */ )
 	h->coord->between = AT_UNIT;
 
 	if (znode_just_created(active) && (h->coord->node != NULL)) {
-		WLOCK_TREE(h->tree);
+		write_lock_tree(h->tree);
 		/* if we are going to load znode right now, setup
 		   ->in_parent: coord where pointer to this node is stored in
 		   parent.
 		 */
 		coord_to_parent_coord(h->coord, &active->in_parent);
-		WUNLOCK_TREE(h->tree);
+		write_unlock_tree(h->tree);
 	}
 
 	/* check connectedness without holding tree lock---false negatives
@@ -1003,8 +999,8 @@ void check_dkeys(znode * node)
 	znode *left;
 	znode *right;
 
-	RLOCK_TREE(current_tree);
-	RLOCK_DK(current_tree);
+	read_lock_tree(current_tree);
+	read_lock_dk(current_tree);
 
 	assert("vs-1710", znode_is_any_locked(node));
 	assert("vs-1197",
@@ -1029,8 +1025,8 @@ void check_dkeys(znode * node)
 		       (keyeq(znode_get_rd_key(node), znode_get_ld_key(right))
 			|| ZF_ISSET(right, JNODE_HEARD_BANSHEE)));
 
-	RUNLOCK_DK(current_tree);
-	RUNLOCK_TREE(current_tree);
+	read_unlock_dk(current_tree);
+	read_unlock_tree(current_tree);
 }
 #endif
 
@@ -1042,10 +1038,10 @@ static int key_is_ld(znode * node, const reiser4_key * key)
 	assert("nikita-1716", node != NULL);
 	assert("nikita-1758", key != NULL);
 
-	RLOCK_DK(znode_get_tree(node));
+	read_lock_dk(znode_get_tree(node));
 	assert("nikita-1759", znode_contains_key(node, key));
 	ld = keyeq(znode_get_ld_key(node), key);
-	RUNLOCK_DK(znode_get_tree(node));
+	read_unlock_dk(znode_get_tree(node));
 	return ld;
 }
 
@@ -1179,7 +1175,7 @@ static int cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 	 */
 
 	rcu_read_lock();
-	read_lock_cbk_cache(cache);
+	read_lock(&((cbk_cache *)cache)->guard);
 
 	slot = list_entry(cache->lru.next, cbk_cache_slot, lru);
 	slot = list_entry(slot->lru.prev, cbk_cache_slot, lru);
@@ -1207,11 +1203,11 @@ static int cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 		    znode_contains_key_strict(node, key, isunique)) {
 			zref(node);
 			result = 0;
-			spin_lock_prefetch(&tree->tree_lock.lock);
+			spin_lock_prefetch(&tree->tree_lock);
 			break;
 		}
 	}
-	read_unlock_cbk_cache(cache);
+	read_unlock(&((cbk_cache *)cache)->guard);
 
 	assert("nikita-2475", cbk_cache_invariant(cache));
 
@@ -1236,11 +1232,10 @@ static int cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 		return result;
 
 	/* recheck keys */
-	result =
-	    UNDER_RW(dk, tree, read,
-		     znode_contains_key_strict(node, key, isunique)) &&
-	    !ZF_ISSET(node, JNODE_HEARD_BANSHEE);
-
+	read_lock_dk(tree);
+	result = (znode_contains_key_strict(node, key, isunique) &&
+		!ZF_ISSET(node, JNODE_HEARD_BANSHEE));
+	read_unlock_dk(tree);
 	if (result) {
 		/* do lookup inside node */
 		llr = cbk_node_lookup(h);
@@ -1258,14 +1253,14 @@ static int cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 			/* good. Either item found or definitely not found. */
 			result = 0;
 
-			write_lock_cbk_cache(cache);
+			write_lock(&(cache->guard));
 			if (slot->node == h->active_lh->node /*node */ ) {
 				/* if this node is still in cbk cache---move
 				   its slot to the head of the LRU list. */
 				list_del(&slot->lru);
 				list_add(&slot->lru, &cache->lru);
 			}
-			write_unlock_cbk_cache(cache);
+			write_unlock(&(cache->guard));
 		}
 	} else {
 		/* race. While this thread was waiting for the lock, node was
@@ -1337,8 +1332,8 @@ static void stale_dk(reiser4_tree * tree, znode * node)
 {
 	znode *right;
 
-	RLOCK_TREE(tree);
-	WLOCK_DK(tree);
+	read_lock_tree(tree);
+	write_lock_dk(tree);
 	right = node->right;
 
 	if (ZF_ISSET(node, JNODE_RIGHT_CONNECTED) &&
@@ -1346,8 +1341,8 @@ static void stale_dk(reiser4_tree * tree, znode * node)
 	    !keyeq(znode_get_rd_key(node), znode_get_ld_key(right)))
 		znode_set_rd_key(node, znode_get_ld_key(right));
 
-	WUNLOCK_DK(tree);
-	RUNLOCK_TREE(tree);
+	write_unlock_dk(tree);
+	read_unlock_tree(tree);
 }
 
 /* check for possibly outdated delimiting keys, and update them if
@@ -1357,8 +1352,8 @@ static void update_stale_dk(reiser4_tree * tree, znode * node)
 	znode *right;
 	reiser4_key rd;
 
-	RLOCK_TREE(tree);
-	RLOCK_DK(tree);
+	read_lock_tree(tree);
+	read_lock_dk(tree);
 	rd = *znode_get_rd_key(node);
 	right = node->right;
 	if (unlikely(ZF_ISSET(node, JNODE_RIGHT_CONNECTED) &&
@@ -1367,13 +1362,13 @@ static void update_stale_dk(reiser4_tree * tree, znode * node)
 		/* does this ever happen? */
 		warning("nikita-38210", "stale dk");
 		assert("nikita-38211", ZF_ISSET(node, JNODE_DKSET));
-		RUNLOCK_DK(tree);
-		RUNLOCK_TREE(tree);
+		read_unlock_dk(tree);
+		read_unlock_tree(tree);
 		stale_dk(tree, node);
 		return;
 	}
-	RUNLOCK_DK(tree);
-	RUNLOCK_TREE(tree);
+	read_unlock_dk(tree);
+	read_unlock_tree(tree);
 }
 
 /*
@@ -1452,10 +1447,10 @@ static level_lookup_result search_to_left(cbk_handle * h /* search handle */ )
 	default:		/* some other error */
 				result = LOOKUP_DONE;
 			} else if (h->result == NS_FOUND) {
-				RLOCK_DK(znode_get_tree(neighbor));
+				read_lock_dk(znode_get_tree(neighbor));
 				h->rd_key = *znode_get_ld_key(node);
 				leftmost_key_in_node(neighbor, &h->ld_key);
-				RUNLOCK_DK(znode_get_tree(neighbor));
+				read_unlock_dk(znode_get_tree(neighbor));
 				h->flags |= CBK_DKSET;
 
 				h->block = *znode_get_block(neighbor);
@@ -1465,8 +1460,10 @@ static level_lookup_result search_to_left(cbk_handle * h /* search handle */ )
 				   Parent hint was set up by
 				   reiser4_get_left_neighbor()
 				 */
-				UNDER_RW_VOID(tree, znode_get_tree(neighbor),
-					      write, h->coord->node = NULL);
+				/* FIXME: why do we have to spinlock here? */
+				write_lock_tree(znode_get_tree(neighbor));
+				h->coord->node = NULL;
+				write_unlock_tree(znode_get_tree(neighbor));
 				result = LOOKUP_CONT;
 			} else {
 				result = LOOKUP_DONE;
@@ -1511,7 +1508,6 @@ void print_coord_content(const char *prefix /* prefix to print */ ,
 	    && coord_is_existing_item(p))
 		printk("%s: data: %p, length: %i\n", prefix,
 		       item_body_by_coord(p), item_length_by_coord(p));
-	print_znode(prefix, p->node);
 	if (znode_is_loaded(p->node)) {
 		item_key_by_coord(p, &key);
 		print_key(prefix, &key);
@@ -1574,13 +1570,13 @@ static int setup_delimiting_keys(cbk_handle * h /* search handle */ )
 	 * JNODE_DKSET is never cleared once set. */
 	if (!ZF_ISSET(active, JNODE_DKSET)) {
 		tree = znode_get_tree(active);
-		WLOCK_DK(tree);
+		write_lock_dk(tree);
 		if (!ZF_ISSET(active, JNODE_DKSET)) {
 			znode_set_ld_key(active, &h->ld_key);
 			znode_set_rd_key(active, &h->rd_key);
 			ZF_SET(active, JNODE_DKSET);
 		}
-		WUNLOCK_DK(tree);
+		write_unlock_dk(tree);
 		return 1;
 	}
 	return 0;

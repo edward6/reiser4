@@ -16,7 +16,7 @@ static LIST_HEAD(cursor_cache);
 static unsigned long d_cursor_unused = 0;
 
 /* spinlock protecting manipulations with dir_cursor's hash table and lists */
-static spinlock_t d_lock = SPIN_LOCK_UNLOCKED;
+spinlock_t d_lock = SPIN_LOCK_UNLOCKED;
 
 static void kill_cursor(dir_cursor *);
 
@@ -291,6 +291,8 @@ static __u32 cid_counter = 0;
 #define CID_SHIFT (20)
 #define CID_MASK  (0xfffffull)
 
+static void free_file_fsdata_nolock(struct file *);
+
 /**
  * insert_cursor - allocate file_fsdata, insert cursor to tree and hash table
  * @cursor:
@@ -337,7 +339,7 @@ static int insert_cursor(dir_cursor *cursor, struct file *file,
 				warning("", "file has fsdata already");
 #endif
 			clean_fsdata(file);
-			reiser4_free_file_fsdata(file);
+			free_file_fsdata_nolock(file);
 			file->private_data = fsdata;
 			fsdata->cursor = cursor;
 			spin_unlock_inode(inode);
@@ -554,7 +556,7 @@ int try_to_attach_fsdata(struct file *file, struct inode *inode)
 			spin_lock_inode(inode);
 			assert("nikita-3556", cursor->fsdata->back == NULL);
 			clean_fsdata(file);
-			reiser4_free_file_fsdata(file);
+			free_file_fsdata_nolock(file);
 			file->private_data = cursor->fsdata;
 			spin_unlock_inode(inode);
 		}
@@ -747,29 +749,38 @@ reiser4_file_fsdata *reiser4_get_file_fsdata(struct file *file)
 }
 
 /**
- * reiser4_free_file_fsdata - detach from struct file and free reiser4_file_fsdata
+ * free_file_fsdata_nolock - detach and free reiser4_file_fsdata
  * @file:
  *
  * Detaches reiser4_file_fsdata from @file, removes reiser4_file_fsdata from
  * readdir list, frees if it is not linked to d_cursor object.
  */
-void reiser4_free_file_fsdata(struct file *file)
+static void free_file_fsdata_nolock(struct file *file)
 {
 	reiser4_file_fsdata *fsdata;
 
-	spin_lock_inode(file->f_dentry->d_inode);
+	assert("", spin_inode_is_locked(file->f_dentry->d_inode));
 	fsdata = file->private_data;
 	if (fsdata != NULL) {
 		list_del_init(&fsdata->dir.linkage);
 		if (fsdata->cursor == NULL)
 			free_fsdata(fsdata);
 	}
-	file->private_data = NULL;
-
-	spin_unlock_inode(file->f_dentry->d_inode);
+	file->private_data = NULL;	
 }
 
-
+/**
+ * reiser4_free_file_fsdata - detach from struct file and free reiser4_file_fsdata
+ * @file:
+ *
+ * Spinlocks inode and calls free_file_fsdata_nolock to do the work.
+ */
+void reiser4_free_file_fsdata(struct file *file)
+{
+	spin_lock_inode(file->f_dentry->d_inode);
+	free_file_fsdata_nolock(file);
+	spin_unlock_inode(file->f_dentry->d_inode);
+}
 
 /*
  * Local variables:

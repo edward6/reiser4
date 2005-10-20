@@ -12,7 +12,6 @@
 #include "key.h"
 #include "debug.h"
 #include "dformat.h"
-#include "spin_macros.h"
 #include "emergency_flush.h"
 
 #include "plugin/plugin.h"
@@ -107,7 +106,7 @@ struct jnode {
 	/*   0 */ unsigned long state;
 
 	/* lock, protecting jnode's fields. */
-	/*   4 */ reiser4_spin_data load;
+	/*   4 */ spinlock_t load;
 
 	/* counter of references to jnode itself. Increased on jref().
 	   Decreased on jput().
@@ -148,7 +147,7 @@ struct jnode {
 
 	/* FOURTH CACHE LINE: atom related fields */
 
-	/*   48 */ reiser4_spin_data guard;
+	/*   48 */ spinlock_t guard;
 
 	/* atom the block is in, if any */
 	/*   52 */ txn_atom *atom;
@@ -324,28 +323,32 @@ static inline int JF_TEST_AND_SET(jnode * j, int f)
 	return test_and_set_bit(f, &j->state);
 }
 
-/* ordering constraint for znode spin lock: znode lock is weaker than
-   tree lock and dk lock */
-#define spin_ordering_pred_jnode( node )					\
-	( ( lock_counters() -> rw_locked_tree == 0 ) &&			\
-	  ( lock_counters() -> spin_locked_txnh == 0 ) &&                       \
-	  ( lock_counters() -> rw_locked_zlock == 0 ) &&                      \
-	  ( lock_counters() -> rw_locked_dk == 0 )   &&                       \
-	  /*                                                                    \
-	     in addition you cannot hold more than one jnode spin lock at a     \
-	     time.                                                              \
-	  */                                                                   \
-	  ( lock_counters() -> spin_locked_jnode < 2 ) )
+static inline void spin_lock_jnode(jnode *node)
+{
+	/* check that spinlocks of lower priorities are not held */
+	assert("", (LOCK_CNT_NIL(rw_locked_tree) &&
+		    LOCK_CNT_NIL(spin_locked_txnh) &&
+		    LOCK_CNT_NIL(rw_locked_zlock) &&
+		    LOCK_CNT_NIL(rw_locked_dk) &&
+		    LOCK_CNT_LT(spin_locked_jnode, 2)));
 
-/* Define spin_lock_jnode, spin_unlock_jnode, and spin_jnode_is_locked.
-   Take and release short-term spinlocks.  Don't hold these across
-   io.
-*/
-SPIN_LOCK_FUNCTIONS(jnode, jnode, guard);
+	spin_lock(&(node->guard));
 
-#define spin_ordering_pred_jload(node) (1)
+	LOCK_CNT_INC(spin_locked_jnode);
+	LOCK_CNT_INC(spin_locked);
+}
 
-SPIN_LOCK_FUNCTIONS(jload, jnode, load);
+static inline void spin_unlock_jnode(jnode *node)
+{
+	assert_spin_locked(&(node->guard));
+	assert("nikita-1375", LOCK_CNT_GTZ(spin_locked_jnode));
+	assert("nikita-1376", LOCK_CNT_GTZ(spin_locked));
+
+	LOCK_CNT_DEC(spin_locked_jnode);
+	LOCK_CNT_DEC(spin_locked);
+
+	spin_unlock(&(node->guard));
+}
 
 static inline int jnode_is_in_deleteset(const jnode * node)
 {
@@ -398,10 +401,10 @@ static inline const reiser4_block_nr *jnode_get_block(const jnode *
 /* block number for IO. Usually this is the same as jnode_get_block(), unless
  * jnode was emergency flushed---then block number chosen by eflush is
  * used. */
-static inline const reiser4_block_nr *jnode_get_io_block(const jnode * node)
+static inline const reiser4_block_nr *jnode_get_io_block(jnode * node)
 {
 	assert("nikita-2768", node != NULL);
-	assert("nikita-2769", spin_jnode_is_locked(node));
+	assert_spin_locked(&(node->guard));
 
 	if (unlikely(JF_ISSET(node, JNODE_EFLUSH)))
 		return eflush_get(node);
@@ -447,13 +450,11 @@ extern int jnodes_tree_done(reiser4_tree * tree);
 extern int znode_is_any_locked(const znode * node);
 extern void jnode_list_remove(jnode * node);
 extern void info_jnode(const char *prefix, const jnode * node);
-extern void print_jnode(const char *prefix, const jnode * node);
 
 #else
 
 #define jnode_list_remove(node) noop
 #define info_jnode(p, n) noop
-#define print_jnode(p, n) noop
 
 #endif
 
@@ -582,29 +583,12 @@ static inline int jnode_is_znode(const jnode * node)
 	return jnode_get_type(node) == JNODE_FORMATTED_BLOCK;
 }
 
-/* return true if "node" is dirty */
-static inline int jnode_is_dirty(const jnode * node)
-{
-	assert("nikita-782", node != NULL);
-	assert("jmacd-1800", spin_jnode_is_locked(node)
-	       || (jnode_is_znode(node) && znode_is_any_locked(JZNODE(node))));
-	return JF_ISSET(node, JNODE_DIRTY);
-}
-
-/* return true if "node" is dirty, node is unlocked */
-static inline int jnode_check_dirty(jnode * node)
-{
-	assert("jmacd-7798", node != NULL);
-	assert("jmacd-7799", spin_jnode_is_not_locked(node));
-	return UNDER_SPIN(jnode, node, jnode_is_dirty(node));
-}
-
-static inline int jnode_is_flushprepped(const jnode * node)
+static inline int jnode_is_flushprepped(jnode * node)
 {
 	assert("jmacd-78212", node != NULL);
-	assert("jmacd-71276", spin_jnode_is_locked(node));
-	return !jnode_is_dirty(node) || JF_ISSET(node, JNODE_RELOC)
-	    || JF_ISSET(node, JNODE_OVRWR);
+	assert_spin_locked(&(node->guard));
+	return !JF_ISSET(node, JNODE_DIRTY) || JF_ISSET(node, JNODE_RELOC) ||
+		JF_ISSET(node, JNODE_OVRWR);
 }
 
 /* Return true if @node has already been processed by the squeeze and allocate
@@ -613,9 +597,13 @@ static inline int jnode_is_flushprepped(const jnode * node)
    returns true you may use the block number as a hint. */
 static inline int jnode_check_flushprepped(jnode * node)
 {
+	int result;
+
 	/* It must be clean or relocated or wandered.  New allocations are set to relocate. */
-	assert("jmacd-71275", spin_jnode_is_not_locked(node));
-	return UNDER_SPIN(jnode, node, jnode_is_flushprepped(node));
+	spin_lock_jnode(node);
+	result = jnode_is_flushprepped(node);
+	spin_unlock_jnode(node);
+	return result;
 }
 
 /* returns true if node is unformatted */
@@ -691,7 +679,6 @@ static inline void jput(jnode * node)
 {
 	assert("jmacd-509", node != NULL);
 	assert("jmacd-510", atomic_read(&node->x_count) > 0);
-	assert("nikita-3065", spin_jnode_is_not_locked(node));
 	assert("zam-926", schedulable());
 	LOCK_CNT_DEC(x_refs);
 

@@ -432,7 +432,9 @@ static struct bio *page_bio(struct page *page, jnode * node, int rw,
 		blksz = super->s_blocksize;
 		assert("nikita-2028", blksz == (int)PAGE_CACHE_SIZE);
 
-		blocknr = *UNDER_SPIN(jnode, node, jnode_get_io_block(node));
+		spin_lock_jnode(node);
+		blocknr = *jnode_get_io_block(node);
+		spin_unlock_jnode(node);
 
 		assert("nikita-2275", blocknr != (reiser4_block_nr) 0);
 		assert("nikita-2276", !blocknr_is_fake(&blocknr));
@@ -527,22 +529,22 @@ int reiser4_writepage(struct page *page /* page to start writeback from */ ,
 
 		assert("nikita-2419", node != NULL);
 
-		LOCK_JNODE(node);
+		spin_lock_jnode(node);
 		/*
 		 * page was dirty, but jnode is not. This is (only?)
 		 * possible if page was modified through mmap(). We
 		 * want to handle such jnodes specially.
 		 */
-		phantom = !jnode_is_dirty(node);
+		phantom = !JF_ISSET(node, JNODE_DIRTY);
 		atom = jnode_get_atom(node);
 		if (atom != NULL) {
 			if (!(atom->flags & ATOM_FORCE_COMMIT)) {
 				atom->flags |= ATOM_FORCE_COMMIT;
 				ktxnmgrd_kick(&get_super_private(s)->tmgr);
 			}
-			UNLOCK_ATOM(atom);
+			spin_unlock_atom(atom);
 		}
-		UNLOCK_JNODE(node);
+		spin_unlock_jnode(node);
 
 		result = emergency_flush(page);
 		if (result == 0)
@@ -646,13 +648,13 @@ static void invalidate_unformatted(jnode * node)
 {
 	struct page *page;
 
-	LOCK_JNODE(node);
+	spin_lock_jnode(node);
 	page = node->pg;
 	if (page) {
 		loff_t from, to;
 
 		page_cache_get(page);
-		UNLOCK_JNODE(node);
+		spin_unlock_jnode(node);
 		/* FIXME: use truncate_complete_page instead */
 		from = (loff_t) page->index << PAGE_CACHE_SHIFT;
 		to = from + PAGE_CACHE_SIZE - 1;
@@ -693,7 +695,7 @@ truncate_jnodes_range(struct inode *inode, pgoff_t from, pgoff_t count)
 
 		assert("nikita-3466", index <= end);
 
-		RLOCK_TREE(tree);
+		read_lock_tree(tree);
 		taken =
 		    radix_tree_gang_lookup(jnode_tree_by_reiser4_inode(info),
 					   (void **)gang, index,
@@ -705,7 +707,7 @@ truncate_jnodes_range(struct inode *inode, pgoff_t from, pgoff_t count)
 			else
 				gang[i] = NULL;
 		}
-		RUNLOCK_TREE(tree);
+		read_unlock_tree(tree);
 
 		for (i = 0; i < taken; ++i) {
 			node = gang[i];
@@ -739,39 +741,6 @@ reiser4_invalidate_pages(struct address_space *mapping, pgoff_t from,
 				   from_bytes + count_bytes - 1);
 	truncate_jnodes_range(mapping->host, from, count);
 }
-
-#if REISER4_DEBUG
-
-#define page_flag_name( page, flag )			\
-	( test_bit( ( flag ), &( page ) -> flags ) ? ((#flag "|")+3) : "" )
-
-void print_page(const char *prefix, struct page *page)
-{
-	if (page == NULL) {
-		printk("null page\n");
-		return;
-	}
-	printk("%s: page index: %lu mapping: %p count: %i private: %lx\n",
-	       prefix, page->index, page->mapping, page_count(page),
-	       page->private);
-	printk("\tflags: %s%s%s%s %s%s%s %s%s%s %s%s\n",
-	       page_flag_name(page, PG_locked), page_flag_name(page, PG_error),
-	       page_flag_name(page, PG_referenced), page_flag_name(page,
-								   PG_uptodate),
-	       page_flag_name(page, PG_dirty), page_flag_name(page, PG_lru),
-	       page_flag_name(page, PG_slab), page_flag_name(page, PG_checked),
-	       page_flag_name(page, PG_reserved), page_flag_name(page,
-								 PG_private),
-	       page_flag_name(page, PG_writeback), page_flag_name(page,
-								  PG_nosave));
-	if (jprivate(page) != NULL) {
-		print_jnode("\tpage jnode", jprivate(page));
-		printk("\n");
-	}
-}
-
-#endif
-
 
 /*
  * Local variables:

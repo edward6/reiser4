@@ -235,7 +235,7 @@ int znodes_tree_init(reiser4_tree * tree /* tree to initialise znodes for */ )
 	int result;
 	assert("umka-050", tree != NULL);
 
-	rw_dk_init(tree);
+	rwlock_init(&tree->dk_lock);
 
 	result = z_hash_init(&tree->zhash_table, REISER4_ZNODE_HASH_TABLE_SIZE);
 	if (result != 0)
@@ -341,7 +341,7 @@ void znode_remove(znode * node /* znode to remove */ , reiser4_tree * tree)
 {
 	assert("nikita-2108", node != NULL);
 	assert("nikita-470", node->c_count == 0);
-	assert("zam-879", rw_tree_is_write_locked(tree));
+	assert_rw_write_locked(&(tree->tree_lock));
 
 	/* remove reference to this znode from cbk cache */
 	cbk_cache_invalidate(node, tree);
@@ -385,7 +385,7 @@ int znode_rehash(znode * node /* node to rehash */ ,
 	oldtable = znode_get_htable(node);
 	newtable = get_htable(tree, new_block_nr);
 
-	WLOCK_TREE(tree);
+	write_lock_tree(tree);
 	/* remove znode from hash-table */
 	z_hash_remove_rcu(oldtable, node);
 
@@ -398,7 +398,7 @@ int znode_rehash(znode * node /* node to rehash */ ,
 
 	/* insert it into hash */
 	z_hash_insert_rcu(newtable, node);
-	WUNLOCK_TREE(tree);
+	write_unlock_tree(tree);
 	return 0;
 }
 
@@ -516,7 +516,7 @@ znode *zget(reiser4_tree * tree,
 		ZJNODE(result)->key.z = *blocknr;
 		result->level = level;
 
-		WLOCK_TREE(tree);
+		write_lock_tree(tree);
 
 		shadow = z_hash_find_index(zth, hashi, blocknr);
 		if (unlikely(shadow != NULL && !ZF_ISSET(shadow, JNODE_RIP))) {
@@ -533,7 +533,7 @@ znode *zget(reiser4_tree * tree,
 
 		add_x_ref(ZJNODE(result));
 
-		WUNLOCK_TREE(tree);
+		write_unlock_tree(tree);
 	}
 #if REISER4_DEBUG
 	if (!blocknr_is_fake(blocknr) && *blocknr != 0)
@@ -666,7 +666,7 @@ unsigned znode_free_space(znode * node /* znode to query */ )
 reiser4_key *znode_get_rd_key(znode * node /* znode to query */ )
 {
 	assert("nikita-958", node != NULL);
-	assert("nikita-1661", rw_dk_is_locked(znode_get_tree(node)));
+	assert_rw_locked(&(znode_get_tree(node)->dk_lock));
 	assert("nikita-3067", LOCK_CNT_GTZ(rw_locked_dk));
 	assert("nikita-30671", node->rd_key_version != 0);
 	return &node->rd_key;
@@ -676,7 +676,7 @@ reiser4_key *znode_get_rd_key(znode * node /* znode to query */ )
 reiser4_key *znode_get_ld_key(znode * node /* znode to query */ )
 {
 	assert("nikita-974", node != NULL);
-	assert("nikita-1662", rw_dk_is_locked(znode_get_tree(node)));
+	assert_rw_locked(&(znode_get_tree(node)->dk_lock));
 	assert("nikita-3068", LOCK_CNT_GTZ(rw_locked_dk));
 	assert("nikita-30681", node->ld_key_version != 0);
 	return &node->ld_key;
@@ -690,7 +690,7 @@ reiser4_key *znode_set_rd_key(znode * node, const reiser4_key * key)
 {
 	assert("nikita-2937", node != NULL);
 	assert("nikita-2939", key != NULL);
-	assert("nikita-2938", rw_dk_is_write_locked(znode_get_tree(node)));
+	assert_rw_write_locked(&(znode_get_tree(node)->dk_lock));
 	assert("nikita-3069", LOCK_CNT_GTZ(write_locked_dk));
 	assert("nikita-2944",
 	       znode_is_any_locked(node) ||
@@ -709,7 +709,7 @@ reiser4_key *znode_set_ld_key(znode * node, const reiser4_key * key)
 {
 	assert("nikita-2940", node != NULL);
 	assert("nikita-2941", key != NULL);
-	assert("nikita-2942", rw_dk_is_write_locked(znode_get_tree(node)));
+	assert_rw_write_locked(&(znode_get_tree(node)->dk_lock));
 	assert("nikita-3070", LOCK_CNT_GTZ(write_locked_dk));
 	assert("nikita-2943",
 	       znode_is_any_locked(node) || keyeq(&node->ld_key, min_key()));
@@ -735,11 +735,15 @@ int znode_contains_key(znode * node /* znode to look in */ ,
 int znode_contains_key_lock(znode * node /* znode to look in */ ,
 			    const reiser4_key * key /* key to look for */ )
 {
+	int result;
+
 	assert("umka-056", node != NULL);
 	assert("umka-057", key != NULL);
 
-	return UNDER_RW(dk, znode_get_tree(node),
-			read, znode_contains_key(node, key));
+	read_lock_dk(znode_get_tree(node));
+	result = znode_contains_key(node, key);
+	read_unlock_dk(znode_get_tree(node));
+	return result;
 }
 
 /* get parent pointer, assuming tree is not locked */
@@ -798,7 +802,12 @@ int znode_just_created(const znode * node)
 /* obtain updated ->znode_epoch. See seal.c for description. */
 __u64 znode_build_version(reiser4_tree * tree)
 {
-	return UNDER_SPIN(epoch, tree, ++tree->znode_epoch);
+	__u64 result;
+
+	spin_lock(&tree->epoch_lock);
+	result = ++tree->znode_epoch;
+	spin_unlock(&tree->epoch_lock);
+	return result;
 }
 
 void init_load_count(load_count * dh)
@@ -975,7 +984,7 @@ static int znode_invariant_f(const znode * node /* znode to check */ ,
 }
 
 /* debugging aid: check znode invariant and panic if it doesn't hold */
-int znode_invariant(const znode * node /* znode to check */ )
+int znode_invariant(znode * node /* znode to check */ )
 {
 	char const *failed_msg;
 	int result;
@@ -983,83 +992,16 @@ int znode_invariant(const znode * node /* znode to check */ )
 	assert("umka-063", node != NULL);
 	assert("umka-064", current_tree != NULL);
 
-	spin_lock_znode((znode *) node);
-	RLOCK_TREE(znode_get_tree(node));
+	spin_lock_znode(node);
+	read_lock_tree(znode_get_tree(node));
 	result = znode_invariant_f(node, &failed_msg);
 	if (!result) {
 		/* print_znode("corrupted node", node); */
 		warning("jmacd-555", "Condition %s failed", failed_msg);
 	}
-	RUNLOCK_TREE(znode_get_tree(node));
-	spin_unlock_znode((znode *) node);
+	read_unlock_tree(znode_get_tree(node));
+	spin_unlock_znode(node);
 	return result;
-}
-
-/* debugging aid: output human readable information about @node */
-static void info_znode(const char *prefix /* prefix to print */ ,
-		       const znode * node /* node to print */ )
-{
-	if (node == NULL) {
-		return;
-	}
-	info_jnode(prefix, ZJNODE(node));
-	if (!jnode_is_znode(ZJNODE(node)))
-		return;
-
-	printk("c_count: %i, readers: %i, items: %i\n",
-	       node->c_count, node->lock.nr_readers, node->nr_items);
-}
-
-/* debugging aid: output more human readable information about @node that
-   info_znode(). */
-void print_znode(const char *prefix /* prefix to print */ ,
-		 const znode * node /* node to print */ )
-{
-	if (node == NULL) {
-		printk("%s: null\n", prefix);
-		return;
-	}
-
-	info_znode(prefix, node);
-	if (!jnode_is_znode(ZJNODE(node)))
-		return;
-	info_znode("\tparent", znode_parent_nolock(node));
-	info_znode("\tleft", node->left);
-	info_znode("\tright", node->right);
-	print_key("\tld", &node->ld_key);
-	print_key("\trd", &node->rd_key);
-	printk("\n");
-}
-
-/* print all znodes in @tree */
-void print_znodes(const char *prefix, reiser4_tree * tree)
-{
-	znode *node;
-	znode *next;
-	z_hash_table *htable;
-	int tree_lock_taken;
-
-	if (tree == NULL)
-		tree = current_tree;
-
-	/* this is debugging function. It can be called by reiser4_panic()
-	   with tree spin-lock already held. Trylock is not exactly what we
-	   want here, but it is passable.
-	 */
-	tree_lock_taken = write_trylock_tree(tree);
-
-	htable = &tree->zhash_table;
-	for_all_in_htable(htable, z, node, next) {
-		info_znode(prefix, node);
-	}
-
-	htable = &tree->zfake_table;
-	for_all_in_htable(htable, z, node, next) {
-		info_znode(prefix, node);
-	}
-
-	if (tree_lock_taken)
-		WUNLOCK_TREE(tree);
 }
 
 /* return non-0 iff data are loaded into znode */

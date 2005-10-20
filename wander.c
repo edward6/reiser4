@@ -550,10 +550,10 @@ static void undo_bio(struct bio *bio)
 		pg = bio->bi_io_vec[i].bv_page;
 		ClearPageWriteback(pg);
 		node = jprivate(pg);
-		LOCK_JNODE(node);
+		spin_lock_jnode(node);
 		JF_CLR(node, JNODE_WRITEBACK);
 		JF_SET(node, JNODE_DIRTY);
-		UNLOCK_JNODE(node);
+		spin_unlock_jnode(node);
 	}
 	bio_put(bio);
 }
@@ -648,22 +648,22 @@ static int get_overwrite_set(struct commit_handle *ch)
 				if (IS_ERR(sj))
 					return PTR_ERR(sj);
 
-				LOCK_ATOM(ch->atom);
-				LOCK_JNODE(sj);
+				spin_lock_atom(ch->atom);
+				spin_lock_jnode(sj);
 				JF_SET(sj, JNODE_OVRWR);
 				insert_into_atom_ovrwr_list(ch->atom, sj);
-				UNLOCK_JNODE(sj);
-				UNLOCK_ATOM(ch->atom);
+				spin_unlock_jnode(sj);
+				spin_unlock_atom(ch->atom);
 
 				/* jload it as the rest of overwrite set */
 				jload_gfp(sj, GFP_KERNEL, 0);
 
 				ch->overwrite_set_size++;
 			}
-			LOCK_ATOM(ch->atom);
-			LOCK_JNODE(cur);
+			spin_lock_atom(ch->atom);
+			spin_lock_jnode(cur);
 			uncapture_block(cur);
-			UNLOCK_ATOM(ch->atom);
+			spin_unlock_atom(ch->atom);
 			jput(cur);
 
 			spin_lock(&scan_lock);
@@ -793,7 +793,7 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
 
 			lock_and_wait_page_writeback(pg);
 
-			LOCK_JNODE(cur);
+			spin_lock_jnode(cur);
 			assert("nikita-3553", jnode_page(cur) == pg);
 			assert("nikita-3554", jprivate(pg) == cur);
 
@@ -803,7 +803,7 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
 			if (!JF_ISSET(cur, JNODE_WRITEBACK)) {
 				assert("nikita-3165",
 				       !jnode_is_releasable(cur));
-				UNLOCK_JNODE(cur);
+				spin_unlock_jnode(cur);
 				if (!bio_add_page(bio,
 						  pg, super->s_blocksize, 0)) {
 					/*
@@ -815,11 +815,11 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
 					break;
 				}
 
-				LOCK_JNODE(cur);
+				spin_lock_jnode(cur);
 				JF_SET(cur, JNODE_WRITEBACK);
 				JF_CLR(cur, JNODE_DIRTY);
 				ON_DEBUG(cur->written++);
-				UNLOCK_JNODE(cur);
+				spin_unlock_jnode(cur);
 
 				SetPageWriteback(pg);
 				if (for_reclaim)
@@ -845,7 +845,7 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
 				   encountered this CC jnode. Do not submit i/o
 				   for it */
 				assert("zam-912", JF_ISSET(cur, JNODE_CC));
-				UNLOCK_JNODE(cur);
+				spin_unlock_jnode(cur);
 			}
 			unlock_page(pg);
 
@@ -990,7 +990,7 @@ add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
 			return ret;
 		}
 
-		UNLOCK_ATOM(atom);
+		spin_unlock_atom(atom);
 
 		cur = capture_list_next(cur);
 		++block;
@@ -1131,17 +1131,17 @@ static int get_overwrite_set(struct commit_handle *ch)
 				if (IS_ERR(sj))
 					return PTR_ERR(sj);
 
-				LOCK_JNODE(sj);
+				spin_lock_jnode(sj);
 				JF_SET(sj, JNODE_OVRWR);
 				insert_into_atom_ovrwr_list(ch->atom, sj);
-				UNLOCK_JNODE(sj);
+				spin_unlock_jnode(sj);
 
 				/* jload it as the rest of overwrite set */
 				jload_gfp(sj, GFP_KERNEL, 0);
 
 				ch->overwrite_set_size++;
 			}
-			LOCK_JNODE(cur);
+			spin_lock_jnode(cur);
 			uncapture_block(cur);
 			jput(cur);
 
@@ -1253,7 +1253,6 @@ write_jnodes_to_disk_extent(struct list_head *head, jnode *first, int nr,
 		bio->bi_sector = block * (super->s_blocksize >> 9);
 		for (nr_used = 0, i = 0; i < nr_blocks; i++) {
 			struct page *pg;
-			ON_DEBUG(int jnode_is_releasable(jnode *));
 
 			pg = jnode_page(cur);
 			assert("zam-573", pg != NULL);
@@ -1272,7 +1271,7 @@ write_jnodes_to_disk_extent(struct list_head *head, jnode *first, int nr,
 				break;
 			}
 
-			LOCK_JNODE(cur);
+			spin_lock_jnode(cur);
 			assert("nikita-3166",
 			       pg->mapping == jnode_get_mapping(cur));
 			assert("zam-912", !JF_ISSET(cur, JNODE_WRITEBACK));
@@ -1280,7 +1279,7 @@ write_jnodes_to_disk_extent(struct list_head *head, jnode *first, int nr,
 			JF_SET(cur, JNODE_WRITEBACK);
 			JF_CLR(cur, JNODE_DIRTY);
 			ON_DEBUG(cur->written++);
-			UNLOCK_JNODE(cur);
+			spin_unlock_jnode(cur);
 
 			set_page_writeback(pg);
 			if (for_reclaim)
@@ -1393,7 +1392,7 @@ add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
 			return ret;
 		}
 
-		UNLOCK_ATOM(atom);
+		spin_unlock_atom(atom);
 
 		cur = list_entry(cur->capture_link.next, jnode, capture_link);
 		++block;
@@ -1537,7 +1536,7 @@ static int alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 		atom = get_current_atom_locked();
 		blocknr_set_iterator(atom, &atom->wandered_map,
 				     &store_wmap_actor, &params, 0);
-		UNLOCK_ATOM(atom);
+		spin_unlock_atom(atom);
 	}
 
 	{ /* relse all jnodes from tx_list */
@@ -1594,11 +1593,11 @@ int reiser4_write_logs(long *nr_submitted)
 	 * early flushed jnodes with CREATED bit are transferred to the
 	 * overwrite list. */
 	invalidate_list(ATOM_CLEAN_LIST(atom));
-	LOCK_ATOM(atom);
+	spin_lock_atom(atom);
 	/* There might be waiters for the relocate nodes which we have
 	 * released, wake them up. */
 	atom_send_event(atom);
-	UNLOCK_ATOM(atom);
+	spin_unlock_atom(atom);
 
 	if (REISER4_DEBUG) {
 		int level;
@@ -1650,7 +1649,7 @@ int reiser4_write_logs(long *nr_submitted)
 			goto up_and_ret;
 		}
 
-		UNLOCK_ATOM(fq->atom);
+		spin_unlock_atom(fq->atom);
 
 		do {
 			ret = alloc_wandered_blocks(&ch, fq);
@@ -1678,7 +1677,9 @@ int reiser4_write_logs(long *nr_submitted)
 	if ((ret = update_journal_header(&ch)))
 		goto up_and_ret;
 
-	UNDER_SPIN_VOID(atom, atom, atom_set_stage(atom, ASTAGE_POST_COMMIT));
+	spin_lock_atom(atom);
+	atom_set_stage(atom, ASTAGE_POST_COMMIT);
+	spin_unlock_atom(atom);
 
 	post_commit_hook();
 
@@ -1694,7 +1695,7 @@ int reiser4_write_logs(long *nr_submitted)
 			goto up_and_ret;
 		}
 
-		UNLOCK_ATOM(fq->atom);
+		spin_unlock_atom(fq->atom);
 
 		ret =
 		    write_jnode_list(ch.overwrite_set, fq, NULL,

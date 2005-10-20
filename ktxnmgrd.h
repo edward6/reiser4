@@ -7,7 +7,6 @@
 #define __KTXNMGRD_H__
 
 #include "txnmgr.h"
-#include "spin_macros.h"
 
 #include <linux/fs.h>
 #include <linux/wait.h>

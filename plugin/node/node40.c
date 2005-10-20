@@ -391,7 +391,6 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 				left);
 			print_key("key", key);
 			print_key("min", &bstop->key);
-			print_znode("node", node);
 			print_coord_content("coord", coord);
 			return RETERR(-EIO);
 		} else {
@@ -406,7 +405,6 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 		warning("nikita-588", "Unknown plugin %i",
 			le16_to_cpu(get_unaligned(&bstop->plugin_id)));
 		print_key("key", key);
-		print_znode("node", node);
 		print_coord_content("coord", coord);
 		return RETERR(-EIO);
 	}
@@ -475,6 +473,7 @@ int check_node40(const znode * node /* node to check */ ,
 	unsigned old_offset;
 	tree_level level;
 	coord_t coord;
+	int result;
 
 	assert("nikita-580", node != NULL);
 	assert("nikita-581", error != NULL);
@@ -591,25 +590,26 @@ int check_node40(const znode * node /* node to check */ ,
 
 			iplug->s.file.append_key(&coord, &mkey);
 			set_key_offset(&mkey, get_key_offset(&mkey) - 1);
-			if (UNDER_RW
-			    (dk, current_tree, read,
-			     keygt(&mkey, znode_get_rd_key((znode *) node)))) {
+			read_lock_dk(current_tree);
+			result = keygt(&mkey, znode_get_rd_key((znode *) node));
+			read_unlock_dk(current_tree);
+			if (result) {
 				*error = "key of rightmost item is too large";
 				return -1;
 			}
 		}
 	}
 	if (flags & REISER4_NODE_DKEYS) {
-		RLOCK_TREE(current_tree);
-		RLOCK_DK(current_tree);
+		read_lock_tree(current_tree);
+		read_lock_dk(current_tree);
 
 		flags |= REISER4_NODE_TREE_STABLE;
 
 		if (keygt(&prev, znode_get_rd_key((znode *) node))) {
 			if (flags & REISER4_NODE_TREE_STABLE) {
 				*error = "Last key is greater than rdkey";
-				RUNLOCK_DK(current_tree);
-				RUNLOCK_TREE(current_tree);
+				read_unlock_dk(current_tree);
+				read_unlock_tree(current_tree);
 				return -1;
 			}
 		}
@@ -617,8 +617,8 @@ int check_node40(const znode * node /* node to check */ ,
 		    (znode_get_ld_key((znode *) node),
 		     znode_get_rd_key((znode *) node))) {
 			*error = "ldkey is greater than rdkey";
-			RUNLOCK_DK(current_tree);
-			RUNLOCK_TREE(current_tree);
+			read_unlock_dk(current_tree);
+			read_unlock_tree(current_tree);
 			return -1;
 		}
 		if (ZF_ISSET(node, JNODE_LEFT_CONNECTED) &&
@@ -631,8 +631,8 @@ int check_node40(const znode * node /* node to check */ ,
 			    keygt(znode_get_rd_key(node->left),
 				  znode_get_ld_key((znode *) node)))) {
 			*error = "left rdkey or ldkey is wrong";
-			RUNLOCK_DK(current_tree);
-			RUNLOCK_TREE(current_tree);
+ 			read_unlock_dk(current_tree);
+			read_unlock_tree(current_tree);
 			return -1;
 		}
 		if (ZF_ISSET(node, JNODE_RIGHT_CONNECTED) &&
@@ -645,13 +645,13 @@ int check_node40(const znode * node /* node to check */ ,
 			    keygt(znode_get_rd_key((znode *) node),
 				  znode_get_ld_key(node->right)))) {
 			*error = "rdkey or right ldkey is wrong";
-			RUNLOCK_DK(current_tree);
-			RUNLOCK_TREE(current_tree);
+ 			read_unlock_dk(current_tree);
+			read_unlock_tree(current_tree);
 			return -1;
 		}
 
-		RUNLOCK_DK(current_tree);
-		RUNLOCK_TREE(current_tree);
+		read_unlock_dk(current_tree);
+		read_unlock_tree(current_tree);
 	}
 
 	return 0;
@@ -2084,6 +2084,7 @@ prepare_for_update(znode * left, znode * right, carry_plugin_info * info)
 int prepare_removal_node40(znode * empty, carry_plugin_info * info)
 {
 	carry_op *op;
+	reiser4_tree *tree;
 
 	if (!should_notify_parent(empty))
 		return 0;
@@ -2098,14 +2099,14 @@ int prepare_removal_node40(znode * empty, carry_plugin_info * info)
 	op->u.delete.flags = 0;
 
 	/* fare thee well */
-
-	RLOCK_TREE(current_tree);
-	WLOCK_DK(current_tree);
+	tree = znode_get_tree(empty);
+	read_lock_tree(tree);
+	write_lock_dk(tree);
 	znode_set_ld_key(empty, znode_get_rd_key(empty));
 	if (znode_is_left_connected(empty) && empty->left)
 		znode_set_rd_key(empty->left, znode_get_rd_key(empty));
-	WUNLOCK_DK(current_tree);
-	RUNLOCK_TREE(current_tree);
+	write_unlock_dk(tree);
+	read_unlock_tree(tree);
 
 	ZF_SET(empty, JNODE_HEARD_BANSHEE);
 	return 0;

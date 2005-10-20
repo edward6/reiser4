@@ -113,9 +113,7 @@ typedef struct lock_counters_info {
 	int spin_locked_txnmgr;
 	int spin_locked_ktxnmgrd;
 	int spin_locked_fq;
-	int spin_locked_super;
-	int spin_locked_inode_object;
-	int spin_locked_epoch;
+	int spin_locked_inode;
 	int spin_locked_super_eflush;
 	int spin_locked;
 	int long_term_locked_znode;
@@ -143,6 +141,7 @@ extern lock_counters_info *lock_counters(void);
 /* check that lock-counter is greater than zero. This is for use in
  * assertions */
 #define LOCK_CNT_GTZ(counter) IN_CONTEXT(lock_counters()->counter > 0, 1)
+#define LOCK_CNT_LT(counter,n) IN_CONTEXT(lock_counters()->counter < n, 1)
 
 #else				/* REISER4_DEBUG */
 
@@ -156,8 +155,17 @@ typedef struct lock_counters_info {
 #define LOCK_CNT_DEC(counter) noop
 #define LOCK_CNT_NIL(counter) (1)
 #define LOCK_CNT_GTZ(counter) (1)
+#define LOCK_CNT_LT(counter,n) (1)
 
 #endif				/* REISER4_DEBUG */
+
+#define assert_spin_not_locked(lock) BUG_ON(0)
+#define assert_rw_write_locked(lock) BUG_ON(0)
+#define assert_rw_read_locked(lock) BUG_ON(0)
+#define assert_rw_locked(lock) BUG_ON(0)
+#define assert_rw_not_write_locked(lock) BUG_ON(0)
+#define assert_rw_not_read_locked(lock) BUG_ON(0)
+#define assert_rw_not_locked(lock) BUG_ON(0)
 
 /* flags controlling debugging behavior. Are set through debug_flags=N mount
    option. */

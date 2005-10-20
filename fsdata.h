@@ -193,10 +193,6 @@ extern void detach_fsdata(struct file *);
 void dispose_cursors(struct inode *inode);
 void load_cursors(struct inode *inode);
 void kill_cursors(struct inode *inode);
-
-
-
-
 void adjust_dir_file(struct inode *dir, const struct dentry *de, int offset, int adj);
 
 /*
@@ -207,6 +203,9 @@ struct d_cursor_info {
 	d_cursor_hash_table table;
 	struct radix_tree_root tree;
 };
+
+/* spinlock protecting readdir cursors */
+extern spinlock_t d_lock;
 
 /* __REISER4_FSDATA_H__ */
 #endif

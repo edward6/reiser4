@@ -8,7 +8,6 @@
 #define __REISER4_TXNMGR_H__
 
 #include "forward.h"
-#include "spin_macros.h"
 #include "dformat.h"
 
 #include <linux/fs.h>
@@ -210,7 +209,7 @@ struct blocknr_set {
 struct txn_atom {
 	/* The spinlock protecting the atom, held during fusion and various other state
 	   changes. */
-	reiser4_spin_data alock;
+	spinlock_t alock;
 
 	/* The atom's reference counter, increasing (in case of a duplication
 	   of an existing reference or when we are sure that some other
@@ -343,7 +342,7 @@ typedef struct protected_jnodes {
    the system to a txn_atom. */
 struct txn_handle {
 	/* Spinlock protecting ->atom pointer */
-	reiser4_spin_data hlock;
+	spinlock_t hlock;
 
 	/* Flags for controlling commit_txnh() behavior */
 	/* from txn_handle_flags_t */
@@ -362,7 +361,7 @@ struct txn_handle {
 /* The transaction manager: one is contained in the reiser4_super_info_data */
 struct txn_mgr {
 	/* A spinlock protecting the atom list, id_count, flush_control */
-	reiser4_spin_data tmgr_lock;
+	spinlock_t tmgr_lock;
 
 	/* List of atoms. */
 	struct list_head atoms_list;
@@ -440,7 +439,24 @@ extern int uncapture_inode(struct inode *);
 
 extern txn_atom *get_current_atom_locked_nocheck(void);
 
-#define atom_is_protected(atom) (spin_atom_is_locked(atom) || (atom)->stage >= ASTAGE_PRE_COMMIT)
+#if REISER4_DEBUG
+
+/**
+ * atom_is_protected - make sure that nobody but us can do anything with atom
+ * @atom: atom to be checked
+ *
+ * This is used to assert that atom either entered commit stages or is spin
+ * locked.
+ */
+static inline int atom_is_protected(txn_atom *atom)
+{
+	if (atom->stage >= ASTAGE_PRE_COMMIT)
+		return 1;
+	assert_spin_locked(&(atom->alock));
+	return 1;
+}
+
+#endif
 
 /* Get the current atom and spinlock it if current atom present. May not return NULL */
 static inline txn_atom *get_current_atom_locked(void)
@@ -487,31 +503,123 @@ extern int blocknr_set_iterator(txn_atom * atom, blocknr_set * bset,
 extern void flush_init_atom(txn_atom * atom);
 extern void flush_fuse_queues(txn_atom * large, txn_atom * small);
 
-/* INLINE FUNCTIONS */
+static inline void spin_lock_atom(txn_atom *atom)
+{
+	/* check that spinlocks of lower priorities are not held */
+	assert("", (LOCK_CNT_NIL(spin_locked_txnh) &&
+		    LOCK_CNT_NIL(spin_locked_jnode) &&
+		    LOCK_CNT_NIL(rw_locked_zlock) &&
+		    LOCK_CNT_NIL(rw_locked_dk) &&
+		    LOCK_CNT_NIL(rw_locked_tree)));
 
-#define spin_ordering_pred_atom(atom)				\
-	( ( lock_counters() -> spin_locked_txnh == 0 ) &&	\
-	  ( lock_counters() -> spin_locked_jnode == 0 ) &&	\
-	  ( lock_counters() -> rw_locked_zlock == 0 ) &&	\
-	  ( lock_counters() -> rw_locked_dk == 0 ) &&		\
-	  ( lock_counters() -> rw_locked_tree == 0 ) )
+	spin_lock(&(atom->alock));
 
-#define spin_ordering_pred_txnh(txnh)				\
-	( ( lock_counters() -> rw_locked_dk == 0 ) &&		\
-	  ( lock_counters() -> rw_locked_zlock == 0 ) &&	\
-	  ( lock_counters() -> rw_locked_tree == 0 ) )
+	LOCK_CNT_INC(spin_locked_atom);
+	LOCK_CNT_INC(spin_locked);
+}
 
-#define spin_ordering_pred_txnmgr(tmgr) 			\
-	( ( lock_counters() -> spin_locked_atom == 0 ) &&	\
-	  ( lock_counters() -> spin_locked_txnh == 0 ) &&	\
-	  ( lock_counters() -> spin_locked_jnode == 0 ) &&	\
-	  ( lock_counters() -> rw_locked_zlock == 0 ) &&	\
-	  ( lock_counters() -> rw_locked_dk == 0 ) &&		\
-	  ( lock_counters() -> rw_locked_tree == 0 ) )
+static inline int spin_trylock_atom(txn_atom *atom)
+{
+	if (spin_trylock(&(atom->alock))) {
+		LOCK_CNT_INC(spin_locked_atom);
+		LOCK_CNT_INC(spin_locked);
+		return 1;
+	}
+	return 0;
+}
 
-SPIN_LOCK_FUNCTIONS(atom, txn_atom, alock);
-SPIN_LOCK_FUNCTIONS(txnh, txn_handle, hlock);
-SPIN_LOCK_FUNCTIONS(txnmgr, txn_mgr, tmgr_lock);
+static inline void spin_unlock_atom(txn_atom *atom)
+{
+	assert_spin_locked(&(atom->alock));
+	assert("nikita-1375", LOCK_CNT_GTZ(spin_locked_atom));
+	assert("nikita-1376", LOCK_CNT_GTZ(spin_locked));
+
+	LOCK_CNT_DEC(spin_locked_atom);
+	LOCK_CNT_DEC(spin_locked);
+
+	spin_unlock(&(atom->alock));
+}
+
+static inline void spin_lock_txnh(txn_handle *txnh)
+{
+	/* check that spinlocks of lower priorities are not held */
+	assert("", (LOCK_CNT_NIL(rw_locked_dk) &&
+		    LOCK_CNT_NIL(rw_locked_zlock) &&
+		    LOCK_CNT_NIL(rw_locked_tree)));
+
+	spin_lock(&(txnh->hlock));
+
+	LOCK_CNT_INC(spin_locked_txnh);
+	LOCK_CNT_INC(spin_locked);
+}
+
+static inline int spin_trylock_txnh(txn_handle *txnh)
+{
+	if (spin_trylock(&(txnh->hlock))) {
+		LOCK_CNT_INC(spin_locked_txnh);
+		LOCK_CNT_INC(spin_locked);
+		return 1;
+	}
+	return 0;
+}
+
+static inline void spin_unlock_txnh(txn_handle *txnh)
+{
+	assert_spin_locked(&(txnh->hlock));
+	assert("nikita-1375", LOCK_CNT_GTZ(spin_locked_txnh));
+	assert("nikita-1376", LOCK_CNT_GTZ(spin_locked));
+
+	LOCK_CNT_DEC(spin_locked_txnh);
+	LOCK_CNT_DEC(spin_locked);
+
+	spin_unlock(&(txnh->hlock));
+}
+
+#define spin_ordering_pred_txnmgr(tmgr)		\
+	( LOCK_CNT_NIL(spin_locked_atom) &&	\
+	  LOCK_CNT_NIL(spin_locked_txnh) &&	\
+	  LOCK_CNT_NIL(spin_locked_jnode) &&	\
+	  LOCK_CNT_NIL(rw_locked_zlock) &&	\
+	  LOCK_CNT_NIL(rw_locked_dk) &&		\
+	  LOCK_CNT_NIL(rw_locked_tree) )
+
+static inline void spin_lock_txnmgr(txn_mgr *mgr)
+{
+	/* check that spinlocks of lower priorities are not held */
+	assert("", (LOCK_CNT_NIL(spin_locked_atom) &&
+		    LOCK_CNT_NIL(spin_locked_txnh) &&
+		    LOCK_CNT_NIL(spin_locked_jnode) &&
+		    LOCK_CNT_NIL(rw_locked_zlock) &&
+		    LOCK_CNT_NIL(rw_locked_dk) &&
+		    LOCK_CNT_NIL(rw_locked_tree)));
+
+	spin_lock(&(mgr->tmgr_lock));
+
+	LOCK_CNT_INC(spin_locked_txnmgr);
+	LOCK_CNT_INC(spin_locked);
+}
+
+static inline int spin_trylock_txnmgr(txn_mgr *mgr)
+{
+	if (spin_trylock(&(mgr->tmgr_lock))) {
+		LOCK_CNT_INC(spin_locked_txnmgr);
+		LOCK_CNT_INC(spin_locked);
+		return 1;
+	}
+	return 0;
+}
+
+static inline void spin_unlock_txnmgr(txn_mgr *mgr)
+{
+	assert_spin_locked(&(mgr->tmgr_lock));
+	assert("nikita-1375", LOCK_CNT_GTZ(spin_locked_txnmgr));
+	assert("nikita-1376", LOCK_CNT_GTZ(spin_locked));
+
+	LOCK_CNT_DEC(spin_locked_txnmgr);
+	LOCK_CNT_DEC(spin_locked);
+
+	spin_unlock(&(mgr->tmgr_lock));
+}
 
 typedef enum {
 	FQ_IN_USE = 0x1
@@ -532,7 +640,7 @@ struct flush_queue {
 	   easier.  See field in atom struct for description of list. */
 	struct list_head alink;
 	/* A spinlock to protect changes of fq state and fq->atom pointer */
-	reiser4_spin_data guard;
+	spinlock_t guard;
 	/* flush_queue state: [in_use | ready] */
 	flush_queue_state_t state;
 	/* A list which contains queued nodes, queued nodes are removed from any

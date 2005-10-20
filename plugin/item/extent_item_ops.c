@@ -263,8 +263,8 @@ int create_hook_extent(const coord_t * coord, void *arg)
 
 	assert("nikita-3246", znode_get_level(child_coord->node) == LEAF_LEVEL);
 
-	WLOCK_TREE(tree);
-	WLOCK_DK(tree);
+	write_lock_tree(tree);
+	write_lock_dk(tree);
 	/* find a node on the left level for which right delimiting key has to
 	   be updated */
 	if (coord_wrt(child_coord) == COORD_ON_THE_LEFT) {
@@ -291,8 +291,8 @@ int create_hook_extent(const coord_t * coord, void *arg)
 			node->right = NULL;
 		}
 	}
-	WUNLOCK_DK(tree);
-	WUNLOCK_TREE(tree);
+	write_unlock_dk(tree);
+	write_unlock_tree(tree);
 	return 0;
 }
 
@@ -373,8 +373,8 @@ kill_hook_extent(const coord_t * coord, pos_in_node_t from, pos_in_node_t count,
 			 */
 			/* if neighbors of item being removed are znodes -
 			 * link them */
-			WLOCK_TREE(tree);
-			WLOCK_DK(tree);
+			write_lock_tree(tree);
+			write_lock_dk(tree);
 			link_left_and_right(left, right);
 			if (left) {
 				/* update right delimiting key of left
@@ -390,8 +390,8 @@ kill_hook_extent(const coord_t * coord, pos_in_node_t from, pos_in_node_t count,
 					item_key_by_coord(next, key);
 				znode_set_rd_key(left, key);
 			}
-			WUNLOCK_DK(tree);
-			WUNLOCK_TREE(tree);
+			write_unlock_dk(tree);
+			write_unlock_tree(tree);
 
 			from_off =
 			    get_key_offset(min_item_key) >> PAGE_CACHE_SHIFT;
@@ -426,8 +426,9 @@ kill_hook_extent(const coord_t * coord, pos_in_node_t from, pos_in_node_t count,
 			*key = *pto_key;
 			set_key_offset(key, get_key_offset(pto_key) + 1);
 
-			UNDER_RW_VOID(dk, current_tree, write,
-				      znode_set_rd_key(kdata->left->node, key));
+			write_lock_dk(current_tree);
+			znode_set_rd_key(kdata->left->node, key);
+			write_unlock_dk(current_tree);
 		}
 
 		from_off = get_key_offset(pfrom_key) >> PAGE_CACHE_SHIFT;

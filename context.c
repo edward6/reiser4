@@ -244,7 +244,7 @@ void reiser4_exit_context(reiser4_context * context)
 			if (atom) {
 				atom->flags |= ATOM_FORCE_COMMIT;
 				context->trans->flags &= ~TXNH_DONT_COMMIT;
-				UNLOCK_ATOM(atom);
+				spin_unlock_atom(atom);
 			}
 		}
 		txn_end(context);

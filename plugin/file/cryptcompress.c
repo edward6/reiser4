@@ -572,14 +572,6 @@ free_reserved4cluster(struct inode *inode, reiser4_cluster_t * clust, int count)
 	clust->reserved = 0;
 }
 
-#if REISER4_DEBUG
-static int eq_to_ldk(znode * node, const reiser4_key * key)
-{
-	return UNDER_RW(dk, current_tree, read,
-			keyeq(key, znode_get_ld_key(node)));
-}
-#endif
-
 /* The core search procedure.
    If returned value is not cbk_errored, current znode is locked */
 static int find_cluster_item(hint_t * hint, const reiser4_key * key,	/* key of the item we are
@@ -617,7 +609,7 @@ static int find_cluster_item(hint_t * hint, const reiser4_key * key,	/* key of t
 		}
 		if (result)
 			return result;
-		assert("edward-1218", eq_to_ldk(coord->node, key));
+		assert("edward-1218", equal_to_ldk(coord->node, key));
 	} else {
 		coord->item_pos++;
 		coord->unit_pos = 0;
@@ -1145,13 +1137,13 @@ make_cluster_jnode_dirty_locked(reiser4_cluster_t * clust, jnode * node,
 
 	assert("edward-221", node != NULL);
 	assert("edward-971", clust->reserved == 1);
-	assert("edward-1028", spin_jnode_is_locked(node));
+	assert_spin_locked(&(node->guard));
 	assert("edward-972", node->page_count < cluster_nrpages(inode));
 	assert("edward-1263",
 	       clust->reserved_prepped == estimate_insert_cluster(inode, 0));
 	assert("edward-1264", clust->reserved_unprepped == 0);
 
-	if (jnode_is_dirty(node)) {
+	if (JF_ISSET(node, JNODE_DIRTY)) {
 		/* there are >= 1 pages already referenced by this jnode */
 		assert("edward-973",
 		       count_to_nrpages(off_to_count
@@ -1218,7 +1210,7 @@ static int try_capture_cluster(reiser4_cluster_t * clust, struct inode *inode)
 
 	assert("edward-1035", node != NULL);
 
-	LOCK_JNODE(node);
+	spin_lock_jnode(node);
 	if (clust->win)
 		inode_set_new_size(clust, inode);
 
@@ -1228,7 +1220,7 @@ static int try_capture_cluster(reiser4_cluster_t * clust, struct inode *inode)
 	make_cluster_jnode_dirty_locked(clust, node, &old_size, inode);
       exit:
 	assert("edward-1034", !result);
-	UNLOCK_JNODE(node);
+	spin_unlock_jnode(node);
 	jput(node);
 	return result;
 }
@@ -1279,9 +1271,9 @@ grab_cluster_pages_jnode(struct inode *inode, reiser4_cluster_t * clust)
 		return result;
 	}
 	assert("edward-920", jprivate(clust->pages[0]));
-	LOCK_JNODE(node);
+
+	/* NOTE-Edward: spin_lock_jnode is removed here: set_bit is atomic */
 	JF_SET(node, JNODE_CLUSTER_PAGE);
-	UNLOCK_JNODE(node);
 	return 0;
 }
 
@@ -1459,22 +1451,24 @@ static int update_sd_cryptcompress(struct inode *inode)
 	return result;
 }
 
+
+/* NOTE-Edward: this is too similar to reiser4/txnmgr.c:uncapture_jnode() */
 static void uncapture_cluster_jnode(jnode * node)
 {
 	txn_atom *atom;
 
-	assert("edward-1023", spin_jnode_is_locked(node));
+	assert_spin_locked(&(node->guard));
 
 	/*jnode_make_clean(node); */
 	atom = jnode_get_atom(node);
 	if (atom == NULL) {
-		assert("jmacd-7111", !jnode_is_dirty(node));
-		UNLOCK_JNODE(node);
+		assert("jmacd-7111", !JF_ISSET(node, JNODE_DIRTY));
+		spin_unlock_jnode(node);
 		return;
 	}
 
 	uncapture_block(node);
-	UNLOCK_ATOM(atom);
+	spin_unlock_atom(atom);
 	jput(node);
 }
 
@@ -1508,17 +1502,17 @@ flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
 	assert("edward-241", schedulable());
 	assert("edward-718", crc_inode_ok(inode));
 
-	LOCK_JNODE(node);
+	spin_lock_jnode(node);
 
-	if (!jnode_is_dirty(node)) {
+	if (!JF_ISSET(node, JNODE_DIRTY)) {
 
 		assert("edward-981", node->page_count == 0);
+
+		/* race with another flush */
+		spin_unlock_jnode(node);
 		warning("edward-982", "flush_cluster_pages: jnode is not dirty "
 			"clust %lu, inode %llu\n",
 			clust->index, (unsigned long long)get_inode_oid(inode));
-
-		/* race with another flush */
-		UNLOCK_JNODE(node);
 		return RETERR(-E_REPEAT);
 	}
 	tc->len = fsize_to_count(clust, inode);
@@ -2106,13 +2100,13 @@ static int jnodes_truncate_ok(struct inode *inode, cloff_t start)
 	reiser4_inode *info = reiser4_inode_data(inode);
 	reiser4_tree *tree = tree_by_inode(inode);
 
-	RLOCK_TREE(tree);
+	read_lock_tree(tree);
 
 	result =
 	    radix_tree_gang_lookup(jnode_tree_by_reiser4_inode(info),
 				   (void **)&node, clust_to_pg(start, inode),
 				   1);
-	RUNLOCK_TREE(tree);
+	read_unlock_tree(tree);
 	if (result)
 		warning("edward-1332", "Untruncated jnode %p\n", node);
 	return !result;
@@ -2166,8 +2160,8 @@ void truncate_page_cluster(struct inode *inode, cloff_t index)
 	found = find_get_pages(inode->i_mapping, clust_to_pg(index, inode),
 			       nr_pages, pages);
 
-	LOCK_JNODE(node);
-	if (jnode_is_dirty(node)) {
+	spin_lock_jnode(node);
+	if (JF_ISSET(node, JNODE_DIRTY)) {
 		/* jnode is dirty => space for disk cluster
 		   conversion grabbed */
 		cluster_reserved2grabbed(estimate_insert_cluster(inode, 0));
@@ -2187,7 +2181,7 @@ void truncate_page_cluster(struct inode *inode, cloff_t index)
 			page_cache_release(pages[i]);
 		}
 	} else
-		UNLOCK_JNODE(node);
+		spin_unlock_jnode(node);
 	/* now drop pages and jnode */
 	/* FIXME-EDWARD: Use truncate_complete_page in the loop above instead */
 

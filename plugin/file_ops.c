@@ -20,12 +20,23 @@ loff_t llseek_common_dir(struct file *, loff_t, int origin);
 */
 int readdir_common(struct file *, void *dirent, filldir_t);
 
-/* this is implementation of vfs's release method of struct file_operations for
-   typical directory
+/**
+ * release_dir_common - release of struct file_operations
+ * @inode: inode of released file
+ * @file: file to release
+ *
+ * Implementation of release method of struct file_operations for typical
+ * directory. All it does is freeing of reiser4 specific file data.
 */
 int release_dir_common(struct inode *inode, struct file *file)
 {
+	reiser4_context *ctx;
+
+	ctx = init_context(inode->i_sb);
+	if (IS_ERR(ctx))
+		return PTR_ERR(ctx);
 	reiser4_free_file_fsdata(file);
+	reiser4_exit_context(ctx);
 	return 0;
 }
 

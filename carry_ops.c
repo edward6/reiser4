@@ -49,13 +49,13 @@ static carry_node *find_left_neighbor(carry_op * op	/* node to find left
 	node = op->node;
 
 	tree = current_tree;
-	RLOCK_TREE(tree);
+	read_lock_tree(tree);
 	/* first, check whether left neighbor is already in a @doing queue */
 	if (carry_real(node)->left != NULL) {
 		/* NOTE: there is locking subtlety here. Look into
 		 * find_right_neighbor() for more info */
 		if (find_carry_node(doing, carry_real(node)->left) != NULL) {
-			RUNLOCK_TREE(tree);
+			read_unlock_tree(tree);
 			left = node;
 			do {
 				left = list_entry(left->header.level_linkage.prev,
@@ -66,7 +66,7 @@ static carry_node *find_left_neighbor(carry_op * op	/* node to find left
 			return left;
 		}
 	}
-	RUNLOCK_TREE(tree);
+	read_unlock_tree(tree);
 
 	left = add_carry_skip(doing, POOLO_BEFORE, node);
 	if (IS_ERR(left))
@@ -131,7 +131,7 @@ static carry_node *find_right_neighbor(carry_op * op	/* node to find right
 	node = op->node;
 
 	tree = current_tree;
-	RLOCK_TREE(tree);
+	read_lock_tree(tree);
 	/* first, check whether right neighbor is already in a @doing queue */
 	if (carry_real(node)->right != NULL) {
 		/*
@@ -155,7 +155,7 @@ static carry_node *find_right_neighbor(carry_op * op	/* node to find right
 		 * locked neighbors.
 		 */
 		if (find_carry_node(doing, carry_real(node)->right) != NULL) {
-			RUNLOCK_TREE(tree);
+			read_unlock_tree(tree);
 			/*
 			 * What we are doing here (this is also applicable to
 			 * the find_left_neighbor()).
@@ -194,7 +194,7 @@ static carry_node *find_right_neighbor(carry_op * op	/* node to find right
 			return right;
 		}
 	}
-	RUNLOCK_TREE(tree);
+	read_unlock_tree(tree);
 
 	flags = GN_CAN_USE_UPPER_LEVELS;
 	if (!op->u.insert.flags & COPI_LOAD_RIGHT)
@@ -463,7 +463,6 @@ static int make_space(carry_op * op /* carry operation, insert or paste */ ,
 				warning("nikita-924",
 					"Error accessing left neighbor: %li",
 					PTR_ERR(left));
-				print_znode("node", node);
 			}
 		} else if (left != NULL) {
 
@@ -494,7 +493,6 @@ static int make_space(carry_op * op /* carry operation, insert or paste */ ,
 			warning("nikita-1065",
 				"Error accessing right neighbor: %li",
 				PTR_ERR(right));
-			print_znode("node", node);
 		} else if (right != NULL) {
 			/* node containing insertion point, and its right
 			   neighbor node are write locked by now.
@@ -552,8 +550,6 @@ static int make_space(carry_op * op /* carry operation, insert or paste */ ,
 		if (result != 0) {
 			warning("nikita-947",
 				"Cannot lock new node: %i", result);
-			print_znode("new", carry_real(fresh));
-			print_znode("node", node);
 			return result;
 		}
 
@@ -699,7 +695,6 @@ static int insert_paste_common(carry_op * op	/* carry operation being
 		if ((intra_node != NS_FOUND) && (intra_node != NS_NOT_FOUND)) {
 			warning("nikita-1715", "Intra node lookup failure: %i",
 				intra_node);
-			print_znode("node", node);
 			return intra_node;
 		}
 	} else if (op->u.insert.type == COPT_CHILD) {
@@ -720,8 +715,6 @@ static int insert_paste_common(carry_op * op	/* carry operation being
 			warning("nikita-993",
 				"Cannot find a place for child pointer: %i",
 				result);
-			print_znode("child", child);
-			print_znode("parent", carry_real(op->node));
 			return result;
 		}
 		/* This only happens when we did multiple insertions at
@@ -784,10 +777,10 @@ static int insert_paste_common(carry_op * op	/* carry operation being
 		 * internal item and its key is (by the very definition of
 		 * search tree) is leftmost key in the child node.
 		 */
-		op->u.insert.d->key = UNDER_RW(dk, znode_get_tree(child), read,
-					       leftmost_key_in_node(child,
-								    znode_get_ld_key
-								    (child)));
+		write_lock_dk(znode_get_tree(child));
+		op->u.insert.d->key = leftmost_key_in_node(child,
+							   znode_get_ld_key(child));
+		write_unlock_dk(znode_get_tree(child));
 		op->u.insert.d->data->arg = op->u.insert.brother;
 	} else {
 		assert("vs-243", op->u.insert.d->coord != NULL);
@@ -1237,7 +1230,7 @@ static int carry_delete(carry_op * op /* operation to be performed */ ,
 	child = op->u.delete.child ?
 	    carry_real(op->u.delete.child) : op->node->node;
 	tree = znode_get_tree(child);
-	RLOCK_TREE(tree);
+	read_lock_tree(tree);
 
 	/*
 	 * @parent was determined when carry entered parent level
@@ -1251,7 +1244,7 @@ static int carry_delete(carry_op * op /* operation to be performed */ ,
 		parent = znode_parent(child);
 		assert("nikita-2581", find_carry_node(doing, parent));
 	}
-	RUNLOCK_TREE(tree);
+	read_unlock_tree(tree);
 
 	assert("nikita-1213", znode_get_level(parent) > LEAF_LEVEL);
 
@@ -1264,11 +1257,11 @@ static int carry_delete(carry_op * op /* operation to be performed */ ,
 	    znode_get_level(parent) <= REISER4_MIN_TREE_HEIGHT &&
 	    node_num_items(parent) == 1) {
 		/* Delimiting key manipulations. */
-		WLOCK_DK(tree);
+		write_lock_dk(tree);
 		znode_set_ld_key(child, znode_set_ld_key(parent, min_key()));
 		znode_set_rd_key(child, znode_set_rd_key(parent, max_key()));
 		ZF_SET(child, JNODE_DKSET);
-		WUNLOCK_DK(tree);
+		write_unlock_dk(tree);
 
 		/* @child escaped imminent death! */
 		ZF_CLR(child, JNODE_HEARD_BANSHEE);
@@ -1279,8 +1272,6 @@ static int carry_delete(carry_op * op /* operation to be performed */ ,
 	result = find_child_ptr(parent, child, &coord);
 	if (result != NS_FOUND) {
 		warning("nikita-994", "Cannot find child pointer: %i", result);
-		print_znode("child", child);
-		print_znode("parent", parent);
 		print_coord_content("coord", &coord);
 		return result;
 	}
@@ -1719,9 +1710,11 @@ static int update_delimiting_key(znode * parent	/* node key is updated
 
 	if (!ZF_ISSET(right, JNODE_HEARD_BANSHEE))
 		leftmost_key_in_node(right, &ldkey);
-	else
-		UNDER_RW_VOID(dk, znode_get_tree(parent), read,
-			      ldkey = *znode_get_rd_key(right));
+	else {
+		read_lock_dk(znode_get_tree(parent));
+		ldkey = *znode_get_rd_key(right);
+		read_unlock_dk(znode_get_tree(parent));
+	}
 	node_plugin_by_node(parent)->update_item_key(&right_pos, &ldkey, &info);
 	doing->restartable = 0;
 	znode_make_dirty(parent);
@@ -1772,9 +1765,9 @@ static int carry_update(carry_op * op /* operation to be performed */ ,
 		left = NULL;
 
 	tree = znode_get_tree(rchild->node);
-	RLOCK_TREE(tree);
+	read_lock_tree(tree);
 	right = znode_parent(rchild->node);
-	RUNLOCK_TREE(tree);
+	read_unlock_tree(tree);
 
 	if (right != NULL) {
 		result = update_delimiting_key(right,
@@ -1791,10 +1784,6 @@ static int carry_update(carry_op * op /* operation to be performed */ ,
 	if (result != 0) {
 		warning("nikita-999", "Error updating delimiting key: %s (%i)",
 			error_msg ? : "", result);
-		print_znode("left", left);
-		print_znode("right", right);
-		print_znode("lchild", lchild ? lchild->node : NULL);
-		print_znode("rchild", rchild->node);
 	}
 	return result;
 }

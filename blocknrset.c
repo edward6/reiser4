@@ -156,7 +156,7 @@ static int blocknr_set_add(txn_atom *atom, blocknr_set *bset,
 	    bse_avail(list_entry(bset->entries.next, blocknr_set_entry, link)) < entries_needed) {
 		/* See if a bse was previously allocated. */
 		if (*new_bsep == NULL) {
-			UNLOCK_ATOM(atom);
+			spin_unlock_atom(atom);
 			*new_bsep = bse_alloc();
 			return (*new_bsep != NULL) ? -E_REPEAT :
 				RETERR(-ENOMEM);

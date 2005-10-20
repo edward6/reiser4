@@ -62,30 +62,46 @@ static void set_file_state_unknown(struct inode *inode)
 	unix_file_inode_data(inode)->container = UF_CONTAINER_UNKNOWN;
 }
 
-static int less_than_ldk(znode * node, const reiser4_key * key)
+static int less_than_ldk(znode *node, const reiser4_key *key)
 {
-	return UNDER_RW(dk, current_tree, read,
-			keylt(key, znode_get_ld_key(node)));
+	int result;
+
+	read_lock_dk(znode_get_tree(node));
+	result = keylt(key, znode_get_ld_key(node));
+	read_unlock_dk(znode_get_tree(node));
+	return result;
 }
 
-int equal_to_rdk(znode * node, const reiser4_key * key)
+int equal_to_rdk(znode *node, const reiser4_key *key)
 {
-	return UNDER_RW(dk, current_tree, read,
-			keyeq(key, znode_get_rd_key(node)));
+	int result;
+
+	read_lock_dk(znode_get_tree(node));
+	result = keyeq(key, znode_get_rd_key(node));
+	read_unlock_dk(znode_get_tree(node));
+	return result;
 }
 
 #if REISER4_DEBUG
 
 static int less_than_rdk(znode * node, const reiser4_key * key)
 {
-	return UNDER_RW(dk, current_tree, read,
-			keylt(key, znode_get_rd_key(node)));
+	int result;
+
+	read_lock_dk(znode_get_tree(node));
+	result = keylt(key, znode_get_rd_key(node));
+	read_unlock_dk(znode_get_tree(node));
+	return result;
 }
 
-static int equal_to_ldk(znode * node, const reiser4_key * key)
+int equal_to_ldk(znode * node, const reiser4_key * key)
 {
-	return UNDER_RW(dk, current_tree, read,
-			keyeq(key, znode_get_ld_key(node)));
+	int result;
+
+	read_lock_dk(znode_get_tree(node));
+	result = keyeq(key, znode_get_ld_key(node));
+	read_unlock_dk(znode_get_tree(node));
+	return result;
 }
 
 /* get key of item next to one @coord is set to */
@@ -94,8 +110,9 @@ static reiser4_key *get_next_item_key(const coord_t * coord,
 {
 	if (coord->item_pos == node_num_items(coord->node) - 1) {
 		/* get key of next item if it is in right neighbor */
-		UNDER_RW_VOID(dk, znode_get_tree(coord->node), read,
-			      *next_key = *znode_get_rd_key(coord->node));
+		read_lock_dk(znode_get_tree(coord->node));
+		*next_key = *znode_get_rd_key(coord->node);
+		read_unlock_dk(znode_get_tree(coord->node));
 	} else {
 		/* get key of next item if it is in the same node */
 		coord_t next;
@@ -210,10 +227,7 @@ write_mode_t how_to_write(uf_coord_t * uf_coord, const reiser4_key * key)
 		 * space, for example) and leaves empty leaf
 		 * lingering. Nothing prevents us from reusing it.
 		 */
-		assert("vs-1000", UNDER_RW(dk, current_tree, read,
-					   keylt(key,
-						 znode_get_rd_key(coord->
-								  node))));
+		assert("vs-1000", less_than_rdk(coord->node, key));
 		assert("vs-1002", coord->between == EMPTY_NODE);
 		result = FIRST_ITEM;
 		uf_coord->valid = 1;
@@ -1323,14 +1337,20 @@ static int sync_page(struct page *page)
 
 		lock_page(page);
 		node = jprivate(page);
-		if (node != NULL)
-			atom = UNDER_SPIN(jnode, node, jnode_get_atom(node));
-		else
+		if (node != NULL) {
+			spin_lock_jnode(node);
+			atom = jnode_get_atom(node);
+			spin_unlock_jnode(node);
+		} else
 			atom = NULL;
 		unlock_page(page);
 		result = sync_atom(atom);
 	} while (result == -E_REPEAT);
-/* 	ZAM-FIXME-HANS: document the logic of this loop, is it just to handle the case where more pages get added to the atom while we are syncing it? */
+	/*
+	 * ZAM-FIXME-HANS: document the logic of this loop, is it just to
+	 * handle the case where more pages get added to the atom while we are
+	 * syncing it?
+	 */
 	assert("nikita-3485", ergo(result == 0,
 				   get_current_context()->trans->atom == NULL));
 	return result;
@@ -1626,9 +1646,9 @@ int sync_unix_file(struct file *file, struct dentry *dentry, int datasync)
 				node = jref(ZJNODE(coord.node));
 				done_lh(&lh);
 				txn_restart_current();
-				LOCK_JNODE(node);
+				spin_lock_jnode(node);
 				atom = jnode_get_atom(node);
-				UNLOCK_JNODE(node);
+				spin_unlock_jnode(node);
 				result = sync_atom(atom);
 				jput(node);
 			} else
@@ -2614,9 +2634,15 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 	return count ? count : result;
 }
 
-/* this is implementation of vfs's release method of struct
-   file_operations for unix file plugin
-   convert all extent items into tail items if necessary */
+/**
+ * release_unix_file - release of struct file_operations
+ * @inode: inode of released file
+ * @file: file to release
+ *
+ * Implementation of release method of struct file_operations for unix file
+ * plugin. If last reference to indode is released - convert all extent items
+ * into tail items if necessary. Frees reiser4 specific file data.
+ */
 int release_unix_file(struct inode *inode, struct file *file)
 {
 	reiser4_context *ctx;

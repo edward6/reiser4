@@ -8,7 +8,6 @@
 
 #include "forward.h"
 #include "debug.h"
-#include "spin_macros.h"
 #include "dformat.h"
 #include "plugin/node/node.h"
 #include "plugin/plugin.h"
@@ -59,7 +58,7 @@ typedef struct cbk_cache_slot {
 */
 typedef struct cbk_cache {
 	/* serializator */
-	reiser4_rw_data guard;
+	rwlock_t guard;
 	int nr_slots;
 	/* head of LRU list of cache slots */
 	struct list_head lru;
@@ -67,10 +66,6 @@ typedef struct cbk_cache {
 	cbk_cache_slot *slot;
 } cbk_cache;
 
-#define rw_ordering_pred_cbk_cache(cache) (1)
-
-/* defined read-write locking functions for cbk_cache */
-RW_LOCK_FUNCTIONS(cbk_cache, cbk_cache, guard);
 
 /* level_lookup_result - possible outcome of looking up key at some level.
    This is used by coord_by_key when traversing tree downward. */
@@ -139,13 +134,13 @@ struct reiser4_tree {
 	   4) SMP machines.  Current 4-ways machine test does not show that tree
 	   lock is contented and it is a bottleneck (2003.07.25). */
 
-	reiser4_rw_data tree_lock;
+	rwlock_t tree_lock;
 
 	/* lock protecting delimiting keys */
-	reiser4_rw_data dk_lock;
+	rwlock_t dk_lock;
 
 	/* spin lock protecting znode_epoch */
-	reiser4_spin_data epoch_lock;
+	spinlock_t epoch_lock;
 	/* version stamp used to mark znode updates. See seal.[ch] for more
 	 * information. */
 	__u64 znode_epoch;
@@ -164,9 +159,6 @@ struct reiser4_tree {
 		__u32 insert_flags;
 	} carry;
 };
-
-#define spin_ordering_pred_epoch(tree) (1)
-SPIN_LOCK_FUNCTIONS(epoch, reiser4_tree, epoch_lock);
 
 extern void init_tree_0(reiser4_tree *);
 
@@ -441,37 +433,126 @@ int lookup_couple(reiser4_tree * tree,
 		  tree_level lock_level, tree_level stop_level, __u32 flags,
 		  int *result1, int *result2);
 
-/* ordering constraint for tree spin lock: tree lock is "strongest" */
-#define rw_ordering_pred_tree(tree)			\
-	(lock_counters()->spin_locked_txnh == 0) &&	\
-	(lock_counters()->rw_locked_tree == 0) &&	\
-	(lock_counters()->rw_locked_dk == 0)
 
-/* Define spin_lock_tree, spin_unlock_tree, and spin_tree_is_locked:
-   spin lock protecting znode hash, and parent and sibling pointers. */
-RW_LOCK_FUNCTIONS(tree, reiser4_tree, tree_lock);
+static inline void read_lock_tree(reiser4_tree *tree)
+{
+	/* check that tree is not locked */
+	assert("", (LOCK_CNT_NIL(rw_locked_tree) &&
+		    LOCK_CNT_NIL(read_locked_tree) &&
+		    LOCK_CNT_NIL(write_locked_tree)));
+	/* check that spinlocks of lower priorities are not held */
+	assert("", (LOCK_CNT_NIL(spin_locked_txnh) &&
+		    LOCK_CNT_NIL(rw_locked_dk) &&
+		    LOCK_CNT_NIL(spin_locked_stack)));
 
-/* ordering constraint for delimiting key spin lock: dk lock is weaker than
-   tree lock */
-#define rw_ordering_pred_dk( tree ) 1
-#if 0
-(lock_counters()->rw_locked_tree == 0) &&
-    (lock_counters()->spin_locked_jnode == 0) &&
-    (lock_counters()->rw_locked_zlock == 0) &&
-    (lock_counters()->spin_locked_txnh == 0) &&
-    (lock_counters()->spin_locked_atom == 0) &&
-    (lock_counters()->spin_locked_inode_object == 0) &&
-    (lock_counters()->spin_locked_txnmgr == 0)
-#endif
-/* Define spin_lock_dk(), spin_unlock_dk(), etc: locking for delimiting
-   keys. */
-    RW_LOCK_FUNCTIONS(dk, reiser4_tree, dk_lock);
+	read_lock(&(tree->tree_lock));
 
-#if REISER4_DEBUG
-#define check_tree() print_tree_rec( "", current_tree, REISER4_TREE_CHECK )
-#else
-#define check_tree() noop
-#endif
+	LOCK_CNT_INC(read_locked_tree);
+	LOCK_CNT_INC(rw_locked_tree);
+	LOCK_CNT_INC(spin_locked);
+}
+
+static inline void read_unlock_tree(reiser4_tree *tree)
+{
+	assert("nikita-1375", LOCK_CNT_GTZ(read_locked_tree));
+	assert("nikita-1376", LOCK_CNT_GTZ(rw_locked_tree));
+	assert("nikita-1376", LOCK_CNT_GTZ(spin_locked));
+
+	LOCK_CNT_DEC(read_locked_tree);
+	LOCK_CNT_DEC(rw_locked_tree);
+	LOCK_CNT_DEC(spin_locked);
+
+	read_unlock(&(tree->tree_lock));
+}
+
+static inline void write_lock_tree(reiser4_tree *tree)
+{
+	/* check that tree is not locked */
+	assert("", (LOCK_CNT_NIL(rw_locked_tree) &&
+		    LOCK_CNT_NIL(read_locked_tree) &&
+		    LOCK_CNT_NIL(write_locked_tree)));
+	/* check that spinlocks of lower priorities are not held */
+	assert("", (LOCK_CNT_NIL(spin_locked_txnh) &&
+		    LOCK_CNT_NIL(rw_locked_dk) &&
+		    LOCK_CNT_NIL(spin_locked_stack)));
+
+	write_lock(&(tree->tree_lock));
+
+	LOCK_CNT_INC(write_locked_tree);
+	LOCK_CNT_INC(rw_locked_tree);
+	LOCK_CNT_INC(spin_locked);
+}
+
+static inline void write_unlock_tree(reiser4_tree *tree)
+{
+	assert("nikita-1375", LOCK_CNT_GTZ(write_locked_tree));
+	assert("nikita-1376", LOCK_CNT_GTZ(rw_locked_tree));
+	assert("nikita-1376", LOCK_CNT_GTZ(spin_locked));
+
+	LOCK_CNT_DEC(write_locked_tree);
+	LOCK_CNT_DEC(rw_locked_tree);
+	LOCK_CNT_DEC(spin_locked);
+
+	write_unlock(&(tree->tree_lock));
+}
+
+static inline void read_lock_dk(reiser4_tree *tree)
+{
+	/* check that dk is not locked */
+	assert("", (LOCK_CNT_NIL(rw_locked_dk) &&
+		    LOCK_CNT_NIL(read_locked_dk) &&
+		    LOCK_CNT_NIL(write_locked_dk)));
+	/* check that spinlocks of lower priorities are not held */
+	assert("", LOCK_CNT_NIL(spin_locked_stack));
+
+	read_lock(&((tree)->dk_lock));
+
+	LOCK_CNT_INC(read_locked_dk);
+	LOCK_CNT_INC(rw_locked_dk);
+	LOCK_CNT_INC(spin_locked);
+}
+
+static inline void read_unlock_dk(reiser4_tree *tree)
+{
+	assert("nikita-1375", LOCK_CNT_GTZ(read_locked_dk));
+	assert("nikita-1376", LOCK_CNT_GTZ(rw_locked_dk));
+	assert("nikita-1376", LOCK_CNT_GTZ(spin_locked));
+
+	LOCK_CNT_DEC(read_locked_dk);
+	LOCK_CNT_DEC(rw_locked_dk);
+	LOCK_CNT_DEC(spin_locked);
+
+	read_unlock(&(tree->dk_lock));
+}
+
+static inline void write_lock_dk(reiser4_tree *tree)
+{
+	/* check that dk is not locked */
+	assert("", (LOCK_CNT_NIL(rw_locked_dk) &&
+		    LOCK_CNT_NIL(read_locked_dk) &&
+		    LOCK_CNT_NIL(write_locked_dk)));
+	/* check that spinlocks of lower priorities are not held */
+	assert("", LOCK_CNT_NIL(spin_locked_stack));
+
+	write_lock(&((tree)->dk_lock));
+
+	LOCK_CNT_INC(write_locked_dk);
+	LOCK_CNT_INC(rw_locked_dk);
+	LOCK_CNT_INC(spin_locked);
+}
+
+static inline void write_unlock_dk(reiser4_tree *tree)
+{
+	assert("nikita-1375", LOCK_CNT_GTZ(write_locked_dk));
+	assert("nikita-1376", LOCK_CNT_GTZ(rw_locked_dk));
+	assert("nikita-1376", LOCK_CNT_GTZ(spin_locked));
+
+	LOCK_CNT_DEC(write_locked_dk);
+	LOCK_CNT_DEC(rw_locked_dk);
+	LOCK_CNT_DEC(spin_locked);
+
+	write_unlock(&(tree->dk_lock));
+}
 
 /* estimate api. Implementation is in estimate.c */
 reiser4_block_nr estimate_one_insert_item(reiser4_tree *);
@@ -482,13 +563,6 @@ reiser4_block_nr calc_estimate_one_insert(tree_level);
 reiser4_block_nr estimate_disk_cluster(struct inode *);
 reiser4_block_nr estimate_insert_cluster(struct inode *, int);
 
-/* take read or write tree lock, depending on @takeread argument */
-#define XLOCK_TREE(tree, takeread)				\
-	(takeread ? RLOCK_TREE(tree) : WLOCK_TREE(tree))
-
-/* release read or write tree lock, depending on @takeread argument */
-#define XUNLOCK_TREE(tree, takeread)				\
-	(takeread ? RUNLOCK_TREE(tree) : WUNLOCK_TREE(tree))
 
 /* __REISER4_TREE_H__ */
 #endif

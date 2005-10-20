@@ -7,7 +7,6 @@
 
 #include "forward.h"
 #include "debug.h"
-#include "spin_macros.h"
 #include "key.h"
 #include "seal.h"
 #include "plugin/plugin.h"
@@ -99,7 +98,7 @@ typedef __u32 oid_hi_t;
 
 struct reiser4_inode {
 	/* spin lock protecting fields of this structure. */
-	reiser4_spin_data guard;
+	spinlock_t guard;
 	/* object plugins */
 	plugin_set *pset;
 	/* plugins set for inheritance */
@@ -252,18 +251,6 @@ static inline struct inode *unix_file_info_to_inode(const unix_file_info_t *
 			     p.file_plugin_data.unix_file_info)->vfs_inode;
 }
 
-/* ordering predicate for inode spin lock: only jnode lock can be held */
-#define spin_ordering_pred_inode_object(inode)			\
-	( lock_counters() -> rw_locked_dk == 0 ) &&		\
-	( lock_counters() -> rw_locked_tree == 0 ) &&		\
-	( lock_counters() -> spin_locked_txnh == 0 ) &&		\
-	( lock_counters() -> rw_locked_zlock == 0 ) &&	\
-	( lock_counters() -> spin_locked_jnode == 0 ) &&	\
-	( lock_counters() -> spin_locked_atom == 0 ) &&		\
-	( lock_counters() -> spin_locked_ktxnmgrd == 0 ) &&	\
-	( lock_counters() -> spin_locked_txnmgr == 0 )
-
-SPIN_LOCK_FUNCTIONS(inode_object, reiser4_inode, guard);
 
 extern ino_t oid_to_ino(oid_t oid) __attribute__ ((const));
 extern ino_t oid_to_uino(oid_t oid) __attribute__ ((const));
@@ -277,17 +264,55 @@ extern int inode_has_no_jnodes(reiser4_inode *);
 #define inode_invariant(inode) noop
 #endif
 
-#define spin_lock_inode(inode)			\
-({						\
-	LOCK_INODE(reiser4_inode_data(inode));	\
-	inode_invariant(inode);			\
-})
+static inline int spin_inode_is_locked(const struct inode *inode)
+{
+	assert_spin_locked(&reiser4_inode_data(inode)->guard);
+	return 1;
+}
 
-#define spin_unlock_inode(inode)			\
-({							\
-	inode_invariant(inode);				\
-	UNLOCK_INODE(reiser4_inode_data(inode));	\
-})
+/**
+ * spin_lock_inode - lock reiser4_inode' embedded spinlock
+ * @inode: inode to lock
+ *
+ * In debug mode it checks that lower priority locks are not held and
+ * increments reiser4_context's lock counters on which lock ordering checking
+ * is based.
+ */
+static inline void spin_lock_inode(struct inode *inode)
+{
+	assert("", LOCK_CNT_NIL(spin_locked));
+	/* check lock ordering */
+	assert_spin_not_locked(&d_lock);
+
+	spin_lock(&reiser4_inode_data(inode)->guard);
+
+	LOCK_CNT_INC(spin_locked_inode);
+	LOCK_CNT_INC(spin_locked);
+
+	inode_invariant(inode);
+}
+
+/**
+ * spin_unlock_inode - unlock reiser4_inode' embedded spinlock
+ * @inode: inode to unlock
+ *
+ * In debug mode it checks that spinlock is held and decrements
+ * reiser4_context's lock counters on which lock ordering checking is based.
+ */
+static inline void spin_unlock_inode(struct inode *inode)
+{
+	assert_spin_locked(&reiser4_inode_data(inode)->guard);
+	assert("nikita-1375", LOCK_CNT_GTZ(spin_locked_inode));
+	assert("nikita-1376", LOCK_CNT_GTZ(spin_locked));
+
+	inode_invariant(inode);
+
+	LOCK_CNT_DEC(spin_locked_inode);
+	LOCK_CNT_DEC(spin_locked);
+
+	spin_unlock(&reiser4_inode_data(inode)->guard);
+}
+
 
 extern znode *inode_get_vroot(struct inode *inode);
 extern void inode_set_vroot(struct inode *inode, znode * vroot);

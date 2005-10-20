@@ -35,7 +35,7 @@ extern int reiser4_del_nlink(struct inode *, struct inode *, int);
 extern int reiser4_start_up_io(struct page *page);
 extern void reiser4_clear_page_dirty(struct page *);
 extern void reiser4_throttle_write(struct inode *);
-ON_DEBUG(int jnode_is_releasable(jnode *));
+extern int jnode_is_releasable(jnode *);
 
 #define CAPTURE_APAGE_BURST (1024l)
 void writeout(struct super_block *, struct writeback_control *);

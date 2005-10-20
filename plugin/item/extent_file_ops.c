@@ -856,11 +856,11 @@ static int extent_write_flow(struct inode *inode, flow_t * flow, hint_t * hint,
 						   process because page
 						   attached to jnode is
 						   locked */
-						LOCK_JNODE(j);
+						spin_lock_jnode(j);
 						assign_jnode_blocknr(j, h->blocknr,
 								     h->created);
 						blocknr_set = 1;
-						UNLOCK_JNODE(j);
+						spin_unlock_jnode(j);
 					}
 					result =
 					    page_io(page, j, READ, GFP_KERNEL);
@@ -875,12 +875,12 @@ static int extent_write_flow(struct inode *inode, flow_t * flow, hint_t * hint,
 				}
 
 				/* assign blocknr to jnode if it is not assigned yet */
-				LOCK_JNODE(j);
+				spin_lock_jnode(j);
 				eflush_del(j, 1);
 				if (blocknr_set == 0)
 					assign_jnode_blocknr(j, h->blocknr,
 							     h->created);
-				UNLOCK_JNODE(j);
+				spin_unlock_jnode(j);
 			} else {
 				/* new page added to the file. No need to carry
 				   about data it might contain. Zero content of
@@ -890,21 +890,22 @@ static int extent_write_flow(struct inode *inode, flow_t * flow, hint_t * hint,
 
 				/* assign blocknr to jnode if it is not
 				   assigned yet */
-				LOCK_JNODE(j);
+				spin_lock_jnode(j);
 				assign_jnode_blocknr(j, h->blocknr, h->created);
-				UNLOCK_JNODE(j);
+				spin_unlock_jnode(j);
 			}
 		} else {
-			LOCK_JNODE(j);
+			spin_lock_jnode(j);
 			eflush_del(j, 1);
 			assign_jnode_blocknr(j, h->blocknr, h->created);
-			UNLOCK_JNODE(j);
+			spin_unlock_jnode(j);
 		}
-
-		assert("vs-1503",
-		       UNDER_SPIN(jnode, j,
-				  (!JF_ISSET(j, JNODE_EFLUSH)
-				   && jnode_page(j) == page)));
+#if REISER4_DEBUG
+		spin_lock_jnode(j);
+		assert("vs-1503", (!JF_ISSET(j, JNODE_EFLUSH) &&
+				   jnode_page(j) == page));
+		spin_unlock_jnode(j);
+#endif
 		assert("nikita-3033", schedulable());
 
 		/* copy user data into page */
@@ -930,16 +931,16 @@ static int extent_write_flow(struct inode *inode, flow_t * flow, hint_t * hint,
 		   gets into clean list in try_capture and then in
 		   jnode_mark_dirty gets moved to dirty list. So, it would be
 		   more optimal to put jnode directly to dirty list */
-		LOCK_JNODE(j);
+		spin_lock_jnode(j);
 		result = try_capture(j, ZNODE_WRITE_LOCK, 0, 1 /* can_coc */ );
 		if (result) {
-			UNLOCK_JNODE(j);
+			spin_unlock_jnode(j);
 			page_cache_release(page);
 			goto exit2;
 		}
 		jnode_make_dirty_locked(j);
 		JF_CLR(j, JNODE_KEEPME);
-		UNLOCK_JNODE(j);
+		spin_unlock_jnode(j);
 
 		page_cache_release(page);
 		jput(j);
@@ -1104,7 +1105,7 @@ do_readpage_extent(reiser4_extent * ext, reiser4_block_nr pos,
 			zero_page(page);
 			return 0;
 		}
-		LOCK_JNODE(j);
+		spin_lock_jnode(j);
 		if (!jnode_page(j)) {
 			jnode_attach_page(j, page);
 		} else {
@@ -1112,7 +1113,7 @@ do_readpage_extent(reiser4_extent * ext, reiser4_block_nr pos,
 			assert("vs-1504", jnode_page(j) == page);
 		}
 
-		UNLOCK_JNODE(j);
+		spin_unlock_jnode(j);
 		break;
 
 	case ALLOCATED_EXTENT:
@@ -1134,7 +1135,9 @@ do_readpage_extent(reiser4_extent * ext, reiser4_block_nr pos,
 		assert("nikita-2688", j);
 		assert("vs-1426", jnode_page(j) == NULL);
 
-		UNDER_SPIN_VOID(jnode, j, jnode_attach_page(j, page));
+		spin_lock_jnode(j);
+		jnode_attach_page(j, page);
+		spin_unlock_jnode(j);
 
 		/* page is locked, it is safe to check JNODE_EFLUSH */
 		assert("vs-1668", JF_ISSET(j, JNODE_EFLUSH));
@@ -1610,11 +1613,10 @@ capture_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page,
 		done_lh(uf_coord->lh);
 		return PTR_ERR(j);
 	}
-	UNDER_SPIN_VOID(jnode, j, eflush_del(j, 1));
+	spin_lock_jnode(j);
+	eflush_del(j, 1);
 
 	unlock_page(page);
-
-	LOCK_JNODE(j);
 
 	BUG_ON(JF_ISSET(j, JNODE_EFLUSH));
 	if (h->created) {
@@ -1633,18 +1635,18 @@ capture_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page,
 		assert("vs-1507",
 		       ergo(h->blocknr, *jnode_get_block(j) == h->blocknr));
 	}
-	UNLOCK_JNODE(j);
+	spin_unlock_jnode(j);
 
 	done_lh(h->uf_coord->lh);
 
-	LOCK_JNODE(j);
+	spin_lock_jnode(j);
 	result = try_capture(j, ZNODE_WRITE_LOCK, 0, 1 /* can_coc */ );
 	if (result != 0)
 		reiser4_panic("nikita-3324", "Cannot capture jnode: %i",
 			      result);
 	jnode_make_dirty_locked(j);
 	JF_CLR(j, JNODE_KEEPME);
-	UNLOCK_JNODE(j);
+	spin_unlock_jnode(j);
 	jput(j);
 
 	if (h->created)

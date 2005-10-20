@@ -8,7 +8,6 @@
 
 #include "forward.h"
 #include "debug.h"
-#include "spin_macros.h"
 #include "dformat.h"
 #include "tap.h"
 #include "lock.h"

@@ -1283,8 +1283,8 @@ static void cond_add_to_overwrite_set(txn_atom * atom, jnode * node)
 	assert("zam-547", atom->stage == ASTAGE_PRE_COMMIT);
 	assert("zam-548", node != NULL);
 
-	LOCK_ATOM(atom);
-	LOCK_JNODE(node);
+	spin_lock_atom(atom);
+	spin_lock_jnode(node);
 
 	if (node->atom == NULL) {
 		JF_SET(node, JNODE_OVRWR);
@@ -1293,8 +1293,8 @@ static void cond_add_to_overwrite_set(txn_atom * atom, jnode * node)
 		assert("zam-549", node->atom == atom);
 	}
 
-	UNLOCK_JNODE(node);
-	UNLOCK_ATOM(atom);
+	spin_unlock_jnode(node);
+	spin_unlock_atom(atom);
 }
 
 /* an actor which applies delete set to COMMIT bitmap pages and link modified
@@ -1559,9 +1559,9 @@ int pre_commit_hook_bitmap(void)
 
 		sbinfo = get_super_private(super);
 
-		reiser4_spin_lock_sb(sbinfo);
+		spin_lock_reiser4_super(sbinfo);
 		sbinfo->blocks_free_committed += blocks_freed;
-		reiser4_spin_unlock_sb(sbinfo);
+		spin_unlock_reiser4_super(sbinfo);
 	}
 
 	return 0;

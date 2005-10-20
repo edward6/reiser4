@@ -603,8 +603,7 @@ void inode_set_extension(struct inode *inode, sd_ext_bits ext)
 
 	assert("nikita-2716", inode != NULL);
 	assert("nikita-2717", ext < LAST_SD_EXTENSION);
-	assert("nikita-3491",
-	       spin_inode_object_is_locked(reiser4_inode_data(inode)));
+	assert("nikita-3491", spin_inode_is_locked(inode));
 
 	state = reiser4_inode_data(inode);
 	state->extmask |= 1 << ext;
@@ -674,12 +673,10 @@ znode *inode_get_vroot(struct inode *inode)
 {
 	reiser4_block_nr blk;
 	znode *result;
-	reiser4_inode *info;
 
-	info = reiser4_inode_data(inode);
-	LOCK_INODE(info);
-	blk = info->vroot;
-	UNLOCK_INODE(info);
+	spin_lock_inode(inode);
+	blk = reiser4_inode_data(inode)->vroot;
+	spin_unlock_inode(inode);
 	if (!disk_addr_eq(&UBER_TREE_ADDR, &blk))
 		result = zlook(tree_by_inode(inode), &blk);
 	else
@@ -687,24 +684,18 @@ znode *inode_get_vroot(struct inode *inode)
 	return result;
 }
 
-void inode_set_vroot(struct inode *inode, znode * vroot)
+void inode_set_vroot(struct inode *inode, znode *vroot)
 {
-	reiser4_inode *info;
-
-	info = reiser4_inode_data(inode);
-	LOCK_INODE(info);
-	info->vroot = *znode_get_block(vroot);
-	UNLOCK_INODE(info);
+	spin_lock_inode(inode);
+	reiser4_inode_data(inode)->vroot = *znode_get_block(vroot);
+	spin_unlock_inode(inode);
 }
 
 #if REISER4_DEBUG
 
 void inode_invariant(const struct inode *inode)
 {
-	reiser4_inode *object;
-
-	object = reiser4_inode_data(inode);
-	assert("nikita-3077", spin_inode_object_is_locked(object));
+	assert("nikita-3077", spin_inode_is_locked(inode));
 }
 
 int inode_has_no_jnodes(reiser4_inode * r4_inode)

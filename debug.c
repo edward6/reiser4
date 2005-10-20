@@ -159,10 +159,10 @@ void print_lock_counters(const char *prefix, const lock_counters_info * info)
 	printk("%s: jnode: %i, tree: %i (r:%i,w:%i), dk: %i (r:%i,w:%i)\n"
 	       "jload: %i, "
 	       "txnh: %i, atom: %i, stack: %i, txnmgr: %i, "
-	       "ktxnmgrd: %i, fq: %i, reiser4_sb: %i\n"
+	       "ktxnmgrd: %i, fq: %i\n"
 	       "inode: %i, "
 	       "cbk_cache: %i (r:%i,w%i), "
-	       "epoch: %i, eflush: %i, "
+	       "eflush: %i, "
 	       "zlock: %i (r:%i, w:%i)\n"
 	       "spin: %i, long: %i inode_sem: (r:%i,w:%i)\n"
 	       "d: %i, x: %i, t: %i\n", prefix,
@@ -174,12 +174,11 @@ void print_lock_counters(const char *prefix, const lock_counters_info * info)
 	       info->spin_locked_txnh,
 	       info->spin_locked_atom, info->spin_locked_stack,
 	       info->spin_locked_txnmgr, info->spin_locked_ktxnmgrd,
-	       info->spin_locked_fq, info->spin_locked_super,
-	       info->spin_locked_inode_object,
+	       info->spin_locked_fq,
+	       info->spin_locked_inode,
 	       info->rw_locked_cbk_cache,
 	       info->read_locked_cbk_cache,
 	       info->write_locked_cbk_cache,
-	       info->spin_locked_epoch,
 	       info->spin_locked_super_eflush,
 	       info->rw_locked_zlock,
 	       info->read_locked_zlock,
@@ -213,7 +212,7 @@ int no_counters_are_held(void)
 	    (counters->spin_locked_atom == 0) &&
 	    (counters->spin_locked_stack == 0) &&
 	    (counters->spin_locked_txnmgr == 0) &&
-	    (counters->spin_locked_inode_object == 0) &&
+	    (counters->spin_locked_inode == 0) &&
 	    (counters->spin_locked == 0) &&
 	    (counters->long_term_locked_znode == 0) &&
 	    (counters->inode_sem_r == 0) &&

@@ -152,7 +152,7 @@ znode *add_tree_root(znode * old_root /* existing tree root */ ,
 				znode_make_dirty(fake);
 
 				/* new root is a child of "fake" node */
-				WLOCK_TREE(tree);
+				write_lock_tree(tree);
 
 				++tree->height;
 
@@ -168,17 +168,17 @@ znode *add_tree_root(znode * old_root /* existing tree root */ ,
 				 * balancing are connected after balancing is
 				 * done---useful invariant to check. */
 				sibling_list_insert_nolock(new_root, NULL);
-				WUNLOCK_TREE(tree);
+				write_unlock_tree(tree);
 
 				/* insert into new root pointer to the
 				   @old_root. */
 				assert("nikita-1110",
 				       WITH_DATA(new_root,
 						 node_is_empty(new_root)));
-				WLOCK_DK(tree);
+				write_lock_dk(tree);
 				znode_set_ld_key(new_root, min_key());
 				znode_set_rd_key(new_root, max_key());
-				WUNLOCK_DK(tree);
+				write_unlock_dk(tree);
 				if (REISER4_DEBUG) {
 					ZF_CLR(old_root, JNODE_LEFT_CONNECTED);
 					ZF_CLR(old_root, JNODE_RIGHT_CONNECTED);
@@ -234,7 +234,7 @@ static int add_child_ptr(znode * parent, znode * child)
 	coord_t coord;
 	reiser4_item_data data;
 	int result;
-	reiser4_key *key;
+	reiser4_key key;
 
 	assert("nikita-1111", parent != NULL);
 	assert("nikita-1112", child != NULL);
@@ -250,10 +250,12 @@ static int add_child_ptr(znode * parent, znode * child)
 	build_child_ptr_data(child, &data);
 	data.arg = NULL;
 
-	key =
-	    UNDER_RW(dk, znode_get_tree(parent), read, znode_get_ld_key(child));
-	result =
-	    node_plugin_by_node(parent)->create_item(&coord, key, &data, NULL);
+	read_lock_dk(znode_get_tree(parent));
+	key = *znode_get_ld_key(child);
+	read_unlock_dk(znode_get_tree(parent));
+
+	result = node_plugin_by_node(parent)->create_item(&coord, &key, &data,
+							  NULL);
 	znode_make_dirty(parent);
 	zrelse(parent);
 	return result;
@@ -293,7 +295,7 @@ static int kill_root(reiser4_tree * tree	/* tree from which root is being
 
 		/* don't take long term lock a @new_root. Take spinlock. */
 
-		WLOCK_TREE(tree);
+		write_lock_tree(tree);
 
 		tree->root_block = *new_root_blk;
 		--tree->height;
@@ -309,7 +311,7 @@ static int kill_root(reiser4_tree * tree	/* tree from which root is being
 		++uber->c_count;
 
 		/* sibling_list_insert_nolock(new_root, NULL); */
-		WUNLOCK_TREE(tree);
+		write_unlock_tree(tree);
 
 		/* reinitialise old root. */
 		result = node_plugin_by_node(old_root)->init(old_root);

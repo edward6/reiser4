@@ -186,22 +186,22 @@ int check__internal(const coord_t * coord, const char **error)
 		assert("nikita-3256", znode_invariant(child));
 		if (coord_prev_item(&cpy) == 0 && item_is_internal(&cpy)) {
 			left_child = znode_at(&cpy, cpy.node);
-			RLOCK_TREE(znode_get_tree(child));
-			if (left_child != NULL)
+			if (left_child != NULL) {
+				read_lock_tree(znode_get_tree(child));
 				check_link(left_child, child);
-			RUNLOCK_TREE(znode_get_tree(child));
-			if (left_child != NULL)
+				read_unlock_tree(znode_get_tree(child));
 				zput(left_child);
+			}
 		}
 		coord_dup(&cpy, coord);
 		if (coord_next_item(&cpy) == 0 && item_is_internal(&cpy)) {
 			right_child = znode_at(&cpy, cpy.node);
-			RLOCK_TREE(znode_get_tree(child));
-			if (right_child != NULL)
+			if (right_child != NULL) {
+				read_lock_tree(znode_get_tree(child));
 				check_link(child, right_child);
-			RUNLOCK_TREE(znode_get_tree(child));
-			if (right_child != NULL)
+				read_unlock_tree(znode_get_tree(child));
 				zput(right_child);
+			}
 		}
 		zput(child);
 	}
@@ -256,8 +256,8 @@ int create_hook_internal(const coord_t * item /* coord of item */ ,
 
 		left = arg;
 		tree = znode_get_tree(item->node);
-		WLOCK_TREE(tree);
-		WLOCK_DK(tree);
+		write_lock_tree(tree);
+		write_lock_dk(tree);
 		assert("nikita-1400", (child->in_parent.node == NULL)
 		       || (znode_above_root(child->in_parent.node)));
 		++item->node->c_count;
@@ -271,8 +271,8 @@ int create_hook_internal(const coord_t * item /* coord of item */ ,
 					     znode_get_rd_key(child))) {
 			znode_set_rd_key(child, znode_get_rd_key(left));
 		}
-		WUNLOCK_DK(tree);
-		WUNLOCK_TREE(tree);
+		write_unlock_dk(tree);
+		write_unlock_tree(tree);
 		zput(child);
 		return result;
 	} else {
@@ -320,17 +320,15 @@ int kill_hook_internal(const coord_t * item /* coord of item */ ,
 		assert("nikita-2546", ZF_ISSET(child, JNODE_HEARD_BANSHEE));
 
 		tree = znode_get_tree(item->node);
-		WLOCK_TREE(tree);
+		write_lock_tree(tree);
 		init_parent_coord(&child->in_parent, NULL);
 		--item->node->c_count;
-		WUNLOCK_TREE(tree);
+		write_unlock_tree(tree);
 		zput(child);
 		return 0;
 	} else {
 		warning("nikita-1223",
 			"Cowardly refuse to remove link to non-empty node");
-		print_znode("parent", item->node);
-		print_znode("child", child);
 		zput(child);
 		return RETERR(-EIO);
 	}
@@ -363,7 +361,7 @@ int shift_hook_internal(const coord_t * item /* coord of item */ ,
 	if (child == NULL)
 		return 0;
 	if (!IS_ERR(child)) {
-		WLOCK_TREE(tree);
+		write_lock_tree(tree);
 		++new_node->c_count;
 		assert("nikita-1395", znode_parent(child) == old_node);
 		assert("nikita-1396", old_node->c_count > 0);
@@ -372,7 +370,7 @@ int shift_hook_internal(const coord_t * item /* coord of item */ ,
 		assert("nikita-1782",
 		       check_tree_pointer(item, child) == NS_FOUND);
 		--old_node->c_count;
-		WUNLOCK_TREE(tree);
+		write_unlock_tree(tree);
 		zput(child);
 		return 0;
 	} else

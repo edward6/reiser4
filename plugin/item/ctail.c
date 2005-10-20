@@ -402,12 +402,8 @@ static int ctail_convertible(const coord_t * coord)
 				       NULL) << cluster_shift_by_coord(coord));
 	if (!child)
 		return 0;
-	LOCK_JNODE(child);
-	if (jnode_is_dirty(child))
-		result = 1;
-	else
-		result = 0;
-	UNLOCK_JNODE(child);
+	/* NOTE-Edward: jnode spin lock is removed here: test_bit is atomic */
+	result = JF_ISSET(child, JNODE_DIRTY);
 	jput(child);
 	return result;
 }
@@ -1110,22 +1106,20 @@ int scan_ctail(flush_scan * scan)
 
 	if (!scanning_left(scan))
 		return result;
-	if (!znode_is_dirty(scan->parent_lock.node))
+	if (!ZF_ISSET(scan->parent_lock.node, JNODE_DIRTY))
 		znode_make_dirty(scan->parent_lock.node);
 
 	if (!znode_convertible(scan->parent_lock.node)) {
-		LOCK_JNODE(scan->node);
-		if (jnode_is_dirty(scan->node)) {
+		/* NOTE-Edward: jnode spinlock is removed. test_bit is atomic */
+		if (JF_ISSET(scan->node, JNODE_DIRTY)) {
 			warning("edward-873",
 				"child is dirty but parent not squeezable");
 			znode_set_convertible(scan->parent_lock.node);
 		} else {
 			warning("edward-681",
 				"cluster page is already processed");
-			UNLOCK_JNODE(scan->node);
 			return -EAGAIN;
 		}
-		UNLOCK_JNODE(scan->node);
 	}
 	return result;
 }
@@ -1146,10 +1140,10 @@ static int should_attach_convert_idata(flush_pos_t * pos)
 
 	if (!pos->child)
 		return 0;
-	LOCK_JNODE(pos->child);
-	result = jnode_is_dirty(pos->child) &&
-	    pos->child->atom == ZJNODE(pos->coord.node)->atom;
-	UNLOCK_JNODE(pos->child);
+	spin_lock_jnode(pos->child);
+	result = (JF_ISSET(pos->child, JNODE_DIRTY) &&
+		  pos->child->atom == ZJNODE(pos->coord.node)->atom);
+	spin_unlock_jnode(pos->child);
 	if (!result && pos->child) {
 		/* existing child isn't to attach, clear up this one */
 		jput(pos->child);
@@ -1436,7 +1430,7 @@ static int next_item_dc_stat(flush_pos_t * pos)
 
 			item_convert_data(pos)->d_next = DC_CHAINED_ITEM;
 
-			if (!znode_is_dirty(lh.node)) {
+			if (!ZF_ISSET(lh.node, JNODE_DIRTY)) {
 				/*
 				   warning("edward-1024",
 				   "next slum item mergeable, "

@@ -9,7 +9,6 @@
 #include "forward.h"
 #include "debug.h"
 #include "dformat.h"
-#include "spin_macros.h"
 #include "key.h"
 #include "coord.h"
 #include "plugin/node/node.h"
@@ -261,15 +260,15 @@ extern void print_lock_stack(const char *prefix, lock_stack * owner);
 #define znode_make_clean(x)         jnode_make_clean   ( ZJNODE(x) )
 #define znode_set_block(x, b)       jnode_set_block ( ZJNODE(x), (b) )
 
-#define spin_lock_znode(x)          LOCK_JNODE ( ZJNODE(x) )
-#define spin_unlock_znode(x)        UNLOCK_JNODE ( ZJNODE(x) )
+#define spin_lock_znode(x)          spin_lock_jnode ( ZJNODE(x) )
+#define spin_unlock_znode(x)        spin_unlock_jnode ( ZJNODE(x) )
 #define spin_trylock_znode(x)       spin_trylock_jnode ( ZJNODE(x) )
 #define spin_znode_is_locked(x)     spin_jnode_is_locked ( ZJNODE(x) )
 #define spin_znode_is_not_locked(x) spin_jnode_is_not_locked ( ZJNODE(x) )
 
 #if REISER4_DEBUG
 extern int znode_x_count_is_protected(const znode * node);
-extern int znode_invariant(const znode * node);
+extern int znode_invariant(znode * node);
 #endif
 
 /* acquire reference to @node */

@@ -138,7 +138,7 @@ int scan_extent(flush_scan * scan)
 	int ret = 0, allocated, incr;
 	reiser4_tree *tree;
 
-	if (!jnode_check_dirty(scan->node)) {
+	if (!JF_ISSET(scan->node, JNODE_DIRTY)) {
 		scan->stop = 1;
 		return 0;	/* Race with truncate, this node is already
 				 * truncated. */
@@ -439,9 +439,11 @@ unprotect_extent_nodes(flush_pos_t *flush_pos, __u64 count,
 	do {
 		count--;
 		junprotect(node);
-		ON_DEBUG(LOCK_JNODE(node);
-			 count_jnode(atom, node, PROTECT_LIST, DIRTY_LIST, 0);
-			 UNLOCK_JNODE(node););
+		ON_DEBUG(
+			spin_lock_jnode(node);
+			count_jnode(atom, node, PROTECT_LIST, DIRTY_LIST, 0);
+			spin_unlock_jnode(node);
+			);
 		if (count == 0) {
 			break;
 		}
@@ -454,7 +456,7 @@ unprotect_extent_nodes(flush_pos_t *flush_pos, __u64 count,
 	protected_list_split(protected_nodes, &unprotected_nodes, node);
 	list_splice_init(&unprotected_nodes, ATOM_DIRTY_LIST(atom, LEAF_LEVEL)->prev);
 
-	UNLOCK_ATOM(atom);
+	spin_unlock_atom(atom);
 }
 
 extern int getjevent(void);
@@ -464,8 +466,8 @@ static void protect_reloc_node(struct list_head *jnodes, jnode *node)
 {
 	assert("zam-836", !JF_ISSET(node, JNODE_EPROTECTED));
 	assert("vs-1216", jnode_is_unformatted(node));
-	assert("vs-1477", spin_atom_is_locked(node->atom));
-	assert("nikita-3390", spin_jnode_is_locked(node));
+	assert_spin_locked(&(node->atom->alock));
+	assert_spin_locked(&(node->guard));
 
 	JF_SET(node, JNODE_EPROTECTED);
 	list_del_init(&node->capture_link);
@@ -517,31 +519,31 @@ protect_extent_nodes(flush_pos_t *flush_pos, oid_t oid, unsigned long index,
 			break;
 		}
 
-		LOCK_JNODE(node);
+		spin_lock_jnode(node);
 		assert("vs-1476", atomic_read(&node->x_count) > 1);
 		assert("nikita-3393", !JF_ISSET(node, JNODE_EPROTECTED));
 
 		if (JF_ISSET(node, JNODE_EFLUSH)) {
 			if (eflushed == JNODES_TO_UNFLUSH) {
-				UNLOCK_JNODE(node);
+				spin_unlock_jnode(node);
 				atomic_dec(&node->x_count);
 				break;
 			}
 			buf[eflushed] = node;
 			eflushed++;
 			protect_reloc_node(protected_nodes, node);
-			UNLOCK_JNODE(node);
+			spin_unlock_jnode(node);
 		} else {
 			assert("nikita-3384", node->atom == atom);
 			protect_reloc_node(protected_nodes, node);
 			assert("nikita-3383", !JF_ISSET(node, JNODE_EFLUSH));
-			UNLOCK_JNODE(node);
+			spin_unlock_jnode(node);
 			atomic_dec(&node->x_count);
 		}
 
 		(*protected)++;
 	}
-	UNLOCK_ATOM(atom);
+	spin_unlock_atom(atom);
 
 	/* start io for eflushed nodes */
 	for (j = 0; j < eflushed; ++j)
@@ -554,7 +556,6 @@ protect_extent_nodes(flush_pos_t *flush_pos, oid_t oid, unsigned long index,
 			if (result != 0) {
 				warning("nikita-3179",
 					"unflush failed: %i", result);
-				print_jnode("node", buf[j]);
 			}
 		}
 		jput(buf[j]);
@@ -706,7 +707,7 @@ assign_real_blocknrs(flush_pos_t *flush_pos, reiser4_block_nr first,
 
 	i = 0;
 	list_for_each_entry(node, protected_nodes, capture_link) {
-		LOCK_JNODE(node);
+		spin_lock_jnode(node);
 		assert("vs-1132",
 		       ergo(state == UNALLOCATED_EXTENT,
 			    blocknr_is_fake(jnode_get_block(node))));
@@ -720,7 +721,7 @@ assign_real_blocknrs(flush_pos_t *flush_pos, reiser4_block_nr first,
 				     FQ_LIST, 0));
 		junprotect(node);
 		assert("", NODE_LIST(node) == FQ_LIST);
-		UNLOCK_JNODE(node);
+		spin_unlock_jnode(node);
 		first++;
 		i++;
 	}
@@ -730,7 +731,7 @@ assign_real_blocknrs(flush_pos_t *flush_pos, reiser4_block_nr first,
 	assert("vs-1687", count == i);
 	if (state == UNALLOCATED_EXTENT)
 		dec_unalloc_unfm_ptrs(count);
-	UNLOCK_ATOM(atom);
+	spin_unlock_atom(atom);
 }
 
 /**
@@ -744,7 +745,7 @@ assign_real_blocknrs(flush_pos_t *flush_pos, reiser4_block_nr first,
  */
 static void make_node_ovrwr(struct list_head *jnodes, jnode *node)
 {
-	LOCK_JNODE(node);
+	spin_lock_jnode(node);
 
 	assert("zam-917", !JF_ISSET(node, JNODE_RELOC));
 	assert("zam-918", !JF_ISSET(node, JNODE_OVRWR));
@@ -754,7 +755,7 @@ static void make_node_ovrwr(struct list_head *jnodes, jnode *node)
 	list_add_tail(&node->capture_link, jnodes);
 	ON_DEBUG(count_jnode(node->atom, node, DIRTY_LIST, OVRWR_LIST, 0));
 
-	UNLOCK_JNODE(node);
+	spin_unlock_jnode(node);
 }
 
 /**
@@ -799,7 +800,7 @@ static void mark_jnodes_overwrite(flush_pos_t *flush_pos, oid_t oid,
 	}
 
 	list_splice_init(&jnodes, ATOM_OVRWR_LIST(atom)->prev);
-	UNLOCK_ATOM(atom);
+	spin_unlock_atom(atom);
 }
 
 /* this is called by handle_pos_on_twig to proceed extent unit flush_pos->coord is set to. It is to prepare for flushing

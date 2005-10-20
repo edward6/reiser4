@@ -31,9 +31,9 @@ int init_fs_info(struct super_block *super)
 
 	sema_init(&sbinfo->delete_sema, 1);
 	sema_init(&sbinfo->flush_sema, 1);
-	spin_super_init(sbinfo);
+	spin_lock_init(&(sbinfo->guard));
 #if REISER4_USE_EFLUSH
-	spin_super_eflush_init(sbinfo);
+	spin_lock_init(&(sbinfo->eflush_guard));
 #endif
 	/*  initialize per-super-block d_cursor resources */
 	init_super_d_info(super);

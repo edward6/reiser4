@@ -142,8 +142,9 @@ is_next_item_internal(coord_t *coord, const reiser4_key *key,
 	 * concurrent thread could get their first and insert item with a key
 	 * smaller than @key
 	 */
-	result = UNDER_RW(dk, current_tree, read,
-			  keycmp(key, znode_get_rd_key(coord->node)));
+	read_lock_dk(current_tree);
+	result = keycmp(key, znode_get_rd_key(coord->node));
+	read_unlock_dk(current_tree);
 	assert("vs-6", result != EQUAL_TO);
 	if (result == GREATER_THAN)
 		return 2;
@@ -170,8 +171,9 @@ is_next_item_internal(coord_t *coord, const reiser4_key *key,
 	 * check whether concurrent thread managed to insert item with a key
 	 * smaller than @key
 	 */
-	result = UNDER_RW(dk, current_tree, read,
-			  keycmp(key, znode_get_ld_key(rn.node)));
+	read_lock_dk(current_tree);
+	result = keycmp(key, znode_get_ld_key(rn.node));
+	read_unlock_dk(current_tree);
 	assert("vs-6", result != EQUAL_TO);
 	if (result == GREATER_THAN) {
 		done_lh(&rn);
@@ -224,19 +226,18 @@ static reiser4_key *rd_key(const coord_t *coord, reiser4_key *key)
 	assert("nikita-2281", coord_is_between_items(coord));
 	coord_dup(&dup, coord);
 
-	RLOCK_DK(current_tree);
-
 	if (coord_set_to_right(&dup) == 0)
 		/* next item is in this node. Return its key. */
 		unit_key_by_coord(&dup, key);
-	else
+	else {
 		/*
 		 * next item either does not exist or is in right
 		 * neighbor. Return znode's right delimiting key.
 		 */
+		read_lock_dk(current_tree);
 		*key = *znode_get_rd_key(coord->node);
-
-	RUNLOCK_DK(current_tree);
+		read_unlock_dk(current_tree);
+	}
 	return key;
 }
 
@@ -250,7 +251,6 @@ static reiser4_key *rd_key(const coord_t *coord, reiser4_key *key)
  * Inserts empty leaf node between two extent items. It is necessary when we
  * have to insert an item on leaf level between two extents (items on the twig
  * level).
- *
  */
 static int
 add_empty_leaf(coord_t *insert_coord, lock_handle *lh,
@@ -272,12 +272,12 @@ add_empty_leaf(coord_t *insert_coord, lock_handle *lh,
 		return PTR_ERR(node);
 
 	/* setup delimiting keys for node being inserted */
-	WLOCK_DK(tree);
+	write_lock_dk(tree);
 	znode_set_ld_key(node, key);
 	znode_set_rd_key(node, rdkey);
 	ON_DEBUG(node->creator = current);
 	ON_DEBUG(node->first_key = *key);
-	WUNLOCK_DK(tree);
+	write_unlock_dk(tree);
 
 	ZF_SET(node, JNODE_ORPHAN);
 
@@ -339,13 +339,13 @@ add_empty_leaf(coord_t *insert_coord, lock_handle *lh,
 					 * neighbor was not known. Do it
 					 * here
 					 */
-					WLOCK_TREE(tree);
+					write_lock_tree(tree);
 					assert("nikita-3312",
 					       znode_is_right_connected(node));
 					assert("nikita-2984",
 					       node->right == NULL);
 					ZF_CLR(node, JNODE_RIGHT_CONNECTED);
-					WUNLOCK_TREE(tree);
+					write_unlock_tree(tree);
 					result =
 					    connect_znode(insert_coord, node);
 					if (result == 0)
@@ -359,7 +359,6 @@ add_empty_leaf(coord_t *insert_coord, lock_handle *lh,
 				} else {
 					warning("nikita-3136",
 						"Cannot lock child");
-					print_znode("child", node);
 				}
 				done_lh(&local_lh);
 				zrelse(node);

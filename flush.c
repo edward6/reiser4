@@ -919,13 +919,13 @@ static jnode * find_flush_start_jnode(
 	jnode * node;
 
 	if (start != NULL) {
-		LOCK_JNODE(start);
-		if (jnode_is_dirty(start) && !JF_ISSET(start, JNODE_OVRWR)) {
+		spin_lock_jnode(start);
+		if (JF_ISSET(start, JNODE_DIRTY) && !JF_ISSET(start, JNODE_OVRWR)) {
 			assert("zam-1056", start->atom == atom);
 			node = start;
 			goto enter;
 		}
-		UNLOCK_JNODE(start);
+		spin_unlock_jnode(start);
 	}
 	/*
 	 * In this loop we process all already prepped (RELOC or OVRWR) and dirtied again
@@ -933,9 +933,9 @@ static jnode * find_flush_start_jnode(
 	 * not prepped node found in the atom dirty lists.
 	 */
 	while ((node = find_first_dirty_jnode(atom, flags))) {
-		LOCK_JNODE(node);
+		spin_lock_jnode(node);
 	enter:
-		assert("zam-881", jnode_is_dirty(node));
+		assert("zam-881", JF_ISSET(node, JNODE_DIRTY));
 		assert("zam-898", !JF_ISSET(node, JNODE_OVRWR));
 
 		if (JF_ISSET(node, JNODE_WRITEBACK)) {
@@ -966,7 +966,7 @@ static jnode * find_flush_start_jnode(
 		} else
 			break;
 
-		UNLOCK_JNODE(node);
+		spin_unlock_jnode(node);
 	}
 	return node;
 }
@@ -986,7 +986,7 @@ flush_current_atom(int flags, long nr_to_write, long *nr_submitted,
 	int ret;
 
 	assert("zam-889", atom != NULL && *atom != NULL);
-	assert("zam-890", spin_atom_is_locked(*atom));
+	assert_spin_locked(&((*atom)->alock));
 	assert("zam-892", get_current_context()->trans->atom == *atom);
 
 	nr_to_write = LONG_MAX;
@@ -999,7 +999,7 @@ flush_current_atom(int flags, long nr_to_write, long *nr_submitted,
 	if (ret)
 		return ret;
 
-	assert("zam-891", spin_atom_is_locked(*atom));
+	assert_spin_locked(&((*atom)->alock));
 
 	/* parallel flushers limit */
 	if (sinfo->tmgr.atom_max_flushers != 0) {
@@ -1029,12 +1029,12 @@ flush_current_atom(int flags, long nr_to_write, long *nr_submitted,
 			writeout_mode_disable();
 			return 0;
 		}
-		UNLOCK_ATOM(*atom);
+		spin_unlock_atom(*atom);
 	} else {
 		jref(node);
 		BUG_ON((*atom)->super != node->tree->super);
-		UNLOCK_ATOM(*atom);
-		UNLOCK_JNODE(node);
+		spin_unlock_atom(*atom);
+		spin_unlock_jnode(node);
 		BUG_ON(nr_to_write == 0);
 		ret = jnode_flush(node, nr_to_write, nr_submitted, fq, flags);
 		jput(node);
@@ -1048,7 +1048,7 @@ flush_current_atom(int flags, long nr_to_write, long *nr_submitted,
 	(*atom)->nr_flushers--;
 	fq_put_nolock(fq);
 	atom_send_event(*atom);
-	UNLOCK_ATOM(*atom);
+	spin_unlock_atom(*atom);
 
 	writeout_mode_disable();
 
@@ -1151,7 +1151,7 @@ reverse_relocate_check_dirty_parent(jnode * node, const coord_t * parent_coord,
 {
 	int ret;
 
-	if (!znode_check_dirty(parent_coord->node)) {
+	if (!JF_ISSET(ZJNODE(parent_coord->node), JNODE_DIRTY)) {
 
 		ret = reverse_relocate_test(node, parent_coord, pos);
 		if (ret < 0) {
@@ -2141,7 +2141,7 @@ static int handle_pos_end_of_twig(flush_pos_t * pos)
 		goto out;
 
 	/* right twig could be not dirty */
-	if (znode_check_dirty(right_lock.node)) {
+	if (JF_ISSET(ZJNODE(right_lock.node), JNODE_DIRTY)) {
 		/* If right twig node is dirty we always attempt to squeeze it
 		 * content to the left... */
 	      became_dirty:
@@ -2196,7 +2196,7 @@ static int handle_pos_end_of_twig(flush_pos_t * pos)
 								&at_right, pos);
 			if (ret)
 				goto out;
-			if (znode_check_dirty(right_lock.node))
+			if (JF_ISSET(ZJNODE(right_lock.node), JNODE_DIRTY))
 				goto became_dirty;
 		}
 	}
@@ -2384,7 +2384,7 @@ static void update_ldkey(znode * node)
 {
 	reiser4_key ldkey;
 
-	assert("vs-1630", rw_dk_is_write_locked(znode_get_tree(node)));
+	assert_rw_write_locked(&(znode_get_tree(node)->dk_lock));
 	if (node_is_empty(node))
 		return;
 
@@ -2396,9 +2396,9 @@ static void update_ldkey(znode * node)
    and @right correspondingly and sets right delimiting key of @left to first key of @right */
 static void update_znode_dkeys(znode * left, znode * right)
 {
-	assert("nikita-1470", rw_dk_is_write_locked(znode_get_tree(right)));
-	assert("vs-1629", znode_is_write_locked(left)
-	       && znode_is_write_locked(right));
+	assert_rw_write_locked(&(znode_get_tree(right)->dk_lock));
+	assert("vs-1629", (znode_is_write_locked(left) &&
+			   znode_is_write_locked(right)));
 
 	/* we need to update left delimiting of left if it was empty before shift */
 	update_ldkey(left);
@@ -2442,7 +2442,8 @@ static int squeeze_right_non_twig(znode * left, znode * right)
 
 	assert("nikita-2246", znode_get_level(left) == znode_get_level(right));
 
-	if (!znode_is_dirty(left) || !znode_is_dirty(right))
+	if (!JF_ISSET(ZJNODE(left), JNODE_DIRTY) || 
+	    !JF_ISSET(ZJNODE(right), JNODE_DIRTY))
 		return SQUEEZE_TARGET_FULL;
 
 	pool = init_carry_pool(sizeof(*pool) + 3 * sizeof(*todo));
@@ -2465,8 +2466,10 @@ static int squeeze_right_non_twig(znode * left, znode * right)
 		   node's operation. But it can not be done there. Nobody
 		   remembers why, though */
 		tree = znode_get_tree(left);
-		UNDER_RW_VOID(dk, tree, write, update_znode_dkeys(left, right));
-
+		write_lock_dk(tree);
+		update_znode_dkeys(left, right);
+		write_unlock_dk(tree);
+		
 		/* Carry is called to update delimiting key and, maybe, to remove empty
 		   node. */
 		grabbed = get_current_context()->grabbed_blocks;
@@ -2486,6 +2489,18 @@ static int squeeze_right_non_twig(znode * left, znode * right)
 	return ret;
 }
 
+#if REISER4_DEBUG
+static int sibling_link_is_ok(const znode *left, const znode *right)
+{
+	int result;
+ 
+	read_lock_tree(znode_get_tree(left));
+	result = (left->right == right && left == right->left);	
+	read_unlock_tree(znode_get_tree(left));
+	return result;
+}
+#endif
+
 /* Shift first unit of first item if it is an internal one.  Return
    SQUEEZE_TARGET_FULL if it fails to shift an item, otherwise return
    SUBTREE_MOVED. */
@@ -2501,15 +2516,12 @@ static int shift_one_internal_unit(znode * left, znode * right)
 	assert("nikita-2247", znode_get_level(left) == znode_get_level(right));
 	assert("nikita-2435", znode_is_write_locked(left));
 	assert("nikita-2436", znode_is_write_locked(right));
-	assert("nikita-2434",
-	       UNDER_RW(tree, znode_get_tree(left), read,
-			left->right == right));
+	assert("nikita-2434", sibling_link_is_ok(left, right));
 
-	pool =
-	    init_carry_pool(sizeof(*pool) + 3 * sizeof(*todo) + sizeof(*coord) +
-			    sizeof(*info)
+	pool = init_carry_pool(sizeof(*pool) + 3 * sizeof(*todo) +
+			       sizeof(*coord) + sizeof(*info)
 #if REISER4_DEBUG
-			    + sizeof(*coord) + 2 * sizeof(reiser4_key)
+			       + sizeof(*coord) + 2 * sizeof(reiser4_key)
 #endif
 	    );
 	if (IS_ERR(pool))
@@ -2565,7 +2577,9 @@ static int shift_one_internal_unit(znode * left, znode * right)
 		znode_make_dirty(left);
 		znode_make_dirty(right);
 		tree = znode_get_tree(left);
-		UNDER_RW_VOID(dk, tree, write, update_znode_dkeys(left, right));
+		write_lock_dk(tree);
+		update_znode_dkeys(left, right);
+		write_unlock_dk(tree);
 
 		/* reserve space for delimiting keys after shifting */
 		grabbed = get_current_context()->grabbed_blocks;
@@ -2808,7 +2822,9 @@ allocate_znode_update(znode * node, const coord_t * parent_coord,
 
 		uber = uber_lock.node;
 
-		UNDER_RW_VOID(tree, tree, write, tree->root_block = blk);
+		write_lock_tree(tree);
+		tree->root_block = blk;
+		write_unlock_tree(tree);
 
 		znode_make_dirty(uber);
 	}
@@ -2877,13 +2893,13 @@ jnode_lock_parent_coord(jnode * node,
 		 * because coord_by_key() will just fail to find appropriate
 		 * extent.
 		 */
-		LOCK_JNODE(node);
+		spin_lock_jnode(node);
 		if (!JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
 			jnode_build_key(node, &key);
 			ret = 0;
 		} else
 			ret = RETERR(-ENOENT);
-		UNLOCK_JNODE(node);
+		spin_unlock_jnode(node);
 
 		if (ret != 0)
 			return ret;
@@ -2901,10 +2917,8 @@ jnode_lock_parent_coord(jnode * node,
 			assert("edward-1038",
 			       ergo(jnode_is_cluster_page(node),
 				    JF_ISSET(node, JNODE_HEARD_BANSHEE)));
-			if (!JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
+			if (!JF_ISSET(node, JNODE_HEARD_BANSHEE))
 				warning("nikita-3177", "Parent not found");
-				print_jnode("node", node);
-			}
 			return ret;
 		case CBK_COORD_FOUND:
 			if (coord->between != AT_UNIT) {
@@ -2914,7 +2928,6 @@ jnode_lock_parent_coord(jnode * node,
 					warning("nikita-3178",
 						"Found but not happy: %i",
 						coord->between);
-					print_jnode("node", node);
 				}
 				return RETERR(-ENOENT);
 			}
@@ -3004,7 +3017,7 @@ static int neighbor_in_slum(znode * node,	/* starting point */
 	if (!check_dirty)
 		return 0;
 	/* Check dirty bit of locked znode, no races here */
-	if (znode_check_dirty(lock->node))
+	if (JF_ISSET(ZJNODE(lock->node), JNODE_DIRTY))
 		return 0;
 
 	done_lh(lock);
@@ -3015,13 +3028,17 @@ static int neighbor_in_slum(znode * node,	/* starting point */
    write-locked (for squeezing) so no tree lock is needed. */
 static int znode_same_parents(znode * a, znode * b)
 {
+	int result;
+
 	assert("jmacd-7011", znode_is_write_locked(a));
 	assert("jmacd-7012", znode_is_write_locked(b));
 
 	/* We lock the whole tree for this check.... I really don't like whole tree
 	 * locks... -Hans */
-	return UNDER_RW(tree, znode_get_tree(a), read,
-			(znode_parent(a) == znode_parent(b)));
+	read_lock_tree(znode_get_tree(a));
+	result = (znode_parent(a) == znode_parent(b));
+	read_unlock_tree(znode_get_tree(a));
+	return result;
 }
 
 /* FLUSH SCAN */
@@ -3333,7 +3350,7 @@ static int scan_formatted(flush_scan * scan)
 		}
 
 		/* Lock the tree, check-for and reference the next sibling. */
-		RLOCK_TREE(znode_get_tree(node));
+		read_lock_tree(znode_get_tree(node));
 
 		/* It may be that a node is inserted or removed between a node and its
 		   left sibling while the tree lock is released, but the flush-scan count
@@ -3344,7 +3361,7 @@ static int scan_formatted(flush_scan * scan)
 			zref(neighbor);
 		}
 
-		RUNLOCK_TREE(znode_get_tree(node));
+		read_unlock_tree(znode_get_tree(node));
 
 		/* If neighbor is NULL at the leaf level, need to check for an unformatted
 		   sibling using the parent--break in any case. */

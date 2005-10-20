@@ -119,7 +119,7 @@ struct reiser4_super_info_data {
 	 * guard spinlock which protects reiser4 super block fields (currently
 	 * blocks_free, blocks_free_committed)
 	 */
-	reiser4_spin_data guard;
+	spinlock_t guard;
 
 	/* next oid that will be returned by oid_allocate() */
 	oid_t next_to_use;
@@ -220,7 +220,7 @@ struct reiser4_super_info_data {
 
 #if REISER4_USE_EFLUSH
 	/* see emergency_flush.c for details */
-	reiser4_spin_data eflush_guard;
+	spinlock_t eflush_guard;
 	/* number of emergency flushed nodes */
 	int eflushed;
 	/* hash table used by emergency flush. Protected by ->eflush_guard */
@@ -375,48 +375,16 @@ extern void build_object_ops(struct super_block *super, object_ops * ops);
 
 #define REISER4_SUPER_MAGIC 0x52345362	/* (*(__u32 *)"R4Sb"); */
 
-#define spin_ordering_pred_super(private) (1)
-SPIN_LOCK_FUNCTIONS(super, reiser4_super_info_data, guard);
-
-/*
- * lock reiser4-specific part of super block
- */
-static inline void reiser4_spin_lock_sb(reiser4_super_info_data * sbinfo)
+static inline void spin_lock_reiser4_super(reiser4_super_info_data *sbinfo)
 {
-	spin_lock_super(sbinfo);
+	spin_lock(&(sbinfo->guard));
 }
 
-/*
- * unlock reiser4-specific part of super block
- */
-static inline void reiser4_spin_unlock_sb(reiser4_super_info_data * sbinfo)
+static inline void spin_unlock_reiser4_super(reiser4_super_info_data *sbinfo)
 {
-	spin_unlock_super(sbinfo);
+	assert_spin_locked(&(sbinfo->guard));
+	spin_unlock(&(sbinfo->guard));
 }
-
-#if REISER4_USE_EFLUSH
-
-#define spin_ordering_pred_super_eflush(private) (1)
-SPIN_LOCK_FUNCTIONS(super_eflush, reiser4_super_info_data, eflush_guard);
-
-/*
- * lock emergency flush data-structures for super block @s
- */
-static inline void spin_lock_eflush(const struct super_block *s)
-{
-	reiser4_super_info_data *sbinfo = get_super_private(s);
-	spin_lock_super_eflush(sbinfo);
-}
-
-/*
- * unlock emergency flush data-structures for super block @s
- */
-static inline void spin_unlock_eflush(const struct super_block *s)
-{
-	reiser4_super_info_data *sbinfo = get_super_private(s);
-	spin_unlock_super_eflush(sbinfo);
-}
-#endif
 
 extern __u64 flush_reserved(const struct super_block *);
 extern int reiser4_is_set(const struct super_block *super, reiser4_fs_flag f);

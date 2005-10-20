@@ -340,7 +340,8 @@ int write_page_by_ent(struct page *page, struct writeback_control *wbc)
 		/* entd is not running. */
 		return 0;
 
-	phantom = jprivate(page) == NULL || !jnode_check_dirty(jprivate(page));
+	phantom = jprivate(page) == NULL || !JF_ISSET(jprivate(page), JNODE_DIRTY);
+
 #if 1
 	BUG_ON(page->mapping == NULL);
 	/* re-dirty page */

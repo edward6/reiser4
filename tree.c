@@ -628,15 +628,15 @@ znode *child_znode(const coord_t * parent_coord	/* coord of pointer to
 
 	assert("nikita-1374", parent_coord != NULL);
 	assert("nikita-1482", parent != NULL);
-	assert("nikita-1384", ergo(setup_dkeys_p,
-				   rw_dk_is_not_locked(znode_get_tree
-						       (parent))));
+#if REISER4_DEBUG
+	if (setup_dkeys_p)
+		assert_rw_not_locked(&(znode_get_tree(parent)->dk_lock));
+#endif
 	assert("nikita-2947", znode_is_any_locked(parent));
 
 	if (znode_get_level(parent) <= LEAF_LEVEL) {
 		/* trying to get child of leaf node */
 		warning("nikita-1217", "Child of maize?");
-		print_znode("node", parent);
 		return ERR_PTR(RETERR(-EIO));
 	}
 	if (item_is_internal(parent_coord)) {
@@ -659,7 +659,6 @@ znode *child_znode(const coord_t * parent_coord	/* coord of pointer to
 			set_child_delimiting_keys(parent, parent_coord, child);
 	} else {
 		warning("nikita-1483", "Internal item expected");
-		print_znode("node", parent);
 		child = ERR_PTR(RETERR(-EIO));
 	}
 	return child;
@@ -702,7 +701,7 @@ static void uncapture_znode(znode * node)
 			assert("zam-939", atom != NULL);
 			spin_unlock_znode(node);
 			flush_reserved2grabbed(atom, (__u64) 1);
-			UNLOCK_ATOM(atom);
+			spin_unlock_atom(atom);
 		} else
 			spin_unlock_znode(node);
 	} else {
@@ -750,7 +749,7 @@ static void uncapture_znode(znode * node)
 		}
 
 		uncapture_block(ZJNODE(node));
-		UNLOCK_ATOM(atom);
+		spin_unlock_atom(atom);
 		zput(node);
 	}
 }
@@ -770,7 +769,7 @@ void forget_znode(lock_handle * handle)
 
 	assert("vs-164", znode_is_write_locked(node));
 	assert("nikita-1280", ZF_ISSET(node, JNODE_HEARD_BANSHEE));
-	assert("nikita-3337", rw_zlock_is_locked(&node->lock));
+	assert_rw_locked(&(node->lock.guard));
 
 	/* We assume that this node was detached from its parent before
 	 * unlocking, it gives no way to reach this node from parent through a
@@ -780,10 +779,10 @@ void forget_znode(lock_handle * handle)
 	 * right neighbors.  In the next several lines we remove the node from
 	 * the sibling list. */
 
-	WLOCK_TREE(tree);
+	write_lock_tree(tree);
 	sibling_list_remove(node);
 	znode_remove(node, tree);
-	WUNLOCK_TREE(tree);
+	write_unlock_tree(tree);
 
 	/* Here we set JNODE_DYING and cancel all pending lock requests.  It
 	 * forces all lock requestor threads to repeat iterations of getting
@@ -895,23 +894,25 @@ int find_child_ptr(znode * parent /* parent znode, passed locked */ ,
 	 * not aliased to ->in_parent of some znode. Otherwise,
 	 * parent_coord_to_coord() below would modify data protected by tree
 	 * lock. */
-	RLOCK_TREE(tree);
+	read_lock_tree(tree);
 	/* fast path. Try to use cached value. Lock tree to keep
 	   node->pos_in_parent and pos->*_blocknr consistent. */
 	if (child->in_parent.item_pos + 1 != 0) {
 		parent_coord_to_coord(&child->in_parent, result);
 		if (check_tree_pointer(result, child) == NS_FOUND) {
-			RUNLOCK_TREE(tree);
+			read_unlock_tree(tree);
 			return NS_FOUND;
 		}
 
 		child->in_parent.item_pos = (unsigned short)~0;
 	}
-	RUNLOCK_TREE(tree);
+	read_unlock_tree(tree);
 
 	/* is above failed, find some key from @child. We are looking for the
 	   least key in a child. */
-	UNDER_RW_VOID(dk, tree, read, ld = *znode_get_ld_key(child));
+	read_lock_dk(tree);
+	ld = *znode_get_ld_key(child);
+	read_unlock_dk(tree);
 	/*
 	 * now, lookup parent with key just found. Note, that left delimiting
 	 * key doesn't identify node uniquely, because (in extremely rare
@@ -923,9 +924,9 @@ int find_child_ptr(znode * parent /* parent znode, passed locked */ ,
 	lookup_res = nplug->lookup(parent, &ld, FIND_EXACT, result);
 	/* update cached pos_in_node */
 	if (lookup_res == NS_FOUND) {
-		WLOCK_TREE(tree);
+		write_lock_tree(tree);
 		coord_to_parent_coord(result, &child->in_parent);
-		WUNLOCK_TREE(tree);
+		write_unlock_tree(tree);
 		lookup_res = check_tree_pointer(result, child);
 	}
 	if (lookup_res == NS_NOT_FOUND)
@@ -954,9 +955,9 @@ static int find_child_by_addr(znode * parent /* parent znode, passed locked */ ,
 
 	for_all_units(result, parent) {
 		if (check_tree_pointer(result, child) == NS_FOUND) {
-			UNDER_RW_VOID(tree, znode_get_tree(parent), write,
-				      coord_to_parent_coord(result,
-							    &child->in_parent));
+			write_lock_tree(znode_get_tree(parent));
+			coord_to_parent_coord(result, &child->in_parent);
+			write_unlock_tree(znode_get_tree(parent));
 			ret = NS_FOUND;
 			break;
 		}
@@ -1201,9 +1202,9 @@ prepare_twig_kill(carry_kill_data * kdata, znode * locked_left_neighbor)
 			case -E_NO_NEIGHBOR:
 				/* there is no formatted node to the right of
 				   from->node */
-				UNDER_RW_VOID(dk, tree, read,
-					      key =
-					      *znode_get_rd_key(from->node));
+				read_lock_dk(tree);
+				key = *znode_get_rd_key(from->node);
+				read_unlock_dk(tree);
 				right_coord.node = NULL;
 				result = 0;
 				break;
@@ -1472,10 +1473,10 @@ int delete_node(znode * node, reiser4_key * smallest_removed,
 	   be zero). */
 
 	tree = znode_get_tree(node);
-	WLOCK_TREE(tree);
+	write_lock_tree(tree);
 	init_parent_coord(&node->in_parent, NULL);
 	--parent_lock.node->c_count;
-	WUNLOCK_TREE(tree);
+	write_unlock_tree(tree);
 
 	assert("zam-989", item_is_internal(&cut_from));
 
@@ -1495,8 +1496,8 @@ int delete_node(znode * node, reiser4_key * smallest_removed,
 		reiser4_tree *tree = current_tree;
 		__u64 start_offset = 0, end_offset = 0;
 
-		RLOCK_TREE(tree);
-		WLOCK_DK(tree);
+		read_lock_tree(tree);
+		write_lock_dk(tree);
 		if (object) {
 			/* We use @smallest_removed and the left delimiting of
 			 * the current node for @object->i_blocks, i_bytes
@@ -1513,8 +1514,8 @@ int delete_node(znode * node, reiser4_key * smallest_removed,
 
 		*smallest_removed = *znode_get_ld_key(node);
 
-		WUNLOCK_DK(tree);
-		RUNLOCK_TREE(tree);
+		write_unlock_dk(tree);
+		read_unlock_tree(tree);
 
 		if (object) {
 			/* we used to perform actions which are to be performed on items on their removal from tree in
@@ -1532,6 +1533,16 @@ int delete_node(znode * node, reiser4_key * smallest_removed,
 	done_lh(&parent_lock);
 
 	return ret;
+}
+
+static int can_delete(const reiser4_key *key, znode *node)
+{
+	int result;
+
+	read_lock_dk(current_tree);
+	result = keyle(key, znode_get_ld_key(node));
+	read_unlock_dk(current_tree);
+	return result;
 }
 
 /**
@@ -1580,11 +1591,9 @@ cut_tree_worker_common(tap_t * tap, const reiser4_key * from_key,
 			break;
 		/* Check can we delete the node as a whole. */
 		if (*progress && znode_get_level(node) == LEAF_LEVEL &&
-		    UNDER_RW(dk, current_tree, read,
-			     keyle(from_key, znode_get_ld_key(node)))) {
-			result =
-			    delete_node(node, smallest_removed, object,
-					truncate);
+		    can_delete(from_key, node)) {
+			result = delete_node(node, smallest_removed, object,
+					     truncate);
 		} else {
 			result = tap_load(tap);
 			if (result)
@@ -1817,8 +1826,8 @@ cut_tree(reiser4_tree * tree, const reiser4_key * from, const reiser4_key * to,
 void init_tree_0(reiser4_tree * tree)
 {
 	assert("zam-683", tree != NULL);
-	rw_tree_init(tree);
-	spin_epoch_init(tree);
+	rwlock_init(&tree->tree_lock);
+	spin_lock_init(&tree->epoch_lock);
 }
 
 /* finishing reiser4 initialization */

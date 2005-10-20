@@ -226,7 +226,7 @@ int reiser4_invalidatepage(struct page *page, unsigned long offset)
 	assert("", offset == 0);
 
 	node = jprivate(page);
-	LOCK_JNODE(node);
+	spin_lock_jnode(node);
 	if (!JF_ISSET(node, JNODE_DIRTY) && !JF_ISSET(node, JNODE_FLUSH_QUEUED) &&
 	    !JF_ISSET(node, JNODE_WRITEBACK)) {
 		/* there is not need to capture */
@@ -238,7 +238,7 @@ int reiser4_invalidatepage(struct page *page, unsigned long offset)
 		jput(node);
 		return 0;
 	}
-	UNLOCK_JNODE(node);
+	spin_unlock_jnode(node);
 
 
 	ctx = init_context(inode->i_sb);
@@ -247,10 +247,8 @@ int reiser4_invalidatepage(struct page *page, unsigned long offset)
 
 	/* capture page being truncated. */
 	ret = try_capture_page_to_invalidate(page);
-	if (ret != 0) {
+	if (ret != 0)
 		warning("nikita-3141", "Cannot capture: %i", ret);
-		print_page("page", page);
-	}
 
 	if (offset == 0) {
 		/* remove jnode from transaction and detach it from page. */
@@ -263,8 +261,9 @@ int reiser4_invalidatepage(struct page *page, unsigned long offset)
 
 		/* this detaches page from jnode, so that jdelete will not try
 		 * to lock page which is already locked */
-		UNDER_SPIN_VOID(jnode,
-				node, page_clear_jnode(page, node));
+		spin_lock_jnode(node);
+		page_clear_jnode(page, node);
+		spin_unlock_jnode(node);
 		unhash_unformatted_jnode(node);
 
 		jput(node);
@@ -274,18 +273,12 @@ int reiser4_invalidatepage(struct page *page, unsigned long offset)
 	return ret;
 }
 
-#define INC_STAT(page, node, counter)						\
-	reiser4_stat_inc_at(page->mapping->host->i_sb, 				\
-			    level[jnode_get_level(node)].counter);
-
-#define INC_NSTAT(node, counter) INC_STAT(jnode_page(node), node, counter)
-
 /* help function called from reiser4_releasepage(). It returns true if jnode
  * can be detached from its page and page released. */
-static int releasable(const jnode * node /* node to check */ )
+int jnode_is_releasable(jnode * node /* node to check */ )
 {
 	assert("nikita-2781", node != NULL);
-	assert("nikita-2783", spin_jnode_is_locked(node));
+	assert_spin_locked(&(node->guard));
 
 	/* is some thread is currently using jnode page, later cannot be
 	 * detached */
@@ -317,7 +310,7 @@ static int releasable(const jnode * node /* node to check */ )
 	}
 	/* dirty jnode cannot be released. It can however be submitted to disk
 	 * as part of early flushing, but only after getting flush-prepped. */
-	if (jnode_is_dirty(node)) {
+	if (JF_ISSET(node, JNODE_DIRTY)) {
 		return 0;
 	}
 	/* overwrite set is only written by log writer. */
@@ -342,13 +335,6 @@ static int releasable(const jnode * node /* node to check */ )
 	}
 	return 1;
 }
-
-#if REISER4_DEBUG
-int jnode_is_releasable(jnode * node)
-{
-	return UNDER_SPIN(jload, node, releasable(node));
-}
-#endif
 
 /*
  * ->releasepage method for reiser4
@@ -387,9 +373,9 @@ int reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 
 	/* releasable() needs jnode lock, because it looks at the jnode fields
 	 * and we need jload_lock here to avoid races with jload(). */
-	LOCK_JNODE(node);
-	LOCK_JLOAD(node);
-	if (releasable(node)) {
+	spin_lock_jnode(node);
+	spin_lock(&(node->load));
+	if (jnode_is_releasable(node)) {
 		struct address_space *mapping;
 
 		mapping = page->mapping;
@@ -398,8 +384,8 @@ int reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 		 * jnode_extent_write() here, because pages seen by
 		 * jnode_extent_write() are !releasable(). */
 		page_clear_jnode(page, node);
-		UNLOCK_JLOAD(node);
-		UNLOCK_JNODE(node);
+		spin_unlock(&(node->load));
+		spin_unlock_jnode(node);
 
 		/* we are under memory pressure so release jnode also. */
 		jput(node);
@@ -414,8 +400,8 @@ int reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 
 		return 1;
 	} else {
-		UNLOCK_JLOAD(node);
-		UNLOCK_JNODE(node);
+		spin_unlock(&(node->load));
+		spin_unlock_jnode(node);
 		assert("nikita-3020", schedulable());
 		return 0;
 	}

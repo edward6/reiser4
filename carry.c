@@ -762,8 +762,8 @@ static void sync_dkeys(znode * spot /* node to update */ )
 	assert("nikita-1612", LOCK_CNT_NIL(rw_locked_dk));
 
 	tree = znode_get_tree(spot);
-	RLOCK_TREE(tree);
-	WLOCK_DK(tree);
+	read_lock_tree(tree);
+	write_lock_dk(tree);
 
 	assert("nikita-2192", znode_is_loaded(spot));
 
@@ -798,8 +798,8 @@ static void sync_dkeys(znode * spot /* node to update */ )
 			break;
 	}
 
-	WUNLOCK_DK(tree);
-	RUNLOCK_TREE(tree);
+	write_unlock_dk(tree);
+	read_unlock_tree(tree);
 }
 
 /* unlock all carry nodes in @level */
@@ -914,6 +914,7 @@ int lock_carry_node(carry_level * level /* level @node is in */ ,
 	znode *reference_point;
 	lock_handle lh;
 	lock_handle tmp_lh;
+	reiser4_tree *tree;
 
 	assert("nikita-887", level != NULL);
 	assert("nikita-882", node != NULL);
@@ -944,9 +945,10 @@ int lock_carry_node(carry_level * level /* level @node is in */ ,
 		   and thus, their sibling linkage cannot change.
 
 		 */
-		reference_point = UNDER_RW
-		    (tree, znode_get_tree(reference_point), read,
-		     find_begetting_brother(node, level)->node);
+		tree = znode_get_tree(reference_point);
+		read_lock_tree(tree);
+		reference_point = find_begetting_brother(node, level)->node;
+		read_unlock_tree(tree);
 		assert("nikita-1186", reference_point != NULL);
 	}
 	if (node->parent && (result == 0)) {
@@ -1222,11 +1224,11 @@ carry_node *add_new_znode(znode * brother	/* existing left neighbor of new
 	add_pointer->u.insert.child = fresh;
 	add_pointer->u.insert.brother = brother;
 	/* initially new node spawns empty key range */
-	WLOCK_DK(znode_get_tree(brother));
+	write_lock_dk(znode_get_tree(brother));
 	znode_set_ld_key(new_znode,
 			 znode_set_rd_key(new_znode,
 					  znode_get_rd_key(brother)));
-	WUNLOCK_DK(znode_get_tree(brother));
+	write_unlock_dk(znode_get_tree(brother));
 	return fresh;
 }
 
@@ -1287,8 +1289,7 @@ static int carry_level_invariant(carry_level * level, carry_queue_state state)
 				continue;
 			if (!keyle(leftmost_key_in_node(left, &lkey),
 				   leftmost_key_in_node(right, &rkey))) {
-				print_znode("left", left);
-				print_znode("right", right);
+				warning("", "wrong key order");
 				return 0;
 			}
 		}
@@ -1343,8 +1344,6 @@ static void print_carry(const char *prefix /* prefix to print */ ,
 	    ("%s: %p parent: %s, left: %s, unlock: %s, free: %s, dealloc: %s\n",
 	     prefix, node, tf(node->parent), tf(node->left), tf(node->unlock),
 	     tf(node->free), tf(node->deallocate));
-	print_znode("\tnode", node->node);
-	print_znode("\treal_node", carry_real(node));
 }
 
 /* dump information about carry operation */

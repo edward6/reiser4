@@ -1,6 +1,6 @@
 /* Copyright 2001, 2002, 2003, 2004 by Hans Reiser, licensing governed by reiser4/README */
 
-/* this prototyles functions used by both file.c and tail_conversion.c */
+/* this prototypes functions used by both file.c and tail_conversion.c */
 void get_exclusive_access(unix_file_info_t *);
 void drop_exclusive_access(unix_file_info_t *);
 void get_nonexclusive_access(unix_file_info_t *, int);
@@ -17,6 +17,9 @@ int find_file_item_nohint(coord_t *, lock_handle *, const reiser4_key *,
 int goto_right_neighbor(coord_t *, lock_handle *);
 int find_or_create_extent(struct page *);
 write_mode_t how_to_write(uf_coord_t *, const reiser4_key *);
+#if REISER4_DEBUG
+int equal_to_ldk(znode *, const reiser4_key *);
+#endif
 
 extern inline int cbk_errored(int cbk_result)
 {

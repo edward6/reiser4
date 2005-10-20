@@ -26,8 +26,12 @@ static inline int ra_adjacent_only(int flags)
    if right neighbor's first key is less or equal to readahead's stop key */
 static int should_readahead_neighbor(znode * node, ra_info_t * info)
 {
-	return (UNDER_RW(dk, ZJNODE(node)->tree, read,
-			 keyle(znode_get_rd_key(node), &info->key_to_stop)));
+	int result;
+
+	read_lock_dk(znode_get_tree(node));
+	result = keyle(znode_get_rd_key(node), &info->key_to_stop);
+	read_unlock_dk(znode_get_tree(node));
+	return result;
 }
 
 #define LOW_MEM_PERCENTAGE (5)

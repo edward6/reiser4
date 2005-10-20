@@ -34,7 +34,7 @@ extern void done_eflush(void);
 extern int eflush_init_at(struct super_block *super);
 extern void eflush_done_at(struct super_block *super);
 
-extern reiser4_block_nr *eflush_get(const jnode * node);
+extern reiser4_block_nr *eflush_get(jnode * node);
 extern void eflush_del(jnode * node, int page_locked);
 extern void eflush_free(jnode *);
 

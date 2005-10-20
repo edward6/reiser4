@@ -107,7 +107,7 @@ static struct inode *reiser4_alloc_inode(struct super_block *super)
 		seal_init(&info->sd_seal, NULL, NULL);
 		coord_init_invalid(&info->sd_coord, NULL);
 		info->flags = 0;
-		spin_inode_object_init(info);
+		spin_lock_init(&info->guard);
 		/* this deals with info's loading semaphore */
 		loading_alloc(info);
 		info->vroot = UBER_TREE_ADDR;
