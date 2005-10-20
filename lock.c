@@ -649,7 +649,6 @@ void longterm_unlock_znode(lock_handle * handle)
 		wake_up_all_lopri_owners(node);
 	write_unlock_zlock(&node->lock);
 
-	assert("nikita-3182", rw_zlock_is_not_locked(&node->lock));
 	/* minus one reference from handle->node */
 	handle->node = NULL;
 	assert("nikita-2190", znode_invariant(node));
@@ -977,7 +976,6 @@ int longterm_lock_znode(
 		remove_lock_request(owner);
 	}
 
-	assert("jmacd-807/a", rw_zlock_is_locked(&node->lock));
 	return lock_tail(owner, ret, mode);
 }
 
