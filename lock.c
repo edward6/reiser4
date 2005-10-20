@@ -543,6 +543,8 @@ static void dispatch_lock_requests(znode * node)
 {
 	lock_stack *requestor, *tmp;
 
+	assert("zam-1056", rw_zlock_is_locked(&node->lock));
+
 	list_for_each_entry_safe(requestor, tmp, &node->lock.requestors, requestors_link) {
 		int can_lock;
 
@@ -669,7 +671,6 @@ lock_tail(lock_stack * owner, int ok, znode_lock_mode mode)
 		lock_object(owner);
 		owner->request.mode = 0;
 	}
-	WUNLOCK_ZLOCK(&node->lock);
 
 	if (ok == 0) {
 		/* count a reference from lockhandle->node
@@ -684,6 +685,7 @@ lock_tail(lock_stack * owner, int ok, znode_lock_mode mode)
 	} else if (ok == -EINVAL)
 		/* wake the invalidate_lock() thread up. */
 		dispatch_lock_requests(node);
+	WUNLOCK_ZLOCK(&node->lock);
 	ON_DEBUG(check_lock_data());
 	ON_DEBUG(check_lock_node_data(node));
 	return ok;
