@@ -670,9 +670,6 @@ lock_tail(lock_stack * owner, int ok, znode_lock_mode mode)
 	if (ok == 0) {
 		lock_object(owner);
 		owner->request.mode = 0;
-	}
-
-	if (ok == 0) {
 		/* count a reference from lockhandle->node
 
 		   znode was already referenced at the entry to this function,
