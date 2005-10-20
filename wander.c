@@ -183,9 +183,8 @@
 #include <linux/bio.h>		/* for struct bio */
 #include <linux/blkdev.h>
 
-static int write_jnodes_to_disk_extent(struct list_head *head, jnode *, int,
-				       const reiser4_block_nr *,
-				       flush_queue_t *, int);
+static int write_jnodes_to_disk_extent(
+	jnode *, int, const reiser4_block_nr *, flush_queue_t *, int);
 
 /* The commit_handle is a container for objects needed at atom commit time  */
 struct commit_handle {
@@ -424,8 +423,7 @@ static int update_journal_header(struct commit_handle *ch)
 
 	format_journal_header(ch);
 
-	ret = write_jnodes_to_disk_extent(&ch->tx_list, jh, 1,
-					  jnode_get_block(jh), NULL, 0);
+	ret = write_jnodes_to_disk_extent(jh, 1, jnode_get_block(jh), NULL, 0);
 	if (ret)
 		return ret;
 
@@ -455,9 +453,7 @@ static int update_journal_footer(struct commit_handle *ch)
 
 	format_journal_footer(ch);
 
-	ret =
-	    write_jnodes_to_disk_extent(&ch->tx_list, jf, 1,
-					jnode_get_block(jf), NULL, 0);
+	ret = write_jnodes_to_disk_extent(jf, 1, jnode_get_block(jf), NULL, 0);
 	if (ret)
 		return ret;
 
@@ -706,7 +702,7 @@ static int get_overwrite_set(struct commit_handle *ch)
  * Why that layer needed? Why BIOs cannot be constructed here?
  */
 static int
-write_jnodes_to_disk_extent(struct list_head *head, jnode *first, int nr,
+write_jnodes_to_disk_extent(jnode *first, int nr,
 			    const reiser4_block_nr *block_p,
 			    flush_queue_t *fq, int flags)
 {
@@ -825,10 +821,8 @@ write_jnode_list(struct list_head *head, flush_queue_t *fq,
 			cur = list_entry(cur->capture_link.next, jnode, capture_link);
 		}
 
-		ret =
-		    write_jnodes_to_disk_extent(head, beg, nr,
-						jnode_get_block(beg), fq,
-						flags);
+		ret = write_jnodes_to_disk_extent(
+			beg, nr, jnode_get_block(beg), fq, flags);
 		if (ret)
 			return ret;
 
@@ -919,8 +913,7 @@ static int alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t *fq)
 		if (ret)
 			return ret;
 
-		ret = write_jnodes_to_disk_extent(ch->overwrite_set, cur, len,
-						  &block, fq, 0);
+		ret = write_jnodes_to_disk_extent(cur, len, &block, fq, 0);
 		if (ret)
 			return ret;
 
