@@ -553,7 +553,8 @@ ctail_read_cluster(reiser4_cluster_t * clust, struct inode *inode, int write)
 		return result;
 
 	result = find_cluster(clust, inode, 1 /* read */ , write);
-	if (cbk_errored(result))
+	assert("edward-1340", !result);
+	if (result)
 		return result;
 
 	if (!write)
@@ -691,18 +692,17 @@ int readpage_ctail(void *vp, struct page *page)
 	       ergo(!result, tfm_cluster_is_uptodate(&clust->tc)));
 
 	unlock_page(page);
-
+	done_lh(&hint->lh);
 	hint->ext_coord.valid = 0;
 	save_file_hint(clust->file, hint);
-	done_lh(&hint->lh);
 	kfree(hint);
 	tfm_cluster_clr_uptodate(&clust->tc);
 
 	return result;
 }
 
-/* Unconditionally reads a disk cluster.
-   This is used by ->readpages() */
+/* This unconditionally reads a disk cluster.
+   Helper function for ->readpages() */
 static int
 ctail_read_page_cluster(reiser4_cluster_t * clust, struct inode *inode)
 {
@@ -718,7 +718,7 @@ ctail_read_page_cluster(reiser4_cluster_t * clust, struct inode *inode)
 	result = ctail_read_cluster(clust, inode, 0 /* read */ );
 	if (result)
 		goto out;
-	/* stream is attached at this point */
+	/* at this point stream with valid plain text is attached */
 	assert("edward-781", tfm_cluster_is_uptodate(&clust->tc));
 
 	for (i = 0; i < clust->nr_pages; i++) {
@@ -746,11 +746,10 @@ assert("edward-214", ergo(!list_empty(pages) && pages->next != pages->prev,   \
        list_to_page(pages)->index < list_to_next_page(pages)->index))
 #endif
 
-/* plugin->s.file.writepage */
-
 /* plugin->u.item.s.file.readpages
-   populate an address space with page clusters, and start reads against them.
-   FIXME_EDWARD: this function should return errors
+   Populate an address space with some page clusters,
+   and start reads against them.
+   FIXME-EDWARD: this function should return errors?
 */
 void
 readpages_ctail(void *vp, struct address_space *mapping,
@@ -774,16 +773,15 @@ readpages_ctail(void *vp, struct address_space *mapping,
 	hint = kmalloc(sizeof(*hint), GFP_KERNEL);
 	if (hint == NULL) {
 		warning("vs-28", "failed to allocate hint");
-		return;
+		goto exit1;
 	}
 	clust.hint = hint;
-
-	ret = alloc_cluster_pgset(&clust, cluster_nrpages(inode));
-	if (ret)
-		goto out;
 	ret = load_file_hint(clust.file, hint);
 	if (ret)
-		goto out;
+		goto exit2;
+	ret = alloc_cluster_pgset(&clust, cluster_nrpages(inode));
+	if (ret)
+		goto exit3;
 	assert("vs-26", hint->ext_coord.lh == &hint->lh);
 
 	/* address_space-level file readahead doesn't know about
@@ -807,24 +805,16 @@ readpages_ctail(void *vp, struct address_space *mapping,
 		move_cluster_forward(&clust, inode, page->index, &progress);
 		ret = ctail_read_page_cluster(&clust, inode);
 		if (ret)
-			goto exit;
+			break;
 		assert("edward-869", !tfm_cluster_is_uptodate(&clust.tc));
-
 		lock_page(page);
+
 		ret = do_readpage_ctail(&clust, page);
 		if (!pagevec_add(&lru_pvec, page))
 			__pagevec_lru_add(&lru_pvec);
 		if (ret) {
 			warning("edward-215", "do_readpage_ctail failed");
 			unlock_page(page);
-		      exit:
-			while (!list_empty(pages)) {
-				struct page *victim;
-
-				victim = list_to_page(pages);
-				list_del(&victim->lru);
-				page_cache_release(victim);
-			}
 			break;
 		}
 		assert("edward-1061", PageUptodate(page));
@@ -832,11 +822,19 @@ readpages_ctail(void *vp, struct address_space *mapping,
 		unlock_page(page);
 	}
 	assert("edward-870", !tfm_cluster_is_uptodate(&clust.tc));
-	save_file_hint(clust.file, hint);
-      out:
+ exit3:
 	done_lh(&hint->lh);
+	save_file_hint(clust.file, hint);	
 	hint->ext_coord.valid = 0;
+ exit2:
 	kfree(hint);
+ exit1:
+	while (!list_empty(pages)) {
+		struct page *victim;
+		victim = list_to_page(pages);
+		list_del(&victim->lru);
+		page_cache_release(victim);
+	}
 	put_cluster_handle(&clust, TFM_READ);
 	pagevec_lru_add(&lru_pvec);
 	return;

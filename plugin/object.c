@@ -315,7 +315,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.writepages = writepages_cryptcompress,
 			.set_page_dirty = reiser4_set_page_dirty,
 			.readpages = reiser4_readpages,
-			.prepare_write = prepare_write_common
+			.prepare_write = prepare_write_common,
+			.invalidatepage = reiser4_invalidatepage
 		},
 		.write_sd_by_inode = write_sd_by_inode_common,
 		.flow_by_inode = flow_by_inode_cryptcompress,

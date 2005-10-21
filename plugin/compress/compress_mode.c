@@ -24,7 +24,7 @@ static int discard_deflate_nocond(struct inode *inode, cloff_t index)
 			       (inode_compression_plugin(inode))));
 	if (result)
 		return result;
-	mark_inode_dirty(inode);
+	__mark_inode_dirty(inode, I_DIRTY_PAGES);
 	return 0;
 }
 

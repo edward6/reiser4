@@ -803,9 +803,10 @@ void save_file_hint(struct file *file, const hint_t * hint)
 {
 	reiser4_file_fsdata *fsdata;
 
+	assert("edward-1337", hint != NULL);
+
 	if (!file || !seal_is_set(&hint->seal))
 		return;
-
 	fsdata = reiser4_get_file_fsdata(file);
 	assert("vs-965", !IS_ERR(fsdata));
 	assert("nikita-19891",

@@ -944,13 +944,8 @@ int inflate_cluster(reiser4_cluster_t * clust, struct inode *inode)
 	return result;
 }
 
-/* plugin->read() :
- * generic_file_read()
- * All key offsets don't make sense in traditional unix semantics unless they
- * represent the beginning of clusters, so the only thing we can do is start
- * right from mapping to the address space (this is precisely what filemap
- * generic method does) */
-/* plugin->readpage() */
+/* This is implementation of readpage method of struct
+   address_space_operations for cryptcompress plugin. */
 int readpage_cryptcompress(struct file *file, struct page *page)
 {
 	reiser4_context *ctx;
@@ -970,13 +965,12 @@ int readpage_cryptcompress(struct file *file, struct page *page)
 		reiser4_exit_context(ctx);
 		return result;
 	}
-	if (file)
-		assert("edward-113",
-		       page->mapping == file->f_dentry->d_inode->i_mapping);
+	assert("edward-113",
+	       ergo(file != NULL,
+		    page->mapping == file->f_dentry->d_inode->i_mapping));
 
 	if (PageUptodate(page)) {
-		printk
-		    ("readpage_cryptcompress: page became already uptodate\n");
+		warning("edward-1338", "page is already uptodate\n");
 		unlock_page(page);
 		reiser4_exit_context(ctx);
 		return 0;
@@ -993,10 +987,6 @@ int readpage_cryptcompress(struct file *file, struct page *page)
 
 	assert("edward-64",
 	       ergo(result == 0, (PageLocked(page) || PageUptodate(page))));
-	/* if page has jnode - that jnode is mapped
-	   assert("edward-65", ergo(result == 0 && PagePrivate(page),
-	   jnode_mapped(jprivate(page))));
-	 */
 	put_cluster_handle(&clust, TFM_READ);
 	reiser4_exit_context(ctx);
 	return result;
@@ -1750,29 +1740,25 @@ find_cluster(reiser4_cluster_t * clust,
 {
 	flow_t f;
 	hint_t *hint;
-	int result;
+	int result = 0;
 	unsigned long cl_idx;
 	ra_info_t ra_info;
 	file_plugin *fplug;
 	item_plugin *iplug;
 	tfm_cluster_t *tc;
+	int was_grabbed;
 
-#if REISER4_DEBUG
-	reiser4_context *ctx;
-	ctx = get_current_context();
-#endif
 	assert("edward-138", clust != NULL);
 	assert("edward-728", clust->hint != NULL);
 	assert("edward-225", read || write);
 	assert("edward-226", schedulable());
 	assert("edward-137", inode != NULL);
 	assert("edward-729", crc_inode_ok(inode));
-	assert("edward-474", get_current_context()->grabbed_blocks == 0);
 
 	hint = clust->hint;
 	cl_idx = clust->index;
 	fplug = inode_file_plugin(inode);
-
+	was_grabbed = get_current_context()->grabbed_blocks;
 	tc = &clust->tc;
 
 	assert("edward-462", !tfm_cluster_is_uptodate(tc));
@@ -1792,7 +1778,7 @@ find_cluster(reiser4_cluster_t * clust,
 					     BA_CAN_COMMIT);
 		assert("edward-990", !result);
 		if (result)
-			goto out2;
+			goto out;
 	}
 
 	ra_info.key_to_stop = f.key;
@@ -1806,6 +1792,7 @@ find_cluster(reiser4_cluster_t * clust,
 					   (write ? CBK_FOR_INSERT : 0));
 		switch (result) {
 		case CBK_COORD_NOTFOUND:
+			result = 0;
 			if (inode_scaled_offset
 			    (inode,
 			     clust_to_off(cl_idx,
@@ -1813,8 +1800,7 @@ find_cluster(reiser4_cluster_t * clust,
 				/* first item not found, this is treated
 				   as disk cluster is absent */
 				clust->dstat = FAKE_DISK_CLUSTER;
-				result = 0;
-				goto out2;
+				goto out;
 			}
 			/* we are outside the cluster, stop search here */
 			assert("edward-146",
@@ -1829,15 +1815,17 @@ find_cluster(reiser4_cluster_t * clust,
 			coord_clear_iplug(&hint->ext_coord.coord);
 			result = zload_ra(hint->ext_coord.coord.node, &ra_info);
 			if (unlikely(result))
-				goto out2;
+				goto out;
 			iplug = item_plugin_by_coord(&hint->ext_coord.coord);
 			assert("edward-147",
 			       item_id_by_coord(&hint->ext_coord.coord) ==
 			       CTAIL_ID);
 
 			result = iplug->s.file.read(NULL, &f, hint);
-			if (result)
+			if (result) {
+				zrelse(hint->ext_coord.coord.node);
 				goto out;
+			}
 			if (write) {
 				znode_make_dirty(hint->ext_coord.coord.node);
 				znode_set_convertible(hint->ext_coord.coord.
@@ -1846,12 +1834,13 @@ find_cluster(reiser4_cluster_t * clust,
 			zrelse(hint->ext_coord.coord.node);
 			break;
 		default:
-			goto out2;
+			goto out;
 		}
 	}
-      ok:
+ ok:
 	/* at least one item was found  */
-	/* NOTE-EDWARD: Callers should handle the case when disk cluster is incomplete (-EIO) */
+	/* NOTE-EDWARD: Callers should handle the case
+	   when disk cluster is incomplete (-EIO) */
 	tc->len = inode_scaled_cluster_size(inode) - f.length;
 	assert("edward-1196", tc->len > 0);
 
@@ -1859,12 +1848,12 @@ find_cluster(reiser4_cluster_t * clust,
 		clust->dstat = UNPR_DISK_CLUSTER;
 	else
 		clust->dstat = PREP_DISK_CLUSTER;
-	all_grabbed2free();
-	return 0;
-      out:
-	zrelse(hint->ext_coord.coord.node);
-      out2:
-	all_grabbed2free();
+ out:
+	assert("edward-1339",
+	       get_current_context()->grabbed_blocks >= was_grabbed);
+	grabbed2free(get_current_context(),
+		     get_current_super_private(),
+		     get_current_context()->grabbed_blocks - was_grabbed);
 	return result;
 }
 
@@ -2007,12 +1996,10 @@ read_some_cluster_pages(struct inode *inode, reiser4_cluster_t * clust)
 		   to make flush update convert its content */
 		result =
 		    find_cluster(clust, inode, 0 /* do not read */ ,
-				 1 /*write */ );
-		assert("edward-994", !cbk_errored(result));
-		if (!cbk_errored(result))
-			result = 0;
+				 1 /* write */ );
+		assert("edward-994", !result);
 	}
-      out:
+ out:
 	tfm_cluster_clr_uptodate(&clust->tc);
 	return result;
 }
@@ -2545,14 +2532,22 @@ ssize_t write_cryptcompress(struct file *file, const char __user *buf,
 {
 	ssize_t result;
 	struct inode *inode;
+	reiser4_context *ctx;
 
 	inode = file->f_dentry->d_inode;
+
+	ctx = init_context(inode->i_sb);
+	if (IS_ERR(ctx))
+		return PTR_ERR(ctx);
 
 	down(&inode->i_sem);
 
 	result = write_crc_file(file, inode, buf, count, off);
 
 	up(&inode->i_sem);
+
+	context_set_commit_async(ctx);
+	reiser4_exit_context(ctx);
 	return result;
 }
 
@@ -2599,6 +2594,7 @@ ssize_t read_cryptcompress(struct file * file, char __user *buf, size_t size,
 {
 	ssize_t result;
 	struct inode *inode;
+	reiser4_context *ctx;
 	reiser4_file_fsdata *fsdata;
 	cryptcompress_info_t *info;
 	reiser4_block_nr needed;
@@ -2606,15 +2602,20 @@ ssize_t read_cryptcompress(struct file * file, char __user *buf, size_t size,
 	inode = file->f_dentry->d_inode;
 	assert("edward-1194", !inode_get_flag(inode, REISER4_NO_SD));
 
+	ctx = init_context(inode->i_sb);
+	if (IS_ERR(ctx))
+		return PTR_ERR(ctx);
+	
 	info = cryptcompress_inode_data(inode);
 	needed = cryptcompress_estimate_read(inode);
+
 	/* FIXME-EDWARD:
 	   Grab space for sd_update so find_cluster will be happy */
-#if 0
 	result = reiser4_grab_space(needed, BA_CAN_COMMIT);
-	if (result != 0)
+	if (result != 0) {
+		reiser4_exit_context(ctx);
 		return result;
-#endif
+	}
 	fsdata = reiser4_get_file_fsdata(file);
 	fsdata->ra2.data = file;
 	fsdata->ra2.readpages = readpages_crc;
@@ -2626,6 +2627,9 @@ ssize_t read_cryptcompress(struct file * file, char __user *buf, size_t size,
 
 	up_read(&info->lock);
 	LOCK_CNT_DEC(inode_sem_r);
+
+	context_set_commit_async(ctx);
+	reiser4_exit_context(ctx);
 
 	return result;
 }
@@ -3082,7 +3086,7 @@ prune_cryptcompress(struct inode *inode, loff_t new_size, int update_sd,
 	assert("edward-1335",
 	       jnodes_truncate_ok(inode, count_to_nrclust(new_size, inode)));
 	done_lh(lh);
-	kfree(lh);
+	kfree(hint);
 	put_cluster_handle(&clust, TFM_READ);
 	return result;
 }
@@ -3413,8 +3417,8 @@ sector_t bmap_cryptcompress(struct address_space * mapping, sector_t lblock)
 	}
 }
 
-/* this is implementation of delete method of file plugin for cryptcompress
- */
+/* this is implementation of delete method of file plugin for
+   cryptcompress objects */
 int delete_cryptcompress(struct inode *inode)
 {
 	int result;
@@ -3469,9 +3473,14 @@ int setattr_cryptcompress(struct dentry *dentry,	/* Object to change attributes 
 
 		/* truncate does reservation itself and requires exclusive access obtained */
 		if (inode->i_size != attr->ia_size) {
+			reiser4_context *ctx;
 			loff_t old_size;
 			cryptcompress_info_t *info =
 			    cryptcompress_inode_data(inode);
+
+			ctx = init_context(dentry->d_inode->i_sb);
+			if (IS_ERR(ctx))
+				return PTR_ERR(ctx);
 
 			down_write(&info->lock);
 			LOCK_CNT_INC(inode_sem_w);
@@ -3493,6 +3502,8 @@ int setattr_cryptcompress(struct dentry *dentry,	/* Object to change attributes 
 			}
 			up_write(&info->lock);
 			LOCK_CNT_DEC(inode_sem_w);
+			context_set_commit_async(ctx);
+			reiser4_exit_context(ctx);
 		} else
 			result = 0;
 	} else
