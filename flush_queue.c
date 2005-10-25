@@ -395,7 +395,7 @@ int atom_fq_parts_are_clean(txn_atom * atom)
 /* Bio i/o completion routine for reiser4 write operations. */
 static int
 end_io_handler(struct bio *bio, unsigned int bytes_done UNUSED_ARG,
-	       int err UNUSED_ARG)
+	       int err)
 {
 	int i;
 	int nr_errors = 0;
@@ -406,6 +406,9 @@ end_io_handler(struct bio *bio, unsigned int bytes_done UNUSED_ARG,
 	/* i/o op. is not fully completed */
 	if (bio->bi_size != 0)
 		return 1;
+
+	if (err == -EOPNOTSUPP)
+		set_bit(BIO_EOPNOTSUPP, &bio->bi_flags);
 
 	/* we expect that bio->private is set to NULL or fq object which is used
 	 * for synchronization and error counting. */

@@ -223,6 +223,18 @@ static void done_commit_handle(struct commit_handle *ch)
 	assert("zam-690", list_empty(&ch->tx_list));
 }
 
+static inline int reiser4_use_write_barrier(struct super_block * s)
+{
+	return !reiser4_is_set(s, REISER4_NO_WRITE_BARRIER);
+}
+
+static void disable_write_barrier(struct super_block * s)
+{
+	warning("zam-1055", "disabling write barrier\n");
+	set_bit((int)REISER4_NO_WRITE_BARRIER, &get_super_private(s)->fs_flags);
+}
+
+
 /* fill journal header block data  */
 static void format_journal_header(struct commit_handle *ch)
 {
@@ -414,7 +426,7 @@ store_wmap_actor(txn_atom * atom UNUSED_ARG, const reiser4_block_nr * a,
    set is written to wandered locations and all wander records are written
    also. Updated journal header blocks contains a pointer (block number) to
    first wander record of the just written transaction */
-static int update_journal_header(struct commit_handle *ch)
+static int update_journal_header(struct commit_handle *ch, int use_barrier)
 {
 	struct reiser4_super_info_data *sbinfo = get_super_private(ch->super);
 	jnode *jh = sbinfo->journal_header;
@@ -423,11 +435,12 @@ static int update_journal_header(struct commit_handle *ch)
 
 	format_journal_header(ch);
 
-	ret = write_jnodes_to_disk_extent(jh, 1, jnode_get_block(jh), NULL, 0);
+	ret = write_jnodes_to_disk_extent(jh, 1, jnode_get_block(jh), NULL, 
+					  use_barrier ? WRITEOUT_BARRIER : 0);
 	if (ret)
 		return ret;
 
-	blk_run_address_space(sbinfo->fake->i_mapping);
+	// blk_run_address_space(sbinfo->fake->i_mapping);
 	/*blk_run_queues(); */
 
 	ret = jwait_io(jh, WRITE);
@@ -443,7 +456,7 @@ static int update_journal_header(struct commit_handle *ch)
 /* This function is called after write-back is finished. We update journal
    footer block and free blocks which were occupied by wandered blocks and
    transaction wander records */
-static int update_journal_footer(struct commit_handle *ch)
+static int update_journal_footer(struct commit_handle *ch, int use_barrier)
 {
 	reiser4_super_info_data *sbinfo = get_super_private(ch->super);
 
@@ -453,11 +466,12 @@ static int update_journal_footer(struct commit_handle *ch)
 
 	format_journal_footer(ch);
 
-	ret = write_jnodes_to_disk_extent(jf, 1, jnode_get_block(jf), NULL, 0);
+	ret = write_jnodes_to_disk_extent(jf, 1, jnode_get_block(jf), NULL,
+					  use_barrier ? WRITEOUT_BARRIER : 0);
 	if (ret)
 		return ret;
 
-	blk_run_address_space(sbinfo->fake->i_mapping);
+	// blk_run_address_space(sbinfo->fake->i_mapping);
 	/*blk_run_queue(); */
 
 	ret = jwait_io(jf, WRITE);
@@ -701,13 +715,13 @@ static int get_overwrite_set(struct commit_handle *ch)
  * FIXME: ZAM->HANS: What layer are you talking about? Can you point me to that?
  * Why that layer needed? Why BIOs cannot be constructed here?
  */
-static int
-write_jnodes_to_disk_extent(jnode *first, int nr,
-			    const reiser4_block_nr *block_p,
-			    flush_queue_t *fq, int flags)
+static int write_jnodes_to_disk_extent(
+	jnode *first, int nr, const reiser4_block_nr *block_p,
+	flush_queue_t *fq, int flags)
 {
 	struct super_block *super = reiser4_get_current_sb();
 	int for_reclaim = flags & WRITEOUT_FOR_PAGE_RECLAIM;
+	int write_op = ( flags & WRITEOUT_BARRIER ) ? WRITE_BARRIER : WRITE;
 	int max_blocks;
 	jnode *cur = first;
 	reiser4_block_nr block;
@@ -718,9 +732,8 @@ write_jnodes_to_disk_extent(jnode *first, int nr,
 
 	block = *block_p;
 	max_blocks =
-	    bdev_get_queue(super->s_bdev)->max_sectors >> (super->
-							   s_blocksize_bits -
-							   9);
+		bdev_get_queue(super->s_bdev)->max_sectors >> 
+		(super-> s_blocksize_bits - 9);
 
 	while (nr > 0) {
 		struct bio *bio;
@@ -764,6 +777,7 @@ write_jnodes_to_disk_extent(jnode *first, int nr,
 			ON_DEBUG(cur->written++);
 			spin_unlock_jnode(cur);
 
+			ClearPageError(pg);
 			set_page_writeback(pg);
 			if (for_reclaim)
 				ent_writes_page(super, pg);
@@ -784,8 +798,15 @@ write_jnodes_to_disk_extent(jnode *first, int nr,
 			if (super->s_flags & MS_RDONLY)
 				undo_bio(bio);
 			else {
+				int not_supported;
+
 				add_fq_to_bio(fq, bio);
-				reiser4_submit_bio(WRITE, bio);
+				bio_get(bio);
+				reiser4_submit_bio(write_op, bio);
+				not_supported = bio_flagged(bio, BIO_EOPNOTSUPP);
+				bio_put(bio);
+				if (not_supported)
+					return -EOPNOTSUPP;
 			}
 
 			block += nr_used - 1;
@@ -1037,6 +1058,99 @@ static int alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 	return ret;
 }
 
+static int commit_tx(struct commit_handle *ch)
+{
+	flush_queue_t *fq;
+	int barrier;
+	int ret;
+
+	/* Grab more space for wandered records. */
+	ret = reiser4_grab_space_force((__u64) (ch->tx_size), BA_RESERVED);
+	if (ret)
+		return ret;
+
+	fq = get_fq_for_current_atom();
+	if (IS_ERR(fq))
+		return PTR_ERR(fq);
+
+	spin_unlock_atom(fq->atom);
+	do {
+		ret = alloc_wandered_blocks(ch, fq);
+		if (ret)
+			break;
+		ret = alloc_tx(ch, fq);
+		if (ret)
+			break;
+	} while (0);
+
+	/* Release all grabbed space if it was not fully used for
+	 * wandered blocks/records allocation. */
+	all_grabbed2free();
+	fq_put(fq);
+	if (ret)
+		return ret;
+ repeat_wo_barrier:
+	barrier = reiser4_use_write_barrier(ch->super);
+	if (!barrier) {
+		ret = current_atom_finish_all_fq();
+		if (ret)
+			return ret;
+	}
+	ret = update_journal_header(ch, barrier);
+	if (barrier) {
+		if (ret) {
+			if (ret == -EOPNOTSUPP) {
+				disable_write_barrier(ch->super);
+				goto repeat_wo_barrier;
+			}
+			return ret;
+		}
+		ret = current_atom_finish_all_fq();
+	}
+	return ret;
+}
+
+
+static int write_tx_back(struct commit_handle * ch)
+{
+	flush_queue_t *fq;
+	int ret;
+	int barrier;
+
+	post_commit_hook();
+	fq = get_fq_for_current_atom();
+	if (IS_ERR(fq))
+		return  PTR_ERR(fq);
+	spin_unlock_atom(fq->atom);
+	ret = write_jnode_list(
+		ch->overwrite_set, fq, NULL, WRITEOUT_FOR_PAGE_RECLAIM);
+	fq_put(fq);
+	if (ret)
+		return ret;
+ repeat_wo_barrier:
+	barrier = reiser4_use_write_barrier(ch->super);
+	if (!barrier) {
+		ret = current_atom_finish_all_fq();
+		if (ret)
+			return ret;
+	}
+	ret = update_journal_footer(ch, barrier);
+	if (barrier) {
+		if (ret) {
+			if (ret == -EOPNOTSUPP) {
+				disable_write_barrier(ch->super);
+				goto repeat_wo_barrier;
+			}
+			return ret;
+		}
+		ret = current_atom_finish_all_fq();
+	}		
+	if (ret)
+		return ret;
+	post_write_back_hook();
+	return 0;
+}
+
 /* We assume that at this moment all captured blocks are marked as RELOC or
    WANDER (belong to Relocate o Overwrite set), all nodes from Relocate set
    are submitted to write.
@@ -1112,87 +1226,15 @@ int reiser4_write_logs(long *nr_submitted)
 	/* count all records needed for storing of the wandered set */
 	get_tx_size(&ch);
 
-	/* Grab more space for wandered records. */
-	ret = reiser4_grab_space_force((__u64) (ch.tx_size), BA_RESERVED);
+	ret = commit_tx(&ch);
 	if (ret)
-		goto up_and_ret;
-
-	{
-		flush_queue_t *fq;
-
-		fq = get_fq_for_current_atom();
-
-		if (IS_ERR(fq)) {
-			ret = PTR_ERR(fq);
-			goto up_and_ret;
-		}
-
-		spin_unlock_atom(fq->atom);
-
-		do {
-			ret = alloc_wandered_blocks(&ch, fq);
-			if (ret)
-				break;
-
-			ret = alloc_tx(&ch, fq);
-			if (ret)
-				break;
-		} while (0);
-
-		/* Release all grabbed space if it was not fully used for
-		 * wandered blocks/records allocation. */
-		all_grabbed2free();
-
-		fq_put(fq);
-		if (ret)
-			goto up_and_ret;
-	}
-
-	ret = current_atom_finish_all_fq();
-	if (ret)
-		goto up_and_ret;
-
-	if ((ret = update_journal_header(&ch)))
 		goto up_and_ret;
 
 	spin_lock_atom(atom);
 	atom_set_stage(atom, ASTAGE_POST_COMMIT);
 	spin_unlock_atom(atom);
 
-	post_commit_hook();
-
-	{
-		/* force j-nodes write back */
-
-		flush_queue_t *fq;
-
-		fq = get_fq_for_current_atom();
-
-		if (IS_ERR(fq)) {
-			ret = PTR_ERR(fq);
-			goto up_and_ret;
-		}
-
-		spin_unlock_atom(fq->atom);
-
-		ret =
-		    write_jnode_list(ch.overwrite_set, fq, NULL,
-				     WRITEOUT_FOR_PAGE_RECLAIM);
-
-		fq_put(fq);
-
-		if (ret)
-			goto up_and_ret;
-	}
-
-	ret = current_atom_finish_all_fq();
-
-	if (ret)
-		goto up_and_ret;
-
-	if ((ret = update_journal_footer(&ch)))
-		goto up_and_ret;
-
+	ret = write_tx_back(&ch);
 	post_write_back_hook();
 
       up_and_ret:
@@ -1422,7 +1464,7 @@ static int replay_transaction(const struct super_block *s,
 		}
 	}
 
-	ret = update_journal_footer(&ch);
+	ret = update_journal_footer(&ch, 0);
 
       free_ow_set:
 
