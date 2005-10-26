@@ -214,6 +214,7 @@
 #include "super.h"
 
 #include <linux/spinlock.h>
+#include <asm/system.h>
 
 #if REISER4_DEBUG
 static int request_is_deadlock_safe(znode *, znode_lock_mode,
@@ -549,8 +550,9 @@ static void invalidate_all_lock_requests(znode * node)
 	list_for_each_entry_safe(requestor, tmp, &node->lock.requestors, requestors_link) {
 		remove_lock_request(requestor);
 		requestor->request.ret_code = -EINVAL;
-		requestor->request.mode = ZNODE_NO_LOCK;
 		reiser4_wake_up(requestor);
+		smp_mb();
+		requestor->request.mode = ZNODE_NO_LOCK;
 	}
 }
 
@@ -567,8 +569,9 @@ static void dispatch_lock_requests(znode * node)
 			lock_object(requestor);
 			remove_lock_request(requestor);
 			requestor->request.ret_code = 0;
-			requestor->request.mode = ZNODE_NO_LOCK;
 			reiser4_wake_up(requestor);
+			smp_mb();
+			requestor->request.mode = ZNODE_NO_LOCK;
 		}
 	}
 }
@@ -959,9 +962,9 @@ int longterm_lock_znode(
 		write_unlock_zlock(lock);
 		/* ... and sleep */
 		go_to_sleep(owner);
-		write_lock_zlock(lock);
+		smp_mb();
 		if (owner->request.mode == ZNODE_NO_LOCK) {
-			write_unlock_zlock(lock);
+		request_done:
 			/* the request was processed successfully by
 			 * dispatch_lock_requests() */
 			if (owner->request.ret_code == 0) {
@@ -969,6 +972,11 @@ int longterm_lock_znode(
 				zref(node);
 			}
 			return owner->request.ret_code;
+		}
+		write_lock_zlock(lock);
+		if (owner->request.mode == ZNODE_NO_LOCK) {
+			write_unlock_zlock(lock);
+			goto request_done;
 		}
 		remove_lock_request(owner);
 	}
