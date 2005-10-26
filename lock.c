@@ -539,6 +539,21 @@ static void remove_lock_request(lock_stack * requestor)
 	list_del_init(&requestor->requestors_link);
 }
 
+
+static void invalidate_all_lock_requests(znode * node)
+{
+	lock_stack *requestor, *tmp;
+
+	assert_rw_write_locked(&(node->lock.guard));
+
+	list_for_each_entry_safe(requestor, tmp, &node->lock.requestors, requestors_link) {
+		remove_lock_request(requestor);
+		requestor->request.ret_code = -EINVAL;
+		requestor->request.mode = ZNODE_NO_LOCK;
+		reiser4_wake_up(requestor);
+	}
+}
+
 static void dispatch_lock_requests(znode * node)
 {
 	lock_stack *requestor, *tmp;
@@ -546,21 +561,12 @@ static void dispatch_lock_requests(znode * node)
 	assert_rw_write_locked(&(node->lock.guard));
 
 	list_for_each_entry_safe(requestor, tmp, &node->lock.requestors, requestors_link) {
-		int can_lock;
-
-		/* invalidate_lock() algorithm support */
-		if (requestor->request.mode == ZNODE_INVALID_LOCK) {
-			reiser4_wake_up(requestor);
-			continue;
-		}
-		can_lock = can_lock_object(requestor);
-		if (can_lock == -EINVAL || atomic_read(&requestor->nr_signaled)) {
-			reiser4_wake_up(requestor);
-			continue;
-		}
-		if (can_lock == 0) {
+		if (znode_is_write_locked(node))
+			break;
+		if (!can_lock_object(requestor)) {
 			lock_object(requestor);
 			remove_lock_request(requestor);
+			requestor->request.ret_code = 0;
 			requestor->request.mode = ZNODE_NO_LOCK;
 			reiser4_wake_up(requestor);
 		}
@@ -678,9 +684,7 @@ lock_tail(lock_stack * owner, int ok, znode_lock_mode mode)
 		zref(node);
 
 		LOCK_CNT_INC(long_term_locked_znode);
-	} else if (ok == -EINVAL)
-		/* wake the invalidate_lock() thread up. */
-		dispatch_lock_requests(node);
+	}
 	write_unlock_zlock(&node->lock);
 	ON_DEBUG(check_lock_data());
 	ON_DEBUG(check_lock_node_data(node));
@@ -955,23 +959,16 @@ int longterm_lock_znode(
 		write_unlock_zlock(lock);
 		/* ... and sleep */
 		go_to_sleep(owner);
-		/* Fast check whether the lock was passed
-		 * from another thread by dispatch_lock_requests. */
-		/* FIXME(Zam):  return more error codes from
-		 * dispatch_lock_requests() would help to avoid spin-locks here. */
+		write_lock_zlock(lock);
 		if (owner->request.mode == ZNODE_NO_LOCK) {
-		lock_is_done:
-			LOCK_CNT_INC(long_term_locked_znode);
+			write_unlock_zlock(lock);
 			/* the request was processed successfully by
 			 * dispatch_lock_requests() */
-			zref(node);
-			return 0;
-		}
-		write_lock_zlock(lock);
-		/* non-racy check the same after getting the spin-lock. */
-		if (unlikely(owner->request.mode == ZNODE_NO_LOCK)) {
-			write_unlock_zlock(lock);
-			goto lock_is_done;
+			if (owner->request.ret_code == 0) {
+				LOCK_CNT_INC(long_term_locked_znode);
+				zref(node);
+			}
+			return owner->request.ret_code;
 		}
 		remove_lock_request(owner);
 	}
@@ -988,7 +985,6 @@ void invalidate_lock(lock_handle * handle	/* path to lock
 {
 	znode *node = handle->node;
 	lock_stack *owner = handle->owner;
-	lock_stack *rq;
 
 	assert("zam-325", owner == get_current_lock_stack());
 	assert("zam-103", znode_is_write_locked(node));
@@ -1005,25 +1001,7 @@ void invalidate_lock(lock_handle * handle	/* path to lock
 	unlink_object(handle);
 	node->lock.nr_readers = 0;
 
-	/* all requestors will be informed that lock is invalidated. */
-	list_for_each_entry(rq, &node->lock.requestors, requestors_link)
-		reiser4_wake_up(rq);
-
-	while (!list_empty_careful(&node->lock.requestors)) {
-		/* inform dispatch_lock_requests that this thread should be
-		 * woken up unconditionally */
-		owner->request.mode = ZNODE_INVALID_LOCK;
-		list_add_tail(&owner->requestors_link, &node->lock.requestors);
-
-		prepare_to_sleep(owner);
-
-		write_unlock_zlock(&node->lock);
-		go_to_sleep(owner);
-		write_lock_zlock(&node->lock);
-
-		list_del_init(&owner->requestors_link);
-	}
-
+	invalidate_all_lock_requests(node);
 	write_unlock_zlock(&node->lock);
 }
 

@@ -137,6 +137,8 @@ typedef struct lock_request {
 	znode *node;
 	/* Lock mode (ZNODE_READ_LOCK or ZNODE_WRITE_LOCK) */
 	znode_lock_mode mode;
+	/* how dispatch_lock_requests() returns lock request result code */
+	int ret_code;
 } lock_request;
 
 /* A lock stack structure for accumulating locks owned by a process */
