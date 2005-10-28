@@ -9,24 +9,32 @@
 
 #include <linux/types.h>
 
-#define NONE_DIGEST_SIZE 0
+extern digest_plugin digest_plugins[LAST_DIGEST_ID];
 
-REGISTER_NONE_ALG(digest, DIGEST)
+static struct crypto_tfm * alloc_sha256 (void)
+{
+	return crypto_alloc_tfm ("sha256", 0);
+}
+
+static void free_common (struct crypto_tfm * tfm)
+{
+	crypto_free_tfm(tfm);
+}
 
 /* digest plugins */
 digest_plugin digest_plugins[LAST_DIGEST_ID] = {
-	[NONE_DIGEST_ID] = {
+	[SHA256_32_DIGEST_ID] = {
 		.h = {
 			.type_id = REISER4_DIGEST_PLUGIN_TYPE,
-			.id = NONE_DIGEST_ID,
+			.id = SHA256_32_DIGEST_ID,
 			.pops = NULL,
-			.label = "none",
-			.desc = "trivial digest",
+			.label = "sha256_32",
+			.desc = "sha256_32 digest transform",
 			.linkage = {NULL, NULL}
 		},
-		.dsize = NONE_DIGEST_SIZE,
-		.alloc = alloc_none_digest,
-		.free = free_none_digest
+		.fipsize = sizeof(__u32),
+		.alloc = alloc_sha256,
+		.free = free_common
 	}
 };
 

@@ -70,19 +70,33 @@ reiser4_block_nr estimate_insert_flow(tree_level height)
 }
 
 /* returnes max number of nodes can be occupied by disk cluster */
-reiser4_block_nr estimate_disk_cluster(struct inode * inode)
-{
-	return 2 + cluster_nrpages(inode);
-}
-
-/* how many nodes might get dirty and added nodes during insertion of a disk cluster */
-reiser4_block_nr estimate_insert_cluster(struct inode * inode, int unprepped)
+reiser4_block_nr estimate_cluster(struct inode * inode, int unprepped)
 {
 	int per_cluster;
 	per_cluster = (unprepped ? 1 : cluster_nrpages(inode));
+	return 3 + per_cluster + 
+		max_balance_overhead(3 + per_cluster, 
+				     REISER4_MAX_ZTREE_HEIGHT);
+}
 
-	return 3 + per_cluster + max_balance_overhead(3 + per_cluster,
-						      REISER4_MAX_ZTREE_HEIGHT);
+/* how many nodes might get dirty and added
+   during insertion of a disk cluster */
+reiser4_block_nr estimate_insert_cluster(struct inode * inode)
+{
+	return estimate_cluster(inode, 1); /* 24 */	
+}
+
+/* how many nodes might get dirty and added
+   during update of a (prepped or unprepped) disk cluster */
+reiser4_block_nr estimate_update_cluster(struct inode * inode)
+{
+	return estimate_cluster(inode, 0); /* 44, for 64K-cluster */
+}
+
+/* how many nodes occupied by a disk cluster might get dirty */
+reiser4_block_nr estimate_dirty_cluster(struct inode * inode)
+{
+	return 2 + cluster_nrpages(inode);
 }
 
 /* Make Linus happy.

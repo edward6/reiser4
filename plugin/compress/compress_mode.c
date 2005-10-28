@@ -11,9 +11,8 @@ static int should_deflate_test(cloff_t index)
 	return !test_bit(0, &index);
 }
 
-/* plugin->discard_deflate() */
-
-static int discard_deflate_nocond(struct inode *inode, cloff_t index)
+/* plugin->discard_hook() */
+static int discard_nocond(struct inode *inode, cloff_t index)
 {
 	int result;
 
@@ -28,11 +27,11 @@ static int discard_deflate_nocond(struct inode *inode, cloff_t index)
 	return 0;
 }
 
-static int discard_deflate_first(struct inode *inode, cloff_t index)
+static int discard_first(struct inode *inode, cloff_t index)
 {
 	assert("edward-1308", inode != NULL);
 
-	return (index ? 0 : discard_deflate_nocond(inode, index));
+	return (index ? 0 : discard_nocond(inode, index));
 }
 
 /* compression mode_plugins */
@@ -47,8 +46,8 @@ compression_mode_plugin compression_mode_plugins[LAST_COMPRESSION_MODE_ID] = {
 			.linkage = {NULL, NULL}
 		},
 		.should_deflate = NULL,
-		.save_deflate = NULL,
-		.discard_deflate = discard_deflate_first
+		.accept_hook = NULL,
+		.discard_hook = discard_first
 	},
 	[LAZY_COMPRESSION_MODE_ID] = {
 		.h = {
@@ -60,8 +59,8 @@ compression_mode_plugin compression_mode_plugins[LAST_COMPRESSION_MODE_ID] = {
 			.linkage = {NULL, NULL}
 		},
 		.should_deflate = NULL,
-		.save_deflate = NULL,
-		.discard_deflate = discard_deflate_nocond
+		.accept_hook = NULL,
+		.discard_hook = discard_nocond
 	},
 	[FORCE_COMPRESSION_MODE_ID] = {
 		.h = {
@@ -73,8 +72,8 @@ compression_mode_plugin compression_mode_plugins[LAST_COMPRESSION_MODE_ID] = {
 			.linkage = {NULL, NULL}
 		},
 		.should_deflate = NULL,
-		.save_deflate = NULL,
-		.discard_deflate = NULL
+		.accept_hook = NULL,
+		.discard_hook = NULL
 	},
 	[TEST_COMPRESSION_MODE_ID] = {
 		.h = {
@@ -86,8 +85,8 @@ compression_mode_plugin compression_mode_plugins[LAST_COMPRESSION_MODE_ID] = {
 			.linkage = {NULL, NULL}
 		},
 		.should_deflate = should_deflate_test,
-		.save_deflate = NULL,
-		.discard_deflate = NULL
+		.accept_hook = NULL,
+		.discard_hook = NULL
 	}
 };
 

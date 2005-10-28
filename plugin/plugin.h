@@ -11,6 +11,7 @@
 #include "../dformat.h"
 #include "../key.h"
 #include "compress/compress.h"
+#include "../crypt.h"
 #include "plugin_header.h"
 #include "item/static_stat.h"
 #include "item/internal.h"
@@ -239,7 +240,6 @@ typedef struct file_plugin {
 	   directory. */
 	int (*adjust_to_parent) (struct inode *object, struct inode *parent,
 				 struct inode *root);
-
 	/*
 	 * this does whatever is necessary to do when object is created. For
 	 * instance, for unix files stat data is inserted. It is supposed to be
@@ -248,6 +248,8 @@ typedef struct file_plugin {
 	int (*create_object) (struct inode *object, struct inode *parent,
 			      reiser4_object_create_data *);
 
+	/* this does whatever is necessary to do when object is opened */
+	int (*open_object) (struct inode * inode, struct file * file);
 	/*
 	 * this method should check REISER4_NO_SD and set REISER4_NO_SD on
 	 * success. Deletion of an object usually includes removal of items
@@ -447,10 +449,8 @@ typedef struct hash_plugin {
 typedef struct crypto_plugin {
 	/* generic fields */
 	plugin_header h;
-	int (*alloc) (struct inode * inode);
-	void (*free) (struct inode * inode);
-	/* number of cpu expkey words */
-	unsigned nr_keywords;
+	struct crypto_tfm * (*alloc) (void);
+	void (*free) (struct crypto_tfm * tfm);
 	/* Offset translator. For each offset this returns (k * offset), where
 	   k (k >= 1) is a coefficient of expansion of the crypto algorithm.
 	   For all symmetric algorithms k == 1. For asymmetric algorithms (which
@@ -474,10 +474,10 @@ typedef struct crypto_plugin {
 typedef struct digest_plugin {
 	/* generic fields */
 	plugin_header h;
-	/* digest size */
-	int dsize;
-	int (*alloc) (struct inode * inode);
-	void (*free) (struct inode * inode);
+	/* fingerprint size in bytes */
+	int fipsize;
+	struct crypto_tfm * (*alloc) (void);
+	void (*free) (struct crypto_tfm * tfm);
 } digest_plugin;
 
 typedef struct compression_plugin {
@@ -504,12 +504,13 @@ typedef struct compression_plugin {
 typedef struct compression_mode_plugin {
 	/* generic fields */
 	plugin_header h;
-	/* called before compression transform */
+	/* this is called when estimating compressibility
+	   of a logical cluster by its content */
 	int (*should_deflate) (cloff_t index);
-	/* called when results of compression should be saved */
-	void (*save_deflate) (struct inode * inode);
-	/* called when results of compression should be discarded */
-	int (*discard_deflate) (struct inode * inode, cloff_t index);
+	/* this is called when results of compression should be saved */
+	void (*accept_hook) (struct inode * inode);
+	/* this is called when results of compression should be discarded */
+	int (*discard_hook) (struct inode * inode, cloff_t index);
 } compression_mode_plugin;
 
 typedef struct regular_plugin {
@@ -698,13 +699,14 @@ typedef enum {
 
 typedef enum {
 	NONE_CRYPTO_ID,
+	AES_CRYPTO_ID,
 	LAST_CRYPTO_ID
 } reiser4_crypto_id;
 
 /* builtin digest plugins */
 
 typedef enum {
-	NONE_DIGEST_ID,
+	SHA256_32_DIGEST_ID,
 	LAST_DIGEST_ID
 } reiser4_digest_id;
 
@@ -719,11 +721,11 @@ typedef enum {
 
 /* builtin cluster plugins */
 typedef enum {
-	CLUSTER_4K_ID,
-	CLUSTER_8K_ID,
-	CLUSTER_16K_ID,
-	CLUSTER_32K_ID,
 	CLUSTER_64K_ID,
+	CLUSTER_32K_ID,
+	CLUSTER_16K_ID,
+	CLUSTER_8K_ID,
+	CLUSTER_4K_ID,
 	LAST_CLUSTER_ID
 } reiser4_cluster_id;
 
@@ -742,16 +744,6 @@ typedef enum {
 	SMALL_FILE_FORMATTING_ID,
 	LAST_TAIL_FORMATTING_ID
 } reiser4_formatting_id;
-
-/* Encapsulations of crypto specific data */
-typedef struct crypto_data {
-	reiser4_crypto_id cra;	/* id of the crypto algorithm */
-	reiser4_digest_id dia;	/* id of the digest algorithm */
-	__u8 *key;		/* secret key */
-	__u16 keysize;		/* key size, bits */
-	__u8 *keyid;		/* keyid */
-	__u16 keyid_size;	/* keyid size, bytes */
-} crypto_data_t;
 
 /* compression/clustering specific data */
 typedef struct compression_data {
@@ -774,7 +766,8 @@ struct reiser4_object_create_data {
 	const char *name;
 	/* add here something for non-standard objects you invent, like
 	   query for interpolation file etc. */
-	crypto_data_t *crypto;
+
+ 	crypto_stat_t * crypto;
 	compression_data_t *compression;
 	cluster_data_t *cluster;
 

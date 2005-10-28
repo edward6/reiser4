@@ -49,8 +49,10 @@ int set_plug_in_inode_common(struct inode *object, struct inode *parent,
 			     reiser4_object_create_data *);
 int adjust_to_parent_common(struct inode *object, struct inode *parent,
 			    struct inode *root);
-int adjust_to_parent_common_dir(struct inode *object,
-				struct inode *parent, struct inode *root);
+int adjust_to_parent_common_dir(struct inode *object, struct inode *parent,
+				struct inode *root);
+int adjust_to_parent_cryptcompress(struct inode *object, struct inode *parent,
+				   struct inode *root);
 int create_object_common(struct inode *object, struct inode *parent,
 			 reiser4_object_create_data *);
 int delete_object_common(struct inode *);
@@ -63,6 +65,7 @@ int owns_item_common_dir(const struct inode *, const coord_t *);
 int can_add_link_common(const struct inode *);
 int can_rem_link_common_dir(const struct inode *);
 int detach_common_dir(struct inode *child, struct inode *parent);
+int open_cryptcompress(struct inode * inode, struct file * file);
 int bind_common_dir(struct inode *child, struct inode *parent);
 int safelink_common(struct inode *, reiser4_safe_link_t, __u64 value);
 reiser4_block_nr estimate_create_common(const struct inode *);

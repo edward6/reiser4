@@ -25,6 +25,13 @@
 #define REISER4_DEBUG (0)
 #endif
 
+#if defined(CONFIG_ZLIB_INFLATE)
+/* turn on zlib */
+#define REISER4_ZLIB (1)
+#else
+#define REISER4_ZLIB (0)
+#endif
+
 #if defined(CONFIG_REISER4_COPY_ON_CAPTURE)
 /*
  * Turns on copy-on-capture (COC) optimization. See

@@ -190,7 +190,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.done = wire_done_common
 		},
 		.init_inode_data = init_inode_ordering,
-		.cut_tree_worker = cut_tree_worker_common
+		.cut_tree_worker = cut_tree_worker_common,
 	},
 	[SYMLINK_FILE_PLUGIN_ID] = {
 		.h = {
@@ -322,15 +322,15 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.flow_by_inode = flow_by_inode_cryptcompress,
 		.key_by_inode = key_by_inode_cryptcompress,
 		.set_plug_in_inode = set_plug_in_inode_common,
-		.adjust_to_parent = adjust_to_parent_common,
+		.adjust_to_parent = adjust_to_parent_cryptcompress,
 		.create_object = create_cryptcompress,
+		.open_object = open_cryptcompress,
 		.delete_object = delete_cryptcompress,
 		.add_link = add_link_common,
 		.rem_link = rem_link_common,
 		.owns_item = owns_item_common,
 		.can_add_link = can_add_link_common,
 		.detach = dummyop,
-		.bind = dummyop,
 		.safelink = safelink_common,
 		.estimate = {
 			.create = estimate_create_common,
@@ -339,7 +339,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		},
 		.init_inode_data = init_inode_data_cryptcompress,
 		.cut_tree_worker = cut_tree_worker_cryptcompress,
-		.destroy_inode = destroy_inode_cryptcompress,
+		.destroy_inode = detach_crypto_stat,
 		.wire = {
 			.write = wire_write_common,
 			.read = wire_read_common,

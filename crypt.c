@@ -1,5 +1,6 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
-/* Crypto-plugins for reiser4 cryptcompress objects */
+/* Copyright 2001, 2002, 2003 by Hans Reiser,
+   licensing governed by reiser4/README */
+/* Reiser4 cipher transform plugins */
 
 #include "debug.h"
 #include "plugin/plugin.h"
@@ -8,28 +9,24 @@
 #include <linux/random.h>
 
 #define MAX_CRYPTO_BLOCKSIZE 128
-#define NONE_EXPKEY_WORDS 8
-#define NONE_BLOCKSIZE 8
 
 /*
-  Default align() method of the crypto-plugin (look for description of this method
-  in plugin/plugin.h)
+  Default align() method of the crypto-plugin (look for description of this
+  method in plugin/plugin.h)
 
-1) creates the aligning armored format of the input flow before encryption.
-   "armored" means that padding is filled by private data (for example,
-   pseudo-random sequence of bytes is not private data).
-2) returns length of appended padding
+  1) creates the aligning armored format of the input flow before encryption.
+     "armored" means that padding is filled by private data (for example,
+     pseudo-random sequence of bytes is not private data).
+  2) returns length of appended padding
 
    [ flow | aligning_padding ]
             ^
             |
 	  @pad
 */
-UNUSED_ARG static int
-align_stream_common(__u8 *
-		    pad /* pointer to the first byte of aligning format */ ,
-		    int flow_size /* size of non-aligned flow */ ,
-		    int blocksize /* crypto-block size */ )
+static int align_stream_common(__u8 * pad,
+			       int flow_size /* size of non-aligned flow */,
+			       int blocksize /* crypto-block size */)
 {
 	int pad_size;
 
@@ -43,37 +40,55 @@ align_stream_common(__u8 *
 	return pad_size;
 }
 
-/* common scale method (look for description of this method in plugin/plugin.h)
-   for all symmetric algorithms which doesn't scale anything
-*/
-static loff_t scale_common(struct inode *inode UNUSED_ARG, size_t blocksize UNUSED_ARG	/* crypto block size, which is returned
-											   by blocksize method of crypto plugin */ ,
+/* This is used for all the cipher algorithms which do not inflate
+   block-aligned data */
+static loff_t scale_common(struct inode *inode, size_t blocksize,
 			   loff_t src_off /* offset to scale */ )
 {
 	return src_off;
 }
 
-REGISTER_NONE_ALG(crypt, CRYPTO)
+static void free_common (struct crypto_tfm * tfm)
+{
+	crypto_free_tfm(tfm);
+}
 
-/* EDWARD-FIXME-HANS: why is this not in the plugin directory? */
-/* crypto plugins */
+static struct crypto_tfm * alloc_aes (void)
+{
+	return crypto_alloc_tfm ("aes", 0);
+}
+
 crypto_plugin crypto_plugins[LAST_CRYPTO_ID] = {
 	[NONE_CRYPTO_ID] = {
 		.h = {
 			.type_id = REISER4_CRYPTO_PLUGIN_TYPE,
 			.id = NONE_CRYPTO_ID,
 			.pops = NULL,
-			/* If you wanna your files to not be crypto
-			   transformed, specify this crypto pluigin */
 			.label = "none",
-			.desc = "absence of crypto transform",
+			.desc = "no cipher transform",
 			.linkage = {NULL, NULL}
 		},
-		.alloc = alloc_none_crypt,
-		.free = free_none_crypt,
-		.nr_keywords = NONE_EXPKEY_WORDS,
-		.scale = scale_common,
+		.alloc = NULL,
+		.free = NULL,
+		.scale = NULL,
 		.align_stream = NULL,
+		.setkey = NULL,
+		.encrypt = NULL,
+		.decrypt = NULL
+	},
+	[AES_CRYPTO_ID] = {
+		.h = {
+			.type_id = REISER4_CRYPTO_PLUGIN_TYPE,
+			.id = AES_CRYPTO_ID,
+			.pops = NULL,
+			.label = "aes",
+			.desc = "aes cipher transform",
+			.linkage = {NULL, NULL}
+		},
+		.alloc = alloc_aes,
+		.free = free_common,
+		.scale = scale_common,
+		.align_stream = align_stream_common,
 		.setkey = NULL,
 		.encrypt = NULL,
 		.decrypt = NULL
