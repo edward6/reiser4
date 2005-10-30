@@ -1371,12 +1371,17 @@ static int txn_try_to_fuse_small_atom(txn_mgr * tmgr, txn_atom * atom)
 	repeat = 0;
 
 	if (!spin_trylock_txnmgr(tmgr)) {
+		atomic_inc(&atom->refcount);
 		spin_unlock_atom(atom);
 		spin_lock_txnmgr(tmgr);
 		spin_lock_atom(atom);
 		repeat = 1;
-		if (atom->stage != atom_stage)
-			goto out;
+		if (atom->stage != atom_stage) {
+			spin_unlock_txnmgr(tmgr);
+			atom_dec_and_unlock(atom);
+			return -E_REPEAT;
+		}
+		atomic_dec(&atom->refcount);
 	}
 
 	list_for_each_entry(atom_2, &tmgr->atoms_list, atom_link) {
@@ -1397,7 +1402,6 @@ static int txn_try_to_fuse_small_atom(txn_mgr * tmgr, txn_atom * atom)
 		}
 	}
 	atom->flags |= ATOM_CANCEL_FUSION;
-      out:
 	spin_unlock_txnmgr(tmgr);
 	if (repeat) {
 		spin_unlock_atom(atom);
