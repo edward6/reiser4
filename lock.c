@@ -86,8 +86,12 @@
    #                                           #
    #############################################
 
-     Note that a low-priority process
-     delays node releasing if another high-priority process owns this node.  So, slightly more strictly speaking, to have a deadlock capable cycle you must have a loop in which a high priority process is waiting on a low priority process to yield a node, which is slightly different from saying a high priority process is waiting on a node owned by a low priority process.
+   Note that a low-priority process delays node releasing if another
+   high-priority process owns this node.  So, slightly more strictly speaking,
+   to have a deadlock capable cycle you must have a loop in which a high
+   priority process is waiting on a low priority process to yield a node, which
+   is slightly different from saying a high priority process is waiting on a
+   node owned by a low priority process.
 
    It is enough to avoid deadlocks if we prevent any low-priority process from
    falling asleep if its locked set contains a node which satisfies the
@@ -109,13 +113,17 @@
 
    V4 LOCKING DRAWBACKS
 
-   If we have already balanced on one level, and we are propagating our changes upward to a higher level, it could be
-   very messy to surrender all locks on the lower level because we put so much computational work into it, and reverting
-   them to their state before they were locked might be very complex.  We also don't want to acquire all locks before
-   performing balancing because that would either be almost as much work as the balancing, or it would be too
-   conservative and lock too much.  We want balancing to be done only at high priority.  Yet, we might want to go to the
-   left one node and use some of its empty space... So we make one attempt at getting the node to the left using
-   try_lock, and if it fails we do without it, because we didn't really need it, it was only a nice to have.
+   If we have already balanced on one level, and we are propagating our changes
+   upward to a higher level, it could be very messy to surrender all locks on
+   the lower level because we put so much computational work into it, and
+   reverting them to their state before they were locked might be very complex.
+   We also don't want to acquire all locks before performing balancing because
+   that would either be almost as much work as the balancing, or it would be
+   too conservative and lock too much.  We want balancing to be done only at
+   high priority.  Yet, we might want to go to the left one node and use some
+   of its empty space... So we make one attempt at getting the node to the left
+   using try_lock, and if it fails we do without it, because we didn't really
+   need it, it was only a nice to have.
 
    LOCK STRUCTURES DESCRIPTION
 
@@ -148,14 +156,18 @@
    |  Z1     |	    |	Z2    |                  |  Z3     |
    +---------+	    +---------+                  +---------+
 
-   Thread 1 locked znodes Z1 and Z2, thread 2 locked znodes Z2 and Z3. The picture above shows that lock stack LS1 has a
-   list of 2 lock handles LH1 and LH2, lock stack LS2 has a list with lock handles LH3 and LH4 on it.  Znode Z1 is
-   locked by only one thread, znode has only one lock handle LH1 on its list, similar situation is for Z3 which is
-   locked by the thread 2 only. Z2 is locked (for read) twice by different threads and two lock handles are on its
-   list. Each lock handle represents a single relation of a locking of a znode by a thread. Locking of a znode is an
-   establishing of a locking relation between the lock stack and the znode by adding of a new lock handle to a list of
-   lock handles, the lock stack.  The lock stack links all lock handles for all znodes locked by the lock stack.  The znode
-   list groups all lock handles for all locks stacks which locked the znode.
+   Thread 1 locked znodes Z1 and Z2, thread 2 locked znodes Z2 and Z3. The
+   picture above shows that lock stack LS1 has a list of 2 lock handles LH1 and
+   LH2, lock stack LS2 has a list with lock handles LH3 and LH4 on it.  Znode
+   Z1 is locked by only one thread, znode has only one lock handle LH1 on its
+   list, similar situation is for Z3 which is locked by the thread 2 only. Z2
+   is locked (for read) twice by different threads and two lock handles are on
+   its list. Each lock handle represents a single relation of a locking of a
+   znode by a thread. Locking of a znode is an establishing of a locking
+   relation between the lock stack and the znode by adding of a new lock handle
+   to a list of lock handles, the lock stack.  The lock stack links all lock
+   handles for all znodes locked by the lock stack.  The znode list groups all
+   lock handles for all locks stacks which locked the znode.
 
    Yet another relation may exist between znode and lock owners.  If lock
    procedure cannot immediately take lock on an object it adds the lock owner
@@ -214,7 +226,6 @@
 #include "super.h"
 
 #include <linux/spinlock.h>
-#include <asm/system.h>
 
 #if REISER4_DEBUG
 static int request_is_deadlock_safe(znode *, znode_lock_mode,
@@ -551,7 +562,6 @@ static void invalidate_all_lock_requests(znode * node)
 		remove_lock_request(requestor);
 		requestor->request.ret_code = -EINVAL;
 		reiser4_wake_up(requestor);
-		smp_mb();
 		requestor->request.mode = ZNODE_NO_LOCK;
 	}
 }
@@ -566,12 +576,16 @@ static void dispatch_lock_requests(znode * node)
 		if (znode_is_write_locked(node))
 			break;
 		if (!can_lock_object(requestor)) {
+#if 0			
+			/* FIXME: for mysterious reasons the below does not work */
 			lock_object(requestor);
 			remove_lock_request(requestor);
 			requestor->request.ret_code = 0;
 			reiser4_wake_up(requestor);
-			smp_mb();
 			requestor->request.mode = ZNODE_NO_LOCK;
+#else
+			reiser4_wake_up(requestor);
+#endif
 		}
 	}
 }
@@ -766,6 +780,7 @@ int longterm_lock_znode(
 	assert("jmacd-808", handle->owner == NULL);
 	assert("nikita-3026", schedulable());
 	assert("nikita-3219", request_is_deadlock_safe(node, mode, request));
+	assert("zam-1056", atomic_read(&ZJNODE(node)->x_count) > 0);
 	/* long term locks are not allowed in the VM contexts (->writepage(),
 	 * prune_{d,i}cache()).
 	 *
@@ -773,6 +788,7 @@ int longterm_lock_znode(
 	 * bug caused by d_splice_alias() only working for directories.
 	 */
 	assert("nikita-3547", 1 || ((current->flags & PF_MEMALLOC) == 0));
+	assert ("zam-1055", mode != ZNODE_NO_LOCK);
 
 	cap_flags = 0;
 	if (request & ZNODE_LOCK_NONBLOCK) {
@@ -962,21 +978,14 @@ int longterm_lock_znode(
 		write_unlock_zlock(lock);
 		/* ... and sleep */
 		go_to_sleep(owner);
-		smp_mb();
+		write_lock_zlock(lock);
 		if (owner->request.mode == ZNODE_NO_LOCK) {
-		request_done:
-			/* the request was processed successfully by
-			 * dispatch_lock_requests() */
+			write_unlock_zlock(lock);
 			if (owner->request.ret_code == 0) {
 				LOCK_CNT_INC(long_term_locked_znode);
 				zref(node);
 			}
 			return owner->request.ret_code;
-		}
-		write_lock_zlock(lock);
-		if (owner->request.mode == ZNODE_NO_LOCK) {
-			write_unlock_zlock(lock);
-			goto request_done;
 		}
 		remove_lock_request(owner);
 	}
