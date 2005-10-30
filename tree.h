@@ -560,9 +560,10 @@ reiser4_block_nr estimate_one_insert_into_item(reiser4_tree *);
 reiser4_block_nr estimate_insert_flow(tree_level);
 reiser4_block_nr estimate_one_item_removal(reiser4_tree *);
 reiser4_block_nr calc_estimate_one_insert(tree_level);
-reiser4_block_nr estimate_disk_cluster(struct inode *);
-reiser4_block_nr estimate_insert_cluster(struct inode *, int);
-
+reiser4_block_nr estimate_dirty_cluster(struct inode *);
+reiser4_block_nr estimate_insert_cluster(struct inode *);
+reiser4_block_nr estimate_update_cluster(struct inode *);
+ 
 
 /* __REISER4_TREE_H__ */
 #endif

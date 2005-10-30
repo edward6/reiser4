@@ -144,6 +144,25 @@ int adjust_to_parent_common_dir(struct inode *object /* new object */ ,
 	return result;
 }
 
+int adjust_to_parent_cryptcompress(struct inode *object /* new object */ ,
+				   struct inode *parent /* parent directory */,
+				   struct inode *root /* root directory */)
+{
+ 	int result;	
+ 	result = adjust_to_parent_common(object, parent, root);
+ 	if (result)
+ 		return result;
+ 	assert("edward-1416", parent != NULL);
+ 
+ 	grab_plugin(object, parent, PSET_CLUSTER);
+ 	grab_plugin(object, parent, PSET_CRYPTO);
+ 	grab_plugin(object, parent, PSET_DIGEST);
+ 	grab_plugin(object, parent, PSET_COMPRESSION);
+ 	grab_plugin(object, parent, PSET_COMPRESSION_MODE);
+
+ 	return 0;
+}
+
 /* this is common implementation of create_object method of file plugin
  */
 int

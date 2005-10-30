@@ -5,16 +5,15 @@
 #define __FS_REISER4_CRYPTCOMPRESS_H__
 
 #include "../compress/compress.h"
+#include "../../crypt.h"
 
 #include <linux/pagemap.h>
-#include <linux/crypto.h>
 #include <linux/vmalloc.h>
 
 #define MIN_CLUSTER_SIZE PAGE_CACHE_SIZE
 #define MIN_CLUSTER_SHIFT PAGE_CACHE_SHIFT
 #define MAX_CLUSTER_SHIFT 16
 #define MAX_CLUSTER_NRPAGES (1U << MAX_CLUSTER_SHIFT >> PAGE_CACHE_SHIFT)
-#define DEFAULT_CLUSTER_SHIFT 0
 #define DC_CHECKSUM_SIZE 4
 #define MIN_CRYPTO_BLOCKSIZE 8
 
@@ -24,15 +23,6 @@ static inline int cluster_shift_ok(int shift)
 	return (shift >= MIN_CLUSTER_SHIFT) && (shift <= MAX_CLUSTER_SHIFT);
 }
 #endif
-
-/* Set of transform id's supported by reiser4,
-   each transform is implemented by appropriate transform plugin: */
-typedef enum {
-	CRYPTO_TFM,		/* crypto plugin */
-	DIGEST_TFM,		/* digest plugin */
-	COMPRESS_TFM,		/* compression plugin */
-	LAST_TFM
-} reiser4_tfm;
 
 typedef struct tfm_stream {
 	__u8 *data;
@@ -130,8 +120,10 @@ typedef enum {
 typedef struct tfm_cluster {
 	coa_set coa;
 	tfm_unit tun;
+	tfm_action act;
 	int uptodate;
-	int len;
+	int lsize;        /* size of the logical cluster */
+	int len;          /* length of the transform stream */
 } tfm_cluster_t;
 
 static inline coa_t get_coa(tfm_cluster_t * tc, reiser4_compression_id id)
@@ -146,18 +138,20 @@ set_coa(tfm_cluster_t * tc, reiser4_compression_id id, coa_t coa)
 }
 
 static inline int
-alloc_coa(tfm_cluster_t * tc, compression_plugin * cplug, tfm_action act)
+alloc_coa(tfm_cluster_t * tc, compression_plugin * cplug)
 {
 	coa_t coa;
 
-	coa = cplug->alloc(act);
+	assert("edward-1408", tc->act != TFM_INVAL);
+
+	coa = cplug->alloc(tc->act);
 	if (IS_ERR(coa))
 		return PTR_ERR(coa);
 	set_coa(tc, cplug->h.id, coa);
 	return 0;
 }
 
-static inline void free_coa_set(tfm_cluster_t * tc, tfm_action act)
+static inline void free_coa_set(tfm_cluster_t * tc)
 {
 	reiser4_compression_id i;
 	compression_plugin *cplug;
@@ -167,9 +161,10 @@ static inline void free_coa_set(tfm_cluster_t * tc, tfm_action act)
 	for (i = 0; i < LAST_COMPRESSION_ID; i++) {
 		if (!get_coa(tc, i))
 			continue;
+		assert("edward-1409", tc->act != TFM_INVAL);
 		cplug = compression_plugin_by_id(i);
 		assert("edward-812", cplug->free != NULL);
-		cplug->free(get_coa(tc, i), act);
+		cplug->free(get_coa(tc, i), tc->act);
 		set_coa(tc, i, 0);
 	}
 	return;
@@ -246,10 +241,10 @@ static inline void free_tfm_unit(tfm_cluster_t * tc)
 	}
 }
 
-static inline void put_tfm_cluster(tfm_cluster_t * tc, tfm_action act)
+static inline void put_tfm_cluster(tfm_cluster_t * tc)
 {
 	assert("edward-942", tc != NULL);
-	free_coa_set(tc, act);
+	free_coa_set(tc);
 	free_tfm_unit(tc);
 }
 
@@ -353,15 +348,27 @@ typedef struct reiser4_cluster {
 #endif
 } reiser4_cluster_t;
 
-static inline void reset_cluster_pgset(reiser4_cluster_t * clust, int nrpages)
+static inline __u8 * tfm_input_data (reiser4_cluster_t * clust)
+{
+	return tfm_stream_data(&clust->tc, INPUT_STREAM);
+}
+
+static inline __u8 * tfm_output_data (reiser4_cluster_t * clust)
+{
+	return tfm_stream_data(&clust->tc, OUTPUT_STREAM);
+}
+
+static inline int reset_cluster_pgset(reiser4_cluster_t * clust, int nrpages)
 {
 	assert("edward-1057", clust->pages != NULL);
 	memset(clust->pages, 0, sizeof(*clust->pages) * nrpages);
+	return 0;
 }
 
 static inline int alloc_cluster_pgset(reiser4_cluster_t * clust, int nrpages)
 {
 	assert("edward-949", clust != NULL);
+	assert("edward-1362", clust->pages == NULL);
 	assert("edward-950", nrpages != 0 && nrpages <= MAX_CLUSTER_NRPAGES);
 
 	clust->pages =
@@ -378,28 +385,32 @@ static inline void free_cluster_pgset(reiser4_cluster_t * clust)
 	kfree(clust->pages);
 }
 
-static inline void put_cluster_handle(reiser4_cluster_t * clust, tfm_action act)
+static inline void put_cluster_handle(reiser4_cluster_t * clust)
 {
 	assert("edward-435", clust != NULL);
 
-	put_tfm_cluster(&clust->tc, act);
+	put_tfm_cluster(&clust->tc);
 	if (clust->pages)
 		free_cluster_pgset(clust);
 	memset(clust, 0, sizeof *clust);
 }
 
-/* security attributes supposed to be stored on disk
-   are loaded by stat-data methods (see plugin/item/static_stat.c */
-typedef struct crypto_stat {
-	__u8 *keyid;		/* pointer to a fingerprint */
-	__u16 keysize;		/* key size, bits */
-	__u32 *expkey;
-} crypto_stat_t;
+static inline void inc_keyload_count(crypto_stat_t * data)
+{
+ 	assert("edward-1410", data != NULL);
+ 	data->keyload_count++;
+}
+
+static inline void dec_keyload_count(crypto_stat_t * data)
+{
+ 	assert("edward-1411", data != NULL);
+ 	assert("edward-1412", data->keyload_count > 0);
+ 	data->keyload_count--;
+}
 
 /* cryptcompress specific part of reiser4_inode */
 typedef struct cryptcompress_info {
 	struct rw_semaphore lock;
-	struct crypto_tfm *tfm[LAST_TFM];
 	crypto_stat_t *crypt;
 } cryptcompress_info_t;
 
@@ -409,62 +420,92 @@ int goto_right_neighbor(coord_t *, lock_handle *);
 int load_file_hint(struct file *, hint_t *);
 void save_file_hint(struct file *, const hint_t *);
 void hint_init_zero(hint_t *);
+int need_cipher (struct inode *);
+int host_allows_crypto_stat(struct inode * inode);
 int crc_inode_ok(struct inode *inode);
-extern int ctail_read_cluster (reiser4_cluster_t *, struct inode *, int);
+int jnode_of_cluster(const jnode * node, struct page * page);
+extern int ctail_read_disk_cluster (reiser4_cluster_t *, struct inode *, int);
 extern int do_readpage_ctail(reiser4_cluster_t *, struct page * page);
-extern int ctail_insert_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode);
+extern int ctail_insert_unprepped_cluster(reiser4_cluster_t * clust,
+					  struct inode * inode);
+int bind_cryptcompress(struct inode *child, struct inode *parent);
+void destroy_inode_cryptcompress(struct inode * inode);
+crypto_stat_t * inode_crypto_stat (struct inode * inode);
+void inherit_crypto_stat_common(struct inode * parent, struct inode * object,
+				int (*can_inherit)(struct inode * child,
+						   struct inode * parent));
+crypto_stat_t * create_crypto_stat(struct inode * parent, crypto_data_t * data);
+int crypto_stat_instantiated(crypto_stat_t * info); 
+void attach_crypto_stat(struct inode * inode, crypto_stat_t * info);
+void detach_crypto_stat(struct inode * inode);
+void change_crypto_stat(struct inode * inode, crypto_stat_t * new);
+int can_inherit_crypto_crc(struct inode *child, struct inode *parent);
+crypto_stat_t * alloc_crypto_stat (struct inode * inode);
 
-static inline struct crypto_tfm *inode_get_tfm(struct inode *inode,
-					       reiser4_tfm tfm)
+static inline reiser4_tfma_t *
+info_get_tfma (crypto_stat_t * info, reiser4_tfm id)
 {
-	return cryptcompress_inode_data(inode)->tfm[tfm];
+	return &info->tfma[id];
 }
 
-static inline struct crypto_tfm *inode_get_crypto(struct inode *inode)
+static inline struct crypto_tfm *
+info_get_tfm (crypto_stat_t * info, reiser4_tfm id)
 {
-	return (inode_get_tfm(inode, CRYPTO_TFM));
+	return info_get_tfma(info, id)->tfm;
 }
 
-static inline struct crypto_tfm *inode_get_digest(struct inode *inode)
+static inline void
+info_set_tfm (crypto_stat_t * info, reiser4_tfm id, struct crypto_tfm * tfm)
 {
-	return (inode_get_tfm(inode, DIGEST_TFM));
+	info_get_tfma(info, id)->tfm = tfm;
 }
 
-static inline unsigned int crypto_blocksize(struct inode *inode)
+static inline struct crypto_tfm *
+info_cipher_tfm (crypto_stat_t * info)
 {
-	assert("edward-758", inode_get_tfm(inode, CRYPTO_TFM) != NULL);
-	return crypto_tfm_alg_blocksize(inode_get_tfm(inode, CRYPTO_TFM));
+	return info_get_tfm(info, CIPHER_TFM);
+}
+
+static inline struct crypto_tfm *
+info_digest_tfm (crypto_stat_t * info)
+{
+	return info_get_tfm(info, DIGEST_TFM);
+}
+
+static inline crypto_plugin *
+info_cipher_plugin (crypto_stat_t * info)
+{
+	return &info_get_tfma(info, CIPHER_TFM)->plug->crypto;
+}
+
+static inline digest_plugin *
+info_digest_plugin (crypto_stat_t * info)
+{
+	return &info_get_tfma(info, DIGEST_TFM)->plug->digest;
+}
+
+static inline void
+info_set_plugin(crypto_stat_t * info, reiser4_tfm id, reiser4_plugin * plugin)
+{
+	info_get_tfma(info, id)->plug = plugin;
+}
+
+static inline void
+info_set_crypto_plugin(crypto_stat_t * info, crypto_plugin * cplug)
+{
+	info_set_plugin(info, CIPHER_TFM, crypto_plugin_to_plugin(cplug));
+}
+
+static inline void
+info_set_digest_plugin(crypto_stat_t * info, digest_plugin * plug)
+{
+	info_set_plugin(info, DIGEST_TFM, digest_plugin_to_plugin(plug));
 }
 
 static inline compression_plugin *dual_compression_plugin(compression_plugin *
 							  cplug)
 {
 	return compression_plugin_by_id(cplug->dual);
-}
-
-#define REGISTER_NONE_ALG(ALG, TFM)                                  \
-static int alloc_none_ ## ALG (struct inode * inode)                 \
-{                                                                    \
-        cryptcompress_info_t * info;                                 \
-        assert("edward-760", inode != NULL);                         \
-	                                                             \
-	info = cryptcompress_inode_data(inode);                      \
-                                                                     \
-                                                                     \
-	cryptcompress_inode_data(inode)->tfm[TFM ## _TFM] = NULL;    \
-	return 0;                                                    \
-                                                                     \
-}                                                                    \
-static void free_none_ ## ALG (struct inode * inode)                 \
-{                                                                    \
-        cryptcompress_info_t * info;                                 \
-        assert("edward-761", inode != NULL);                         \
-	                                                             \
-	info = cryptcompress_inode_data(inode);                      \
-	                                                             \
-	assert("edward-762", info != NULL);                          \
-	                                                             \
-	info->tfm[TFM ## _TFM] = NULL;                               \
 }
 
 #endif				/* __FS_REISER4_CRYPTCOMPRESS_H__ */

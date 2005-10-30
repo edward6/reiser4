@@ -223,7 +223,8 @@ int reiser4_invalidatepage(struct page *page, unsigned long offset)
 	assert("vs-1427",
 	       page->mapping == jnode_get_mapping(jnode_by_page(page)));
 	assert("", jprivate(page) != NULL);
-	assert("", offset == 0);
+	assert("", ergo(inode_file_plugin(inode) !=
+			file_plugin_by_id(CRC_FILE_PLUGIN_ID), offset == 0));
 
 	node = jprivate(page);
 	spin_lock_jnode(node);

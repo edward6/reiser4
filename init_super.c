@@ -646,7 +646,7 @@ static struct {
 	},
 	[PSET_DIGEST] = {
 		.type = REISER4_DIGEST_PLUGIN_TYPE,
-		.id = NONE_DIGEST_ID
+		.id = SHA256_32_DIGEST_ID
 	},
 	[PSET_COMPRESSION] = {
 		.type = REISER4_COMPRESSION_PLUGIN_TYPE,
