@@ -731,9 +731,7 @@ static int write_jnodes_to_disk_extent(
 	assert("zam-570", nr > 0);
 
 	block = *block_p;
-	max_blocks =
-		bdev_get_queue(super->s_bdev)->max_sectors >> 
-		(super-> s_blocksize_bits - 9);
+	max_blocks = min(bio_get_nr_vecs(super->s_bdev), BIO_MAX_PAGES);
 
 	while (nr > 0) {
 		struct bio *bio;
