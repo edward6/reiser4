@@ -774,7 +774,6 @@ static int atom_begin_and_assign_to_txnh(txn_atom ** atom_alloc, txn_handle * tx
 	return -E_REPEAT;
 }
 
-#if REISER4_DEBUG
 /* Return true if an atom is currently "open". */
 static int atom_isopen(const txn_atom * atom)
 {
@@ -782,7 +781,6 @@ static int atom_isopen(const txn_atom * atom)
 
 	return atom->stage > 0 && atom->stage < ASTAGE_PRE_COMMIT;
 }
-#endif
 
 /* Return the number of pointers to this atom that must be updated during fusion.  This
    approximates the amount of work to be done.  Fusion chooses the atom with fewer
