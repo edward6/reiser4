@@ -32,6 +32,18 @@
 #define REISER4_ZLIB (0)
 #endif
 
+#if defined(CONFIG_CRYPTO_SHA256)
+#define REISER4_SHA256 (1)
+#else
+#define REISER4_SHA256 (0)
+#endif
+
+#if defined(CONFIG_CRYPTO_AES_586)
+#define REISER4_AES (1)
+#else
+#define REISER4_AES (0)
+#endif
+
 #if defined(CONFIG_REISER4_COPY_ON_CAPTURE)
 /*
  * Turns on copy-on-capture (COC) optimization. See

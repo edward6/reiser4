@@ -48,14 +48,22 @@ static loff_t scale_common(struct inode *inode, size_t blocksize,
 	return src_off;
 }
 
-static void free_common (struct crypto_tfm * tfm)
+static void free_aes (struct crypto_tfm * tfm)
 {
+#if REISER4_AES
 	crypto_free_tfm(tfm);
+#endif
+	return;
 }
 
 static struct crypto_tfm * alloc_aes (void)
 {
+#if REISER4_AES
 	return crypto_alloc_tfm ("aes", 0);
+#else
+	warning("edward-1417", "aes unsupported");
+	return ERR_PTR(-EINVAL);
+#endif /* REISER4_AES */
 }
 
 crypto_plugin crypto_plugins[LAST_CRYPTO_ID] = {
@@ -86,7 +94,7 @@ crypto_plugin crypto_plugins[LAST_CRYPTO_ID] = {
 			.linkage = {NULL, NULL}
 		},
 		.alloc = alloc_aes,
-		.free = free_common,
+		.free = free_aes,
 		.scale = scale_common,
 		.align_stream = align_stream_common,
 		.setkey = NULL,
