@@ -13,12 +13,20 @@ extern digest_plugin digest_plugins[LAST_DIGEST_ID];
 
 static struct crypto_tfm * alloc_sha256 (void)
 {
+#if REISER4_SHA256
 	return crypto_alloc_tfm ("sha256", 0);
+#else
+	warning("edward-1418", "sha256 unsupported");
+	return ERR_PTR(-EINVAL);
+#endif
 }
 
-static void free_common (struct crypto_tfm * tfm)
+static void free_sha256 (struct crypto_tfm * tfm)
 {
+#if REISER4_SHA256
 	crypto_free_tfm(tfm);
+#endif
+	return;
 }
 
 /* digest plugins */
@@ -34,7 +42,7 @@ digest_plugin digest_plugins[LAST_DIGEST_ID] = {
 		},
 		.fipsize = sizeof(__u32),
 		.alloc = alloc_sha256,
-		.free = free_common
+		.free = free_sha256
 	}
 };
 
