@@ -258,7 +258,7 @@ static int capture_assign_block(txn_handle * txnh, jnode * node);
 static int capture_assign_txnh(jnode * node, txn_handle * txnh,
 			       txn_capture mode, int can_coc);
 
-static int fuse_not_fused_lock_owners(txn_handle * txnh, znode * node);
+static void fuse_not_fused_lock_owners(txn_handle * txnh, znode * node);
 
 static int capture_init_fusion(jnode * node, txn_handle * txnh,
 			       txn_capture mode, int can_coc);
@@ -479,23 +479,21 @@ int txn_end(reiser4_context * context)
 	assert("nikita-2967", lock_stack_isclean(get_current_lock_stack()));
 
 	txnh = context->trans;
-
 	if (txnh != NULL) {
-		/* The txnh's field "atom" can be checked for NULL w/o holding a
-		   lock because txnh->atom could be set by this thread's call to
-		   try_capture or the deadlock prevention code in
-		   fuse_not_fused_lock_owners().  But that code may assign an
-		   atom to this transaction handle only if there are locked and
-		   not yet fused nodes.  It cannot happen because lock stack
-		   should be clean at this moment. */
+		/* Fuse_not_fused_lock_owners in a parallel thread may set
+		 * txnh->atom to the current thread's transaction handle.  At
+		 * this moment current thread holds no long-term locks, but
+		 * fuse_not_fused... releases znode->lock spin-lock right
+		 * before assigning an atom to this transaction handle.  It
+		 * still keeps txnh locked so the code below prevents the
+		 * fuse_not_fused... thread from racing too far. */
+		spin_lock_txnh(txnh);
+		spin_unlock_txnh(txnh);
 		if (txnh->atom != NULL)
 			ret = commit_txnh(txnh);
-
 		assert("jmacd-633", txnh_isclean(txnh));
-
 		context->trans = NULL;
 	}
-
 	return ret;
 }
 
@@ -1930,18 +1928,11 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode,
 		if (		// txnh_atom->stage >= ASTAGE_CAPTURE_WAIT &&
 			   jnode_is_znode(node) && znode_is_locked(JZNODE(node))
 			   && JF_ISSET(node, JNODE_MISSED_IN_CAPTURE)) {
-			ret = fuse_not_fused_lock_owners(txnh, JZNODE(node));
-			if (ret) {
-				JF_SET(node, JNODE_MISSED_IN_CAPTURE);
-
-				assert_spin_not_locked(&(txnh->hlock));
-				assert_spin_not_locked(&(node->guard));
-				return ret;
-			} else
-				JF_CLR(node, JNODE_MISSED_IN_CAPTURE);
-
-			assert_spin_locked(&(txnh->hlock));
-			assert_spin_locked(&(node->guard));
+			spin_unlock_txnh(txnh);
+			JF_CLR(node, JNODE_MISSED_IN_CAPTURE);
+			spin_unlock_jnode(node);
+			fuse_not_fused_lock_owners(txnh, JZNODE(node));
+			return RETERR(-E_REPEAT);
 		}
 	}
 
@@ -2194,93 +2185,83 @@ try_capture(jnode * node, znode_lock_mode lock_mode,
 */
 
 /* fuse all 'active' atoms of lock owners of given node. */
-static int fuse_not_fused_lock_owners(txn_handle * txnh, znode * node)
+static void fuse_not_fused_lock_owners(txn_handle * txnh, znode * node)
 {
 	lock_handle *lh;
-	int repeat = 0;
-	txn_atom *atomh = txnh->atom;
+	int repeat;
+	txn_atom *atomh, *atomf;
+	reiser4_context *me = get_current_context();
+	reiser4_context *ctx = NULL;
 
-	assert_spin_locked(&(ZJNODE(node)->guard));
-	assert_spin_locked(&(txnh->hlock));
+	assert_spin_not_locked(&(ZJNODE(node)->guard));
+	assert_spin_not_locked(&(txnh->hlock));
+
+ repeat:
+	repeat = 0;
+	atomh = txnh_get_atom(txnh);
+	spin_unlock_txnh(txnh);
 	assert("zam-692", atomh != NULL);
 
 	read_lock_zlock(&node->lock);
-
-	if (!spin_trylock_atom(atomh)) {
-		repeat = 1;
-		goto fail;
-	}
-
 	/* inspect list of lock owners */
 	list_for_each_entry(lh, &node->lock.owners, owners_link) {
-		reiser4_context *ctx;
-		txn_atom *atomf;
-
 		ctx = get_context_by_lock_stack(lh->owner);
-
-		if (ctx == get_current_context())
+		if (ctx == me)
 			continue;
+		/* below we use two assumptions to avoid addition spin-locks
+		   for checking the condition :
 
-		if (!spin_trylock_txnh(ctx->trans)) {
+		   1) if the lock stack has lock, the transaction should be
+		   opened, i.e. ctx->trans != NULL;
+
+		   2) reading of well-aligned ctx->trans->atom is atomic, if it
+		   equals to the address of spin-locked atomh, we take that
+		   the atoms are the same, nothing has to be captured. */
+		if (atomh != ctx->trans->atom) {
+			reiser4_wake_up(lh->owner);
 			repeat = 1;
-			continue;
+			break;
 		}
+	}
+	if (repeat) {
+		int lock_ok;
 
+		lock_ok = spin_trylock_txnh(ctx->trans);
+		read_unlock_zlock(&node->lock);
+		if (!lock_ok) {
+			spin_unlock_atom(atomh);
+			goto repeat;
+		}
 		atomf = ctx->trans->atom;
-
 		if (atomf == NULL) {
 			capture_assign_txnh_nolock(atomh, ctx->trans);
+			spin_unlock_atom(atomh);
 			spin_unlock_txnh(ctx->trans);
-
-			reiser4_wake_up(lh->owner);
-			continue;
+			goto repeat;
 		}
-
-		if (atomf == atomh) {
-			spin_unlock_txnh(ctx->trans);
-			continue;
-		}
-
-		if (!spin_trylock_atom(atomf)) {
-			spin_unlock_txnh(ctx->trans);
-			repeat = 1;
-			continue;
-		}
-
+		assert("zam-1059", atomf != atomh);
+		atomic_inc(&atomh->refcount);
+		atomic_inc(&atomf->refcount);
 		spin_unlock_txnh(ctx->trans);
-
-		if (atomf == atomh || atomf->stage > ASTAGE_CAPTURE_WAIT) {
-			spin_unlock_atom(atomf);
-			continue;
+		if (atomf > atomh) {
+			spin_lock_atom(atomf);
+		} else {
+			spin_unlock_atom(atomh);
+			spin_lock_atom(atomf);
+			spin_lock_atom(atomh);
 		}
-		// repeat = 1;
-
-		reiser4_wake_up(lh->owner);
-
-		spin_unlock_txnh(txnh);
-		read_unlock_zlock(&node->lock);
-		spin_unlock_znode(node);
-
-		/* @atomf is "small" and @atomh is "large", by
-		   definition. Small atom is destroyed and large is unlocked
-		   inside capture_fuse_into()
-		 */
+		if (atomh == atomf || !atom_isopen(atomh) || !atom_isopen(atomf)) {
+			atom_dec_and_unlock(atomh);
+			atom_dec_and_unlock(atomf);
+			goto repeat;
+		}
+		atomic_dec(&atomh->refcount);
+		atomic_dec(&atomf->refcount);
 		capture_fuse_into(atomf, atomh);
-		return RETERR(-E_REPEAT);
+		goto repeat;
 	}
-
-	spin_unlock_atom(atomh);
-
-	if (repeat) {
-	      fail:
-		spin_unlock_txnh(txnh);
-		read_unlock_zlock(&node->lock);
-		spin_unlock_znode(node);
-		return RETERR(-E_REPEAT);
-	}
-
 	read_unlock_zlock(&node->lock);
-	return 0;
+	spin_unlock_atom(atomh);
 }
 
 /* This is the interface to capture unformatted nodes via their struct page
