@@ -4186,8 +4186,10 @@ reiser4_block_nr txnmgr_count_deleted_blocks(void)
 	spin_lock_txnmgr(tmgr);
 	list_for_each_entry(atom, &tmgr->atoms_list, atom_link) {
 		spin_lock_atom(atom);
-		blocknr_set_iterator(atom, &atom->delete_set,
-				     count_deleted_blocks_actor, &result, 0);
+		if (atom_isopen(atom)) 
+			blocknr_set_iterator(
+				atom, &atom->delete_set,
+				count_deleted_blocks_actor, &result, 0);
 		spin_unlock_atom(atom);
 	}
 	spin_unlock_txnmgr(tmgr);
