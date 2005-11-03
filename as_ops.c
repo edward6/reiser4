@@ -229,7 +229,7 @@ int reiser4_invalidatepage(struct page *page, unsigned long offset)
 	node = jprivate(page);
 	spin_lock_jnode(node);
 	if (!JF_ISSET(node, JNODE_DIRTY) && !JF_ISSET(node, JNODE_FLUSH_QUEUED) &&
-	    !JF_ISSET(node, JNODE_WRITEBACK)) {
+	    !JF_ISSET(node, JNODE_WRITEBACK) && !JF_ISSET(node, JNODE_OVRWR)) {
 		/* there is not need to capture */
 		jref(node);
 		JF_SET(node, JNODE_HEARD_BANSHEE);
