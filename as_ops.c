@@ -280,6 +280,7 @@ int jnode_is_releasable(jnode * node /* node to check */ )
 {
 	assert("nikita-2781", node != NULL);
 	assert_spin_locked(&(node->guard));
+	assert_spin_locked(&(node->load));
 
 	/* is some thread is currently using jnode page, later cannot be
 	 * detached */
