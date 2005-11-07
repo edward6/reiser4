@@ -576,16 +576,11 @@ static void dispatch_lock_requests(znode * node)
 		if (znode_is_write_locked(node))
 			break;
 		if (!can_lock_object(requestor)) {
-#if 0			
-			/* FIXME: for mysterious reasons the below does not work */
 			lock_object(requestor);
 			remove_lock_request(requestor);
 			requestor->request.ret_code = 0;
 			reiser4_wake_up(requestor);
 			requestor->request.mode = ZNODE_NO_LOCK;
-#else
-			reiser4_wake_up(requestor);
-#endif
 		}
 	}
 }
@@ -978,9 +973,12 @@ int longterm_lock_znode(
 		write_unlock_zlock(lock);
 		/* ... and sleep */
 		go_to_sleep(owner);
+		if (owner->request.mode == ZNODE_NO_LOCK)
+			goto request_is_done;
 		write_lock_zlock(lock);
 		if (owner->request.mode == ZNODE_NO_LOCK) {
 			write_unlock_zlock(lock);
+		request_is_done:
 			if (owner->request.ret_code == 0) {
 				LOCK_CNT_INC(long_term_locked_znode);
 				zref(node);
