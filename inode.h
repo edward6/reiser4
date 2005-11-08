@@ -344,7 +344,7 @@ extern perm_plugin *inode_perm_plugin(const struct inode *inode);
 extern formatting_plugin *inode_formatting_plugin(const struct inode *inode);
 extern hash_plugin *inode_hash_plugin(const struct inode *inode);
 extern fibration_plugin *inode_fibration_plugin(const struct inode *inode);
-extern crypto_plugin *inode_crypto_plugin(const struct inode *inode);
+extern cipher_plugin *inode_cipher_plugin(const struct inode *inode);
 extern digest_plugin *inode_digest_plugin(const struct inode *inode);
 extern compression_plugin *inode_compression_plugin(const struct inode *inode);
 extern compression_mode_plugin *inode_compression_mode_plugin(const struct inode

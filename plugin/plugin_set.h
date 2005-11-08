@@ -33,8 +33,8 @@ struct plugin_set {
 	item_plugin *sd;
 	/* plugin of items a directory is built of */
 	item_plugin *dir_item;
-	/* crypto plugin */
-	crypto_plugin *crypto;
+	/* cipher plugin */
+	cipher_plugin *cipher;
 	/* digest plugin */
 	digest_plugin *digest;
 	/* compression plugin */
@@ -57,7 +57,7 @@ extern int plugin_set_formatting(plugin_set ** set, formatting_plugin * plug);
 extern int plugin_set_hash(plugin_set ** set, hash_plugin * plug);
 extern int plugin_set_fibration(plugin_set ** set, fibration_plugin * plug);
 extern int plugin_set_sd(plugin_set ** set, item_plugin * plug);
-extern int plugin_set_crypto(plugin_set ** set, crypto_plugin * plug);
+extern int plugin_set_cipher(plugin_set ** set, cipher_plugin * plug);
 extern int plugin_set_digest(plugin_set ** set, digest_plugin * plug);
 extern int plugin_set_compression(plugin_set ** set, compression_plugin * plug);
 extern int plugin_set_compression_mode(plugin_set ** set,

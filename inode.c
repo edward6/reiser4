@@ -548,10 +548,10 @@ fibration_plugin *inode_fibration_plugin(const struct inode * inode)
 	return reiser4_inode_data(inode)->pset->fibration;
 }
 
-crypto_plugin *inode_crypto_plugin(const struct inode * inode)
+cipher_plugin *inode_cipher_plugin(const struct inode * inode)
 {
 	assert("edward-36", inode != NULL);
-	return reiser4_inode_data(inode)->pset->crypto;
+	return reiser4_inode_data(inode)->pset->cipher;
 }
 
 compression_plugin *inode_compression_plugin(const struct inode * inode)

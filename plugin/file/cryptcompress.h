@@ -15,7 +15,6 @@
 #define MAX_CLUSTER_SHIFT 16
 #define MAX_CLUSTER_NRPAGES (1U << MAX_CLUSTER_SHIFT >> PAGE_CACHE_SHIFT)
 #define DC_CHECKSUM_SIZE 4
-#define MIN_CRYPTO_BLOCKSIZE 8
 
 #if REISER4_DEBUG
 static inline int cluster_shift_ok(int shift)
@@ -472,10 +471,10 @@ info_digest_tfm (crypto_stat_t * info)
 	return info_get_tfm(info, DIGEST_TFM);
 }
 
-static inline crypto_plugin *
+static inline cipher_plugin *
 info_cipher_plugin (crypto_stat_t * info)
 {
-	return &info_get_tfma(info, CIPHER_TFM)->plug->crypto;
+	return &info_get_tfma(info, CIPHER_TFM)->plug->cipher;
 }
 
 static inline digest_plugin *
@@ -491,9 +490,9 @@ info_set_plugin(crypto_stat_t * info, reiser4_tfm id, reiser4_plugin * plugin)
 }
 
 static inline void
-info_set_crypto_plugin(crypto_stat_t * info, crypto_plugin * cplug)
+info_set_cipher_plugin(crypto_stat_t * info, cipher_plugin * cplug)
 {
-	info_set_plugin(info, CIPHER_TFM, crypto_plugin_to_plugin(cplug));
+	info_set_plugin(info, CIPHER_TFM, cipher_plugin_to_plugin(cplug));
 }
 
 static inline void

@@ -640,9 +640,9 @@ static struct {
 		.type = REISER4_ITEM_PLUGIN_TYPE,
 		.id = COMPOUND_DIR_ID
 	},
-	[PSET_CRYPTO] = {
-		.type = REISER4_CRYPTO_PLUGIN_TYPE,
-		.id = NONE_CRYPTO_ID
+	[PSET_CIPHER] = {
+		.type = REISER4_CIPHER_PLUGIN_TYPE,
+		.id = NONE_CIPHER_ID
 	},
 	[PSET_DIGEST] = {
 		.type = REISER4_DIGEST_PLUGIN_TYPE,

@@ -161,7 +161,7 @@ typedef enum {
 	/* for objects completely handled by the VFS: fifos, devices,
 	   sockets  */
 	SPECIAL_FILE_PLUGIN_ID,
-	/* Plugin id for crypto-compression objects */
+	/* regular cryptcompress file */
 	CRC_FILE_PLUGIN_ID,
 	/* number of file plugins. Used as size of arrays to hold
 	   file plugins. */
@@ -446,22 +446,22 @@ typedef struct hash_plugin {
 	 __u64(*hash) (const unsigned char *name, int len);
 } hash_plugin;
 
-typedef struct crypto_plugin {
+typedef struct cipher_plugin {
 	/* generic fields */
 	plugin_header h;
 	struct crypto_tfm * (*alloc) (void);
 	void (*free) (struct crypto_tfm * tfm);
 	/* Offset translator. For each offset this returns (k * offset), where
-	   k (k >= 1) is a coefficient of expansion of the crypto algorithm.
+	   k (k >= 1) is an expansion factor of the cipher algorithm.
 	   For all symmetric algorithms k == 1. For asymmetric algorithms (which
 	   inflate data) offset translation guarantees that all disk cluster's
 	   units will have keys smaller then next cluster's one.
 	 */
 	 loff_t(*scale) (struct inode * inode, size_t blocksize, loff_t src);
-	/* Crypto algorithms can accept data only by chunks of crypto block
-	   size. This method is to align any flow up to crypto block size when
-	   we pass it to crypto algorithm. To align means to append padding of
-	   special format specific to the crypto algorithm */
+	/* Cipher algorithms can accept data only by chunks of cipher block
+	   size. This method is to align any flow up to cipher block size when
+	   we pass it to cipher algorithm. To align means to append padding of
+	   special format specific to the cipher algorithm */
 	int (*align_stream) (__u8 * tail, int clust_size, int blocksize);
 	/* low-level key manager (check, install, etc..) */
 	int (*setkey) (struct crypto_tfm * tfm, const __u8 * key,
@@ -469,7 +469,7 @@ typedef struct crypto_plugin {
 	/* main text processing procedures */
 	void (*encrypt) (__u32 * expkey, __u8 * dst, const __u8 * src);
 	void (*decrypt) (__u32 * expkey, __u8 * dst, const __u8 * src);
-} crypto_plugin;
+} cipher_plugin;
 
 typedef struct digest_plugin {
 	/* generic fields */
@@ -614,11 +614,11 @@ union reiser4_plugin {
 	hash_plugin hash;
 	/* fibration plugin used by directory plugin */
 	fibration_plugin fibration;
-	/* crypto plugin, used by file plugin */
-	crypto_plugin crypto;
-	/* digest plugin, used by file plugin */
+	/* cipher transform plugin, used by file plugin */
+	cipher_plugin cipher;
+	/* digest transform plugin, used by file plugin */
 	digest_plugin digest;
-	/* compression plugin, used by file plugin */
+	/* compression transform plugin, used by file plugin */
 	compression_plugin compression;
 	/* tail plugin, used by file plugin */
 	formatting_plugin formatting;
@@ -636,9 +636,9 @@ union reiser4_plugin {
 	oid_allocator_plugin oid_allocator;
 	/* plugin for different jnode types */
 	jnode_plugin jnode;
-	/* compression_mode_plugin, used by object plugin */
+	/* compression mode plugin, used by object plugin */
 	compression_mode_plugin compression_mode;
-	/* cluster_plugin, used by object plugin */
+	/* cluster plugin, used by object plugin */
 	cluster_plugin clust;
 	/* regular plugin, used by directory plugin */
 	regular_plugin regular;
@@ -695,13 +695,13 @@ typedef enum {
 	LAST_HASH_ID
 } reiser4_hash_id;
 
-/* builtin crypto-plugins */
+/* builtin cipher plugins */
 
 typedef enum {
-	NONE_CRYPTO_ID,
-	AES_CRYPTO_ID,
-	LAST_CRYPTO_ID
-} reiser4_crypto_id;
+	NONE_CIPHER_ID,
+	AES_CIPHER_ID,
+	LAST_CIPHER_ID
+} reiser4_cipher_id;
 
 /* builtin digest plugins */
 
@@ -843,7 +843,7 @@ PLUGIN_BY_ID(sd_ext_plugin, REISER4_SD_EXT_PLUGIN_TYPE, sd_ext);
 PLUGIN_BY_ID(perm_plugin, REISER4_PERM_PLUGIN_TYPE, perm);
 PLUGIN_BY_ID(hash_plugin, REISER4_HASH_PLUGIN_TYPE, hash);
 PLUGIN_BY_ID(fibration_plugin, REISER4_FIBRATION_PLUGIN_TYPE, fibration);
-PLUGIN_BY_ID(crypto_plugin, REISER4_CRYPTO_PLUGIN_TYPE, crypto);
+PLUGIN_BY_ID(cipher_plugin, REISER4_CIPHER_PLUGIN_TYPE, cipher);
 PLUGIN_BY_ID(digest_plugin, REISER4_DIGEST_PLUGIN_TYPE, digest);
 PLUGIN_BY_ID(compression_plugin, REISER4_COMPRESSION_PLUGIN_TYPE, compression);
 PLUGIN_BY_ID(formatting_plugin, REISER4_FORMATTING_PLUGIN_TYPE, formatting);
@@ -875,7 +875,7 @@ typedef enum {
 	PSET_FIBRATION,
 	PSET_SD,
 	PSET_DIR_ITEM,
-	PSET_CRYPTO,
+	PSET_CIPHER,
 	PSET_DIGEST,
 	PSET_COMPRESSION,
 	PSET_COMPRESSION_MODE,
@@ -900,7 +900,7 @@ extern hash_plugin hash_plugins[LAST_HASH_ID];
 /* defined in fs/reiser4/plugin/fibration.c */
 extern fibration_plugin fibration_plugins[LAST_FIBRATION_ID];
 /* defined in fs/reiser4/plugin/crypt.c */
-extern crypto_plugin crypto_plugins[LAST_CRYPTO_ID];
+extern cipher_plugin cipher_plugins[LAST_CIPHER_ID];
 /* defined in fs/reiser4/plugin/digest.c */
 extern digest_plugin digest_plugins[LAST_DIGEST_ID];
 /* defined in fs/reiser4/plugin/compress/compress.c */

@@ -638,7 +638,6 @@ static int shorten_file(struct inode *inode, loff_t new_size)
 		return 0;
 	}
 
-	/* FIXME: not sure how crypto files will work here. Probably they will not. */
 	result = find_file_state(unix_file_inode_data(inode));
 	if (result)
 		return result;

@@ -467,14 +467,14 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.plugins_list =	{NULL, NULL},
 		.size = sizeof(fibration_plugin)
 	},
-	[REISER4_CRYPTO_PLUGIN_TYPE] = {
-		.type_id = REISER4_CRYPTO_PLUGIN_TYPE,
-		.label = "crypto",
-		.desc = "Crypto plugins",
-		.builtin_num = sizeof_array(crypto_plugins),
-		.builtin = crypto_plugins,
+	[REISER4_CIPHER_PLUGIN_TYPE] = {
+		.type_id = REISER4_CIPHER_PLUGIN_TYPE,
+		.label = "cipher",
+		.desc = "Cipher plugins",
+		.builtin_num = sizeof_array(cipher_plugins),
+		.builtin = cipher_plugins,
 		.plugins_list =	{NULL, NULL},
-		.size = sizeof(crypto_plugin)
+		.size = sizeof(cipher_plugin)
 	},
 	[REISER4_DIGEST_PLUGIN_TYPE] = {
 		.type_id = REISER4_DIGEST_PLUGIN_TYPE,

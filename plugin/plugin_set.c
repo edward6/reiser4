@@ -61,7 +61,7 @@ static inline int pseq(const unsigned long *a1, const unsigned long *a2)
 		sizeof set1->fibration +
 		sizeof set1->sd +
 		sizeof set1->dir_item +
-		sizeof set1->crypto +
+		sizeof set1->cipher +
 		sizeof set1->digest +
 		sizeof set1->compression +
 		sizeof set1->compression_mode +
@@ -79,7 +79,7 @@ static inline int pseq(const unsigned long *a1, const unsigned long *a2)
 	    set1->fibration == set2->fibration &&
 	    set1->sd == set2->sd &&
 	    set1->dir_item == set2->dir_item &&
-	    set1->crypto == set2->crypto &&
+	    set1->cipher == set2->cipher &&
 	    set1->digest == set2->digest &&
 	    set1->compression == set2->compression &&
 	    set1->compression_mode == set2->compression_mode &&
@@ -105,7 +105,7 @@ static inline unsigned long calculate_hash(const plugin_set * set)
 	HASH_FIELD(result, set, fibration);
 	HASH_FIELD(result, set, sd);
 	HASH_FIELD(result, set, dir_item);
-	HASH_FIELD(result, set, crypto);
+	HASH_FIELD(result, set, cipher);
 	HASH_FIELD(result, set, digest);
 	HASH_FIELD(result, set, compression);
 	HASH_FIELD(result, set, compression_mode);
@@ -139,7 +139,7 @@ static plugin_set empty_set = {
 	.fibration = NULL,
 	.sd = NULL,
 	.dir_item = NULL,
-	.crypto = NULL,
+	.cipher = NULL,
 	.digest = NULL,
 	.compression = NULL,
 	.compression_mode = NULL,
@@ -244,9 +244,9 @@ static struct {
 		.offset = offsetof(plugin_set, dir_item),
 		.type = REISER4_ITEM_PLUGIN_TYPE
 	},
-	[PSET_CRYPTO] = {
-		.offset = offsetof(plugin_set, crypto),
-		.type = REISER4_CRYPTO_PLUGIN_TYPE
+	[PSET_CIPHER] = {
+		.offset = offsetof(plugin_set, cipher),
+		.type = REISER4_CIPHER_PLUGIN_TYPE
 	},
 	[PSET_DIGEST] = {
 		.offset = offsetof(plugin_set, digest),
@@ -320,7 +320,7 @@ DEFINE_PLUGIN_SET(file_plugin, file)
     DEFINE_PLUGIN_SET(hash_plugin, hash)
     DEFINE_PLUGIN_SET(fibration_plugin, fibration)
     DEFINE_PLUGIN_SET(item_plugin, sd)
-    DEFINE_PLUGIN_SET(crypto_plugin, crypto)
+    DEFINE_PLUGIN_SET(cipher_plugin, cipher)
     DEFINE_PLUGIN_SET(digest_plugin, digest)
     DEFINE_PLUGIN_SET(compression_plugin, compression)
     DEFINE_PLUGIN_SET(compression_mode_plugin, compression_mode)

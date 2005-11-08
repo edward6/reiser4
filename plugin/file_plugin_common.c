@@ -155,7 +155,7 @@ int adjust_to_parent_cryptcompress(struct inode *object /* new object */ ,
  	assert("edward-1416", parent != NULL);
  
  	grab_plugin(object, parent, PSET_CLUSTER);
- 	grab_plugin(object, parent, PSET_CRYPTO);
+ 	grab_plugin(object, parent, PSET_CIPHER);
  	grab_plugin(object, parent, PSET_DIGEST);
  	grab_plugin(object, parent, PSET_COMPRESSION);
  	grab_plugin(object, parent, PSET_COMPRESSION_MODE);

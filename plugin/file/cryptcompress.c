@@ -40,11 +40,6 @@ init_inode_data_cryptcompress(struct inode *inode,
 }
 
 #if REISER4_DEBUG
-static int crc_generic_check_ok(void)
-{
-	return MIN_CRYPTO_BLOCKSIZE == DC_CHECKSUM_SIZE << 1;
-}
-
 int crc_inode_ok(struct inode *inode)
 {
 	if (cluster_shift_ok(inode_cluster_shift(inode)))
@@ -107,7 +102,7 @@ static int
 alloc_crypto_tfms(plugin_set * pset, crypto_stat_t * info)
 {
 	struct crypto_tfm * ret = NULL;
-	crypto_plugin * cplug = pset->crypto;
+	cipher_plugin * cplug = pset->cipher;
 	digest_plugin * dplug = pset->digest;
 
 	assert("edward-1363", info != NULL);
@@ -280,7 +275,7 @@ create_crypto_stat(struct inode * object, crypto_data_t * data)
 		goto err;
 	/* Someone can change plugins of the host, so
 	   we keep the original ones it the crypto-stat. */
-	info_set_crypto_plugin(info, inode_crypto_plugin(object));
+	info_set_cipher_plugin(info, inode_cipher_plugin(object));
 	info_set_digest_plugin(info, inode_digest_plugin(object));
 
 	ret = crypto_cipher_setkey(info_cipher_tfm(info),
@@ -355,7 +350,7 @@ int can_inherit_crypto_crc(struct inode *child, struct inode *parent)
 	/* the file being looked up */
 	if (!inode_crypto_stat(parent))
 		return 0;
-	return (inode_crypto_plugin(child) == inode_crypto_plugin(parent) &&
+	return (inode_cipher_plugin(child) == inode_cipher_plugin(parent) &&
 		inode_digest_plugin(child) == inode_digest_plugin(parent) &&
 		inode_crypto_stat(child)->keysize == inode_crypto_stat(parent)->keysize &&
 		keyid_eq(inode_crypto_stat(child), inode_crypto_stat(parent)));
@@ -363,8 +358,8 @@ int can_inherit_crypto_crc(struct inode *child, struct inode *parent)
 
 int need_cipher(struct inode * inode)
 {
-	return inode_crypto_plugin(inode) !=
-		crypto_plugin_by_id(NONE_CRYPTO_ID);
+	return inode_cipher_plugin(inode) !=
+		cipher_plugin_by_id(NONE_CIPHER_ID);
 }
 
 /* returns true, if crypto stat can be attached to the @host */
@@ -394,7 +389,7 @@ static int inode_set_crypto(struct inode * object)
 	}
 	info = reiser4_inode_data(object);
 	info->extmask |= (1 << CRYPTO_STAT);
-	info->plugin_mask |= (1 << PSET_CRYPTO) | (1 << PSET_DIGEST);
+	info->plugin_mask |= (1 << PSET_CIPHER) | (1 << PSET_DIGEST);
  	return 0;
 }
 
@@ -449,7 +444,7 @@ static int inode_set_cluster(struct inode *object)
 	return 0;
 }
 
-/* plugin->create() method for crypto-compressed files
+/* plugin->create() method for cryptcompress files
 
 . install plugins
 . attach crypto info if specified
@@ -468,7 +463,6 @@ create_cryptcompress(struct inode *object, struct inode *parent,
 	assert("edward-30", data != NULL);
 	assert("edward-26", inode_get_flag(object, REISER4_NO_SD));
 	assert("edward-27", data->id == CRC_FILE_PLUGIN_ID);
-	assert("edward-1170", crc_generic_check_ok());
 
 	info = reiser4_inode_data(object);
 
@@ -525,7 +519,7 @@ int open_cryptcompress(struct inode * inode, struct file * file)
 }
 
 static unsigned int
-crypto_blocksize(struct inode * inode)
+cipher_blocksize(struct inode * inode)
 {
 	assert("edward-758", need_cipher(inode));
 	assert("edward-1400", inode_crypto_stat(inode) != NULL);
@@ -544,8 +538,8 @@ static loff_t inode_scaled_offset (struct inode * inode,
 	    src_off == get_key_offset(max_key()))
 		return src_off;
 
-	return inode_crypto_plugin(inode)->scale(inode,
-						 crypto_blocksize(inode),
+	return inode_cipher_plugin(inode)->scale(inode,
+						 cipher_blocksize(inode),
 						 src_off);
 }
 
@@ -805,7 +799,7 @@ need_cut_or_align(struct inode * inode, reiser4_cluster_t * clust,
 	tfm_cluster_t * tc = &clust->tc;
 	switch (rw) {
 	case WRITE_OP: /* estimate align */
-		*oh = tc->len % crypto_blocksize(inode);
+		*oh = tc->len % cipher_blocksize(inode);
 		if (*oh != 0)
 			return 1;
 		break;
@@ -825,7 +819,7 @@ static void
 align_or_cut_overhead(struct inode * inode, reiser4_cluster_t * clust, rw_op rw)
 {
 	int oh;
-	crypto_plugin * cplug = inode_crypto_plugin(inode);
+	cipher_plugin * cplug = inode_cipher_plugin(inode);
 
 	assert("edward-1402", need_cipher(inode));
 
@@ -836,12 +830,12 @@ align_or_cut_overhead(struct inode * inode, reiser4_cluster_t * clust, rw_op rw)
 		clust->tc.len +=
 			cplug->align_stream(tfm_input_data(clust) +
 					    clust->tc.len, clust->tc.len,
-					    crypto_blocksize(inode));
+					    cipher_blocksize(inode));
 		*(tfm_input_data(clust) + clust->tc.len - 1) =
-			crypto_blocksize(inode) - oh;
+			cipher_blocksize(inode) - oh;
 		break;
 	case READ_OP: /* do cut */
-		assert("edward-1403", oh <= crypto_blocksize(inode));
+		assert("edward-1403", oh <= cipher_blocksize(inode));
 		clust->tc.len -= oh;
 		break;
 	default:
@@ -853,11 +847,11 @@ align_or_cut_overhead(struct inode * inode, reiser4_cluster_t * clust, rw_op rw)
 /* the following two functions are to evaluate results
    of compression transform */
 static unsigned
-max_crypto_overhead(struct inode * inode)
+max_cipher_overhead(struct inode * inode)
 {
-	if (!need_cipher(inode) || !inode_crypto_plugin(inode)->align_stream)
+	if (!need_cipher(inode) || !inode_cipher_plugin(inode)->align_stream)
 		return 0;
-	return crypto_blocksize(inode);
+	return cipher_blocksize(inode);
 }
 
 static int deflate_overhead(struct inode *inode)
@@ -903,7 +897,7 @@ static int
 save_compressed(int size_before, int size_after, struct inode * inode)
 {
 	return (size_after + deflate_overhead(inode) +
-		max_crypto_overhead(inode) < size_before);
+		max_cipher_overhead(inode) < size_before);
 }
 
 /* Guess result of the evaluation above */
@@ -927,8 +921,8 @@ need_inflate(reiser4_cluster_t * clust, struct inode *inode,
    in disk clusters:
 
 		   data                   This is (transformed) logical cluster.
-		   crypto_overhead        This is created by ->align() method
-                                          of crypto-plugin. May be absent.
+		   cipher_overhead        This is created by ->align() method
+                                          of cipher plugin. May be absent.
 		   checksum          (4)  This is created by ->checksum method
                                           of compression plugin to check
                                           integrity. May be absent.
@@ -937,7 +931,7 @@ need_inflate(reiser4_cluster_t * clust, struct inode *inode,
 
 		   data
 		   control_byte      (1)   contains aligned overhead size:
-		                           1 <= overhead <= crypto_blksize
+		                           1 <= overhead <= cipher_blksize
 */
 /* Append checksum at the end of input transform stream
    and increase its length */
@@ -1067,12 +1061,12 @@ int deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 		}
 	}
 	if (need_cipher(inode)) {
-		crypto_plugin * ciplug;
+		cipher_plugin * ciplug;
 		struct crypto_tfm * tfm;
 		struct scatterlist src;
 		struct scatterlist dst;
 
-		ciplug = inode_crypto_plugin(inode);
+		ciplug = inode_cipher_plugin(inode);
 		tfm = info_cipher_tfm(inode_crypto_stat(inode));
 		if (compressed)
 			alternate_streams(tc);
@@ -1127,12 +1121,12 @@ int inflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 			return RETERR(-EIO);
 	}
 	if (need_cipher(inode)) {
-		crypto_plugin * ciplug;
+		cipher_plugin * ciplug;
 		struct crypto_tfm * tfm;
 		struct scatterlist src;
 		struct scatterlist dst;
 
-		ciplug = inode_crypto_plugin(inode);
+		ciplug = inode_cipher_plugin(inode);
 		tfm = info_cipher_tfm(inode_crypto_stat(inode));
 		result = grab_tfm_stream(inode, tc, OUTPUT_STREAM);
 		if (result)
@@ -2548,7 +2542,7 @@ set_cluster_by_window(struct inode *inode, reiser4_cluster_t * clust,
 		return result;
 
 	if (file_off > inode->i_size) {
-		/* Uhmm, hole in crypto-file... */
+		/* Uhmm, hole in cryptcompress file... */
 		loff_t hole_size;
 		hole_size = file_off - inode->i_size;
 
@@ -3886,7 +3880,7 @@ load_cryptcompress_plugin(struct inode *inode, reiser4_plugin * plugin,
 	return 0;
 }
 
-static int change_crypto_file(struct inode *inode, reiser4_plugin * plugin)
+static int change_cryptcompress(struct inode *inode, reiser4_plugin * plugin)
 {
 	/* cannot change object plugin of already existing object */
 	return RETERR(-EINVAL);
@@ -3897,7 +3891,7 @@ struct reiser4_plugin_ops cryptcompress_plugin_ops = {
 	.save_len = save_len_cryptcompress_plugin,
 	.save = NULL,
 	.alignment = 8,
-	.change = change_crypto_file
+	.change = change_cryptcompress
 };
 
 /*

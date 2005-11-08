@@ -8,10 +8,11 @@
 #include <linux/types.h>
 #include <linux/random.h>
 
-#define MAX_CRYPTO_BLOCKSIZE 128
+#define MIN_CIPHER_BLOCKSIZE 8
+#define MAX_CIPHER_BLOCKSIZE 128
 
 /*
-  Default align() method of the crypto-plugin (look for description of this
+  Default align() method of the cipher plugin (look for description of this
   method in plugin/plugin.h)
 
   1) creates the aligning armored format of the input flow before encryption.
@@ -26,14 +27,14 @@
 */
 static int align_stream_common(__u8 * pad,
 			       int flow_size /* size of non-aligned flow */,
-			       int blocksize /* crypto-block size */)
+			       int blocksize /* cipher block size */)
 {
 	int pad_size;
 
 	assert("edward-01", pad != NULL);
 	assert("edward-02", flow_size != 0);
 	assert("edward-03", blocksize != 0
-	       || blocksize <= MAX_CRYPTO_BLOCKSIZE);
+	       || blocksize <= MAX_CIPHER_BLOCKSIZE);
 
 	pad_size = blocksize - (flow_size % blocksize);
 	get_random_bytes(pad, pad_size);
@@ -66,11 +67,11 @@ static struct crypto_tfm * alloc_aes (void)
 #endif /* REISER4_AES */
 }
 
-crypto_plugin crypto_plugins[LAST_CRYPTO_ID] = {
-	[NONE_CRYPTO_ID] = {
+cipher_plugin cipher_plugins[LAST_CIPHER_ID] = {
+	[NONE_CIPHER_ID] = {
 		.h = {
-			.type_id = REISER4_CRYPTO_PLUGIN_TYPE,
-			.id = NONE_CRYPTO_ID,
+			.type_id = REISER4_CIPHER_PLUGIN_TYPE,
+			.id = NONE_CIPHER_ID,
 			.pops = NULL,
 			.label = "none",
 			.desc = "no cipher transform",
@@ -84,10 +85,10 @@ crypto_plugin crypto_plugins[LAST_CRYPTO_ID] = {
 		.encrypt = NULL,
 		.decrypt = NULL
 	},
-	[AES_CRYPTO_ID] = {
+	[AES_CIPHER_ID] = {
 		.h = {
-			.type_id = REISER4_CRYPTO_PLUGIN_TYPE,
-			.id = AES_CRYPTO_ID,
+			.type_id = REISER4_CIPHER_PLUGIN_TYPE,
+			.id = AES_CIPHER_ID,
 			.pops = NULL,
 			.label = "aes",
 			.desc = "aes cipher transform",
