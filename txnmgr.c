@@ -2249,7 +2249,9 @@ static void fuse_not_fused_lock_owners(txn_handle * txnh, znode * node)
 			spin_lock_atom(atomh);
 		}
 		if (atomh == atomf || !atom_isopen(atomh) || !atom_isopen(atomf)) {
+			spin_unlock_atom(atomf);
 			atom_dec_and_unlock(atomh);
+			spin_lock_atom(atomf);
 			atom_dec_and_unlock(atomf);
 			goto repeat;
 		}
