@@ -117,10 +117,14 @@ struct uf_coord {
 #include "../../seal.h"
 #include "../../lock.h"
 
-/* structure used to speed up file operations (reads and writes). It contains
- * a seal over last file item accessed. */
+/* This structure is used to speed up file operations (reads and writes).
+ * A hint is a suggestion about where a key resolved to last time.  A seal
+ * indicates whether a node has been modified since a hint was last
+ * recorded.  You check the seal, and if the seal is still valid, you can
+ * use the hint without traversing the tree again.
+ */
 struct hint {
-	seal_t seal;
+	seal_t seal; /* a seal over last file item accessed */
 	uf_coord_t ext_coord;
 	loff_t offset;
 	znode_lock_mode mode;
