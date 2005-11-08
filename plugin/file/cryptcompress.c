@@ -3670,8 +3670,8 @@ int capturepage_cryptcompress(struct page * page) {
 /* plugin->u.file.mmap */
 int mmap_cryptcompress(struct file *file, struct vm_area_struct *vma)
 {
-	return -ENOSYS;
-	//return generic_file_mmap(file, vma);
+	//return -ENOSYS;
+	return generic_file_mmap(file, vma);
 }
 
 /* plugin->u.file.release */
@@ -3831,6 +3831,37 @@ int setattr_cryptcompress(struct dentry *dentry,	/* Object to change attributes 
 			result = 0;
 	} else
 		result = setattr_common(dentry, attr);
+	return result;
+}
+
+/* sendfile_cryptcompress - sendfile of struct file_operations */
+ssize_t
+sendfile_cryptcompress(struct file *file, loff_t *ppos, size_t count,
+		       read_actor_t actor, void *target)
+{
+	reiser4_context *ctx;
+	ssize_t result;
+	struct inode *inode;
+	cryptcompress_info_t *info;
+
+	inode = file->f_dentry->d_inode;
+	ctx = init_context(inode->i_sb);
+	if (IS_ERR(ctx))
+		return PTR_ERR(ctx);
+	/*
+	 * generic_file_sndfile may want to call update_atime. Grab space for
+	 * stat data update
+	 */
+	result = reiser4_grab_space(estimate_update_common(inode),
+				    BA_CAN_COMMIT);
+	if (result)
+		goto exit;
+	info = cryptcompress_inode_data(inode);
+	down_read(&info->lock);
+	result = generic_file_sendfile(file, ppos, count, actor, target);
+	up_read(&info->lock);
+ exit:
+	reiser4_exit_context(ctx);
 	return result;
 }
 

@@ -306,7 +306,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.write = write_cryptcompress,
 			.mmap = mmap_cryptcompress,
 			.fsync = sync_common,
-			.sendfile = sendfile_common
+			.sendfile = sendfile_cryptcompress
 		},
 		.as_ops = {
 			.writepage = reiser4_writepage,
@@ -331,6 +331,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.owns_item = owns_item_common,
 		.can_add_link = can_add_link_common,
 		.detach = dummyop,
+		.bind = dummyop,
 		.safelink = safelink_common,
 		.estimate = {
 			.create = estimate_create_common,
