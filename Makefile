@@ -44,8 +44,6 @@ reiser4-y := \
 		   emergency_flush.o \
 		   entd.o\
 		   readahead.o \
-		   cluster.o \
-		   crypt.o \
 		   status_flags.o \
 		   init_super.o \
 		   safe_link.o \
@@ -54,6 +52,7 @@ reiser4-y := \
 		   plugin/plugin_set.o \
 		   plugin/node/node.o \
 		   plugin/object.o \
+		   plugin/cluster.o \
 		   plugin/inode_ops.o \
 		   plugin/inode_ops_rename.o \
 		   plugin/file_ops.o \
@@ -66,8 +65,10 @@ reiser4-y := \
 		   plugin/dir_plugin_common.o \
 		   plugin/dir/hashed_dir.o \
 		   plugin/dir/seekable_dir.o \
-		   plugin/digest.o \
 		   plugin/node/node40.o \
+           \
+		   plugin/crypto/cipher.o \
+		   plugin/crypto/digest.o \
            \
 		   plugin/compress/minilzo.o \
 		   plugin/compress/compress.o \

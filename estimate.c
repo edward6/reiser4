@@ -5,7 +5,7 @@
 #include "tree.h"
 #include "carry.h"
 #include "inode.h"
-#include "cluster.h"
+#include "plugin/cluster.h"
 #include "plugin/item/ctail.h"
 
 /* this returns how many nodes might get dirty and added nodes if @children nodes are dirtied

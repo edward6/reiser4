@@ -30,7 +30,7 @@ Internal on-disk structure:
 #include "../../super.h"
 #include "../../context.h"
 #include "../../page_cache.h"
-#include "../../cluster.h"
+#include "../cluster.h"
 #include "../../flush.h"
 #include "../../tree_walk.h"
 #include "../file/funcs.h"

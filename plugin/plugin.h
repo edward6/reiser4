@@ -11,7 +11,7 @@
 #include "../dformat.h"
 #include "../key.h"
 #include "compress/compress.h"
-#include "../crypt.h"
+#include "crypto/cipher.h"
 #include "plugin_header.h"
 #include "item/static_stat.h"
 #include "item/internal.h"

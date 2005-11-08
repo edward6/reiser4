@@ -2,10 +2,10 @@
 
 /* reiser4 digest transform plugin (is used by cryptcompress object plugin) */
 /* EDWARD-FIXME-HANS: and it does what? a digest is a what? */
-#include "../debug.h"
-#include "plugin_header.h"
-#include "plugin.h"
-#include "file/cryptcompress.h"
+#include "../../debug.h"
+#include "../plugin_header.h"
+#include "../plugin.h"
+#include "../file/cryptcompress.h"
 
 #include <linux/types.h>
 

@@ -4,9 +4,9 @@
    http://www.namesys.com/cryptcompress_design.html
    "Concepts of clustering" for details). */
 
-#include "plugin/plugin_header.h"
-#include "plugin/plugin.h"
-#include "inode.h"
+#include "plugin_header.h"
+#include "plugin.h"
+#include "../inode.h"
 
 static int change_cluster(struct inode *inode, reiser4_plugin * plugin)
 {

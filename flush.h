@@ -5,7 +5,7 @@
 #if !defined(__REISER4_FLUSH_H__)
 #define __REISER4_FLUSH_H__
 
-#include "cluster.h"
+#include "plugin/cluster.h"
 
 /* The flush_scan data structure maintains the state of an in-progress flush-scan on a
    single level of the tree.  A flush-scan is used for counting the number of adjacent

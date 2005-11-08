@@ -5,7 +5,7 @@
 #define __FS_REISER4_CRYPTCOMPRESS_H__
 
 #include "../compress/compress.h"
-#include "../../crypt.h"
+#include "../crypto/cipher.h"
 
 #include <linux/pagemap.h>
 #include <linux/vmalloc.h>

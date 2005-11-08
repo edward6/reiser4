@@ -6,7 +6,7 @@
 #if !defined( __FS_REISER4_CLUSTER_H__ )
 #define __FS_REISER4_CLUSTER_H__
 
-#include "inode.h"
+#include "../inode.h"
 
 static inline loff_t min_count(loff_t a, loff_t b)
 {

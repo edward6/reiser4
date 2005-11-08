@@ -2,9 +2,9 @@
    licensing governed by reiser4/README */
 /* Reiser4 cipher transform plugins */
 
-#include "debug.h"
-#include "plugin/plugin.h"
-#include "plugin/file/cryptcompress.h"
+#include "../../debug.h"
+#include "../plugin.h"
+#include "../file/cryptcompress.h"
 #include <linux/types.h>
 #include <linux/random.h>
 
