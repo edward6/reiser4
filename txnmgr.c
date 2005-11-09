@@ -1868,6 +1868,8 @@ static int try_capture_block(
 	assert_spin_locked(&(node->guard));
 	block_atom = node->atom;
 
+	if (block_atom == NULL && !(mode & TXN_CAPTURE_WTYPES))
+		return 0;
 	/* Get txnh spinlock, this allows us to compare txn_atom pointers but it doesn't
 	   let us touch the atoms themselves. */
 	spin_lock_txnh(txnh);
