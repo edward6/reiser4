@@ -792,13 +792,8 @@ void forget_znode(lock_handle * handle)
 	 * invalidation does not allow other threads to waste cpu time is a busy
 	 * loop, trying to lock dying object.  The exception is in the flush
 	 * code when we take node directly from atom's capture list.*/
-
-	write_unlock_zlock(&node->lock);
-	/* and, remove from atom's capture list. */
-	uncapture_znode(node);
-	write_lock_zlock(&node->lock);
-
 	invalidate_lock(handle);
+	uncapture_znode(node);
 }
 
 /* Check that internal item at @pointer really contains pointer to @child. */
