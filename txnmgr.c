@@ -1868,8 +1868,6 @@ static int try_capture_block(
 	assert_spin_locked(&(node->guard));
 	block_atom = node->atom;
 
-	if (block_atom == NULL && !(mode & TXN_CAPTURE_WTYPES))
-		return 0;
 	/* Get txnh spinlock, this allows us to compare txn_atom pointers but it doesn't
 	   let us touch the atoms themselves. */
 	spin_lock_txnh(txnh);
@@ -1904,14 +1902,14 @@ static int try_capture_block(
 			return RETERR(-E_REPEAT);
 		}
 	} else {
-		if (		// txnh_atom->stage >= ASTAGE_CAPTURE_WAIT &&
-			   jnode_is_znode(node) && znode_is_locked(JZNODE(node))
-			   && JF_ISSET(node, JNODE_MISSED_IN_CAPTURE)) {
-			spin_unlock_txnh(txnh);
+		if (JF_ISSET(node, JNODE_MISSED_IN_CAPTURE)) {
 			JF_CLR(node, JNODE_MISSED_IN_CAPTURE);
-			spin_unlock_jnode(node);
-			fuse_not_fused_lock_owners(txnh, JZNODE(node));
-			return RETERR(-E_REPEAT);
+			if (jnode_is_znode(node) && znode_is_locked(JZNODE(node))) {
+				spin_unlock_txnh(txnh);
+				spin_unlock_jnode(node);
+				fuse_not_fused_lock_owners(txnh, JZNODE(node));
+				return RETERR(-E_REPEAT);
+			}
 		}
 		if (block_atom == NULL) {
 			atomic_inc(&txnh_atom->refcount);
@@ -1975,10 +1973,6 @@ build_capture_mode(jnode * node, znode_lock_mode lock_mode, txn_capture flags)
 		/* In this case (read lock at a non-leaf) there's no reason to
 		 * capture. */
 		/* cap_mode = TXN_CAPTURE_READ_NONCOM; */
-
-		/* Mark this node as "MISSED".  It helps in further deadlock
-		 * analysis */
-		JF_SET(node, JNODE_MISSED_IN_CAPTURE);
 		return 0;
 	}
 
@@ -2015,8 +2009,14 @@ int try_capture(jnode * node, znode_lock_mode lock_mode,
 	if (node->atom != NULL && txnh->atom == node->atom)
 		return 0;
 	cap_mode = build_capture_mode(node, lock_mode, flags);
-	if (cap_mode == 0)
+	if (cap_mode == 0 ||
+	    !((cap_mode & TXN_CAPTURE_WTYPES) && node->atom == NULL)) {
+		/* Mark this node as "MISSED".  It helps in further deadlock
+		 * analysis */
+		if (jnode_is_znode(node))
+			JF_SET(node, JNODE_MISSED_IN_CAPTURE);
 		return 0;
+	}
 	/* Repeat try_capture as long as -E_REPEAT is returned. */
 	ret = try_capture_block(txnh, node, cap_mode, &atom_alloc);
 	/* Regardless of non_blocking:
