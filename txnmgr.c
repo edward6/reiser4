@@ -2010,7 +2010,7 @@ int try_capture(jnode * node, znode_lock_mode lock_mode,
 		return 0;
 	cap_mode = build_capture_mode(node, lock_mode, flags);
 	if (cap_mode == 0 ||
-	    !((cap_mode & TXN_CAPTURE_WTYPES) && node->atom == NULL)) {
+	    (!(cap_mode & TXN_CAPTURE_WTYPES) && node->atom == NULL)) {
 		/* Mark this node as "MISSED".  It helps in further deadlock
 		 * analysis */
 		if (jnode_is_znode(node))
