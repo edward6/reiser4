@@ -252,10 +252,9 @@ static void wake_up_all_lopri_owners(znode * node)
 		if (!handle->signaled) {
 			handle->signaled = 1;
 			atomic_inc(&handle->owner->nr_signaled);
+			/* Wake up a single process */
+			__reiser4_wake_up(handle->owner);
 		}
-		/* Wake up a single process */
-		__reiser4_wake_up(handle->owner);
-
 		spin_unlock_stack(handle->owner);
 	}
 }
