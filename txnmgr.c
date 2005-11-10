@@ -1894,7 +1894,7 @@ static int try_capture_block(
 			atomic_dec(&block_atom->refcount);
 			if (block_atom->stage > ASTAGE_CAPTURE_WAIT ||
 			    (block_atom->stage == ASTAGE_CAPTURE_WAIT &&
-			     block_atom->txnh_count == 0))
+			     block_atom->txnh_count != 0))
 				return capture_fuse_wait(txnh, block_atom, NULL, mode);
 			capture_assign_txnh_nolock(block_atom, txnh);
 			spin_unlock_txnh(txnh);
