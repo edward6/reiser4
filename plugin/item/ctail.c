@@ -619,7 +619,6 @@ int do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 		assert("edward-1290", 0);
 		return RETERR(-EINVAL);
 	}
-
 	assert("edward-119", tfm_cluster_is_uptodate(tc));
 
 	switch (clust->dstat) {
