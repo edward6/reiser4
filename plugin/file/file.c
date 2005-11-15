@@ -1504,6 +1504,7 @@ writepages_unix_file(struct address_space *mapping,
 	uf_info = unix_file_inode_data(inode);
 	do {
 		reiser4_context *ctx;
+		int dont_get_nea;
 
 		if (wbc->sync_mode != WB_SYNC_ALL)
 			to_capture = min(wbc->nr_to_write, CAPTURE_APAGE_BURST);
@@ -1518,23 +1519,36 @@ writepages_unix_file(struct address_space *mapping,
 		/* avoid recursive calls to ->sync_inodes */
 		ctx->nobalance = 1;
 		assert("zam-760", lock_stack_isclean(get_current_lock_stack()));
-		/*
-		 * locking: creation of extent requires read-semaphore on
-		 * file. _But_, this function can also be called in the
-		 * context of write system call from
-		 * balance_dirty_pages(). So, write keeps semaphore (possible
-		 * in write mode) on file A, and this function tries to
-		 * acquire semaphore on (possibly) different file B. A/B
-		 * deadlock is on a way. To avoid this try-lock is used
-		 * here. When invoked from sys_fsync() and sys_fdatasync(),
-		 * this function is out of reiser4 context and may safely
-		 * sleep on semaphore.
-		 */
 		assert("", LOCK_CNT_NIL(inode_sem_w));
 		assert("", LOCK_CNT_NIL(inode_sem_r));
 
 		txn_restart_current();
-		get_nonexclusive_access(uf_info, 0);
+
+		/*
+		 * suppose thread T1 has got nonexlusive access (NEA) on a file
+		 * F, asked entd to flush to reclaim some memory and waits
+		 * until entd completes. Another thread T2 tries to get
+		 * exclusive access to file F. Then entd will deadlock on
+		 * getting NEA to file F (because read-down request get blocked
+		 * if there is write request in a queue in linux read-write
+		 * semaphore implementation). To avoid this problem we make
+		 * entd to not get NEA to F if it is obtained by T1.
+		 */
+		dont_get_nea = 0;
+		if (get_current_context()->entd) {
+			entd_context *ent = get_entd_context(inode->i_sb);
+
+			if (ent->cur_request->caller != NULL &&
+			    mapping == ent->cur_request->caller->vp)
+				/*
+				 * process which is waiting for entd has got
+				 * NEA on a file we are about to capture pages
+				 * of. Skip getting NEA therefore.
+				 */
+				dont_get_nea = 1;
+		}
+		if (dont_get_nea == 0)
+			get_nonexclusive_access(uf_info, 0);
 		while (to_capture > 0) {
 			pgoff_t start;
 
@@ -1574,7 +1588,8 @@ writepages_unix_file(struct address_space *mapping,
 			/* there may be left more pages */
 			__mark_inode_dirty(inode, I_DIRTY_PAGES);
 
-		drop_nonexclusive_access(uf_info);
+		if (dont_get_nea == 0)
+			drop_nonexclusive_access(uf_info);
 		if (result < 0) {
 			/* error happened */
 			reiser4_exit_context(ctx);
@@ -2302,15 +2317,15 @@ static int check_pages_unix_file(struct inode *inode)
 	return unpack(inode, 0 /* not forever */ );
 }
 
-/* implentation of vfs' mmap method of struct file_operations for unix file
-   plugin
-
-   make sure that file is built of extent blocks. An estimation is in
-   tail2extent
-
-   This sets inode flags: file has mapping. if file is mmaped with VM_MAYWRITE
-   - invalidate pages and convert.
-*/
+/**
+ * mmap_unix_file - mmap of struct file_operations
+ * @file: file to mmap
+ * @vma: 
+ *
+ * This is implementation of vfs's mmap method of struct file_operations for
+ * unix file plugin. It converts file to extent if necessary. Sets
+ * reiser4_inode's flag - REISER4_HAS_MMAP.
+ */
 int mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 {
 	reiser4_context *ctx;
@@ -2324,25 +2339,17 @@ int mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 
-	/*
-	 * generic_file_mmap will do update_atime. Grab space for stat data
-	 * update
-	 */
-	needed = inode_file_plugin(inode)->estimate.update(inode);
-	result = reiser4_grab_space(needed, BA_CAN_COMMIT);
-	if (result) {
-		reiser4_exit_context(ctx);
-		return result;
-	}
-
 	uf_info = unix_file_inode_data(inode);
 
 	down(&uf_info->write);
 	get_exclusive_access(uf_info);
 
 	if (!IS_RDONLY(inode) && (vma->vm_flags & (VM_MAYWRITE | VM_SHARED))) {
-		/* we need file built of extent items. If it is still built of tail items we have to convert it. Find
-		   what items the file is built of */
+		/*
+		 * we need file built of extent items. If it is still built of
+		 * tail items we have to convert it. Find what items the file
+		 * is built of
+		 */
 		result = finish_conversion(inode);
 		if (result) {
 			drop_exclusive_access(uf_info);
@@ -2363,7 +2370,10 @@ int mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 				   uf_info->container == UF_CONTAINER_EXTENTS ||
 				   uf_info->container == UF_CONTAINER_EMPTY));
 		if (uf_info->container == UF_CONTAINER_TAILS) {
-			/* invalidate all pages and convert file from tails to extents */
+			/*
+			 * invalidate all pages and convert file from tails to
+			 * extents
+			 */
 			result = check_pages_unix_file(inode);
 			if (result) {
 				drop_exclusive_access(uf_info);
@@ -2372,6 +2382,19 @@ int mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 				return result;
 			}
 		}
+	}
+
+	/*
+	 * generic_file_mmap will do update_atime. Grab space for stat data
+	 * update.
+	 */
+	needed = inode_file_plugin(inode)->estimate.update(inode);
+	result = reiser4_grab_space_force(needed, BA_CAN_COMMIT);
+	if (result) {
+		drop_exclusive_access(uf_info);
+		up(&uf_info->write);
+		reiser4_exit_context(ctx);
+		return result;
 	}
 
 	result = generic_file_mmap(file, vma);
@@ -3001,8 +3024,14 @@ int delete_object_unix_file(struct inode *inode)
 	unix_file_info_t *uf_info;
 	int result;
 
-	assert("", (get_current_context() &&
-		    get_current_context()->trans->atom == NULL));
+	/*
+	 * transaction can be open already. For example:
+	 * writeback_inodes->sync_sb_inodes->reiser4_sync_inodes->
+	 * generic_sync_sb_inodes->iput->generic_drop_inode->
+	 * generic_delete_inode->reiser4_delete_inode->delete_object_unix_file.
+	 * So, restart transaction to avoid deadlock with file rw semaphore.
+	 */
+	txn_restart_current();
 
 	if (inode_get_flag(inode, REISER4_NO_SD))
 		return 0;

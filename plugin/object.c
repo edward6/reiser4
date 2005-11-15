@@ -202,7 +202,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.linkage = {NULL,NULL}
 		},
 		.inode_ops = {
-			.readlink = readlink_common,
+			.readlink = generic_readlink,
 			.follow_link = follow_link_common,
 			.permission = permission_common,
 			.setattr = setattr_common,

@@ -720,7 +720,6 @@ static int write_jnodes_to_disk_extent(
 	flush_queue_t *fq, int flags)
 {
 	struct super_block *super = reiser4_get_current_sb();
-	int for_reclaim = flags & WRITEOUT_FOR_PAGE_RECLAIM;
 	int write_op = ( flags & WRITEOUT_BARRIER ) ? WRITE_BARRIER : WRITE;
 	int max_blocks;
 	jnode *cur = first;
@@ -781,10 +780,48 @@ static int write_jnodes_to_disk_extent(
 
 			ClearPageError(pg);
 			set_page_writeback(pg);
-			if (for_reclaim)
-				ent_writes_page(super, pg);
-			/* clear DIRTY or REISER4_MOVED tag if it is set */
-			reiser4_clear_page_dirty(pg);
+
+			if (get_current_context()->entd) {
+				/* this is ent thread */
+				entd_context *ent = get_entd_context(super);
+				struct wbq *rq, *next;
+
+				spin_lock(&ent->guard);
+
+				if (pg == ent->cur_request->page) {
+					/*
+					 * entd is called for this page. This
+					 * request is not in th etodo list
+					 */
+					ent->cur_request->written = 1;
+				} else {
+					/*
+					 * if we have written a page for which writepage
+					 * is called for - move request to another list.
+					 */
+					list_for_each_entry_safe(rq, next, &ent->todo_list, link) {
+						assert("", rq->magic == WBQ_MAGIC);
+						if (pg == rq->page) {
+							/*
+							 * remove request from
+							 * entd's queue, but do
+							 * not wake up a thread
+							 * which put this
+							 * request
+							 */
+							list_del_init(&rq->link);
+							ent->nr_todo_reqs --;
+							list_add_tail(&rq->link, &ent->done_list);
+							ent->nr_done_reqs ++;
+							rq->written = 1;
+							break;
+						}
+					}
+				}
+				spin_unlock(&ent->guard);
+			}
+
+			clear_page_dirty_for_io(pg);
 
 			unlock_page(pg);
 

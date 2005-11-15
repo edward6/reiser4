@@ -47,26 +47,6 @@
 
 /* address space operations */
 
-/* clear PAGECACHE_TAG_DIRTY tag of a page. This is used in uncapture_page.  This resembles test_clear_page_dirty. The
-   only difference is that page's mapping exists and REISER4_MOVED tag is checked */
-void reiser4_clear_page_dirty(struct page *page)
-{
-	struct address_space *mapping;
-	unsigned long flags;
-
-	mapping = page->mapping;
-	BUG_ON(mapping == NULL);
-
-	read_lock_irqsave(&mapping->tree_lock, flags);
-	if (TestClearPageDirty(page)) {
-		read_unlock_irqrestore(&mapping->tree_lock, flags);
-		if (mapping_cap_account_dirty(mapping))
-			dec_page_state(nr_dirty);
-		return;
-	}
-	read_unlock_irqrestore(&mapping->tree_lock, flags);
-}
-
 /**
  * reiser4_set_page_dirty - set dirty bit, tag in page tree, dirty accounting
  * @page: page to be dirtied

@@ -488,10 +488,6 @@ int lookup_name(struct inode *parent,	/* inode of directory to lookup for
 	assert("vs-1486",
 	       dentry->d_op == &get_super_private(parent->i_sb)->ops.dentry);
 
-	result = perm_chk(parent, lookup, parent, dentry);
-	if (result != 0)
-		return 0;
-
 	name = dentry->d_name.name;
 	len = dentry->d_name.len;
 

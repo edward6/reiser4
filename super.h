@@ -320,6 +320,13 @@ static inline reiser4_super_info_data *get_super_private(const struct
 	return (reiser4_super_info_data *) super->s_fs_info;
 }
 
+/* get ent context for the @super */
+static inline entd_context *get_entd_context(struct super_block *super)
+{
+	return &get_super_private(super)->entd;
+}
+
+
 /* "Current" super-block: main super block used during current system
    call. Reference to this super block is stored in reiser4_context. */
 static inline struct super_block *reiser4_get_current_sb(void)

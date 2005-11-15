@@ -13,14 +13,19 @@
 #include <linux/spinlock.h>
 #include <linux/sched.h>	/* for struct task_struct */
 
+#define WBQ_MAGIC 0x7876dc76
+
 /* write-back request. */
 struct wbq {
+	int magic;
 	struct list_head link; /* list head of this list is in entd context */
 	struct writeback_control *wbc;
 	struct page *page;
+	struct address_space *mapping;
 	struct semaphore sem;
-	int nr_entd_iters;
-	unsigned int phantom:1;
+	jnode *node; /* set if ent thread captured requested page */
+	int written; /* set if ent thread wrote requested page */
+	reiser4_context *caller;
 };
 
 /* ent-thread context. This is used to synchronize starting/stopping ent
@@ -37,13 +42,28 @@ typedef struct entd_context {
 	int done;
 	/* counter of active flushers */
 	int flushers;
+	/*
+	 * when reiser4_writepage asks entd to write a page - it adds struct
+	 * wbq to this list
+	 */
+	struct list_head todo_list;
+	/* number of elements on the above list */
+	int nr_todo_reqs;
+
+	struct wbq *cur_request;
+	/*
+	 * when entd writes a page it moves write-back request from todo_list
+	 * to done_list. This list is used at the end of entd iteration to
+	 * wakeup requestors and iput inodes.
+	 */
+	struct list_head done_list;
+	/* number of elements on the above list */
+	int nr_done_reqs;
+
 #if REISER4_DEBUG
 	/* list of all active flushers */
 	struct list_head flushers_list;
 #endif
-	int nr_all_requests;
-	int nr_synchronous_requests;
-	struct list_head wbq_list; /* struct wbq are elements of this list */
 } entd_context;
 
 extern int  init_entd(struct super_block *);

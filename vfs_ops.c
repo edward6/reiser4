@@ -141,13 +141,6 @@ static void reiser4_d_release(struct dentry *dentry /* dentry released */ )
 	reiser4_free_dentry_fsdata(dentry);
 }
 
-
-
-/* initialization and shutdown */
-
-
-
-
 /*
  * Called by reiser4_sync_inodes(), during speculative write-back (through
  * pdflush, or balance_dirty_pages()).
@@ -175,8 +168,7 @@ void writeout(struct super_block *sb, struct writeback_control *wbc)
 	mapping = get_super_fake(sb)->i_mapping;
 	do {
 		long nr_submitted = 0;
-		struct wbq * rq;
-		jnode * node = NULL;
+		jnode *node = NULL;
 
 		/* do not put more requests to overload write queue */
 		if (wbc->nonblocking &&
@@ -188,15 +180,22 @@ void writeout(struct super_block *sb, struct writeback_control *wbc)
 		repeats++;
 		BUG_ON(wbc->nr_to_write <= 0);
 
-		rq = get_wbq(sb);
-		node = get_jnode_by_wbq(sb, rq);
+		if (get_current_context()->entd) {
+			entd_context *ent = get_entd_context(sb);
 
-		result = flush_some_atom(
-			node, &nr_submitted, wbc, JNODE_FLUSH_WRITE_BLOCKS);
+			if (ent->cur_request->node)
+				/*
+				 * this is ent thread and it managed to capture
+				 * requested page itself - start flush from
+				 * that page
+				 */
+				node = jref(ent->cur_request->node);
+		}
+
+		result = flush_some_atom(node, &nr_submitted, wbc,
+					 JNODE_FLUSH_WRITE_BLOCKS);
 		if (result != 0)
 			warning("nikita-31001", "Flush failed: %i", result);
-		if (rq)
-			put_wbq(sb, rq);
 		if (node)
 			jput(node);
 		if (!nr_submitted)

@@ -626,7 +626,7 @@ static struct {
 	},
 	[PSET_PERM] = {
 		.type = REISER4_PERM_PLUGIN_TYPE,
-		.id = RWX_PERM_ID
+		.id = NULL_PERM_ID
 	},
 	[PSET_FORMATTING] = {
 		.type = REISER4_FORMATTING_PLUGIN_TYPE,

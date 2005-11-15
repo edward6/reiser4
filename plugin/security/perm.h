@@ -65,19 +65,8 @@ typedef struct perm_plugin {
 	int (*rename_ok) (struct inode * old_dir, struct dentry * old,
 			  struct inode * new_dir, struct dentry * new);
 } perm_plugin;
-/* NIKITA-FIXME-HANS: I really hate things like this that kill the ability of Meta-. to work.  Please eliminate this macro, exce */
-/* call ->check_ok method of perm plugin for inode */
-#define perm_chk(inode, check, ...)			\
-({							\
-	perm_plugin *perm;				\
-							\
-	perm = inode_perm_plugin(inode);		\
-	(perm == NULL || perm->check ## _ok == NULL) ?	\
-		0 :					\
-		perm->check ## _ok(__VA_ARGS__);	\
-})
 
-typedef enum { RWX_PERM_ID, LAST_PERM_ID } reiser4_perm_id;
+typedef enum { NULL_PERM_ID, LAST_PERM_ID } reiser4_perm_id;
 
 /* __REISER4_PERM_H__ */
 #endif

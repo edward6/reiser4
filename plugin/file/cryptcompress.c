@@ -1276,7 +1276,7 @@ static void set_cluster_pages_dirty(reiser4_cluster_t * clust)
 
 		assert("edward-1065", PageUptodate(pg));
 
-		set_page_dirty_internal(pg, 0);
+		set_page_dirty_internal(pg);
 
 		if (!PageReferenced(pg))
 			SetPageReferenced(pg);
@@ -1297,7 +1297,7 @@ static void clear_cluster_pages_dirty(reiser4_cluster_t * clust)
 		lock_page(clust->pages[i]);
 		if (PageDirty(clust->pages[i])) {
 			assert("edward-1277", PageUptodate(clust->pages[i]));
-			reiser4_clear_page_dirty(clust->pages[i]);
+			clear_page_dirty_for_io(clust->pages[i]);
 		}
 #if REISER4_DEBUG
 		else

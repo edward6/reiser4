@@ -141,23 +141,6 @@ int link_common(struct dentry *existing, struct inode *parent,
 		return RETERR(-E_REPEAT);
 	}
 
-	/* links to directories are not allowed if file-system logical
-	   name-space should be ADG */
-	if (S_ISDIR(object->i_mode)
-	    && reiser4_is_set(parent->i_sb, REISER4_ADG)) {
-		context_set_commit_async(ctx);
-		reiser4_exit_context(ctx);
-		return RETERR(-EISDIR);
-	}
-
-	/* check permissions */
-	result = perm_chk(parent, link, existing, parent, newname);
-	if (result != 0) {
-		context_set_commit_async(ctx);
-		reiser4_exit_context(ctx);
-		return result;
-	}
-
 	parent_dplug = inode_dir_plugin(parent);
 
 	memset(&entry, 0, sizeof entry);
@@ -400,25 +383,6 @@ int mknod_common(struct inode *parent, struct dentry *dentry,
  */
 
 /**
- * readlink_common - readlink of inode operations
- * @dentry: dentry of symlink
- * @buf: user buffer to read symlink content to
- * @buflen: size of user buffer
- *
- * This is common implementation of vfs's readlink method of struct
- * inode_operations.
- * Assumes that inode's generic_ip points to the content of symbolic link.
- */
-int readlink_common(struct dentry *dentry, char __user *buf, int buflen)
-{
-	assert("vs-852", S_ISLNK(dentry->d_inode->i_mode));
-	if (!dentry->d_inode->u.generic_ip
-	    || !inode_get_flag(dentry->d_inode, REISER4_GENERIC_PTR_USED))
-		return RETERR(-EINVAL);
-	return vfs_readlink(dentry, buf, buflen, dentry->d_inode->u.generic_ip);
-}
-
-/**
  * follow_link_common - follow_link of inode operations
  * @dentry: dentry of symlink
  * @data:
@@ -438,20 +402,18 @@ void *follow_link_common(struct dentry *dentry, struct nameidata *nd)
 	return NULL;
 }
 
-/* this is common implementation of vfs's permission method of struct
-   inode_operations
-*/
-int permission_common(struct inode *inode /* object */ ,
-		      int mask,	/* mode bits to check permissions for */
+/**
+ * permission_common - permission of inode operations
+ * @inode: inode to check permissions for
+ * @mask: mode bits to check permissions for
+ * @nameidata:
+ *
+ * Uses generic function to check for rwx permissions.
+ */
+int permission_common(struct inode *inode, int mask,
 		      struct nameidata *nameidata)
 {
-	/* reiser4_context creation/destruction removed from here,
-	   because permission checks currently don't require this.
-
-	   Permission plugin have to create context itself if necessary. */
-	assert("nikita-1687", inode != NULL);
-
-	return perm_chk(inode, mask, inode, mask);
+	return generic_permission(inode, mask, NULL);
 }
 
 static int setattr_reserve(reiser4_tree *);
@@ -596,11 +558,6 @@ static int do_create_vfs_child(reiser4_object_create_data * data,	/* parameters 
 
 	assert("nikita-1418", parent != NULL);
 	assert("nikita-1419", dentry != NULL);
-
-	/* check permissions */
-	result = perm_chk(parent, create, parent, dentry, data);
-	if (result != 0)
-		return result;
 
 	/* check, that name is acceptable for parent */
 	par_dir = inode_dir_plugin(parent);
@@ -900,11 +857,6 @@ static int unlink_check_and_grab(struct inode *parent, struct dentry *victim)
 		return RETERR(-E_REPEAT);
 	/* object being deleted should have stat data */
 	assert("vs-949", !inode_get_flag(child, REISER4_NO_SD));
-
-	/* check permissions */
-	result = perm_chk(parent, unlink, parent, victim);
-	if (result != 0)
-		return result;
 
 	/* ask object plugin */
 	if (fplug->can_rem_link != NULL && !fplug->can_rem_link(child))

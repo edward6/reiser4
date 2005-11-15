@@ -461,7 +461,7 @@ static struct bio *page_bio(struct page *page, jnode * node, int rw,
 }
 
 /* this function is internally called by jnode_make_dirty() */
-int set_page_dirty_internal(struct page *page, int tag_as_moved)
+int set_page_dirty_internal(struct page *page)
 {
 	struct address_space *mapping;
 
@@ -560,7 +560,7 @@ int reiser4_writepage(struct page *page /* page to start writeback from */ ,
 		 * list when clearing dirty flag. So it is enough to
 		 * just set dirty bit.
 		 */
-		set_page_dirty_internal(page, 0);
+		set_page_dirty_internal(page);
 		unlock_page(page);
 	}
 	return result;
@@ -626,7 +626,7 @@ static struct address_space_operations formatted_fake_as_ops = {
 void drop_page(struct page *page)
 {
 	assert("nikita-2181", PageLocked(page));
-	clear_page_dirty(page);
+	clear_page_dirty_for_io(page);
 	ClearPageUptodate(page);
 #if defined(PG_skipped)
 	ClearPageSkipped(page);

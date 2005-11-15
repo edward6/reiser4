@@ -42,9 +42,11 @@ void init_inode_data_unix_file(struct inode *, reiser4_object_create_data *,
 			       int create);
 int delete_object_unix_file(struct inode *);
 
-/* all the write into unix file is performed by item write method. Write method
-   of unix file plugin only decides which item plugin (extent or tail) and in
-   which mode (one from the enum below) to call */
+/*
+ * all the write into unix file is performed by item write method. Write method
+ * of unix file plugin only decides which item plugin (extent or tail) and in
+ * which mode (one from the enum below) to call
+ */
 typedef enum {
 	FIRST_ITEM = 1,
 	APPEND_ITEM = 2,
@@ -64,23 +66,29 @@ struct inode;
 
 /* unix file plugin specific part of reiser4 inode */
 typedef struct unix_file_info {
-	/* this read-write lock protects file containerization change. Accesses
-	   which do not change file containerization (see file_container_t)
-	   (read, readpage, writepage, write (until tail conversion is
-	   involved)) take read-lock. Accesses which modify file
-	   containerization (truncate, conversion from tail to extent and back)
-	   take write-lock. */
+	/*
+	 * this read-write lock protects file containerization change. Accesses
+	 * which do not change file containerization (see file_container_t)
+	 * (read, readpage, writepage, write (until tail conversion is
+	 * involved)) take read-lock. Accesses which modify file
+	 * containerization (truncate, conversion from tail to extent and back)
+	 * take write-lock.
+	 */
 	struct rw_semaphore latch;
-	/* this semaphore is used to serialize writes instead of inode->i_sem,
-	   because write_unix_file uses get_user_pages which is to be used
-	   under mm->mmap_sem and because it is required to take mm->mmap_sem
-	   before inode->i_sem, so inode->i_sem would have to be up()-ed before
-	   calling to get_user_pages which is unacceptable */
+	/*
+	 * this semaphore is used to serialize writes instead of inode->i_sem,
+	 * because write_unix_file uses get_user_pages which is to be used
+	 * under mm->mmap_sem and because it is required to take mm->mmap_sem
+	 * before inode->i_sem, so inode->i_sem would have to be up()-ed before
+	 * calling to get_user_pages which is unacceptable
+	 */
 	struct semaphore write;
 	/* this enum specifies which items are used to build the file */
 	file_container_t container;
-	/* plugin which controls when file is to be converted to extents and
-	   back to tail */
+	/*
+	 * plugin which controls when file is to be converted to extents and
+	 * back to tail
+	 */
 	struct formatting_plugin *tplug;
 	/* if this is set, file is in exclusive use */
 	int exclusive_use;
@@ -117,11 +125,12 @@ struct uf_coord {
 #include "../../seal.h"
 #include "../../lock.h"
 
-/* This structure is used to speed up file operations (reads and writes).
- * A hint is a suggestion about where a key resolved to last time.  A seal
- * indicates whether a node has been modified since a hint was last
- * recorded.  You check the seal, and if the seal is still valid, you can
- * use the hint without traversing the tree again.
+/*
+ * This structure is used to speed up file operations (reads and writes).  A
+ * hint is a suggestion about where a key resolved to last time.  A seal
+ * indicates whether a node has been modified since a hint was last recorded.
+ * You check the seal, and if the seal is still valid, you can use the hint
+ * without traversing the tree again.
  */
 struct hint {
 	seal_t seal; /* a seal over last file item accessed */
@@ -207,12 +216,12 @@ extern reiser4_plugin_ops cryptcompress_plugin_ops;
 #endif
 
 /*
-   Local variables:
-   c-indentation-style: "K&R"
-   mode-name: "LC"
-   c-basic-offset: 8
-   tab-width: 8
-   fill-column: 120
-   scroll-step: 1
-   End:
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 79
+ * scroll-step: 1
+ * End:
 */

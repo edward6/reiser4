@@ -57,11 +57,19 @@ void get_nonexclusive_access(unix_file_info_t * uf_info, int atom_may_exist)
 		    get_current_context()->trans->atom == NULL));
 	BUG_ON(atom_may_exist == 0
 	       && get_current_context()->trans->atom != NULL);
+	assert("", get_current_context()->vp == NULL);
+
 	down_read(&uf_info->latch);
+	/* 
+	 * this is to avoid rwsem deadlock on ent thread. See comment in
+	 * writepages_unix_file
+	 */
+	get_current_context()->vp = unix_file_info_to_inode(uf_info)->i_mapping;
+
 	LOCK_CNT_INC(inode_sem_r);
 	assert("vs-1716", uf_info->ea_owner == NULL);
-	ON_DEBUG(atomic_inc(&uf_info->nr_neas));
 #if REISER4_DEBUG
+	atomic_inc(&uf_info->nr_neas);
 	uf_info->last_reader = current;
 #endif
 }
@@ -71,7 +79,10 @@ void drop_nonexclusive_access(unix_file_info_t * uf_info)
 	assert("vs-1718", uf_info->ea_owner == NULL);
 	assert("vs-1719", atomic_read(&uf_info->nr_neas) > 0);
 	ON_DEBUG(atomic_dec(&uf_info->nr_neas));
+
+	get_current_context()->vp = NULL;
 	up_read(&uf_info->latch);
+
 	LOCK_CNT_DEC(inode_sem_r);
 }
 

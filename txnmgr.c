@@ -1488,6 +1488,13 @@ flush_some_atom(jnode * start, long *nr_submitted, const struct writeback_contro
 
 	BUG_ON(atom->super != ctx->super);
 	assert("vs-35", atom->super == ctx->super);
+	if (start) {
+		spin_lock_jnode(start);
+		ret = (atom == start->atom) ? 1 : 0;
+		spin_unlock_jnode(start);
+		if (ret == 0)
+			start = NULL;
+	}
 	ret = flush_current_atom(flags, wbc->nr_to_write, nr_submitted, &atom, start);
 	if (ret == 0) {
 		/* flush_current_atom returns 0 only if it submitted for write
@@ -2239,7 +2246,7 @@ void uncapture_page(struct page *pg)
 	assert("umka-199", pg != NULL);
 	assert("nikita-3155", PageLocked(pg));
 
-	reiser4_clear_page_dirty(pg);
+	clear_page_dirty_for_io(pg);
 
 	reiser4_wait_page_writeback(pg);
 
@@ -2509,7 +2516,7 @@ void znode_make_dirty(znode * z)
 		spin_unlock_jnode(node);
 		/* reiser4 file write code calls set_page_dirty for
 		 * unformatted nodes, for formatted nodes we do it here. */
-		set_page_dirty_internal(page, 0);
+		set_page_dirty_internal(page);
 		page_cache_release(page);
 		/* bump version counter in znode */
 		z->version = znode_build_version(jnode_get_tree(node));

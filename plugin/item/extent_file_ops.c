@@ -921,7 +921,7 @@ static int extent_write_flow(struct inode *inode, flow_t * flow, hint_t * hint,
 			goto exit3;
 		}
 
-		set_page_dirty_internal(page, 0);
+		set_page_dirty_internal(page);
 		SetPageUptodate(page);
 		if (!PageReferenced(page))
 			SetPageReferenced(page);
@@ -1651,8 +1651,13 @@ capture_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page,
 
 	if (h->created)
 		reiser4_update_sd(page->mapping->host);
-	/* warning about failure of this is issued already */
 
+	if (get_current_context()->entd) {
+		entd_context *ent = get_entd_context(j->tree->super);
+
+		if (ent->cur_request->page == page)
+			ent->cur_request->node = j;
+	}
 	kfree(h);
 	return 0;
 }

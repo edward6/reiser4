@@ -92,6 +92,7 @@ struct reiser4_context {
 	/* information about last error encountered by reiser4 */
 	err_site err;
 #endif
+	void *vp;
 };
 
 extern reiser4_context *get_context_by_lock_stack(lock_stack *);
