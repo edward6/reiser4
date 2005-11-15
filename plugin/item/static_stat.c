@@ -820,7 +820,7 @@ static int extract_crypto_stat (struct inode * inode,
 		return PTR_ERR(info);
 	info->keysize = le16_to_cpu(get_unaligned(&sd->keysize));
 	memcpy(info->keyid, sd->keyid, inode_digest_plugin(inode)->fipsize);
-	attach_crypto_stat(inode, info);	
+	attach_crypto_stat(inode, info);
 	inode_set_flag(inode, REISER4_CRYPTO_STAT_LOADED);
 	return 0;
 }

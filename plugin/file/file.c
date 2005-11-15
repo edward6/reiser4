@@ -2320,7 +2320,7 @@ static int check_pages_unix_file(struct inode *inode)
 /**
  * mmap_unix_file - mmap of struct file_operations
  * @file: file to mmap
- * @vma: 
+ * @vma:
  *
  * This is implementation of vfs's mmap method of struct file_operations for
  * unix file plugin. It converts file to extent if necessary. Sets

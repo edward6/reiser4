@@ -2966,7 +2966,7 @@ capture_init_fusion(jnode * node, txn_handle * txnh, txn_capture mode,
 	atomic_dec(&block_atom->refcount);
 
 	assert ("zam-1066", atom_isopen(txnh_atom));
-		
+
 	if (txnh_atom->stage >= block_atom->stage ||
 	    (block_atom->stage == ASTAGE_CAPTURE_WAIT && block_atom->txnh_count == 0)) {
 		capture_fuse_into(txnh_atom, block_atom);
@@ -3419,7 +3419,7 @@ static int copy_on_capture_nopage(jnode * node, txn_atom * atom)
 	int result;
 	jnode *copy;
 
-	
+
 	assert("vs-1432", spin_atom_is_locked(atom));
 	assert("vs-1432", spin_jnode_is_locked(node));
 
@@ -3811,7 +3811,7 @@ reiser4_block_nr txnmgr_count_deleted_blocks(void)
 	spin_lock_txnmgr(tmgr);
 	list_for_each_entry(atom, &tmgr->atoms_list, atom_link) {
 		spin_lock_atom(atom);
-		if (atom_isopen(atom)) 
+		if (atom_isopen(atom))
 			blocknr_set_iterator(
 				atom, &atom->delete_set,
 				count_deleted_blocks_actor, &result, 0);

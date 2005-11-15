@@ -823,7 +823,7 @@ readpages_ctail(void *vp, struct address_space *mapping,
 	assert("edward-870", !tfm_cluster_is_uptodate(&clust.tc));
  exit3:
 	done_lh(&hint->lh);
-	save_file_hint(clust.file, hint);	
+	save_file_hint(clust.file, hint);
 	hint->ext_coord.valid = 0;
  exit2:
 	kfree(hint);

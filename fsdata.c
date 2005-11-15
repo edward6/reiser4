@@ -766,7 +766,7 @@ static void free_file_fsdata_nolock(struct file *file)
 		if (fsdata->cursor == NULL)
 			free_fsdata(fsdata);
 	}
-	file->private_data = NULL;	
+	file->private_data = NULL;
 }
 
 /**

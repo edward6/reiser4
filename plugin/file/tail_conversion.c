@@ -60,7 +60,7 @@ void get_nonexclusive_access(unix_file_info_t * uf_info, int atom_may_exist)
 	assert("", get_current_context()->vp == NULL);
 
 	down_read(&uf_info->latch);
-	/* 
+	/*
 	 * this is to avoid rwsem deadlock on ent thread. See comment in
 	 * writepages_unix_file
 	 */

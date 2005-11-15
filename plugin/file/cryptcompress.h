@@ -434,7 +434,7 @@ void inherit_crypto_stat_common(struct inode * parent, struct inode * object,
 				int (*can_inherit)(struct inode * child,
 						   struct inode * parent));
 crypto_stat_t * create_crypto_stat(struct inode * parent, crypto_data_t * data);
-int crypto_stat_instantiated(crypto_stat_t * info); 
+int crypto_stat_instantiated(crypto_stat_t * info);
 void attach_crypto_stat(struct inode * inode, crypto_stat_t * info);
 void detach_crypto_stat(struct inode * inode);
 void change_crypto_stat(struct inode * inode, crypto_stat_t * new);

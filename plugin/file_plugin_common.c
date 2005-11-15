@@ -148,12 +148,12 @@ int adjust_to_parent_cryptcompress(struct inode *object /* new object */ ,
 				   struct inode *parent /* parent directory */,
 				   struct inode *root /* root directory */)
 {
- 	int result;	
+ 	int result;
  	result = adjust_to_parent_common(object, parent, root);
  	if (result)
  		return result;
  	assert("edward-1416", parent != NULL);
- 
+
  	grab_plugin(object, parent, PSET_CLUSTER);
  	grab_plugin(object, parent, PSET_CIPHER);
  	grab_plugin(object, parent, PSET_DIGEST);

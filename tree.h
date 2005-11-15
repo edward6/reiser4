@@ -563,7 +563,7 @@ reiser4_block_nr calc_estimate_one_insert(tree_level);
 reiser4_block_nr estimate_dirty_cluster(struct inode *);
 reiser4_block_nr estimate_insert_cluster(struct inode *);
 reiser4_block_nr estimate_update_cluster(struct inode *);
- 
+
 
 /* __REISER4_TREE_H__ */
 #endif

@@ -435,7 +435,7 @@ static int update_journal_header(struct commit_handle *ch, int use_barrier)
 
 	format_journal_header(ch);
 
-	ret = write_jnodes_to_disk_extent(jh, 1, jnode_get_block(jh), NULL, 
+	ret = write_jnodes_to_disk_extent(jh, 1, jnode_get_block(jh), NULL,
 					  use_barrier ? WRITEOUT_BARRIER : 0);
 	if (ret)
 		return ret;
@@ -1183,7 +1183,7 @@ static int write_tx_back(struct commit_handle * ch)
 			return ret;
 		}
 		ret = current_atom_finish_all_fq();
-	}		
+	}
 	if (ret)
 		return ret;
 	post_write_back_hook();

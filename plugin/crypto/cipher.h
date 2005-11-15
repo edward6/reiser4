@@ -21,7 +21,7 @@ typedef struct reiser4_tfma {
 /* This contains cipher related info copied from user space */
 typedef struct crypto_data {
 	int keysize;    /* key size */
-	__u8 * key;     /* uninstantiated key */  
+	__u8 * key;     /* uninstantiated key */
 	int keyid_size; /* size of passphrase */
 	__u8 * keyid;   /* passphrase (uninstantiated keyid) */
 } crypto_data_t;
@@ -41,12 +41,12 @@ typedef struct crypto_stat {
 					supposed to be stored in disk
 					stat-data */
 	int keyload_count;           /* number of the objects which has
-					this crypto-stat attached */  
+					this crypto-stat attached */
 } crypto_stat_t;
 
 #endif /* __FS_REISER4_CRYPT_H__ */
 
-/* 
+/*
    Local variables:
    c-indentation-style: "K&R"
    mode-name: "LC"

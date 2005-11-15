@@ -53,7 +53,7 @@ static int gzip1_init(void)
 		warning("edward-1337", "Zlib not compiled into kernel");
 	return ret;
 }
-	
+
 static int gzip1_overrun(unsigned src_len UNUSED_ARG)
 {
 	return 0;
@@ -266,7 +266,7 @@ static int lzo1_init(void)
 {
 	int ret;
 	ret = lzo_init();
-	if (ret != LZO_E_OK) 
+	if (ret != LZO_E_OK)
 		warning("edward-848", "lzo_init() failed with ret = %d\n", ret);
 	return ret;
 }

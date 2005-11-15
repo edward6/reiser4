@@ -74,7 +74,7 @@ crypto_stat_t * inode_crypto_stat (struct inode * inode)
 	return cryptcompress_inode_data(inode)->crypt;
 }
 
-static void 
+static void
 set_inode_crypto_stat (struct inode * inode, crypto_stat_t * stat)
 {
 	cryptcompress_inode_data(inode)->crypt = stat;
@@ -199,9 +199,9 @@ static int create_keyid (crypto_stat_t * info, crypto_data_t * data)
 	memcpy(info->keyid, dmem, info_digest_plugin(info)->fipsize);
  exit3:
 	kfree(cmem);
- exit2:	
+ exit2:
 	kfree(dmem);
- exit1:	
+ exit1:
 	return ret;
 }
 
@@ -261,7 +261,7 @@ create_crypto_stat(struct inode * object, crypto_data_t * data)
 	crypto_stat_t * info;
 
 	assert("edward-1377", data != NULL);
-	assert("edward-1378", need_cipher(object));	
+	assert("edward-1378", need_cipher(object));
 
 	if (inode_file_plugin(object) !=
 	    file_plugin_by_id(DIRECTORY_FILE_PLUGIN_ID))
@@ -282,8 +282,8 @@ create_crypto_stat(struct inode * object, crypto_data_t * data)
 				   data->key,
 				   data->keysize);
 	if (ret) {
-		warning("edward-1379", 
-			"setkey failed flags=%x\n", 
+		warning("edward-1379",
+			"setkey failed flags=%x\n",
 			info_cipher_tfm(info)->crt_flags);
 		goto err;
 	}
@@ -843,7 +843,7 @@ align_or_cut_overhead(struct inode * inode, reiser4_cluster_t * clust, rw_op rw)
 	default:
 		impossible("edward-1404", "bad option");
 	}
-	return;	
+	return;
 }
 
 /* the following two functions are to evaluate results
@@ -1053,7 +1053,7 @@ int deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 				(unsigned long long)get_inode_oid(inode),
 				clust->index);
 #endif
-			if (mplug->discard_hook != NULL && 
+			if (mplug->discard_hook != NULL &&
 			    cluster_is_complete(clust, inode)) {
 				result = mplug->discard_hook(inode,
 							     clust->index);
@@ -1113,7 +1113,7 @@ int inflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 	assert("edward-906", tfm_stream_is_set(&clust->tc, INPUT_STREAM));
 	assert("edward-1349", tc->act == TFM_READ);
 	assert("edward-907", !tfm_cluster_is_uptodate(tc));
-	
+
 	/* Handle a checksum (if any) */
 	coplug = inode_compression_plugin(inode);
 	if (need_inflate(clust, inode, need_cipher(inode)) &&
@@ -1528,7 +1528,7 @@ static int grab_cluster_pages(struct inode *inode, reiser4_cluster_t * clust)
 }
 
 /* @node might be attached by reiser4_writepage(), not by
-   cryptcompress plugin code, but emergency flush should 
+   cryptcompress plugin code, but emergency flush should
    understand that pages of cryptcompress files are not
    flushable.
 */
@@ -1540,9 +1540,9 @@ int jnode_of_cluster(const jnode * node, struct page * page)
 	assert("edward-1342", page->mapping->host != NULL);
 	assert("edward-1343",
 	       ergo(jnode_is_unformatted(node),
-		    get_inode_oid(page->mapping->host) == 
+		    get_inode_oid(page->mapping->host) ==
 		    node->key.j.objectid));
-	if (inode_file_plugin(page->mapping->host) == 
+	if (inode_file_plugin(page->mapping->host) ==
 	    file_plugin_by_id(CRC_FILE_PLUGIN_ID)) {
 #if REISER4_DEBUG
 		if (!jnode_is_cluster_page(node))
@@ -2194,7 +2194,7 @@ read_some_cluster_pages(struct inode *inode, reiser4_cluster_t * clust)
 			if (off) {
 				lock_page(pg);
 				data = kmap_atomic(pg, KM_USER0);
-				memset(data + off, 0, PAGE_CACHE_SIZE - off); 
+				memset(data + off, 0, PAGE_CACHE_SIZE - off);
 				flush_dcache_page(pg);
 				kunmap_atomic(data, KM_USER0);
 				unlock_page(pg);
@@ -2901,7 +2901,7 @@ ssize_t read_cryptcompress(struct file * file, char __user *buf, size_t size,
 	ctx = init_context(inode->i_sb);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
-	
+
 	info = cryptcompress_inode_data(inode);
 	needed = cryptcompress_estimate_read(inode);
 

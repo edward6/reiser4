@@ -438,7 +438,7 @@ static int check_livelock_condition(znode * node, znode_lock_mode mode)
 {
 	zlock * lock = &node->lock;
 
-	return mode == ZNODE_READ_LOCK && 
+	return mode == ZNODE_READ_LOCK &&
 		lock -> nr_readers >= 0 && lock->nr_hipri_write_requests > 0;
 }
 
@@ -723,7 +723,7 @@ static int longterm_lock_tryfast(lock_stack * owner)
 	read_lock_zlock(lock);
 	result = can_lock_object(owner);
 	read_unlock_zlock(lock);
-	
+
 	if (likely(result != -EINVAL)) {
 		spin_lock_znode(node);
 		result =

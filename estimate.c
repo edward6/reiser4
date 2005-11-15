@@ -74,8 +74,8 @@ reiser4_block_nr estimate_cluster(struct inode * inode, int unprepped)
 {
 	int per_cluster;
 	per_cluster = (unprepped ? 1 : cluster_nrpages(inode));
-	return 3 + per_cluster + 
-		max_balance_overhead(3 + per_cluster, 
+	return 3 + per_cluster +
+		max_balance_overhead(3 + per_cluster,
 				     REISER4_MAX_ZTREE_HEIGHT);
 }
 
@@ -83,7 +83,7 @@ reiser4_block_nr estimate_cluster(struct inode * inode, int unprepped)
    during insertion of a disk cluster */
 reiser4_block_nr estimate_insert_cluster(struct inode * inode)
 {
-	return estimate_cluster(inode, 1); /* 24 */	
+	return estimate_cluster(inode, 1); /* 24 */
 }
 
 /* how many nodes might get dirty and added

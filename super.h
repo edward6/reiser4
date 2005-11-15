@@ -52,7 +52,7 @@ typedef enum {
 	REISER4_ATOMIC_WRITE = 6,
 	/* don't use write barriers in the log writer code. */
 	REISER4_NO_WRITE_BARRIER = 7
- 
+
 } reiser4_fs_flag;
 
 /*

@@ -2442,7 +2442,7 @@ static int squeeze_right_non_twig(znode * left, znode * right)
 
 	assert("nikita-2246", znode_get_level(left) == znode_get_level(right));
 
-	if (!JF_ISSET(ZJNODE(left), JNODE_DIRTY) || 
+	if (!JF_ISSET(ZJNODE(left), JNODE_DIRTY) ||
 	    !JF_ISSET(ZJNODE(right), JNODE_DIRTY))
 		return SQUEEZE_TARGET_FULL;
 
@@ -2469,7 +2469,7 @@ static int squeeze_right_non_twig(znode * left, znode * right)
 		write_lock_dk(tree);
 		update_znode_dkeys(left, right);
 		write_unlock_dk(tree);
-		
+
 		/* Carry is called to update delimiting key and, maybe, to remove empty
 		   node. */
 		grabbed = get_current_context()->grabbed_blocks;
@@ -2493,9 +2493,9 @@ static int squeeze_right_non_twig(znode * left, znode * right)
 static int sibling_link_is_ok(const znode *left, const znode *right)
 {
 	int result;
- 
+
 	read_lock_tree(znode_get_tree(left));
-	result = (left->right == right && left == right->left);	
+	result = (left->right == right && left == right->left);
 	read_unlock_tree(znode_get_tree(left));
 	return result;
 }

@@ -141,7 +141,7 @@ static int entd(void *arg)
 			struct wbq *rq, *next;
 
 			assert("", list_empty_careful(&ent->done_list));
-	
+
 			/* take request from the queue head */
 			rq = __get_wbq(ent);
 			assert("", rq != NULL);
@@ -304,7 +304,7 @@ int write_page_by_ent(struct page *page, struct writeback_control *wbc)
 	ent = get_entd_context(sb);
 	assert("", ent && ent->done == 0);
 
-	/* 
+	/*
 	 * pin inode in memory, unlock page, entd_flush will iput. We can not
 	 * iput here becasue we can not allow delete_inode to be called here
 	 */
@@ -331,7 +331,7 @@ int write_page_by_ent(struct page *page, struct writeback_control *wbc)
 	list_add_tail(&rq.link, &ent->todo_list);
 	if (ent->nr_todo_reqs == 1)
 		wake_up(&ent->wait);
-	
+
 	spin_unlock(&ent->guard);
 
 	/* wait until entd finishes */
