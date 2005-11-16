@@ -870,9 +870,9 @@ static unsigned deflate_overrun(struct inode *inode, int in_len)
 		0);
 }
 
-/* Estimating compressibility of a logical cluster.
-   This is a sanity check which uses various policies represented by
-   compression mode plugin. */
+/* Estimating compressibility of a logical cluster by
+   various policies represented by compression mode plugin.
+   Returns yes(try) or no(do not try) */
 static int try_compress(tfm_cluster_t * tc, cloff_t index, struct inode *inode)
 {
 	compression_plugin *cplug = inode_compression_plugin(inode);
@@ -882,19 +882,20 @@ static int try_compress(tfm_cluster_t * tc, cloff_t index, struct inode *inode)
 	assert("edward-1322", cplug != NULL);
 	assert("edward-1323", mplug != NULL);
 
-	return (cplug->compress != NULL) &&
-		/* estimate by size */
-		(cplug->min_size_deflate != NULL ?
+	return /* estimate by size */
+		(cplug->min_size_deflate ?
 		 tc->len >= cplug->min_size_deflate() :
 		 1) &&
-		/* estimate by content */
-		(mplug->should_deflate != NULL ?
-		 mplug->should_deflate(index) :
-		 1);
+		(/* compression is on */
+		 (cplug->compress != NULL) ||
+		 /* estimate by content */
+		 (mplug->should_deflate ?
+		  mplug->should_deflate(index) :
+		  1));
 }
 
-/* Evaluating the results of compression transform.
-   Returns true, if we need to accept the    */
+/* Evaluating results of compression transform.
+   Returns true, if we need to accept this results */
 static int
 save_compressed(int size_before, int size_after, struct inode * inode)
 {
@@ -1025,14 +1026,28 @@ int deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 			inode_compression_mode_plugin(inode);
 		assert("edward-602", coplug != NULL);
 
+		if (coplug->compress == NULL)
+			coplug = dual_compression_plugin(coplug);
+		assert("edward-xxx", coplug->compress != NULL);
+
+		result = grab_coa(tc, coplug);
+		if (result) {
+		    warning("edward-xxx",
+			    "alloc_coa failed with ret=%d, skipped compression",
+			    result);
+		    goto cipher;
+		}
 		result = grab_tfm_stream(inode, tc, OUTPUT_STREAM);
-		if (result)
-			return result;
+		if (result) {
+		    warning("edward-xxx",
+			 "alloc stream failed with ret=%d, skipped compression",
+			    result);
+		    goto cipher;
+		}
 		dst_len = tfm_stream_size(tc, OUTPUT_STREAM);
 		coplug->compress(get_coa(tc, coplug->h.id),
 				 tfm_input_data(clust), tc->len,
 				 tfm_output_data(clust), &dst_len);
-
 		/* make sure we didn't overwrite extra bytes */
 		assert("edward-603",
 		       dst_len <= tfm_stream_size(tc, OUTPUT_STREAM));
@@ -1041,8 +1056,13 @@ int deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 		if (save_compressed(tc->len, dst_len, inode)) {
 			/* good result, accept */
 			tc->len = dst_len;
-			if (mplug->accept_hook != NULL)
-				mplug->accept_hook(inode);
+			if (mplug->accept_hook != NULL) {
+				result = mplug->accept_hook(inode, clust->index);
+				if (result)
+				       warning("edward-xxx",
+					       "accept_hook failed with ret=%d",
+					       result);
+			}
 			compressed = 1;
 		}
 		else {
@@ -1058,10 +1078,13 @@ int deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 				result = mplug->discard_hook(inode,
 							     clust->index);
 				if (result)
-					return result;
+				      warning("edward-xxx",
+					      "discard_hook failed with ret=%d",
+					      result);
 			}
 		}
 	}
+ cipher:
 	if (need_cipher(inode)) {
 		cipher_plugin * ciplug;
 		struct crypto_tfm * tfm;
@@ -1754,6 +1777,12 @@ flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
 	assert("edward-241", schedulable());
 	assert("edward-718", crc_inode_ok(inode));
 
+	result = grab_tfm_stream(inode, tc, INPUT_STREAM);
+	if (result) {
+		warning("edward-xxx",
+			"alloc stream failed with ret=%d", result);
+		return result;
+	}
 	spin_lock_jnode(node);
 
 	if (!JF_ISSET(node, JNODE_DIRTY)) {
@@ -1784,13 +1813,9 @@ flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
 
 	assert("edward-1224", schedulable());
 
-	result = grab_tfm_stream(inode, tc, INPUT_STREAM);
-	if (result)
-		return result;
-
 	nr_pages =
-	    find_get_pages(inode->i_mapping, clust_to_pg(clust->index, inode),
-			   clust->nr_pages, clust->pages);
+	      find_get_pages(inode->i_mapping, clust_to_pg(clust->index, inode),
+			     clust->nr_pages, clust->pages);
 
 	if (nr_pages != clust->nr_pages) {
 		/* the page cluster get truncated, try again */

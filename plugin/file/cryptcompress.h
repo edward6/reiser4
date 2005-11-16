@@ -150,6 +150,13 @@ alloc_coa(tfm_cluster_t * tc, compression_plugin * cplug)
 	return 0;
 }
 
+static inline int
+grab_coa(tfm_cluster_t * tc, compression_plugin * cplug)
+{
+	return (cplug->alloc && !get_coa(tc, cplug->h.id) ?
+		alloc_coa(tc, cplug) : 0);
+}
+
 static inline void free_coa_set(tfm_cluster_t * tc)
 {
 	reiser4_compression_id i;
@@ -440,6 +447,8 @@ void detach_crypto_stat(struct inode * inode);
 void change_crypto_stat(struct inode * inode, crypto_stat_t * new);
 int can_inherit_crypto_crc(struct inode *child, struct inode *parent);
 crypto_stat_t * alloc_crypto_stat (struct inode * inode);
+int switch_compression(struct inode *inode);
+
 
 static inline reiser4_tfma_t *
 info_get_tfma (crypto_stat_t * info, reiser4_tfm id)
