@@ -1879,20 +1879,26 @@ static int try_capture_block(
 	   let us touch the atoms themselves. */
 	spin_lock_txnh(txnh);
 	txnh_atom = txnh->atom;
-
+	/* Process of capturing continues into one of four branches depends on
+	   which atoms from (block atom (node->atom), current atom (txnh->atom))
+	   exist. */
 	if (txnh_atom == NULL) {
 		if (block_atom == NULL) {
 			spin_unlock_txnh(txnh);
 			spin_unlock_jnode(node);
+			/* assign empty atom to the txnh and repeat */
 			return atom_begin_and_assign_to_txnh(atom_alloc, txnh);
 		} else {
 			atomic_inc(&block_atom->refcount);
+			/* node spin-lock isn't needed anymore */
 			spin_unlock_jnode(node);
 			if (!spin_trylock_atom(block_atom)) {
 				spin_unlock_txnh(txnh);
 				spin_lock_atom(block_atom);
 				spin_lock_txnh(txnh);
 			}
+			/* re-check state after getting txnh and the node
+			 * atom spin-locked */
 			if (node->atom != block_atom || txnh->atom != NULL) {
 				spin_unlock_txnh(txnh);
 				atom_dec_and_unlock(block_atom);
@@ -1909,6 +1915,34 @@ static int try_capture_block(
 			return RETERR(-E_REPEAT);
 		}
 	} else {
+		/* It is time to perform deadlock prevention check over the
+                  node we want to capture.  It is possible this node was locked
+                  for read without capturing it. The optimization which allows
+                  to do it helps us in keeping atoms independent as long as
+                  possible but it may cause lock/fuse deadlock problems.
+
+                  A number of similar deadlock situations with locked but not
+                  captured nodes were found.  In each situation there are two
+                  or more threads: one of them does flushing while another one
+                  does routine balancing or tree lookup.  The flushing thread
+                  (F) sleeps in long term locking request for node (N), another
+                  thread (A) sleeps in trying to capture some node already
+                  belonging the atom F, F has a state which prevents
+                  immediately fusion .
+
+                  Deadlocks of this kind cannot happen if node N was properly
+                  captured by thread A. The F thread fuse atoms before locking
+                  therefore current atom of thread F and current atom of thread
+                  A became the same atom and thread A may proceed.  This does
+                  not work if node N was not captured because the fusion of
+                  atom does not happens.
+
+                  The following scheme solves the deadlock: If
+                  longterm_lock_znode locks and does not capture a znode, that
+                  znode is marked as MISSED_IN_CAPTURE.  A node marked this way
+                  is processed by the code below which restores the missed
+                  capture and fuses current atoms of all the node lock owners
+                  by calling the fuse_not_fused_lock_owners() function. */
 		if (JF_ISSET(node, JNODE_MISSED_IN_CAPTURE)) {
 			JF_CLR(node, JNODE_MISSED_IN_CAPTURE);
 			if (jnode_is_znode(node) && znode_is_locked(JZNODE(node))) {
