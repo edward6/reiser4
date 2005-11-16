@@ -1559,7 +1559,7 @@ writepages_unix_file(struct address_space *mapping,
 				    capture_anonymous_pages(inode->i_mapping,
 							    &pindex,
 							    to_capture);
-				if (result < 0)
+				if (result <= 0)
 					break;
 				to_capture -= result;
 				wbc->nr_to_write -= result;
