@@ -1269,20 +1269,12 @@ static void set_cluster_pages_dirty(reiser4_cluster_t * clust)
 	for (i = 0; i < nrpages; i++) {
 
 		pg = clust->pages[i];
-
 		assert("edward-968", pg != NULL);
-
 		lock_page(pg);
-
 		assert("edward-1065", PageUptodate(pg));
-
 		set_page_dirty_internal(pg);
-
-		if (!PageReferenced(pg))
-			SetPageReferenced(pg);
-		mark_page_accessed(pg);
-
 		unlock_page(pg);
+		mark_page_accessed(pg);
 	}
 }
 
@@ -3884,7 +3876,7 @@ struct reiser4_plugin_ops cryptcompress_plugin_ops = {
   mode-name: "LC"
   c-basic-offset: 8
   tab-width: 8
-  fill-column: 120
+  fill-column: 80
   scroll-step: 1
   End:
 */
