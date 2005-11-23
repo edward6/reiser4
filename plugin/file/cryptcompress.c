@@ -1370,9 +1370,9 @@ static void inode_set_new_size(reiser4_cluster_t * clust, struct inode *inode)
 	return;
 }
 
-/* . reserve space for a disk cluster if its jnode is not dirty;
-   . update set of pages referenced by this jnode
-   . update jnode's counter of referenced pages (excluding first one)
+/* . Make jnode dirty, if it wasn't;
+   . Reserve space for a disk cluster update by flush algorithm, if needed;
+   . Clean up extra-references of cluster pages.
 */
 static void
 make_cluster_jnode_dirty_locked(reiser4_cluster_t * clust, jnode * node,
@@ -1438,9 +1438,9 @@ make_cluster_jnode_dirty_locked(reiser4_cluster_t * clust, jnode * node,
 	return;
 }
 
-/* This is the interface to capture page cluster.
-   All the cluster pages contain dependent modifications
-   and should be committed at the same time */
+/* This function spawns a transaction and
+   is called by any thread as a final step in page cluster modification.
+*/
 static int try_capture_cluster(reiser4_cluster_t * clust, struct inode *inode)
 {
 	int result = 0;
@@ -1472,7 +1472,12 @@ static int try_capture_cluster(reiser4_cluster_t * clust, struct inode *inode)
 	return result;
 }
 
-/* Collect unlocked cluster pages and jnode */
+/* Collect unlocked cluster pages for any modifications and attach a jnode.
+   We allocate only one jnode per cluster, this jnode is binded to the first
+   page of this cluster.
+   All extra-references will be released under jnode lock in 
+   make_cluster_jnode_dirty_locked() when spawning a transaction.
+*/
 static int
 grab_cluster_pages_jnode(struct inode *inode, reiser4_cluster_t * clust)
 {
@@ -1523,7 +1528,7 @@ grab_cluster_pages_jnode(struct inode *inode, reiser4_cluster_t * clust)
 	return 0;
 }
 
-/* collect unlocked cluster pages */
+/* Collect unlocked cluster pages by any thread wich won't modify it. */
 static int grab_cluster_pages(struct inode *inode, reiser4_cluster_t * clust)
 {
 	int i;
@@ -1579,7 +1584,7 @@ int jnode_of_cluster(const jnode * node, struct page * page)
 	return 0;
 }
 
-/* put cluster pages */
+/* put cluster pages starting from @from */
 static void release_cluster_pages(reiser4_cluster_t * clust, int from)
 {
 	int i;
@@ -1757,8 +1762,8 @@ void forget_cluster_pages(struct page **pages, int nr)
 	}
 }
 
-/* Prepare input stream for transform operations.
-   Try to do it in one step. Return -E_REPEAT when it is
+/* Check out modifications we are about to commit.
+   Prepare input stream for transform operations, return -E_REPEAT, if it is
    impossible because of races with concurrent processes.
 */
 int
@@ -1796,6 +1801,8 @@ flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
 			clust->index, (unsigned long long)get_inode_oid(inode));
 		return RETERR(-E_REPEAT);
 	}
+	/* Check out a size of logical cluster and 
+	   calculate a number of cluster pages to commit. */
 	tc->len = tc->lsize = fsize_to_count(clust, inode);
 	clust->nr_pages = count_to_nrpages(tc->len);
 
@@ -1806,19 +1813,14 @@ flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
 	cluster_reserved2grabbed(estimate_update_cluster(inode));
 	uncapture_cluster_jnode(node);
 
-	/* Try to create input stream for the found size (tc->len).
-	   Starting from this point the page cluster can be modified
-	   (truncated, appended) by concurrent processes, so we need
-	   to worry if the constructed stream is valid */
-
 	assert("edward-1224", schedulable());
-
+	/* Check out cluster pages to commit */
 	nr_pages =
 	      find_get_pages(inode->i_mapping, clust_to_pg(clust->index, inode),
 			     clust->nr_pages, clust->pages);
 
 	if (nr_pages != clust->nr_pages) {
-		/* the page cluster get truncated, try again */
+		/* the page cluster got truncated, try again */
 		assert("edward-1280", nr_pages < clust->nr_pages);
 		warning("edward-1281", "Page cluster of index %lu (inode %llu)"
 			" get truncated from %u to %u pages\n",
@@ -1828,6 +1830,10 @@ flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
 		forget_cluster_pages(clust->pages, nr_pages);
 		return RETERR(-E_REPEAT);
 	}
+	/* Try to construct input stream from the checked out cluster pages.
+	   Note, that the last ones can be modified (truncated, appended) by
+	   concurrent processes, so we need to worry this is not mucked up
+	   so the constructed stream became invalid */
 	for (i = 0; i < clust->nr_pages; i++) {
 		char *data;
 
@@ -1836,7 +1842,7 @@ flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
 		if (clust->pages[i]->index !=
 		    clust_to_pg(clust->index, inode) + i) {
 			/* holes in the indices of found group of pages:
-			   page cluster get truncated, transform impossible */
+			   page cluster got truncated, transform impossible */
 			warning("edward-1282",
 				"Hole in the indices: "
 				"Page %d in the cluster of index %lu "
@@ -1850,7 +1856,7 @@ flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
 			goto finish;
 		}
 		if (!PageUptodate(clust->pages[i])) {
-			/* page cluster get truncated, transform impossible */
+			/* page cluster got truncated, transform impossible */
 			assert("edward-1283", !PageDirty(clust->pages[i]));
 			warning("edward-1284",
 				"Page of index %lu (inode %llu) "
