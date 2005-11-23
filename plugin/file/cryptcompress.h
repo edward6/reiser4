@@ -16,6 +16,16 @@
 #define MAX_CLUSTER_NRPAGES (1U << MAX_CLUSTER_SHIFT >> PAGE_CACHE_SHIFT)
 #define DC_CHECKSUM_SIZE 4
 
+static inline loff_t min_count(loff_t a, loff_t b)
+{
+	return (a < b ? a : b);
+}
+
+static inline loff_t max_count(loff_t a, loff_t b)
+{
+	return (a > b ? a : b);
+}
+
 #if REISER4_DEBUG
 static inline int cluster_shift_ok(int shift)
 {
@@ -235,6 +245,11 @@ static inline void free_tfm_stream(tfm_cluster_t * tc, tfm_stream_id id)
 	free_ts_data(tfm_stream(tc, id));
 	free_ts(tfm_stream(tc, id));
 	set_tfm_stream(tc, id, 0);
+}
+
+static inline unsigned coa_overrun(compression_plugin * cplug, int ilen)
+{
+	return (cplug->overrun != NULL ? cplug->overrun(ilen) : 0);
 }
 
 static inline void free_tfm_unit(tfm_cluster_t * tc)

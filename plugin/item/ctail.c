@@ -1097,12 +1097,9 @@ int scan_ctail(flush_scan * scan)
 		znode_make_dirty(scan->parent_lock.node);
 
 	if (!znode_convertible(scan->parent_lock.node)) {
-		/* NOTE-Edward: jnode spinlock is removed. test_bit is atomic */
-		if (JF_ISSET(scan->node, JNODE_DIRTY)) {
-			warning("edward-873",
-				"child is dirty but parent not squeezable");
+		if (JF_ISSET(scan->node, JNODE_DIRTY))
 			znode_set_convertible(scan->parent_lock.node);
-		} else {
+		else {
 			warning("edward-681",
 				"cluster page is already processed");
 			return -EAGAIN;

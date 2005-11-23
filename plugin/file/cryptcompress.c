@@ -862,12 +862,12 @@ static int deflate_overhead(struct inode *inode)
 		checksum ? DC_CHECKSUM_SIZE : 0);
 }
 
-/* to estimate size of allocating transform stream */
-static unsigned deflate_overrun(struct inode *inode, int in_len)
+static unsigned deflate_overrun(struct inode * inode, int ilen)
 {
-	return (inode_compression_plugin(inode)->overrun != NULL ?
-		inode_compression_plugin(inode)->overrun(in_len) :
-		0);
+	return max_count
+		(coa_overrun(inode_compression_plugin(inode), ilen),
+		 coa_overrun(dual_compression_plugin
+			     (inode_compression_plugin(inode)), ilen));
 }
 
 /* Estimating compressibility of a logical cluster by
