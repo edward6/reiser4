@@ -444,25 +444,6 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 		.checksum = NULL,
 		.compress = NULL,
 		.decompress = gzip1_decompress
-	},
-	[NONE_COMPRESSION_ID] = {
-		.h = {
-			.type_id = REISER4_COMPRESSION_PLUGIN_TYPE,
-			.id = NONE_COMPRESSION_ID,
-			.pops = &compression_plugin_ops,
-			.label = "none",
-			.desc = "No compression transform",
-			.linkage = {NULL, NULL}
-		},
-		.dual = NONE_COMPRESSION_ID,
-		.init = NULL,
-		.overrun = NULL,
-		.alloc = NULL,
-		.free = NULL,
-		.min_size_deflate = NULL,
-		.checksum = NULL,
-		.compress = NULL,
-		.decompress = NULL
 	}
 };
 

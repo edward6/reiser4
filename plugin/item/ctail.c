@@ -538,11 +538,6 @@ int ctail_read_disk_cluster(reiser4_cluster_t * clust, struct inode *inode,
 			    int write)
 {
 	int result;
-	compression_plugin *cplug;
-#if REISER4_DEBUG
-	reiser4_inode *info;
-	info = reiser4_inode_data(inode);
-#endif
 	assert("edward-671", clust->hint != NULL);
 	assert("edward-140", clust->dstat == INVAL_DISK_CLUSTER);
 	assert("edward-672", crc_inode_ok(inode));
@@ -556,7 +551,6 @@ int ctail_read_disk_cluster(reiser4_cluster_t * clust, struct inode *inode,
 	assert("edward-1340", !result);
 	if (result)
 		return result;
-
 	if (!write)
 		/* write still need the lock to insert unprepped
 		   items, etc... */
@@ -570,12 +564,9 @@ int ctail_read_disk_cluster(reiser4_cluster_t * clust, struct inode *inode,
 		tfm_cluster_set_uptodate(&clust->tc);
 		return 0;
 	}
-	cplug = inode_compression_plugin(inode);
-	if (cplug->alloc && !get_coa(&clust->tc, cplug->h.id)) {
-		result = alloc_coa(&clust->tc, cplug);
-		if (result)
-			return result;
-	}
+	result = grab_coa(&clust->tc, inode_compression_plugin(inode));
+	if (result)
+		return result;
 	result = inflate_cluster(clust, inode);
 	if (result)
 		return result;
@@ -1255,11 +1246,9 @@ static int attach_convert_idata(flush_pos_t * pos, struct inode *inode)
 			return ret;
 	}
 	clust = &pos->sq->clust;
-	if (cplug->alloc && !get_coa(&clust->tc, cplug->h.id)) {
-		ret = alloc_coa(&clust->tc, cplug);
-		if (ret)
-			goto err;
-	}
+	ret = grab_coa(&clust->tc, cplug);
+	if (ret)
+		goto err;
 	ret = set_cluster_by_page(clust,
 				  jnode_page(pos->child),
 				  MAX_CLUSTER_NRPAGES);
@@ -1282,14 +1271,10 @@ static int attach_convert_idata(flush_pos_t * pos, struct inode *inode)
 	ret = flush_cluster_pages(clust, pos->child, inode);
 	if (ret)
 		goto err;
-
 	assert("edward-830",
 	       equi(get_coa(&clust->tc, cplug->h.id), cplug->alloc));
-
-	ret = deflate_cluster(clust, inode);
-	if (ret)
-		goto err;
-
+	
+	deflate_cluster(clust, inode);
 	inc_item_convert_count(pos);
 
 	/* make flow by transformed stream */

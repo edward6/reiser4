@@ -870,9 +870,9 @@ static unsigned deflate_overrun(struct inode *inode, int in_len)
 		0);
 }
 
-/* Estimating compressibility of a logical cluster.
-   This is a sanity check which uses various policies represented by
-   compression mode plugin. */
+/* Estimating compressibility of a logical cluster by
+   various policies represented by compression mode plugin.
+   Returns yes(try) or no(do not try) */
 static int try_compress(tfm_cluster_t * tc, cloff_t index, struct inode *inode)
 {
 	compression_plugin *cplug = inode_compression_plugin(inode);
@@ -882,19 +882,20 @@ static int try_compress(tfm_cluster_t * tc, cloff_t index, struct inode *inode)
 	assert("edward-1322", cplug != NULL);
 	assert("edward-1323", mplug != NULL);
 
-	return (cplug->compress != NULL) &&
-		/* estimate by size */
-		(cplug->min_size_deflate != NULL ?
+	return /* estimate by size */
+		(cplug->min_size_deflate ?
 		 tc->len >= cplug->min_size_deflate() :
 		 1) &&
-		/* estimate by content */
-		(mplug->should_deflate != NULL ?
-		 mplug->should_deflate(index) :
-		 1);
+		(/* compression is on */
+		 (cplug->compress != NULL) ||
+		 /* estimate by content */
+		 (mplug->should_deflate ?
+		  mplug->should_deflate(index) :
+		  1));
 }
 
-/* Evaluating the results of compression transform.
-   Returns true, if we need to accept the    */
+/* Evaluating results of compression transform.
+   Returns true, if we need to accept this results */
 static int
 save_compressed(int size_before, int size_after, struct inode * inode)
 {
@@ -1025,14 +1026,28 @@ int deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 			inode_compression_mode_plugin(inode);
 		assert("edward-602", coplug != NULL);
 
+		if (coplug->compress == NULL)
+			coplug = dual_compression_plugin(coplug);
+		assert("edward-xxx", coplug->compress != NULL);
+
+		result = grab_coa(tc, coplug);
+		if (result) {
+		    warning("edward-xxx",
+			    "alloc_coa failed with ret=%d, skipped compression",
+			    result);
+		    goto cipher;
+		}
 		result = grab_tfm_stream(inode, tc, OUTPUT_STREAM);
-		if (result)
-			return result;
+		if (result) {
+		    warning("edward-xxx",
+			 "alloc stream failed with ret=%d, skipped compression",
+			    result);
+		    goto cipher;
+		}
 		dst_len = tfm_stream_size(tc, OUTPUT_STREAM);
 		coplug->compress(get_coa(tc, coplug->h.id),
 				 tfm_input_data(clust), tc->len,
 				 tfm_output_data(clust), &dst_len);
-
 		/* make sure we didn't overwrite extra bytes */
 		assert("edward-603",
 		       dst_len <= tfm_stream_size(tc, OUTPUT_STREAM));
@@ -1041,8 +1056,13 @@ int deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 		if (save_compressed(tc->len, dst_len, inode)) {
 			/* good result, accept */
 			tc->len = dst_len;
-			if (mplug->accept_hook != NULL)
-				mplug->accept_hook(inode);
+			if (mplug->accept_hook != NULL) {
+				result = mplug->accept_hook(inode, clust->index);
+				if (result)
+				       warning("edward-xxx",
+					       "accept_hook failed with ret=%d",
+					       result);
+			}
 			compressed = 1;
 		}
 		else {
@@ -1058,10 +1078,13 @@ int deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 				result = mplug->discard_hook(inode,
 							     clust->index);
 				if (result)
-					return result;
+				      warning("edward-xxx",
+					      "discard_hook failed with ret=%d",
+					      result);
 			}
 		}
 	}
+ cipher:
 	if (need_cipher(inode)) {
 		cipher_plugin * ciplug;
 		struct crypto_tfm * tfm;
@@ -1339,9 +1362,9 @@ static void inode_set_new_size(reiser4_cluster_t * clust, struct inode *inode)
 	return;
 }
 
-/* . reserve space for a disk cluster if its jnode is not dirty;
-   . update set of pages referenced by this jnode
-   . update jnode's counter of referenced pages (excluding first one)
+/* . Make jnode dirty, if it wasn't;
+   . Reserve space for a disk cluster update by flush algorithm, if needed;
+   . Clean up extra-references of cluster pages.
 */
 static void
 make_cluster_jnode_dirty_locked(reiser4_cluster_t * clust, jnode * node,
@@ -1407,9 +1430,9 @@ make_cluster_jnode_dirty_locked(reiser4_cluster_t * clust, jnode * node,
 	return;
 }
 
-/* This is the interface to capture page cluster.
-   All the cluster pages contain dependent modifications
-   and should be committed at the same time */
+/* This function spawns a transaction and
+   is called by any thread as a final step in page cluster modification.
+*/
 static int try_capture_cluster(reiser4_cluster_t * clust, struct inode *inode)
 {
 	int result = 0;
@@ -1441,7 +1464,12 @@ static int try_capture_cluster(reiser4_cluster_t * clust, struct inode *inode)
 	return result;
 }
 
-/* Collect unlocked cluster pages and jnode */
+/* Collect unlocked cluster pages for any modifications and attach a jnode.
+   We allocate only one jnode per cluster, this jnode is binded to the first
+   page of this cluster.
+   All extra-references will be released under jnode lock in 
+   make_cluster_jnode_dirty_locked() when spawning a transaction.
+*/
 static int
 grab_cluster_pages_jnode(struct inode *inode, reiser4_cluster_t * clust)
 {
@@ -1492,7 +1520,7 @@ grab_cluster_pages_jnode(struct inode *inode, reiser4_cluster_t * clust)
 	return 0;
 }
 
-/* collect unlocked cluster pages */
+/* Collect unlocked cluster pages by any thread wich won't modify it. */
 static int grab_cluster_pages(struct inode *inode, reiser4_cluster_t * clust)
 {
 	int i;
@@ -1548,7 +1576,7 @@ int jnode_of_cluster(const jnode * node, struct page * page)
 	return 0;
 }
 
-/* put cluster pages */
+/* put cluster pages starting from @from */
 static void release_cluster_pages(reiser4_cluster_t * clust, int from)
 {
 	int i;
@@ -1726,8 +1754,8 @@ void forget_cluster_pages(struct page **pages, int nr)
 	}
 }
 
-/* Prepare input stream for transform operations.
-   Try to do it in one step. Return -E_REPEAT when it is
+/* Check out modifications we are about to commit.
+   Prepare input stream for transform operations, return -E_REPEAT, if it is
    impossible because of races with concurrent processes.
 */
 int
@@ -1746,6 +1774,12 @@ flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
 	assert("edward-241", schedulable());
 	assert("edward-718", crc_inode_ok(inode));
 
+	result = grab_tfm_stream(inode, tc, INPUT_STREAM);
+	if (result) {
+		warning("edward-xxx",
+			"alloc stream failed with ret=%d", result);
+		return result;
+	}
 	spin_lock_jnode(node);
 
 	if (!JF_ISSET(node, JNODE_DIRTY)) {
@@ -1759,6 +1793,8 @@ flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
 			clust->index, (unsigned long long)get_inode_oid(inode));
 		return RETERR(-E_REPEAT);
 	}
+	/* Check out a size of logical cluster and 
+	   calculate a number of cluster pages to commit. */
 	tc->len = tc->lsize = fsize_to_count(clust, inode);
 	clust->nr_pages = count_to_nrpages(tc->len);
 
@@ -1769,23 +1805,14 @@ flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
 	cluster_reserved2grabbed(estimate_update_cluster(inode));
 	uncapture_cluster_jnode(node);
 
-	/* Try to create input stream for the found size (tc->len).
-	   Starting from this point the page cluster can be modified
-	   (truncated, appended) by concurrent processes, so we need
-	   to worry if the constructed stream is valid */
-
 	assert("edward-1224", schedulable());
-
-	result = grab_tfm_stream(inode, tc, INPUT_STREAM);
-	if (result)
-		return result;
-
+	/* Check out cluster pages to commit */
 	nr_pages =
-	    find_get_pages(inode->i_mapping, clust_to_pg(clust->index, inode),
-			   clust->nr_pages, clust->pages);
+	      find_get_pages(inode->i_mapping, clust_to_pg(clust->index, inode),
+			     clust->nr_pages, clust->pages);
 
 	if (nr_pages != clust->nr_pages) {
-		/* the page cluster get truncated, try again */
+		/* the page cluster got truncated, try again */
 		assert("edward-1280", nr_pages < clust->nr_pages);
 		warning("edward-1281", "Page cluster of index %lu (inode %llu)"
 			" get truncated from %u to %u pages\n",
@@ -1795,6 +1822,10 @@ flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
 		forget_cluster_pages(clust->pages, nr_pages);
 		return RETERR(-E_REPEAT);
 	}
+	/* Try to construct input stream from the checked out cluster pages.
+	   Note, that the last ones can be modified (truncated, appended) by
+	   concurrent processes, so we need to worry this is not mucked up
+	   so the constructed stream became invalid */
 	for (i = 0; i < clust->nr_pages; i++) {
 		char *data;
 
@@ -1803,7 +1834,7 @@ flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
 		if (clust->pages[i]->index !=
 		    clust_to_pg(clust->index, inode) + i) {
 			/* holes in the indices of found group of pages:
-			   page cluster get truncated, transform impossible */
+			   page cluster got truncated, transform impossible */
 			warning("edward-1282",
 				"Hole in the indices: "
 				"Page %d in the cluster of index %lu "
@@ -1817,7 +1848,7 @@ flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
 			goto finish;
 		}
 		if (!PageUptodate(clust->pages[i])) {
-			/* page cluster get truncated, transform impossible */
+			/* page cluster got truncated, transform impossible */
 			assert("edward-1283", !PageDirty(clust->pages[i]));
 			warning("edward-1284",
 				"Page of index %lu (inode %llu) "

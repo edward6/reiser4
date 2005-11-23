@@ -508,7 +508,7 @@ typedef struct compression_mode_plugin {
 	   of a logical cluster by its content */
 	int (*should_deflate) (cloff_t index);
 	/* this is called when results of compression should be saved */
-	void (*accept_hook) (struct inode * inode);
+	int (*accept_hook) (struct inode * inode, cloff_t index);
 	/* this is called when results of compression should be discarded */
 	int (*discard_hook) (struct inode * inode, cloff_t index);
 } compression_mode_plugin;
@@ -712,10 +712,13 @@ typedef enum {
 
 /* builtin compression mode plugins */
 typedef enum {
-	SMART_COMPRESSION_MODE_ID,
-	LAZY_COMPRESSION_MODE_ID,
+	COL_8_COMPRESSION_MODE_ID,
+	COL_16_COMPRESSION_MODE_ID,
+	COL_32_COMPRESSION_MODE_ID,
+	COZ_COMPRESSION_MODE_ID,
 	FORCE_COMPRESSION_MODE_ID,
 	TEST_COMPRESSION_MODE_ID,
+	NONE_COMPRESSION_MODE_ID,
 	LAST_COMPRESSION_MODE_ID
 } reiser4_compression_mode_id;
 
