@@ -1362,7 +1362,8 @@ static void inode_set_new_size(reiser4_cluster_t * clust, struct inode *inode)
 	return;
 }
 
-/* . Make jnode dirty, if it wasn't;
+/* Check in page cluster modifications.
+   . Make jnode dirty, if it wasn't;
    . Reserve space for a disk cluster update by flush algorithm, if needed;
    . Clean up extra-references of cluster pages.
 */
@@ -1754,7 +1755,7 @@ void forget_cluster_pages(struct page **pages, int nr)
 	}
 }
 
-/* Check out modifications we are about to commit.
+/* Check out last modifications we are about to commit.
    Prepare input stream for transform operations, return -E_REPEAT, if it is
    impossible because of races with concurrent processes.
 */
@@ -1793,7 +1794,7 @@ flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
 			clust->index, (unsigned long long)get_inode_oid(inode));
 		return RETERR(-E_REPEAT);
 	}
-	/* Check out a size of logical cluster and 
+	/* Check out a size of logical cluster and
 	   calculate a number of cluster pages to commit. */
 	tc->len = tc->lsize = fsize_to_count(clust, inode);
 	clust->nr_pages = count_to_nrpages(tc->len);

@@ -346,12 +346,12 @@ int write_page_by_ent(struct page *page, struct writeback_control *wbc)
 
 	if (rq.written)
 		/* Eventually ENTD has written the page to disk. */
-		return 1;
+		return 0;
 
 	lock_page(page);
 	redirty_page_for_writepage(wbc, page);
 	unlock_page(page);
-	return 0;
+	return 1;
 }
 
 int wbq_available(void)

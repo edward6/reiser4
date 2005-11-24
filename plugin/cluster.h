@@ -34,38 +34,37 @@ static inline size_t inode_cluster_size(struct inode *inode)
 	return 1U << inode_cluster_shift(inode);
 }
 
-static inline unsigned long pg_to_clust(unsigned long idx, struct inode *inode)
+static inline cloff_t pg_to_clust(pgoff_t idx, struct inode *inode)
 {
 	return idx >> cluster_nrpages_shift(inode);
 }
 
-static inline unsigned long clust_to_pg(unsigned long idx, struct inode *inode)
+static inline pgoff_t clust_to_pg(cloff_t idx, struct inode *inode)
 {
 	return idx << cluster_nrpages_shift(inode);
 }
 
-static inline unsigned long
-pg_to_clust_to_pg(unsigned long idx, struct inode *inode)
+static inline pgoff_t pg_to_clust_to_pg(pgoff_t idx, struct inode *inode)
 {
 	return clust_to_pg(pg_to_clust(idx, inode), inode);
 }
 
-static inline unsigned long off_to_pg(loff_t off)
+static inline pgoff_t off_to_pg(loff_t off)
 {
 	return (off >> PAGE_CACHE_SHIFT);
 }
 
-static inline loff_t pg_to_off(unsigned long idx)
+static inline loff_t pg_to_off(pgoff_t idx)
 {
 	return ((loff_t) (idx) << PAGE_CACHE_SHIFT);
 }
 
-static inline unsigned long off_to_clust(loff_t off, struct inode *inode)
+static inline cloff_t off_to_clust(loff_t off, struct inode *inode)
 {
 	return off >> inode_cluster_shift(inode);
 }
 
-static inline loff_t clust_to_off(unsigned long idx, struct inode *inode)
+static inline loff_t clust_to_off(cloff_t idx, struct inode *inode)
 {
 	return (loff_t) idx << inode_cluster_shift(inode);
 }
@@ -76,7 +75,7 @@ static inline unsigned long count_to_nr(loff_t count, unsigned shift)
 }
 
 /* number of pages occupied by @count bytes */
-static inline unsigned long count_to_nrpages(loff_t count)
+static inline pgoff_t count_to_nrpages(loff_t count)
 {
 	return count_to_nr(count, PAGE_CACHE_SHIFT);
 }
@@ -98,7 +97,7 @@ static inline loff_t off_to_clust_to_off(loff_t off, struct inode *inode)
 	return clust_to_off(off_to_clust(off, inode), inode);
 }
 
-static inline unsigned long off_to_clust_to_pg(loff_t off, struct inode *inode)
+static inline pgoff_t off_to_clust_to_pg(loff_t off, struct inode *inode)
 {
 	return clust_to_pg(off_to_clust(off, inode), inode);
 }
@@ -133,7 +132,7 @@ static inline pgoff_t size_to_next_pg(loff_t size)
 	return (size ? off_to_pg(size - 1) + 1 : 0);
 }
 
-static inline unsigned off_to_pgcount(loff_t off, unsigned long idx)
+static inline unsigned off_to_pgcount(loff_t off, pgoff_t idx)
 {
 	if (idx > off_to_pg(off))
 		return 0;
@@ -142,8 +141,8 @@ static inline unsigned off_to_pgcount(loff_t off, unsigned long idx)
 	return off_to_pgoff(off);
 }
 
-static inline unsigned
-off_to_count(loff_t off, unsigned long idx, struct inode *inode)
+static inline unsigned off_to_count(loff_t off, cloff_t idx,
+				    struct inode *inode)
 {
 	if (idx > off_to_clust(off, inode))
 		return 0;
