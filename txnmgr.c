@@ -1173,9 +1173,14 @@ static int commit_current_atom(long *nr_submitted, txn_atom ** atom)
 
 /* TXN_TXNH */
 
-/* commit current atom and wait commit completion; atom and txn_handle should be
- * locked before call, this function unlocks them on exit. */
-static int force_commit_atom_nolock(txn_handle * txnh)
+/**
+ * force_commit_atom - commit current atom and wait commit completion
+ * @txnh:
+ *
+ * Commits current atom and wait commit completion; current atom and @txnh have
+ * to be spinlocked before call, this function unlocks them on exit.
+ */
+int force_commit_atom(txn_handle *txnh)
 {
 	txn_atom *atom;
 
@@ -1188,14 +1193,17 @@ static int force_commit_atom_nolock(txn_handle * txnh)
 	assert("zam-834", atom != NULL);
 	assert_spin_locked(&(atom->alock));
 
-	/* Set flags for atom and txnh: forcing atom commit and waiting for
-	 * commit completion */
+	/*
+	 * Set flags for atom and txnh: forcing atom commit and waiting for
+	 * commit completion
+	 */
 	txnh->flags |= TXNH_WAIT_COMMIT;
 	atom->flags |= ATOM_FORCE_COMMIT;
 
 	spin_unlock_txnh(txnh);
 	spin_unlock_atom(atom);
 
+	/* commit is here */
 	txn_restart_current();
 	return 0;
 }
@@ -1240,7 +1248,7 @@ int txnmgr_force_commit_all(struct super_block *super, int commit_all_atoms)
 					spin_lock_txnh(txnh);
 					/* Add force-context txnh */
 					capture_assign_txnh_nolock(atom, txnh);
-					ret = force_commit_atom_nolock(txnh);
+					ret = force_commit_atom(txnh);
 					if (ret)
 						return ret;
 				} else
@@ -2575,7 +2583,7 @@ int sync_atom(txn_atom * atom)
 		if (atom->stage < ASTAGE_PRE_COMMIT) {
 			spin_lock_txnh(txnh);
 			capture_assign_txnh_nolock(atom, txnh);
-			result = force_commit_atom_nolock(txnh);
+			result = force_commit_atom(txnh);
 		} else if (atom->stage < ASTAGE_POST_COMMIT) {
 			/* wait atom commit */
 			atom_wait_event(atom);

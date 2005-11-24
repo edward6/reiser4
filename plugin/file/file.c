@@ -1633,45 +1633,25 @@ int sync_unix_file(struct file *file, struct dentry *dentry, int datasync)
 {
 	int result;
 	reiser4_context *ctx;
+	txn_atom *atom;
+	reiser4_block_nr reserve;
 
 	ctx = init_context(dentry->d_inode->i_sb);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 
-	assert("nikita-3486", ctx->trans->atom == NULL);
-	result = commit_file_atoms(dentry->d_inode);
-	assert("nikita-3484", ergo(result == 0, ctx->trans->atom == NULL));
-	if (result == 0 && !datasync) {
-		do {
-			/* commit "meta-data"---stat data in our case */
-			lock_handle lh;
-			coord_t coord;
-			reiser4_key key;
-
-			coord_init_zero(&coord);
-			init_lh(&lh);
-			/* locate stat-data in a tree and return with znode
-			 * locked */
-			result =
-			    locate_inode_sd(dentry->d_inode, &key, &coord, &lh);
-			if (result == 0) {
-				jnode *node;
-				txn_atom *atom;
-
-				node = jref(ZJNODE(coord.node));
-				done_lh(&lh);
-				txn_restart_current();
-				spin_lock_jnode(node);
-				atom = jnode_get_atom(node);
-				spin_unlock_jnode(node);
-				result = sync_atom(atom);
-				jput(node);
-			} else
-				done_lh(&lh);
-		} while (result == -E_REPEAT);
+	reserve = estimate_update_common(dentry->d_inode);
+	if (reiser4_grab_space(reserve, BA_CAN_COMMIT)) {
+		reiser4_exit_context(ctx);
+		return RETERR(-ENOSPC);
 	}
+	write_sd_by_inode_common(dentry->d_inode);
+
+	atom = get_current_atom_locked();
+	spin_lock_txnh(ctx->trans);
+	force_commit_atom(ctx->trans);
 	reiser4_exit_context(ctx);
-	return result;
+	return 0;
 }
 
 /* plugin->u.file.readpage
