@@ -604,7 +604,7 @@ int do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 		goto exit;
 
 	/* bytes in the page */
-	pgcnt = off_to_pgcount(i_size_read(inode), page->index);
+	pgcnt = cnt_to_pgcnt(i_size_read(inode), page->index);
 
 	if (pgcnt == 0) {
 		assert("edward-1290", 0);
@@ -775,8 +775,10 @@ readpages_ctail(void *vp, struct address_space *mapping,
 	assert("vs-26", hint->ext_coord.lh == &hint->lh);
 
 	/* address_space-level file readahead doesn't know about
-	   reiser4 page clustering, so we work around this fact */
-
+	   reiser4 concept of clustering, so we work around this
+	   fact: with each page of the list @pages address space
+	   will be populated with the whole page cluster.
+	*/
 	while (!list_empty(pages)) {
 		page = list_to_page(pages);
 		list_del(&page->lru);

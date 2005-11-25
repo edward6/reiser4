@@ -184,6 +184,7 @@ ssize_t write_cryptcompress(struct file *, const char __user *buf, size_t write_
 int mmap_cryptcompress(struct file *, struct vm_area_struct *);
 ssize_t sendfile_cryptcompress(struct file *file, loff_t *ppos, size_t count,
 			       read_actor_t actor, void *target);
+int release_cryptcompress(struct inode *, struct file *);
 
 /* address space operations */
 extern int readpage_cryptcompress(struct file *, struct page *);

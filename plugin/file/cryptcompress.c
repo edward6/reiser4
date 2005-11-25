@@ -85,6 +85,7 @@ crypto_stat_t * alloc_crypto_stat (struct inode * inode)
 	crypto_stat_t * info;
 	int fipsize;
 
+	assert("edward-xxx", 0);
 	info = kmalloc(sizeof(*info), GFP_KERNEL);
 	if (!info)
 		return ERR_PTR(-ENOMEM);
@@ -161,6 +162,7 @@ static int create_keyid (crypto_stat_t * info, crypto_data_t * data)
 	struct crypto_tfm * ctfm;
 	struct scatterlist sg;
 
+	assert("edward-xxx", 0);
 	assert("edward-1367", info != NULL);
 	assert("edward-1368", info->keyid != NULL);
 
@@ -1386,11 +1388,11 @@ make_cluster_jnode_dirty_locked(reiser4_cluster_t * clust, jnode * node,
 	if (JF_ISSET(node, JNODE_DIRTY)) {
 		/* there are >= 1 pages already referenced by this jnode */
 		assert("edward-973",
-		       count_to_nrpages(off_to_count
+		       count_to_nrpages(cnt_to_clcnt
 					(*old_isize, clust->index, inode)));
 		old_refcnt =
-		    count_to_nrpages(off_to_count
-				     (*old_isize, clust->index, inode)) - 1;
+			count_to_nrpages(cnt_to_clcnt
+					 (*old_isize, clust->index, inode)) - 1;
 		/* space for the disk cluster is already reserved */
 
 		free_reserved4cluster(inode, clust,
@@ -1527,6 +1529,8 @@ static int grab_cluster_pages(struct inode *inode, reiser4_cluster_t * clust)
 	int i;
 	int result = 0;
 
+	assert("edward-xxx", inode != NULL);
+	assert("edward-xxx", inode->i_mapping != NULL);	
 	assert("edward-787", clust != NULL);
 	assert("edward-788", clust->pages != NULL);
 	assert("edward-789", clust->nr_pages != 0);
@@ -1864,10 +1868,10 @@ flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
 		lock_page(clust->pages[i]);
 		data = kmap(clust->pages[i]);
 
-		assert("edward-986", off_to_pgcount(tc->len, i) != 0);
+		assert("edward-986", cnt_to_pgcnt(tc->len, i) != 0);
 
 		memcpy(tfm_stream_data(tc, INPUT_STREAM) + pg_to_off(i),
-		       data, off_to_pgcount(tc->len, i));
+		       data, cnt_to_pgcnt(tc->len, i));
 		kunmap(clust->pages[i]);
 		unlock_page(clust->pages[i]);
 	}
@@ -2446,7 +2450,7 @@ void truncate_page_cluster(struct inode *inode, cloff_t index)
 	}
 	/* jnode is present and may be dirty, if so, put
 	   all the cluster pages except the first one */
-	nr_pages = count_to_nrpages(off_to_count(inode->i_size, index, inode));
+	nr_pages = count_to_nrpages(cnt_to_clcnt(inode->i_size, index, inode));
 
 	found = find_get_pages(inode->i_mapping, clust_to_pg(index, inode),
 			       nr_pages, pages);
@@ -2548,7 +2552,7 @@ prepare_cluster(struct inode *inode,
       err1:
 	page_cache_release(clust->pages[0]);
 	release_cluster_pages_and_jnode(clust);
-	assert("edward-1125", 0);
+	assert("edward-1125", result != -ENOSPC);
 	return result;
 }
 
@@ -2720,7 +2724,7 @@ write_cryptcompress_flow(struct file *file, struct inode *inode,
 		     i < count_to_nrpages(win.off + win.count);
 		     i++, src += page_count) {
 			page_count =
-			    off_to_pgcount(win.off + win.count, i) - page_off;
+			    cnt_to_pgcnt(win.off + win.count, i) - page_off;
 
 			assert("edward-1039",
 			       page_off + page_count <= PAGE_CACHE_SIZE);
@@ -3236,7 +3240,7 @@ cryptcompress_append_hole(struct inode *inode /*contains old i_size */ ,
 
 	result = prepare_cluster(inode, 0, 0, &clust, PCL_APPEND);
 
-	assert("edward-1271", !result);
+	assert("edward-1271", result != -ENOSPC);
 	if (result)
 		goto out;
 	assert("edward-1139",
@@ -3404,7 +3408,7 @@ prune_cryptcompress(struct inode *inode, loff_t new_size, int update_sd,
 	truncate_inode_pages(inode->i_mapping, new_size);
 	INODE_SET_FIELD(inode, i_size, new_size);
       out:
-	assert("edward-1334", !result);
+	assert("edward-1334", result != -ENOSPC);
 	assert("edward-1209",
 	       pages_truncate_ok(inode, old_size, count_to_nrpages(new_size)));
 	assert("edward-1335",
@@ -3865,6 +3869,22 @@ sendfile_cryptcompress(struct file *file, loff_t *ppos, size_t count,
  exit:
 	reiser4_exit_context(ctx);
 	return result;
+}
+
+/*
+ * release_cryptcompress - release of struct file_operations
+ * @inode: inode of released file
+ * @file: file to release
+ */
+int release_cryptcompress(struct inode *inode, struct file *file)
+{
+	reiser4_context *ctx = init_context(inode->i_sb);
+
+	if (IS_ERR(ctx))
+		return PTR_ERR(ctx);
+	reiser4_free_file_fsdata(file);
+	reiser4_exit_context(ctx);
+	return 0;
 }
 
 static int

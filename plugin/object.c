@@ -305,6 +305,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.read = read_cryptcompress,
 			.write = write_cryptcompress,
 			.mmap = mmap_cryptcompress,
+			.release = release_cryptcompress,
 			.fsync = sync_common,
 			.sendfile = sendfile_cryptcompress
 		},

@@ -132,23 +132,27 @@ static inline pgoff_t size_to_next_pg(loff_t size)
 	return (size ? off_to_pg(size - 1) + 1 : 0);
 }
 
-static inline unsigned off_to_pgcount(loff_t off, pgoff_t idx)
+/* how many bytes of file of size @cnt can be contained
+   in page of index @idx */
+static inline unsigned cnt_to_pgcnt(loff_t cnt, pgoff_t idx)
 {
-	if (idx > off_to_pg(off))
+	if (idx > off_to_pg(cnt))
 		return 0;
-	if (idx < off_to_pg(off))
+	if (idx < off_to_pg(cnt))
 		return PAGE_CACHE_SIZE;
-	return off_to_pgoff(off);
+	return off_to_pgoff(cnt);
 }
 
-static inline unsigned off_to_count(loff_t off, cloff_t idx,
+/* how many bytes of file of size @cnt can be contained
+   in logical cluster of index @idx */
+static inline unsigned cnt_to_clcnt(loff_t cnt, cloff_t idx,
 				    struct inode *inode)
 {
-	if (idx > off_to_clust(off, inode))
+	if (idx > off_to_clust(cnt, inode))
 		return 0;
-	if (idx < off_to_clust(off, inode))
+	if (idx < off_to_clust(cnt, inode))
 		return inode_cluster_size(inode);
-	return off_to_cloff(off, inode);
+	return off_to_cloff(cnt, inode);
 }
 
 static inline unsigned
@@ -157,7 +161,7 @@ fsize_to_count(reiser4_cluster_t * clust, struct inode *inode)
 	assert("edward-288", clust != NULL);
 	assert("edward-289", inode != NULL);
 
-	return off_to_count(inode->i_size, clust->index, inode);
+	return cnt_to_clcnt(inode->i_size, clust->index, inode);
 }
 
 static inline int
