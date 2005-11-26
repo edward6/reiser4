@@ -404,6 +404,7 @@ static inline void free_cluster_pgset(reiser4_cluster_t * clust)
 {
 	assert("edward-951", clust->pages != NULL);
 	kfree(clust->pages);
+	clust->pages = NULL;
 }
 
 static inline void put_cluster_handle(reiser4_cluster_t * clust)
