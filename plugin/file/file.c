@@ -1321,6 +1321,7 @@ capture_anonymous_jnodes(struct address_space *mapping,
 		return result;
 	return nr;
 #else				/* REISER4_USE_EFLUSH */
+	*from = to;
 	return 0;
 #endif
 }
