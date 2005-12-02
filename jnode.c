@@ -675,7 +675,7 @@ void jnode_attach_page(jnode * node, struct page *pg)
 	assert_spin_locked(&(node->guard));
 
 	page_cache_get(pg);
-	pg->private = (unsigned long)node;
+	set_page_private(pg, (unsigned long)node);
 	node->pg = pg;
 	SetPagePrivate(pg);
 }
@@ -692,7 +692,7 @@ void page_clear_jnode(struct page *page, jnode * node)
 	assert("nikita-3551", !PageWriteback(page));
 
 	JF_CLR(node, JNODE_PARSED);
-	page->private = 0ul;
+	set_page_private(page, 0ul);
 	ClearPagePrivate(page);
 	node->pg = NULL;
 	page_cache_release(page);

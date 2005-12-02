@@ -30,7 +30,7 @@ static inline void lock_and_wait_page_writeback(struct page *page)
 		reiser4_wait_page_writeback(page);
 }
 
-#define jprivate(page) ((jnode *) (page)->private)
+#define jprivate(page) ((jnode *)page_private(page))
 
 extern int page_io(struct page *page, jnode * node, int rw, int gfp);
 extern void drop_page(struct page *page);
