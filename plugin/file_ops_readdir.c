@@ -635,7 +635,7 @@ int readdir_common(struct file *f /* directory file being read */ ,
 		warning("", "failed to update atime on readdir: %llu",
 			get_inode_oid(inode));
 	else
-		update_atime(inode);
+		file_accessed(f);
 
 	context_set_commit_async(ctx);
 	reiser4_exit_context(ctx);
