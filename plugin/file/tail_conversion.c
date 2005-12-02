@@ -681,7 +681,7 @@ int extent2tail(unix_file_info_t * uf_info)
 		/* page is already detached from jnode and mapping. */
 		assert("vs-1086", page->mapping == NULL);
 		assert("nikita-2690",
-		       (!PagePrivate(page) && page->private == 0));
+		       (!PagePrivate(page) && jprivate(page) == 0));
 		/* waiting for writeback completion with page lock held is
 		 * perfectly valid. */
 		wait_on_page_writeback(page);
