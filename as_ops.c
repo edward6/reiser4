@@ -327,7 +327,7 @@ int jnode_is_releasable(jnode * node /* node to check */ )
  *
  * Check for releasability is done by releasable() function.
  */
-int reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
+int reiser4_releasepage(struct page *page, gfp_t gfp UNUSED_ARG)
 {
 	jnode *node;
 
