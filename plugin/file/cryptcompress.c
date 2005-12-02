@@ -85,7 +85,7 @@ crypto_stat_t * alloc_crypto_stat (struct inode * inode)
 	crypto_stat_t * info;
 	int fipsize;
 
-	assert("edward-xxx", 0);
+	assert("edward-1421", 0);
 	info = kmalloc(sizeof(*info), GFP_KERNEL);
 	if (!info)
 		return ERR_PTR(-ENOMEM);
@@ -162,7 +162,7 @@ static int create_keyid (crypto_stat_t * info, crypto_data_t * data)
 	struct crypto_tfm * ctfm;
 	struct scatterlist sg;
 
-	assert("edward-xxx", 0);
+	assert("edward-1422", 0);
 	assert("edward-1367", info != NULL);
 	assert("edward-1368", info->keyid != NULL);
 
@@ -1030,18 +1030,18 @@ int deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 
 		if (coplug->compress == NULL)
 			coplug = dual_compression_plugin(coplug);
-		assert("edward-xxx", coplug->compress != NULL);
+		assert("edward-1423", coplug->compress != NULL);
 
 		result = grab_coa(tc, coplug);
 		if (result) {
-		    warning("edward-xxx",
+		    warning("edward-1424",
 			    "alloc_coa failed with ret=%d, skipped compression",
 			    result);
 		    goto cipher;
 		}
 		result = grab_tfm_stream(inode, tc, OUTPUT_STREAM);
 		if (result) {
-		    warning("edward-xxx",
+		    warning("edward-1425",
 			 "alloc stream failed with ret=%d, skipped compression",
 			    result);
 		    goto cipher;
@@ -1059,9 +1059,9 @@ int deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 			/* good result, accept */
 			tc->len = dst_len;
 			if (mplug->accept_hook != NULL) {
-				result = mplug->accept_hook(inode, clust->index);
-				if (result)
-				       warning("edward-xxx",
+			       result = mplug->accept_hook(inode, clust->index);
+			       if (result)
+				       warning("edward-1426",
 					       "accept_hook failed with ret=%d",
 					       result);
 			}
@@ -1070,17 +1070,18 @@ int deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 		else {
 			/* bad result, discard */
 #if REISER4_DEBUG
-			warning("edward-1338",
-				"incompressible data: inode %llu, cluster %lu",
-				(unsigned long long)get_inode_oid(inode),
-				clust->index);
+			if (cluster_is_complete(clust, inode))
+			      warning("edward-1338",
+				      "incompressible cluster %lu (inode %llu)",
+				      clust->index,
+				      (unsigned long long)get_inode_oid(inode));
 #endif
 			if (mplug->discard_hook != NULL &&
 			    cluster_is_complete(clust, inode)) {
 				result = mplug->discard_hook(inode,
 							     clust->index);
 				if (result)
-				      warning("edward-xxx",
+				      warning("edward-1427",
 					      "discard_hook failed with ret=%d",
 					      result);
 			}
@@ -1529,8 +1530,8 @@ static int grab_cluster_pages(struct inode *inode, reiser4_cluster_t * clust)
 	int i;
 	int result = 0;
 
-	assert("edward-xxx", inode != NULL);
-	assert("edward-xxx", inode->i_mapping != NULL);	
+	assert("edward-1428", inode != NULL);
+	assert("edward-1429", inode->i_mapping != NULL);	
 	assert("edward-787", clust != NULL);
 	assert("edward-788", clust->pages != NULL);
 	assert("edward-789", clust->nr_pages != 0);
@@ -1781,7 +1782,7 @@ flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
 
 	result = grab_tfm_stream(inode, tc, INPUT_STREAM);
 	if (result) {
-		warning("edward-xxx",
+		warning("edward-1430",
 			"alloc stream failed with ret=%d", result);
 		return result;
 	}
@@ -2552,7 +2553,7 @@ prepare_cluster(struct inode *inode,
       err1:
 	page_cache_release(clust->pages[0]);
 	release_cluster_pages_and_jnode(clust);
-	assert("edward-1125", result != -ENOSPC);
+	assert("edward-1125", result == -ENOSPC);
 	return result;
 }
 
@@ -2958,15 +2959,6 @@ ssize_t read_cryptcompress(struct file * file, char __user *buf, size_t size,
 	return result;
 }
 
-static void
-set_append_cluster_key(const coord_t * coord, reiser4_key * key,
-		       struct inode *inode)
-{
-	item_key_by_coord(coord, key);
-	set_key_offset(key,
-		       clust_to_off(clust_by_coord(coord, inode) + 1, inode));
-}
-
 /* If @index > 0, find real disk cluster of the index (@index - 1),
    If @index == 0 find the real disk cluster of the object of maximal index.
    Keep incremented index of the result in @found.
@@ -2987,9 +2979,8 @@ find_real_disk_cluster(struct inode *inode, cloff_t * found, cloff_t index)
 	lookup_bias bias;
 	coord_t *coord;
 	item_plugin *iplug;
-	file_plugin *fplug = inode_file_plugin(inode);
 
-	assert("edward-1131", fplug == file_plugin_by_id(CRC_FILE_PLUGIN_ID));
+	assert("edward-1131", inode != NULL);
 	assert("edward-95", crc_inode_ok(inode));
 
 	hint = kmalloc(sizeof(*hint), GFP_KERNEL);
@@ -3003,7 +2994,7 @@ find_real_disk_cluster(struct inode *inode, cloff_t * found, cloff_t index)
 	    (index ? clust_to_off(index, inode) -
 	     1 : get_key_offset(max_key()));
 
-	fplug->key_by_inode(inode, offset, &key);
+	key_by_inode_cryptcompress(inode, offset, &key);
 
 	/* find the last item of this object */
 	result =
@@ -3034,9 +3025,8 @@ find_real_disk_cluster(struct inode *inode, cloff_t * found, cloff_t index)
 	assert("edward-277", iplug == item_plugin_by_id(CTAIL_ID));
 	assert("edward-1202", ctail_ok(coord));
 
-	set_append_cluster_key(coord, &key, inode);
-
-	*found = off_to_clust(get_key_offset(&key), inode);
+	item_key_by_coord(coord, &key);
+	*found = off_to_clust(get_key_offset(&key), inode) + 1;
 
 	assert("edward-1132", ergo(index, index == *found));
 
@@ -3240,7 +3230,7 @@ cryptcompress_append_hole(struct inode *inode /*contains old i_size */ ,
 
 	result = prepare_cluster(inode, 0, 0, &clust, PCL_APPEND);
 
-	assert("edward-1271", result != -ENOSPC);
+	assert("edward-1271", !result || result == -ENOSPC);
 	if (result)
 		goto out;
 	assert("edward-1139",
@@ -3408,7 +3398,7 @@ prune_cryptcompress(struct inode *inode, loff_t new_size, int update_sd,
 	truncate_inode_pages(inode->i_mapping, new_size);
 	INODE_SET_FIELD(inode, i_size, new_size);
       out:
-	assert("edward-1334", result != -ENOSPC);
+	assert("edward-1334", !result || result == -ENOSPC);
 	assert("edward-1209",
 	       pages_truncate_ok(inode, old_size, count_to_nrpages(new_size)));
 	assert("edward-1335",
