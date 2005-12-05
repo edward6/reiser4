@@ -2292,7 +2292,7 @@ void uncapture_page(struct page *pg)
 
 	reiser4_wait_page_writeback(pg);
 
-	node = (jnode *) (pg->private);
+	node = jprivate(pg);
 	BUG_ON(node == NULL);
 
 	spin_lock_jnode(node);

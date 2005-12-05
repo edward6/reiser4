@@ -429,7 +429,7 @@ end_io_handler(struct bio *bio, unsigned int bytes_done UNUSED_ARG,
 
 			assert("zam-736", pg != NULL);
 			assert("zam-736", PagePrivate(pg));
-			node = (jnode *) (pg->private);
+			node = jprivate(pg);
 
 			JF_CLR(node, JNODE_WRITEBACK);
 		}

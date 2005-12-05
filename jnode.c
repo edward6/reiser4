@@ -38,8 +38,8 @@
  *     page_address().
  *
  *     jnode and page are attached to each other by jnode_attach_page(). This
- *     function places pointer to jnode in page->private, sets PG_private flag
- *     and increments page counter.
+ *     function places pointer to jnode in set_page_private(), sets PG_private
+ *     flag and increments page counter.
  *
  *     Opposite operation is performed by page_clear_jnode().
  *
@@ -667,7 +667,7 @@ void jnode_attach_page(jnode * node, struct page *pg)
 	assert("nikita-2060", node != NULL);
 	assert("nikita-2061", pg != NULL);
 
-	assert("nikita-2050", pg->private == 0ul);
+	assert("nikita-2050", jprivate(pg) == 0ul);
 	assert("nikita-2393", !PagePrivate(pg));
 	assert("vs-1741", node->pg == NULL);
 
@@ -675,7 +675,7 @@ void jnode_attach_page(jnode * node, struct page *pg)
 	assert_spin_locked(&(node->guard));
 
 	page_cache_get(pg);
-	pg->private = (unsigned long)node;
+	set_page_private(pg, (unsigned long)node);
 	node->pg = pg;
 	SetPagePrivate(pg);
 }
@@ -692,7 +692,7 @@ void page_clear_jnode(struct page *page, jnode * node)
 	assert("nikita-3551", !PageWriteback(page));
 
 	JF_CLR(node, JNODE_PARSED);
-	page->private = 0ul;
+	set_page_private(page, 0ul);
 	ClearPagePrivate(page);
 	node->pg = NULL;
 	page_cache_release(page);

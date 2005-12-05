@@ -51,7 +51,7 @@ int cluster_shift_by_coord(const coord_t * coord)
 	return get_unaligned(&ctail_formatted_at(coord)->cluster_shift);
 }
 
-static unsigned long off_by_coord(const coord_t * coord)
+static loff_t off_by_coord(const coord_t * coord)
 {
 	reiser4_key key;
 	return get_key_offset(item_key_by_coord(coord, &key));
@@ -68,7 +68,7 @@ static int coord_is_unprepped_ctail(const coord_t * coord)
 	return (int)cluster_shift_by_coord(coord) == (int)UCTAIL_SHIFT;
 }
 
-unsigned long clust_by_coord(const coord_t * coord, struct inode *inode)
+cloff_t clust_by_coord(const coord_t * coord, struct inode *inode)
 {
 	int shift;
 
@@ -84,7 +84,7 @@ unsigned long clust_by_coord(const coord_t * coord, struct inode *inode)
 	return off_by_coord(coord) >> shift;
 }
 
-static int unsigned long disk_cluster_size(const coord_t * coord)
+static int disk_cluster_size(const coord_t * coord)
 {
 	assert("edward-1156",
 	       item_plugin_by_coord(coord) == item_plugin_by_id(CTAIL_ID));
@@ -101,8 +101,8 @@ static int is_disk_cluster_key(const reiser4_key * key, const coord_t * coord)
 	assert("edward-1239", item_id_by_coord(coord) == CTAIL_ID);
 
 	return coord_is_unprepped_ctail(coord) ||
-	    ((get_key_offset(key) & ((loff_t) disk_cluster_size(coord) - 1)) ==
-	     0);
+	    ((get_key_offset(key) & 
+	      ((loff_t) disk_cluster_size(coord) - 1)) == 0);
 }
 
 static char *first_unit(coord_t * coord)
@@ -327,7 +327,6 @@ copy_units_ctail(coord_t * target, coord_t * source,
 
 		if (free_space == count) {
 			init_ctail(target, source, NULL);
-			//assert("edward-861", cluster_shift_by_coord(target) == d8tocpu(&ctail_formatted_at(target)->body[count]));
 		} else {
 			/* new item has been created */
 			assert("edward-862", ctail_ok(target));
@@ -398,16 +397,15 @@ static int ctail_convertible(const coord_t * coord)
 	item_key_by_coord(coord, &key);
 	child = jlookup(current_tree,
 			get_key_objectid(&key),
-			clust_by_coord(coord,
-				       NULL) << cluster_shift_by_coord(coord));
+			off_to_pg(off_by_coord(coord)));
 	if (!child)
 		return 0;
-	/* NOTE-Edward: jnode spin lock is removed here: test_bit is atomic */
 	result = JF_ISSET(child, JNODE_DIRTY);
 	jput(child);
 	return result;
 }
 
+/* FIXME-EDWARD */
 /* plugin->u.item.b.shift_hook */
 int shift_hook_ctail(const coord_t * item /* coord of item */ ,
 		     unsigned from UNUSED_ARG /* start unit */ ,
@@ -844,8 +842,7 @@ reiser4_key *append_key_ctail(const coord_t * coord, reiser4_key * key)
 	item_key_by_coord(coord, key);
 	set_key_offset(key,
 		       ((__u64) (clust_by_coord(coord, NULL)) +
-			1) << cluster_shift_by_coord(coord) <<
-		       PAGE_CACHE_SHIFT);
+			1) << cluster_shift_by_coord(coord));
 	return key;
 }
 
