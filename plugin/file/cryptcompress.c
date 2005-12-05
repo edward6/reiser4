@@ -1217,6 +1217,7 @@ int readpage_cryptcompress(struct file *file, struct page *page)
 		return PTR_ERR(ctx);
 	result = check_cryptcompress(page->mapping->host);
 	if (result) {
+		unlock_page(page);
 		reiser4_exit_context(ctx);
 		return result;
 	}
@@ -1226,7 +1227,6 @@ int readpage_cryptcompress(struct file *file, struct page *page)
 
 	if (PageUptodate(page)) {
 		warning("edward-1338", "page is already uptodate\n");
-		unlock_page(page);
 		reiser4_exit_context(ctx);
 		return 0;
 	}
@@ -1234,12 +1234,14 @@ int readpage_cryptcompress(struct file *file, struct page *page)
 	clust.file = file;
 	iplug = item_plugin_by_id(CTAIL_ID);
 	if (!iplug->s.file.readpage) {
+		unlock_page(page);
 		put_cluster_handle(&clust);
 		reiser4_exit_context(ctx);
 		return -EINVAL;
 	}
 	result = iplug->s.file.readpage(&clust, page);
-
+	if (result)
+		unlock_page(page);
 	assert("edward-64",
 	       ergo(result == 0, (PageLocked(page) || PageUptodate(page))));
 	put_cluster_handle(&clust);
@@ -2551,7 +2553,6 @@ prepare_cluster(struct inode *inode,
 	free_reserved4cluster(inode, clust,
 			      estimate_update_cluster(inode));
       err1:
-	page_cache_release(clust->pages[0]);
 	release_cluster_pages_and_jnode(clust);
 	assert("edward-1125", result == -ENOSPC);
 	return result;
@@ -2739,7 +2740,7 @@ write_cryptcompress_flow(struct file *file, struct inode *inode,
 			if (unlikely(result)) {
 				unlock_page(clust.pages[i]);
 				result = -EFAULT;
-				goto err3;
+				goto err2;
 			}
 			SetPageUptodate(clust.pages[i]);
 			unlock_page(clust.pages[i]);
@@ -2771,8 +2772,6 @@ write_cryptcompress_flow(struct file *file, struct inode *inode,
 		assert("edward-755", hint->lh.owner == NULL);
 		reset_cluster_params(&clust);
 		continue;
-	      err3:
-		page_cache_release(clust.pages[0]);
 	      err2:
 		release_cluster_pages_and_jnode(&clust);
 	      err1:
@@ -2818,8 +2817,6 @@ static ssize_t write_crc_file(struct file *file,	/* file to write to */
 
 	if (unlikely(count == 0))
 		return 0;
-
-	/* FIXME-EDWARD: other UNIX features */
 
 	down_write(&info->lock);
 	LOCK_CNT_INC(inode_sem_w);

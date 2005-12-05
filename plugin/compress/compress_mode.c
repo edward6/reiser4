@@ -1,7 +1,8 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
-/* Reiser4 compression mode plugins. 
-   See Handling incompressible data,
-   http://www.namesys.com/cryptcompress_design.html
+/* This file contains Reiser4 compression mode plugins.
+   Compression mode plugin is a set of handlers called by compressor at
+   flush time and represent some heuristics, see Handling incompressible data,
+   http://www.namesys.com/cryptcompress_design.html for more details.
 */
 #include "../../inode.h"
 #include "../plugin.h"
@@ -51,7 +52,7 @@ static int turn_on_compression(struct inode *inode, cloff_t index)
 }
 
 /* Check on lattice (COL) of some sparseness factor,
-   the family of compression modes.
+   the family of adaptive compression modes.
 
    Turn compression off whenever compressor detects
    incompressible data.
