@@ -1,10 +1,13 @@
 /* Copyright 2001, 2002, 2003, 2004 by Hans Reiser, licensing governed by
  * reiser4/README */
 
-/* this file contains implementations of inode/file/address_space/file plugin
-   operations specific for "unix file plugin" (plugin id is
-   UNIX_FILE_PLUGIN_ID)
-*/
+/*
+ * this file contains implementations of inode/file/address_space/file plugin
+ * operations specific for "unix file plugin" (plugin id is
+ * UNIX_FILE_PLUGIN_ID). "Unix file" is either built of tail items only
+ * (FORMATTING_ID) or of extent items only (EXTENT_POINTER_ID) or empty (have
+ * no items but stat data)
+ */
 
 #include "../../inode.h"
 #include "../../super.h"
@@ -20,9 +23,6 @@
 #include <linux/pagevec.h>
 #include <linux/syscalls.h>
 
-/* "Unix file" are built either of tail items only (FORMATTING_ID) or of extent
-   items only (EXTENT_POINTER_ID) or empty (have no items but stat data)
-*/
 
 static int unpack(struct inode *inode, int forever);
 
@@ -62,6 +62,13 @@ static void set_file_state_unknown(struct inode *inode)
 	unix_file_inode_data(inode)->container = UF_CONTAINER_UNKNOWN;
 }
 
+/**
+ * less_than_ldk - compare key and znode's left delimiting key
+ * @node: node whose left delimiting key to compare with @key
+ * @key: key to compare with @node's left delimiting key
+ *
+ * Returns true if @key is less than left delimiting key of @node.
+ */
 static int less_than_ldk(znode *node, const reiser4_key *key)
 {
 	int result;
@@ -72,6 +79,13 @@ static int less_than_ldk(znode *node, const reiser4_key *key)
 	return result;
 }
 
+/**
+ * equal_to_rdk - compare key and znode's right delimiting key
+ * @node: node whose right delimiting key to compare with @key
+ * @key: key to compare with @node's right delimiting key
+ *
+ * Returns true if @key is equal to right delimiting key of @node.
+ */
 int equal_to_rdk(znode *node, const reiser4_key *key)
 {
 	int result;
@@ -84,7 +98,14 @@ int equal_to_rdk(znode *node, const reiser4_key *key)
 
 #if REISER4_DEBUG
 
-static int less_than_rdk(znode * node, const reiser4_key * key)
+/**
+ * less_than_rdk - compare key and znode's right delimiting key
+ * @node: node whose right delimiting key to compare with @key
+ * @key: key to compare with @node's right delimiting key
+ *
+ * Returns true if @key is less than right delimiting key of @node.
+ */
+static int less_than_rdk(znode *node, const reiser4_key *key)
 {
 	int result;
 
@@ -94,7 +115,14 @@ static int less_than_rdk(znode * node, const reiser4_key * key)
 	return result;
 }
 
-int equal_to_ldk(znode * node, const reiser4_key * key)
+/**
+ * equal_to_ldk - compare key and znode's left delimiting key
+ * @node: node whose left delimiting key to compare with @key
+ * @key: key to compare with @node's left delimiting key
+ *
+ * Returns true if @key is equal to left delimiting key of @node.
+ */
+int equal_to_ldk(znode *node, const reiser4_key *key)
 {
 	int result;
 
@@ -104,9 +132,16 @@ int equal_to_ldk(znode * node, const reiser4_key * key)
 	return result;
 }
 
-/* get key of item next to one @coord is set to */
-static reiser4_key *get_next_item_key(const coord_t * coord,
-				      reiser4_key * next_key)
+/**
+ * get_next_item_key - get key of item next to the one @coord is set to
+ * @coord: left neighbor of item which key is to be calculated
+ * @next_key: where to store key of next item
+ *
+ * If @coord is set to last item in the node - return right delimiting key of
+ * coord->node. Otherwise - return key of next item in the node.
+ */
+static reiser4_key *get_next_item_key(const coord_t *coord,
+				      reiser4_key *next_key)
 {
 	if (coord->item_pos == node_num_items(coord->node) - 1) {
 		/* get key of next item if it is in right neighbor */
@@ -126,11 +161,12 @@ static reiser4_key *get_next_item_key(const coord_t * coord,
 }
 
 /**
- * item_of_that_file
- * @coord:
- * @key:
+ * item_of_that_file - check whether item if of certain file
+ * @coord: item to check
+ * @key: key of position in a file
  *
- * Returns true if @key is a key of position if @coord is set to item of fileif item of file
+ * @key is key of position in a file. Returns true if @coord is set to an item
+ * of that file.
  */
 static int item_of_that_file(const coord_t *coord, const reiser4_key *key)
 {
@@ -142,12 +178,18 @@ static int item_of_that_file(const coord_t *coord, const reiser4_key *key)
 	return keylt(key, iplug->b.max_key_inside(coord, &max_possible));
 }
 
-static int check_coord(const coord_t * coord, const reiser4_key * key)
+/**
+ * check_coord - check whether coord corresponds to key
+ * @coord: coord to check
+ * @key: key @coord has to correspond to
+ *
+ * Returns true if @coord is set as if it was set as result of lookup with @key
+ * in coord->node.
+ */
+static int check_coord(const coord_t *coord, const reiser4_key *key)
 {
 	coord_t twin;
 
-	if (!REISER4_DEBUG)
-		return 1;
 	node_plugin_by_node(coord->node)->lookup(coord->node, key,
 						 FIND_MAX_NOT_MORE_THAN, &twin);
 	return coords_equal(coord, &twin);
@@ -163,9 +205,17 @@ static int file_is_empty(const struct inode *inode)
 	return unix_file_inode_data(inode)->container == UF_CONTAINER_EMPTY;
 }
 
-#endif				/* REISER4_DEBUG */
+#endif /* REISER4_DEBUG */
 
-static void init_uf_coord(uf_coord_t * uf_coord, lock_handle * lh)
+
+/**
+ * init_uf_coord - initialize extended coord
+ * @uf_coord:
+ * @lh:
+ *
+ *
+ */
+static void init_uf_coord(uf_coord_t *uf_coord, lock_handle *lh)
 {
 	coord_init_zero(&uf_coord->coord);
 	coord_clear_iplug(&uf_coord->coord);
