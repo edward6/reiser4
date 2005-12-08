@@ -1267,9 +1267,7 @@ static int attach_convert_idata(flush_pos_t * pos, struct inode *inode)
 	ret = flush_cluster_pages(clust, pos->child, inode);
 	if (ret)
 		goto err;
-	assert("edward-830",
-	       equi(get_coa(&clust->tc, cplug->h.id), cplug->alloc));
-	
+
 	deflate_cluster(clust, inode);
 	inc_item_convert_count(pos);
 
