@@ -417,12 +417,8 @@ inode_set_compression(struct inode * object)
 static void
 inode_set_compression_mode(struct inode * object)
 {
-	compression_mode_plugin * mplug;
 	reiser4_inode * info = reiser4_inode_data(object);
 
-	mplug = inode_compression_mode_plugin(object);
-
-	plugin_set_compression_mode(&info->pset, mplug);
 	info->plugin_mask |= (1 << PSET_COMPRESSION_MODE);
 	return;
 }
@@ -439,7 +435,8 @@ static int inode_set_cluster(struct inode *object)
 
 	if (cplug->shift < PAGE_CACHE_SHIFT) {
 		warning("edward-1320",
-			"Can not support cluster size %p", cplug->h.label);
+			"Can not support %p clusters (less then page size)",
+			cplug->h.label);
 		return RETERR(-EINVAL);
 	}
 	info->plugin_mask |= (1 << PSET_CLUSTER);
@@ -872,9 +869,11 @@ static unsigned deflate_overrun(struct inode * inode, int ilen)
 			     (inode_compression_plugin(inode)), ilen));
 }
 
-/* Estimating compressibility of a logical cluster by
-   various policies represented by compression mode plugin.
-   Returns yes(try) or no(do not try) */
+/* Estimating compressibility of a logical cluster by various
+   policies represented by compression mode plugin.
+   If this returns false, then compressor won't be called for
+   the cluster of index @index.
+*/
 static int try_compress(tfm_cluster_t * tc, cloff_t index, struct inode *inode)
 {
 	compression_plugin *cplug = inode_compression_plugin(inode);
@@ -888,12 +887,10 @@ static int try_compress(tfm_cluster_t * tc, cloff_t index, struct inode *inode)
 		(cplug->min_size_deflate ?
 		 tc->len >= cplug->min_size_deflate() :
 		 1) &&
-		(/* compression is on */
-		 (cplug->compress != NULL) ||
-		 /* estimate by content */
-		 (mplug->should_deflate ?
-		  mplug->should_deflate(index) :
-		  1));
+		/* estimate by content */
+		(mplug->should_deflate ?
+		 mplug->should_deflate(inode, index) :
+		 1);
 }
 
 /* Evaluating results of compression transform.

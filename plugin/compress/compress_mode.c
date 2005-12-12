@@ -1,20 +1,27 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 /* This file contains Reiser4 compression mode plugins.
-   Compression mode plugin is a set of handlers called by compressor at
-   flush time and represent some heuristics, see Handling incompressible data,
+
+   Compression mode plugin is a set of handlers called by compressor
+   at flush time and represent some heuristics including the ones
+   which are to avoid compression of incompressible data, see
    http://www.namesys.com/cryptcompress_design.html for more details.
 */
 #include "../../inode.h"
 #include "../plugin.h"
 
-static int should_deflate_test(cloff_t index)
+static int should_deflate_test(struct inode * inode, cloff_t index)
 {
 	return !test_bit(0, &index);
 }
 
-static int should_deflate_none(cloff_t index)
+static int should_deflate_none(struct inode * inode, cloff_t index)
 {
 	return 0;
+}
+
+static int should_deflate_common(struct inode * inode, cloff_t index)
+{
+	return inode_compression_plugin(inode)->compress != NULL;
 }
 
 /* generic turn on/off compression */
@@ -52,12 +59,15 @@ static int turn_on_compression(struct inode *inode, cloff_t index)
 }
 
 /* Check on lattice (COL) of some sparseness factor,
-   the family of adaptive compression modes.
-
-   Turn compression off whenever compressor detects
-   incompressible data.
-   Try to compress clusters of indexes k * FACTOR (k = 0, 1, 2, ...)
-   and turn compression on, if some of them is compressible */
+   the family of adaptive compression modes which define
+   the following behavior:
+   
+   Compression is on: try to compress everything and turn
+   it off, whenever cluster is incompressible.
+   
+   Compression is off: try to compress clusters of indexes 
+   k * FACTOR (k = 0, 1, 2, ...) and turn it on, if some of
+   them is compressible. */
 
 /* check if @index belongs to one-dimensional lattice
    of sparce factor @factor */
@@ -66,25 +76,27 @@ static int check_on_lattice(cloff_t index, int factor)
 	return (factor ? index % factor == 0: index == 0);
 }
 
-#define DEFINE_CHECK_ON_LATTICE(FACTOR)                          \
-static int check_on_lattice_ ## FACTOR (cloff_t index)           \
-{                                                                \
-	return check_on_lattice(index, FACTOR);                  \
-}                               
+#define DEFINE_CHECK_ON_LATTICE(FACTOR)                                 \
+	static int check_on_lattice_ ## FACTOR (struct inode * inode,   \
+						cloff_t index)		\
+{                                                                       \
+	return should_deflate_common(inode, index) ||			\
+		check_on_lattice(index, FACTOR);			\
+}
 
-#define SUPPORT_COL_COMPRESSION_MODE(FACTOR, LABEL)              \
-[COL_ ## FACTOR ## _COMPRESSION_MODE_ID] = {                     \
-	.h = {                                                   \
-		.type_id = REISER4_COMPRESSION_MODE_PLUGIN_TYPE, \
-		.id = COL_ ## FACTOR ## _COMPRESSION_MODE_ID,    \
-		.pops = NULL,                                    \
-		.label = LABEL,                                  \
-		.desc = LABEL,                                   \
-		.linkage = {NULL, NULL}                          \
-	},                                                       \
-	.should_deflate = check_on_lattice_ ## FACTOR,           \
-	.accept_hook =  turn_on_compression,                     \
-	.discard_hook = turn_off_compression                     \
+#define SUPPORT_COL_COMPRESSION_MODE(FACTOR, LABEL)                     \
+[COL_ ## FACTOR ## _COMPRESSION_MODE_ID] = {                            \
+	.h = {                                                          \
+		.type_id = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,        \
+		.id = COL_ ## FACTOR ## _COMPRESSION_MODE_ID,           \
+		.pops = NULL,                                           \
+		.label = LABEL,                                         \
+		.desc = LABEL,                                          \
+		.linkage = {NULL, NULL}                                 \
+	},                                                              \
+	.should_deflate = check_on_lattice_ ## FACTOR,                  \
+	.accept_hook =  turn_on_compression,                            \
+	.discard_hook = turn_off_compression                            \
 }
 
 DEFINE_CHECK_ON_LATTICE(8)
@@ -93,12 +105,25 @@ DEFINE_CHECK_ON_LATTICE(32)
 
 /* compression mode_plugins */
 compression_mode_plugin compression_mode_plugins[LAST_COMPRESSION_MODE_ID] = {
-	/* Check-on-lattice compression modes */
+	[NONE_COMPRESSION_MODE_ID] = {
+		.h = {
+			.type_id = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
+			.id = NONE_COMPRESSION_MODE_ID,
+			.pops = NULL,
+			.label = "none",
+			.desc = "Don't compress",
+			.linkage = {NULL, NULL}
+		},
+		.should_deflate = should_deflate_none,
+		.accept_hook = NULL,
+		.discard_hook = NULL
+	},
+	/* Check-on-lattice adaptive compression modes */
 	SUPPORT_COL_COMPRESSION_MODE(8, "col8"),
 	SUPPORT_COL_COMPRESSION_MODE(16, "col16"),
 	SUPPORT_COL_COMPRESSION_MODE(32, "col32"),
-	/* Turn off compression forever if logical cluster 
-	   of index == 0 is incompressible */
+	/* Turn off compression if logical cluster of index == 0
+	   is incompressible, then don't check anymore */
 	[COZ_COMPRESSION_MODE_ID] = {
 		.h = {
 			.type_id = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
@@ -108,7 +133,7 @@ compression_mode_plugin compression_mode_plugins[LAST_COMPRESSION_MODE_ID] = {
 			.desc = "Check on zero",
 			.linkage = {NULL, NULL}
 		},
-		.should_deflate = NULL,
+		.should_deflate = should_deflate_common,
 		.accept_hook = NULL,
 		.discard_hook = switch_compression_on_zero
 	},
@@ -135,19 +160,6 @@ compression_mode_plugin compression_mode_plugins[LAST_COMPRESSION_MODE_ID] = {
 			.linkage = {NULL, NULL}
 		},
 		.should_deflate = should_deflate_test,
-		.accept_hook = NULL,
-		.discard_hook = NULL
-	},
-	[NONE_COMPRESSION_MODE_ID] = {
-		.h = {
-			.type_id = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
-			.id = NONE_COMPRESSION_MODE_ID,
-			.pops = NULL,
-			.label = "none",
-			.desc = "Compress nothing",
-			.linkage = {NULL, NULL}
-		},
-		.should_deflate = should_deflate_none,
 		.accept_hook = NULL,
 		.discard_hook = NULL
 	}

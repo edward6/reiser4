@@ -394,7 +394,7 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 			.id = LZO1_NO_COMPRESSION_ID,
 			.pops = &compression_plugin_ops,
 			.label = "lzo1_no",
-			.desc = "lzo1 no compression transform",
+			.desc = "Disable lzo1 compression transform",
 			.linkage = {NULL, NULL}
 		},
 		.dual = LZO1_COMPRESSION_ID,
@@ -432,7 +432,7 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 			.id = GZIP1_NO_COMPRESSION_ID,
 			.pops = &compression_plugin_ops,
 			.label = "gzip1_no",
-			.desc =	"gzip1 no compression transform",
+			.desc =	"Disable gzip1 compression transform",
 			.linkage = {NULL, NULL}
 		},
 		.dual = GZIP1_COMPRESSION_ID,
