@@ -9,6 +9,7 @@
 #include "../object.h"
 #include "../../tree_walk.h"
 #include "funcs.h"
+#include "cryptcompress.h"
 
 #include <asm/scatterlist.h>
 #include <linux/pagevec.h>
