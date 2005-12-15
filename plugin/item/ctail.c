@@ -573,11 +573,11 @@ int ctail_read_disk_cluster(reiser4_cluster_t * clust, struct inode *inode,
 }
 
 /* read one locked page */
-int do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
+int do_readpage_ctail(struct inode * inode, reiser4_cluster_t * clust,
+		      struct page *page)
 {
 	int ret;
 	unsigned cloff;
-	struct inode *inode;
 	char *data;
 	size_t pgcnt;
 	tfm_cluster_t *tc = &clust->tc;
@@ -586,8 +586,6 @@ int do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 
 	if (PageUptodate(page))
 		goto exit;
-
-	inode = page->mapping->host;
 
 	if (!tfm_cluster_is_uptodate(&clust->tc)) {
 		clust->index = pg_to_clust(page->index, inode);
@@ -674,7 +672,7 @@ int readpage_ctail(void *vp, struct page *page)
 		return result;
 	}
 	assert("vs-25", hint->ext_coord.lh == &hint->lh);
-	result = do_readpage_ctail(clust, page);
+	result = do_readpage_ctail(page->mapping->host, clust, page);
 
 	assert("edward-213", PageLocked(page));
 	assert("edward-1163", ergo(!result, PageUptodate(page)));
@@ -714,7 +712,7 @@ ctail_read_page_cluster(reiser4_cluster_t * clust, struct inode *inode)
 	for (i = 0; i < clust->nr_pages; i++) {
 		struct page *page = clust->pages[i];
 		lock_page(page);
-		result = do_readpage_ctail(clust, page);
+		result = do_readpage_ctail(inode, clust, page);
 		unlock_page(page);
 		if (result)
 			break;
@@ -799,7 +797,7 @@ readpages_ctail(void *vp, struct address_space *mapping,
 		assert("edward-869", !tfm_cluster_is_uptodate(&clust.tc));
 		lock_page(page);
 
-		ret = do_readpage_ctail(&clust, page);
+		ret = do_readpage_ctail(inode, &clust, page);
 		if (!pagevec_add(&lru_pvec, page))
 			__pagevec_lru_add(&lru_pvec);
 		if (ret) {
