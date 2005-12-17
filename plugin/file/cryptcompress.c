@@ -2291,7 +2291,7 @@ read_some_cluster_pages(struct inode *inode, reiser4_cluster_t * clust)
 			       tfm_cluster_is_uptodate(&clust->tc));
 		}
 		lock_page(pg);
-		result = do_readpage_ctail(clust, pg);
+		result = do_readpage_ctail(inode, clust, pg);
 		unlock_page(pg);
 		assert("edward-993", !result);
 		if (result) {
@@ -3207,15 +3207,13 @@ cryptcompress_append_hole(struct inode *inode /*contains old i_size */ ,
 	result = alloc_cluster_pgset(&clust, cluster_nrpages(inode));
 	if (result)
 		goto out;
+	if (off_to_cloff(inode->i_size, inode) == 0)
+		goto fake_append;
 	hole_size = new_size - inode->i_size;
-	nr_zeroes =
-	    min_count(inode_cluster_size(inode) -
-		      off_to_cloff(inode->i_size, inode), hole_size);
-	nr_zeroes +=
-		(new_size % PAGE_CACHE_SIZE ?
-		 PAGE_CACHE_SIZE - new_size % PAGE_CACHE_SIZE :
-		 0);
-
+	nr_zeroes = 
+		inode_cluster_size(inode) - off_to_cloff(inode->i_size, inode);
+	if (hole_size < nr_zeroes)
+		nr_zeroes = hole_size;
 	set_window(&clust, &win, inode, inode->i_size,
 		   inode->i_size + nr_zeroes);
 	win.stat = HOLE_WINDOW;
@@ -3232,12 +3230,11 @@ cryptcompress_append_hole(struct inode *inode /*contains old i_size */ ,
 	       clust.dstat == PREP_DISK_CLUSTER ||
 	       clust.dstat == UNPR_DISK_CLUSTER);
 
-	hole_size -= nr_zeroes;
-	if (!hole_size)
-		/* nothing to append anymore */
+	assert("edward-1431", hole_size >= nr_zeroes);
+	if (hole_size == nr_zeroes)
+	/* nothing to append anymore */
 		goto out;
-
-	/* fake_append: */
+      fake_append:
 	INODE_SET_FIELD(inode, i_size, new_size);
       out:
 	done_lh(lh);
@@ -3677,7 +3674,7 @@ sector_t bmap_cryptcompress(struct address_space * mapping, sector_t lblock)
 	sector_t block;
 
 	inode = mapping->host;
-	if (off_to_cloff ((loff_t)block * current_blocksize, inode))
+	if (off_to_cloff ((loff_t)lblock * current_blocksize, inode))
 		/* mapping not cluster offsets is meaningless */
 		return RETERR(-EINVAL);
 	else {

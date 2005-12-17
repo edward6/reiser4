@@ -447,7 +447,8 @@ int host_allows_crypto_stat(struct inode * inode);
 int crc_inode_ok(struct inode *inode);
 int jnode_of_cluster(const jnode * node, struct page * page);
 extern int ctail_read_disk_cluster (reiser4_cluster_t *, struct inode *, int);
-extern int do_readpage_ctail(reiser4_cluster_t *, struct page * page);
+extern int do_readpage_ctail(struct inode *, reiser4_cluster_t *,
+			     struct page * page);
 extern int ctail_insert_unprepped_cluster(reiser4_cluster_t * clust,
 					  struct inode * inode);
 int bind_cryptcompress(struct inode *child, struct inode *parent);
