@@ -508,7 +508,7 @@ static inline void spin_lock_atom(txn_atom *atom)
 	/* check that spinlocks of lower priorities are not held */
 	assert("", (LOCK_CNT_NIL(spin_locked_txnh) &&
 		    LOCK_CNT_NIL(spin_locked_jnode) &&
-		    LOCK_CNT_NIL(rw_locked_zlock) &&
+		    LOCK_CNT_NIL(spin_locked_zlock) &&
 		    LOCK_CNT_NIL(rw_locked_dk) &&
 		    LOCK_CNT_NIL(rw_locked_tree)));
 
@@ -544,7 +544,7 @@ static inline void spin_lock_txnh(txn_handle *txnh)
 {
 	/* check that spinlocks of lower priorities are not held */
 	assert("", (LOCK_CNT_NIL(rw_locked_dk) &&
-		    LOCK_CNT_NIL(rw_locked_zlock) &&
+		    LOCK_CNT_NIL(spin_locked_zlock) &&
 		    LOCK_CNT_NIL(rw_locked_tree)));
 
 	spin_lock(&(txnh->hlock));
@@ -589,7 +589,7 @@ static inline void spin_lock_txnmgr(txn_mgr *mgr)
 	assert("", (LOCK_CNT_NIL(spin_locked_atom) &&
 		    LOCK_CNT_NIL(spin_locked_txnh) &&
 		    LOCK_CNT_NIL(spin_locked_jnode) &&
-		    LOCK_CNT_NIL(rw_locked_zlock) &&
+		    LOCK_CNT_NIL(spin_locked_zlock) &&
 		    LOCK_CNT_NIL(rw_locked_dk) &&
 		    LOCK_CNT_NIL(rw_locked_tree)));
 

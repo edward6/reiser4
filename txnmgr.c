@@ -2176,7 +2176,7 @@ static void fuse_not_fused_lock_owners(txn_handle * txnh, znode * node)
 	spin_unlock_txnh(txnh);
 	assert("zam-692", atomh != NULL);
 
-	read_lock_zlock(&node->lock);
+	spin_lock_zlock(&node->lock);
 	/* inspect list of lock owners */
 	list_for_each_entry(lh, &node->lock.owners, owners_link) {
 		ctx = get_context_by_lock_stack(lh->owner);
@@ -2201,7 +2201,7 @@ static void fuse_not_fused_lock_owners(txn_handle * txnh, znode * node)
 		int lock_ok;
 
 		lock_ok = spin_trylock_txnh(ctx->trans);
-		read_unlock_zlock(&node->lock);
+		spin_unlock_zlock(&node->lock);
 		if (!lock_ok) {
 			spin_unlock_atom(atomh);
 			goto repeat;
@@ -2233,7 +2233,7 @@ static void fuse_not_fused_lock_owners(txn_handle * txnh, znode * node)
 		capture_fuse_into(atomf, atomh);
 		goto repeat;
 	}
-	read_unlock_zlock(&node->lock);
+	spin_unlock_zlock(&node->lock);
 	spin_unlock_atom(atomh);
 }
 
