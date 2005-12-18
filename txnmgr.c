@@ -471,15 +471,6 @@ int txn_end(reiser4_context * context)
 
 	txnh = context->trans;
 	if (txnh != NULL) {
-		/* Fuse_not_fused_lock_owners in a parallel thread may set
-		 * txnh->atom to the current thread's transaction handle.  At
-		 * this moment current thread holds no long-term locks, but
-		 * fuse_not_fused... releases znode->lock spin-lock right
-		 * before assigning an atom to this transaction handle.  It
-		 * still keeps txnh locked so the code below prevents the
-		 * fuse_not_fused... thread from racing too far. */
-		spin_lock_txnh(txnh);
-		spin_unlock_txnh(txnh);
 		if (txnh->atom != NULL)
 			ret = commit_txnh(txnh);
 		assert("jmacd-633", txnh_isclean(txnh));
@@ -2198,22 +2189,25 @@ static void fuse_not_fused_lock_owners(txn_handle * txnh, znode * node)
 		}
 	}
 	if (repeat) {
-		int lock_ok;
-
-		lock_ok = spin_trylock_txnh(ctx->trans);
-		spin_unlock_zlock(&node->lock);
-		if (!lock_ok) {
+		if (!spin_trylock_txnh(ctx->trans)) {
+			spin_unlock_zlock(&node->lock);
 			spin_unlock_atom(atomh);
 			goto repeat;
 		}
 		atomf = ctx->trans->atom;
 		if (atomf == NULL) {
 			capture_assign_txnh_nolock(atomh, ctx->trans);
+			/* release zlock lock _after_ assigning the atom to the
+			 * transaction handle, otherwise the lock owner thread
+			 * may unlock all znodes, exit kernel context and here
+			 * we would access an invalid transaction handle. */
+			spin_unlock_zlock(&node->lock);
 			spin_unlock_atom(atomh);
 			spin_unlock_txnh(ctx->trans);
 			goto repeat;
 		}
 		assert("zam-1059", atomf != atomh);
+		spin_unlock_zlock(&node->lock);
 		atomic_inc(&atomh->refcount);
 		atomic_inc(&atomf->refcount);
 		spin_unlock_txnh(ctx->trans);
