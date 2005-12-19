@@ -364,7 +364,6 @@ static inline void prefetchkey(reiser4_key * key)
 /* size of a buffer suitable to hold human readable key representation */
 #define KEY_BUF_LEN (80)
 
-extern int sprintf_key(char *buffer, const reiser4_key * key);
 #if REISER4_DEBUG
 extern void print_key(const char *prefix, const reiser4_key * key);
 #else

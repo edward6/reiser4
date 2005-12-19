@@ -27,6 +27,7 @@ ssize_t sendfile_unix_file(struct file *, loff_t *ppos, size_t count,
 
 /* address space operations */
 int readpage_unix_file(struct file *, struct page *);
+int readpage_unix_file_nolock(struct file *, struct page *);
 int writepages_unix_file(struct address_space *, struct writeback_control *);
 int prepare_write_unix_file(struct file *, struct page *, unsigned from,
 			    unsigned to);
@@ -105,6 +106,7 @@ void get_exclusive_access(unix_file_info_t *);
 void drop_exclusive_access(unix_file_info_t *);
 void get_nonexclusive_access(unix_file_info_t *, int);
 void drop_nonexclusive_access(unix_file_info_t *);
+int try_to_get_nonexclusive_access(unix_file_info_t *);
 
 #include "../item/extent.h"
 #include "../item/tail.h"

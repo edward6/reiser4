@@ -109,17 +109,14 @@ int reiser4_max_filename_len(const struct inode *inode /* inode queried */ )
 		return 255;
 }
 
+#if REISER4_USE_COLLISION_LIMIT
 /* Maximal number of hash collisions for this directory. */
 int max_hash_collisions(const struct inode *dir /* inode queried */ )
 {
 	assert("nikita-1711", dir != NULL);
-#if REISER4_USE_COLLISION_LIMIT
 	return reiser4_inode_data(dir)->plugin.max_collisions;
-#else
-	(void)dir;
-	return ~0;
-#endif
 }
+#endif  /*  REISER4_USE_COLLISION_LIMIT  */
 
 /* Install file, inode, and address_space operation on @inode, depending on
    its mode. */

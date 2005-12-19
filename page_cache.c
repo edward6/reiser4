@@ -474,6 +474,10 @@ int set_page_dirty_internal(struct page *page)
 
 		__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 	}
+
+	/* znode must be dirty ? */
+	if (mapping->host == get_super_fake(mapping->host->i_sb))
+		assert("", JF_ISSET(jprivate(page), JNODE_DIRTY));
 	return 0;
 }
 
@@ -489,12 +493,14 @@ static int can_hit_entd(reiser4_context * ctx, struct super_block *s)
 }
 
 /**
- * reiser4_writepage -
+ * reiser4_writepage - writepage of struct address_space_operations
  * @page: page to write
  * @wbc:
+ *
+ * 
  */
 /* Common memory pressure notification. */
-int reiser4_writepage(struct page *page /* page to start writeback from */ ,
+int reiser4_writepage(struct page *page,
 		      struct writeback_control *wbc)
 {
 	struct super_block *s;
@@ -570,6 +576,7 @@ int reiser4_writepage(struct page *page /* page to start writeback from */ ,
 static int formatted_set_page_dirty(struct page *page)
 {
 	assert("nikita-2173", page != NULL);
+	BUG();
 	return __set_page_dirty_nobuffers(page);
 }
 

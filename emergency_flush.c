@@ -265,12 +265,14 @@ static kmem_cache_t *eflush_slab;
 #define INC_STAT(node, counter)						\
 	reiser4_stat_inc_at_level(jnode_get_level(node), counter);
 
-/* this function exists only until VM gets fixed to reserve pages properly,
- * which might or might not be very political. */
-/* try to flush @page to the disk
+/**
+ * emergency_flush - try to flush page to disk
+ * @page: what to write
  *
- * Return 0 if page was successfully paged out. 1 if it is busy, error
- * otherwise.
+ * This is called in desperate situation when flush algorithm can not be used to
+ * flush dirty memory due to deadlocking. It writes @page to temporary allocated
+ * block. In some case it avoids temporary block allocation though. Returns 0 if
+ * page was successfully paged out, 1 if it is busy, or error.
  */
 int emergency_flush(struct page *page)
 {
@@ -296,9 +298,9 @@ int emergency_flush(struct page *page)
 	result = 0;
 	spin_lock_jnode(node);
 	/*
-	 * page was dirty and under eflush. This is (only?) possible if page
+	 * if page was dirty and under eflush (this is (only?) possible if page
 	 * was re-dirtied through mmap(2) after eflush IO was submitted, but
-	 * before ->releasepage() freed page.
+	 * before ->releasepage() freed page) cancel previous eflush.
 	 */
 	eflush_del(node, 1);
 
@@ -312,9 +314,11 @@ int emergency_flush(struct page *page)
 			blk = 0ull;
 			efnode = NULL;
 
-			/* Set JNODE_EFLUSH bit _before_ allocating a block,
+			/*
+			 * Set JNODE_EFLUSH bit _before_ allocating a block,
 			 * that prevents flush reserved block from using here
-			 * and by a reiser4 flush process  */
+			 * and by a reiser4 flush process
+			 */
 			JF_SET(node, JNODE_EFLUSH);
 
 			blocknr_hint_init(&hint);
@@ -346,9 +350,10 @@ int emergency_flush(struct page *page)
 
 			/* get flush queue for this node */
 			result = fq_by_jnode_gfp(node, &fq, GFP_ATOMIC);
-
-			if (result)
+			if (result) {
+				jput(node);
 				return result;
+			}
 
 			atom = node->atom;
 
@@ -359,6 +364,7 @@ int emergency_flush(struct page *page)
 				spin_unlock_jnode(node);
 				spin_unlock_atom(atom);
 				fq_put(fq);
+				jput(node);
 				return 1;
 			}
 
@@ -375,8 +381,11 @@ int emergency_flush(struct page *page)
 			if (result != 0)
 				lock_page(page);
 
-			/* Even if we wrote nothing, We unlocked the page, so let know to the caller that page should
-			   not be unlocked again */
+			/*
+			 * Even if we wrote nothing, We unlocked the page, so
+			 * let know to the caller that page should not be
+			 * unlocked again
+			 */
 			fq_put(fq);
 		}
 
@@ -703,7 +712,7 @@ void eflush_del(jnode * node, int page_locked)
 	assert("nikita-2743", node != NULL);
 	assert_spin_locked(&(node->guard));
 
-	if (!JF_ISSET(node, JNODE_EFLUSH))
+	if (likely(!JF_ISSET(node, JNODE_EFLUSH)))
 		return;
 
 	if (page_locked) {

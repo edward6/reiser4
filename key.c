@@ -126,27 +126,6 @@ void print_key(const char *prefix /* prefix to print */ ,
 
 #endif
 
-/* like print_key() but outputs key representation into @buffer. */
-int sprintf_key(char *buffer /* buffer to print key into */ ,
-		const reiser4_key * key /* key to print */ )
-{
-	if (REISER4_LARGE_KEY)
-		return sprintf(buffer, "(%Lx:%x:%Lx:%Lx:%Lx:%Lx)",
-			       (unsigned long long)get_key_locality(key),
-			       get_key_type(key),
-			       (unsigned long long)get_key_ordering(key),
-			       (unsigned long long)get_key_band(key),
-			       (unsigned long long)get_key_objectid(key),
-			       (unsigned long long)get_key_offset(key));
-	else
-		return sprintf(buffer, "(%Lx:%x:%Lx:%Lx:%Lx)",
-			       (unsigned long long)get_key_locality(key),
-			       get_key_type(key),
-			       (unsigned long long)get_key_band(key),
-			       (unsigned long long)get_key_objectid(key),
-			       (unsigned long long)get_key_offset(key));
-}
-
 /* Make Linus happy.
    Local variables:
    c-indentation-style: "K&R"

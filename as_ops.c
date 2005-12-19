@@ -133,8 +133,22 @@ reiser4_readpages(struct file *file, struct address_space *mapping,
 	if (fsdata->ra2.readpages)
 		fsdata->ra2.readpages(mapping, pages, fsdata->ra2.data);
 	else {
-		assert("vs-1738", lock_stack_isclean(get_current_lock_stack()));
-		read_cache_pages(mapping, pages, filler, file);
+		/*
+		 * filler (reiser4 readpage method) may involve tree search
+		 * which is not allowed when lock stack is not clean. If lock
+		 * stack is not clean - do nothing.
+		 */
+		if (lock_stack_isclean(get_current_lock_stack()))
+			read_cache_pages(mapping, pages, filler, file);
+		else {
+			while (!list_empty(pages)) {
+				struct page *victim;
+				
+				victim = list_entry(pages->prev, struct page, lru);
+				list_del(&victim->lru);
+				page_cache_release(victim);
+			}
+		}
 	}
 	reiser4_exit_context(ctx);
 	return 0;
@@ -206,6 +220,10 @@ int reiser4_invalidatepage(struct page *page, unsigned long offset)
 	assert("", ergo(inode_file_plugin(inode) !=
 			file_plugin_by_id(CRC_FILE_PLUGIN_ID), offset == 0));
 
+	ctx = init_context(inode->i_sb);
+	if (IS_ERR(ctx))
+		return PTR_ERR(ctx);
+
 	node = jprivate(page);
 	spin_lock_jnode(node);
 	if (!(node->state & ((1 << JNODE_DIRTY) | (1<< JNODE_FLUSH_QUEUED) |
@@ -217,14 +235,10 @@ int reiser4_invalidatepage(struct page *page, unsigned long offset)
 		uncapture_jnode(node);
 		unhash_unformatted_jnode(node);
 		jput(node);
+		reiser4_exit_context(ctx);
 		return 0;
 	}
 	spin_unlock_jnode(node);
-
-
-	ctx = init_context(inode->i_sb);
-	if (IS_ERR(ctx))
-		return PTR_ERR(ctx);
 
 	/* capture page being truncated. */
 	ret = try_capture_page_to_invalidate(page);

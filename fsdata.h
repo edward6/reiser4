@@ -135,8 +135,6 @@ extern int init_file_fsdata(void);
 extern void done_file_fsdata(void);
 extern reiser4_file_fsdata *reiser4_get_file_fsdata(struct file *);
 extern void reiser4_free_file_fsdata(struct file *);
-extern reiser4_file_fsdata *create_fsdata(struct file *);
-extern void free_fsdata(reiser4_file_fsdata *);
 
 
 /*
@@ -182,7 +180,6 @@ extern void done_d_cursor(void);
 extern int init_super_d_info(struct super_block *);
 extern void done_super_d_info(struct super_block *);
 
-extern int file_is_stateless(struct file *);
 extern loff_t get_dir_fpos(struct file *);
 extern int try_to_attach_fsdata(struct file *, struct inode *);
 extern void detach_fsdata(struct file *);

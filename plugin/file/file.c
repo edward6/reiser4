@@ -24,7 +24,7 @@
 #include <linux/syscalls.h>
 
 
-static int unpack(struct inode *inode, int forever);
+static int unpack(struct file *file, struct inode *inode, int forever);
 
 /* get unix file plugin specific portion of inode */
 unix_file_info_t *unix_file_inode_data(const struct inode *inode)
@@ -661,7 +661,7 @@ int find_or_create_extent(struct page *page);
 
 static int filler(void *vp, struct page *page)
 {
-	return readpage_unix_file(vp, page);
+	return readpage_unix_file_nolock(vp, page);
 }
 
 /* part of truncate_file_body: it is called when truncate is used to make file
@@ -1529,9 +1529,14 @@ static int commit_file_atoms(struct inode *inode)
 	return result;
 }
 
-/* reiser4 writepages() address space operation this captures anonymous pages
-   and anonymous jnodes. Anonymous pages are pages which are dirtied via
-   mmapping. Anonymous jnodes are ones which were created by reiser4_writepage
+/**
+ * writepages_unix_file - writepages of struct address_space_operations
+ * @mapping:
+ * @wbc:
+ *
+ * This captures anonymous pages and anonymous jnodes. Anonymous pages are
+ * pages which are dirtied via mmapping. Anonymous jnodes are ones which were
+ * created by reiser4_writepage.
  */
 int
 writepages_unix_file(struct address_space *mapping,
@@ -1553,9 +1558,9 @@ writepages_unix_file(struct address_space *mapping,
 	nr_pages =
 	    (i_size_read(inode) + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
 	uf_info = unix_file_inode_data(inode);
+
 	do {
 		reiser4_context *ctx;
-		int dont_get_nea;
 
 		if (wbc->sync_mode != WB_SYNC_ALL)
 			to_capture = min(wbc->nr_to_write, CAPTURE_APAGE_BURST);
@@ -1575,31 +1580,31 @@ writepages_unix_file(struct address_space *mapping,
 
 		txn_restart_current();
 
-		/*
-		 * suppose thread T1 has got nonexlusive access (NEA) on a file
-		 * F, asked entd to flush to reclaim some memory and waits
-		 * until entd completes. Another thread T2 tries to get
-		 * exclusive access to file F. Then entd will deadlock on
-		 * getting NEA to file F (because read-down request get blocked
-		 * if there is write request in a queue in linux read-write
-		 * semaphore implementation). To avoid this problem we make
-		 * entd to not get NEA to F if it is obtained by T1.
-		 */
-		dont_get_nea = 0;
+		/* we have to get nonexclusive access to the file */
 		if (get_current_context()->entd) {
-			entd_context *ent = get_entd_context(inode->i_sb);
-
-			if (ent->cur_request->caller != NULL &&
-			    mapping == ent->cur_request->caller->vp)
-				/*
-				 * process which is waiting for entd has got
-				 * NEA on a file we are about to capture pages
-				 * of. Skip getting NEA therefore.
-				 */
-				dont_get_nea = 1;
-		}
-		if (dont_get_nea == 0)
+			/*
+			 * use nonblocking version of nonexclusive_access to
+			 * avoid deadlock which might look like the following:
+			 * process P1 holds NEA on file F1 and called entd to
+			 * reclaim some memory. Entd works for P1 and is going
+			 * to capture pages of file F2. To do that entd has to
+			 * get NEA to F2. F2 is held by process P2 which also
+			 * called entd. But entd is serving P1 at the moment
+			 * and P2 has to wait. Process P3 trying to get EA to
+			 * file F2. Existence of pending EA request to file F2
+			 * makes impossible for entd to get NEA to file
+			 * F2. Neither of these process can continue. Using
+			 * nonblocking version of gettign NEA is supposed to
+			 * avoid this deadlock.
+			 */
+			if (try_to_get_nonexclusive_access(uf_info) == 0) {
+				result = RETERR(-EBUSY);
+				reiser4_exit_context(ctx);
+				break;
+			}
+		} else
 			get_nonexclusive_access(uf_info, 0);
+
 		while (to_capture > 0) {
 			pgoff_t start;
 
@@ -1639,8 +1644,7 @@ writepages_unix_file(struct address_space *mapping,
 			/* there may be left more pages */
 			__mark_inode_dirty(inode, I_DIRTY_PAGES);
 
-		if (dont_get_nea == 0)
-			drop_nonexclusive_access(uf_info);
+		drop_nonexclusive_access(uf_info);
 		if (result < 0) {
 			/* error happened */
 			reiser4_exit_context(ctx);
@@ -1659,8 +1663,10 @@ writepages_unix_file(struct address_space *mapping,
       end:
 	if (is_in_reiser4_context()) {
 		if (get_current_context()->nr_captured >= CAPTURE_APAGE_BURST) {
-			/* there are already pages to flush, flush them out, do
-			   not delay until end of reiser4_sync_inodes */
+			/*
+			 * there are already pages to flush, flush them out, do
+			 * not delay until end of reiser4_sync_inodes
+			 */
 			writeout(inode->i_sb, wbc);
 			get_current_context()->nr_captured = 0;
 		}
@@ -1705,12 +1711,15 @@ int sync_unix_file(struct file *file, struct dentry *dentry, int datasync)
 	return 0;
 }
 
-/* plugin->u.file.readpage
-   page must be not out of file. This is called either via page fault and in
-   that case vp is struct file *file, or on truncate when last page of a file
-   is to be read to perform its partial truncate and in that case vp is 0
-*/
-int readpage_unix_file(struct file *file, struct page *page)
+/**
+ * readpage_unix_file_nolock - readpage of struct address_space_operations
+ * @file:
+ * @page: 
+ *
+ * Compose a key and search for item containing information about @page
+ * data. If item is found - its readpage method is called.
+ */
+int readpage_unix_file_nolock(struct file *file, struct page *page)
 {
 	reiser4_context *ctx;
 	int result;
@@ -1723,18 +1732,25 @@ int readpage_unix_file(struct file *file, struct page *page)
 
 	assert("vs-1062", PageLocked(page));
 	assert("vs-976", !PageUptodate(page));
-	assert("vs-1061", page->mapping && page->mapping->host);
-	assert("vs-1078",
-	       (page->mapping->host->i_size >
-		((loff_t) page->index << PAGE_CACHE_SHIFT)));
+	assert("vs-1061", page->mapping && page->mapping->host);	
+	
+	if ((page->mapping->host->i_size <=
+	     ((loff_t) page->index << PAGE_CACHE_SHIFT))) {
+		/* page is out of file already */
+		unlock_page(page);
+		return -EINVAL;
+	}
 
 	inode = page->mapping->host;
 	ctx = init_context(inode->i_sb);
-	if (IS_ERR(ctx))
+	if (IS_ERR(ctx)) {
+		unlock_page(page);
 		return PTR_ERR(ctx);
+	}
 
 	hint = kmalloc(sizeof(*hint), GFP_KERNEL);
 	if (hint == NULL) {
+		unlock_page(page);
 		reiser4_exit_context(ctx);
 		return RETERR(-ENOMEM);
 	}
@@ -1742,6 +1758,7 @@ int readpage_unix_file(struct file *file, struct page *page)
 	result = load_file_hint(file, hint);
 	if (result) {
 		kfree(hint);
+		unlock_page(page);
 		reiser4_exit_context(ctx);
 		return result;
 	}
@@ -1753,22 +1770,44 @@ int readpage_unix_file(struct file *file, struct page *page)
 				       &key);
 
 	/* look for file metadata corresponding to first byte of page */
+	page_cache_get(page);
 	unlock_page(page);
 	result = find_file_item(hint, &key, ZNODE_READ_LOCK, inode);
-	lock_page(page);
-	if (result != CBK_COORD_FOUND) {
-		/* this indicates file corruption */
+	lock_page(page);	
+	page_cache_release(page);
+
+	if (page->mapping == NULL) {
+		/*
+		 * readpage allows truncate to run concurrently. Page was
+		 * truncated while it was not locked
+		 */
 		done_lh(lh);
-		unlock_page(page);
 		kfree(hint);
+		unlock_page(page);
+		reiser4_exit_context(ctx);
+		return -EINVAL;		
+	}
+
+	if (result != CBK_COORD_FOUND || hint->ext_coord.coord.between != AT_UNIT) {
+		if (result == CBK_COORD_FOUND &&
+		    hint->ext_coord.coord.between != AT_UNIT)
+			/* file is truncated */
+			result = -EINVAL;
+		done_lh(lh);
+		kfree(hint);
+		unlock_page(page);
 		reiser4_exit_context(ctx);
 		return result;
 	}
 
+	/*
+	 * item corresponding to page is found. It can not be removed because
+	 * znode lock is held
+	 */
 	if (PageUptodate(page)) {
 		done_lh(lh);
-		unlock_page(page);
 		kfree(hint);
+		unlock_page(page);
 		reiser4_exit_context(ctx);
 		return 0;
 	}
@@ -1777,8 +1816,8 @@ int readpage_unix_file(struct file *file, struct page *page)
 	result = zload(coord->node);
 	if (result) {
 		done_lh(lh);
-		unlock_page(page);
 		kfree(hint);
+		unlock_page(page);
 		reiser4_exit_context(ctx);
 		return result;
 	}
@@ -1795,17 +1834,18 @@ int readpage_unix_file(struct file *file, struct page *page)
 			"No file items found (%d). File is corrupted?\n",
 			page->index, (unsigned long long)get_inode_oid(inode),
 			inode->i_size, result);
-
 		zrelse(coord->node);
 		done_lh(lh);
-		unlock_page(page);
 		kfree(hint);
+		unlock_page(page);
 		reiser4_exit_context(ctx);
 		return RETERR(-EIO);
 	}
 
-	/* get plugin of found item or use plugin if extent if there are no
-	   one */
+	/*
+	 * get plugin of found item or use plugin if extent if there are no
+	 * one
+	 */
 	iplug = item_plugin_by_coord(coord);
 	if (iplug->s.file.readpage)
 		result = iplug->s.file.readpage(coord, page);
@@ -1821,18 +1861,31 @@ int readpage_unix_file(struct file *file, struct page *page)
 		unlock_page(page);
 		unset_hint(hint);
 	}
+	assert("vs-979",
+	       ergo(result == 0, (PageLocked(page) || PageUptodate(page))));
+	assert("vs-9791", ergo(result != 0, !PageLocked(page)));
+
 	zrelse(coord->node);
 	done_lh(lh);
 
 	save_file_hint(file, hint);
 	kfree(hint);
 
-	assert("vs-979",
-	       ergo(result == 0, (PageLocked(page) || PageUptodate(page))));
-	assert("vs-9791", ergo(result != 0, !PageLocked(page)));
-
 	reiser4_exit_context(ctx);
 	return result;
+}
+
+/**
+ * readpage_unix_file - readpage of struct address_space_operations
+ * @file: file @page belongs to
+ * @page: page to read
+ *
+ * Get non exclusive access to a file to avoid races with truncate. If page is
+ * out of file - return error. Call readpage_unix_file_nolock to do the rest.
+ */
+int readpage_unix_file(struct file *file, struct page *page)
+{
+	return readpage_unix_file_nolock(file, page);
 }
 
 /* returns 1 if file of that size (@new_size) has to be stored in unformatted
@@ -1880,11 +1933,28 @@ get_nr_pages_nr_bytes(unsigned long addr, size_t count, int *nr_pages)
 	return nr_bytes;
 }
 
+/**
+ * adjust_nr_bytes - recalcualte number of bytes more accurately
+ * @addr: address of user space buffer
+ * @count: number of bytes to be written
+ * @nr_pages: number of pages faulted into pagetables
+ *
+ * Sometimes get_user_pages "gets" less pages than it is asked for. When this
+ * happens we have to recalculate number of bytes which will be written/read in
+ * one iteration of read/write.
+ */
 static size_t adjust_nr_bytes(unsigned long addr, size_t count, int nr_pages)
 {
-	if (count > nr_pages * PAGE_CACHE_SIZE)
-		return (nr_pages * PAGE_CACHE_SIZE) -
-		    (addr & (PAGE_CACHE_SIZE - 1));
+	size_t bytes;
+
+	bytes = 0;
+	if (addr % PAGE_CACHE_SIZE) {
+		nr_pages --;
+		bytes = PAGE_CACHE_SIZE - (addr % PAGE_CACHE_SIZE);
+	}
+	bytes += nr_pages * PAGE_CACHE_SIZE;
+	if (count > bytes)
+		return bytes;
 	return count;
 }
 
@@ -2048,6 +2118,7 @@ read_unix_file(struct file *file, char __user *buf, size_t read_amount,
 			left = size - *off;
 
 		if (user_space) {
+			memset(pages, 0, sizeof(pages));
 			to_read = get_nr_pages_nr_bytes(addr, left, &nr_pages);
 			nr_pages =
 			    reiser4_get_user_pages(pages, addr, nr_pages, READ);
@@ -2300,36 +2371,6 @@ write_flow(hint_t * hint, struct file *file, struct inode *inode,
 	return append_and_or_overwrite(hint, file, inode, &flow, exclusive);
 }
 
-static struct page *unix_file_filemap_nopage(struct vm_area_struct *area,
-					     unsigned long address, int *unused)
-{
-	struct page *page;
-	struct inode *inode;
-	reiser4_context *ctx;
-
-	inode = area->vm_file->f_dentry->d_inode;
-	ctx = init_context(inode->i_sb);
-	if (IS_ERR(ctx))
-		return (struct page *)ctx;
-
-	/* block filemap_nopage if copy on capture is processing with a node of this file */
-	down_read(&reiser4_inode_data(inode)->coc_sem);
-	/* second argument is to note that current atom may exist */
-	get_nonexclusive_access(unix_file_inode_data(inode), 1);
-
-	page = filemap_nopage(area, address, NULL);
-
-	drop_nonexclusive_access(unix_file_inode_data(inode));
-	up_read(&reiser4_inode_data(inode)->coc_sem);
-
-	reiser4_exit_context(ctx);
-	return page;
-}
-
-static struct vm_operations_struct unix_file_vm_ops = {
-	.nopage = unix_file_filemap_nopage,
-};
-
 /* This function takes care about @file's pages. First of all it checks if
    filesystems readonly and if so gets out. Otherwise, it throws out all
    pages of file if it was mapped for read and going to be mapped for write
@@ -2340,12 +2381,12 @@ static struct vm_operations_struct unix_file_vm_ops = {
    Here also tail2extent conversion is performed if it is allowed and file
    is going to be written or mapped for write. This functions may be called
    from write_unix_file() or mmap_unix_file(). */
-static int check_pages_unix_file(struct inode *inode)
+static int check_pages_unix_file(struct file *file, struct inode *inode)
 {
 	reiser4_invalidate_pages(inode->i_mapping, 0,
 				 (inode->i_size + PAGE_CACHE_SIZE -
 				  1) >> PAGE_CACHE_SHIFT, 0);
-	return unpack(inode, 0 /* not forever */ );
+	return unpack(file, inode, 0 /* not forever */ );
 }
 
 /**
@@ -2405,7 +2446,7 @@ int mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 			 * invalidate all pages and convert file from tails to
 			 * extents
 			 */
-			result = check_pages_unix_file(inode);
+			result = check_pages_unix_file(file, inode);
 			if (result) {
 				drop_exclusive_access(uf_info);
 				up(&uf_info->write);
@@ -2432,7 +2473,6 @@ int mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 	if (result == 0) {
 		/* mark file as having mapping. */
 		inode_set_flag(inode, REISER4_HAS_MMAP);
-		vma->vm_ops = &unix_file_vm_ops;
 	}
 
 	drop_exclusive_access(uf_info);
@@ -2553,7 +2593,7 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 		   3) convert file to extents to not enter here on each write
 		   to mmaped file */
 		get_exclusive_access(uf_info);
-		result = check_pages_unix_file(inode);
+		result = check_pages_unix_file(file, inode);
 		drop_exclusive_access(uf_info);
 		if (result) {
 			current->backing_dev_info = NULL;
@@ -2669,6 +2709,7 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 
 	if ((file->f_flags & O_SYNC) || IS_SYNC(inode)) {
 		txn_restart_current();
+		grab_space_enable();
 		result =
 		    sync_unix_file(file, file->f_dentry,
 				   0 /* data and stat data */ );
@@ -2782,7 +2823,7 @@ static void set_file_notail(struct inode *inode)
 }
 
 /* if file is built of tails - convert it to extents */
-static int unpack(struct inode *inode, int forever)
+static int unpack(struct file *filp, struct inode *inode, int forever)
 {
 	int result = 0;
 	unix_file_info_t *uf_info;
@@ -2815,7 +2856,7 @@ static int unpack(struct inode *inode, int forever)
    plugin
 */
 int
-ioctl_unix_file(struct inode *inode, struct file *filp UNUSED_ARG,
+ioctl_unix_file(struct inode *inode, struct file *filp,
 		unsigned int cmd, unsigned long arg UNUSED_ARG)
 {
 	reiser4_context *ctx;
@@ -2828,7 +2869,7 @@ ioctl_unix_file(struct inode *inode, struct file *filp UNUSED_ARG,
 	switch (cmd) {
 	case REISER4_IOC_UNPACK:
 		get_exclusive_access(unix_file_inode_data(inode));
-		result = unpack(inode, 1 /* forever */ );
+		result = unpack(filp, inode, 1 /* forever */ );
 		drop_exclusive_access(unix_file_inode_data(inode));
 		break;
 

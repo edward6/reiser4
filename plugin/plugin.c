@@ -186,14 +186,8 @@ NIKTIA-FIXME-HANS: Do the line above.  It is not exclusive of doing the line bel
 /* initialise plugin sub-system. Just call this once on reiser4 startup. */
 int init_plugins(void);
 int setup_plugins(struct super_block *super, reiser4_plugin ** area);
-reiser4_plugin *lookup_plugin(const char *type_label, const char *plug_label);
 int locate_plugin(struct inode *inode, plugin_locator * loc);
 
-/* internal functions. */
-
-static reiser4_plugin_type find_type(const char *label);
-static reiser4_plugin *find_plugin(reiser4_plugin_type_data * ptype,
-				   const char *label);
 
 /**
  * init_plugins - initialize plugins
@@ -257,6 +251,7 @@ int is_plugin_id_valid(reiser4_plugin_type type_id /* plugin type id */ ,
 	return id < plugins[type_id].builtin_num;
 }
 
+#if 0
 /* lookup plugin by scanning tables */
 reiser4_plugin *lookup_plugin(const char *type_label /* plugin type label */ ,
 			      const char *plug_label /* plugin label */ )
@@ -274,6 +269,7 @@ reiser4_plugin *lookup_plugin(const char *type_label /* plugin type label */ ,
 		result = NULL;
 	return result;
 }
+#endif  /*  0  */
 
 /* return plugin by its @type_id and @id.
 
@@ -329,6 +325,8 @@ struct list_head *get_plugin_list(reiser4_plugin_type type_id	/* plugin type
 	return &plugins[type_id].plugins_list;
 }
 
+#if 0
+
 /* find plugin type by label */
 static reiser4_plugin_type find_type(const char *label	/* plugin type
 							 * label */ )
@@ -369,6 +367,8 @@ static reiser4_plugin *find_plugin(reiser4_plugin_type_data * ptype	/* plugin
 	}
 	return NULL;
 }
+
+#endif  /*  0  */
 
 int grab_plugin(struct inode *self, struct inode *ancestor, pset_member memb)
 {

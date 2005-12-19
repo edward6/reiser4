@@ -25,7 +25,6 @@ struct wbq {
 	struct semaphore sem;
 	jnode *node; /* set if ent thread captured requested page */
 	int written; /* set if ent thread wrote requested page */
-	reiser4_context *caller;
 };
 
 /* ent-thread context. This is used to synchronize starting/stopping ent

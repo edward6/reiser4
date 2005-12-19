@@ -943,7 +943,11 @@ static jnode * find_flush_start_jnode(
 			list_del_init(&node->capture_link);
 			list_add_tail(&node->capture_link, ATOM_WB_LIST(atom));
 
-			ON_DEBUG(count_jnode(atom, node, DIRTY_LIST,
+			/*
+			 * jnode is not necessarily on dirty list: if it was dirtied when
+			 * it was on flush queue - it does not get moved to dirty list
+			 */
+			ON_DEBUG(count_jnode(atom, node, NODE_LIST(node),
 					     WB_LIST, 1));
 
 		} else if (jnode_is_znode(node)

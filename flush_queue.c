@@ -646,6 +646,7 @@ void init_atom_fq_parts(txn_atom *atom)
 	INIT_LIST_HEAD(&atom->flush_queues);
 }
 
+#ifdef REISER4_USE_EFLUSH
 /* get a flush queue for an atom pointed by given jnode (spin-locked) ; returns
  * both atom and jnode locked and found and took exclusive access for flush
  * queue object.  */
@@ -709,6 +710,7 @@ int fq_by_jnode_gfp(jnode * node, flush_queue_t ** fq, int gfp)
 
 	return 0;
 }
+#endif  /*  REISER4_USE_EFLUSH  */
 
 #if REISER4_DEBUG
 

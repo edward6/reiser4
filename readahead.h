@@ -32,7 +32,6 @@ struct reiser4_file_ra_state {
 	loff_t slow_start;	/* enlarging r/a size algorithm. */
 };
 
-extern int reiser4_file_readahead(struct file *, loff_t, size_t);
 extern void reiser4_readdir_readahead_init(struct inode *dir, tap_t * tap);
 
 /* __READAHEAD_H__ */

@@ -4,6 +4,7 @@
 #include "fsdata.h"
 #include "inode.h"
 
+#include <linux/slab.h>
 
 /* cache or dir_cursors */
 static kmem_cache_t *d_cursor_cache;
@@ -18,6 +19,9 @@ static unsigned long d_cursor_unused = 0;
 /* spinlock protecting manipulations with dir_cursor's hash table and lists */
 spinlock_t d_lock = SPIN_LOCK_UNLOCKED;
 
+static reiser4_file_fsdata *create_fsdata(struct file *file);
+static int file_is_stateless(struct file *file);
+static void free_fsdata(reiser4_file_fsdata *fsdata);
 static void kill_cursor(dir_cursor *);
 
 /**
@@ -72,6 +76,7 @@ int init_d_cursor(void)
 	 */
 	d_cursor_shrinker = set_shrinker(DEFAULT_SEEKS << 3,
 					 d_cursor_shrink);
+	kmem_set_shrinker(d_cursor_cache, d_cursor_shrinker);
 	if (d_cursor_shrinker == NULL) {
 		destroy_reiser4_cache(&d_cursor_cache);
 		d_cursor_cache = NULL;
@@ -141,13 +146,19 @@ int init_super_d_info(struct super_block *super)
  * done_super_d_info - release per-super-block d_cursor resources
  * @super: super block being umounted
  *
- * Frees hash table. Radix tree of d_cursors has nothing to free. It is called
- * on umount.
+ * It is called on umount. Kills all directory cursors attached to suoer block.
  */
 void done_super_d_info(struct super_block *super)
 {
-	BUG_ON(get_super_private(super)->d_info.tree.rnode != NULL);
-	d_cursor_hash_done(&get_super_private(super)->d_info.table);
+	d_cursor_info *d_info;
+	dir_cursor *cursor, *next;
+
+	d_info = &get_super_private(super)->d_info;
+	for_all_in_htable(&d_info->table, d_cursor, cursor, next)
+		kill_cursor(cursor);
+
+	BUG_ON(d_info->tree.rnode != NULL);
+	d_cursor_hash_done(&d_info->table);
 }
 
 /**
@@ -331,6 +342,15 @@ static int insert_cursor(dir_cursor *cursor, struct file *file,
 			cursor->fsdata = fsdata;
 			cursor->info = info;
 			cursor->ref = 1;
+
+			printk("insert_cursor: %p: (%p %p %p %p %p)\n",
+			       cursor,
+			       __builtin_return_address(0),
+			       __builtin_return_address(1),
+			       __builtin_return_address(2),
+			       __builtin_return_address(3),
+			       __builtin_return_address(4));
+
 			spin_lock_inode(inode);
 			/* install cursor as @f's private_data, discarding old
 			 * one if necessary */
@@ -411,11 +431,33 @@ static void process_cursors(struct inode *inode, enum cursor_action act)
 				switch (act) {
 				case CURSOR_DISPOSE:
 					list_del_init(&fsdata->dir.linkage);
+					printk("dispose: %p: (%p %p %p %p %p)\n",
+					       scan,
+					       __builtin_return_address(0),
+					       __builtin_return_address(1),
+					       __builtin_return_address(2),
+					       __builtin_return_address(3),
+					       __builtin_return_address(4));
+					
 					break;
 				case CURSOR_LOAD:
+					printk("load: %p: (%p %p %p %p %p)\n",
+					       scan,
+					       __builtin_return_address(0),
+					       __builtin_return_address(1),
+					       __builtin_return_address(2),
+					       __builtin_return_address(3),
+					       __builtin_return_address(4));
 					list_add(&fsdata->dir.linkage, head);
 					break;
 				case CURSOR_KILL:
+					printk("kill: %p: (%p %p %p %p %p)\n",
+					       scan,
+					       __builtin_return_address(0),
+					       __builtin_return_address(1),
+					       __builtin_return_address(2),
+					       __builtin_return_address(3),
+					       __builtin_return_address(4));
 					kill_cursor(scan);
 					break;
 				}
@@ -482,7 +524,7 @@ void kill_cursors(struct inode *inode)
  * one file system operation. This means that there may be "detached state"
  * for underlying inode.
  */
-int file_is_stateless(struct file *file)
+static int file_is_stateless(struct file *file)
 {
 	return reiser4_get_dentry_fsdata(file->f_dentry)->stateless;
 }
@@ -688,7 +730,7 @@ void done_file_fsdata(void)
  *
  * Allocates and initializes reiser4_file_fsdata structure.
  */
-reiser4_file_fsdata *create_fsdata(struct file *file)
+static reiser4_file_fsdata *create_fsdata(struct file *file)
 {
 	reiser4_file_fsdata *fsdata;
 
@@ -708,7 +750,7 @@ reiser4_file_fsdata *create_fsdata(struct file *file)
  *
  * Dual to create_fsdata(). Free reiser4_file_fsdata.
  */
-void free_fsdata(reiser4_file_fsdata *fsdata)
+static void free_fsdata(reiser4_file_fsdata *fsdata)
 {
 	BUG_ON(fsdata == NULL);
 	kmem_cache_free(file_fsdata_cache, fsdata);

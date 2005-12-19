@@ -528,6 +528,42 @@ check_make_extent_result(int result, write_mode_t mode, const reiser4_key * key,
 #endif
 
 /**
+ * get_extent - 
+ *
+ *
+ *
+ */
+static extent_state
+get_extent(struct make_extent_handle *h)
+{
+	extent_coord_extension_t *ext_coord;
+	reiser4_extent *ext;
+
+	assert("vs-1312", h->uf_coord->coord.between == AT_UNIT);
+
+	ext_coord = ext_coord_by_uf_coord(h->uf_coord);
+	ext = ext_by_ext_coord(h->uf_coord);
+
+	switch (state_of_extent(ext)) {
+	case ALLOCATED_EXTENT:
+		h->blocknr = extent_get_start(ext) + ext_coord->pos_in_unit;
+		return ALLOCATED_EXTENT;
+
+	case HOLE_EXTENT:
+		return HOLE_EXTENT;
+
+	case UNALLOCATED_EXTENT:
+		return UNALLOCATED_EXTENT;
+
+	default:
+		break;
+	}
+
+	return RETERR(-EIO);
+}
+
+
+/**
  * make_extent - make sure that non hole extent corresponding h->pkey exists
  * @h: structure containing coordinate, lock handle, key, etc
  * @mode: preliminary hint obtained via search
@@ -586,26 +622,29 @@ make_extent(struct make_extent_handle *h, write_mode_t mode)
 	return result;
 }
 
-/* estimate and reserve space which may be required for writing one page of file */
-static int
-reserve_extent_write_iteration(struct inode *inode, reiser4_tree * tree)
+/**
+ * reserve_extent_write_iteration - reserve space for one page file write
+ * @inode:
+ * @tree:
+ *
+ * Estimates and reserves space which may be required for writing one page of
+ * file.
+ */
+static int reserve_extent_write_iteration(struct inode *inode,
+					  reiser4_tree *tree)
 {
-	int result;
-
 	grab_space_enable();
-	/* one unformatted node and one insertion into tree and one stat data update may be involved */
-	result = reiser4_grab_space(1 +	/* Hans removed reservation for balancing here. */
-				    /* if extent items will be ever used by plugins other than unix file plugin - estimate update should instead be taken by
-				       inode_file_plugin(inode)->estimate.update(inode)
-				     */
-				    estimate_update_common(inode),
-				    0 /* flags */ );
-	return result;
+	/*
+	 * one unformatted node and one insertion into tree (Hans removed
+	 * reservation for balancing here) and one stat data update may be
+	 * involved
+	 */
+	return reiser4_grab_space(1 + estimate_update_common(inode),
+				  0 /* flags */ );
 }
 
-static void
-write_move_coord(coord_t * coord, uf_coord_t * uf_coord, write_mode_t mode,
-		 int full_page)
+static void write_move_coord(coord_t *coord, uf_coord_t *uf_coord,
+			     write_mode_t mode, int full_page)
 {
 	extent_coord_extension_t *ext_coord;
 
@@ -659,9 +698,19 @@ write_move_coord(coord_t * coord, uf_coord_t * uf_coord, write_mode_t mode,
 		ext_coord->pos_in_unit++;
 }
 
-static int
-write_is_partial(struct inode *inode, loff_t file_off, unsigned page_off,
-		 unsigned count)
+/**
+ * write_is_partial - check if page is being overwritten partially
+ * @inode:
+ * @file_off: position in a file write starts at
+ * @page_off: offset within a page write starts at
+ * @count: number of bytes to be written to a page
+ *
+ * Returns true if page has to be read before overwrite so that old data do not
+ * get lost. O is returned if all old data in a page are going to be
+ * overwritten.
+ */
+static int write_is_partial(struct inode *inode, loff_t file_off,
+			    unsigned page_off, unsigned count)
 {
 	if (count == inode->i_sb->s_blocksize)
 		return 0;
@@ -763,7 +812,7 @@ extent_balance_dirty_pages(struct inode *inode, const flow_t * f, hint_t * hint)
  *
  * Write flow's data into file by pages.
  */
-static int extent_write_flow(struct inode *inode, flow_t * flow, hint_t * hint,
+static int extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 			     int grabbed, write_mode_t mode)
 {
 	int result;
@@ -805,6 +854,8 @@ static int extent_write_flow(struct inode *inode, flow_t * flow, hint_t * hint,
 	oid = get_inode_oid(inode);
 	coord = coord_by_uf_coord(h->uf_coord);
 	do {
+		int do_make_extent = 1;
+
 		if (!grabbed) {
 			result = reserve_extent_write_iteration(inode, tree);
 			if (result)
@@ -814,10 +865,6 @@ static int extent_write_flow(struct inode *inode, flow_t * flow, hint_t * hint,
 		count = PAGE_CACHE_SIZE - page_off;
 		if (count > flow->length)
 			count = flow->length;
-
-		result = make_extent(h, mode);
-		if (result)
-			goto exit1;
 
 		/* look for jnode and create it if it does not exist yet */
 		j = find_get_jnode(tree, inode->i_mapping, oid, page_nr);
@@ -835,66 +882,46 @@ static int extent_write_flow(struct inode *inode, flow_t * flow, hint_t * hint,
 
 		page_cache_get(page);
 
-		if (!PageUptodate(page)) {
-			if (mode == OVERWRITE_ITEM) {
-				int blocknr_set = 0;
-				/* this page may be either an anonymous page (a
-				   page which was dirtied via mmap,
-				   writepage-ed and for which extent pointer
-				   was just created. In this case jnode is
-				   eflushed) or correspond to not page cached
-				   block (in which case created == 0). In
-				   either case we have to read this page if it
-				   is being overwritten partially */
-				if (write_is_partial
-				    (inode, file_off, page_off, count)
-				    && (h->created == 0
-					|| JF_ISSET(j, JNODE_EFLUSH))) {
-					if (!JF_ISSET(j, JNODE_EFLUSH)) {
-						/* eflush bit can be neither
-						   set nor cleared by other
-						   process because page
-						   attached to jnode is
-						   locked */
-						spin_lock_jnode(j);
-						assign_jnode_blocknr(j, h->blocknr,
-								     h->created);
-						blocknr_set = 1;
-						spin_unlock_jnode(j);
-					}
-					result =
-					    page_io(page, j, READ, GFP_KERNEL);
-					if (result)
-						goto exit3;
-
-					lock_page(page);
-					if (!PageUptodate(page))
-						goto exit3;
-				} else {
-					zero_around(page, page_off, count);
-				}
-
-				/* assign blocknr to jnode if it is not assigned yet */
+		if (!PageUptodate(page) &&
+		    mode == OVERWRITE_ITEM &&
+		    write_is_partial(inode, file_off, page_off, count)) {
+			/*
+			 * page may have to be read before copy_from_user
+			 */
+			if (get_extent(h) != HOLE_EXTENT) {
+				if (*jnode_get_block(j) == 0)
+					assign_jnode_blocknr(j, h->blocknr, 0);
+				result = page_io(page, j, READ, GFP_KERNEL);
+				if (result)
+					goto exit3;
+				lock_page(page);
+				if (!PageUptodate(page))
+					goto exit3;
+				do_make_extent = 0;				
 				spin_lock_jnode(j);
 				eflush_del(j, 1);
-				if (blocknr_set == 0)
-					assign_jnode_blocknr(j, h->blocknr,
-							     h->created);
 				spin_unlock_jnode(j);
 			} else {
-				/* new page added to the file. No need to carry
-				   about data it might contain. Zero content of
-				   new page around write area */
-				assert("vs-1681", !JF_ISSET(j, JNODE_EFLUSH));
 				zero_around(page, page_off, count);
-
-				/* assign blocknr to jnode if it is not
-				   assigned yet */
-				spin_lock_jnode(j);
-				assign_jnode_blocknr(j, h->blocknr, h->created);
-				spin_unlock_jnode(j);
 			}
 		} else {
+			if (!PageUptodate(page))
+				zero_around(page, page_off, count);
+		}
+
+		assert("nikita-3033", schedulable());
+		/* copy user data into page */
+		result = __copy_from_user((char *)kmap(page) + page_off,
+					  (const char __user *)flow->data,
+					  count);
+		kunmap(page);
+		if (unlikely(result)) {
+			result = RETERR(-EFAULT);
+			goto exit3;
+		}
+
+		if (do_make_extent) {
+			result = make_extent(h, mode);
 			spin_lock_jnode(j);
 			eflush_del(j, 1);
 			assign_jnode_blocknr(j, h->blocknr, h->created);
@@ -906,20 +933,6 @@ static int extent_write_flow(struct inode *inode, flow_t * flow, hint_t * hint,
 				   jnode_page(j) == page));
 		spin_unlock_jnode(j);
 #endif
-		assert("nikita-3033", schedulable());
-
-		/* copy user data into page */
-		result =
-		    __copy_from_user((char *)kmap(page) + page_off,
-				     (const char __user *)flow->data,
-				     count);
-		kunmap(page);
-		if (unlikely(result)) {
-			/* FIXME: write(fd, 0, 10); to empty file will write no
-			   data but file will get increased size. */
-			result = RETERR(-EFAULT);
-			goto exit3;
-		}
 
 		set_page_dirty_internal(page);
 		SetPageUptodate(page);
@@ -962,12 +975,14 @@ static int extent_write_flow(struct inode *inode, flow_t * flow, hint_t * hint,
 		set_key_offset(h->u.replace.pkey, (loff_t) page_nr << PAGE_CACHE_SHIFT);
 
 		if (flow->length && h->uf_coord->valid == 1) {
-			/* loop continues - try to obtain lock validating a
-			   seal set in extent_balance_dirty_pages */
-			result =
-			    hint_validate(hint, &flow->key,
-					  0 /* do not check key */ ,
-					  ZNODE_WRITE_LOCK);
+			/*
+			 * flow contains data to write, coord looks set
+			 * properly - try to obtain lock validating a seal set
+			 * in extent_balance_dirty_pages
+			 */
+			result = hint_validate(hint, &flow->key,
+					       0 /* do not check key */,
+					       ZNODE_WRITE_LOCK);
 			if (result == 0)
 				continue;
 		}
@@ -1364,7 +1379,7 @@ static int call_readpage(struct file *file, struct page *page)
 {
 	int result;
 
-	result = readpage_unix_file(file, page);
+	result = readpage_unix_file_nolock(file, page);
 	if (result)
 		return result;
 
@@ -1381,7 +1396,7 @@ static int call_readpage(struct file *file, struct page *page)
 
 static int filler(void *vp, struct page *page)
 {
-	return readpage_unix_file(vp, page);
+	return readpage_unix_file_nolock(vp, page);
 }
 
 /* Implements plugin->u.item.s.file.read operation for extent items. */
@@ -1760,12 +1775,12 @@ void init_coord_extension_extent(uf_coord_t * uf_coord, loff_t lookuped)
 }
 
 /*
-   Local variables:
-   c-indentation-style: "K&R"
-   mode-name: "LC"
-   c-basic-offset: 8
-   tab-width: 8
-   fill-column: 120
-   scroll-step: 1
-   End:
-*/
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 79
+ * scroll-step: 1
+ * End:
+ */

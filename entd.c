@@ -305,6 +305,13 @@ int write_page_by_ent(struct page *page, struct writeback_control *wbc)
 	assert("", ent && ent->done == 0);
 
 	/*
+	 * we are going to unlock page and ask ent thread to write the
+	 * page. Re-dirty page before unlocking so that if ent thread fails to
+	 * write it - it will remain dirty
+	 */
+	set_page_dirty_internal(page);
+
+	/*
 	 * pin inode in memory, unlock page, entd_flush will iput. We can not
 	 * iput here becasue we can not allow delete_inode to be called here
 	 */
@@ -322,7 +329,6 @@ int write_page_by_ent(struct page *page, struct writeback_control *wbc)
 	rq.mapping = inode->i_mapping;
 	rq.node = NULL;
 	rq.written = 0;
-	rq.caller = get_current_context_check();
 	sema_init(&rq.sem, 0);
 
 	/* add request to entd's list of writepage requests */
@@ -347,11 +353,7 @@ int write_page_by_ent(struct page *page, struct writeback_control *wbc)
 	if (rq.written)
 		/* Eventually ENTD has written the page to disk. */
 		return 0;
-
-	lock_page(page);
-	redirty_page_for_writepage(wbc, page);
-	unlock_page(page);
-	return 1;
+	return 0;
 }
 
 int wbq_available(void)

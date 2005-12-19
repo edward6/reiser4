@@ -406,7 +406,6 @@ extern void reiser4_set_data_blocks(const struct super_block *super, __u64 nr);
 extern __u64 reiser4_free_blocks(const struct super_block *super);
 extern void reiser4_set_free_blocks(const struct super_block *super, __u64 nr);
 extern __u32 reiser4_mkfs_id(const struct super_block *super);
-extern void reiser4_set_mkfs_id(const struct super_block *super, __u32 id);
 
 extern __u64 reiser4_free_committed_blocks(const struct super_block *super);
 
@@ -433,7 +432,6 @@ extern int reiser4_blocknr_is_sane_for(const struct super_block *super,
 				       const reiser4_block_nr * blk);
 extern int reiser4_fill_super(struct super_block *s, void *data, int silent);
 extern int reiser4_done_super(struct super_block *s);
-extern reiser4_plugin * get_default_plugin(pset_member memb);
 
 /* step of fill super */
 extern int init_fs_info(struct super_block *);
@@ -441,7 +439,6 @@ extern void done_fs_info(struct super_block *);
 extern int init_super_data(struct super_block *, char *opt_string);
 extern int init_read_super(struct super_block *, int silent);
 extern int init_root_inode(struct super_block *);
-extern void done_root_inode(struct super_block *);
 
 
 /* Maximal possible object id. */
@@ -455,7 +452,6 @@ oid_t oid_next(const struct super_block *);
 void oid_count_allocated(void);
 void oid_count_released(void);
 long oids_used(const struct super_block *);
-long oids_free(const struct super_block *);
 
 #if REISER4_DEBUG
 void print_fs_info(const char *prefix, const struct super_block *);

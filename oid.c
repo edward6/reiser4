@@ -101,26 +101,6 @@ long oids_used(const struct super_block *super)
 }
 
 /*
- * return number of "free" oids. This is used by statfs(2) to report "free"
- * inodes.
- */
-long oids_free(const struct super_block *super)
-{
-	reiser4_super_info_data *sbinfo;
-	oid_t oids;
-
-	sbinfo = get_super_private(super);
-
-	spin_lock_reiser4_super(sbinfo);
-	oids = ABSOLUTE_MAX_OID - OIDS_RESERVED - sbinfo->next_to_use;
-	spin_unlock_reiser4_super(sbinfo);
-	if (oids < (__u64) ((long)~0) >> 1)
-		return (long)oids;
-	else
-		return (long)-1;
-}
-
-/*
  * Count oid as allocated in atom. This is done after call to oid_allocate()
  * at the point when we are irrevocably committed to creation of the new file
  * (i.e., when oid allocation cannot be any longer rolled back due to some

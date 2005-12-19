@@ -3299,14 +3299,14 @@ static void swap_jnode_pages(jnode * node, jnode * copy, struct page *new_page)
 	copy->pg = node->pg;
 	copy->data = page_address(copy->pg);
 	jnode_set_block(copy, jnode_get_block(node));
-	copy->pg->private = (unsigned long)copy;
+	set_page_private(copy->pg, (unsigned long)copy);
 
 	/* attach new page to jnode */
 	assert("vs-1412", !PagePrivate(new_page));
 	page_cache_get(new_page);
 	node->pg = new_page;
 	node->data = page_address(new_page);
-	new_page->private = (unsigned long)node;
+	set_page_private(new_page, (unsigned long)node);
 	SetPagePrivate(new_page);
 
 	{
@@ -3760,6 +3760,7 @@ void uncapture_block(jnode * node)
 #else
 	assert("jmacd-1023", atom_is_protected(atom));
 #endif
+	assert("", !JF_ISSET(node, JNODE_EFLUSH));
 
 	JF_CLR(node, JNODE_DIRTY);
 	JF_CLR(node, JNODE_RELOC);

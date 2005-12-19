@@ -237,12 +237,8 @@ extern void zfree(znode * node);
 
 #if REISER4_DEBUG
 extern void print_znode(const char *prefix, const znode * node);
-extern void print_znodes(const char *prefix, reiser4_tree * tree);
-extern void print_lock_stack(const char *prefix, lock_stack * owner);
 #else
 #define print_znode( p, n ) noop
-#define print_znodes( p, t ) noop
-#define print_lock_stack( p, o ) noop
 #endif
 
 /* Make it look like various znode functions exist instead of treating znodes as

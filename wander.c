@@ -768,6 +768,7 @@ static int write_jnodes_to_disk_extent(
 			assert("nikita-3166",
 			       pg->mapping == jnode_get_mapping(cur));
 			assert("zam-912", !JF_ISSET(cur, JNODE_WRITEBACK));
+			assert("", !JF_ISSET(cur, JNODE_EFLUSH));
 #if REISER4_DEBUG
 			spin_lock(&cur->load);
 			assert("nikita-3165", !jnode_is_releasable(cur));

@@ -1182,35 +1182,6 @@ int lock_stack_isclean(lock_stack * owner)
 }
 
 #if REISER4_DEBUG
-/* Debugging help */
-void print_lock_stack(const char *prefix, lock_stack * owner)
-{
-	lock_handle *handle;
-
-	spin_lock_stack(owner);
-
-	printk("%s:\n", prefix);
-	printk(".... nr_signaled %d\n", atomic_read(&owner->nr_signaled));
-	printk(".... curpri %s\n", owner->curpri ? "high" : "low");
-
-	if (owner->request.mode != 0) {
-		printk(".... current request: %s",
-		       owner->request.mode ==
-		       ZNODE_WRITE_LOCK ? "write" : "read");
-		print_address("", znode_get_block(owner->request.node));
-	}
-
-	printk(".... current locks:\n");
-
-	list_for_each_entry(handle, &owner->locks, locks_link) {
-		if (handle->node != NULL)
-			print_address(znode_is_rlocked(handle->node) ?
-				      "......  read" : "...... write",
-				      znode_get_block(handle->node));
-	}
-
-	spin_unlock_stack(owner);
-}
 
 /*
  * debugging functions

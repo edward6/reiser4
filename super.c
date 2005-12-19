@@ -120,14 +120,6 @@ __u32 reiser4_mkfs_id(const struct super_block *super	/* super block
 	return get_super_private(super)->mkfs_id;
 }
 
-/* set mkfs unique identifier */
-void reiser4_set_mkfs_id(const struct super_block *super, __u32 id)
-{
-	assert("vpf-223", super != NULL);
-	assert("vpf-224", is_reiser4_super(super));
-	get_super_private(super)->mkfs_id = id;
-}
-
 /* amount of free blocks in file system */
 __u64 reiser4_free_committed_blocks(const struct super_block *super)
 {

@@ -338,6 +338,8 @@ int init_super_data(struct super_block *super, char *opt_string)
 	sbinfo->tree.carry.new_extent_flags = REISER4_NEW_EXTENT_FLAGS;
 	sbinfo->tree.carry.paste_flags = REISER4_PASTE_FLAGS;
 	sbinfo->tree.carry.insert_flags = REISER4_INSERT_FLAGS;
+	rwlock_init(&(sbinfo->tree.tree_lock));
+	spin_lock_init(&(sbinfo->tree.epoch_lock));
 
 	/* initialize default readahead params */
 	sbinfo->ra_params.max = num_physpages / 4;
@@ -667,7 +669,7 @@ static struct {
 };
 
 /* access to default plugin table */
-reiser4_plugin *get_default_plugin(pset_member memb)
+static reiser4_plugin *get_default_plugin(pset_member memb)
 {
 	return plugin_by_id(default_plugins[memb].type,
 			    default_plugins[memb].id);
@@ -734,6 +736,7 @@ int init_root_inode(struct super_block *super)
  *
  * Puts inode of root directory.
  */
+#if 0
 void done_root_inode(struct super_block *super)
 {
 	/* remove unused children of the parent dentry */
@@ -744,6 +747,7 @@ void done_root_inode(struct super_block *super)
 	/* discard all inodes of filesystem */
 	invalidate_inodes(super);
 }
+#endif  /*  0  */
 
 /*
  * Local variables:
