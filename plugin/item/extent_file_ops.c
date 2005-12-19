@@ -936,8 +936,7 @@ static int extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 
 		set_page_dirty_internal(page);
 		SetPageUptodate(page);
-		if (!PageReferenced(page))
-			SetPageReferenced(page);
+		mark_page_accessed(page);
 		unlock_page(page);
 
 		/* FIXME: possible optimization: if jnode is not dirty yet - it
