@@ -22,7 +22,7 @@
 
 /* Per-znode lock object */
 struct zlock {
-	rwlock_t guard;
+	spinlock_t guard;
 	/* The number of readers if positive; the number of recursively taken
 	   write locks if negative. Protected by zlock spin lock. */
 	int nr_readers;
@@ -39,64 +39,29 @@ struct zlock {
 	struct list_head requestors;
 };
 
-static inline void read_lock_zlock(zlock *lock)
+static inline void spin_lock_zlock(zlock *lock)
 {
 	/* check that zlock is not locked */
-	assert("", (LOCK_CNT_NIL(rw_locked_zlock) &&
-		    LOCK_CNT_NIL(read_locked_zlock) &&
-		    LOCK_CNT_NIL(write_locked_zlock)));
+	assert("", LOCK_CNT_NIL(spin_locked_zlock));
 	/* check that spinlocks of lower priorities are not held */
 	assert("", LOCK_CNT_NIL(spin_locked_stack));
 
-	read_lock(&(lock->guard));
+	spin_lock(&lock->guard);
 
-	LOCK_CNT_INC(read_locked_zlock);
-	LOCK_CNT_INC(rw_locked_zlock);
+	LOCK_CNT_INC(spin_locked_zlock);
 	LOCK_CNT_INC(spin_locked);
 }
 
-static inline void read_unlock_zlock(zlock *lock)
+static inline void spin_unlock_zlock(zlock *lock)
 {
-	assert("nikita-1375", LOCK_CNT_GTZ(read_locked_zlock));
-	assert("nikita-1376", LOCK_CNT_GTZ(rw_locked_zlock));
+	assert("nikita-1375", LOCK_CNT_GTZ(spin_locked_zlock));
 	assert("nikita-1376", LOCK_CNT_GTZ(spin_locked));
 
-	LOCK_CNT_DEC(read_locked_zlock);
-	LOCK_CNT_DEC(rw_locked_zlock);
+	LOCK_CNT_DEC(spin_locked_zlock);
 	LOCK_CNT_DEC(spin_locked);
 
-	read_unlock(&(lock->guard));
+	spin_unlock(&lock->guard);
 }
-
-static inline void write_lock_zlock(zlock *lock)
-{
-	/* check that zlock is not locked */
-	assert("", (LOCK_CNT_NIL(rw_locked_zlock) &&
-		    LOCK_CNT_NIL(read_locked_zlock) &&
-		    LOCK_CNT_NIL(write_locked_zlock)));
-	/* check that spinlocks of lower priorities are not held */
-	assert("", LOCK_CNT_NIL(spin_locked_stack));
-
-	write_lock(&(lock->guard));
-
-	LOCK_CNT_INC(write_locked_zlock);
-	LOCK_CNT_INC(rw_locked_zlock);
-	LOCK_CNT_INC(spin_locked);
-}
-
-static inline void write_unlock_zlock(zlock *lock)
-{
-	assert("nikita-1375", LOCK_CNT_GTZ(write_locked_zlock));
-	assert("nikita-1376", LOCK_CNT_GTZ(rw_locked_zlock));
-	assert("nikita-1376", LOCK_CNT_GTZ(spin_locked));
-
-	LOCK_CNT_DEC(write_locked_zlock);
-	LOCK_CNT_DEC(rw_locked_zlock);
-	LOCK_CNT_DEC(spin_locked);
-
-	write_unlock(&(lock->guard));
-}
-
 
 #define lock_is_locked(lock)          ((lock)->nr_readers != 0)
 #define lock_is_rlocked(lock)         ((lock)->nr_readers > 0)

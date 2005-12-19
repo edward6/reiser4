@@ -328,7 +328,7 @@ static inline void spin_lock_jnode(jnode *node)
 	/* check that spinlocks of lower priorities are not held */
 	assert("", (LOCK_CNT_NIL(rw_locked_tree) &&
 		    LOCK_CNT_NIL(spin_locked_txnh) &&
-		    LOCK_CNT_NIL(rw_locked_zlock) &&
+		    LOCK_CNT_NIL(spin_locked_zlock) &&
 		    LOCK_CNT_NIL(rw_locked_dk) &&
 		    LOCK_CNT_LT(spin_locked_jnode, 2)));
 
