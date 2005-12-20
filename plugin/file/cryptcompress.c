@@ -984,10 +984,9 @@ int grab_tfm_stream(struct inode * inode, tfm_cluster_t * tc,
 	size_t size = inode_scaled_cluster_size(inode);
 
 	assert("edward-901", tc != NULL);
-	assert("edward-1347", tc->act != TFM_INVAL);
 	assert("edward-1027", inode_compression_plugin(inode) != NULL);
 
-	if (tc->act == TFM_WRITE)
+	if (tc->act == TFM_WRITE_ACT)
 		size += deflate_overrun(inode, inode_cluster_size(inode));
 
 	if (!tfm_stream(tc, id) && id == INPUT_STREAM)
@@ -1013,7 +1012,7 @@ int deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 
 	assert("edward-401", inode != NULL);
 	assert("edward-903", tfm_stream_is_set(tc, INPUT_STREAM));
-	assert("edward-1348", tc->act == TFM_WRITE);
+	assert("edward-1348", tc->act == TFM_WRITE_ACT);
 	assert("edward-498", !tfm_cluster_is_uptodate(tc));
 
 	coplug = inode_compression_plugin(inode);
@@ -1040,7 +1039,7 @@ int deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 		    goto cipher;
 		}
 		dst_len = tfm_stream_size(tc, OUTPUT_STREAM);
-		coplug->compress(get_coa(tc, coplug->h.id),
+		coplug->compress(get_coa(tc, coplug->h.id, tc->act),
 				 tfm_input_data(clust), tc->len,
 				 tfm_output_data(clust), &dst_len);
 		/* make sure we didn't overwrite extra bytes */
@@ -1130,7 +1129,7 @@ int inflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 	assert("edward-905", inode != NULL);
 	assert("edward-1178", clust->dstat == PREP_DISK_CLUSTER);
 	assert("edward-906", tfm_stream_is_set(&clust->tc, INPUT_STREAM));
-	assert("edward-1349", tc->act == TFM_READ);
+	assert("edward-1349", tc->act == TFM_READ_ACT);
 	assert("edward-907", !tfm_cluster_is_uptodate(tc));
 
 	/* Handle a checksum (if any) */
@@ -1179,7 +1178,7 @@ int inflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 		assert("edward-1305", coplug->decompress != NULL);
 		assert("edward-910", tfm_cluster_is_set(tc));
 
-		coplug->decompress(get_coa(tc, coplug->h.id),
+		coplug->decompress(get_coa(tc, coplug->h.id, tc->act),
 				   tfm_input_data(clust), tc->len,
 				   tfm_output_data(clust), &dst_len);
 		/* check length */
