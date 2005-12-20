@@ -180,7 +180,6 @@ static inline void
 tfm_cluster_init_act(tfm_cluster_t * tc, tfm_action act)
 {
 	assert("edward-1356", tc != NULL);
-	assert("edward-1357", act != TFM_INVAL);
 	tc->act = act;
 }
 
@@ -196,13 +195,13 @@ cluster_init_act (reiser4_cluster_t * clust, tfm_action act, reiser4_slide_t * w
 static inline void
 cluster_init_read(reiser4_cluster_t * clust, reiser4_slide_t * window)
 {
-	cluster_init_act (clust, TFM_READ, window);
+	cluster_init_act (clust, TFM_READ_ACT, window);
 }
 
 static inline void
 cluster_init_write(reiser4_cluster_t * clust, reiser4_slide_t * window)
 {
-	cluster_init_act (clust, TFM_WRITE, window);
+	cluster_init_act (clust, TFM_WRITE_ACT, window);
 }
 
 static inline int dclust_get_extension(hint_t * hint)

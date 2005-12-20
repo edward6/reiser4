@@ -21,41 +21,27 @@ static int should_deflate_none(struct inode * inode, cloff_t index)
 
 static int should_deflate_common(struct inode * inode, cloff_t index)
 {
-	return inode_compression_plugin(inode)->compress != NULL;
-}
-
-/* generic turn on/off compression */
-int switch_compression(struct inode *inode)
-{
-	int result;
-
-	result = force_plugin(inode,
-			      PSET_COMPRESSION,
-			      compression_plugin_to_plugin
-			      (dual_compression_plugin
-			       (inode_compression_plugin(inode))));
-	if (result)
-		return result;
-	__mark_inode_dirty(inode, I_DIRTY_PAGES);
-	return 0;
-}
-
-static int switch_compression_on_zero(struct inode *inode, cloff_t index)
-{
-	assert("edward-1308", inode != NULL);
-	return (index ? 0 : switch_compression(inode));
+	return compression_is_on(cryptcompress_inode_data(inode));
 }
 
 static int turn_off_compression(struct inode *inode, cloff_t index)
 {
-	return (inode_compression_plugin(inode)->compress ?
-		switch_compression(inode) : 0);
+	toggle_compression(cryptcompress_inode_data(inode), 0);
+	return 0;
 }
 
 static int turn_on_compression(struct inode *inode, cloff_t index)
 {
-	return (inode_compression_plugin(inode)->compress ?
-		0 : switch_compression(inode));
+	toggle_compression(cryptcompress_inode_data(inode), 1);
+	return 0;
+}
+
+static int turn_off_compression_on_zero(struct inode *inode, cloff_t index)
+{
+	assert("edward-1308", inode != NULL);
+	if (index == 0)
+		toggle_compression(cryptcompress_inode_data(inode), 0);
+	return 0;
 }
 
 /* Check on lattice (COL) of some sparseness factor,
@@ -135,7 +121,7 @@ compression_mode_plugin compression_mode_plugins[LAST_COMPRESSION_MODE_ID] = {
 		},
 		.should_deflate = should_deflate_common,
 		.accept_hook = NULL,
-		.discard_hook = switch_compression_on_zero
+		.discard_hook = turn_off_compression_on_zero
 	},
 	[FORCE_COMPRESSION_MODE_ID] = {
 		.h = {

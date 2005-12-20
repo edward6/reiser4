@@ -135,15 +135,15 @@ typedef struct tfm_cluster {
 	int len;          /* length of the transform stream */
 } tfm_cluster_t;
 
-static inline coa_t get_coa(tfm_cluster_t * tc, reiser4_compression_id id)
+static inline coa_t get_coa(tfm_cluster_t * tc, reiser4_compression_id id, tfm_action act)
 {
-	return tc->coa[id];
+	return tc->coa[id][act];
 }
 
 static inline void
-set_coa(tfm_cluster_t * tc, reiser4_compression_id id, coa_t coa)
+set_coa(tfm_cluster_t * tc, reiser4_compression_id id, tfm_action act, coa_t coa)
 {
-	tc->coa[id] = coa;
+	tc->coa[id][act] = coa;
 }
 
 static inline int
@@ -151,38 +151,37 @@ alloc_coa(tfm_cluster_t * tc, compression_plugin * cplug)
 {
 	coa_t coa;
 
-	assert("edward-1408", tc->act != TFM_INVAL);
-
 	coa = cplug->alloc(tc->act);
 	if (IS_ERR(coa))
 		return PTR_ERR(coa);
-	set_coa(tc, cplug->h.id, coa);
+	set_coa(tc, cplug->h.id, tc->act, coa);
 	return 0;
 }
 
 static inline int
 grab_coa(tfm_cluster_t * tc, compression_plugin * cplug)
 {
-	return (cplug->alloc && !get_coa(tc, cplug->h.id) ?
+	return (cplug->alloc && !get_coa(tc, cplug->h.id, tc->act) ?
 		alloc_coa(tc, cplug) : 0);
 }
 
 static inline void free_coa_set(tfm_cluster_t * tc)
 {
+	tfm_action j;
 	reiser4_compression_id i;
 	compression_plugin *cplug;
 
 	assert("edward-810", tc != NULL);
 
-	for (i = 0; i < LAST_COMPRESSION_ID; i++) {
-		if (!get_coa(tc, i))
-			continue;
-		assert("edward-1409", tc->act != TFM_INVAL);
-		cplug = compression_plugin_by_id(i);
-		assert("edward-812", cplug->free != NULL);
-		cplug->free(get_coa(tc, i), tc->act);
-		set_coa(tc, i, 0);
-	}
+	for (j = 0; j < LAST_TFM; j++)
+		for (i = 0; i < LAST_COMPRESSION_ID; i++) {
+			if (!get_coa(tc, i, j))
+				continue;
+			cplug = compression_plugin_by_id(i);
+			assert("edward-812", cplug->free != NULL);
+			cplug->free(get_coa(tc, i, j), j);
+			set_coa(tc, i, j, 0);
+		}
 	return;
 }
 
@@ -367,6 +366,7 @@ typedef struct reiser4_cluster {
 	int reserved_prepped;
 	int reserved_unprepped;
 #endif
+
 } reiser4_cluster_t;
 
 static inline __u8 * tfm_input_data (reiser4_cluster_t * clust)
@@ -434,7 +434,19 @@ static inline void dec_keyload_count(crypto_stat_t * data)
 typedef struct cryptcompress_info {
 	struct rw_semaphore lock;
 	crypto_stat_t *crypt;
+	int compress_toggle;
 } cryptcompress_info_t;
+
+
+static inline void toggle_compression (cryptcompress_info_t * info, int val)
+{
+	info->compress_toggle = val;
+}
+
+static inline int compression_is_on (cryptcompress_info_t * info)
+{
+	return info->compress_toggle;
+}
 
 cryptcompress_info_t *cryptcompress_inode_data(const struct inode *inode);
 int equal_to_rdk(znode *, const reiser4_key *);
@@ -525,12 +537,6 @@ static inline void
 info_set_digest_plugin(crypto_stat_t * info, digest_plugin * plug)
 {
 	info_set_plugin(info, DIGEST_TFM, digest_plugin_to_plugin(plug));
-}
-
-static inline compression_plugin *dual_compression_plugin(compression_plugin *
-							  cplug)
-{
-	return compression_plugin_by_id(cplug->dual);
 }
 
 #endif				/* __FS_REISER4_CRYPTCOMPRESS_H__ */
