@@ -434,7 +434,19 @@ static inline void dec_keyload_count(crypto_stat_t * data)
 typedef struct cryptcompress_info {
 	struct rw_semaphore lock;
 	crypto_stat_t *crypt;
+	int compress_toggle;
 } cryptcompress_info_t;
+
+
+static inline void toggle_compression (cryptcompress_info_t * info, int val)
+{
+	info->compress_toggle = val;
+}
+
+static inline int compression_is_on (cryptcompress_info_t * info)
+{
+	return info->compress_toggle;
+}
 
 cryptcompress_info_t *cryptcompress_inode_data(const struct inode *inode);
 int equal_to_rdk(znode *, const reiser4_key *);
@@ -525,12 +537,6 @@ static inline void
 info_set_digest_plugin(crypto_stat_t * info, digest_plugin * plug)
 {
 	info_set_plugin(info, DIGEST_TFM, digest_plugin_to_plugin(plug));
-}
-
-static inline compression_plugin *dual_compression_plugin(compression_plugin *
-							  cplug)
-{
-	return compression_plugin_by_id(cplug->dual);
 }
 
 #endif				/* __FS_REISER4_CRYPTCOMPRESS_H__ */

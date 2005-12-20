@@ -14,9 +14,7 @@ typedef enum {
 
 typedef enum {
 	LZO1_COMPRESSION_ID,
-	LZO1_NO_COMPRESSION_ID,
 	GZIP1_COMPRESSION_ID,
-	GZIP1_NO_COMPRESSION_ID,
 	LAST_COMPRESSION_ID,
 } reiser4_compression_id;
 

@@ -37,6 +37,7 @@ init_inode_data_cryptcompress(struct inode *inode,
 	memset(data, 0, sizeof(*data));
 
 	init_rwsem(&data->lock);
+	toggle_compression(data, 1);
 	init_inode_ordering(inode, crd, create);
 }
 
@@ -864,10 +865,7 @@ static int deflate_overhead(struct inode *inode)
 
 static unsigned deflate_overrun(struct inode * inode, int ilen)
 {
-	return max_count
-		(coa_overrun(inode_compression_plugin(inode), ilen),
-		 coa_overrun(dual_compression_plugin
-			     (inode_compression_plugin(inode)), ilen));
+	return coa_overrun(inode_compression_plugin(inode), ilen);
 }
 
 /* Estimating compressibility of a logical cluster by various
@@ -1025,9 +1023,6 @@ int deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 		compression_mode_plugin * mplug =
 			inode_compression_mode_plugin(inode);
 		assert("edward-602", coplug != NULL);
-
-		if (coplug->compress == NULL)
-			coplug = dual_compression_plugin(coplug);
 		assert("edward-1423", coplug->compress != NULL);
 
 		result = grab_coa(tc, coplug);
