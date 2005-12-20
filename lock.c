@@ -295,17 +295,16 @@ static inline void unlink_object(lock_handle * handle)
 	assert("reiser4-5", handle->owner->nr_locks > 0);
 
 	/* remove lock handle from lock_stack's list of locks */
-	list_del_init(&handle->locks_link);
+	list_del(&handle->locks_link);
 	handle->owner->nr_locks--;
 	assert("reiser4-6",
 	       ergo(list_empty_careful(&handle->owner->locks),
 		    handle->owner->nr_locks == 0));
-
 	/* remove lock handle from znode's list of owners */
-	list_del_init(&handle->owners_link);
-
+	list_del(&handle->owners_link);
 	/* indicates that lock handle is free now */
-	handle->owner = NULL;
+	handle->node = NULL;
+	ON_DEBUG(handle->owner = NULL);
 }
 
 /* Actually locks an object knowing that we are able to do this */
@@ -547,7 +546,7 @@ static void remove_lock_request(lock_stack * requestor)
 		if (requestor->request.mode == ZNODE_WRITE_LOCK)
 			lock->nr_hipri_write_requests --;
 	}
-	list_del_init(&requestor->requestors_link);
+	list_del(&requestor->requestors_link);
 }
 
 
@@ -667,7 +666,6 @@ void longterm_unlock_znode(lock_handle * handle)
 	spin_unlock_zlock(&node->lock);
 
 	/* minus one reference from handle->node */
-	handle->node = NULL;
 	assert("nikita-2190", znode_invariant(node));
 	ON_DEBUG(check_lock_data());
 	ON_DEBUG(check_lock_node_data(node));
@@ -1040,22 +1038,6 @@ void reiser4_init_lock(zlock * lock	/* pointer on allocated
 	spin_lock_init(&lock->guard);
 	INIT_LIST_HEAD(&lock->requestors);
 	INIT_LIST_HEAD(&lock->owners);
-}
-
-/* lock handle initialization */
-void init_lh(lock_handle * handle)
-{
-	memset(handle, 0, sizeof *handle);
-	INIT_LIST_HEAD(&handle->locks_link);
-	INIT_LIST_HEAD(&handle->owners_link);
-}
-
-/* freeing of lock handle resources */
-void done_lh(lock_handle * handle)
-{
-	assert("zam-342", handle != NULL);
-	if (handle->owner != NULL)
-		longterm_unlock_znode(handle);
 }
 
 /* Transfer a lock handle (presumably so that variables can be moved between stack and

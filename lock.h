@@ -180,10 +180,26 @@ extern lock_stack *get_current_lock_stack(void);
 extern void init_lock_stack(lock_stack * owner);
 extern void reiser4_init_lock(zlock * lock);
 
-extern void init_lh(lock_handle *);
+static inline void init_lh(lock_handle *lh)
+{
+#if REISER4_DEBUG
+	memset(lh, 0, sizeof *lh);
+	INIT_LIST_HEAD(&lh->locks_link);
+	INIT_LIST_HEAD(&lh->owners_link);
+#else
+	lh->node = NULL;
+#endif
+}
+
+static inline  void done_lh(lock_handle *lh)
+{
+	assert("zam-342", lh != NULL);
+	if (lh->node != NULL)
+		longterm_unlock_znode(lh);
+}
+
 extern void move_lh(lock_handle * new, lock_handle * old);
 extern void copy_lh(lock_handle * new, lock_handle * old);
-extern void done_lh(lock_handle *);
 
 extern int prepare_to_sleep(lock_stack * owner);
 extern void go_to_sleep(lock_stack * owner);

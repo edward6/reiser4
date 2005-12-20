@@ -320,7 +320,7 @@ static int far_next_coord(coord_t * coord, lock_handle * handle, int flags)
 	assert("umka-243", coord != NULL);
 	assert("umka-244", handle != NULL);
 
-	handle->owner = NULL;	/* mark lock handle as unused */
+	handle->node = NULL;	/* mark lock handle as unused */
 
 	ret =
 	    (flags & GN_GO_LEFT) ? coord_prev_unit(coord) :
@@ -400,7 +400,7 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child,
 	} else {
 		item_plugin *iplug;
 
-		if (handle->owner != NULL) {
+		if (handle->node != NULL) {
 			(*nr_locked)++;
 			side_parent = handle->node;
 		}
@@ -479,7 +479,7 @@ static int connect_one_side(coord_t * coord, znode * node, int flags)
 	    renew_sibling_link(&local, &handle, node, znode_get_level(node),
 			       flags | GN_NO_ALLOC, &nr_locked);
 
-	if (handle.owner != NULL) {
+	if (handle.node != NULL) {
 		/* complementary operations for zload() and lock() in far_next_coord() */
 		zrelse(handle.node);
 		longterm_unlock_znode(&handle);
