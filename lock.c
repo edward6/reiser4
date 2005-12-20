@@ -245,17 +245,14 @@ static void wake_up_all_lopri_owners(znode * node)
 
 	assert_spin_locked(&(node->lock.guard));
 	list_for_each_entry(handle, &node->lock.owners, owners_link) {
-		spin_lock_stack(handle->owner);
-
 		assert("nikita-1832", handle->node == node);
 		/* count this signal in owner->nr_signaled */
 		if (!handle->signaled) {
 			handle->signaled = 1;
 			atomic_inc(&handle->owner->nr_signaled);
 			/* Wake up a single process */
-			__reiser4_wake_up(handle->owner);
+			reiser4_wake_up(handle->owner);
 		}
-		spin_unlock_stack(handle->owner);
 	}
 }
 
