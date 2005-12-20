@@ -122,7 +122,6 @@ struct lock_stack {
 	 * this list only by the current thread. ->node pointers in this list
 	 * can be only changed by the current thread. */
 	struct list_head locks;
-	int nr_locks;		/* number of lock handles in the above list */
 	/* When lock_stack waits for the lock, it puts itself on double-linked
 	   requestors list of that lock */
 	struct list_head requestors_link;
@@ -159,6 +158,9 @@ struct lock_stack {
 	   just be replaced with a more general abstraction, and I think its fine the way
 	   it is. */
 	struct semaphore sema;
+#if REISER4_DEBUG
+	int nr_locks;		/* number of lock handles in the above list */
+#endif
 };
 
 

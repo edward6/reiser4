@@ -278,7 +278,7 @@ link_object(lock_handle * handle, lock_stack * owner, znode * node)
 
 	/* add lock handle to the end of lock_stack's list of locks */
 	list_add_tail(&handle->locks_link, &owner->locks);
-	owner->nr_locks++;
+	ON_DEBUG(owner->nr_locks++);
 
 	/* add lock handle to the head of znode's list of owners */
 	list_add(&handle->owners_link, &node->lock.owners);
@@ -296,7 +296,7 @@ static inline void unlink_object(lock_handle * handle)
 
 	/* remove lock handle from lock_stack's list of locks */
 	list_del(&handle->locks_link);
-	handle->owner->nr_locks--;
+	ON_DEBUG(handle->owner->nr_locks--);
 	assert("reiser4-6",
 	       ergo(list_empty_careful(&handle->owner->locks),
 		    handle->owner->nr_locks == 0));
