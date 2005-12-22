@@ -301,7 +301,11 @@ static inline void unlink_object(lock_handle * handle)
 	list_del(&handle->owners_link);
 	/* indicates that lock handle is free now */
 	handle->node = NULL;
-	ON_DEBUG(handle->owner = NULL);
+#if REISER4_DEBUG
+	INIT_LIST_HEAD(&handle->locks_link);
+	INIT_LIST_HEAD(&handle->owners_link);
+	handle->owner = NULL;
+#endif
 }
 
 /* Actually locks an object knowing that we are able to do this */
