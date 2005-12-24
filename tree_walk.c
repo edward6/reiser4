@@ -319,8 +319,7 @@ static int far_next_coord(coord_t * coord, lock_handle * handle, int flags)
 
 	assert("umka-243", coord != NULL);
 	assert("umka-244", handle != NULL);
-
-	handle->node = NULL;	/* mark lock handle as unused */
+	assert("zam-1069", handle->node == NULL);
 
 	ret =
 	    (flags & GN_GO_LEFT) ? coord_prev_unit(coord) :
@@ -389,6 +388,7 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child,
 	assert("umka-247", child != NULL);
 	assert("umka-303", tree != NULL);
 
+	init_lh(handle);
 	write_lock_tree(tree);
 	ret = far_next_coord(coord, handle, flags);
 
