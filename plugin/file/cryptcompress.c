@@ -277,8 +277,9 @@ create_crypto_stat(struct inode * object, crypto_data_t * data)
 	ret = alloc_crypto_tfms(reiser4_inode_data(object)->pset, info);
 	if (ret)
 		goto err;
-	/* Someone can change plugins of the host, so
-	   we keep the original ones it the crypto-stat. */
+	/* Someone can change plugins of the host (for example if
+	   the host is a directory), so we keep the original ones
+	   in the crypto-stat. */
 	info_set_cipher_plugin(info, inode_cipher_plugin(object));
 	info_set_digest_plugin(info, inode_digest_plugin(object));
 
@@ -348,10 +349,10 @@ int can_inherit_crypto_crc(struct inode *child, struct inode *parent)
 {
 	if (!need_cipher(child))
 		return 0;
+	/* the child is created */
 	if (!inode_crypto_stat(child))
-		/* the file being created */
 		return 1;
-	/* the file being looked up */
+	/* the child looked up */
 	if (!inode_crypto_stat(parent))
 		return 0;
 	return (inode_cipher_plugin(child) == inode_cipher_plugin(parent) &&
@@ -443,6 +444,15 @@ static int inode_set_cluster(struct inode *object)
 	}
 	info->plugin_mask |= (1 << PSET_CLUSTER);
 	return 0;
+}
+
+
+/* plugin->destroy_inode() method for cryptcompress files */
+void destroy_inode_cryptcompress(struct inode * inode)
+{
+	assert("edward-23", cryptcompress_inode_data(inode)->pgcount == 0);
+	detach_crypto_stat(inode);
+	return;
 }
 
 /* plugin->create() method for cryptcompress files
@@ -1362,16 +1372,18 @@ static void inode_set_new_size(reiser4_cluster_t * clust, struct inode *inode)
 /* Check in page cluster modifications.
    . Make jnode dirty, if it wasn't;
    . Reserve space for a disk cluster update by flush algorithm, if needed;
-   . Clean up extra-references of cluster pages.
+   . Clean up old references (if any).
+   . Put pages (grabbed in this thread) which will be truncated
 */
 static void
 make_cluster_jnode_dirty_locked(reiser4_cluster_t * clust, jnode * node,
 				loff_t * old_isize, struct inode *inode)
 {
 	int i;
-	int old_refcnt;
-	int new_refcnt;
+	int old_nrpages;
+	int new_nrpages = cluster_nrpages_to_capture(clust);
 
+	assert("edward-973", new_nrpages > 0);
 	assert("edward-221", node != NULL);
 	assert("edward-971", clust->reserved == 1);
 	assert_spin_locked(&(node->guard));
@@ -1381,49 +1393,42 @@ make_cluster_jnode_dirty_locked(reiser4_cluster_t * clust, jnode * node,
 	assert("edward-1264", clust->reserved_unprepped == 0);
 
 	if (JF_ISSET(node, JNODE_DIRTY)) {
-		/* there are >= 1 pages already referenced by this jnode */
-		assert("edward-973",
-		       count_to_nrpages(cnt_to_clcnt
-					(*old_isize, clust->index, inode)));
-		old_refcnt =
-			count_to_nrpages(cnt_to_clcnt
-					 (*old_isize, clust->index, inode)) - 1;
-		/* space for the disk cluster is already reserved */
-
+		/* someone has modified this cluster, but
+		   the modifications are not committed yet */
+		old_nrpages =
+			count_to_nrpages(cnt_to_clcnt(*old_isize,
+						      clust->index, inode));
+		/* free space which is already reserved */
 		free_reserved4cluster(inode, clust,
 				      estimate_update_cluster(inode));
+		/* put old references */
+		for (i = 0; i < old_nrpages; i++) {
+			assert("edward-975", clust->pages[i]);
+			assert("edward-1185", PageUptodate(clust->pages[i]));
+
+			page_cache_release(clust->pages[i]);
+#if REISER4_DEBUG
+			cryptcompress_inode_data(inode)->pgcount --;
+#endif
+		}
 	} else {
-		/* there is only one page referenced by this jnode */
+		/* no captured pages */
 		assert("edward-1043", node->page_count == 0);
-		old_refcnt = 0;
 		jnode_make_dirty_locked(node);
 		clust->reserved = 0;
 	}
+	/* put pages that will be truncated (if any) */
+	for (i = new_nrpages; i < clust->nr_pages; i++) {
+		assert("edward-1433", clust->pages[i]);
+		assert("edward-1434", PageUptodate(clust->pages[i]));
+		page_cache_release(clust->pages[i]);
+#if REISER4_DEBUG
+		cryptcompress_inode_data(inode)->pgcount --;
+#endif
+	}
 #if REISER4_DEBUG
 	clust->reserved_prepped -= estimate_update_cluster(inode);
-#endif
-	new_refcnt = cluster_nrpages_to_capture(clust) - 1;
-
-	/* get rid of duplicated references */
-	for (i = 0; i <= old_refcnt; i++) {
-		assert("edward-975", clust->pages[i]);
-		assert("edward-976", old_refcnt < inode_cluster_size(inode));
-		assert("edward-1185", PageUptodate(clust->pages[i]));
-
-		page_cache_release(clust->pages[i]);
-	}
-	/* truncate old references */
-	if (new_refcnt < old_refcnt) {
-		assert("edward-1186", clust->op == PCL_TRUNCATE);
-		for (i = new_refcnt + 1; i <= old_refcnt; i++) {
-			assert("edward-1187", clust->pages[i]);
-			assert("edward-1188", PageUptodate(clust->pages[i]));
-
-			page_cache_release(clust->pages[i]);
-		}
-	}
-#if REISER4_DEBUG
-	node->page_count = new_refcnt;
+	node->page_count = new_nrpages - 1;
 #endif
 	return;
 }
@@ -1434,7 +1439,7 @@ make_cluster_jnode_dirty_locked(reiser4_cluster_t * clust, jnode * node,
 static int try_capture_cluster(reiser4_cluster_t * clust, struct inode *inode)
 {
 	int result = 0;
-	loff_t old_size = inode->i_size;
+	loff_t old_size;
 	jnode *node;
 
 	assert("edward-1029", clust != NULL);
@@ -1448,6 +1453,7 @@ static int try_capture_cluster(reiser4_cluster_t * clust, struct inode *inode)
 	assert("edward-1035", node != NULL);
 
 	spin_lock_jnode(node);
+	old_size = inode->i_size;
 	if (clust->win)
 		inode_set_new_size(clust, inode);
 
@@ -1464,9 +1470,8 @@ static int try_capture_cluster(reiser4_cluster_t * clust, struct inode *inode)
 
 /* Collect unlocked cluster pages for any modifications and attach a jnode.
    We allocate only one jnode per cluster, this jnode is binded to the first
-   page of this cluster.
-   All extra-references will be released under jnode lock in 
-   make_cluster_jnode_dirty_locked() when spawning a transaction.
+   page of this cluster, so we have an extra-reference that will exist with
+   this jnode, other references will be cleaned up in flush time.
 */
 static int
 grab_cluster_pages_jnode(struct inode *inode, reiser4_cluster_t * clust)
@@ -1515,10 +1520,13 @@ grab_cluster_pages_jnode(struct inode *inode, reiser4_cluster_t * clust)
 		return result;
 	}
 	assert("edward-920", jprivate(clust->pages[0]));
+#if REISER4_DEBUG
+	cryptcompress_inode_data(inode)->pgcount += clust->nr_pages;
+#endif
 	return 0;
 }
 
-/* Collect unlocked cluster pages by any thread wich won't modify it. */
+/* Collect unlocked cluster pages only for read (not to modify) */
 static int grab_cluster_pages(struct inode *inode, reiser4_cluster_t * clust)
 {
 	int i;
@@ -1576,15 +1584,13 @@ int jnode_of_cluster(const jnode * node, struct page * page)
 	return 0;
 }
 
-/* put cluster pages starting from @from */
-static void release_cluster_pages(reiser4_cluster_t * clust, int from)
+/* put cluster pages */
+void release_cluster_pages(reiser4_cluster_t * clust)
 {
 	int i;
 
-	assert("edward-447", clust != NULL);
-	assert("edward-448", from <= clust->nr_pages);
-
-	for (i = from; i < clust->nr_pages; i++) {
+	assert("edward-447", clust != NULL);	
+	for (i = 0; i < clust->nr_pages; i++) {
 
 		assert("edward-449", clust->pages[i] != NULL);
 
@@ -1592,19 +1598,7 @@ static void release_cluster_pages(reiser4_cluster_t * clust, int from)
 	}
 }
 
-static void release_cluster_pages_capture(reiser4_cluster_t * clust)
-{
-	assert("edward-1278", clust != NULL);
-	assert("edward-1279", clust->nr_pages != 0);
-
-	return release_cluster_pages(clust, 1);
-}
-
-void release_cluster_pages_nocapture(reiser4_cluster_t * clust)
-{
-	return release_cluster_pages(clust, 0);
-}
-
+/* this is called when something is failed */
 static void release_cluster_pages_and_jnode(reiser4_cluster_t * clust)
 {
 	jnode *node;
@@ -1617,8 +1611,7 @@ static void release_cluster_pages_and_jnode(reiser4_cluster_t * clust)
 
 	assert("edward-447", node != NULL);
 
-	release_cluster_pages(clust, 0);
-
+	release_cluster_pages(clust);
 	jput(node);
 }
 
@@ -1754,9 +1747,8 @@ void forget_cluster_pages(struct page **pages, int nr)
 	}
 }
 
-/* Check out last modifications we are about to commit.
-   Prepare input stream for transform operations, return -E_REPEAT, if it is
-   impossible because of races with concurrent processes.
+/* Check out last modifications we are about to commit,
+   and prepare input stream for transform operations.
 */
 int
 flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
@@ -1781,20 +1773,10 @@ flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
 		return result;
 	}
 	spin_lock_jnode(node);
+	assert("edward-1435", JF_ISSET(node, JNODE_DIRTY));
 
-	if (!JF_ISSET(node, JNODE_DIRTY)) {
-
-		assert("edward-981", node->page_count == 0);
-
-		/* race with another flush */
-		spin_unlock_jnode(node);
-		warning("edward-982", "flush_cluster_pages: jnode is not dirty "
-			"clust %lu, inode %llu\n",
-			clust->index, (unsigned long long)get_inode_oid(inode));
-		return RETERR(-E_REPEAT);
-	}
-	/* Check out a size of logical cluster and
-	   calculate a number of cluster pages to commit. */
+	/* Check out a size of logical cluster and 
+	   set a number of cluster pages to commit. */
 	tc->len = tc->lsize = fsize_to_count(clust, inode);
 	clust->nr_pages = count_to_nrpages(tc->len);
 
@@ -1811,55 +1793,16 @@ flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
 	      find_get_pages(inode->i_mapping, clust_to_pg(clust->index, inode),
 			     clust->nr_pages, clust->pages);
 
-	if (nr_pages != clust->nr_pages) {
-		/* the page cluster got truncated, try again */
-		assert("edward-1280", nr_pages < clust->nr_pages);
-		warning("edward-1281", "Page cluster of index %lu (inode %llu)"
-			" get truncated from %u to %u pages\n",
-			clust->index,
-			(unsigned long long)get_inode_oid(inode),
-			clust->nr_pages, nr_pages);
-		forget_cluster_pages(clust->pages, nr_pages);
-		return RETERR(-E_REPEAT);
-	}
-	/* Try to construct input stream from the checked out cluster pages.
-	   Note, that the last ones can be modified (truncated, appended) by
-	   concurrent processes, so we need to worry this is not mucked up
-	   so the constructed stream became invalid */
+	assert("edward-1280", nr_pages == clust->nr_pages);
+	/* Construct input stream from the checked out pages */
 	for (i = 0; i < clust->nr_pages; i++) {
 		char *data;
 
 		assert("edward-242", clust->pages[i] != NULL);
-
-		if (clust->pages[i]->index !=
-		    clust_to_pg(clust->index, inode) + i) {
-			/* holes in the indices of found group of pages:
-			   page cluster got truncated, transform impossible */
-			warning("edward-1282",
-				"Hole in the indices: "
-				"Page %d in the cluster of index %lu "
-				"(inode %llu) has index %lu\n",
-				i, clust->index,
-				(unsigned long long)get_inode_oid(inode),
-				clust->pages[i]->index);
-
-			forget_cluster_pages(clust->pages, nr_pages);
-			result = RETERR(-E_REPEAT);
-			goto finish;
-		}
-		if (!PageUptodate(clust->pages[i])) {
-			/* page cluster got truncated, transform impossible */
-			assert("edward-1283", !PageDirty(clust->pages[i]));
-			warning("edward-1284",
-				"Page of index %lu (inode %llu) "
-				"is not uptodate\n", clust->pages[i]->index,
-				(unsigned long long)get_inode_oid(inode));
-
-			forget_cluster_pages(clust->pages, nr_pages);
-			result = RETERR(-E_REPEAT);
-			goto finish;
-		}
-		/* ok with this page, flush it to the input stream */
+		assert("edward-1436", clust->pages[i]->index ==
+		       clust_to_pg(clust->index, inode) + i); 
+		assert("edward-1437", PageUptodate(clust->pages[i]));
+		/* flush the page into the input stream */
 		lock_page(clust->pages[i]);
 		data = kmap(clust->pages[i]);
 
@@ -1870,11 +1813,13 @@ flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
 		kunmap(clust->pages[i]);
 		unlock_page(clust->pages[i]);
 	}
-	/* input stream is ready for transform */
-
 	clear_cluster_pages_dirty(clust);
-      finish:
-	release_cluster_pages_capture(clust);
+      	release_cluster_pages(clust);
+#if REISER4_DEBUG
+	cryptcompress_inode_data(inode)->pgcount -= clust->nr_pages;
+#endif
+	/* put pages that were found here */
+	release_cluster_pages(clust);
 	return result;
 }
 
@@ -2421,7 +2366,8 @@ prepare_page_cluster(struct inode *inode, reiser4_cluster_t * clust,
 		grab_cluster_pages(inode, clust));
 }
 
-/* Truncate all the pages and jnode bound with the cluster of index @index */
+/* Truncate all pages of the cluster of index @index.
+   This is called by ->kill_hook() method of item plugin */
 void truncate_page_cluster(struct inode *inode, cloff_t index)
 {
 	int i;
@@ -2443,39 +2389,44 @@ void truncate_page_cluster(struct inode *inode, cloff_t index)
 					   inode_cluster_size(inode) - 1);
 		return;
 	}
-	/* jnode is present and may be dirty, if so, put
-	   all the cluster pages except the first one */
+	/* jnode is present and may be dirty */
 	nr_pages = count_to_nrpages(cnt_to_clcnt(inode->i_size, index, inode));
 
 	found = find_get_pages(inode->i_mapping, clust_to_pg(index, inode),
 			       nr_pages, pages);
-
 	spin_lock_jnode(node);
 	if (JF_ISSET(node, JNODE_DIRTY)) {
-		/* jnode is dirty => space for disk cluster
-		   conversion grabbed */
+		/* someone has done modifications which are not
+		   yet committed, so we need to release some resources */
+		
+		/* free disk space grabbed for disk cluster converting */
 		cluster_reserved2grabbed(estimate_update_cluster(inode));
 		grabbed2free(get_current_context(),
 			     get_current_super_private(),
 			     estimate_update_cluster(inode));
 
 		assert("edward-1198", found == nr_pages);
-		/* This will clear dirty bit so concurrent flush
-		   won't start to convert the disk cluster */
-		assert("edward-1199", PageUptodate(pages[0]));
+		assert("edward-1199", node->page_count + 1 == nr_pages);
+#if REISER4_DEBUG
+		node->page_count = 0;
+#endif
+		/* This will clear dirty bit */	
 		uncapture_cluster_jnode(node);
 
-		for (i = 1; i < nr_pages; i++) {
+		/* put pages grabbed for last uncommitted modifications */
+		for (i = 0; i < nr_pages; i++) {
 			assert("edward-1200", PageUptodate(pages[i]));
-
 			page_cache_release(pages[i]);
+#if REISER4_DEBUG
+			cryptcompress_inode_data(inode)->pgcount --;
+#endif
 		}
 	} else
 		spin_unlock_jnode(node);
-	/* now drop pages and jnode */
 	/* FIXME-EDWARD: Use truncate_complete_page in the loop above instead */
 
 	jput(node);
+	/* put pages found here */
 	forget_cluster_pages(pages, found);
 	truncate_inode_pages_range(inode->i_mapping,
 				   clust_to_off(index, inode),
@@ -2486,16 +2437,15 @@ void truncate_page_cluster(struct inode *inode, cloff_t index)
 	return;
 }
 
-/* Prepare cluster handle before write and(or) capture. This function
-   is called by all the clients which modify page cluster and(or) put
-   it into a transaction (file_write, truncate, writepages, etc..)
+/* Prepare cluster handle before(after) modifications
+   which are supposed to be committed.
 
    . grab cluster pages;
    . reserve disk space;
    . maybe read pages from disk and set the disk cluster dirty;
    . maybe write hole;
    . maybe create 'unprepped' disk cluster if the last one is fake
-     (isn't represenred by any items on disk)
+     (i.e. is not represenred by any items)
 */
 
 static int
@@ -2629,12 +2579,12 @@ void reset_cluster_params(reiser4_cluster_t * clust)
 	clust->tc.len = 0;
 }
 
-/* Main write procedure for cryptcompress objects,
-   this slices user's data into clusters and copies to page cache.
-   If @buf != NULL, returns number of bytes in successfully written clusters,
-   otherwise returns error */
-/* FIXME_EDWARD replace flow by something lightweigth */
-
+/* Core write procedure of cryptcompress plugin, which slices user's
+   flow into logical clusters, maps the last ones to the appropriate
+   page clusters, and tries to capture them.
+   If @buf != NULL, returns number of successfully written bytes,
+   otherwise returns error
+*/
 static loff_t
 write_cryptcompress_flow(struct file *file, struct inode *inode,
 			 const char __user *buf, size_t count, loff_t pos)
@@ -3197,7 +3147,6 @@ cryptcompress_append_hole(struct inode *inode /*contains old i_size */ ,
 	cluster_init_read(&clust, &win);
 	clust.hint = hint;
 
-	/* set cluster handle */
 	result = alloc_cluster_pgset(&clust, cluster_nrpages(inode));
 	if (result)
 		goto out;
@@ -3345,7 +3294,8 @@ prune_cryptcompress(struct inode *inode, loff_t new_size, int update_sd,
 
 	to_prune = inode->i_size - new_size;
 
-	/* check if partially truncated cluster is fake */
+	/* partial truncate of leftmost cluster, 
+	   first check if it is fake */
 	result = find_real_disk_cluster(inode, &aidx, ridx);
 	if (result)
 		goto out;
@@ -3355,7 +3305,8 @@ prune_cryptcompress(struct inode *inode, loff_t new_size, int update_sd,
 
 	assert("edward-1148", aidx == ridx);
 
-	/* try to capture partially truncated page cluster */
+	/* do partial truncate of the leftmost page cluster,
+	   then try to capture this one */
 	result = alloc_cluster_pgset(&clust, cluster_nrpages(inode));
 	if (result)
 		goto out;
@@ -3395,6 +3346,9 @@ prune_cryptcompress(struct inode *inode, loff_t new_size, int update_sd,
 	return result;
 }
 
+/* Prepare cryptcompress file for truncate:
+   prune or append rightmost fake logical clusters (if any)
+*/
 static int
 start_truncate_fake(struct inode *inode, cloff_t aidx, loff_t new_size,
 		    int update_sd)

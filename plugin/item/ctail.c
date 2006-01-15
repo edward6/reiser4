@@ -719,7 +719,7 @@ ctail_read_page_cluster(reiser4_cluster_t * clust, struct inode *inode)
 	}
 	tfm_cluster_clr_uptodate(&clust->tc);
       out:
-	release_cluster_pages_nocapture(clust);
+	release_cluster_pages(clust);
 	return result;
 }
 
@@ -1298,8 +1298,6 @@ static void detach_convert_idata(convert_info_t * sq)
 	assert("edward-255", info->inode != NULL);
 	assert("edward-1212", info->flow.length == 0);
 
-	/* the final release of pages */
-	forget_cluster_pages(sq->clust.pages, sq->clust.nr_pages);
 	free_item_convert_data(sq);
 	return;
 }

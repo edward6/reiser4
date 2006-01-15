@@ -434,7 +434,11 @@ static inline void dec_keyload_count(crypto_stat_t * data)
 typedef struct cryptcompress_info {
 	struct rw_semaphore lock;
 	crypto_stat_t *crypt;
-	int compress_toggle;
+	int compress_toggle;      /* current status of compressibility
+				     is set by compression mode plugin */
+#if REISER4_DEBUG
+	int pgcount;              /* number of captured pages */
+#endif
 } cryptcompress_info_t;
 
 
