@@ -552,7 +552,8 @@ static int save_flags_sd(struct inode *inode /* object being processed */ ,
 static int absent_plugin_sd(struct inode *inode);
 static int present_plugin_sd(struct inode *inode /* object being processed */ ,
 			     char **area /* position in stat-data */ ,
-			     int *len /* remaining length */ )
+			     int *len /* remaining length */,
+			     int is_pset /* 1 if plugin set, 0 if heir set. */)
 {
 	reiser4_plugin_stat *sd;
 	reiser4_plugin *plugin;
@@ -586,10 +587,14 @@ static int present_plugin_sd(struct inode *inode /* object being processed */ ,
 			return not_enough_space(inode, "additional plugin");
 
 		memb = le16_to_cpu(get_unaligned(&slot->pset_memb));
-		type = pset_member_to_type_unsafe(memb);
+		type = is_pset ? 
+			pset_member_to_type_unsafe(memb) : 
+			hset_member_to_type_unsafe(memb);
+		
 		if (type == REISER4_PLUGIN_TYPES) {
 			warning("nikita-3502",
-				"wrong pset member (%i) for %llu", memb,
+				"wrong %s member (%i) for %llu", is_pset ? 
+				"pset" : "hset", memb,
 				(unsigned long long)get_inode_oid(inode));
 			return RETERR(-EINVAL);
 		}
@@ -613,17 +618,30 @@ static int present_plugin_sd(struct inode *inode /* object being processed */ ,
 			result = plugin->h.pops->load(inode, plugin, area, len);
 			if (result != 0)
 				return result;
-		} else
-			result = grab_plugin_from(inode, memb, plugin);
+		} else if (is_pset) {
+			result = grab_plugin_pset(inode, memb, plugin);
+		} else {
+			result = grab_plugin_hset(inode, memb, plugin);
+		}
 	}
-	/* if object plugin wasn't loaded from stat-data, guess it by
-	   mode bits */
-	plugin = file_plugin_to_plugin(inode_file_plugin(inode));
-	if (plugin == NULL)
-		result = absent_plugin_sd(inode);
 
-	reiser4_inode_data(inode)->plugin_mask = mask;
+	if (is_pset) {
+		/* if object plugin wasn't loaded from stat-data, guess it by
+		   mode bits */
+		plugin = file_plugin_to_plugin(inode_file_plugin(inode));
+		if (plugin == NULL)
+			result = absent_plugin_sd(inode);
+
+		reiser4_inode_data(inode)->plugin_mask = mask;
+	} else {
+		reiser4_inode_data(inode)->heir_mask = mask;
+	}
+	
 	return result;
+}
+
+static int present_pset_sd(struct inode *inode, char **area, int *len) {
+	return present_plugin_sd(inode, area, len, 1 /* pset */);
 }
 
 /* Determine object plugin for @inode based on i_mode.
@@ -696,13 +714,19 @@ static int absent_plugin_sd(struct inode *inode /* object being processed */ )
 /* Audited by: green(2002.06.14) */
 static int len_for(reiser4_plugin * plugin /* plugin to save */ ,
 		   struct inode *inode /* object being processed */ ,
-		   pset_member memb, int len)
+		   pset_member memb, 
+		   int len, int is_pset)
 {
 	reiser4_inode *info;
 	assert("nikita-661", inode != NULL);
 
+	if (plugin == NULL)
+		return len;
+	
 	info = reiser4_inode_data(inode);
-	if (plugin != NULL && (info->plugin_mask & (1 << memb))) {
+	if ((is_pset && info->plugin_mask & (1 << memb)) ||
+	    (!is_pset && info->heir_mask & (1 << memb)))
+	{
 		len += sizeof(reiser4_plugin_slot);
 		if (plugin->h.pops && plugin->h.pops->save_len != NULL) {
 			/* non-standard plugin, call method */
@@ -717,33 +741,50 @@ static int len_for(reiser4_plugin * plugin /* plugin to save */ ,
 
 /* calculate how much space is required to save state of all plugins,
     associated with inode */
-static int save_len_plugin_sd(struct inode *inode /* object being processed */ )
+static int save_len_plugin_sd(struct inode *inode /* object being processed */,
+			      int is_pset)
 {
 	int len;
+	int last;
 	reiser4_inode *state;
 	pset_member memb;
 
 	assert("nikita-663", inode != NULL);
 
 	state = reiser4_inode_data(inode);
+	
 	/* common case: no non-standard plugins */
-	if (state->plugin_mask == 0)
+	if ((is_pset && state->plugin_mask == 0) ||
+	    (!is_pset && state->heir_mask == 0))
+	{
 		return 0;
+	}
+	
 	len = sizeof(reiser4_plugin_stat);
-	for (memb = 0; memb < PSET_LAST; ++memb)
-		len = len_for(pset_get(state->pset, memb), inode, memb, len);
+	last = PSET_LAST;
+	
+	for (memb = 0; memb < last; ++memb) {
+		len = len_for(is_pset ? 
+			      pset_get(state->pset, memb) :
+			      hset_get(state->hset, memb), 
+				inode, memb, len, is_pset);
+	}
 	assert("nikita-664", len > (int)sizeof(reiser4_plugin_stat));
 	return len;
+}
+
+static int save_len_pset_sd(struct inode *inode) {
+	return save_len_plugin_sd(inode, 1 /* pset */);
 }
 
 /* helper function for plugin_sd_save(): save plugin, associated with
     inode. */
 static int save_plug(reiser4_plugin * plugin /* plugin to save */ ,
 		     struct inode *inode /* object being processed */ ,
-		     pset_member memb /* what element of pset is saved */ ,
+		     int memb /* what element of pset is saved */ ,
 		     char **area /* position in stat-data */ ,
-		     int *count	/* incremented if plugin were actually
-				 * saved. */ )
+		     int *count	/* incremented if plugin were actually saved. */,
+		     int is_pset /* 1 for plugin set, 0 for heir set */)
 {
 	reiser4_plugin_slot *slot;
 	int fake_len;
@@ -755,8 +796,11 @@ static int save_plug(reiser4_plugin * plugin /* plugin to save */ ,
 
 	if (plugin == NULL)
 		return 0;
-	if (!(reiser4_inode_data(inode)->plugin_mask & (1 << memb)))
+	
+	if ((is_pset && !(reiser4_inode_data(inode)->plugin_mask & (1 << memb))) ||
+	    (!is_pset && !(reiser4_inode_data(inode)->heir_mask & (1 << memb))))
 		return 0;
+	
 	slot = (reiser4_plugin_slot *) * area;
 	put_unaligned(cpu_to_le16(memb), &slot->pset_memb);
 	put_unaligned(cpu_to_le16(plugin->h.id), &slot->id);
@@ -773,13 +817,15 @@ static int save_plug(reiser4_plugin * plugin /* plugin to save */ ,
 
 /* save state of all non-standard plugins associated with inode */
 static int save_plugin_sd(struct inode *inode /* object being processed */ ,
-			  char **area /* position in stat-data */ )
+			  char **area /* position in stat-data */,
+			  int is_pset /* 1 for pset, 0 for hset */)
 {
+	int last;
+	int fake_len;
 	int result = 0;
 	int num_of_plugins;
 	reiser4_plugin_stat *sd;
 	reiser4_inode *state;
-	int fake_len;
 	pset_member memb;
 
 	assert("nikita-669", inode != NULL);
@@ -787,22 +833,45 @@ static int save_plugin_sd(struct inode *inode /* object being processed */ ,
 	assert("nikita-671", *area != NULL);
 
 	state = reiser4_inode_data(inode);
-	if (state->plugin_mask == 0)
+	if ((is_pset && state->plugin_mask == 0) || 
+	    (!is_pset && state->heir_mask == 0))
+	{
 		return 0;
+	}
+	
 	sd = (reiser4_plugin_stat *) * area;
 	fake_len = (int)0xffff;
 	move_on(&fake_len, area, sizeof *sd);
 
 	num_of_plugins = 0;
-	for (memb = 0; memb < PSET_LAST; ++memb) {
-		result = save_plug(pset_get(state->pset, memb),
-				   inode, memb, area, &num_of_plugins);
+	last = PSET_LAST;
+	for (memb = 0; memb < last; ++memb) {
+		result = save_plug(is_pset ? 
+				   pset_get(state->pset, memb) : 
+				   hset_get(state->hset, memb), inode,
+				   memb, area, &num_of_plugins, is_pset);
 		if (result != 0)
 			break;
 	}
 
 	put_unaligned(cpu_to_le16((__u16)num_of_plugins), &sd->plugins_no);
 	return result;
+}
+
+static int save_pset_sd(struct inode *inode, char **area) {
+	return save_plugin_sd(inode, area, 1 /* pset */);
+}
+
+static int present_hset_sd(struct inode *inode, char **area, int *len) {
+	return present_plugin_sd(inode, area, len, 0 /* hset */);
+}
+
+static int save_len_hset_sd(struct inode *inode) {
+	return save_len_plugin_sd(inode, 0 /* pset */);
+}
+
+static int save_hset_sd(struct inode *inode, char **area) {
+	return save_plugin_sd(inode, area, 0 /* hset */);
 }
 
 /* helper function for crypto_sd_present(), crypto_sd_save.
@@ -964,10 +1033,25 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 			.desc = "plugin stat-data fields",
 			.linkage = {NULL,NULL}
 		},
-		.present = present_plugin_sd,
+		.present = present_pset_sd,
 		.absent = absent_plugin_sd,
-		.save_len = save_len_plugin_sd,
-		.save = save_plugin_sd,
+		.save_len = save_len_pset_sd,
+		.save = save_pset_sd,
+		.alignment = 8
+	},
+	[HEIR_STAT] = {
+		.h = {
+			.type_id = REISER4_SD_EXT_PLUGIN_TYPE,
+			.id = HEIR_STAT,
+			.pops = NULL,
+			.label = "heir-plugin-sd",
+			.desc = "heir plugin stat-data fields",
+			.linkage = {NULL,NULL}
+		},
+		.present = present_hset_sd,
+		.absent = NULL,
+		.save_len = save_len_hset_sd,
+		.save = save_hset_sd,
 		.alignment = 8
 	},
 	[FLAGS_STAT] = {

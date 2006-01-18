@@ -706,8 +706,11 @@ int init_root_inode(struct super_block *super)
 		for (memb = 0; memb < PSET_LAST; ++memb) {
 			reiser4_plugin *plug;
 
+			if (plugin_pset_unused(memb))
+				continue;
+			
 			plug = get_default_plugin(memb);
-			result = grab_plugin_from(inode, memb, plug);
+			result = grab_plugin_pset(inode, memb, plug);
 			if (result != 0)
 				break;
 		}
@@ -719,6 +722,7 @@ int init_root_inode(struct super_block *super)
 				pset = reiser4_inode_data(inode)->pset;
 				for (memb = 0; memb < PSET_LAST; ++memb)
 					assert("nikita-3500",
+					       plugin_pset_unused(memb) ||
 					       pset_get(pset, memb) != NULL);
 			}
 		} else

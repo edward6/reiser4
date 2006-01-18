@@ -118,6 +118,8 @@ struct reiser4_inode {
 	__u64 extmask;
 	/* bitmask of non-default plugins for this inode */
 	__u16 plugin_mask;
+	/* bitmask of set heir plugins for this inode. */
+	__u16 heir_mask;
 	union {
 		struct list_head readdir_list;
 		struct list_head not_used;

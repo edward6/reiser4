@@ -393,7 +393,6 @@ static int inode_set_crypto(struct inode * object)
 	}
 	info = reiser4_inode_data(object);
 	info->extmask |= (1 << CRYPTO_STAT);
-	info->plugin_mask |= (1 << PSET_CIPHER) | (1 << PSET_DIGEST);
  	return 0;
 }
 
@@ -402,7 +401,6 @@ inode_set_compression(struct inode * object)
 {
 	int result = 0;
 	compression_plugin * cplug;
-	reiser4_inode * info = reiser4_inode_data(object);
 
 	cplug = inode_compression_plugin(object);
 
@@ -411,37 +409,7 @@ inode_set_compression(struct inode * object)
 		if (result)
 			return result;
 	}
-	info->plugin_mask |= (1 << PSET_COMPRESSION);
 
-	return 0;
-}
-
-static void
-inode_set_compression_mode(struct inode * object)
-{
-	reiser4_inode * info = reiser4_inode_data(object);
-
-	info->plugin_mask |= (1 << PSET_COMPRESSION_MODE);
-	return;
-}
-
-static int inode_set_cluster(struct inode *object)
-{
-	reiser4_inode *info;
-	cluster_plugin *cplug;
-
-	assert("edward-696", object != NULL);
-
-	info = reiser4_inode_data(object);
-	cplug = inode_cluster_plugin(object);
-
-	if (cplug->shift < PAGE_CACHE_SHIFT) {
-		warning("edward-1320",
-			"Can not support %p clusters (less then page size)",
-			cplug->h.label);
-		return RETERR(-EINVAL);
-	}
-	info->plugin_mask |= (1 << PSET_CLUSTER);
 	return 0;
 }
 
@@ -480,14 +448,6 @@ create_cryptcompress(struct inode *object, struct inode *parent,
 	result = inode_set_compression(object);
 	if (result)
 		goto error;
-	inode_set_compression_mode(object);
-
-	/* set cluster info */
-	result = inode_set_cluster(object);
-	if (result)
-		goto error;
-	/* set plugin mask */
-	info->extmask |= (1 << PLUGIN_STAT);
 
 	/* save everything in disk stat-data */
 	result = write_sd_by_inode_common(object);

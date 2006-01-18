@@ -82,6 +82,11 @@ typedef enum {
 	/* this extension contains size and public id of the secret key.
 	   Layout is in reiser4_crypto_stat */
 	CRYPTO_STAT,
+	/* if this is present, the file children will be created under the 
+	   non-standard plugins control (that is, plugin that cannot be 
+	   changed in plugin set, but needed for its children), for example, 
+	   hash, fibration, sd item, dir entry plugins, etc. */
+	HEIR_STAT,
 	LAST_SD_EXTENSION,
 	/*
 	 * init_inode_static_sd() iterates over extension mask until all
@@ -95,7 +100,7 @@ typedef enum {
 	 * ->present(), or ->absent() method will be called, independently of
 	 * what other extensions are present.
 	 */
-	LAST_IMPORTANT_SD_EXTENSION = PLUGIN_STAT,
+	LAST_IMPORTANT_SD_EXTENSION = PLUGIN_STAT
 } sd_ext_bits;
 
 /* minimal stat-data. This allows to support light-weight files. */

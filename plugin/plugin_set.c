@@ -270,41 +270,43 @@ static struct {
 	}
 };
 
-#if REISER4_DEBUG
-static reiser4_plugin_type pset_member_to_type(pset_member memb)
-{
-	assert("nikita-3501", 0 <= memb && memb < PSET_LAST);
-	return pset_descr[memb].type;
+#define DEFINE_PSET_OPS(SET, TYPE)						\
+reiser4_plugin_type SET##_member_to_type_unsafe(pset_member memb) {		\
+	if (memb > PSET_LAST)							\
+		return REISER4_PLUGIN_TYPES;					\
+	if (plugin_##SET##_unused(memb))					\
+		return REISER4_PLUGIN_TYPES;					\
+	return pset_descr[memb].type;						\
+}										\
+										\
+int SET##_set(plugin_set ** set, pset_member memb, reiser4_plugin * plugin)	\
+{										\
+	assert("nikita-3492", set != NULL);					\
+	assert("nikita-3493", *set != NULL);					\
+	assert("nikita-3494", plugin != NULL);					\
+	assert("nikita-3495", 0 <= memb && memb < PSET_LAST);			\
+	assert("nikita-3496", plugin->h.type_id == pset_descr[memb].type);	\
+										\
+	if (plugin_##SET##_unused(memb))					\
+		return 0;							\
+										\
+	return plugin_set_field(set,						\
+				(unsigned long)plugin, pset_descr[memb].offset);\
+}										\
+										\
+reiser4_plugin *SET##_get(plugin_set * set, pset_member memb)			\
+{										\
+	assert("nikita-3497", set != NULL);					\
+	assert("nikita-3498", 0 <= memb && memb < PSET_LAST);			\
+										\
+	if (plugin_##SET##_unused(memb))					\
+		return NULL;							\
+										\
+	return *(reiser4_plugin **) (((char *)set) + pset_descr[memb].offset);	\
 }
-#endif
 
-reiser4_plugin_type pset_member_to_type_unsafe(pset_member memb)
-{
-	if (0 <= memb && memb < PSET_LAST)
-		return pset_descr[memb].type;
-	else
-		return REISER4_PLUGIN_TYPES;
-}
-
-int pset_set(plugin_set ** set, pset_member memb, reiser4_plugin * plugin)
-{
-	assert("nikita-3492", set != NULL);
-	assert("nikita-3493", *set != NULL);
-	assert("nikita-3494", plugin != NULL);
-	assert("nikita-3495", 0 <= memb && memb < PSET_LAST);
-	assert("nikita-3496", plugin->h.type_id == pset_member_to_type(memb));
-
-	return plugin_set_field(set,
-				(unsigned long)plugin, pset_descr[memb].offset);
-}
-
-reiser4_plugin *pset_get(plugin_set * set, pset_member memb)
-{
-	assert("nikita-3497", set != NULL);
-	assert("nikita-3498", 0 <= memb && memb < PSET_LAST);
-
-	return *(reiser4_plugin **) (((char *)set) + pset_descr[memb].offset);
-}
+DEFINE_PSET_OPS(pset, PSET);
+DEFINE_PSET_OPS(hset, HSET);
 
 #define DEFINE_PLUGIN_SET(type, field)					\
 int plugin_set_ ## field(plugin_set **set, type *val)	\
@@ -315,17 +317,17 @@ int plugin_set_ ## field(plugin_set **set, type *val)	\
 }
 
 DEFINE_PLUGIN_SET(file_plugin, file)
-    DEFINE_PLUGIN_SET(dir_plugin, dir)
-    DEFINE_PLUGIN_SET(formatting_plugin, formatting)
-    DEFINE_PLUGIN_SET(hash_plugin, hash)
-    DEFINE_PLUGIN_SET(fibration_plugin, fibration)
-    DEFINE_PLUGIN_SET(item_plugin, sd)
-    DEFINE_PLUGIN_SET(cipher_plugin, cipher)
-    DEFINE_PLUGIN_SET(digest_plugin, digest)
-    DEFINE_PLUGIN_SET(compression_plugin, compression)
-    DEFINE_PLUGIN_SET(compression_mode_plugin, compression_mode)
-    DEFINE_PLUGIN_SET(cluster_plugin, cluster)
-    DEFINE_PLUGIN_SET(regular_plugin, regular_entry)
+DEFINE_PLUGIN_SET(dir_plugin, dir)
+DEFINE_PLUGIN_SET(formatting_plugin, formatting)
+DEFINE_PLUGIN_SET(hash_plugin, hash)
+DEFINE_PLUGIN_SET(fibration_plugin, fibration)
+DEFINE_PLUGIN_SET(item_plugin, sd)
+DEFINE_PLUGIN_SET(cipher_plugin, cipher)
+DEFINE_PLUGIN_SET(digest_plugin, digest)
+DEFINE_PLUGIN_SET(compression_plugin, compression)
+DEFINE_PLUGIN_SET(compression_mode_plugin, compression_mode)
+DEFINE_PLUGIN_SET(cluster_plugin, cluster)
+DEFINE_PLUGIN_SET(regular_plugin, regular_entry)
 
 
 /**

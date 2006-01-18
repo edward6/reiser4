@@ -97,7 +97,8 @@ static struct inode *reiser4_alloc_inode(struct super_block *super)
 
 		info = &obj->p;
 
-		info->hset = info->pset = plugin_set_get_empty();
+		info->pset = plugin_set_get_empty();
+		info->hset = plugin_set_get_empty();
 		info->extmask = 0;
 		info->locality_id = 0ull;
 		info->plugin_mask = 0;
@@ -138,6 +139,8 @@ static void reiser4_destroy_inode(struct inode *inode)
 	dispose_cursors(inode);
 	if (info->pset)
 		plugin_set_put(info->pset);
+	if (info->hset)
+		plugin_set_put(info->hset);
 
 	/*
 	 * cannot add similar assertion about ->i_list as prune_icache return

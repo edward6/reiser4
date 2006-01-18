@@ -883,10 +883,11 @@ typedef enum {
 	PSET_LAST
 } pset_member;
 
-int grab_plugin(struct inode *self, struct inode *ancestor, pset_member memb);
-int grab_plugin_from(struct inode *self, pset_member memb,
-		     reiser4_plugin * plug);
-int force_plugin(struct inode *self, pset_member memb, reiser4_plugin * plug);
+extern int grab_plugin(struct inode *self, struct inode *ancestor, pset_member memb);
+extern int grab_plugin_pset(struct inode *self, pset_member memb, reiser4_plugin *plug);
+extern int grab_plugin_hset(struct inode *self, pset_member memb, reiser4_plugin *plug);
+extern int force_plugin_pset(struct inode *self, pset_member memb, reiser4_plugin *plug);
+extern int force_plugin_hset(struct inode *self, pset_member memb, reiser4_plugin *plug);
 
 /* defined in fs/reiser4/plugin/object.c */
 extern file_plugin file_plugins[LAST_FILE_PLUGIN_ID];

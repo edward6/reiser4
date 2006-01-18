@@ -48,6 +48,14 @@ struct plugin_set {
 	ps_hash_link link;
 };
 
+#define PSET_UNUSED 0
+#define HSET_UNUSED ~(1 << PSET_HASH | \
+		      1 << PSET_FIBRATION | \
+		      1 << PSET_DIR_ITEM)
+
+#define plugin_pset_unused(memb) ((1 << memb) & PSET_UNUSED)
+#define plugin_hset_unused(memb) ((1 << memb) & HSET_UNUSED)
+
 extern plugin_set *plugin_set_get_empty(void);
 extern void plugin_set_put(plugin_set * set);
 
@@ -71,8 +79,12 @@ extern void done_plugin_set(void);
 extern int pset_set(plugin_set ** set, pset_member memb,
 		    reiser4_plugin * plugin);
 extern reiser4_plugin *pset_get(plugin_set * set, pset_member memb);
+extern int hset_set(plugin_set ** set, pset_member memb,
+		    reiser4_plugin * plugin);
+extern reiser4_plugin *hset_get(plugin_set * set, pset_member memb);
 
 extern reiser4_plugin_type pset_member_to_type_unsafe(pset_member memb);
+extern reiser4_plugin_type hset_member_to_type_unsafe(pset_member memb);
 
 /* __PLUGIN_SET_H__ */
 #endif

@@ -375,13 +375,15 @@ int grab_plugin(struct inode *self, struct inode *ancestor, pset_member memb)
 	reiser4_plugin *plug;
 	reiser4_inode *parent;
 
+	if (plugin_pset_unused(memb))
+		return 0;
+	
 	parent = reiser4_inode_data(ancestor);
-	plug = pset_get(parent->hset, memb) ? : pset_get(parent->pset, memb);
-	return grab_plugin_from(self, memb, plug);
+	plug = hset_get(parent->hset, memb) ? : pset_get(parent->pset, memb);
+	return grab_plugin_pset(self, memb, plug);
 }
 
-static void update_plugin_mask(reiser4_inode * info, pset_member memb)
-{
+static void update_pset_mask(reiser4_inode * info, pset_member memb) {
 	struct dentry *rootdir;
 	reiser4_inode *root;
 
@@ -398,8 +400,12 @@ static void update_plugin_mask(reiser4_inode * info, pset_member memb)
 	}
 }
 
+static void update_hset_mask(reiser4_inode * info, pset_member memb) {
+	info->heir_mask |= (1 << memb);
+}
+
 int
-grab_plugin_from(struct inode *self, pset_member memb, reiser4_plugin * plug)
+grab_plugin_pset(struct inode *self, pset_member memb, reiser4_plugin * plug)
 {
 	reiser4_inode *info;
 	int result = 0;
@@ -408,12 +414,26 @@ grab_plugin_from(struct inode *self, pset_member memb, reiser4_plugin * plug)
 	if (pset_get(info->pset, memb) == NULL) {
 		result = pset_set(&info->pset, memb, plug);
 		if (result == 0)
-			update_plugin_mask(info, memb);
+			update_pset_mask(info, memb);
 	}
 	return result;
 }
 
-int force_plugin(struct inode *self, pset_member memb, reiser4_plugin * plug)
+int
+grab_plugin_hset(struct inode *self, pset_member memb, reiser4_plugin * plug)
+{
+	reiser4_inode *info;
+	int result = 0;
+	
+	info = reiser4_inode_data(self);
+	if (hset_get(info->hset, memb) == NULL) {
+		result = hset_set(&info->hset, memb, plug);
+		if (result == 0)
+			update_hset_mask(info, memb);
+	}
+	return result;
+}
+int force_plugin_pset(struct inode *self, pset_member memb, reiser4_plugin * plug)
 {
 	reiser4_inode *info;
 	int result = 0;
@@ -424,8 +444,16 @@ int force_plugin(struct inode *self, pset_member memb, reiser4_plugin * plug)
 	else
 		result = pset_set(&info->pset, memb, plug);
 	if (result == 0)
-		update_plugin_mask(info, memb);
+		update_pset_mask(info, memb);
 	return result;
+}
+
+int force_plugin_hset(struct inode *self, pset_member memb, reiser4_plugin * plug)
+{
+	reiser4_inode *info;
+	
+	info = reiser4_inode_data(self);
+	return hset_set(&info->hset, memb, plug);
 }
 
 reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
