@@ -2816,9 +2816,7 @@ static void set_file_notail(struct inode *inode)
 
 	state = reiser4_inode_data(inode);
 	tplug = formatting_plugin_by_id(NEVER_TAILS_FORMATTING_ID);
-	plugin_set_formatting(&state->pset, tplug);
-	inode_set_plugin(inode,
-			 formatting_plugin_to_plugin(tplug), PSET_FORMATTING);
+	force_plugin_pset(inode, PSET_FORMATTING, (reiser4_plugin *)tplug);
 }
 
 /* if file is built of tails - convert it to extents */

@@ -609,15 +609,6 @@ void inode_set_extension(struct inode *inode, sd_ext_bits ext)
 	inode_clr_flag(inode, REISER4_SDLEN_KNOWN);
 }
 
-void
-inode_set_plugin(struct inode *inode, reiser4_plugin * plug, pset_member memb)
-{
-	assert("nikita-2718", inode != NULL);
-	assert("nikita-2719", plug != NULL);
-
-	reiser4_inode_data(inode)->plugin_mask |= (1 << memb);
-}
-
 void inode_check_scale_nolock(struct inode *inode, __u64 old, __u64 new)
 {
 	assert("edward-1287", inode != NULL);

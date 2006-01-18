@@ -47,8 +47,15 @@ typedef struct format40_disk_super_block {
 	/*  68 */ d16 tree_height;
 	/* height of filesystem tree */
 	/*  70 */ d16 formatting_policy;
+	/* not used anymore */
 	/*  72 */ d64 flags;
-	/*  72 */ char not_used[432];
+	/*  80 */ d32 version;
+	/* Format version is usefull for the current format 
+	   detection and the futher format update. */
+	/*  84 */ d32 compatible_with;
+	/* Disable mount for old kernels that have not compatible format 
+	   implemented, ie. those that may corrupt the current fs. */
+	/*  88 */ char not_used[424];
 } format40_disk_super_block;
 
 /* format 40 specific part of reiser4_super_info_data */
@@ -78,11 +85,12 @@ typedef struct format40_super_info {
 
 /* declarations of functions implementing methods of layout plugin for
    format 40. The functions theirself are in disk_format40.c */
-int init_format_format40(struct super_block *, void *data);
-const reiser4_key *root_dir_key_format40(const struct super_block *);
-int release_format40(struct super_block *s);
-jnode *log_super_format40(struct super_block *s);
-int check_open_format40(const struct inode *object);
+extern int init_format_format40(struct super_block *, void *data);
+extern const reiser4_key *root_dir_key_format40(const struct super_block *);
+extern int release_format40(struct super_block *s);
+extern jnode *log_super_format40(struct super_block *s);
+extern int check_open_format40(const struct inode *object);
+extern int version_update_format40(struct super_block *super);
 
 /* __DISK_FORMAT40_H__ */
 #endif

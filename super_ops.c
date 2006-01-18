@@ -519,10 +519,14 @@ static int fill_super(struct super_block *super, void *data, int silent)
 	if ((result = init_root_inode(super)) != 0)
 		goto failed_init_root_inode;
 
+	if ((result = get_super_private(super)->df_plug->version_update(super)) != 0 )
+		goto failed_update_format_version;
+
 	process_safelinks(super);
 	reiser4_exit_context(&ctx);
 	return 0;
 
+ failed_update_format_version:
  failed_init_root_inode:
 	if (sbinfo->df_plug->release)
 		sbinfo->df_plug->release(super);

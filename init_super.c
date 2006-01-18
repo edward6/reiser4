@@ -702,24 +702,28 @@ int init_root_inode(struct super_block *super)
 
 	if (!is_inode_loaded(inode)) {
 		pset_member memb;
+		plugin_set *pset;
 
+		pset = reiser4_inode_data(inode)->pset;
 		for (memb = 0; memb < PSET_LAST; ++memb) {
 			reiser4_plugin *plug;
-
+			
 			if (plugin_pset_unused(memb))
+				continue;
+			
+			if (pset_get(pset, memb) != NULL)
 				continue;
 			
 			plug = get_default_plugin(memb);
 			result = grab_plugin_pset(inode, memb, plug);
 			if (result != 0)
 				break;
+
+			inode_clr_flag(inode, REISER4_SDLEN_KNOWN);
 		}
 
 		if (result == 0) {
 			if (REISER4_DEBUG) {
-				plugin_set *pset;
-
-				pset = reiser4_inode_data(inode)->pset;
 				for (memb = 0; memb < PSET_LAST; ++memb)
 					assert("nikita-3500",
 					       plugin_pset_unused(memb) ||
@@ -729,7 +733,21 @@ int init_root_inode(struct super_block *super)
 			warning("nikita-3448", "Cannot set plugins of root: %i",
 				result);
 		reiser4_iget_complete(inode);
+		
+		/* As the default pset kept in the root dir may has been changed
+		   (length is unknown), call update_sd. */
+		if (!inode_get_flag(inode, REISER4_SDLEN_KNOWN)) {
+			result = reiser4_grab_space(
+				inode_file_plugin(inode)->estimate.update(inode),
+				BA_CAN_COMMIT);
+			
+			if (result == 0)
+				result = reiser4_update_sd(inode);
+			
+			all_grabbed2free();
+		}
 	}
+	
 	super->s_maxbytes = MAX_LFS_FILESIZE;
 	return result;
 }

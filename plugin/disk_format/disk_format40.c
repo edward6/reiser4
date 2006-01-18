@@ -27,6 +27,12 @@
    & tx record. */
 #define RELEASE_RESERVED 4
 
+/* Every disk format change increments this number.  */
+#define REISER4_FORMAT40_VERSION 1
+
+/* If format is not compatible RW mount is forbidden.  */
+#define REISER4_FORMAT40_COMPARTIBLE_WITH 1
+
 /* functions to access fields of format40_disk_super_block */
 static __u64 get_format40_block_count(const format40_disk_super_block * sb)
 {
@@ -66,6 +72,20 @@ static __u32 get_format40_mkfs_id(const format40_disk_super_block * sb)
 static __u64 get_format40_flags(const format40_disk_super_block * sb)
 {
 	return le64_to_cpu(get_unaligned(&sb->flags));
+}
+
+static __u32 get_format40_version(const format40_disk_super_block * sb)
+{
+	return le32_to_cpu(get_unaligned(&sb->version));
+}
+
+static __u32 get_format40_compatible_with(const format40_disk_super_block * sb)
+{
+	return le32_to_cpu(get_unaligned(&sb->compatible_with));
+}
+
+static int is_format40_compatible(const format40_disk_super_block * sb) {
+	return (get_format40_compatible_with(sb) <= REISER4_FORMAT40_VERSION);
 }
 
 static format40_super_info *get_sb_info(struct super_block *super)
@@ -243,6 +263,20 @@ static int try_init_format40(struct super_block *super,
 	super_bh = find_a_disk_format40_super_block(super);
 	if (IS_ERR(super_bh))
 		return PTR_ERR(super_bh);
+	
+	sb_copy = (format40_disk_super_block *)super_bh->b_data;
+	/* ok, we are sure that filesystem format is a format40 format */
+	/* The current format must be compatible with the on-disk format. */
+	if (!(super->s_flags & MS_RDONLY) && !is_format40_compatible(sb_copy))
+	{
+		printk("Warning: mounting the reiser4 filesystem of the format "
+		       "%u, which is incompatible with this kernel format %u. "
+		       "Mounting read-only.\n", get_format40_version(sb_copy), 
+		       REISER4_FORMAT40_VERSION);
+		
+		super->s_flags |= MS_RDONLY;
+	}
+	
 	brelse(super_bh);
 	*stage = FIND_A_SUPER;
 
@@ -258,7 +292,6 @@ static int try_init_format40(struct super_block *super,
 		return result;
 	*stage = INIT_EFLUSH;
 
-	/* ok, we are sure that filesystem format is a format40 format */
 	/* Now check it's state */
 	result = reiser4_status_init(FORMAT40_STATUS_BLOCKNR);
 	if (result != 0 && result != -EINVAL)
@@ -271,10 +304,8 @@ static int try_init_format40(struct super_block *super,
 	if (result == REISER4_STATUS_MOUNT_WARN)
 		printk("Warning, mounting filesystem with errors\n");
 	if (result == REISER4_STATUS_MOUNT_RO) {
-		printk
-		    ("Warning, mounting filesystem with fatal errors, forcing read-only mount\n");
-		/* FIXME: here we should actually enforce read-only mount,
-		 * only it is unsupported yet. */
+		printk("Warning, mounting filesystem with fatal errors, "
+		       "forcing read-only mount\n");
 	}
 
 	result = reiser4_journal_replay(super);
@@ -336,6 +367,7 @@ static int try_init_format40(struct super_block *super,
 	/* number of blocks in filesystem and reserved space */
 	reiser4_set_block_count(super, get_format40_block_count(sb_copy));
 	sbinfo->blocks_free = get_format40_free_blocks(sb_copy);
+	sbinfo->version = get_format40_version(sb_copy);
 	kfree(sb_copy);
 
 	sbinfo->fsuid = 0;
@@ -444,6 +476,14 @@ static void pack_format40_super(const struct super_block *s, char *data)
 	put_unaligned(cpu_to_le64(oids_used(s)), &super_data->file_count);
 
 	put_unaligned(cpu_to_le16(sbinfo->tree.height), &super_data->tree_height);
+	
+	if (get_format40_version(super_data) < REISER4_FORMAT40_VERSION) {
+		put_unaligned(cpu_to_le32(REISER4_FORMAT40_VERSION),
+			      &super_data->version);
+		
+		put_unaligned(cpu_to_le32(REISER4_FORMAT40_COMPARTIBLE_WITH),
+			      &super_data->compatible_with);
+	}
 }
 
 /* plugin->u.format.log_super
@@ -552,6 +592,44 @@ int check_open_format40(const struct inode *object)
 	}
 
 	return 0;
+}
+
+/* plugin->u.format.version_update.
+   Perform all version update operations from the on-disk 
+   format40_disk_super_block.version on disk to REISER4_FORMAT40_VERSION.
+ */
+int version_update_format40(struct super_block *super) {
+	txn_handle * trans;
+	lock_handle lh;
+	txn_atom *atom;
+	int ret;
+	
+	/* Nothing to do if RO mount or the on-disk version is not less. */
+	if ((super->s_flags & MS_RDONLY) ||
+	    (get_super_private(super)->version >= REISER4_FORMAT40_VERSION))
+	{
+		return 0;
+	}
+	
+	/* Mark the uber znode dirty to call log_super on write_logs. */
+	init_lh(&lh);
+	ret = get_uber_znode(get_tree(super), ZNODE_WRITE_LOCK, 
+			     ZNODE_LOCK_HIPRI, &lh);
+	if (ret != 0)
+		return ret;
+	
+	znode_make_dirty(lh.node);
+	done_lh(&lh);
+	
+	/* Update the backup blocks. */
+	
+	/* Force write_logs immediately. */
+	trans = get_current_context()->trans;
+	atom = get_current_atom_locked();
+	assert("vpf-1906", atom != NULL);
+	
+	spin_lock_txnh(trans);
+	return force_commit_atom(trans);
 }
 
 /* Make Linus happy.
