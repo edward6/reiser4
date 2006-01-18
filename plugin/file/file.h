@@ -213,8 +213,6 @@ int cut_tree_worker_cryptcompress(tap_t *, const reiser4_key * from_key,
 				  int *progress);
 void destroy_inode_cryptcompress(struct inode *);
 
-extern reiser4_plugin_ops cryptcompress_plugin_ops;
-
 /* __REISER4_FILE_H__ */
 #endif
 

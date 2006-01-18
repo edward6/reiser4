@@ -352,7 +352,7 @@ extern compression_plugin *inode_compression_plugin(const struct inode *inode);
 extern compression_mode_plugin *inode_compression_mode_plugin(const struct inode
 							      *inode);
 extern cluster_plugin *inode_cluster_plugin(const struct inode *inode);
-extern regular_plugin *inode_regular_plugin(const struct inode *inode);
+extern file_plugin *inode_create_plugin(const struct inode *inode);
 extern item_plugin *inode_sd_plugin(const struct inode *inode);
 extern item_plugin *inode_dir_item_plugin(const struct inode *inode);
 

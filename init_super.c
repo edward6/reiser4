@@ -662,9 +662,9 @@ static struct {
 		.type = REISER4_CLUSTER_PLUGIN_TYPE,
 		.id = CLUSTER_64K_ID
 	},
-	[PSET_REGULAR_ENTRY] = {
-		.type = REISER4_REGULAR_PLUGIN_TYPE,
-		.id = UF_REGULAR_ID
+	[PSET_CREATE] = {
+		.type = REISER4_FILE_PLUGIN_TYPE,
+		.id = UNIX_FILE_PLUGIN_ID
 	}
 };
 

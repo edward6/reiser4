@@ -43,8 +43,8 @@ struct plugin_set {
 	compression_mode_plugin *compression_mode;
 	/* cluster plugin */
 	cluster_plugin *cluster;
-	/* plugin of regular child should be created */
-	regular_plugin *regular_entry;
+	/* plugin regular children should be created with */
+	file_plugin *create;
 	ps_hash_link link;
 };
 
@@ -71,7 +71,7 @@ extern int plugin_set_compression(plugin_set ** set, compression_plugin * plug);
 extern int plugin_set_compression_mode(plugin_set ** set,
 				       compression_mode_plugin * plug);
 extern int plugin_set_cluster(plugin_set ** set, cluster_plugin * plug);
-extern int plugin_set_regular_entry(plugin_set ** set, regular_plugin * plug);
+extern int plugin_set_create(plugin_set ** set, file_plugin * plug);
 
 extern int init_plugin_set(void);
 extern void done_plugin_set(void);

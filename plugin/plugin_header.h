@@ -27,9 +27,15 @@ typedef enum {
 	REISER4_COMPRESSION_PLUGIN_TYPE,
 	REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
 	REISER4_CLUSTER_PLUGIN_TYPE,
-	REISER4_REGULAR_PLUGIN_TYPE,
 	REISER4_PLUGIN_TYPES
 } reiser4_plugin_type;
+
+typedef enum {
+	REISER4_DIRECTORY_FILE,
+	REISER4_REGULAR_FILE,
+	REISER4_SYMLINK_FILE,
+	REISER4_SPECIAL_FILE,
+} reiser4_plugin_group;
 
 struct reiser4_plugin_ops;
 /* generic plugin operations, supported by each
@@ -42,6 +48,8 @@ typedef struct plugin_header {
 	reiser4_plugin_type type_id;
 	/* id of this plugin */
 	reiser4_plugin_id id;
+	/* bitmask of groups the plugin belongs to. */
+	reiser4_plugin_groups groups;
 	/* plugin operations */
 	reiser4_plugin_ops *pops;
 /* NIKITA-FIXME-HANS: usage of and access to label and desc is not commented and defined. */
@@ -52,6 +60,8 @@ typedef struct plugin_header {
 	/* list linkage */
 	struct list_head linkage;
 } plugin_header;
+
+#define plugin_of_group(plug, group) (plug->h.groups & (1 << group))
 
 /* PRIVATE INTERFACES */
 /* NIKITA-FIXME-HANS: what is this for and why does it duplicate what is in plugin_header? */

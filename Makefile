@@ -95,7 +95,5 @@ reiser4-y := \
 		   plugin/space/bitmap.o \
            \
 		   plugin/disk_format/disk_format40.o \
-		   plugin/disk_format/disk_format.o \
-	   \
-		   plugin/regular.o
+		   plugin/disk_format/disk_format.o
 

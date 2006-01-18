@@ -602,16 +602,6 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.builtin = cluster_plugins,
 		.plugins_list = {NULL, NULL},
 		.size = sizeof(cluster_plugin)
-	},
-	[REISER4_REGULAR_PLUGIN_TYPE] = {
-		.type_id = REISER4_REGULAR_PLUGIN_TYPE,
-		.label = "regular",
-		.desc = "Defines kind of regular file",
-		.builtin_num =
-		sizeof_array(regular_plugins),
-		.builtin = regular_plugins,
-		.plugins_list = {NULL, NULL},
-		.size = sizeof(regular_plugin)
 	}
 };
 

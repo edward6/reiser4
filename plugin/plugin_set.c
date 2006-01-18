@@ -65,7 +65,8 @@ static inline int pseq(const unsigned long *a1, const unsigned long *a2)
 		sizeof set1->digest +
 		sizeof set1->compression +
 		sizeof set1->compression_mode +
-		sizeof set1->cluster + sizeof set1->regular_entry);
+		sizeof set1->cluster + 
+		sizeof set1->create);
 
 	set1 = cast_to(a1);
 	set2 = cast_to(a2);
@@ -84,7 +85,7 @@ static inline int pseq(const unsigned long *a1, const unsigned long *a2)
 	    set1->compression == set2->compression &&
 	    set1->compression_mode == set2->compression_mode &&
 	    set1->cluster == set2->cluster &&
-	    set1->regular_entry == set2->regular_entry;
+	    set1->create == set2->create;
 }
 
 #define HASH_FIELD(hash, set, field)		\
@@ -110,7 +111,7 @@ static inline unsigned long calculate_hash(const plugin_set * set)
 	HASH_FIELD(result, set, compression);
 	HASH_FIELD(result, set, compression_mode);
 	HASH_FIELD(result, set, cluster);
-	HASH_FIELD(result, set, regular_entry);
+	HASH_FIELD(result, set, create);
 	return result & (PS_TABLE_SIZE - 1);
 }
 
@@ -144,7 +145,7 @@ static plugin_set empty_set = {
 	.compression = NULL,
 	.compression_mode = NULL,
 	.cluster = NULL,
-	.regular_entry = NULL,
+	.create = NULL,
 	.link = {NULL}
 };
 
@@ -264,9 +265,9 @@ static struct {
 		.offset = offsetof(plugin_set, cluster),
 		.type = REISER4_CLUSTER_PLUGIN_TYPE
 	},
-	[PSET_REGULAR_ENTRY] = {
-		.offset = offsetof(plugin_set, regular_entry),
-		.type = REISER4_REGULAR_PLUGIN_TYPE
+	[PSET_CREATE] = {
+		.offset = offsetof(plugin_set, create),
+		.type = REISER4_FILE_PLUGIN_TYPE
 	}
 };
 
@@ -327,7 +328,7 @@ DEFINE_PLUGIN_SET(digest_plugin, digest)
 DEFINE_PLUGIN_SET(compression_plugin, compression)
 DEFINE_PLUGIN_SET(compression_mode_plugin, compression_mode)
 DEFINE_PLUGIN_SET(cluster_plugin, cluster)
-DEFINE_PLUGIN_SET(regular_plugin, regular_entry)
+DEFINE_PLUGIN_SET(file_plugin, create)
 
 
 /**

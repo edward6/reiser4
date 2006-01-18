@@ -20,6 +20,7 @@ typedef struct shift_params shift_params;
 typedef struct reiser4_object_create_data reiser4_object_create_data;
 typedef union reiser4_plugin reiser4_plugin;
 typedef __u16 reiser4_plugin_id;
+typedef __u64 reiser4_plugin_groups;
 typedef struct item_plugin item_plugin;
 typedef struct jnode_plugin jnode_plugin;
 typedef struct reiser4_item_data reiser4_item_data;

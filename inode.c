@@ -570,10 +570,10 @@ cluster_plugin *inode_cluster_plugin(const struct inode * inode)
 	return reiser4_inode_data(inode)->pset->cluster;
 }
 
-regular_plugin *inode_regular_plugin(const struct inode * inode)
+file_plugin *inode_create_plugin(const struct inode * inode)
 {
 	assert("edward-1329", inode != NULL);
-	return reiser4_inode_data(inode)->pset->regular_entry;
+	return reiser4_inode_data(inode)->pset->create;
 }
 
 digest_plugin *inode_digest_plugin(const struct inode * inode)

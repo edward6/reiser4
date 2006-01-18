@@ -32,10 +32,17 @@ int create_common(struct inode *parent, struct dentry *dentry,
 		  int mode, struct nameidata *nameidata)
 {
 	reiser4_object_create_data data;
+	file_plugin *fplug;
 
 	memset(&data, 0, sizeof data);
 	data.mode = S_IFREG | mode;
-	data.id = inode_regular_plugin(parent)->id;
+	fplug = inode_create_plugin(parent);
+	if (!plugin_of_group(fplug, REISER4_REGULAR_FILE)) {
+		warning("vpf-1900", "The file being created with the plugin "
+			"'%s' is not a regular file plugin.", fplug->h.label);
+		return RETERR(-EIO);
+	}
+	data.id = fplug->h.id;
 	return create_vfs_object(parent, dentry, &data);
 }
 

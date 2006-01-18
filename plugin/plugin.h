@@ -511,13 +511,6 @@ typedef struct compression_mode_plugin {
 	int (*discard_hook) (struct inode * inode, cloff_t index);
 } compression_mode_plugin;
 
-typedef struct regular_plugin {
-	/* generic fields */
-	plugin_header h;
-	/* file plugin id which implements regular file */
-	reiser4_file_id id;
-} regular_plugin;
-
 typedef struct cluster_plugin {
 	/* generic fields */
 	plugin_header h;
@@ -638,8 +631,6 @@ union reiser4_plugin {
 	compression_mode_plugin compression_mode;
 	/* cluster plugin, used by object plugin */
 	cluster_plugin clust;
-	/* regular plugin, used by directory plugin */
-	regular_plugin regular;
 	/* place-holder for new plugin types that can be registered
 	   dynamically, and used by other dynamically loaded plugins.  */
 	void *generic;
@@ -727,13 +718,6 @@ typedef enum {
 	CLUSTER_4K_ID,
 	LAST_CLUSTER_ID
 } reiser4_cluster_id;
-
-/* builtin regular plugins */
-typedef enum {
-	UF_REGULAR_ID,
-	CRC_REGULAR_ID,
-	LAST_REGULAR_ID
-} reiser4_regular_id;
 
 /* builtin tail-plugins */
 
@@ -851,7 +835,6 @@ PLUGIN_BY_ID(jnode_plugin, REISER4_JNODE_PLUGIN_TYPE, jnode);
 PLUGIN_BY_ID(compression_mode_plugin, REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
 	     compression_mode);
 PLUGIN_BY_ID(cluster_plugin, REISER4_CLUSTER_PLUGIN_TYPE, clust);
-PLUGIN_BY_ID(regular_plugin, REISER4_REGULAR_PLUGIN_TYPE, regular);
 
 extern int save_plugin_id(reiser4_plugin * plugin, d16 * area);
 
@@ -879,7 +862,7 @@ typedef enum {
 	PSET_COMPRESSION,
 	PSET_COMPRESSION_MODE,
 	PSET_CLUSTER,
-	PSET_REGULAR_ENTRY,
+	PSET_CREATE,
 	PSET_LAST
 } pset_member;
 
@@ -910,8 +893,6 @@ extern compression_mode_plugin
 compression_mode_plugins[LAST_COMPRESSION_MODE_ID];
 /* defined in fs/reiser4/plugin/cluster.c */
 extern cluster_plugin cluster_plugins[LAST_CLUSTER_ID];
-/* defined in fs/reiser4/plugin/regular.c */
-extern regular_plugin regular_plugins[LAST_REGULAR_ID];
 /* defined in fs/reiser4/plugin/tail.c */
 extern formatting_plugin formatting_plugins[LAST_TAIL_FORMATTING_ID];
 /* defined in fs/reiser4/plugin/security/security.c */
