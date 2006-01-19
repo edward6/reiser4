@@ -28,10 +28,13 @@
 #define RELEASE_RESERVED 4
 
 /* Every disk format change increments this number.  */
-#define REISER4_FORMAT40_VERSION 1
+#define FORMAT40_VERSION 1
 
 /* If format is not compatible RW mount is forbidden.  */
-#define REISER4_FORMAT40_COMPARTIBLE_WITH 1
+#define FORMAT40_COMPARTIBLE_WITH 1
+
+/* Not updated backup flag. */
+#define FORMAT40_UPDATE_BACKUP (1 << 31)
 
 /* functions to access fields of format40_disk_super_block */
 static __u64 get_format40_block_count(const format40_disk_super_block * sb)
@@ -76,7 +79,13 @@ static __u64 get_format40_flags(const format40_disk_super_block * sb)
 
 static __u32 get_format40_version(const format40_disk_super_block * sb)
 {
-	return le32_to_cpu(get_unaligned(&sb->version));
+	return le32_to_cpu(get_unaligned(&sb->version)) & 
+		~FORMAT40_UPDATE_BACKUP;
+}
+
+static int is_format40_updated(const format40_disk_super_block * sb) {
+	return !(le32_to_cpu(get_unaligned(&sb->version)) & 
+		 FORMAT40_UPDATE_BACKUP);
 }
 
 static __u32 get_format40_compatible_with(const format40_disk_super_block * sb)
@@ -85,7 +94,7 @@ static __u32 get_format40_compatible_with(const format40_disk_super_block * sb)
 }
 
 static int is_format40_compatible(const format40_disk_super_block * sb) {
-	return (get_format40_compatible_with(sb) <= REISER4_FORMAT40_VERSION);
+	return (get_format40_compatible_with(sb) <= FORMAT40_VERSION);
 }
 
 static format40_super_info *get_sb_info(struct super_block *super)
@@ -269,10 +278,10 @@ static int try_init_format40(struct super_block *super,
 	/* The current format must be compatible with the on-disk format. */
 	if (!(super->s_flags & MS_RDONLY) && !is_format40_compatible(sb_copy))
 	{
-		printk("Warning: mounting the reiser4 filesystem of the format "
+		printk("Warning: Mounting the reiser4 filesystem of the format "
 		       "%u, which is incompatible with this kernel format %u. "
-		       "Mounting read-only.\n", get_format40_version(sb_copy), 
-		       REISER4_FORMAT40_VERSION);
+		       "Mounting %s read-only.\n", get_format40_version(sb_copy), 
+		       FORMAT40_VERSION, super->s_id);
 		
 		super->s_flags |= MS_RDONLY;
 	}
@@ -301,11 +310,13 @@ static int try_init_format40(struct super_block *super,
 	*stage = INIT_STATUS;
 
 	result = reiser4_status_query(NULL, NULL);
-	if (result == REISER4_STATUS_MOUNT_WARN)
-		printk("Warning, mounting filesystem with errors\n");
+	if (result == REISER4_STATUS_MOUNT_WARN) {
+		printk("Warning, mounting %s filesystem with errors\n",
+		       super->s_id);
+	}
 	if (result == REISER4_STATUS_MOUNT_RO) {
-		printk("Warning, mounting filesystem with fatal errors, "
-		       "forcing read-only mount\n");
+		printk("Warning, mounting %s filesystem with fatal errors, "
+		       "forcing read-only mount\n", super->s_id);
 	}
 
 	result = reiser4_journal_replay(super);
@@ -369,6 +380,11 @@ static int try_init_format40(struct super_block *super,
 	sbinfo->blocks_free = get_format40_free_blocks(sb_copy);
 	sbinfo->version = get_format40_version(sb_copy);
 	kfree(sb_copy);
+
+	if (!is_format40_updated(sb_copy)) {
+		printk("WARNING: The reiser4 metadata backup is not updated. "
+		       "Please run 'fsck.reiser4 --fix' on %s.\n", super->s_id);
+	}
 
 	sbinfo->fsuid = 0;
 	sbinfo->fs_flags |= (1 << REISER4_ADG);	/* hard links for directories
@@ -464,24 +480,33 @@ static void pack_format40_super(const struct super_block *s, char *data)
 {
 	format40_disk_super_block *super_data =
 	    (format40_disk_super_block *) data;
+	
 	reiser4_super_info_data *sbinfo = get_super_private(s);
-
+	
 	assert("zam-591", data != NULL);
-
+	
 	put_unaligned(cpu_to_le64(reiser4_free_committed_blocks(s)),
 		      &super_data->free_blocks);
-	put_unaligned(cpu_to_le64(sbinfo->tree.root_block), &super_data->root_block);
-
-	put_unaligned(cpu_to_le64(oid_next(s)), &super_data->oid);
-	put_unaligned(cpu_to_le64(oids_used(s)), &super_data->file_count);
-
-	put_unaligned(cpu_to_le16(sbinfo->tree.height), &super_data->tree_height);
 	
-	if (get_format40_version(super_data) < REISER4_FORMAT40_VERSION) {
-		put_unaligned(cpu_to_le32(REISER4_FORMAT40_VERSION),
+	put_unaligned(cpu_to_le64(sbinfo->tree.root_block), 
+		      &super_data->root_block);
+	
+	put_unaligned(cpu_to_le64(oid_next(s)), 
+		      &super_data->oid);
+	
+	put_unaligned(cpu_to_le64(oids_used(s)), 
+		      &super_data->file_count);
+	
+	put_unaligned(cpu_to_le16(sbinfo->tree.height), 
+		      &super_data->tree_height);
+	
+	if (get_format40_version(super_data) < FORMAT40_VERSION) {
+		__u32 version = FORMAT40_VERSION | FORMAT40_UPDATE_BACKUP;
+		
+		put_unaligned(cpu_to_le32(version),
 			      &super_data->version);
 		
-		put_unaligned(cpu_to_le32(REISER4_FORMAT40_COMPARTIBLE_WITH),
+		put_unaligned(cpu_to_le32(FORMAT40_COMPARTIBLE_WITH),
 			      &super_data->compatible_with);
 	}
 }
@@ -596,7 +621,7 @@ int check_open_format40(const struct inode *object)
 
 /* plugin->u.format.version_update.
    Perform all version update operations from the on-disk 
-   format40_disk_super_block.version on disk to REISER4_FORMAT40_VERSION.
+   format40_disk_super_block.version on disk to FORMAT40_VERSION.
  */
 int version_update_format40(struct super_block *super) {
 	txn_handle * trans;
@@ -605,11 +630,15 @@ int version_update_format40(struct super_block *super) {
 	int ret;
 	
 	/* Nothing to do if RO mount or the on-disk version is not less. */
-	if ((super->s_flags & MS_RDONLY) ||
-	    (get_super_private(super)->version >= REISER4_FORMAT40_VERSION))
-	{
+	if (super->s_flags & MS_RDONLY)
+ 		return 0;
+	
+	if (get_super_private(super)->version >= FORMAT40_VERSION)
 		return 0;
-	}
+	
+	printk("WARNING: Reiser4 updates the format. The reiser4 metadata "
+	       "backup is left unchanged. Please run 'fsck.reiser4 --fix' "
+	       "on %s to update it too.\n", super->s_id);
 	
 	/* Mark the uber znode dirty to call log_super on write_logs. */
 	init_lh(&lh);
