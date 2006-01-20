@@ -344,7 +344,7 @@ static int absent_unix_sd(struct inode *inode /* object being processed */ )
 	inode->i_gid = get_super_private(inode->i_sb)->default_gid;
 	inode->i_atime = inode->i_mtime = inode->i_ctime = CURRENT_TIME;
 	inode_set_bytes(inode, inode->i_size);
-	/* mark inode as lightweight, so that caller (reiser4_lookup) will
+	/* mark inode as lightweight, so that caller (lookup_common) will
 	   complete initialisation by copying [ug]id from a parent. */
 	inode_set_flag(inode, REISER4_LIGHT_WEIGHT);
 	return 0;

@@ -417,7 +417,7 @@ static void loading_up(reiser4_inode * info)
  * @silent:
  *
  * This is our helper function a la iget(). This is be called by
- * reiser4_lookup() and reiser4_read_super(). Return inode locked or error
+ * lookup_common() and reiser4_read_super(). Return inode locked or error
  * encountered.
  */
 struct inode *reiser4_iget(struct super_block *super, const reiser4_key *key,
