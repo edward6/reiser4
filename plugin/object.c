@@ -401,7 +401,6 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 		},
 		.as_ops = {
 			.writepage = bugop,
-			.readpage = bugop,
 			.sync_page = bugop,
 			.writepages = dummyop,
 			.set_page_dirty = bugop,
@@ -462,7 +461,6 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 		},
 		.as_ops = {
 			.writepage = bugop,
-			.readpage = bugop,
 			.sync_page = bugop,
 			.writepages = dummyop,
 			.set_page_dirty = bugop,
