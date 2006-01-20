@@ -568,6 +568,7 @@ static int present_plugin_sd(struct inode *inode /* object being processed */ ,
 {
 	reiser4_plugin_stat *sd;
 	reiser4_plugin *plugin;
+	reiser4_inode *info;
 	int i;
 	__u16 mask;
 	int result;
@@ -583,7 +584,8 @@ static int present_plugin_sd(struct inode *inode /* object being processed */ ,
 		return not_enough_space(inode, "plugin");
 
 	sd = (reiser4_plugin_stat *) * area;
-
+	info = reiser4_inode_data(inode);
+	
 	mask = 0;
 	num_of_plugins = le16_to_cpu(get_unaligned(&sd->plugins_no));
 	move_on(len, area, sizeof *sd);
@@ -627,13 +629,14 @@ static int present_plugin_sd(struct inode *inode /* object being processed */ ,
 		/* load plugin data, if any */
 		if (plugin->h.pops != NULL && plugin->h.pops->load) {
 			result = plugin->h.pops->load(inode, plugin, area, len);
-			if (result != 0)
-				return result;
 		} else if (is_pset) {
-			result = grab_plugin_pset(inode, memb, plugin);
+			result = pset_set_unsafe(&info->pset, memb, plugin);
 		} else {
-			result = grab_plugin_hset(inode, memb, plugin);
+			result = hset_set_unsafe(&info->hset, memb, plugin);
 		}
+		
+		if (result != 0)
+			return result;
 	}
 
 	if (is_pset) {
@@ -643,9 +646,9 @@ static int present_plugin_sd(struct inode *inode /* object being processed */ ,
 		if (plugin == NULL)
 			result = absent_plugin_sd(inode);
 
-		reiser4_inode_data(inode)->plugin_mask = mask;
+		info->plugin_mask = mask;
 	} else {
-		reiser4_inode_data(inode)->heir_mask = mask;
+		info->heir_mask = mask;
 	}
 	
 	return result;
@@ -697,10 +700,10 @@ guess_plugin_by_mode(struct inode *inode /* object to guess plugins for */ )
 		break;
 	}
 	info = reiser4_inode_data(inode);
-	plugin_set_file(&info->pset,
-			(fplug_id >= 0) ? file_plugin_by_id(fplug_id) : NULL);
-	plugin_set_dir(&info->pset,
-		       (dplug_id >= 0) ? dir_plugin_by_id(dplug_id) : NULL);
+	set_plugin(&info->pset, PSET_FILE, (fplug_id >= 0) ? 
+		   plugin_by_id(REISER4_FILE_PLUGIN_TYPE, fplug_id) : NULL);
+	set_plugin(&info->pset, PSET_DIR, (dplug_id >= 0) ? 
+		   plugin_by_id(REISER4_DIR_PLUGIN_TYPE, dplug_id) : NULL);
 	return 0;
 }
 

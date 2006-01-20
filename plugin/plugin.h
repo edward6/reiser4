@@ -150,6 +150,26 @@ typedef struct reiser4_object_on_wire reiser4_object_on_wire;
  * them, and which are only invoked by other plugins.
  */
 
+ /* enumeration of fields within plugin_set */
+typedef enum {
+	PSET_FILE,
+	PSET_DIR,		/* PSET_FILE and PSET_DIR should be first elements:
+				 * inode.c:read_inode() depends on this. */
+	PSET_PERM,
+	PSET_FORMATTING,
+	PSET_HASH,
+	PSET_FIBRATION,
+	PSET_SD,
+	PSET_DIR_ITEM,
+	PSET_CIPHER,
+	PSET_DIGEST,
+	PSET_COMPRESSION,
+	PSET_COMPRESSION_MODE,
+	PSET_CLUSTER,
+	PSET_CREATE,
+	PSET_LAST
+} pset_member;
+
 /* builtin file-plugins */
 typedef enum {
 	/* regular file */
@@ -656,7 +676,8 @@ struct reiser4_plugin_ops {
 	int alignment;
 	/* install itself into given inode. This can return error
 	   (e.g., you cannot change hash of non-empty directory). */
-	int (*change) (struct inode * inode, reiser4_plugin * plugin);
+	int (*change) (struct inode * inode, reiser4_plugin * plugin, 
+		       pset_member memb);
 	/* install itself into given inode. This can return error
 	   (e.g., you cannot change hash of non-empty directory). */
 	int (*inherit) (struct inode * inode, struct inode * parent,
@@ -847,29 +868,7 @@ for (plugin = list_entry(get_plugin_list(ptype)->next, reiser4_plugin, h.linkage
      plugin = list_entry(plugin->h.linkage.next, reiser4_plugin, h.linkage))
 
 
-/* enumeration of fields within plugin_set */
-typedef enum {
-	PSET_FILE,
-	PSET_DIR,		/* PSET_FILE and PSET_DIR should be first elements:
-				 * inode.c:read_inode() depends on this. */
-	PSET_PERM,
-	PSET_FORMATTING,
-	PSET_HASH,
-	PSET_FIBRATION,
-	PSET_SD,
-	PSET_DIR_ITEM,
-	PSET_CIPHER,
-	PSET_DIGEST,
-	PSET_COMPRESSION,
-	PSET_COMPRESSION_MODE,
-	PSET_CLUSTER,
-	PSET_CREATE,
-	PSET_LAST
-} pset_member;
-
-extern int grab_plugin(struct inode *self, struct inode *ancestor, pset_member memb);
-extern int grab_plugin_pset(struct inode *self, pset_member memb, reiser4_plugin *plug);
-extern int grab_plugin_hset(struct inode *self, pset_member memb, reiser4_plugin *plug);
+extern int grab_plugin_pset(struct inode *self, struct inode *ancestor, pset_member memb);
 extern int force_plugin_pset(struct inode *self, pset_member memb, reiser4_plugin *plug);
 extern int force_plugin_hset(struct inode *self, pset_member memb, reiser4_plugin *plug);
 

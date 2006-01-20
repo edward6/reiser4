@@ -29,7 +29,9 @@ static int replace_name(struct inode *to_inode,	/* inode where @from_coord is
 	if (result != 0)
 		return result;
 	from_item = item_plugin_by_coord(from_coord);
-	if (item_type_by_coord(from_coord) == DIR_ENTRY_ITEM_TYPE) {
+	if (plugin_of_group(item_plugin_by_coord(from_coord), 
+			    DIR_ENTRY_ITEM_TYPE))
+	{
 		reiser4_key to_key;
 
 		build_sd_key(to_inode, &to_key);

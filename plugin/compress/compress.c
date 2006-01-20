@@ -11,15 +11,27 @@
 #include <linux/types.h>
 #include <linux/hardirq.h>
 
-static int change_compression(struct inode *inode, reiser4_plugin * plugin)
+static int change_compression(struct inode *inode, 
+			      reiser4_plugin * plugin, 
+			      pset_member memb)
 {
 	assert("edward-1316", inode != NULL);
 	assert("edward-1317", plugin != NULL);
 	assert("edward-1318", is_reiser4_inode(inode));
 	assert("edward-1319",
 	       plugin->h.type_id == REISER4_COMPRESSION_PLUGIN_TYPE);
-	/* cannot change compression plugin of already existing object */
-	return RETERR(-EINVAL);
+	
+	/* cannot change compression plugin of already existing regular object */
+	if (!plugin_of_group(inode_file_plugin(inode), REISER4_DIRECTORY_FILE))
+		return RETERR(-EINVAL);
+	
+	/* If matches, nothing to change. */
+	if (inode_hash_plugin(inode) != NULL &&
+	    inode_hash_plugin(inode)->h.id == plugin->h.id)
+		return 0;
+	
+	return pset_set_unsafe(&reiser4_inode_data(inode)->pset,
+			       PSET_COMPRESSION, plugin);
 }
 
 static reiser4_plugin_ops compression_plugin_ops = {

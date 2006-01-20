@@ -370,19 +370,6 @@ static reiser4_plugin *find_plugin(reiser4_plugin_type_data * ptype	/* plugin
 
 #endif  /*  0  */
 
-int grab_plugin(struct inode *self, struct inode *ancestor, pset_member memb)
-{
-	reiser4_plugin *plug;
-	reiser4_inode *parent;
-
-	if (plugin_pset_unused(memb))
-		return 0;
-	
-	parent = reiser4_inode_data(ancestor);
-	plug = hset_get(parent->hset, memb) ? : pset_get(parent->pset, memb);
-	return grab_plugin_pset(self, memb, plug);
-}
-
 static void update_pset_mask(reiser4_inode * info, pset_member memb) {
 	struct dentry *rootdir;
 	reiser4_inode *root;
@@ -394,9 +381,14 @@ static void update_pset_mask(reiser4_inode * info, pset_member memb) {
 		 * if inode is different from the default one, or we are
 		 * changing plugin of root directory, update plugin_mask
 		 */
-		if (pset_get(info->pset, memb) != pset_get(root->pset, memb) ||
+		if (pset_get(info->pset, memb) != 
+		    pset_get(root->pset, memb) ||
 		    info == root)
+		{
 			info->plugin_mask |= (1 << memb);
+		} else {
+			info->plugin_mask &= ~(1 << memb);
+		}
 	}
 }
 
@@ -404,35 +396,43 @@ static void update_hset_mask(reiser4_inode * info, pset_member memb) {
 	info->heir_mask |= (1 << memb);
 }
 
-int
-grab_plugin_pset(struct inode *self, pset_member memb, reiser4_plugin * plug)
+int grab_plugin_pset(struct inode *self, 
+		     struct inode *ancestor, 
+		     pset_member memb)
 {
+	reiser4_plugin *plug;
 	reiser4_inode *info;
 	int result = 0;
 
+	/* Do not grab for unused fields. */
+	if (plugin_pset_unused(memb))
+		return 0;
+	
+	/* Do not grab if initialised already. */
 	info = reiser4_inode_data(self);
-	if (pset_get(info->pset, memb) == NULL) {
-		result = pset_set(&info->pset, memb, plug);
-		if (result == 0)
+	if (pset_get(info->pset, memb) != NULL)
+		return 0;
+	
+	if (ancestor) {
+		reiser4_inode *parent;
+		
+		parent = reiser4_inode_data(ancestor);
+		plug = hset_get(parent->hset, memb) ? :	
+			pset_get(parent->pset, memb);
+
+	} else {
+		/* Take the default one if no parent is given. */
+		plug = get_default_plugin(memb);
+	}
+	
+	result = set_plugin(&info->pset, memb, plug);
+	if (result == 0) {
+		if (!ancestor || self->i_sb->s_root->d_inode != self)
 			update_pset_mask(info, memb);
 	}
 	return result;
 }
 
-int
-grab_plugin_hset(struct inode *self, pset_member memb, reiser4_plugin * plug)
-{
-	reiser4_inode *info;
-	int result = 0;
-	
-	info = reiser4_inode_data(self);
-	if (hset_get(info->hset, memb) == NULL) {
-		result = hset_set(&info->hset, memb, plug);
-		if (result == 0)
-			update_hset_mask(info, memb);
-	}
-	return result;
-}
 int force_plugin_pset(struct inode *self, pset_member memb, reiser4_plugin * plug)
 {
 	reiser4_inode *info;
@@ -440,20 +440,34 @@ int force_plugin_pset(struct inode *self, pset_member memb, reiser4_plugin * plu
 
 	info = reiser4_inode_data(self);
 	if (plug->h.pops != NULL && plug->h.pops->change != NULL)
-		result = plug->h.pops->change(self, plug);
+		result = plug->h.pops->change(self, plug, memb);
 	else
-		result = pset_set(&info->pset, memb, plug);
-	if (result == 0)
+		result = pset_set_unsafe(&info->pset, memb, plug);
+	if (result == 0) {
+		__u16 mask = info->plugin_mask;
+		
 		update_pset_mask(info, memb);
+		if (mask != info->plugin_mask)
+			inode_clr_flag(self, REISER4_SDLEN_KNOWN);
+	}
 	return result;
 }
 
 int force_plugin_hset(struct inode *self, pset_member memb, reiser4_plugin * plug)
 {
 	reiser4_inode *info;
+	int result;
 	
 	info = reiser4_inode_data(self);
-	return hset_set(&info->hset, memb, plug);
+	result = hset_set_unsafe(&info->hset, memb, plug);
+	if (result == 0) {
+		__u16 mask = info->heir_mask;
+		
+		update_hset_mask(info, memb);
+		if (mask != info->heir_mask)
+			inode_clr_flag(self, REISER4_SDLEN_KNOWN);
+	}
+	return result;
 }
 
 reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {

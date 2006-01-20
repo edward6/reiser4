@@ -75,17 +75,6 @@ void obtain_item_plugin(const coord_t * coord)
 	       node_plugin_by_node(coord->node)->plugin_by_coord(coord));
 }
 
-/* return type of item at @coord */
-item_type_id item_type_by_coord(const coord_t * coord /* coord to query */ )
-{
-	assert("nikita-333", coord != NULL);
-	assert("nikita-334", coord->node != NULL);
-	assert("nikita-335", znode_is_loaded(coord->node));
-	assert("nikita-336", item_plugin_by_coord(coord) != NULL);
-
-	return item_plugin_by_coord(coord)->b.item_type;
-}
-
 /* return id of item */
 /* Audited by: green(2002.06.15) */
 item_id item_id_by_coord(const coord_t * coord /* coord to query */ )
@@ -285,7 +274,7 @@ int item_is_tail(const coord_t * item)
 int item_is_statdata(const coord_t * item)
 {
 	assert("vs-516", coord_is_existing_item(item));
-	return item_type_by_coord(item) == STAT_DATA_ITEM_TYPE;
+	return plugin_of_group(item_plugin_by_coord(item), STAT_DATA_ITEM_TYPE);
 }
 
 int item_is_ctail(const coord_t * item)
@@ -294,7 +283,9 @@ int item_is_ctail(const coord_t * item)
 	return item_id_by_coord(item) == CTAIL_ID;
 }
 
-static int change_item(struct inode *inode, reiser4_plugin * plugin)
+static int change_item(struct inode *inode, 
+		       reiser4_plugin * plugin, 
+		       pset_member memb)
 {
 	/* cannot change constituent item (sd, or dir_item) */
 	return RETERR(-EINVAL);
@@ -313,13 +304,13 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		.h = {
 			.type_id = REISER4_ITEM_PLUGIN_TYPE,
 			.id = STATIC_STAT_DATA_ID,
+			.groups = (1 << STAT_DATA_ITEM_TYPE),
 			.pops = &item_plugin_ops,
 			.label = "sd",
 			.desc = "stat-data",
 			.linkage = {NULL, NULL}
 		},
 		.b = {
-			.item_type = STAT_DATA_ITEM_TYPE,
 			.max_key_inside = max_key_inside_single_key,
 			.can_contain_key = NULL,
 			.mergeable = not_mergeable,
@@ -362,13 +353,13 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		.h = {
 			.type_id = REISER4_ITEM_PLUGIN_TYPE,
 			.id = SIMPLE_DIR_ENTRY_ID,
+			.groups = (1 << DIR_ENTRY_ITEM_TYPE),
 			.pops = &item_plugin_ops,
 			.label = "de",
 			.desc = "directory entry",
 			.linkage = {NULL, NULL}
 		},
 		.b = {
-			.item_type = DIR_ENTRY_ITEM_TYPE,
 			.max_key_inside = max_key_inside_single_key,
 			.can_contain_key = NULL,
 			.mergeable = NULL,
@@ -415,13 +406,13 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		.h = {
 			.type_id = REISER4_ITEM_PLUGIN_TYPE,
 			.id = COMPOUND_DIR_ID,
+			.groups = (1 << DIR_ENTRY_ITEM_TYPE),
 			.pops = &item_plugin_ops,
 			.label = "cde",
 			.desc = "compressed directory entry",
 			.linkage = {NULL, NULL}
 		},
 		.b = {
-			.item_type = DIR_ENTRY_ITEM_TYPE,
 			.max_key_inside = max_key_inside_cde,
 			.can_contain_key = can_contain_key_cde,
 			.mergeable = mergeable_cde,
@@ -468,13 +459,13 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		.h = {
 			.type_id = REISER4_ITEM_PLUGIN_TYPE,
 			.id = NODE_POINTER_ID,
+			.groups = (1 << INTERNAL_ITEM_TYPE),
 			.pops = NULL,
 			.label = "internal",
 			.desc = "internal item",
 			.linkage = {NULL, NULL}
 		},
 		.b = {
-			.item_type = INTERNAL_ITEM_TYPE,
 			.max_key_inside = NULL,
 			.can_contain_key = NULL,
 			.mergeable = mergeable_internal,
@@ -517,13 +508,13 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		.h = {
 			.type_id = REISER4_ITEM_PLUGIN_TYPE,
 			.id = EXTENT_POINTER_ID,
+			.groups = (1 << UNIX_FILE_METADATA_ITEM_TYPE),
 			.pops = NULL,
 			.label = "extent",
 			.desc = "extent item",
 			.linkage = {NULL, NULL}
 		},
 		.b = {
-			.item_type = UNIX_FILE_METADATA_ITEM_TYPE,
 			.max_key_inside = max_key_inside_extent,
 			.can_contain_key = can_contain_key_extent,
 			.mergeable = mergeable_extent,
@@ -574,13 +565,13 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		.h = {
 			.type_id = REISER4_ITEM_PLUGIN_TYPE,
 			.id = FORMATTING_ID,
+			.groups = (1 << UNIX_FILE_METADATA_ITEM_TYPE),
 			.pops = NULL,
 			.label = "body",
 			.desc = "body (or tail?) item",
 			.linkage = {NULL, NULL}
 		},
 		.b = {
-			.item_type = UNIX_FILE_METADATA_ITEM_TYPE,
 			.max_key_inside = max_key_inside_tail,
 			.can_contain_key = can_contain_key_tail,
 			.mergeable = mergeable_tail,
@@ -629,13 +620,13 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		.h = {
 			.type_id = REISER4_ITEM_PLUGIN_TYPE,
 			.id = CTAIL_ID,
+			.groups = (1 << UNIX_FILE_METADATA_ITEM_TYPE),
 			.pops = NULL,
 			.label = "ctail",
 			.desc = "cryptcompress tail item",
 			.linkage = {NULL, NULL}
 		},
 		.b = {
-			.item_type = UNIX_FILE_METADATA_ITEM_TYPE,
 			.max_key_inside = max_key_inside_tail,
 			.can_contain_key = can_contain_key_ctail,
 			.mergeable = mergeable_ctail,
@@ -685,13 +676,13 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		.h = {
 			.type_id = REISER4_ITEM_PLUGIN_TYPE,
 			.id = BLACK_BOX_ID,
+			.groups = (1 << OTHER_ITEM_TYPE),
 			.pops = NULL,
 			.label = "blackbox",
 			.desc = "black box item",
 			.linkage = {NULL, NULL}
 		},
 		.b = {
-			.item_type = OTHER_ITEM_TYPE,
 			.max_key_inside = NULL,
 			.can_contain_key = NULL,
 			.mergeable = not_mergeable,

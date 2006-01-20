@@ -81,7 +81,9 @@ static __u64 fibre_ext_3(const struct inode *dir, const char *name, int len)
 		return FIBRE_NO(0);
 }
 
-static int change_fibration(struct inode *inode, reiser4_plugin * plugin)
+static int change_fibration(struct inode *inode, 
+			    reiser4_plugin * plugin, 
+			    pset_member memb)
 {
 	int result;
 
@@ -97,9 +99,8 @@ static int change_fibration(struct inode *inode, reiser4_plugin * plugin)
 	if (inode_fibration_plugin(inode) == NULL ||
 	    inode_fibration_plugin(inode)->h.id != plugin->h.id) {
 		if (is_dir_empty(inode) == 0)
-			result =
-			    plugin_set_fibration(&reiser4_inode_data(inode)->
-						 pset, &plugin->fibration);
+			result = pset_set_unsafe(&reiser4_inode_data(inode)->pset,
+						 PSET_FIBRATION, plugin);
 		else
 			result = RETERR(-ENOTEMPTY);
 

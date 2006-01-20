@@ -211,63 +211,78 @@ static int plugin_set_field(plugin_set ** set, const unsigned long val,
 
 static struct {
 	int offset;
+	reiser4_plugin_groups groups;
 	reiser4_plugin_type type;
 } pset_descr[PSET_LAST] = {
 	[PSET_FILE] = {
 		.offset = offsetof(plugin_set, file),
-		.type = REISER4_FILE_PLUGIN_TYPE
+		.type = REISER4_FILE_PLUGIN_TYPE,
+		.groups = 0
 	},
 	[PSET_DIR] = {
 		.offset = offsetof(plugin_set, dir),
-		.type = REISER4_DIR_PLUGIN_TYPE
+		.type = REISER4_DIR_PLUGIN_TYPE,
+		.groups = 0
 	},
 	[PSET_PERM] = {
 		.offset = offsetof(plugin_set, perm),
-		.type = REISER4_PERM_PLUGIN_TYPE
+		.type = REISER4_PERM_PLUGIN_TYPE,
+		.groups = 0
 	},
 	[PSET_FORMATTING] = {
 		.offset = offsetof(plugin_set, formatting),
-		.type = REISER4_FORMATTING_PLUGIN_TYPE
+		.type = REISER4_FORMATTING_PLUGIN_TYPE,
+		.groups = 0
 	},
 	[PSET_HASH] = {
 		.offset = offsetof(plugin_set, hash),
-		.type = REISER4_HASH_PLUGIN_TYPE
+		.type = REISER4_HASH_PLUGIN_TYPE,
+		.groups = 0
 	},
 	[PSET_FIBRATION] = {
 		.offset = offsetof(plugin_set, fibration),
-		.type = REISER4_FIBRATION_PLUGIN_TYPE
+		.type = REISER4_FIBRATION_PLUGIN_TYPE,
+		.groups = 0
 	},
 	[PSET_SD] = {
 		.offset = offsetof(plugin_set, sd),
-		.type = REISER4_ITEM_PLUGIN_TYPE
+		.type = REISER4_ITEM_PLUGIN_TYPE,
+		.groups = (1 << STAT_DATA_ITEM_TYPE)
 	},
 	[PSET_DIR_ITEM] = {
 		.offset = offsetof(plugin_set, dir_item),
-		.type = REISER4_ITEM_PLUGIN_TYPE
+		.type = REISER4_ITEM_PLUGIN_TYPE,
+		.groups = (1 << DIR_ENTRY_ITEM_TYPE)
 	},
 	[PSET_CIPHER] = {
 		.offset = offsetof(plugin_set, cipher),
-		.type = REISER4_CIPHER_PLUGIN_TYPE
+		.type = REISER4_CIPHER_PLUGIN_TYPE,
+		.groups = 0
 	},
 	[PSET_DIGEST] = {
 		.offset = offsetof(plugin_set, digest),
-		.type = REISER4_DIGEST_PLUGIN_TYPE
+		.type = REISER4_DIGEST_PLUGIN_TYPE,
+		.groups = 0
 	},
 	[PSET_COMPRESSION] = {
 		.offset = offsetof(plugin_set, compression),
-		.type = REISER4_COMPRESSION_PLUGIN_TYPE
+		.type = REISER4_COMPRESSION_PLUGIN_TYPE,
+		.groups = 0
 	},
 	[PSET_COMPRESSION_MODE] = {
 		.offset = offsetof(plugin_set, compression_mode),
-		.type = REISER4_COMPRESSION_MODE_PLUGIN_TYPE
+		.type = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
+		.groups = 0
 	},
 	[PSET_CLUSTER] = {
 		.offset = offsetof(plugin_set, cluster),
-		.type = REISER4_CLUSTER_PLUGIN_TYPE
+		.type = REISER4_CLUSTER_PLUGIN_TYPE,
+		.groups = 0
 	},
 	[PSET_CREATE] = {
 		.offset = offsetof(plugin_set, create),
-		.type = REISER4_FILE_PLUGIN_TYPE
+		.type = REISER4_FILE_PLUGIN_TYPE,
+		.groups = (1 << REISER4_REGULAR_FILE)
 	}
 };
 
@@ -280,7 +295,8 @@ reiser4_plugin_type SET##_member_to_type_unsafe(pset_member memb) {		\
 	return pset_descr[memb].type;						\
 }										\
 										\
-int SET##_set(plugin_set ** set, pset_member memb, reiser4_plugin * plugin)	\
+int SET##_set_unsafe(plugin_set ** set, pset_member memb,			\
+		     reiser4_plugin * plugin)					\
 {										\
 	assert("nikita-3492", set != NULL);					\
 	assert("nikita-3493", *set != NULL);					\
@@ -289,10 +305,14 @@ int SET##_set(plugin_set ** set, pset_member memb, reiser4_plugin * plugin)	\
 	assert("nikita-3496", plugin->h.type_id == pset_descr[memb].type);	\
 										\
 	if (plugin_##SET##_unused(memb))					\
-		return 0;							\
+		return -EINVAL;							\
+										\
+	if (pset_descr[memb].groups)						\
+		if (!(pset_descr[memb].groups & plugin->h.groups))		\
+			return -EINVAL;						\
 										\
 	return plugin_set_field(set,						\
-				(unsigned long)plugin, pset_descr[memb].offset);\
+			(unsigned long)plugin, pset_descr[memb].offset);	\
 }										\
 										\
 reiser4_plugin *SET##_get(plugin_set * set, pset_member memb)			\
@@ -309,27 +329,10 @@ reiser4_plugin *SET##_get(plugin_set * set, pset_member memb)			\
 DEFINE_PSET_OPS(pset, PSET);
 DEFINE_PSET_OPS(hset, HSET);
 
-#define DEFINE_PLUGIN_SET(type, field)					\
-int plugin_set_ ## field(plugin_set **set, type *val)	\
-{									\
-	cassert(sizeof val == sizeof(unsigned long));			\
-	return plugin_set_field(set, (unsigned long)val,		\
-				offsetof(plugin_set, field));		\
+int set_plugin(plugin_set ** set, pset_member memb, reiser4_plugin * plugin) {
+	return plugin_set_field(set,
+		(unsigned long)plugin, pset_descr[memb].offset);
 }
-
-DEFINE_PLUGIN_SET(file_plugin, file)
-DEFINE_PLUGIN_SET(dir_plugin, dir)
-DEFINE_PLUGIN_SET(formatting_plugin, formatting)
-DEFINE_PLUGIN_SET(hash_plugin, hash)
-DEFINE_PLUGIN_SET(fibration_plugin, fibration)
-DEFINE_PLUGIN_SET(item_plugin, sd)
-DEFINE_PLUGIN_SET(cipher_plugin, cipher)
-DEFINE_PLUGIN_SET(digest_plugin, digest)
-DEFINE_PLUGIN_SET(compression_plugin, compression)
-DEFINE_PLUGIN_SET(compression_mode_plugin, compression_mode)
-DEFINE_PLUGIN_SET(cluster_plugin, cluster)
-DEFINE_PLUGIN_SET(file_plugin, create)
-
 
 /**
  * init_plugin_set - create pset cache and hash table

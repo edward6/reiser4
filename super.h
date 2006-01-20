@@ -444,6 +444,7 @@ extern void done_fs_info(struct super_block *);
 extern int init_super_data(struct super_block *, char *opt_string);
 extern int init_read_super(struct super_block *, int silent);
 extern int init_root_inode(struct super_block *);
+extern reiser4_plugin *get_default_plugin(pset_member memb);
 
 
 /* Maximal possible object id. */

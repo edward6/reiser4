@@ -603,7 +603,8 @@ static int do_create_vfs_child(reiser4_object_create_data * data,	/* parameters 
 	memset(&entry, 0, sizeof entry);
 	entry.obj = object;
 
-	plugin_set_file(&reiser4_inode_data(object)->pset, obj_plug);
+	set_plugin(&reiser4_inode_data(object)->pset, PSET_FILE, 
+		   file_plugin_to_plugin(obj_plug));
 	result = obj_plug->set_plug_in_inode(object, parent, data);
 	if (result) {
 		warning("nikita-431", "Cannot install plugin %i on %llx",
@@ -630,6 +631,9 @@ static int do_create_vfs_child(reiser4_object_create_data * data,	/* parameters 
 	result = obj_plug->adjust_to_parent(object,
 					    parent,
 					    object->i_sb->s_root->d_inode);
+	if (result == 0)
+		result = complete_inode(object);
+	
 	if (result != 0) {
 		warning("nikita-432", "Cannot inherit from %llx to %llx",
 			(unsigned long long)get_inode_oid(parent),

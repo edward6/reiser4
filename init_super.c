@@ -669,7 +669,7 @@ static struct {
 };
 
 /* access to default plugin table */
-static reiser4_plugin *get_default_plugin(pset_member memb)
+reiser4_plugin *get_default_plugin(pset_member memb)
 {
 	return plugin_by_id(default_plugins[memb].type,
 			    default_plugins[memb].id);
@@ -706,16 +706,13 @@ int init_root_inode(struct super_block *super)
 
 		pset = reiser4_inode_data(inode)->pset;
 		for (memb = 0; memb < PSET_LAST; ++memb) {
-			reiser4_plugin *plug;
-			
 			if (plugin_pset_unused(memb))
 				continue;
 			
 			if (pset_get(pset, memb) != NULL)
 				continue;
 			
-			plug = get_default_plugin(memb);
-			result = grab_plugin_pset(inode, memb, plug);
+			result = grab_plugin_pset(inode, NULL, memb);
 			if (result != 0)
 				break;
 

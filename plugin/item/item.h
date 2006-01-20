@@ -35,8 +35,6 @@ typedef enum {
    support or at least explicitly fail to support by setting the
    pointer to null. */
 typedef struct {
-	item_type_id item_type;
-
 	/* operations called by balancing
 
 	   It is interesting to consider that some of these item
@@ -331,7 +329,6 @@ extern int item_is_statdata(const coord_t * item);
 extern int item_is_ctail(const coord_t *);
 
 extern pos_in_node_t item_length_by_coord(const coord_t * coord);
-extern item_type_id item_type_by_coord(const coord_t * coord);
 extern item_id item_id_by_coord(const coord_t * coord /* coord to query */ );
 extern reiser4_key *item_key_by_coord(const coord_t * coord, reiser4_key * key);
 extern reiser4_key *max_item_key_by_coord(const coord_t *, reiser4_key *);
@@ -362,7 +359,7 @@ static inline item_plugin *item_plugin_by_coord(const coord_t *
 static inline int item_is_internal(const coord_t * item)
 {
 	assert("vs-483", coord_is_existing_item(item));
-	return item_type_by_coord(item) == INTERNAL_ITEM_TYPE;
+	return plugin_of_group(item_plugin_by_coord(item), INTERNAL_ITEM_TYPE);
 }
 
 extern void item_body_by_coord_hard(coord_t * coord);

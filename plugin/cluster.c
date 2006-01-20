@@ -8,21 +8,26 @@
 #include "plugin.h"
 #include "../inode.h"
 
-static int change_cluster(struct inode *inode, reiser4_plugin * plugin)
+static int change_cluster(struct inode *inode, 
+			  reiser4_plugin * plugin, 
+			  pset_member memb)
 {
-	int result = 0;
-
 	assert("edward-1324", inode != NULL);
 	assert("edward-1325", plugin != NULL);
 	assert("edward-1326", is_reiser4_inode(inode));
 	assert("edward-1327", plugin->h.type_id == REISER4_CLUSTER_PLUGIN_TYPE);
-
-	if (inode_file_plugin(inode)->h.id == DIRECTORY_FILE_PLUGIN_ID)
-		result = plugin_set_cluster(&reiser4_inode_data(inode)->pset,
-					    &plugin->clust);
-	else
-		result = RETERR(-EINVAL);
-	return result;
+	
+	/* Can't change the cluster plugin for already existent regular files. */
+	if (!plugin_of_group(inode_file_plugin(inode), REISER4_DIRECTORY_FILE))
+		return RETERR(-EINVAL);
+	
+	/* If matches, nothing to change. */
+	if (inode_hash_plugin(inode) != NULL &&
+	    inode_hash_plugin(inode)->h.id == plugin->h.id)
+		return 0;
+	
+	return pset_set_unsafe(&reiser4_inode_data(inode)->pset, 
+			       PSET_CLUSTER, plugin);
 }
 
 static reiser4_plugin_ops cluster_plugin_ops = {

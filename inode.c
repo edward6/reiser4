@@ -193,6 +193,31 @@ int setup_inode_ops(struct inode *inode /* inode to intialize */ ,
 	return 0;
 }
 
+int complete_inode(struct inode *inode) {
+	struct inode *root;
+	pset_member ind;
+	int result = 0;
+	
+	/* take missing plugins from file-system defaults */
+	root = inode->i_sb->s_root->d_inode;
+	
+	/* file and directory plugins are already initialized. */
+	for (ind = PSET_DIR + 1; ind < PSET_LAST; ++ind) {
+		result = grab_plugin_pset(inode, root, ind);
+		if (result != 0)
+			break;
+	}
+	
+	if (result != 0) {
+		warning("nikita-3447",
+			"Cannot set up plugins for %lli",
+			(unsigned long long)
+			get_inode_oid(inode));
+	}
+	
+	return result;
+}
+
 /* initialize inode from disk data. Called with inode locked.
     Return inode locked. */
 static int init_inode(struct inode *inode /* inode to intialise */ ,
@@ -224,28 +249,13 @@ static int init_inode(struct inode *inode /* inode to intialise */ ,
 	state = reiser4_inode_data(inode);
 	/* call stat-data plugin method to load sd content into inode */
 	result = iplug->s.sd.init_inode(inode, body, length);
-	plugin_set_sd(&state->pset, iplug);
+	set_plugin(&state->pset, PSET_SD, item_plugin_to_plugin(iplug));
 	if (result == 0) {
 		result = setup_inode_ops(inode, NULL);
-		if (result == 0 &&
-		    inode->i_sb->s_root && inode->i_sb->s_root->d_inode) {
-			struct inode *root;
-			pset_member ind;
-
-			/* take missing plugins from file-system defaults */
-			root = inode->i_sb->s_root->d_inode;
-			/* file and directory plugins are already initialized. */
-			for (ind = PSET_DIR + 1; ind < PSET_LAST; ++ind) {
-				result = grab_plugin(inode, root, ind);
-				if (result != 0)
-					break;
-			}
-			if (result != 0) {
-				warning("nikita-3447",
-					"Cannot set up plugins for %lli",
-					(unsigned long long)
-					get_inode_oid(inode));
-			}
+		if (result == 0 && inode->i_sb->s_root &&
+		    inode->i_sb->s_root->d_inode)
+		{
+			result = complete_inode(inode);
 		}
 	}
 	zrelse(coord->node);
@@ -604,6 +614,21 @@ void inode_set_extension(struct inode *inode, sd_ext_bits ext)
 
 	state = reiser4_inode_data(inode);
 	state->extmask |= 1 << ext;
+	/* force re-calculation of stat-data length on next call to
+	   update_sd(). */
+	inode_clr_flag(inode, REISER4_SDLEN_KNOWN);
+}
+
+void inode_clr_extension(struct inode *inode, sd_ext_bits ext)
+{
+	reiser4_inode *state;
+
+	assert("vpf-1926", inode != NULL);
+	assert("vpf-1927", ext < LAST_SD_EXTENSION);
+	assert("vpf-1928", spin_inode_is_locked(inode));
+
+	state = reiser4_inode_data(inode);
+	state->extmask &= ~(1 << ext);
 	/* force re-calculation of stat-data length on next call to
 	   update_sd(). */
 	inode_clr_flag(inode, REISER4_SDLEN_KNOWN);

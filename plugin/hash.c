@@ -247,7 +247,9 @@ static __u64 hash_deg(const unsigned char *name UNUSED_ARG /* name to hash */ ,
 	return 0xc0c0c0c010101010ull;
 }
 
-static int change_hash(struct inode *inode, reiser4_plugin * plugin)
+static int change_hash(struct inode *inode, 
+		       reiser4_plugin * plugin, 
+		       pset_member memb)
 {
 	int result;
 
@@ -255,16 +257,17 @@ static int change_hash(struct inode *inode, reiser4_plugin * plugin)
 	assert("nikita-3504", plugin != NULL);
 
 	assert("nikita-3505", is_reiser4_inode(inode));
-	assert("nikita-3506", inode_dir_plugin(inode) != NULL);
 	assert("nikita-3507", plugin->h.type_id == REISER4_HASH_PLUGIN_TYPE);
 
+	if (!plugin_of_group(inode_file_plugin(inode), REISER4_DIRECTORY_FILE))
+		return RETERR(-EINVAL);
+	
 	result = 0;
 	if (inode_hash_plugin(inode) == NULL ||
 	    inode_hash_plugin(inode)->h.id != plugin->h.id) {
 		if (is_dir_empty(inode) == 0)
-			result =
-			    plugin_set_hash(&reiser4_inode_data(inode)->pset,
-					    &plugin->hash);
+			result = pset_set_unsafe(&reiser4_inode_data(inode)->pset,
+						 PSET_HASH, plugin);
 		else
 			result = RETERR(-ENOTEMPTY);
 

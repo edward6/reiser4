@@ -111,10 +111,10 @@ int adjust_to_parent_common(struct inode *object /* new object */ ,
 	 * inherit missing plugins from parent
 	 */
 
-	grab_plugin(object, parent, PSET_FILE);
-	grab_plugin(object, parent, PSET_SD);
-	grab_plugin(object, parent, PSET_FORMATTING);
-	grab_plugin(object, parent, PSET_PERM);
+	grab_plugin_pset(object, parent, PSET_FILE);
+	grab_plugin_pset(object, parent, PSET_SD);
+	grab_plugin_pset(object, parent, PSET_FORMATTING);
+	grab_plugin_pset(object, parent, PSET_PERM);
 	return 0;
 }
 
@@ -137,7 +137,7 @@ int adjust_to_parent_common_dir(struct inode *object /* new object */ ,
 	 * inherit missing plugins from parent
 	 */
 	for (memb = 0; memb < PSET_LAST; ++memb) {
-		result = grab_plugin(object, parent, memb);
+		result = grab_plugin_pset(object, parent, memb);
 		if (result != 0)
 			break;
 	}
@@ -154,11 +154,11 @@ int adjust_to_parent_cryptcompress(struct inode *object /* new object */ ,
  		return result;
  	assert("edward-1416", parent != NULL);
 
- 	grab_plugin(object, parent, PSET_CLUSTER);
- 	grab_plugin(object, parent, PSET_CIPHER);
- 	grab_plugin(object, parent, PSET_DIGEST);
- 	grab_plugin(object, parent, PSET_COMPRESSION);
- 	grab_plugin(object, parent, PSET_COMPRESSION_MODE);
+ 	grab_plugin_pset(object, parent, PSET_CLUSTER);
+ 	grab_plugin_pset(object, parent, PSET_CIPHER);
+ 	grab_plugin_pset(object, parent, PSET_DIGEST);
+ 	grab_plugin_pset(object, parent, PSET_COMPRESSION);
+ 	grab_plugin_pset(object, parent, PSET_COMPRESSION_MODE);
 
  	return 0;
 }
@@ -327,7 +327,7 @@ int owns_item_common_dir(const struct inode *inode,	/* object to check against *
 	assert("nikita-1335", inode != NULL);
 	assert("nikita-1334", coord != NULL);
 
-	if (item_type_by_coord(coord) == DIR_ENTRY_ITEM_TYPE)
+	if (plugin_of_group(item_plugin_by_coord(coord), DIR_ENTRY_ITEM_TYPE))
 		return get_key_locality(item_key_by_coord(coord, &item_key)) ==
 		    get_inode_oid(inode);
 	else
@@ -770,8 +770,21 @@ update_sd_at(struct inode *inode, coord_t * coord, reiser4_key * key,
 
 	/* if inode has non-standard plugins, add appropriate stat data
 	 * extension */
-	if (state->plugin_mask != 0)
-		inode_set_extension(inode, PLUGIN_STAT);
+	if (state->extmask & (1 << PLUGIN_STAT)) {
+		if (state->plugin_mask == 0)
+			inode_clr_extension(inode, PLUGIN_STAT);
+	} else {
+		if (state->plugin_mask != 0) 
+			inode_set_extension(inode, PLUGIN_STAT);
+	}
+	
+	if (state->extmask & (1 << HEIR_STAT)) {
+		if (state->heir_mask == 0)
+			inode_clr_extension(inode, HEIR_STAT);
+	} else {
+		if (state->heir_mask != 0) 
+			inode_set_extension(inode, HEIR_STAT);
+	}
 
 	/* data.length is how much space to add to (or remove
 	   from if negative) sd */

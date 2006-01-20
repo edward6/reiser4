@@ -331,6 +331,7 @@ extern void inode_set_flag(struct inode *inode, reiser4_file_plugin_flags f);
 extern void inode_clr_flag(struct inode *inode, reiser4_file_plugin_flags f);
 extern int inode_get_flag(const struct inode *inode,
 			  reiser4_file_plugin_flags f);
+extern int complete_inode(struct inode *inode);
 
 /*  has inode been initialized? */
 static inline int
@@ -359,6 +360,7 @@ extern item_plugin *inode_dir_item_plugin(const struct inode *inode);
 extern void reiser4_make_bad_inode(struct inode *inode);
 
 extern void inode_set_extension(struct inode *inode, sd_ext_bits ext);
+extern void inode_clr_extension(struct inode *inode, sd_ext_bits ext);
 extern void inode_check_scale(struct inode *inode, __u64 old, __u64 new);
 extern void inode_check_scale_nolock(struct inode * inode, __u64 old, __u64 new);
 
