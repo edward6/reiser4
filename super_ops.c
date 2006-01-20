@@ -102,6 +102,7 @@ static struct inode *reiser4_alloc_inode(struct super_block *super)
 		info->extmask = 0;
 		info->locality_id = 0ull;
 		info->plugin_mask = 0;
+		info->heir_mask = 0;
 #if !REISER4_INO_IS_OID
 		info->oid_hi = 0;
 #endif
