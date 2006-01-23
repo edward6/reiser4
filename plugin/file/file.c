@@ -2627,7 +2627,7 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 		return RETERR(-ENOMEM);
 	}
 
-	/* get seal and coord sealed with it from reiser4 private data of
+	/* get seal, and coord sealed with it, from reiser4 private data of
 	 * struct file */
 	result = load_file_hint(file, hint);
 	if (result) {
