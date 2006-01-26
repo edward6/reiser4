@@ -1359,8 +1359,6 @@ static void update_stale_dk(reiser4_tree * tree, znode * node)
 	if (unlikely(ZF_ISSET(node, JNODE_RIGHT_CONNECTED) &&
 		     right && ZF_ISSET(right, JNODE_DKSET) &&
 		     !keyeq(&rd, znode_get_ld_key(right)))) {
-		/* does this ever happen? */
-		warning("nikita-38210", "stale dk");
 		assert("nikita-38211", ZF_ISSET(node, JNODE_DKSET));
 		read_unlock_dk(tree);
 		read_unlock_tree(tree);

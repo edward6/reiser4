@@ -1343,9 +1343,6 @@ capture_anonymous_jnodes(struct address_space *mapping,
 				/* result == 0. capture_anonymous_page returns
 				   0 for Writeback-ed page. Set ANONYMOUS tag
 				   on that jnode */
-				warning("nikita-33281",
-					"anonymous jnode in writeback: (%lu %lu)\n",
-					mapping->host->i_ino, index_jnode(jvec[i]));
 				write_lock_irq(&mapping->tree_lock);
 				radix_tree_tag_set(&mapping->page_tree,
 						   index_jnode(jvec[i]),
