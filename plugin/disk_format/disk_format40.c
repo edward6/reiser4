@@ -97,6 +97,10 @@ static int is_format40_compatible(const format40_disk_super_block * sb) {
 	return (get_format40_compatible_with(sb) <= FORMAT40_VERSION);
 }
 
+static int is_one_way_update(const format40_disk_super_block * sb) {
+	return (get_format40_version(sb) < FORMAT40_COMPARTIBLE_WITH);
+}
+
 static format40_super_info *get_sb_info(struct super_block *super)
 {
 	return &get_super_private(super)->u.format40;
@@ -272,23 +276,11 @@ static int try_init_format40(struct super_block *super,
 	super_bh = find_a_disk_format40_super_block(super);
 	if (IS_ERR(super_bh))
 		return PTR_ERR(super_bh);
-	
-	sb_copy = (format40_disk_super_block *)super_bh->b_data;
-	/* ok, we are sure that filesystem format is a format40 format */
-	/* The current format must be compatible with the on-disk format. */
-	if (!(super->s_flags & MS_RDONLY) && !is_format40_compatible(sb_copy))
-	{
-		printk("Warning: Mounting the reiser4 filesystem of the format "
-		       "%u, which is incompatible with this kernel format %u. "
-		       "Mounting %s read-only.\n", get_format40_version(sb_copy), 
-		       FORMAT40_VERSION, super->s_id);
-		
-		super->s_flags |= MS_RDONLY;
-	}
-	
 	brelse(super_bh);
 	*stage = FIND_A_SUPER;
-
+	
+	/* ok, we are sure that filesystem format is a format40 format */
+	
 	/* map jnodes for journal control blocks (header, footer) to disk  */
 	result = init_journal_info(super);
 	if (result)
@@ -332,6 +324,38 @@ static int try_init_format40(struct super_block *super,
 	/* allocate and make a copy of format40_disk_super_block */
 	sb_copy = copy_sb(super_bh);
 	brelse(super_bh);
+	
+	/* To be user-friendly, the new format should be compartible with the 
+	   old format. */
+	if (is_one_way_update(sb_copy)) {
+		if (reiser4_is_set(super, REISER4_FORCE_MOUNT)) {
+			/* Proceed. */
+			printk("Forced mounting %s. Mounting with disk formats "
+			       "< than %d are not possible anymore.\n",
+			       super->s_id, FORMAT40_COMPARTIBLE_WITH);
+		} else {
+			printk("Reiser4 of the format version %u compatible "
+			       "with format versions since %u refuses to mount "
+			       "%s of the format version %u to not make the fs "
+			       "unusable with kernels being used before. To "
+			       "mount and proceed use force_mount option.\n",
+			       FORMAT40_VERSION, FORMAT40_COMPARTIBLE_WITH,
+			       super->s_id, get_format40_version(sb_copy));
+			return -EINVAL;
+		}
+	}
+	
+	/* The current format must be compatible with the on-disk format. */
+	if (!(super->s_flags & MS_RDONLY) && !is_format40_compatible(sb_copy))
+	{
+		printk("Warning: Mounting the reiser4 filesystem of the format "
+		       "%u, which is incompatible with this kernel format %u. "
+		       "Mounting %s read-only.\n", get_format40_version(sb_copy), 
+		       FORMAT40_VERSION, super->s_id);
+		
+		super->s_flags |= MS_RDONLY;
+	}
+	
 	if (IS_ERR(sb_copy))
 		return PTR_ERR(sb_copy);
 

@@ -453,6 +453,9 @@ do {						\
 	/* disable use of write barriers in the reiser4 log writer. */
 	PUSH_BIT_OPT("no_write_barrier", REISER4_NO_WRITE_BARRIER);
 
+	/* disable use of write barriers in the reiser4 log writer. */
+	PUSH_BIT_OPT("force_mount", REISER4_FORCE_MOUNT);
+	
 	PUSH_OPT(
 	{
 		/*

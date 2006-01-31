@@ -51,7 +51,10 @@ typedef enum {
 	/* enforce atomicity during write(2) */
 	REISER4_ATOMIC_WRITE = 6,
 	/* don't use write barriers in the log writer code. */
-	REISER4_NO_WRITE_BARRIER = 7
+	REISER4_NO_WRITE_BARRIER = 7,
+	/* force mount if on-disk format version < the kernel compatible_with 
+	   format version; without the option the mount is refused. */
+	REISER4_FORCE_MOUNT = 8
 
 } reiser4_fs_flag;
 
