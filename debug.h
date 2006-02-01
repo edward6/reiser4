@@ -205,10 +205,13 @@ extern int is_in_reiser4_context(void);
 #define wrong_return_value( label, function )				\
 	impossible( label, "wrong return value from " function )
 
-/* Issue warning message to the console */
+/* Issue different types of reiser4 messages to the console */
 #define warning( label, format, ... )					\
 	DCALL( KERN_WARNING, 						\
 	       printk, 1, label, "WARNING: " format , ## __VA_ARGS__ )
+#define notice( label, format, ... )					\
+	DCALL( KERN_NOTICE, 						\
+	       printk, 1, label, "NOTICE: " format , ## __VA_ARGS__ )
 
 /* mark not yet implemented functionality */
 #define not_yet( label, format, ... )				\

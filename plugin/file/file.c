@@ -1343,9 +1343,6 @@ capture_anonymous_jnodes(struct address_space *mapping,
 				/* result == 0. capture_anonymous_page returns
 				   0 for Writeback-ed page. Set ANONYMOUS tag
 				   on that jnode */
-				warning("nikita-33281",
-					"anonymous jnode in writeback: (%lu %lu)\n",
-					mapping->host->i_ino, index_jnode(jvec[i]));
 				write_lock_irq(&mapping->tree_lock);
 				radix_tree_tag_set(&mapping->page_tree,
 						   index_jnode(jvec[i]),
@@ -2626,7 +2623,7 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 		return RETERR(-ENOMEM);
 	}
 
-	/* get seal and coord sealed with it from reiser4 private data of
+	/* get seal, and coord sealed with it, from reiser4 private data of
 	 * struct file */
 	result = load_file_hint(file, hint);
 	if (result) {
