@@ -330,8 +330,8 @@ static int try_init_format40(struct super_block *super,
 	if (is_one_way_update(sb_copy)) {
 		if (reiser4_is_set(super, REISER4_FORCE_MOUNT)) {
 			/* Proceed. */
-			printk("Forced mounting %s. Mounting with disk formats "
-			       "< than %d are not possible anymore.\n",
+			printk("Forced mounting %s. Mounting with disk format "
+			       "versions < than %d are not possible anymore.\n",
 			       super->s_id, FORMAT40_COMPARTIBLE_WITH);
 		} else {
 			printk("Reiser4 of the format version %u compatible "
