@@ -438,6 +438,11 @@ int force_plugin_pset(struct inode *self, pset_member memb, reiser4_plugin * plu
 	reiser4_inode *info;
 	int result = 0;
 
+	if (!self->i_sb->s_root || self->i_sb->s_root->d_inode == self) {
+		/* Changing pset in the root object. */
+		return RETERR(-EINVAL);
+	}
+	
 	info = reiser4_inode_data(self);
 	if (plug->h.pops != NULL && plug->h.pops->change != NULL)
 		result = plug->h.pops->change(self, plug, memb);

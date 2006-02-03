@@ -36,7 +36,7 @@ int create_common(struct inode *parent, struct dentry *dentry,
 
 	memset(&data, 0, sizeof data);
 	data.mode = S_IFREG | mode;
-	fplug = inode_create_plugin(parent);
+	fplug = child_create_plugin(parent) ? : inode_create_plugin(parent);
 	if (!plugin_of_group(fplug, REISER4_REGULAR_FILE)) {
 		warning("vpf-1900", "The file being created with the plugin "
 			"'%s' is not a regular file plugin.", fplug->h.label);

@@ -194,16 +194,30 @@ int setup_inode_ops(struct inode *inode /* inode to intialize */ ,
 }
 
 int complete_inode(struct inode *inode) {
-	struct inode *root;
-	pset_member ind;
+	reiser4_plugin *plug;
+	reiser4_inode *root;
+	reiser4_inode *info;
+	pset_member memb;
 	int result = 0;
 	
 	/* take missing plugins from file-system defaults */
-	root = inode->i_sb->s_root->d_inode;
+	root = reiser4_inode_data(inode->i_sb->s_root->d_inode);
+	info = reiser4_inode_data(inode);
 	
 	/* file and directory plugins are already initialized. */
-	for (ind = PSET_DIR + 1; ind < PSET_LAST; ++ind) {
-		result = grab_plugin_pset(inode, root, ind);
+	for (memb = PSET_DIR + 1; memb < PSET_LAST; ++memb) {
+		/* Do not grab for unused fields. */
+		if (plugin_pset_unused(memb))
+			return 0;
+
+		/* Do not grab if initialised already. */
+		if (pset_get(info->pset, memb) != NULL)
+			return 0;
+		
+		/* Take plugin from the fs-default PSET, and do not change 
+		   the plugin_mask. */
+		plug = pset_get(root->pset, memb);
+		result = set_plugin(&info->pset, memb, plug);
 		if (result != 0)
 			break;
 	}
@@ -602,6 +616,12 @@ item_plugin *inode_dir_item_plugin(const struct inode * inode)
 {
 	assert("vs-534", inode != NULL);
 	return reiser4_inode_data(inode)->pset->dir_item;
+}
+
+file_plugin *child_create_plugin(const struct inode * inode)
+{
+	assert("edward-1329", inode != NULL);
+	return reiser4_inode_data(inode)->hset->create;
 }
 
 void inode_set_extension(struct inode *inode, sd_ext_bits ext)

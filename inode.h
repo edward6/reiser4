@@ -356,6 +356,7 @@ extern cluster_plugin *inode_cluster_plugin(const struct inode *inode);
 extern file_plugin *inode_create_plugin(const struct inode *inode);
 extern item_plugin *inode_sd_plugin(const struct inode *inode);
 extern item_plugin *inode_dir_item_plugin(const struct inode *inode);
+extern file_plugin *child_create_plugin(const struct inode *inode);
 
 extern void reiser4_make_bad_inode(struct inode *inode);
 
