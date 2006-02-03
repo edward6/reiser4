@@ -145,7 +145,9 @@ gzip1_compress(coa_t coa, __u8 * src_first, unsigned src_len,
 
 	ret = zlib_deflate(&stream, Z_FINISH);
 	if (ret != Z_STREAM_END) {
-		warning("edward-773", "zlib_deflate returned %d\n", ret);
+		if (ret != Z_OK)
+			warning("edward-773",
+				"zlib_deflate returned %d\n", ret);
 		goto rollback;
 	}
 	*dst_len = stream.total_out;
