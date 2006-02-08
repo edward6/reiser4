@@ -208,11 +208,11 @@ int complete_inode(struct inode *inode) {
 	for (memb = PSET_DIR + 1; memb < PSET_LAST; ++memb) {
 		/* Do not grab for unused fields. */
 		if (plugin_pset_unused(memb))
-			return 0;
+			continue;
 
 		/* Do not grab if initialised already. */
 		if (pset_get(info->pset, memb) != NULL)
-			return 0;
+			continue;
 		
 		/* Take plugin from the fs-default PSET, and do not change 
 		   the plugin_mask. */
