@@ -426,6 +426,21 @@ void destroy_inode_cryptcompress(struct inode * inode)
 	return;
 }
 
+static int inode_set_cluster(struct inode *object)
+{
+	assert("edward-696", object != NULL);
+	
+	/* Cluster size must be equal to the page size. */
+	if (inode_cluster_plugin(object)->shift < PAGE_CACHE_SHIFT) {
+		warning("edward-1320", "Can not support '%s' "
+			"cluster: (less then page size)",
+			inode_cluster_plugin(object)->h.label);
+		return RETERR(-EINVAL);
+	}
+	
+	return 0;
+}
+
 /* plugin->create() method for cryptcompress files
 
 . install plugins
@@ -461,7 +476,11 @@ create_cryptcompress(struct inode *object, struct inode *parent,
 	result = inode_set_compression(object);
 	if (result)
 		goto error;
-
+	/* set cluster */
+	result = inode_set_cluster(object);
+	if (result)
+		goto error;
+	
 	/* save everything in disk stat-data */
 	result = write_sd_by_inode_common(object);
 	if (!result)
