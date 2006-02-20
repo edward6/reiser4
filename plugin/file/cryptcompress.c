@@ -438,14 +438,6 @@ inode_set_compression(struct inode * object)
 	return 0;
 }
 
-/* plugin->destroy_inode() method for cryptcompress files */
-void destroy_inode_cryptcompress(struct inode * inode)
-{
-	assert("edward-23", cryptcompress_inode_data(inode)->pgcount == 0);
-	detach_crypto_stat(inode);
-	return;
-}
-
 static int inode_set_cluster(struct inode *object)
 {
 	assert("edward-696", object != NULL);
