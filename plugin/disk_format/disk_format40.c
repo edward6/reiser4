@@ -348,12 +348,12 @@ static int try_init_format40(struct super_block *super,
 	/* The current format must be compatible with the on-disk format. */
 	if (!(super->s_flags & MS_RDONLY) && !is_format40_compatible(sb_copy))
 	{
-		printk("Warning: Mounting the reiser4 filesystem of the format "
-		       "%u, which is incompatible with this kernel format %u. "
-		       "Mounting %s read-only.\n", get_format40_version(sb_copy), 
-		       FORMAT40_VERSION, super->s_id);
+		printk("Warning: Can't mount RW the reiser4 filesystem %s of "
+		       "the format %u, which is incompatible with this kernel "
+		       "format %u.\n", super->s_id, 
+		       get_format40_version(sb_copy), FORMAT40_VERSION);
 		
-		super->s_flags |= MS_RDONLY;
+		return -EROFS;
 	}
 	
 	if (IS_ERR(sb_copy))

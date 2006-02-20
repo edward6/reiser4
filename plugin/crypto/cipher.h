@@ -1,9 +1,15 @@
+/* Copyright 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* This file contains definitions for the objects operated
+   by reiser4 key manager, which is something like keyring
+   wrapped by appropriate reiser4 plugin */
+
 #if !defined( __FS_REISER4_CRYPT_H__ )
 #define __FS_REISER4_CRYPT_H__
 
 #include <linux/crypto.h>
 
-/* Crypto transforms involved in ciphering process and
+
+/* Transform actions involved in ciphering process and
    supported by reiser4 via appropriate transform plugins */
 typedef enum {
 	CIPHER_TFM,       /* cipher transform */
@@ -11,37 +17,40 @@ typedef enum {
 	LAST_TFM
 } reiser4_tfm;
 
-/* This represents a transform from the set above */
+/* This represents a transform action in reiser4 */
 typedef struct reiser4_tfma {
 	reiser4_plugin * plug;     /* transform plugin */
-	struct crypto_tfm * tfm;   /* per-transform allocated info,
-                                      belongs to the crypto-api. */
+	struct crypto_tfm * tfm;   /* low-level info, operated by
+				      linux crypto-api (see linux/crypto) */
 } reiser4_tfma_t;
 
-/* This contains cipher related info copied from user space */
+/* key info imported from user space */
 typedef struct crypto_data {
-	int keysize;    /* key size */
+	int keysize;    /* uninstantiated key size */
 	__u8 * key;     /* uninstantiated key */
 	int keyid_size; /* size of passphrase */
-	__u8 * keyid;   /* passphrase (uninstantiated keyid) */
+	__u8 * keyid;   /* passphrase */
 } crypto_data_t;
 
-/* Dynamically allocated per instantiated key info */
+/* This object contains all needed infrastructure to implement
+   cipher transform. This is operated (allocating, inheriting,
+   validating, binding to host inode, etc..) by reiser4 key manager.
+
+   This info can be allocated in two cases:
+   1. importing a key from user space. 
+   2. reading inode from disk */
 typedef struct crypto_stat {
 	reiser4_tfma_t tfma[LAST_TFM];
-//      cipher_key_plugin * kplug; *//* key manager responsible for
-//                                      inheriting, validating, etc... */
-	__u8 * keyid;                /* fingerprint (instantiated keyid) of
-					the cipher key prepared by digest
-					plugin, supposed to be stored in
-					disk stat-data */
-	int inst;                    /* this indicates if the ciper key
-					is instantiated in the system */
-	int keysize;                 /* uninstantiated key size (bytes),
-					supposed to be stored in disk
-					stat-data */
-	int keyload_count;           /* number of the objects which has
-					this crypto-stat attached */
+//      cipher_key_plugin * kplug; /* key manager */
+	__u8 * keyid;              /* key fingerprint, created by digest plugin,
+				      using uninstantiated key and passphrase.
+				      supposed to be stored in disk stat-data */
+	int inst;                  /* this indicates if the cipher key is
+				      instantiated (case 1 above) */
+	int keysize;               /* uninstantiated key size (bytes), supposed
+				      to be stored in disk stat-data */
+	int keyload_count;         /* number of the objects which has this
+				      crypto-stat attached */
 } crypto_stat_t;
 
 #endif /* __FS_REISER4_CRYPT_H__ */
