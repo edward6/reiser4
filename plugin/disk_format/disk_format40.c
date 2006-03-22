@@ -341,7 +341,7 @@ static int try_init_format40(struct super_block *super,
 			       "mount and proceed use force_mount option.\n",
 			       FORMAT40_VERSION, FORMAT40_COMPARTIBLE_WITH,
 			       super->s_id, get_format40_version(sb_copy));
-			return -EINVAL;
+			return -EPERM;
 		}
 	}
 	
