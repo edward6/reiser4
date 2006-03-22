@@ -198,10 +198,6 @@ init_fake_inode(struct super_block *super, struct inode *fake,
 {
 	assert("nikita-2168", fake->i_state & I_NEW);
 	fake->i_mapping->a_ops = &formatted_fake_as_ops;
-	fake->i_blkbits = super->s_blocksize_bits;
-	fake->i_size = ~0ull;
-	fake->i_rdev = super->s_bdev->bd_dev;
-	fake->i_bdev = super->s_bdev;
 	*pfake = fake;
 	/* NOTE-NIKITA something else? */
 	unlock_new_inode(fake);
