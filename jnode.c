@@ -1927,6 +1927,7 @@ void info_jnode(const char *prefix /* prefix to print */ ,
 
 #endif				/* REISER4_DEBUG */
 
+#ifdef REISER4_COPY_ON_CAPTURE
 /* this is only used to created jnode during capture copy */
 jnode *jclone(jnode * node)
 {
@@ -1942,6 +1943,7 @@ jnode *jclone(jnode * node)
 	JF_SET(clone, JNODE_CC);
 	return clone;
 }
+#endif  /*  REISER4_COPY_ON_CAPTURE  */
 
 /* Make Linus happy.
    Local variables:

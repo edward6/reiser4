@@ -192,9 +192,6 @@ int release_cryptcompress(struct inode *, struct file *);
 extern int readpage_cryptcompress(struct file *, struct page *);
 extern int writepages_cryptcompress(struct address_space *,
 				     struct writeback_control *);
-extern void readpages_cryptcompress(struct file *, struct address_space *,
-				    struct list_head *pages);
-extern sector_t bmap_cryptcompress(struct address_space *, sector_t lblock);
 
 
 /* file plugin operations */

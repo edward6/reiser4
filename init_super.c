@@ -730,25 +730,6 @@ int init_root_inode(struct super_block *super)
 	return result;
 }
 
-/**
- * done_root_inode - put inode of root directory
- * @super: super block of filesystem
- *
- * Puts inode of root directory.
- */
-#if 0
-void done_root_inode(struct super_block *super)
-{
-	/* remove unused children of the parent dentry */
-	shrink_dcache_parent(super->s_root);
-	assert("vs-1714", hlist_empty(&super->s_anon));
-	dput(super->s_root);
-	super->s_root = NULL;
-	/* discard all inodes of filesystem */
-	invalidate_inodes(super);
-}
-#endif  /*  0  */
-
 /*
  * Local variables:
  * c-indentation-style: "K&R"
