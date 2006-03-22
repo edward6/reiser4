@@ -70,7 +70,7 @@ reiser4_block_nr estimate_insert_flow(tree_level height)
 }
 
 /* returnes max number of nodes can be occupied by disk cluster */
-reiser4_block_nr estimate_cluster(struct inode * inode, int unprepped)
+static reiser4_block_nr estimate_cluster(struct inode * inode, int unprepped)
 {
 	int per_cluster;
 	per_cluster = (unprepped ? 1 : cluster_nrpages(inode));

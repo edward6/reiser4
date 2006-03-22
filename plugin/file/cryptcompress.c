@@ -1251,30 +1251,6 @@ int readpage_cryptcompress(struct file *file, struct page *page)
 	return result;
 }
 
-/* plugin->readpages() */
-void
-readpages_cryptcompress(struct file *file, struct address_space *mapping,
-			struct list_head *pages)
-{
-	file_plugin *fplug;
-	item_plugin *iplug;
-
-	assert("edward-1112", mapping != NULL);
-	assert("edward-1113", mapping->host != NULL);
-
-	if (check_cryptcompress(mapping->host))
-		return;
-	fplug = inode_file_plugin(mapping->host);
-
-	assert("edward-1114", fplug == file_plugin_by_id(CRC_FILE_PLUGIN_ID));
-
-	iplug = item_plugin_by_id(CTAIL_ID);
-
-	iplug->s.file.readpages(file, mapping, pages);
-
-	return;
-}
-
 /* how much pages will be captured */
 static int cluster_nrpages_to_capture(reiser4_cluster_t * clust)
 {
@@ -3612,69 +3588,6 @@ int mmap_cryptcompress(struct file *file, struct vm_area_struct *vma)
 
 /* plugin->u.file.release */
 /* plugin->u.file.get_block */
-
-/* implentation of vfs' bmap method of struct address_space_operations for
-   cryptcompress plugin
-*/
-sector_t bmap_cryptcompress(struct address_space * mapping, sector_t lblock)
-{
-	struct inode *inode;
-	sector_t block;
-
-	inode = mapping->host;
-	if (off_to_cloff ((loff_t)lblock * current_blocksize, inode))
-		/* mapping not cluster offsets is meaningless */
-		return RETERR(-EINVAL);
-	else {
-		int result;
-		reiser4_key key;
-		hint_t *hint;
-		lock_handle *lh;
-		item_plugin *iplug;
-
-		assert("edward-1166", 0);
-		key_by_inode_cryptcompress(inode,
-					   (loff_t) block * current_blocksize,
-					   &key);
-
-		hint = kmalloc(sizeof(*hint), GFP_KERNEL);
-		if (IS_ERR(hint))
-			return RETERR(-ENOMEM);
-		hint_init_zero(hint);
-		lh = &hint->lh;
-		result =
-		    find_cluster_item(hint, &key, ZNODE_READ_LOCK, NULL,
-				      FIND_EXACT, 0);
-		if (result != CBK_COORD_FOUND) {
-			done_lh(lh);
-			kfree(hint);
-			return result;
-		}
-		result = zload(hint->ext_coord.coord.node);
-		if (unlikely(result)) {
-			done_lh(lh);
-			kfree(hint);
-			return result;
-		}
-		iplug = item_plugin_by_coord(&hint->ext_coord.coord);
-
-		assert("edward-421", iplug == item_plugin_by_id(CTAIL_ID));
-
-		if (iplug->s.file.get_block) {
-			result =
-			    iplug->s.file.get_block(&hint->ext_coord.coord,
-						    lblock, &block);
-			if (result == 0)
-				result = block;
-		} else
-			result = RETERR(-EINVAL);
-
-		zrelse(hint->ext_coord.coord.node);
-		done_lh(lh);
-		kfree(hint);
-		return result;
-	}
-}
 
 /* this is implementation of delete method of file plugin for
    cryptcompress objects */
