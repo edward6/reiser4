@@ -24,7 +24,7 @@ int reiser4_writepage(struct page *, struct writeback_control *);
 int reiser4_set_page_dirty(struct page *);
 int reiser4_readpages(struct file *, struct address_space *,
 		      struct list_head *pages, unsigned nr_pages);
-int reiser4_invalidatepage(struct page *, unsigned long offset);
+void reiser4_invalidatepage(struct page *, unsigned long offset);
 int reiser4_releasepage(struct page *, gfp_t);
 
 extern int reiser4_update_sd(struct inode *);

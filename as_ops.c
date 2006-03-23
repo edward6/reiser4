@@ -170,7 +170,7 @@ reiser4_readpages(struct file *file, struct address_space *mapping,
  * @offset: starting offset for partial invalidation
  *
  */
-int reiser4_invalidatepage(struct page *page, unsigned long offset)
+void reiser4_invalidatepage(struct page *page, unsigned long offset)
 {
 	int ret = 0;
 	reiser4_context *ctx;
@@ -208,11 +208,11 @@ int reiser4_invalidatepage(struct page *page, unsigned long offset)
 	 * them. Check for this, and do nothing.
 	 */
 	if (get_super_fake(inode->i_sb) == inode)
-		return 0;
+		return;
 	if (get_cc_fake(inode->i_sb) == inode)
-		return 0;
+		return;
 	if (get_bitmap_fake(inode->i_sb) == inode)
-		return 0;
+		return;
 	assert("vs-1426", PagePrivate(page));
 	assert("vs-1427",
 	       page->mapping == jnode_get_mapping(jnode_by_page(page)));
@@ -222,7 +222,7 @@ int reiser4_invalidatepage(struct page *page, unsigned long offset)
 
 	ctx = init_context(inode->i_sb);
 	if (IS_ERR(ctx))
-		return PTR_ERR(ctx);
+		return;
 
 	node = jprivate(page);
 	spin_lock_jnode(node);
@@ -236,7 +236,7 @@ int reiser4_invalidatepage(struct page *page, unsigned long offset)
 		unhash_unformatted_jnode(node);
 		jput(node);
 		reiser4_exit_context(ctx);
-		return 0;
+		return;
 	}
 	spin_unlock_jnode(node);
 
@@ -265,7 +265,6 @@ int reiser4_invalidatepage(struct page *page, unsigned long offset)
 	}
 
 	reiser4_exit_context(ctx);
-	return ret;
 }
 
 /* help function called from reiser4_releasepage(). It returns true if jnode
