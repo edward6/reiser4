@@ -343,14 +343,6 @@ static int insert_cursor(dir_cursor *cursor, struct file *file,
 			cursor->info = info;
 			cursor->ref = 1;
 
-			printk("insert_cursor: %p: (%p %p %p %p %p)\n",
-			       cursor,
-			       __builtin_return_address(0),
-			       __builtin_return_address(1),
-			       __builtin_return_address(2),
-			       __builtin_return_address(3),
-			       __builtin_return_address(4));
-
 			spin_lock_inode(inode);
 			/* install cursor as @f's private_data, discarding old
 			 * one if necessary */
