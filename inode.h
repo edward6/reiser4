@@ -55,7 +55,7 @@ typedef enum {
 	 * were created by ->readpage. It is set by mmap_unix_file() and
 	 * sendfile_unix_file(). This bit is inspected by write_unix_file and
 	 * kill-hook of tail items. It is never cleared once set. This bit is
-	 * modified and inspected under i_sem. */
+	 * modified and inspected under i_mutex. */
 	REISER4_HAS_MMAP = 8,
 	/* file was partially converted. It's body consists of a mix of tail
 	 * and extent items. */

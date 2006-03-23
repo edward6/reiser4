@@ -57,7 +57,7 @@ struct reiser4_context {
 	/* true, if balance_dirty_pages() should not be run when leaving this
 	 * context. This is used to avoid lengthly balance_dirty_pages()
 	 * operation when holding some important resource, like directory
-	 * ->i_sem */
+	 * ->i_mutex */
 	unsigned int nobalance:1;
 
 	/* this bit is used on done_context to decide whether context is
@@ -194,7 +194,7 @@ static inline int is_grab_enabled(reiser4_context * ctx)
 
 /* mark transaction handle in @ctx as TXNH_DONT_COMMIT, so that no commit or
  * flush would be performed when it is closed. This is necessary when handle
- * has to be closed under some coarse semaphore, like i_sem of
+ * has to be closed under some coarse semaphore, like i_mutex of
  * directory. Commit will be performed by ktxnmgrd. */
 static inline void context_set_commit_async(reiser4_context * context)
 {

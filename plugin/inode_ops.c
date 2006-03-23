@@ -93,7 +93,7 @@ struct dentry *lookup_common(struct inode *parent, struct dentry *dentry,
 	reiser4_iget_complete(inode);
 
 	/* prevent balance_dirty_pages() from being called: we don't want to
-	 * do this under directory i_sem. */
+	 * do this under directory i_mutex. */
 	context_set_commit_async(ctx);
 	reiser4_exit_context(ctx);
 	return new;
@@ -163,7 +163,7 @@ int link_common(struct dentry *existing, struct inode *parent,
 	}
 
 	/*
-	 * Subtle race handling: sys_link() doesn't take i_sem on @parent. It
+	 * Subtle race handling: sys_link() doesn't take i_mutex on @parent. It
 	 * means that link(2) can race against unlink(2) or rename(2), and
 	 * inode is dead (->i_nlink == 0) when reiser4_link() is entered.
 	 *
@@ -305,7 +305,7 @@ int unlink_common(struct inode *parent, struct dentry *victim)
 	 * we cannot release directory semaphore here, because name has
 	 * already been deleted, but dentry (@victim) still exists.  Prevent
 	 * balance_dirty_pages() from being called on exiting this context: we
-	 * don't want to do this under directory i_sem.
+	 * don't want to do this under directory i_mutex.
 	 */
 	context_set_commit_async(ctx);
 	reiser4_exit_context(ctx);

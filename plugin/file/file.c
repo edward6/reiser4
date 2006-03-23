@@ -1432,7 +1432,7 @@ static int sync_page_list(struct inode *inode)
 		if (found == 0)
 			break;
 
-		/* page may not leave radix tree because it is protected from truncating by inode->i_sem downed by
+		/* page may not leave radix tree because it is protected from truncating by inode->i_mutex locked by
 		   sys_fsync */
 		page_cache_get(page);
 		read_unlock_irq(&mapping->tree_lock);
@@ -1480,7 +1480,7 @@ static int commit_file_atoms(struct inode *inode)
 		return result;
 
 	/*
-	 * file state cannot change because we are under ->i_sem
+	 * file state cannot change because we are under ->i_mutex
 	 */
 	switch (uf_info->container) {
 	case UF_CONTAINER_EXTENTS:
@@ -3153,9 +3153,9 @@ sendfile_unix_file(struct file *file, loff_t *ppos, size_t count,
 				    BA_CAN_COMMIT);
 	if (result)
 		goto error;
-	down(&inode->i_sem);
+	mutex_lock(&inode->i_mutex);
 	inode_set_flag(inode, REISER4_HAS_MMAP);
-	up(&inode->i_sem);
+	mutex_unlock(&inode->i_mutex);
 
 	uf_info = unix_file_inode_data(inode);
 	get_nonexclusive_access(uf_info, 0);

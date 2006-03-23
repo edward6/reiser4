@@ -19,7 +19,7 @@
 
 /*
  * locking: fields of per file descriptor readdir_pos and ->f_pos are
- * protected by ->i_sem on inode. Under this lock following invariant
+ * protected by ->i_mutex on inode. Under this lock following invariant
  * holds:
  *
  *     file descriptor is "looking" at the entry_no-th directory entry from

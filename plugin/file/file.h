@@ -77,11 +77,11 @@ typedef struct unix_file_info {
 	 */
 	struct rw_semaphore latch;
 	/*
-	 * this semaphore is used to serialize writes instead of inode->i_sem,
+	 * this semaphore is used to serialize writes instead of inode->i_mutex,
 	 * because write_unix_file uses get_user_pages which is to be used
 	 * under mm->mmap_sem and because it is required to take mm->mmap_sem
-	 * before inode->i_sem, so inode->i_sem would have to be up()-ed before
-	 * calling to get_user_pages which is unacceptable
+	 * before inode->i_mutex, so inode->i_mutex would have to be unlocked
+	 * before calling to get_user_pages which is unacceptable
 	 */
 	struct semaphore write;
 	/* this enum specifies which items are used to build the file */

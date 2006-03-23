@@ -482,7 +482,7 @@ loff_t llseek_common_dir(struct file * file, loff_t off, int origin)
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 
-	down(&inode->i_sem);
+	mutex_lock(&inode->i_mutex);
 
 	/* update ->f_pos */
 	result = default_llseek(file, off, origin);
@@ -504,7 +504,7 @@ loff_t llseek_common_dir(struct file * file, loff_t off, int origin)
 		tap_done(&tap);
 	}
 	detach_fsdata(file);
-	up(&inode->i_sem);
+	mutex_unlock(&inode->i_mutex);
 
 	reiser4_exit_context(ctx);
 	return result;
