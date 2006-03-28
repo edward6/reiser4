@@ -62,6 +62,7 @@ static void set_file_state_unknown(struct inode *inode)
 	unix_file_inode_data(inode)->container = UF_CONTAINER_UNKNOWN;
 }
 
+#if 0
 /**
  * less_than_ldk - compare key and znode's left delimiting key
  * @node: node whose left delimiting key to compare with @key
@@ -78,6 +79,7 @@ static int less_than_ldk(znode *node, const reiser4_key *key)
 	read_unlock_dk(znode_get_tree(node));
 	return result;
 }
+#endif
 
 /**
  * equal_to_rdk - compare key and znode's right delimiting key
@@ -98,6 +100,7 @@ int equal_to_rdk(znode *node, const reiser4_key *key)
 
 #if REISER4_DEBUG
 
+#if 0
 /**
  * less_than_rdk - compare key and znode's right delimiting key
  * @node: node whose right delimiting key to compare with @key
@@ -114,6 +117,7 @@ static int less_than_rdk(znode *node, const reiser4_key *key)
 	read_unlock_dk(znode_get_tree(node));
 	return result;
 }
+#endif
 
 /**
  * equal_to_ldk - compare key and znode's left delimiting key
@@ -132,6 +136,7 @@ int equal_to_ldk(znode *node, const reiser4_key *key)
 	return result;
 }
 
+#if 0
 /**
  * get_next_item_key - get key of item next to the one @coord is set to
  * @coord: left neighbor of item which key is to be calculated
@@ -159,7 +164,9 @@ static reiser4_key *get_next_item_key(const coord_t *coord,
 	}
 	return next_key;
 }
+#endif
 
+#if 0
 /**
  * item_of_that_file - check whether item if of certain file
  * @coord: item to check
@@ -177,6 +184,7 @@ static int item_of_that_file(const coord_t *coord, const reiser4_key *key)
 	assert("vs-1011", iplug->b.max_key_inside);
 	return keylt(key, iplug->b.max_key_inside(coord, &max_possible));
 }
+#endif
 
 /**
  * check_coord - check whether coord corresponds to key
@@ -225,9 +233,13 @@ static void init_uf_coord(uf_coord_t *uf_coord, lock_handle *lh)
 	uf_coord->valid = 0;
 }
 
-static inline void validate_extended_coord(uf_coord_t * uf_coord, loff_t offset)
+void validate_extended_coord(uf_coord_t *uf_coord, loff_t offset)
 {
 	assert("vs-1333", uf_coord->valid == 0);
+
+	if (coord_is_between_items(&uf_coord->coord))
+		return;
+
 	assert("vs-1348",
 	       item_plugin_by_coord(&uf_coord->coord)->s.file.
 	       init_coord_extension);
@@ -237,6 +249,7 @@ static inline void validate_extended_coord(uf_coord_t * uf_coord, loff_t offset)
 	    init_coord_extension(uf_coord, offset);
 }
 
+#if 0
 write_mode_t how_to_write(uf_coord_t * uf_coord, const reiser4_key * key)
 {
 	write_mode_t result;
@@ -327,6 +340,7 @@ write_mode_t how_to_write(uf_coord_t * uf_coord, const reiser4_key * key)
 	assert("vs-1332", check_coord(coord, key));
 	return result;
 }
+#endif
 
 /* obtain lock on right neighbor and drop lock on current node */
 int goto_right_neighbor(coord_t * coord, lock_handle * lh)
@@ -366,6 +380,9 @@ set_file_state(struct inode *inode, int cbk_result, tree_level level)
 	if (cbk_errored(cbk_result))
 		/* error happened in find_file_item */
 		return;
+
+	set_file_state_extents(inode);
+	return;
 
 	assert("vs-1164", level == LEAF_LEVEL || level == TWIG_LEVEL);
 
@@ -407,9 +424,9 @@ set_file_state(struct inode *inode, int cbk_result, tree_level level)
  * This finds position in the tree corresponding to @key. It first tries to use
  * @hint's seal if it is set.
  */
-static int find_file_item(hint_t *hint, const reiser4_key *key,
-			  znode_lock_mode lock_mode,
-			  struct inode *inode)
+int find_file_item(hint_t *hint, const reiser4_key *key,
+		   znode_lock_mode lock_mode,
+		   struct inode *inode)
 {
 	int result;
 	coord_t *coord;
@@ -677,7 +694,7 @@ static int shorten_file(struct inode *inode, loff_t new_size)
 	/* all items of ordinary reiser4 file are grouped together. That is why we can use cut_tree. Plan B files (for
 	   instance) can not be truncated that simply */
 	result =
-	    cut_file_items(inode, new_size, 1 /*update_sd */ ,
+		cut_file_items(inode, new_size, 1 /*update_sd */ ,
 			   get_key_offset(max_key()), update_file_size);
 	if (result)
 		return result;
@@ -751,39 +768,6 @@ static int shorten_file(struct inode *inode, loff_t new_size)
 	return 0;
 }
 
-static loff_t
-write_flow(hint_t *, struct file *, struct inode *, const char __user *buf,
-	   loff_t count, loff_t pos, int exclusive);
-
-/* it is called when truncate is used to make file longer and when write
-   position is set past real end of file. It appends file which has size
-   @cur_size with hole of certain size (@hole_size). It returns 0 on success,
-   error code otherwise */
-static int
-append_hole(hint_t * hint, struct inode *inode, loff_t new_size, int exclusive)
-{
-	int result;
-	loff_t written;
-	loff_t hole_size;
-
-	assert("vs-1107", inode->i_size < new_size);
-
-	result = 0;
-	hole_size = new_size - inode->i_size;
-	written = write_flow(hint, NULL, inode, NULL /*buf */ , hole_size,
-			     inode->i_size, exclusive);
-	if (written != hole_size) {
-		/* return error because file is not expanded as required */
-		if (written > 0)
-			result = RETERR(-ENOSPC);
-		else
-			result = written;
-	} else {
-		assert("vs-1081", inode->i_size == new_size);
-	}
-	return result;
-}
-
 /**
  * truncate_file_body - change length of file
  * @inode: inode of file
@@ -798,15 +782,19 @@ static int truncate_file_body(struct inode *inode, loff_t new_size)
 	int result;
 
 	if (inode->i_size < new_size) {
-		hint_t *hint;
+		struct dentry dentry;
+		struct file file;
 
-		hint = kmalloc(sizeof(*hint), GFP_KERNEL);
-		if (hint == NULL)
-			return RETERR(-ENOMEM);
-		hint_init_zero(hint);
-		result = append_hole(hint, inode, new_size,
-				     1 /* exclusive access is obtained */ );
-		kfree(hint);
+		dentry.d_inode = inode;
+		file.f_dentry = &dentry;
+		file.private_data = NULL;
+		file.f_pos = new_size;
+		result = write_extent(&file, NULL, 0, &new_size);
+		BUG_ON(result != 0);
+		INODE_SET_FIELD(inode, i_size, new_size);
+		file_update_time(&file);
+		result = reiser4_update_sd(inode);
+		BUG_ON(result != 0);
 	} else
 		result = shorten_file(inode, new_size);
 	return result;
@@ -814,9 +802,18 @@ static int truncate_file_body(struct inode *inode, loff_t new_size)
 
 /* plugin->u.write_sd_by_inode = write_sd_by_inode_common */
 
-/* get access hint (seal, coord, key, level) stored in reiser4 private part of
-   struct file if it was stored in a previous access to the file */
-int load_file_hint(struct file *file, hint_t * hint)
+/**
+ * load_file_hint - copy hint from struct file to local variable
+ * @file: file to get hint from
+ * @hint: structure to fill
+ *
+ * Reiser4 specific portion of struct file may contain information (hint)
+ * stored on exiting from previous read or write. That information includes
+ * seal of znode and coord within that znode where previous read or write
+ * stopped. This function copies that information to @hint if it was stored or
+ * initializes @hint by 0s otherwise.
+ */
+int load_file_hint(struct file *file, hint_t *hint)
 {
 	reiser4_file_fsdata *fsdata;
 
@@ -831,8 +828,10 @@ int load_file_hint(struct file *file, hint_t * hint)
 			init_lh(&hint->lh);
 			hint->ext_coord.lh = &hint->lh;
 			spin_unlock_inode(file->f_dentry->d_inode);
-			/* force re-validation of the coord on the first
-			 * iteration of the read/write loop. */
+			/*
+			 * force re-validation of the coord on the first
+			 * iteration of the read/write loop.
+			 */
 			hint->ext_coord.valid = 0;
 			assert("nikita-19892", coords_equal(&hint->seal.coord1,
 							    &hint->ext_coord.
@@ -846,9 +845,15 @@ int load_file_hint(struct file *file, hint_t * hint)
 	return 0;
 }
 
-/* this copies hint for future tree accesses back to reiser4 private part of
-   struct file */
-void save_file_hint(struct file *file, const hint_t * hint)
+/**
+ * save_file_hint - copy hint to reiser4 private struct file's part
+ * @file: file to save hint in
+ * @hint: hint to save
+ *
+ * This copies @hint to reiser4 private part of struct file. It can help
+ * speedup future accesses to the file.
+ */
+void save_file_hint(struct file *file, const hint_t *hint)
 {
 	reiser4_file_fsdata *fsdata;
 
@@ -922,6 +927,12 @@ hint_validate(hint_t * hint, const reiser4_key * key, int check_key,
 			     hint->ext_coord.lh, lock_mode, ZNODE_LOCK_LOPRI);
 }
 
+/**
+ * find_or_create_extent - 
+ * @page: 
+ *
+ *
+ */
 /* look for place at twig level for extent corresponding to page, call extent's writepage method to create
    unallocated extent if it does not exist yet, initialize jnode, capture page */
 int find_or_create_extent(struct page *page)
@@ -931,9 +942,9 @@ int find_or_create_extent(struct page *page)
 	coord_t *coord;
 	lock_handle lh;
 	reiser4_key key;
-	item_plugin *iplug;
 	znode *loaded;
 	struct inode *inode;
+	int plugged_hole;
 
 	assert("vs-1065", page->mapping && page->mapping->host);
 	inode = page->mapping->host;
@@ -946,14 +957,13 @@ int find_or_create_extent(struct page *page)
 	init_uf_coord(&uf_coord, &lh);
 	coord = &uf_coord.coord;
 
-	result =
-	    find_file_item_nohint(coord, &lh, &key, ZNODE_WRITE_LOCK, inode);
+	result = find_file_item_nohint(coord, &lh, &key, ZNODE_WRITE_LOCK,
+				       inode);
 	if (IS_CBKERR(result)) {
 		done_lh(&lh);
 		return result;
 	}
 
-	/*coord_clear_iplug(coord); */
 	result = zload(coord->node);
 	if (result) {
 		done_lh(&lh);
@@ -961,14 +971,18 @@ int find_or_create_extent(struct page *page)
 	}
 	loaded = coord->node;
 
-	/* get plugin of extent item */
-	iplug = item_plugin_by_id(EXTENT_POINTER_ID);
-	result =
-	    iplug->s.file.capture(&key, &uf_coord, page,
-				  how_to_write(&uf_coord, &key));
+	validate_extended_coord(&uf_coord,
+				(loff_t) page->index << PAGE_CACHE_SHIFT);
+
+	plugged_hole = 0;
+	result = capture_extent(&key, &uf_coord, page, &plugged_hole);
 	assert("vs-429378", result != -E_REPEAT);
 	zrelse(loaded);
 	done_lh(&lh);
+
+	if (plugged_hole)
+		reiser4_update_sd(inode);
+
 	return result;
 }
 
@@ -1822,10 +1836,8 @@ int readpage_unix_file_nolock(struct file *file, struct page *page)
 		return result;
 	}
 
-	if (hint->ext_coord.valid == 0)
-		validate_extended_coord(&hint->ext_coord,
-					(loff_t) page->
-					index << PAGE_CACHE_SHIFT);
+	validate_extended_coord(&hint->ext_coord,
+				(loff_t) page->index << PAGE_CACHE_SHIFT);
 
 	if (!coord_is_existing_unit(coord)) {
 		/* this indicates corruption */
@@ -2087,186 +2099,6 @@ read_unix_file(struct file *file, char __user *buf, size_t read_amount,
 	return count ? count : result;
 }
 
-typedef int (*write_f_t) (struct inode *, flow_t *, hint_t *, int grabbed,
-			  write_mode_t);
-
-/* This searches for write position in the tree and calls write method of
-   appropriate item to actually copy user data into filesystem. This loops
-   until all the data from flow @f are written to a file. */
-static loff_t
-append_and_or_overwrite(hint_t * hint, struct file *file, struct inode *inode,
-			flow_t * flow,
-			int exclusive
-			/* if 1 - exclusive access on a file is obtained */ )
-{
-	int result;
-	loff_t to_write;
-	write_f_t write_f;
-	file_container_t cur_container, new_container;
-	znode *loaded;
-	unix_file_info_t *uf_info;
-
-	assert("nikita-3031", schedulable());
-	assert("vs-1109", get_current_context()->grabbed_blocks == 0);
-	assert("vs-1708", hint != NULL);
-
-	init_lh(&hint->lh);
-
-	result = 0;
-	uf_info = unix_file_inode_data(inode);
-
-	to_write = flow->length;
-	while (flow->length) {
-
-		assert("vs-1123", get_current_context()->grabbed_blocks == 0);
-
-		if (to_write == flow->length) {
-			/* it may happend that find_file_item will have to insert empty node to the tree (empty leaf
-			   node between two extent items) */
-			result =
-			    reiser4_grab_space_force(1 +
-						     estimate_one_insert_item
-						     (tree_by_inode(inode)), 0);
-			if (result)
-				return result;
-		}
-		/* when hint is set - hint's coord matches seal's coord */
-		assert("nikita-19894",
-		       !hint_is_set(hint) ||
-		       coords_equal(&hint->seal.coord1,
-				    &hint->ext_coord.coord));
-
-		/* look for file's metadata (extent or tail item) corresponding to position we write to */
-		result = find_file_item(hint, &flow->key, ZNODE_WRITE_LOCK,
-					inode);
-		all_grabbed2free();
-		if (IS_CBKERR(result)) {
-			/* error occurred */
-			done_lh(&hint->lh);
-			return result;
-		}
-		assert("vs-32", hint->lh.node == hint->ext_coord.coord.node);
-		cur_container = uf_info->container;
-		switch (cur_container) {
-		case UF_CONTAINER_EMPTY:
-			assert("vs-1196", get_key_offset(&flow->key) == 0);
-			if (should_have_notail
-			    (uf_info,
-			     get_key_offset(&flow->key) + flow->length)) {
-				new_container = UF_CONTAINER_EXTENTS;
-				write_f =
-				    item_plugin_by_id(EXTENT_POINTER_ID)->s.
-				    file.write;
-			} else {
-				new_container = UF_CONTAINER_TAILS;
-				write_f =
-				    item_plugin_by_id(FORMATTING_ID)->s.file.
-				    write;
-			}
-			break;
-
-		case UF_CONTAINER_EXTENTS:
-			write_f =
-			    item_plugin_by_id(EXTENT_POINTER_ID)->s.file.write;
-			new_container = cur_container;
-			break;
-
-		case UF_CONTAINER_TAILS:
-			if (should_have_notail
-			    (uf_info,
-			     get_key_offset(&flow->key) + flow->length)) {
-				done_lh(&hint->lh);
-				if (!exclusive) {
-					drop_nonexclusive_access(uf_info);
-					txn_restart_current();
-					get_exclusive_access(uf_info);
-				}
-				result = tail2extent(uf_info);
-				if (!exclusive) {
-					drop_exclusive_access(uf_info);
-					txn_restart_current();
-					get_nonexclusive_access(uf_info, 0);
-				}
-				if (result)
-					return result;
-				all_grabbed2free();
-				unset_hint(hint);
-				continue;
-			}
-			write_f =
-			    item_plugin_by_id(FORMATTING_ID)->s.file.write;
-			new_container = cur_container;
-			break;
-
-		default:
-			done_lh(&hint->lh);
-			return RETERR(-EIO);
-		}
-
-		result = zload(hint->lh.node);
-		if (result) {
-			done_lh(&hint->lh);
-			return result;
-		}
-		loaded = hint->lh.node;
-		assert("vs-11", hint->ext_coord.coord.node == loaded);
-		result = write_f(inode, flow, hint, 0 /* not grabbed */ ,
-				 how_to_write(&hint->ext_coord, &flow->key));
-
-		assert("nikita-3142",
-		       get_current_context()->grabbed_blocks == 0);
-		/* seal has either to be not set to set properly */
-		assert("nikita-19893",
-		       ((!hint_is_set(hint) && hint->ext_coord.valid == 0) ||
-			(coords_equal
-			 (&hint->seal.coord1, &hint->ext_coord.coord)
-			 && keyeq(&flow->key, &hint->seal.key))));
-
-		if (cur_container == UF_CONTAINER_EMPTY
-		    && to_write != flow->length) {
-			/* file was empty and we have written something and we are having exclusive access to the file -
-			   change file state */
-			assert("vs-1195",
-			       (new_container == UF_CONTAINER_TAILS
-				|| new_container == UF_CONTAINER_EXTENTS));
-			uf_info->container = new_container;
-		}
-		zrelse(loaded);
-		done_lh(&hint->lh);
-		if (result && result != -E_REPEAT && result != -E_DEADLOCK)
-			break;
-		preempt_point();
-	}
-
-	/* if nothing were written - there must be an error */
-	assert("vs-951", ergo((to_write == flow->length), result < 0));
-	assert("vs-1110", get_current_context()->grabbed_blocks == 0);
-
-	return (to_write - flow->length) ? (to_write - flow->length) : result;
-}
-
-/* make flow and write data (@buf) to the file. If @buf == 0 - hole of size @count will be created. This is called with
-   uf_info->latch either read- or write-locked */
-static loff_t
-write_flow(hint_t * hint, struct file *file, struct inode *inode,
-	   const char __user *buf, loff_t count, loff_t pos, int exclusive)
-{
-	int result;
-	flow_t flow;
-
-	assert("vs-1251",
-	       inode_file_plugin(inode)->flow_by_inode ==
-	       flow_by_inode_unix_file);
-
-	result = flow_by_inode_unix_file(inode,
-					 buf, 1 /* user space */ ,
-					 count, pos, WRITE_OP, &flow);
-	if (result)
-		return result;
-
-	return append_and_or_overwrite(hint, file, inode, &flow, exclusive);
-}
-
 /* This function takes care about @file's pages. First of all it checks if
    filesystems readonly and if so gets out. Otherwise, it throws out all
    pages of file if it was mapped for read and going to be mapped for write
@@ -2377,39 +2209,6 @@ int mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 	return result;
 }
 
-static ssize_t write_file(hint_t * hint, struct file *file,	/* file to write to */
-			  const char __user *buf,	/* address of user-space buffer */
-			  size_t count,	/* number of bytes to write */
-			  loff_t * off /* position in file to write to */ ,
-			  int exclusive)
-{
-	struct inode *inode;
-	ssize_t written;	/* amount actually written so far */
-	loff_t pos;		/* current location in the file */
-
-	inode = file->f_dentry->d_inode;
-
-	/* estimation for write is entrusted to write item plugins */
-	pos = *off;
-
-	if (inode->i_size < pos) {
-		/* pos is set past real end of file */
-		written = append_hole(hint, inode, pos, exclusive);
-		if (written)
-			return written;
-		assert("vs-1081", pos == inode->i_size);
-	}
-
-	/* write user data to the file */
-	written = write_flow(hint, file, inode, buf, count, pos, exclusive);
-	if (written > 0)
-		/* update position in a file */
-		*off = pos + written;
-
-	/* return number of written bytes, or error code */
-	return written;
-}
-
 /**
  * write_unix_file - write of struct file_operations
  * @file: file to write to
@@ -2421,18 +2220,16 @@ static ssize_t write_file(hint_t * hint, struct file *file,	/* file to write to 
  * unix file plugin.
  */
 ssize_t write_unix_file(struct file *file, const char __user *buf,
-			size_t write_amount, loff_t *off)
+			size_t count, loff_t *pos)
 {
-	reiser4_context *ctx;
 	int result;
+	reiser4_context *ctx;
 	struct inode *inode;
-	hint_t *hint;
 	unix_file_info_t *uf_info;
-	size_t count, written, left;
+	ssize_t written;
 	int try_free_space;
-
-	if (unlikely(write_amount == 0))
-		return 0;
+	int to_write = PAGE_CACHE_SIZE * WRITE_GRANULARITY;
+	size_t left;
 
 	inode = file->f_dentry->d_inode;
 	ctx = init_context(inode->i_sb);
@@ -2441,166 +2238,95 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 
 	assert("vs-947", !inode_get_flag(inode, REISER4_NO_SD));
 
-	uf_info = unix_file_inode_data(inode);
-
-	down(&uf_info->write);
-
-	result = generic_write_checks(file, off, &write_amount, 0);
+	/* check amount of bytes to write and writing position */
+	result = generic_write_checks(file, pos, &count, 0);
 	if (result) {
-		up(&uf_info->write);
+		context_set_commit_async(ctx);
+		reiser4_exit_context(ctx);
+		return result;
+	}
+	result = remove_suid(file->f_dentry);
+	if (result) {
 		context_set_commit_async(ctx);
 		reiser4_exit_context(ctx);
 		return result;
 	}
 
-	/* linux's VM requires this. See mm/vmscan.c:shrink_list() */
+	/*
+	  extents only so far
+	if (file state is unknown)
+		detect file state via find_file_item();
+	*/
+
+	written = 0;
+	try_free_space = 0;
+	uf_info = unix_file_inode_data(inode);
 	current->backing_dev_info = inode->i_mapping->backing_dev_info;
 
-	if (inode_get_flag(inode, REISER4_PART_CONV)) {
-		/* we can not currently write to a file which is partially converted */
-		get_exclusive_access(uf_info);
-		result = finish_conversion(inode);
-		drop_exclusive_access(uf_info);
-		if (result) {
-			current->backing_dev_info = NULL;
-			up(&uf_info->write);
-			context_set_commit_async(ctx);
-			reiser4_exit_context(ctx);
-			return result;
-		}
-	}
+	left = count;
+	while (left) {
+		if (left < to_write)
+			to_write = left;
 
-	if (inode_get_flag(inode, REISER4_HAS_MMAP)
-	    && uf_info->container == UF_CONTAINER_TAILS) {
-		/* file built of tails was mmaped. So, there might be
-		   faultin-ed pages filled by tail item contents and mapped to
-		   process address space.
-		   Before starting write:
-
-		   1) block new page creation by obtaining exclusive access to
-		   the file
-
-		   2) unmap address space of all mmap - now it is by
-		   reiser4_invalidate_pages which invalidate pages as well
-
-		   3) convert file to extents to not enter here on each write
-		   to mmaped file */
-		get_exclusive_access(uf_info);
-		result = check_pages_unix_file(file, inode);
-		drop_exclusive_access(uf_info);
-		if (result) {
-			current->backing_dev_info = NULL;
-			up(&uf_info->write);
-			context_set_commit_async(ctx);
-			reiser4_exit_context(ctx);
-			return result;
-		}
-	}
-
-	/* UNIX behavior: clear suid bit on file modification. This cannot be
-	   done earlier, because removing suid bit captures blocks into
-	   transaction, which should be done after taking either exclusive or
-	   non-exclusive access on the file. */
-	result = remove_suid(file->f_dentry);
-	if (result != 0) {
-		current->backing_dev_info = NULL;
-		up(&uf_info->write);
-		context_set_commit_async(ctx);
-		reiser4_exit_context(ctx);
-		return result;
-	}
-	grab_space_enable();
-
-	hint = kmalloc(sizeof(*hint), GFP_KERNEL);
-	if (hint == NULL) {
-		current->backing_dev_info = NULL;
-		up(&uf_info->write);
-		context_set_commit_async(ctx);
-		reiser4_exit_context(ctx);
-		return RETERR(-ENOMEM);
-	}
-
-	/* get seal and coord sealed with it from reiser4 private data of
-	 * struct file */
-	result = load_file_hint(file, hint);
-	if (result) {
-		current->backing_dev_info = NULL;
-		up(&uf_info->write);
-		kfree(hint);
-		context_set_commit_async(ctx);
-		reiser4_exit_context(ctx);
-		return result;
-	}
-
-	left = write_amount;
-	count = 0;
-	try_free_space = 1;
-
-	while (left > 0) {
-		int excl = 0;
-
-		/* getting exclusive or not exclusive access requires no
-		   transaction open */
-		txn_restart_current();
-
-		/* faultin user page */
-		fault_in_pages_readable(buf,
-					left > PAGE_CACHE_SIZE ? PAGE_CACHE_SIZE : left);
-
-		if (inode->i_size == 0) {
-			get_exclusive_access(uf_info);
-			excl = 1;
-		} else {
-			get_nonexclusive_access(uf_info, 0);
-			excl = 0;
-		}
-
-		all_grabbed2free();
-		written = write_file(hint, file, buf, left, off, excl);
-		if (excl)
-			drop_exclusive_access(uf_info);
-		else
+		get_nonexclusive_access(uf_info, 0);
+		written = write_extent(file, buf, to_write, pos);
+		if (written == -ENOSPC && try_free_space) {
 			drop_nonexclusive_access(uf_info);
-
-		/* With no locks held we can commit atoms in attempt to recover
-		 * free space. */
-		if ((ssize_t) written == -ENOSPC && try_free_space) {
 			txnmgr_force_commit_all(inode->i_sb, 0);
 			try_free_space = 0;
 			continue;
 		}
-		if ((ssize_t) written < 0) {
+		if (written < 0) {
 			result = written;
 			break;
 		}
+		if (*pos + written > inode->i_size)
+			INODE_SET_FIELD(inode, i_size, *pos + written);
+		file_update_time(file);
+		result = reiser4_update_sd(inode);
+		if (result) {
+			current->backing_dev_info = NULL;
+			drop_nonexclusive_access(uf_info);
+			context_set_commit_async(ctx);
+			reiser4_exit_context(ctx);
+			current->backing_dev_info = NULL;
+			return result;
+		}
+		drop_nonexclusive_access(uf_info);
+		txn_restart(ctx);
+
+		/*
+		 * call bdprl so that it for sure calls bdp: this can be done
+		 * be calling bdplrl in a loop and checking flag in context
+		 * and have reiser4_sync_inodes to set that flag
+		 */
+		balance_dirty_pages(inode->i_mapping);
+
 		left -= written;
 		buf += written;
-
-		/* total number of written bytes */
-		count += written;
+		*pos += written;
 	}
 
 	if (result == 0 && ((file->f_flags & O_SYNC) || IS_SYNC(inode))) {
 		txn_restart_current();
 		grab_space_enable();
-		result =
-		    sync_unix_file(file, file->f_dentry,
-				   0 /* data and stat data */ );
+		result = sync_unix_file(file, file->f_dentry,
+				       0 /* data and stat data */ );
 		if (result)
 			warning("reiser4-7", "failed to sync file %llu",
 				(unsigned long long)get_inode_oid(inode));
 	}
 
-	save_file_hint(file, hint);
-	kfree(hint);
-	up(&uf_info->write);
 	current->backing_dev_info = NULL;
 
-	context_set_commit_async(ctx);
 	reiser4_exit_context(ctx);
 
-	/* return number of written bytes or error code if nothing is written */
-	return count ? count : result;
+	/*
+	 * return number of written bytes or error code if nothing is
+	 * written. Note, that it does not work correctly in case when
+	 * sync_unix_file returns error
+	 */
+	return (count - left) ? (count - left) : result;
 }
 
 /**
@@ -2619,6 +2345,8 @@ int release_unix_file(struct inode *inode, struct file *file)
 	int result;
 	int in_reiser4;
 
+	reiser4_free_file_fsdata(file);
+	return 0;
 	in_reiser4 = is_in_reiser4_context();
 
 	ctx = init_context(inode->i_sb);

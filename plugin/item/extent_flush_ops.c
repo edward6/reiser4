@@ -484,10 +484,11 @@ static void protect_reloc_node(struct list_head *jnodes, jnode *node)
    protecting */
 /* FIXME: it is likely that not flushprepped jnodes are on dirty capture list
  * in sequential order.. */
-static int
-protect_extent_nodes(flush_pos_t *flush_pos, oid_t oid, unsigned long index,
-		     reiser4_block_nr count, reiser4_block_nr *protected,
-		     reiser4_extent *ext, struct list_head *protected_nodes)
+static int protect_extent_nodes(flush_pos_t *flush_pos, oid_t oid,
+				unsigned long index, reiser4_block_nr count,
+				reiser4_block_nr *protected,
+				reiser4_extent *ext,
+				struct list_head *protected_nodes)
 {
 	__u64 i;
 	__u64 j;
@@ -520,6 +521,18 @@ protect_extent_nodes(flush_pos_t *flush_pos, oid_t oid, unsigned long index,
 		}
 
 		spin_lock_jnode(node);
+
+		if (node->atom != atom) {
+			/*
+			 * this is possible on overwrite: extent_write may
+			 * capture several unformatted nodes without capturing
+			 * any formatted nodes.
+			 */
+			spin_unlock_jnode(node);
+			atomic_dec(&node->x_count);
+			break;			
+		}
+
 		assert("vs-1476", atomic_read(&node->x_count) > 1);
 		assert("nikita-3393", !JF_ISSET(node, JNODE_EPROTECTED));
 
@@ -729,8 +742,6 @@ assign_real_blocknrs(flush_pos_t *flush_pos, reiser4_block_nr first,
 	list_splice_init(protected_nodes, ATOM_FQ_LIST(fq)->prev);
 
 	assert("vs-1687", count == i);
-	if (state == UNALLOCATED_EXTENT)
-		dec_unalloc_unfm_ptrs(count);
 	spin_unlock_atom(atom);
 }
 

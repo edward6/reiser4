@@ -302,8 +302,6 @@ struct reiser4_super_info_data {
 	spinlock_t all_guard;
 	/* list of all jnodes */
 	struct list_head all_jnodes;
-	/* number of unallocated extent pointers in the tree */
-	__u64 unalloc_extent_pointers;
 #endif
 };
 
@@ -455,18 +453,6 @@ long oids_used(const struct super_block *);
 
 #if REISER4_DEBUG
 void print_fs_info(const char *prefix, const struct super_block *);
-#endif
-
-#if REISER4_DEBUG
-
-void inc_unalloc_unfm_ptr(void);
-void dec_unalloc_unfm_ptrs(int nr);
-
-#else
-
-#define inc_unalloc_unfm_ptr() noop
-#define dec_unalloc_unfm_ptrs(nr) noop
-
 #endif
 
 extern void destroy_reiser4_cache(kmem_cache_t **);

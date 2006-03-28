@@ -107,6 +107,12 @@ void drop_exclusive_access(unix_file_info_t *);
 void get_nonexclusive_access(unix_file_info_t *, int);
 void drop_nonexclusive_access(unix_file_info_t *);
 int try_to_get_nonexclusive_access(unix_file_info_t *);
+int find_file_item(hint_t *, const reiser4_key *, znode_lock_mode,
+		   struct inode *);
+void validate_extended_coord(uf_coord_t *, loff_t offset);
+int load_file_hint(struct file *, hint_t *);
+void save_file_hint(struct file *, const hint_t *);
+
 
 #include "../item/extent.h"
 #include "../item/tail.h"
@@ -211,6 +217,8 @@ int cut_tree_worker_cryptcompress(tap_t *, const reiser4_key * from_key,
 void destroy_inode_cryptcompress(struct inode *);
 
 extern reiser4_plugin_ops cryptcompress_plugin_ops;
+
+#define WRITE_GRANULARITY 32
 
 /* __REISER4_FILE_H__ */
 #endif

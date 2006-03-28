@@ -302,34 +302,6 @@ int reiser4_blocknr_is_sane(const reiser4_block_nr * blk)
 	return reiser4_blocknr_is_sane_for(reiser4_get_current_sb(), blk);
 }
 
-#if REISER4_DEBUG
-
-/* this is caller when unallocated extent pointer is added */
-void inc_unalloc_unfm_ptr(void)
-{
-	reiser4_super_info_data *sbinfo;
-
-	sbinfo = get_super_private(get_current_context()->super);
-	spin_lock_reiser4_super(sbinfo);
-	sbinfo->unalloc_extent_pointers++;
-	spin_unlock_reiser4_super(sbinfo);
-}
-
-/* this is called when unallocated extent is converted to allocated */
-void dec_unalloc_unfm_ptrs(int nr)
-{
-	reiser4_super_info_data *sbinfo;
-
-	sbinfo = get_super_private(get_current_context()->super);
-	spin_lock_reiser4_super(sbinfo);
-	BUG_ON(sbinfo->unalloc_extent_pointers < nr);
-	sbinfo->unalloc_extent_pointers -= nr;
-	spin_unlock_reiser4_super(sbinfo);
-}
-
-
-#endif
-
 /* Make Linus happy.
    Local variables:
    c-indentation-style: "K&R"
