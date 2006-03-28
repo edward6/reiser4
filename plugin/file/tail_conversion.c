@@ -276,7 +276,6 @@ static int complete_conversion(struct inode *inode)
 {
 	int result;
 
-	all_grabbed2free();
 	grab_space_enable();
 	result =
 	    reiser4_grab_space(inode_file_plugin(inode)->estimate.update(inode),
@@ -338,7 +337,6 @@ int tail2extent(unix_file_info_t * uf_info)
 	first_iteration = 1;
 	while (done == 0) {
 		memset(pages, 0, sizeof(pages));
-		all_grabbed2free();
 		result = reserve_tail2extent_iteration(inode);
 		if (result != 0)
 			goto out;
@@ -491,7 +489,6 @@ int tail2extent(unix_file_info_t * uf_info)
 	}
 
       out:
-	all_grabbed2free();
 	return result;
 }
 
@@ -653,7 +650,6 @@ int extent2tail(unix_file_info_t * uf_info)
 	for (i = 0; i < num_pages; i++) {
 		__u64 start_byte;
 
-		all_grabbed2free();
 		result = reserve_extent2tail_iteration(inode);
 		if (result != 0)
 			break;
@@ -737,7 +733,6 @@ int extent2tail(unix_file_info_t * uf_info)
 			(unsigned long long)get_inode_oid(inode), i,
 			num_pages, result);
 	}
-	all_grabbed2free();
 	return result;
 }
 

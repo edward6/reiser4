@@ -248,7 +248,6 @@ int delete_directory_common(struct inode *inode)
 	result = dplug->done(inode);
 	if (!result)
 		result = common_object_delete_no_reserve(inode);
-	all_grabbed2free();
 	return result;
 }
 

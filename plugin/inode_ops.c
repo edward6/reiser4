@@ -448,7 +448,6 @@ int setattr_common(struct dentry *dentry, struct iattr *attr)
 			&& attr->ia_gid != inode->i_gid)) {
 			result = DQUOT_TRANSFER(inode, attr) ? -EDQUOT : 0;
 			if (result) {
-				all_grabbed2free();
 				context_set_commit_async(ctx);
 				reiser4_exit_context(ctx);
 				return result;
@@ -459,7 +458,6 @@ int setattr_common(struct dentry *dentry, struct iattr *attr)
 			reiser4_update_sd(inode);
 	}
 
-	all_grabbed2free();
 	context_set_commit_async(ctx);
 	reiser4_exit_context(ctx);
 	return result;

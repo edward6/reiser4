@@ -1123,9 +1123,6 @@ static int commit_tx(struct commit_handle *ch)
 			break;
 	} while (0);
 
-	/* Release all grabbed space if it was not fully used for
-	 * wandered blocks/records allocation. */
-	all_grabbed2free();
 	fq_put(fq);
 	if (ret)
 		return ret;

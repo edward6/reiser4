@@ -588,8 +588,6 @@ int write_tail(struct inode *inode, flow_t * f, hint_t * hint, int grabbed,	/* t
 		}
 
 		if (result) {
-			if (!grabbed)
-				all_grabbed2free();
 			unset_hint(hint);
 			break;
 		}
@@ -599,8 +597,6 @@ int write_tail(struct inode *inode, flow_t * f, hint_t * hint, int grabbed,	/* t
 
 		/* throttle the writer */
 		result = tail_balance_dirty_pages(inode->i_mapping, f, hint);
-		if (!grabbed)
-			all_grabbed2free();
 		if (result)
 			break;
 	}

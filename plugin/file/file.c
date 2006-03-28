@@ -649,7 +649,8 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd,
 				if (result)
 					break;
 			}
-			all_grabbed2free();
+
+			/* the below does up(sbinfo->delete_sema). Do not get folled */
 			reiser4_release_reserved(inode->i_sb);
 
 			/* cut_tree_object() was interrupted probably because
@@ -668,7 +669,8 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd,
 		result = update_actor(inode, &smallest_removed, update_sd);
 		break;
 	}
-	all_grabbed2free();
+
+	/* the below does up(sbinfo->delete_sema). Do not get folled */
 	reiser4_release_reserved(inode->i_sb);
 
 	return result;
@@ -691,8 +693,11 @@ static int shorten_file(struct inode *inode, loff_t new_size)
 	unsigned long index;
 	char *kaddr;
 
-	/* all items of ordinary reiser4 file are grouped together. That is why we can use cut_tree. Plan B files (for
-	   instance) can not be truncated that simply */
+	/*
+	 * all items of ordinary reiser4 file are grouped together. That is why
+	 * we can use cut_tree. Plan B files (for instance) can not be
+	 * truncated that simply
+	 */
 	result =
 		cut_file_items(inode, new_size, 1 /*update_sd */ ,
 			   get_key_offset(max_key()), update_file_size);
@@ -709,7 +714,10 @@ static int shorten_file(struct inode *inode, loff_t new_size)
 	if (result)
 		return result;
 	if (file_is_built_of_tails(inode))
-		/* No need to worry about zeroing last page after new file end */
+		/*
+		 * No need to worry about zeroing last page after new file
+		 * end
+		 */
 		return 0;
 
 	padd_from = inode->i_size & (PAGE_CACHE_SIZE - 1);
@@ -727,7 +735,10 @@ static int shorten_file(struct inode *inode, loff_t new_size)
 	index = (inode->i_size >> PAGE_CACHE_SHIFT);
 	page = read_cache_page(inode->i_mapping, index, filler, NULL);
 	if (IS_ERR(page)) {
-		all_grabbed2free();
+		/*
+		 * the below does up(sbinfo->delete_sema). Do not get
+		 * confused
+		 */
 		reiser4_release_reserved(inode->i_sb);
 		if (likely(PTR_ERR(page) == -EINVAL)) {
 			/* looks like file is built of tail items */
@@ -737,21 +748,31 @@ static int shorten_file(struct inode *inode, loff_t new_size)
 	}
 	wait_on_page_locked(page);
 	if (!PageUptodate(page)) {
-		all_grabbed2free();
 		page_cache_release(page);
+		/*
+		 * the below does up(sbinfo->delete_sema). Do not get
+		 * confused
+		 */
 		reiser4_release_reserved(inode->i_sb);
 		return RETERR(-EIO);
 	}
 
-	/* if page correspons to hole extent unit - unallocated one will be
-	   created here. This is not necessary */
+	/*
+	 * if page correspons to hole extent unit - unallocated one will be
+	 * created here. This is not necessary
+	 */
 	result = find_or_create_extent(page);
 
-	/* FIXME: cut_file_items has already updated inode. Probably it would
-	   be better to update it here when file is really truncated */
-	all_grabbed2free();
+	/*
+	 * FIXME: cut_file_items has already updated inode. Probably it would
+	 * be better to update it here when file is really truncated
+	 */
 	if (result) {
 		page_cache_release(page);
+		/*
+		 * the below does up(sbinfo->delete_sema). Do not get
+		 * confused
+		 */
 		reiser4_release_reserved(inode->i_sb);
 		return result;
 	}
@@ -764,6 +785,7 @@ static int shorten_file(struct inode *inode, loff_t new_size)
 	kunmap_atomic(kaddr, KM_USER0);
 	unlock_page(page);
 	page_cache_release(page);
+	/* the below does up(sbinfo->delete_sema). Do not get confused */
 	reiser4_release_reserved(inode->i_sb);
 	return 0;
 }
@@ -1040,7 +1062,6 @@ static int capture_page_and_create_extent(struct page *page)
 	if (likely(!result))
 		result = find_or_create_extent(page);
 
-	all_grabbed2free();
 	if (result != 0)
 		SetPageError(page);
 	return result;
@@ -2610,7 +2631,6 @@ static int setattr_truncate(struct inode *inode, struct iattr *attr)
 	result = safe_link_grab(tree, BA_CAN_COMMIT);
 	if (result == 0)
 		result = safe_link_add(inode, SAFE_TRUNCATE);
-	all_grabbed2free();
 	if (result == 0)
 		result = truncate_file_body(inode, attr->ia_size);
 	if (result)
@@ -2628,7 +2648,6 @@ static int setattr_truncate(struct inode *inode, struct iattr *attr)
 			(unsigned long long)get_inode_oid(inode), s_result);
 	}
 	safe_link_release(tree);
-	all_grabbed2free();
 	return result;
 }
 

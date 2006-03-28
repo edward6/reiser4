@@ -291,7 +291,8 @@ reiser4_grab(reiser4_context * ctx, __u64 count, reiser4_ba_flags_t flags)
 	sbinfo->blocks_free -= count;
 
 #if REISER4_DEBUG
-	ctx->grabbed_initially = count;
+	if (ctx->grabbed_initially == 0)
+		ctx->grabbed_initially = count;
 #endif
 
 	assert("nikita-2986", check_block_counters(ctx->super));
@@ -813,10 +814,17 @@ void grabbed2free_mark(__u64 mark)
 	grabbed2free(ctx, sbinfo, ctx->grabbed_blocks - mark);
 }
 
-/* Adjust free blocks count for blocks which were reserved but were not used. */
-void
-grabbed2free(reiser4_context * ctx, reiser4_super_info_data * sbinfo,
-	     __u64 count)
+/**
+ * grabbed2free - adjust grabbed and free block counters
+ * @ctx: context to update grabbed block counter of
+ * @sbinfo: super block to update grabbed and free block counters of
+ * @count: number of blocks to adjust counters by
+ *
+ * Decreases context's and per filesystem's counters of grabbed
+ * blocks. Increases per filesystem's counter of free blocks.
+ */
+void grabbed2free(reiser4_context *ctx, reiser4_super_info_data *sbinfo,
+		  __u64 count)
 {
 	sub_from_ctx_grabbed(ctx, count);
 
@@ -887,7 +895,13 @@ void flush_reserved2grabbed(txn_atom * atom, __u64 count)
 	spin_unlock_reiser4_super(sbinfo);
 }
 
-/* release all blocks grabbed in context which where not used. */
+/**
+ * all_grabbed2free - releases all blocks grabbed in context
+ *
+ * Decreases context's and super block's grabbed block counters by number of
+ * blocks grabbed by current context and increases super block's free block
+ * counter correspondingly.
+ */
 void all_grabbed2free(void)
 {
 	reiser4_context *ctx = get_current_context();
