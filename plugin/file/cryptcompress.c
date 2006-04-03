@@ -1,7 +1,11 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by 
+   reiser4/README */
 
-/* This file contains methods of the reiser4 cryptcompress object plugin
-   (see http://www.namesys.com/cryptcompress_design.html for details). */
+/* This file contains implementations of inode/file/address_space/file plugin
+ * operations specific for cryptcompress file plugin which manages files with
+ * compressed and encrypted bodies. "Cryptcompress file" is built of items of
+ * CTAIL_ID (see http://www.namesys.com/cryptcompress_design.html for details).
+ */
 
 #include "../../page_cache.h"
 #include "../../inode.h"
@@ -3396,7 +3400,24 @@ static int cryptcompress_truncate(struct inode *inode,	/* old size */
 		prune_cryptcompress(inode, new_size, update_sd, aidx));
 }
 
-/* page cluser is anonymous if it contains at least one anonymous page */
+static void clear_moved_tag_cluster(struct address_space * mapping,
+				    reiser4_cluster_t * clust)
+{
+	int i;
+	void * ret;
+	read_lock_irq(&mapping->tree_lock);
+	for (i = 0; i < clust->nr_pages; i++) {
+		assert("edward-1438", clust->pages[i] != NULL);
+		ret = radix_tree_tag_clear(&mapping->page_tree, 
+					   clust->pages[i]->index,
+					   PAGECACHE_TAG_REISER4_MOVED);
+		assert("edward-1439", ret == clust->pages[i]);
+	}
+	read_unlock_irq(&mapping->tree_lock);
+}
+
+/* Capture an anonymous pager cluster. (Page cluser is
+   anonymous if it contains at least one anonymous page */
 static int
 capture_page_cluster(reiser4_cluster_t * clust, struct inode *inode)
 {
@@ -3410,11 +3431,21 @@ capture_page_cluster(reiser4_cluster_t * clust, struct inode *inode)
 	if (result)
 		return result;
 	set_cluster_pages_dirty(clust);
+	clear_moved_tag_cluster(inode->i_mapping, clust);
 
 	result = try_capture_cluster(clust, inode);
 	put_hint_cluster(clust, inode, ZNODE_WRITE_LOCK);
-	if (result)
+	if (unlikely(result)) {
+		/* set cleared tag back, so it will be
+		   possible to capture it again later */
+		read_lock_irq(&inode->i_mapping->tree_lock);
+		radix_tree_tag_set(&inode->i_mapping->page_tree,
+				   clust_to_pg(clust->index, inode),
+				   PAGECACHE_TAG_REISER4_MOVED);
+		read_unlock_irq(&inode->i_mapping->tree_lock);
+		
 		release_cluster_pages_and_jnode(clust);
+	}
 	return result;
 }
 
@@ -3435,6 +3466,7 @@ capture_anonymous_clusters(struct address_space *mapping, pgoff_t * index,
 
 	assert("edward-1127", mapping != NULL);
 	assert("edward-1128", mapping->host != NULL);
+	assert("edward-1440",  mapping->host->i_mapping == mapping);
 
 	hint = kmalloc(sizeof(*hint), GFP_KERNEL);
 	if (hint == NULL)
