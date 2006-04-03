@@ -230,7 +230,8 @@ static inline int reiser4_use_write_barrier(struct super_block * s)
 
 static void disable_write_barrier(struct super_block * s)
 {
-	warning("zam-1055", "disabling write barrier\n");
+	notice("zam-1055", "%s does not support write barriers,"
+	       " using synchronous write instead.\n", s->s_id);
 	set_bit((int)REISER4_NO_WRITE_BARRIER, &get_super_private(s)->fs_flags);
 }
 
