@@ -16,8 +16,8 @@
 ({									\
 /*	reiser4_print_prefix(lev, reperr, label,*/			\
 /*	__FUNCTION__, __FILE__, __LINE__);*/				\
-	fun(lev "%sreiser4[%.16s(%i)]: %s (%s:%i)[%s]:\n" format "\n" ,	\
-	    lev, current->comm, current->pid, __FUNCTION__,		\
+	fun(lev "reiser4[%.16s(%i)]: %s (%s:%i)[%s]:\n" format "\n" ,	\
+	    current->comm, current->pid, __FUNCTION__,			\
 	    __FILE__, __LINE__, label, ## __VA_ARGS__);			\
 })
 
