@@ -1070,6 +1070,7 @@ void jput_final(jnode * node)
 		rcu_read_unlock();
 		return;
 	}
+	assert("edward-1432", node->page_count == 0);
 
 	r_i_p = !JF_TEST_AND_SET(node, JNODE_RIP);
 	/*

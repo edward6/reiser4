@@ -342,7 +342,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		},
 		.init_inode_data = init_inode_data_cryptcompress,
 		.cut_tree_worker = cut_tree_worker_cryptcompress,
-		.destroy_inode = detach_crypto_stat,
+		.destroy_inode = destroy_inode_cryptcompress,
 		.wire = {
 			.write = wire_write_common,
 			.read = wire_read_common,
