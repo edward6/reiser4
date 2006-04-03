@@ -73,6 +73,10 @@ static int check_cryptcompress(struct inode *inode)
 	return result;
 }
 
+/* The following is a part of reiser4 cipher key manager
+   which is called when opening/creating a cryptcompress file */
+
+/* get/set cipher key info */
 crypto_stat_t * inode_crypto_stat (struct inode * inode)
 {
 	assert("edward-90", inode != NULL);
@@ -80,12 +84,12 @@ crypto_stat_t * inode_crypto_stat (struct inode * inode)
 	return cryptcompress_inode_data(inode)->crypt;
 }
 
-static void
-set_inode_crypto_stat (struct inode * inode, crypto_stat_t * stat)
+static void set_inode_crypto_stat (struct inode * inode, crypto_stat_t * stat)
 {
 	cryptcompress_inode_data(inode)->crypt = stat;
 }
 
+/* allocate a cipher key info */
 crypto_stat_t * alloc_crypto_stat (struct inode * inode)
 {
 	crypto_stat_t * info;
@@ -105,6 +109,8 @@ crypto_stat_t * alloc_crypto_stat (struct inode * inode)
 	return info;
 }
 
+/* allocate/free low-level info for cipher and digest
+   transforms */
 static int
 alloc_crypto_tfms(plugin_set * pset, crypto_stat_t * info)
 {
@@ -158,6 +164,7 @@ free_crypto_tfms(crypto_stat_t * info)
 	return;
 }
 
+/* create a key fingerprint for disk stat-data */
 static int create_keyid (crypto_stat_t * info, crypto_data_t * data)
 {
 	int ret = -ENOMEM;
@@ -261,9 +268,14 @@ static void inode_free_crypto_stat (struct inode * inode)
 	free_crypto_stat(inode_crypto_stat(inode));
 }
 
-/* Instantiate a crypto-stat represented by low-lewel @data for the @object */
-crypto_stat_t *
-create_crypto_stat(struct inode * object, crypto_data_t * data)
+/* Create a crypto-stat and attach result to the @object.
+   If success is returned, then low-level cipher info contains
+   an instantiated key */
+crypto_stat_t * 
+create_crypto_stat(struct inode * object, 
+		   crypto_data_t * data /* this contains a (uninstantiated) 
+					   cipher key imported from user
+					   space */)
 {
 	int ret;
 	crypto_stat_t * info;
@@ -286,7 +298,7 @@ create_crypto_stat(struct inode * object, crypto_data_t * data)
 	   in the crypto-stat. */
 	info_set_cipher_plugin(info, inode_cipher_plugin(object));
 	info_set_digest_plugin(info, inode_digest_plugin(object));
-
+	/* instantiating a key */
 	ret = crypto_cipher_setkey(info_cipher_tfm(info),
 				   data->key,
 				   data->keysize);
@@ -307,23 +319,26 @@ create_crypto_stat(struct inode * object, crypto_data_t * data)
  	return ERR_PTR(ret);
 }
 
+/* increment/decrement a load counter when 
+   attaching/detaching the crypto-stat to any object */
 static void load_crypto_stat(crypto_stat_t * info)
 {
 	assert("edward-1380", info != NULL);
 	inc_keyload_count(info);
 }
 
-static void
-unload_crypto_stat(struct inode * inode)
+static void unload_crypto_stat(struct inode * inode)
 {
 	crypto_stat_t * info = inode_crypto_stat(inode);
 	assert("edward-1381", info->keyload_count > 0);
 
 	dec_keyload_count(inode_crypto_stat(inode));
 	if (info->keyload_count == 0)
+		/* final release */
 		inode_free_crypto_stat(inode);
 }
 
+/* attach/detach an existing crypto-stat */
 void attach_crypto_stat(struct inode * inode, crypto_stat_t * info)
 {
 	assert("edward-1382", inode != NULL);
@@ -344,11 +359,13 @@ void detach_crypto_stat(struct inode * inode)
 	set_inode_crypto_stat(inode, NULL);
 }
 
+/* compare fingerprints of @child and @parent */
 static int keyid_eq(crypto_stat_t * child, crypto_stat_t * parent)
 {
 	return !memcmp(child->keyid, parent->keyid, info_digest_plugin(parent)->fipsize);
 }
 
+/* check if a crypto-stat (which is bound to @parent) can be inherited */
 int can_inherit_crypto_crc(struct inode *child, struct inode *parent)
 {
 	if (!need_cipher(child))
@@ -356,7 +373,7 @@ int can_inherit_crypto_crc(struct inode *child, struct inode *parent)
 	/* the child is created */
 	if (!inode_crypto_stat(child))
 		return 1;
-	/* the child looked up */
+	/* the child is looked up */
 	if (!inode_crypto_stat(parent))
 		return 0;
 	return (inode_cipher_plugin(child) == inode_cipher_plugin(parent) &&
@@ -371,7 +388,8 @@ int need_cipher(struct inode * inode)
 		cipher_plugin_by_id(NONE_CIPHER_ID);
 }
 
-/* returns true, if crypto stat can be attached to the @host */
+/* check, if a crypto-stat can be attached to the @host,
+   return true, if it can */
 int host_allows_crypto_stat(struct inode * host)
 {
 	int ret;
@@ -386,7 +404,9 @@ int host_allows_crypto_stat(struct inode * host)
 	}
 	return ret;
 }
+/* end of cipher key manager */
 
+/* helper functions for ->create() method of the cryptcompress plugin */
 static int inode_set_crypto(struct inode * object)
 {
 	reiser4_inode * info;
@@ -451,7 +471,7 @@ static int inode_set_cluster(struct inode *object)
 }
 
 
-/* plugin->destroy_inode() method for cryptcompress files */
+/* ->destroy_inode() method of the cryptcompress plugin */
 void destroy_inode_cryptcompress(struct inode * inode)
 {
 	assert("edward-23", cryptcompress_inode_data(inode)->pgcount == 0);
@@ -459,7 +479,7 @@ void destroy_inode_cryptcompress(struct inode * inode)
 	return;
 }
 
-/* plugin->create() method for cryptcompress files
+/* ->create() method of the cryptcompress plugin
 
 . install plugins
 . attach crypto info if specified
@@ -512,6 +532,7 @@ create_cryptcompress(struct inode *object, struct inode *parent,
 	return result;
 }
 
+/* ->open() method of the cryptcompress plugin */
 int open_cryptcompress(struct inode * inode, struct file * file)
 {
 	struct inode * parent;
@@ -535,6 +556,7 @@ int open_cryptcompress(struct inode * inode, struct file * file)
 	return 0;
 }
 
+/* returns a blocksize, the attribute of a cipher algorithm */
 static unsigned int
 cipher_blocksize(struct inode * inode)
 {
@@ -544,7 +566,7 @@ cipher_blocksize(struct inode * inode)
 		(info_cipher_tfm(inode_crypto_stat(inode)));
 }
 
-/* returns translated offset */
+/* returns offset translated by scale factor of the crypto-algorithm */
 static loff_t inode_scaled_offset (struct inode * inode,
 				   const loff_t src_off /* input offset */)
 {
@@ -583,7 +605,7 @@ static void set_cluster_nrpages(reiser4_cluster_t * clust, struct inode *inode)
 
 	win = clust->win;
 	if (!win) {
-		/* FIXME-EDWARD: i_size should be protected */
+		/* NOTE-EDWARD: i_size should be protected */
 		clust->nr_pages =
 		    count_to_nrpages(fsize_to_count(clust, inode));
 		return;
@@ -603,7 +625,7 @@ static void set_cluster_nrpages(reiser4_cluster_t * clust, struct inode *inode)
 	return;
 }
 
-/* plugin->key_by_inode() */
+/* ->key_by_inode() method of the cryptcompress plugin */
 /* see plugin/plugin.h for details */
 int
 key_by_inode_cryptcompress(struct inode *inode, loff_t off, reiser4_key * key)
@@ -680,6 +702,7 @@ crc_hint_validate(hint_t * hint, const reiser4_key * key,
 			     key, &hint->lh, lock_mode, ZNODE_LOCK_LOPRI);
 }
 
+/* reserve disk space when writing a logical cluster */
 static int reserve4cluster(struct inode *inode, reiser4_cluster_t *clust)
 {
 	int result = 0;
@@ -715,6 +738,7 @@ static int reserve4cluster(struct inode *inode, reiser4_cluster_t *clust)
 	return 0;
 }
 
+/* free reserved disk space if writing a logical cluster fails */
 static void
 free_reserved4cluster(struct inode *inode, reiser4_cluster_t * clust, int count)
 {
@@ -724,10 +748,11 @@ free_reserved4cluster(struct inode *inode, reiser4_cluster_t * clust, int count)
 	clust->reserved = 0;
 }
 
-/* The core search procedure.
-   If returned value is not cbk_errored, current znode is locked */
-static int find_cluster_item(hint_t * hint, const reiser4_key * key,	/* key of the item we are
-									   looking for */
+/* The core search procedure of the cryptcompress plugin.
+   If returned value is not cbk_errored, then current znode is locked */
+static int find_cluster_item(hint_t * hint, 
+			     const reiser4_key * key, /* key of the item we are
+							 looking for */
 			     znode_lock_mode lock_mode /* which lock */ ,
 			     ra_info_t * ra_info, lookup_bias bias, __u32 flags)
 {
@@ -805,9 +830,10 @@ static int find_cluster_item(hint_t * hint, const reiser4_key * key,	/* key of t
 	return result;
 }
 
-/* The following function is called by defalte[inflate] manager
- * to check if we need to align[cut] the overhead.
- * If true, @oh repersents the size of unaligned[aligned] overhead.
+/* This function is called by deflate[inflate] manager when
+   creating a transformed/plain stream to check if we should
+   create/cut some overhead. If this returns true, then @oh
+   contains the size of this overhead.
  */
 static int
 need_cut_or_align(struct inode * inode, reiser4_cluster_t * clust,
@@ -829,9 +855,7 @@ need_cut_or_align(struct inode * inode, reiser4_cluster_t * clust,
 	return (tc->len != tc->lsize);
 }
 
-/* align or cut the overheads of
-   . input stream if @rw is WRITE_OP
-   . output stream if @rw is READ_OP */
+/* create/cut an overhead of transformed/plain stream */
 static void
 align_or_cut_overhead(struct inode * inode, reiser4_cluster_t * clust, rw_op rw)
 {
@@ -887,7 +911,8 @@ static unsigned deflate_overrun(struct inode * inode, int ilen)
    If this returns false, then compressor won't be called for
    the cluster of index @index.
 */
-static int try_compress(tfm_cluster_t * tc, cloff_t index, struct inode *inode)
+static int should_compress(tfm_cluster_t * tc, cloff_t index,
+			   struct inode *inode)
 {
 	compression_plugin *cplug = inode_compression_plugin(inode);
 	compression_mode_plugin *mplug = inode_compression_mode_plugin(inode);
@@ -900,7 +925,7 @@ static int try_compress(tfm_cluster_t * tc, cloff_t index, struct inode *inode)
 		(cplug->min_size_deflate ?
 		 tc->len >= cplug->min_size_deflate() :
 		 1) &&
-		/* estimate by content */
+		/* estimate by compression mode plugin */
 		(mplug->should_deflate ?
 		 mplug->should_deflate(inode, index) :
 		 1);
@@ -931,9 +956,9 @@ need_inflate(reiser4_cluster_t * clust, struct inode *inode,
 	     tc->lsize);
 }
 
-/* If logical cluster got compressed we add a checksum to catch possible
-   disk cluster corruptions. The following is a format of the data stored
-   in disk clusters:
+/* If results of compression were accepted, then we add
+   a checksum to catch possible disk cluster corruption.
+   The following is a format of the data stored in disk clusters:
 
 		   data                   This is (transformed) logical cluster.
 		   cipher_overhead        This is created by ->align() method
@@ -948,8 +973,7 @@ need_inflate(reiser4_cluster_t * clust, struct inode *inode,
 		   control_byte      (1)   contains aligned overhead size:
 		                           1 <= overhead <= cipher_blksize
 */
-/* Append checksum at the end of input transform stream
-   and increase its length */
+/* Append a checksum at the end of a transformed stream */
 static void dc_set_checksum(compression_plugin * cplug, tfm_cluster_t * tc)
 {
 	__u32 checksum;
@@ -964,8 +988,8 @@ static void dc_set_checksum(compression_plugin * cplug, tfm_cluster_t * tc)
 	tc->len += (int)DC_CHECKSUM_SIZE;
 }
 
-/* returns 0 if checksums coincide, otherwise returns 1,
-   increase the length of input transform stream */
+/* Check a disk cluster checksum.
+   Returns 0 if checksum is correct, otherwise returns 1 */
 static int dc_check_checksum(compression_plugin * cplug, tfm_cluster_t * tc)
 {
 	assert("edward-1312", tc != NULL);
@@ -992,6 +1016,7 @@ static int dc_check_checksum(compression_plugin * cplug, tfm_cluster_t * tc)
 	return 0;
 }
 
+/* get input/output stream for some transform action */
 int grab_tfm_stream(struct inode * inode, tfm_cluster_t * tc,
 		    tfm_stream_id id)
 {
@@ -1030,7 +1055,7 @@ int deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 	assert("edward-498", !tfm_cluster_is_uptodate(tc));
 
 	coplug = inode_compression_plugin(inode);
-	if (try_compress(tc, clust->index, inode)) {
+	if (should_compress(tc, clust->index, inode)) {
 		/* try to compress, discard bad results */
 		__u32 dst_len;
 		compression_mode_plugin * mplug =
@@ -1132,7 +1157,7 @@ int deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 	return result;
 }
 
-/* Common inflate cluster manager. */
+/* Common inflate manager. */
 int inflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 {
 	int result = 0;
@@ -2301,32 +2326,13 @@ static int jnode_truncate_ok(struct inode *inode, cloff_t index)
 	node =
 	    jlookup(current_tree, get_inode_oid(inode),
 		    clust_to_pg(index, inode));
-	if (node) {
-		warning("edward-1315", "jnode %p is untruncated\n", node);
-		jput(node);
-	}
-	return (node == NULL);
+	if (likely(!node))
+		return 1;
+	/* someone got this jnode */
+	warning("edward-1315", "jnode %p is untruncated\n", node);
+	jput(node);
+	return (atomic_read(&node->x_count));
 }
-
-static int jnodes_truncate_ok(struct inode *inode, cloff_t start)
-{
-	int result;
-	jnode *node = NULL;
-	reiser4_inode *info = reiser4_inode_data(inode);
-	reiser4_tree *tree = tree_by_inode(inode);
-
-	read_lock_tree(tree);
-
-	result =
-	    radix_tree_gang_lookup(jnode_tree_by_reiser4_inode(info),
-				   (void **)&node, clust_to_pg(start, inode),
-				   1);
-	read_unlock_tree(tree);
-	if (result)
-		warning("edward-1332", "Untruncated jnode %p\n", node);
-	return !result;
-}
-
 #endif
 
 /* Collect unlocked cluster pages and jnode (the last is in the
@@ -3318,8 +3324,6 @@ prune_cryptcompress(struct inode *inode, loff_t new_size, int update_sd,
 	assert("edward-1334", !result || result == -ENOSPC);
 	assert("edward-1209",
 	       pages_truncate_ok(inode, old_size, count_to_nrpages(new_size)));
-	assert("edward-1335",
-	       jnodes_truncate_ok(inode, count_to_nrclust(new_size, inode)));
 	done_lh(lh);
 	kfree(hint);
 	put_cluster_handle(&clust);
@@ -3364,10 +3368,6 @@ start_truncate_fake(struct inode *inode, cloff_t aidx, loff_t new_size,
 		   capture here.
 		 */
 		truncate_inode_pages(inode->i_mapping, inode->i_size);
-		assert("edward-1336",
-		       jnodes_truncate_ok(inode,
-					  count_to_nrclust(inode->i_size,
-							   inode)));
 	}
 	if (update_sd)
 		result = update_sd_cryptcompress(inode);
