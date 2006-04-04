@@ -1720,7 +1720,6 @@ writepages_unix_file(struct address_space *mapping,
  */
 int sync_unix_file(struct file *file, struct dentry *dentry, int datasync)
 {
-	int result;
 	reiser4_context *ctx;
 	txn_atom *atom;
 	reiser4_block_nr reserve;

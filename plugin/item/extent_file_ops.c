@@ -529,7 +529,7 @@ static int overwrite_one_block(uf_coord_t *uf_coord, const reiser4_key *key,
 
 	switch (state_of_extent(ext)) {
 	case ALLOCATED_EXTENT:
-		blocknr = extent_get_start(ext) + ext_coord->pos_in_unit;
+		block = extent_get_start(ext) + ext_coord->pos_in_unit;
 		break;
 
 	case HOLE_EXTENT:
