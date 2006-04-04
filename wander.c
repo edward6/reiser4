@@ -635,7 +635,7 @@ static int get_overwrite_set(struct commit_handle *ch)
 				spin_unlock_jnode(sj);
 
 				/* jload it as the rest of overwrite set */
-				jload_gfp(sj, GFP_KERNEL, 0);
+				jload_gfp(sj, get_gfp_mask(), 0);
 
 				ch->overwrite_set_size++;
 			}
@@ -646,7 +646,7 @@ static int get_overwrite_set(struct commit_handle *ch)
 		} else {
 			int ret;
 			ch->overwrite_set_size++;
-			ret = jload_gfp(cur, GFP_KERNEL, 0);
+			ret = jload_gfp(cur, get_gfp_mask(), 0);
 			if (ret)
 				reiser4_panic("zam-783",
 					      "cannot load e-flushed jnode back (ret = %d)\n",
@@ -1035,7 +1035,7 @@ static int alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 				goto free_not_assigned;
 			}
 
-			ret = jinit_new(cur, GFP_KERNEL);
+			ret = jinit_new(cur, get_gfp_mask());
 
 			if (ret != 0) {
 				jfree(cur);

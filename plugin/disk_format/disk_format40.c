@@ -193,7 +193,7 @@ static format40_disk_super_block *copy_sb(const struct buffer_head *super_bh)
 {
 	format40_disk_super_block *sb_copy;
 
-	sb_copy = kmalloc(sizeof(format40_disk_super_block), GFP_KERNEL);
+	sb_copy = kmalloc(sizeof(format40_disk_super_block), get_gfp_mask());
 	if (sb_copy == NULL)
 		return ERR_PTR(RETERR(-ENOMEM));
 	memcpy(sb_copy, ((format40_disk_super_block *) super_bh->b_data),

@@ -591,7 +591,7 @@ static int fq_by_atom_gfp(txn_atom *atom, flush_queue_t **new_fq, int gfp)
 
 int fq_by_atom(txn_atom * atom, flush_queue_t ** new_fq)
 {
-	return fq_by_atom_gfp(atom, new_fq, GFP_KERNEL);
+	return fq_by_atom_gfp(atom, new_fq, get_gfp_mask());
 }
 
 /* A wrapper around fq_by_atom for getting a flush queue object for current

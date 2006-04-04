@@ -361,6 +361,7 @@ static void txnh_init(txn_handle * txnh, txn_mode mode)
 
 	txnh->mode = mode;
 	txnh->atom = NULL;
+	set_gfp_mask();
 	txnh->flags = 0;
 	spin_lock_init(&txnh->hlock);
 	INIT_LIST_HEAD(&txnh->txnh_link);
@@ -700,7 +701,7 @@ static int atom_begin_and_assign_to_txnh(txn_atom ** atom_alloc, txn_handle * tx
 	}
 
 	if (*atom_alloc == NULL) {
-		(*atom_alloc) = kmem_cache_alloc(_atom_slab, GFP_KERNEL);
+		(*atom_alloc) = kmem_cache_alloc(_atom_slab, get_gfp_mask());
 
 		if (*atom_alloc == NULL)
 			return RETERR(-ENOMEM);
@@ -2386,6 +2387,7 @@ static void capture_assign_txnh_nolock(txn_atom *atom, txn_handle *txnh)
 
 	atomic_inc(&atom->refcount);
 	txnh->atom = atom;
+	set_gfp_mask();
 	list_add_tail(&txnh->txnh_link, &atom->txnh_list);
 	atom->txnh_count += 1;
 }
@@ -3518,7 +3520,7 @@ handle_coc(jnode * node, jnode * copy, struct page *page, struct page *new_page,
 	 * not help, because an empty radix tree node is freed and the node's
 	 * free space may not be re-used in insertion.
 	 */
-	radix_tree_preload(GFP_KERNEL);
+	radix_tree_preload(get_gfp_mask());
 	spin_lock_atom(atom);
 	lock_two_nodes(node, copy);
 	spin_lock(&scan_lock);
@@ -3611,7 +3613,7 @@ static int real_copy_on_capture(jnode * node, txn_atom * atom)
 	if (!result) {
 		copy = jclone(node);
 		if (likely(!IS_ERR(copy))) {
-			new_page = alloc_page(GFP_KERNEL);
+			new_page = alloc_page(get_gfp_mask());
 			if (new_page) {
 				result = handle_coc(node,
 						    copy, page, new_page, atom);

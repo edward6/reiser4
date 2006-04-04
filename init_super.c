@@ -18,7 +18,7 @@ int init_fs_info(struct super_block *super)
 {
 	reiser4_super_info_data *sbinfo;
 
-	sbinfo = kmalloc(sizeof(reiser4_super_info_data), GFP_KERNEL);
+	sbinfo = kmalloc(sizeof(reiser4_super_info_data), get_gfp_mask());
 	if (!sbinfo)
 		return RETERR(-ENOMEM);
 
@@ -346,7 +346,7 @@ int init_super_data(struct super_block *super, char *opt_string)
 	sbinfo->ra_params.flags = 0;
 
 	/* allocate memory for structure describing reiser4 mount options */
-	opts = kmalloc(sizeof(opt_desc_t) * MAX_NR_OPTIONS, GFP_KERNEL);
+	opts = kmalloc(sizeof(opt_desc_t) * MAX_NR_OPTIONS, get_gfp_mask());
 	if (opts == NULL)
 		return RETERR(-ENOMEM);
 

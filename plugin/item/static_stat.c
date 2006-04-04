@@ -427,7 +427,7 @@ symlink_target_to_inode(struct inode *inode, const char *target, int len)
 
 	/* FIXME-VS: this is prone to deadlock. Not more than other similar
 	   places, though */
-	inode->u.generic_ip = kmalloc((size_t) len + 1, GFP_KERNEL);
+	inode->u.generic_ip = kmalloc((size_t) len + 1, get_gfp_mask());
 	if (!inode->u.generic_ip)
 		return RETERR(-ENOMEM);
 

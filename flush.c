@@ -667,7 +667,7 @@ jnode_flush(jnode * node, long nr_to_write, long *nr_written,
 
 	/* allocate right_scan, left_scan and flush_pos */
 	right_scan =
-	    kmalloc(2 * sizeof(*right_scan) + sizeof(*flush_pos), GFP_KERNEL);
+	    kmalloc(2 * sizeof(*right_scan) + sizeof(*flush_pos), get_gfp_mask());
 	if (right_scan == NULL)
 		return RETERR(-ENOMEM);
 	left_scan = right_scan + 1;

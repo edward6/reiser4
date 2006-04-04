@@ -93,6 +93,7 @@ struct reiser4_context {
 	err_site err;
 #endif
 	void *vp;
+	gfp_t gfp_mask;
 };
 
 extern reiser4_context *get_context_by_lock_stack(lock_stack *);
@@ -144,6 +145,16 @@ static inline reiser4_context *get_current_context(void)
 {
 	return get_context(current);
 }
+
+static inline gfp_t get_gfp_mask(void)
+{
+	reiser4_context *ctx;
+
+	ctx = get_current_context_check();
+	return (ctx == NULL) ? GFP_KERNEL : ctx->gfp_mask;
+}
+
+void set_gfp_mask(void);
 
 /*
  * true if current thread is in the write-out mode. Thread enters write-out

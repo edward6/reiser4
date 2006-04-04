@@ -291,7 +291,7 @@ jnode *jnode_by_page(struct page *pg)
 /* exported functions to allocate/free jnode objects outside this file */
 jnode *jalloc(void)
 {
-	jnode *jal = kmem_cache_alloc(_jnode_slab, GFP_KERNEL);
+	jnode *jal = kmem_cache_alloc(_jnode_slab, get_gfp_mask());
 	return jal;
 }
 
@@ -551,7 +551,7 @@ jnode *find_get_jnode(reiser4_tree * tree, struct address_space *mapping,
 	if (unlikely(result == NULL))
 		return ERR_PTR(RETERR(-ENOMEM));
 
-	preload = radix_tree_preload(GFP_KERNEL);
+	preload = radix_tree_preload(get_gfp_mask());
 	if (preload != 0)
 		return ERR_PTR(preload);
 
@@ -831,7 +831,7 @@ static int jnode_start_read(jnode * node, struct page *page)
 		unlock_page(page);
 		return 0;
 	}
-	return page_io(page, node, READ, GFP_KERNEL);
+	return page_io(page, node, READ, get_gfp_mask());
 }
 
 #if REISER4_DEBUG
@@ -954,7 +954,7 @@ int jstartio(jnode * node)
 {
 	struct page *page;
 
-	page = jnode_get_page_locked(node, GFP_KERNEL);
+	page = jnode_get_page_locked(node, get_gfp_mask());
 	if (IS_ERR(page))
 		return PTR_ERR(page);
 
@@ -1350,7 +1350,7 @@ static jnode *clone_formatted(jnode * node)
 	znode *clone;
 
 	assert("vs-1430", jnode_is_znode(node));
-	clone = zalloc(GFP_KERNEL);
+	clone = zalloc(get_gfp_mask());
 	if (clone == NULL)
 		return ERR_PTR(RETERR(-ENOMEM));
 	zinit(clone, NULL, current_tree);

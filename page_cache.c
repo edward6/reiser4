@@ -358,7 +358,7 @@ formatted_readpage(struct file *f UNUSED_ARG,
 		   struct page *page /* page to read */ )
 {
 	assert("nikita-2412", PagePrivate(page) && jprivate(page));
-	return page_io(page, jprivate(page), READ, GFP_KERNEL);
+	return page_io(page, jprivate(page), READ, get_gfp_mask());
 }
 
 /**
@@ -477,14 +477,27 @@ int set_page_dirty_internal(struct page *page)
 	return 0;
 }
 
-static int can_hit_entd(reiser4_context * ctx, struct super_block *s)
+/**
+ * can_hit_entd
+ *
+ *
+ */
+static int can_hit_entd(reiser4_context *ctx, struct super_block *s)
 {
-	if (get_super_private(s)->entd.tsk == current)
+	if (get_super_private(s)->entd.tsk == current) {
+		printk("this is entd: ctx %p, current %p\n", ctx, current);
 		return 0;
+	}
 	if (ctx == NULL || ((unsigned long)ctx->magic) != context_magic)
 		return 1;
 	if (ctx->super != s)
 		return 1;
+	if (lock_stack_isclean(&ctx->stack) && ctx->trans->atom == NULL)
+		return 1;
+	if (!lock_stack_isclean(&ctx->stack))
+		printk("lockstack is not clean: ctx %p, current %p\n", ctx, current);
+	if (ctx->trans->atom != NULL)
+		printk("atom != NULL: ctx %p, current %p\n", ctx, current);
 	return 0;
 }
 
@@ -511,15 +524,14 @@ int reiser4_writepage(struct page *page,
 	s = page->mapping->host->i_sb;
 	ctx = get_current_context_check();
 
-#if REISER4_USE_ENTD
-	if (can_hit_entd(ctx, s) ||
-	    (ctx && lock_stack_isclean(get_current_lock_stack()) &&
-	     ctx->trans->atom == NULL && ctx->entd == 0)) {
-		/* Throttle memory allocations if we were not in reiser4 or if
-		   lock stack is clean and atom is not opened */
+	if (can_hit_entd(ctx, s))
+		/*
+		 * Throttle memory allocations if we were not in reiser4 or if
+		 * lock stack is clean and atom is not opened
+		 */
 		return write_page_by_ent(page, wbc);
-	}
-#endif				/* REISER4_USE_ENTD */
+
+	assert("",  1 == 2);
 
 	BUG_ON(ctx == NULL);
 	BUG_ON(s != ctx->super);

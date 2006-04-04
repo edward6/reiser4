@@ -2484,7 +2484,7 @@ void *shift_check_prepare(const znode * left, const znode * right)
 	    node40_num_of_items_internal(left) +
 	    node40_num_of_items_internal(right) - (mergeable ? 1 : 0);
 	data =
-		kmalloc(sizeof(struct shift_check) * nr_items, GFP_KERNEL);
+		kmalloc(sizeof(struct shift_check) * nr_items, get_gfp_mask());
 	if (data != NULL) {
 		coord_t coord;
 		pos_in_node_t item_pos;

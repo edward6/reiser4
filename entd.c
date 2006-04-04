@@ -264,6 +264,7 @@ static void entd_flush(struct super_block *super, struct wbq *rq)
 
 	init_stack_context(&ctx, super);
 	ctx.entd = 1;
+	ctx.gfp_mask = GFP_NOFS;
 
 	rq->wbc->start = rq->page->index << PAGE_CACHE_SHIFT;
 	rq->wbc->end = (rq->page->index + ENTD_CAPTURE_APAGE_BURST) << PAGE_CACHE_SHIFT;

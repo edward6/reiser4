@@ -325,7 +325,7 @@ feed_entry(struct file *f,
 	   deadlock which may happen if filldir causes page fault. So, copy
 	   name to intermediate buffer */
 	if (strlen(name) + 1 > sizeof(name_buf)) {
-		local_name = kmalloc(strlen(name) + 1, GFP_KERNEL);
+		local_name = kmalloc(strlen(name) + 1, get_gfp_mask());
 		if (local_name == NULL)
 			return RETERR(-ENOMEM);
 	} else

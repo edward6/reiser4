@@ -423,7 +423,7 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child,
 			neighbor = zlook(tree, &da);
 		} else {
 			neighbor =
-			    zget(tree, &da, side_parent, level, GFP_KERNEL);
+			    zget(tree, &da, side_parent, level, get_gfp_mask());
 		}
 
 		if (IS_ERR(neighbor)) {

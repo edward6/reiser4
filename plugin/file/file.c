@@ -1779,7 +1779,7 @@ int readpage_unix_file_nolock(struct file *file, struct page *page)
 		return PTR_ERR(ctx);
 	}
 
-	hint = kmalloc(sizeof(*hint), GFP_KERNEL);
+	hint = kmalloc(sizeof(*hint), get_gfp_mask());
 	if (hint == NULL) {
 		unlock_page(page);
 		reiser4_exit_context(ctx);
@@ -1815,6 +1815,7 @@ int readpage_unix_file_nolock(struct file *file, struct page *page)
 		done_lh(lh);
 		kfree(hint);
 		unlock_page(page);
+		txn_restart(ctx);
 		reiser4_exit_context(ctx);
 		return -EINVAL;		
 	}
@@ -1827,6 +1828,7 @@ int readpage_unix_file_nolock(struct file *file, struct page *page)
 		done_lh(lh);
 		kfree(hint);
 		unlock_page(page);
+		txn_restart(ctx);
 		reiser4_exit_context(ctx);
 		return result;
 	}
@@ -1839,6 +1841,7 @@ int readpage_unix_file_nolock(struct file *file, struct page *page)
 		done_lh(lh);
 		kfree(hint);
 		unlock_page(page);
+		txn_restart(ctx);
 		reiser4_exit_context(ctx);
 		return 0;
 	}
@@ -1849,6 +1852,7 @@ int readpage_unix_file_nolock(struct file *file, struct page *page)
 		done_lh(lh);
 		kfree(hint);
 		unlock_page(page);
+		txn_restart(ctx);
 		reiser4_exit_context(ctx);
 		return result;
 	}
@@ -1867,6 +1871,7 @@ int readpage_unix_file_nolock(struct file *file, struct page *page)
 		done_lh(lh);
 		kfree(hint);
 		unlock_page(page);
+		txn_restart(ctx);
 		reiser4_exit_context(ctx);
 		return RETERR(-EIO);
 	}
@@ -1900,6 +1905,12 @@ int readpage_unix_file_nolock(struct file *file, struct page *page)
 	save_file_hint(file, hint);
 	kfree(hint);
 
+	/*
+	 * FIXME: explain why it is needed. HINT: page allocation in write can
+	 * not be done when atom is not NULL because reiser4_writepage can not
+	 * kick entd and have to eflush
+	 */
+	txn_restart(ctx);
 	reiser4_exit_context(ctx);
 	return result;
 }
@@ -2038,7 +2049,7 @@ read_unix_file(struct file *file, char __user *buf, size_t read_amount,
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 
-	hint = kmalloc(sizeof(*hint), GFP_KERNEL);
+	hint = kmalloc(sizeof(*hint), get_gfp_mask());
 	if (hint == NULL) {
 		context_set_commit_async(ctx);
 		reiser4_exit_context(ctx);
@@ -2294,6 +2305,7 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 			continue;
 		}
 		if (written < 0) {
+			drop_nonexclusive_access(uf_info);
 			result = written;
 			break;
 		}

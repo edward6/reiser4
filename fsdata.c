@@ -117,7 +117,7 @@ static inline int d_cursor_eq(const d_cursor_key *k1, const d_cursor_key *k2)
  * define functions to manipulate reiser4 super block's hash table of
  * dir_cursors
  */
-#define KMALLOC(size) kmalloc((size), GFP_KERNEL)
+#define KMALLOC(size) kmalloc((size), get_gfp_mask())
 #define KFREE(ptr, size) kfree(ptr)
 TYPE_SAFE_HASH_DEFINE(d_cursor,
 		      dir_cursor,
@@ -138,7 +138,7 @@ int init_super_d_info(struct super_block *super)
 
 	p = &get_super_private(super)->d_info;
 
-	INIT_RADIX_TREE(&p->tree, GFP_KERNEL);
+	INIT_RADIX_TREE(&p->tree, get_gfp_mask());
 	return d_cursor_hash_init(&p->table, D_CURSOR_TABLE_SIZE);
 }
 
@@ -327,7 +327,7 @@ static int insert_cursor(dir_cursor *cursor, struct file *file,
 	 * cursor. */
 	fsdata = create_fsdata(NULL);
 	if (fsdata != NULL) {
-		result = radix_tree_preload(GFP_KERNEL);
+		result = radix_tree_preload(get_gfp_mask());
 		if (result == 0) {
 			d_cursor_info *info;
 			oid_t oid;
@@ -563,7 +563,7 @@ int try_to_attach_fsdata(struct file *file, struct inode *inode)
 		 * first call to readdir (or rewind to the beginning of
 		 * directory)
 		 */
-		cursor = kmem_cache_alloc(d_cursor_cache, GFP_KERNEL);
+		cursor = kmem_cache_alloc(d_cursor_cache, get_gfp_mask());
 		if (cursor != NULL)
 			result = insert_cursor(cursor, file, inode);
 		else
@@ -662,7 +662,7 @@ reiser4_dentry_fsdata *reiser4_get_dentry_fsdata(struct dentry *dentry)
 
 	if (dentry->d_fsdata == NULL) {
 		dentry->d_fsdata = kmem_cache_alloc(dentry_fsdata_cache,
-						    GFP_KERNEL);
+						    get_gfp_mask());
 		if (dentry->d_fsdata == NULL)
 			return ERR_PTR(RETERR(-ENOMEM));
 		memset(dentry->d_fsdata, 0, sizeof(reiser4_dentry_fsdata));
@@ -726,7 +726,7 @@ static reiser4_file_fsdata *create_fsdata(struct file *file)
 {
 	reiser4_file_fsdata *fsdata;
 
-	fsdata = kmem_cache_alloc(file_fsdata_cache, GFP_KERNEL);
+	fsdata = kmem_cache_alloc(file_fsdata_cache, get_gfp_mask());
 	if (fsdata != NULL) {
 		memset(fsdata, 0, sizeof *fsdata);
 		fsdata->ra1.max_window_size = VM_MAX_READAHEAD * 1024;

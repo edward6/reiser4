@@ -124,7 +124,7 @@ static void *reiser4_pool_alloc(reiser4_pool * pool	/* pool to allocate object
 	} else {
 		/* pool is empty. Extra allocations don't deserve dedicated
 		   slab to be served from, as they are expected to be rare. */
-		result = kmalloc(pool->obj_size, GFP_KERNEL);
+		result = kmalloc(pool->obj_size, get_gfp_mask());
 		if (result != 0) {
 			reiser4_init_pool_obj(result);
 			list_add(&result->extra_linkage, &pool->extra);

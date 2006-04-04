@@ -168,7 +168,6 @@ static carry_op *add_op(carry_level * level, pool_ordering order,
 static void fatal_carry_error(carry_level * doing, int ecode);
 static int add_new_root(carry_level * level, carry_node * node, znode * fake);
 
-static int carry_estimate_reserve(carry_level * level);
 
 static void print_level(const char *prefix, carry_level * level);
 
@@ -179,20 +178,6 @@ typedef enum {
 } carry_queue_state;
 static int carry_level_invariant(carry_level * level, carry_queue_state state);
 #endif
-
-static int perthread_pages_reserve(int nrpages, int gfp)
-{
-	return 0;
-}
-
-static void perthread_pages_release(int nrpages)
-{
-}
-
-static int perthread_pages_count(void)
-{
-	return 0;
-}
 
 /* main entry point for tree balancing.
 
@@ -212,8 +197,6 @@ int carry(carry_level * doing /* set of carry operations to be performed */ ,
 	int result = 0;
 	/* queue of new requests */
 	carry_level *todo;
-	int wasreserved;
-	int reserve;
 	ON_DEBUG(STORE_COUNTERS);
 
 	assert("nikita-888", doing != NULL);
@@ -225,12 +208,6 @@ int carry(carry_level * doing /* set of carry operations to be performed */ ,
 	/* queue of requests preformed on the previous level */
 	done = todo + 1;
 	init_carry_level(done, doing->pool);
-
-	wasreserved = perthread_pages_count();
-	reserve = carry_estimate_reserve(doing);
-	result = perthread_pages_reserve(reserve, GFP_KERNEL);
-	if (result != 0)
-		return result;
 
 	/* iterate until there is nothing more to do */
 	while (result == 0 && doing->ops_num > 0) {
@@ -292,9 +269,6 @@ int carry(carry_level * doing /* set of carry operations to be performed */ ,
 		preempt_point();
 	}
 	done_carry_level(done);
-
-	assert("nikita-3460", perthread_pages_count() - wasreserved >= 0);
-	perthread_pages_release(perthread_pages_count() - wasreserved);
 
 	/* all counters, but x_refs should remain the same. x_refs can change
 	   owing to transaction manager */
@@ -464,7 +438,7 @@ carry_pool *init_carry_pool(int size)
 	carry_pool *pool;
 
 	assert("", size >= sizeof(carry_pool) + 3 * sizeof(carry_level));
-	pool = kmalloc(size, GFP_KERNEL);
+	pool = kmalloc(size, get_gfp_mask());
 	if (pool == NULL)
 		return ERR_PTR(RETERR(-ENOMEM));
 
@@ -1230,22 +1204,6 @@ carry_node *add_new_znode(znode * brother	/* existing left neighbor of new
 					  znode_get_rd_key(brother)));
 	write_unlock_dk(znode_get_tree(brother));
 	return fresh;
-}
-
-/*
- * Estimate how many pages of memory have to be reserved to complete execution
- * of @level.
- */
-static int carry_estimate_reserve(carry_level * level)
-{
-	carry_op *op;
-	carry_op *tmp_op;
-	int result;
-
-	result = 0;
-	for_all_ops(level, op, tmp_op)
-	    result += op_dispatch_table[op->op].estimate(op, level);
-	return result;
 }
 
 /* DEBUGGING FUNCTIONS.

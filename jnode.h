@@ -12,6 +12,7 @@
 #include "key.h"
 #include "debug.h"
 #include "dformat.h"
+#include "context.h"
 #include "emergency_flush.h"
 
 #include "plugin/plugin.h"
@@ -525,7 +526,7 @@ extern int jload_gfp(jnode * node, int gfp, int do_kmap) NONNULL;
 
 static inline int jload(jnode * node)
 {
-	return jload_gfp(node, GFP_KERNEL, 1);
+	return jload_gfp(node, get_gfp_mask(), 1);
 }
 
 extern int jinit_new(jnode * node, int gfp_flags) NONNULL;

@@ -363,7 +363,7 @@ static int split_allocated_extent(coord_t *coord, reiser4_block_nr pos_in_unit)
 	assert("vs-1410", state_of_extent(ext) == ALLOCATED_EXTENT);
 	assert("vs-1411", extent_get_width(ext) > pos_in_unit);
 
-	h = kmalloc(sizeof(*h), GFP_KERNEL);
+	h = kmalloc(sizeof(*h), get_gfp_mask());
 	if (h == NULL)
 		return RETERR(-ENOMEM);
 	h->coord = coord;
@@ -671,7 +671,7 @@ static int conv_extent(coord_t *coord, reiser4_extent *replace)
 		return 0;
 	}
 
-	h = kmalloc(sizeof(*h), GFP_KERNEL);
+	h = kmalloc(sizeof(*h), get_gfp_mask());
 	if (h == NULL)
 		return RETERR(-ENOMEM);
 	h->coord = coord;

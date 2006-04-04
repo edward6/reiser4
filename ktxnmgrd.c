@@ -129,7 +129,7 @@ int init_ktxnmgrd(struct super_block *super)
 
 	assert("zam-1014", mgr->daemon == NULL);
 
-	ctx = kmalloc(sizeof(ktxnmgrd_context), GFP_KERNEL);
+	ctx = kmalloc(sizeof(ktxnmgrd_context), get_gfp_mask());
 	if (ctx == NULL)
 		return RETERR(-ENOMEM);
 

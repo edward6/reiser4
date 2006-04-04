@@ -851,7 +851,7 @@ static level_lookup_result cbk_level_lookup(cbk_handle * h /* search handle */ )
 
 	/* acquire reference to @active node */
 	active =
-	    zget(h->tree, &h->block, h->parent_lh->node, h->level, GFP_KERNEL);
+	    zget(h->tree, &h->block, h->parent_lh->node, h->level, get_gfp_mask());
 
 	if (IS_ERR(active)) {
 		h->result = PTR_ERR(active);

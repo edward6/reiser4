@@ -50,6 +50,7 @@ static void _init_context(reiser4_context * context, struct super_block *super)
 	context->outer = current->journal_info;
 	current->journal_info = (void *)context;
 	context->nr_children = 0;
+	context->gfp_mask = GFP_KERNEL;
 
 	init_lock_stack(&context->stack);
 
@@ -250,6 +251,19 @@ void reiser4_exit_context(reiser4_context * context)
 		txn_end(context);
 	}
 	done_context(context);
+}
+
+void set_gfp_mask(void)
+{
+	reiser4_context *ctx;
+
+	ctx = get_current_context();
+	if (ctx->entd == 0 &&
+	    list_empty(&ctx->stack.locks) &&
+	    ctx->trans->atom == NULL)
+		ctx->gfp_mask = GFP_KERNEL;
+	else
+		ctx->gfp_mask = GFP_NOFS;
 }
 
 /*

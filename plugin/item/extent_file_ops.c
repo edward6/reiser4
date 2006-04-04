@@ -811,6 +811,8 @@ ssize_t write_extent(struct file *file, const char __user *buf, size_t count,
 		return 0;
 	}
 
+	BUG_ON(get_current_context()->trans->atom != NULL);
+
 	index = *pos >> PAGE_CACHE_SHIFT;
 	/* calculate number of pages which are to be written */
       	end = ((*pos + count - 1) >> PAGE_CACHE_SHIFT);
@@ -819,7 +821,7 @@ ssize_t write_extent(struct file *file, const char __user *buf, size_t count,
 
 	/* get pages and jnodes */
 	for (i = 0; i < nr_pages; i ++) {
-		pages[i] = find_or_create_page(inode->i_mapping, index + i, GFP_KERNEL);
+		pages[i] = find_or_create_page(inode->i_mapping, index + i, get_gfp_mask());
 		if (pages[i] == NULL) {
 			while(i --) {
 				unlock_page(pages[i]);
@@ -840,6 +842,8 @@ ssize_t write_extent(struct file *file, const char __user *buf, size_t count,
 		}
 		unlock_page(pages[i]);
 	}
+
+	BUG_ON(get_current_context()->trans->atom != NULL);
 
 	have_to_update_extent = 0;
 
@@ -866,7 +870,9 @@ ssize_t write_extent(struct file *file, const char __user *buf, size_t count,
 			unlock_page(page);
 		}
 
+		BUG_ON(get_current_context()->trans->atom != NULL);
 		fault_in_pages_readable(buf, to_page);
+		BUG_ON(get_current_context()->trans->atom != NULL);
 
 		lock_page(page);
 		if (!PageUptodate(page) && to_page != PAGE_CACHE_SIZE) {
@@ -881,8 +887,14 @@ ssize_t write_extent(struct file *file, const char __user *buf, size_t count,
 		}
 
 		written = filemap_copy_from_user(page, page_off, buf, to_page);
-		/* FIXME: handle errors */
-		BUG_ON(written != to_page);
+		if (written != to_page) {
+			unlock_page(page);
+			page_cache_release(page);
+			nr_pages = i;
+			jput(jnodes[i]);
+			result = RETERR(-EFAULT);
+			break;
+		}
 		flush_dcache_page(page);
 		set_page_dirty_internal(page);
 		unlock_page(page);
@@ -896,6 +908,7 @@ ssize_t write_extent(struct file *file, const char __user *buf, size_t count,
 		page_off = 0;
 		buf += to_page;
 		left -= to_page;
+		BUG_ON(get_current_context()->trans->atom != NULL);
 	}
  
 	if (have_to_update_extent)
@@ -909,7 +922,8 @@ ssize_t write_extent(struct file *file, const char __user *buf, size_t count,
 	for (i = 0; i < nr_pages; i ++)
 		jput(jnodes[i]);
 
-	return count - left;
+	/* the only error handled so far is EFAULT on copy_from_user  */
+	return (count - left) ? (count - left) : -EFAULT;
 }
 
 static inline void zero_page(struct page *page)
@@ -997,7 +1011,7 @@ do_readpage_extent(reiser4_extent * ext, reiser4_block_nr pos,
 	}
 
 	BUG_ON(j == 0);
-	page_io(page, j, READ, GFP_NOIO);
+	page_io(page, j, READ, get_gfp_mask());
 	jput(j);
 	return 0;
 }
@@ -1288,6 +1302,7 @@ int read_extent(struct file *file, flow_t *flow, hint_t *hint)
 	ra = file->f_ra;
 	prev_page = ra.prev_page;
 	do {
+		txn_restart_current();
 		if (next_page == cur_page)
 			next_page =
 			    call_page_cache_readahead(mapping, file, hint,
