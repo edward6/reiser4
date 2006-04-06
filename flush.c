@@ -920,7 +920,8 @@ static jnode *find_flush_start_jnode(jnode *start, txn_atom *atom,
 		if (!jnode_is_flushprepped(start)) {
 			assert("zam-1056", start->atom == atom);
 			node = start;
-			printk("!flushprepped: reloc %d, dirty %d, ovrwr %d\n",
+			printk("!flushprepped: %p: reloc %d, dirty %d, ovrwr %d\n",
+			       node,
 			       JF_ISSET(node, JNODE_RELOC),
 			       JF_ISSET(node, JNODE_DIRTY),
 			       JF_ISSET(node, JNODE_OVRWR)
@@ -967,6 +968,12 @@ static jnode *find_flush_start_jnode(jnode *start, txn_atom *atom,
 			 */
 			jnode_make_wander_nolock(node);
 		} else if (JF_ISSET(node, JNODE_RELOC)) {
+			printk("queue_jnode: %p: reloc %d, dirty %d, ovrwr %d\n",
+			       node,
+			       JF_ISSET(node, JNODE_RELOC),
+			       JF_ISSET(node, JNODE_DIRTY),
+			       JF_ISSET(node, JNODE_OVRWR)
+			       );
 			queue_jnode(fq, node);
 			++(*nr_queued);
 		} else
