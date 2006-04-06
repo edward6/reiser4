@@ -290,12 +290,6 @@ int jnode_is_releasable(jnode * node /* node to check */ )
 		return 0;
 	}
 
-	/* emergency flushed page can be released. This is what emergency
-	 * flush is all about after all. */
-	if (JF_ISSET(node, JNODE_EFLUSH)) {
-		return 1;	/* yeah! */
-	}
-
 	/* can only release page if real block number is assigned to
 	   it. Simple check for ->atom wouldn't do, because it is possible for
 	   node to be clean, not it atom yet, and still having fake block
@@ -316,13 +310,6 @@ int jnode_is_releasable(jnode * node /* node to check */ )
 	if (JF_ISSET(node, JNODE_WRITEBACK)) {
 		return 0;
 	}
-#if 0
-	/* page was modified through mmap, but its jnode is not yet
-	 * captured. Don't discard modified data. */
-	if (jnode_is_unformatted(node) && JF_ISSET(node, JNODE_KEEPME)) {
-		return 0;
-	}
-#endif
 	BUG_ON(JF_ISSET(node, JNODE_KEEPME));
 	/* don't flush bitmaps or journal records */
 	if (!jnode_is_znode(node) && !jnode_is_unformatted(node)) {

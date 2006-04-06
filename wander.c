@@ -541,7 +541,6 @@ get_more_wandered_blocks(int count, reiser4_block_nr * start, int *len)
 
 	ret = reiser4_alloc_blocks(&hint, start, &wide_len,
 				   BA_FORMATTED | BA_USE_DEFAULT_SEARCH_START);
-
 	*len = (int)wide_len;
 
 	return ret;
@@ -769,7 +768,6 @@ static int write_jnodes_to_disk_extent(
 			assert("nikita-3166",
 			       pg->mapping == jnode_get_mapping(cur));
 			assert("zam-912", !JF_ISSET(cur, JNODE_WRITEBACK));
-			assert("", !JF_ISSET(cur, JNODE_EFLUSH));
 #if REISER4_DEBUG
 			spin_lock(&cur->load);
 			assert("nikita-3165", !jnode_is_releasable(cur));
@@ -999,9 +997,14 @@ static int alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 	jnode *cur;
 	jnode *txhead;
 	int ret;
+	reiser4_context *ctx;
+	reiser4_super_info_data *sbinfo;
 
 	assert("zam-698", ch->tx_size > 0);
 	assert("zam-699", list_empty_careful(&ch->tx_list));
+
+	ctx = get_current_context();
+	sbinfo = get_super_private(ctx->super);
 
 	while (allocated < (unsigned)ch->tx_size) {
 		len = (ch->tx_size - allocated);
@@ -1018,7 +1021,6 @@ static int alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 		ret = reiser4_alloc_blocks(&hint, &first, &len,
 					   BA_FORMATTED | BA_RESERVED |
 					   BA_USE_DEFAULT_SEARCH_START);
-
 		blocknr_hint_done(&hint);
 
 		if (ret)

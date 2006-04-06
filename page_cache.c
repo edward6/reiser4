@@ -514,10 +514,6 @@ int reiser4_writepage(struct page *page,
 {
 	struct super_block *s;
 	reiser4_context *ctx;
-	reiser4_tree *tree;
-	txn_atom *atom;
-	jnode *node;
-	int result;
 
 	assert("vs-828", PageLocked(page));
 
@@ -532,52 +528,7 @@ int reiser4_writepage(struct page *page,
 		return write_page_by_ent(page, wbc);
 
 	assert("",  1 == 2);
-
-	BUG_ON(ctx == NULL);
-	BUG_ON(s != ctx->super);
-
-	tree = &get_super_private(s)->tree;
-	node = jnode_of_page(page);
-	if (!IS_ERR(node)) {
-		int phantom;
-
-		assert("nikita-2419", node != NULL);
-
-		spin_lock_jnode(node);
-		/*
-		 * page was dirty, but jnode is not. This is (only?)
-		 * possible if page was modified through mmap(). We
-		 * want to handle such jnodes specially.
-		 */
-		phantom = !JF_ISSET(node, JNODE_DIRTY);
-		atom = jnode_get_atom(node);
-		if (atom != NULL) {
-			if (!(atom->flags & ATOM_FORCE_COMMIT)) {
-				atom->flags |= ATOM_FORCE_COMMIT;
-				ktxnmgrd_kick(&get_super_private(s)->tmgr);
-			}
-			spin_unlock_atom(atom);
-		}
-		spin_unlock_jnode(node);
-
-		result = emergency_flush(page);
-		if (result == 0)
-			if (phantom && jnode_is_unformatted(node))
-				JF_SET(node, JNODE_KEEPME);
-		jput(node);
-	} else {
-		result = PTR_ERR(node);
-	}
-	if (result != 0) {
-		/*
-		 * shrink list doesn't move page to another mapping
-		 * list when clearing dirty flag. So it is enough to
-		 * just set dirty bit.
-		 */
-		set_page_dirty_internal(page);
-		unlock_page(page);
-	}
-	return result;
+	return 0;
 }
 
 /* ->set_page_dirty() method of formatted address_space */

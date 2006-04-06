@@ -302,7 +302,6 @@ inline void jfree(jnode * node)
 
 	assert("nikita-2663", (list_empty_careful(&node->capture_link) &&
 			       NODE_LIST(node) == NOT_CAPTURED));
-	assert("nikita-2774", !JF_ISSET(node, JNODE_EFLUSH));
 	assert("nikita-3222", list_empty(&node->jnodes));
 	assert("nikita-3221", jnode_page(node) == NULL);
 
@@ -459,7 +458,6 @@ static void inode_detach_jnode(jnode * node)
 
 	assert("zam-1051", info->nr_jnodes != 0);
 	assert("zam-1052", rtree->rnode != NULL);
-	assert("vs-1730", !JF_ISSET(node, JNODE_EFLUSH));
 	ON_DEBUG(info->nr_jnodes--);
 
 	/* delete jnode from inode's radix tree of jnodes */
@@ -923,12 +921,6 @@ int jload_gfp(jnode * node /* node to load */ ,
 		check_jload(node, page);
 		if (do_kmap)
 			node->data = kmap(page);
-	}
-
-	if (unlikely(JF_ISSET(node, JNODE_EFLUSH))) {
-		spin_lock_jnode(node);
-		eflush_del(node, 0);
-		spin_unlock_jnode(node);
 	}
 
 	if (!is_writeout_mode())
@@ -1604,7 +1596,6 @@ static int jnode_try_drop(jnode * node)
 	result = jnode_is_busy(node, jtype);
 	if (result == 0) {
 		assert("nikita-2582", !JF_ISSET(node, JNODE_HEARD_BANSHEE));
-		assert("nikita-3223", !JF_ISSET(node, JNODE_EFLUSH));
 		assert("jmacd-511/b", atomic_read(&node->d_count) == 0);
 
 		spin_unlock_jnode(node);
@@ -1632,9 +1623,6 @@ static int jdelete(jnode * node /* jnode to finish with */ )
 
 	assert("nikita-467", node != NULL);
 	assert("nikita-2531", JF_ISSET(node, JNODE_RIP));
-	/* jnode cannot be eflushed at this point, because emegrency flush
-	 * acquired additional reference counter. */
-	assert("nikita-2917", !JF_ISSET(node, JNODE_EFLUSH));
 
 	jtype = jnode_get_type(node);
 
@@ -1892,29 +1880,27 @@ void info_jnode(const char *prefix /* prefix to print */ ,
 	}
 
 	printk
-	    ("%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i,"
+	    ("%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i,"
 	     " block: %s, d_count: %d, x_count: %d, "
 	     "pg: %p, atom: %p, lock: %i:%i, type: %s, ", prefix, node,
-	     node->state, jnode_state_name(node, JNODE_PARSED),
-	     jnode_state_name(node, JNODE_HEARD_BANSHEE), jnode_state_name(node,
-									   JNODE_LEFT_CONNECTED),
+	     node->state, 
+	     jnode_state_name(node, JNODE_PARSED),
+	     jnode_state_name(node, JNODE_HEARD_BANSHEE),
+	     jnode_state_name(node, JNODE_LEFT_CONNECTED),
 	     jnode_state_name(node, JNODE_RIGHT_CONNECTED),
-	     jnode_state_name(node, JNODE_ORPHAN), jnode_state_name(node,
-								    JNODE_CREATED),
-	     jnode_state_name(node, JNODE_RELOC), jnode_state_name(node,
-								   JNODE_OVRWR),
-	     jnode_state_name(node, JNODE_DIRTY), jnode_state_name(node,
-								   JNODE_IS_DYING),
-	     jnode_state_name(node, JNODE_EFLUSH), jnode_state_name(node,
-								    JNODE_FLUSH_QUEUED),
-	     jnode_state_name(node, JNODE_RIP), jnode_state_name(node,
-								 JNODE_MISSED_IN_CAPTURE),
-	     jnode_state_name(node, JNODE_WRITEBACK), jnode_state_name(node,
-								       JNODE_NEW),
-	     jnode_state_name(node, JNODE_DKSET), jnode_state_name(node,
-								   JNODE_EPROTECTED),
-	     jnode_state_name(node, JNODE_REPACK), jnode_state_name(node,
-								    JNODE_CLUSTER_PAGE),
+	     jnode_state_name(node, JNODE_ORPHAN),
+	     jnode_state_name(node, JNODE_CREATED),
+	     jnode_state_name(node, JNODE_RELOC),
+	     jnode_state_name(node, JNODE_OVRWR),
+	     jnode_state_name(node, JNODE_DIRTY),
+	     jnode_state_name(node, JNODE_IS_DYING),
+	     jnode_state_name(node, JNODE_RIP),
+	     jnode_state_name(node, JNODE_MISSED_IN_CAPTURE),
+	     jnode_state_name(node, JNODE_WRITEBACK),
+	     jnode_state_name(node, JNODE_NEW),
+	     jnode_state_name(node, JNODE_DKSET),
+	     jnode_state_name(node, JNODE_REPACK),
+	     jnode_state_name(node, JNODE_CLUSTER_PAGE),
 	     jnode_get_level(node), sprint_address(jnode_get_block(node)),
 	     atomic_read(&node->d_count), atomic_read(&node->x_count),
 	     jnode_page(node), node->atom, 0, 0,

@@ -239,8 +239,7 @@ typedef enum {
 	CLEAN_LIST,
 	FQ_LIST,
 	WB_LIST,
-	OVRWR_LIST,
-	PROTECT_LIST
+	OVRWR_LIST
 } atom_list;
 
 

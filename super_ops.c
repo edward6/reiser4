@@ -614,10 +614,6 @@ static int __init init_reiser4(void)
 	if ((result = init_jnodes()) != 0)
 		goto failed_init_jnodes;
 
-	/* initialize cache of eflush nodes */
-	if ((result = init_eflush()) != 0)
-		goto failed_init_eflush;
-
 	/* initialize cache of flush queues */
 	if ((result = init_fqs()) != 0)
 		goto failed_init_fqs;
@@ -648,8 +644,6 @@ static int __init init_reiser4(void)
  failed_init_dentry_fsdata:
 	done_fqs();
  failed_init_fqs:
-	done_eflush();
- failed_init_eflush:
 	done_jnodes();
  failed_init_jnodes:
 	done_txnmgr_static();
@@ -680,7 +674,6 @@ static void __exit done_reiser4(void)
 	done_file_fsdata();
 	done_dentry_fsdata();
 	done_fqs();
-	done_eflush();
 	done_jnodes();
 	done_txnmgr_static();
 	done_plugin_set();

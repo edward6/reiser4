@@ -242,7 +242,6 @@ struct txn_atom {
 	int ovrwr;
 	int wb;
 	int fq;
-	int protect;
 #endif
 
 	__u32 flushed;
@@ -287,8 +286,6 @@ struct txn_atom {
 
 	/* List of this atom's handles that are waiting: see 'capture_fuse_wait' comment. */
 	struct list_head fwaiting_list;
-
-	struct list_head protected;
 
 	/* Numbers of objects which were deleted/created in this transaction
 	   thereby numbers of objects IDs which were released/deallocated. */

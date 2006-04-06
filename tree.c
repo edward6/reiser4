@@ -671,13 +671,6 @@ static void uncapture_znode(znode * node)
 
 	assert("zam-1001", ZF_ISSET(node, JNODE_HEARD_BANSHEE));
 
-	/* Get e-flush block allocation back before deallocating node's
-	 * block number. */
-	spin_lock_znode(node);
-	if (ZF_ISSET(node, JNODE_EFLUSH))
-		eflush_del(ZJNODE(node), 0);
-	spin_unlock_znode(node);
-
 	if (!blocknr_is_fake(znode_get_block(node))) {
 		int ret;
 

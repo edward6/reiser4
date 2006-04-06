@@ -1000,9 +1000,6 @@ do_readpage_extent(reiser4_extent * ext, reiser4_block_nr pos,
 		spin_lock_jnode(j);
 		jnode_attach_page(j, page);
 		spin_unlock_jnode(j);
-
-		/* page is locked, it is safe to check JNODE_EFLUSH */
-		assert("vs-1668", JF_ISSET(j, JNODE_EFLUSH));
 		break;
 
 	default:
@@ -1469,10 +1466,7 @@ capture_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page,
 		done_lh(uf_coord->lh);
 		return PTR_ERR(j);
 	}
-	spin_lock_jnode(j);
-	eflush_del(j, 1);
 	unlock_page(page);
-	spin_unlock_jnode(j);
 
 	result = overwrite_extent(uf_coord, key, &j, 1, plugged_hole);
 	BUG_ON(result != 1);

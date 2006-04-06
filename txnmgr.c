@@ -403,7 +403,6 @@ static void atom_init(txn_atom * atom)
 	INIT_LIST_HEAD(&atom->atom_link);
 	INIT_LIST_HEAD(&atom->fwaitfor_list);
 	INIT_LIST_HEAD(&atom->fwaiting_list);
-	INIT_LIST_HEAD(&atom->protected);
 	blocknr_set_init(&atom->delete_set);
 	blocknr_set_init(&atom->wandered_map);
 
@@ -436,7 +435,6 @@ static int atom_isclean(txn_atom * atom)
 		list_empty_careful(ATOM_WB_LIST(atom)) &&
 		list_empty_careful(&atom->fwaitfor_list) &&
 		list_empty_careful(&atom->fwaiting_list) &&
-		list_empty_careful(&atom->protected) &&
 		atom_fq_parts_are_clean(atom);
 }
 #endif
@@ -2292,9 +2290,6 @@ void uncapture_page(struct page *pg)
 
 	spin_lock_jnode(node);
 
-	eflush_del(node, 1 /* page is locked */ );
-	/*assert ("zam-815", !JF_ISSET(node, JNODE_EFLUSH)); */
-
 	atom = jnode_get_atom(node);
 	if (atom == NULL) {
 		assert("jmacd-7111", !JF_ISSET(node, JNODE_DIRTY));
@@ -2330,7 +2325,6 @@ void uncapture_page(struct page *pg)
 		 */
 		reiser4_wait_page_writeback(pg);
 		spin_lock_jnode(node);
-		eflush_del(node, 1);
 		page_cache_release(pg);
 		atom = jnode_get_atom(node);
 /* VS-FIXME-HANS: improve the commenting in this function */
@@ -2353,13 +2347,6 @@ void uncapture_jnode(jnode * node)
 	assert_spin_locked(&(node->guard));
 	assert("", node->pg == 0);
 
-	if (JF_ISSET(node, JNODE_EFLUSH)) {
-		eflush_free(node);
-		JF_CLR(node, JNODE_EFLUSH);
-	}
-	/*eflush_del(node, 0); */
-
-	/*jnode_make_clean(node); */
 	atom = jnode_get_atom(node);
 	if (atom == NULL) {
 		assert("jmacd-7111", !JF_ISSET(node, JNODE_DIRTY));
@@ -2526,7 +2513,6 @@ void znode_make_dirty(znode * z)
 
 	assert("umka-204", z != NULL);
 	assert("nikita-3290", znode_above_root(z) || znode_is_loaded(z));
-	assert("nikita-3291", !ZF_ISSET(z, JNODE_EFLUSH));
 	assert("nikita-3560", znode_is_write_locked(z));
 
 	node = ZJNODE(z);
@@ -2631,15 +2617,6 @@ count_jnode(txn_atom * atom, jnode * node, atom_list old_list,
 		assert("", atom->ovrwr > 0);
 		atom->ovrwr--;
 		break;
-	case PROTECT_LIST:
-		/* protect list is an intermediate atom's list to which jnodes
-		   get put from dirty list before disk space is allocated for
-		   them. From this list jnodes can either go to flush queue list
-		   or back to dirty list */
-		assert("", atom->protect > 0);
-		assert("", new_list == FQ_LIST || new_list == DIRTY_LIST);
-		atom->protect--;
-		break;
 	default:
 		impossible("", "");
 	}
@@ -2661,10 +2638,6 @@ count_jnode(txn_atom * atom, jnode * node, atom_list old_list,
 		break;
 	case OVRWR_LIST:
 		atom->ovrwr++;
-		break;
-	case PROTECT_LIST:
-		assert("", old_list == DIRTY_LIST);
-		atom->protect++;
 		break;
 	default:
 		impossible("", "");
@@ -2716,16 +2689,15 @@ count_jnode(txn_atom * atom, jnode * node, atom_list old_list,
 	}
 	assert("vs-1624", atom->num_queued == atom->fq);
 	if (atom->capture_count !=
-	    atom->dirty + atom->clean + atom->ovrwr + atom->wb + atom->fq +
-	    atom->protect) {
+	    atom->dirty + atom->clean + atom->ovrwr + atom->wb + atom->fq) {
 		printk
-		    ("count %d, dirty %d clean %d ovrwr %d wb %d fq %d protect %d\n",
+		    ("count %d, dirty %d clean %d ovrwr %d wb %d fq %d\n",
 		     atom->capture_count, atom->dirty, atom->clean, atom->ovrwr,
-		     atom->wb, atom->fq, atom->protect);
+		     atom->wb, atom->fq);
 		assert("vs-1622",
 		       atom->capture_count ==
 		       atom->dirty + atom->clean + atom->ovrwr + atom->wb +
-		       atom->fq + atom->protect);
+		       atom->fq);
 	}
 }
 
@@ -3084,7 +3056,6 @@ static void capture_fuse_into(txn_atom * small, txn_atom * large)
 	int level;
 	unsigned zcount = 0;
 	unsigned tcount = 0;
-	protected_jnodes *prot_list;
 
 	assert("umka-224", small != NULL);
 	assert("umka-225", small != NULL);
@@ -3119,22 +3090,6 @@ static void capture_fuse_into(txn_atom * small, txn_atom * large)
 	    capture_fuse_txnh_lists(large, &large->txnh_list,
 				    &small->txnh_list);
 
-	list_for_each_entry(prot_list, &small->protected, inatom) {
-		jnode *node;
-
-		list_for_each_entry(node, &prot_list->nodes, capture_link) {
-			zcount += 1;
-
-			spin_lock_jnode(node);
-			assert("nikita-3375", node->atom == small);
-			/* With the jnode lock held, update atom pointer. */
-			node->atom = large;
-			spin_unlock_jnode(node);
-		}
-	}
-	/* Splice the lists of lists. */
-	list_splice_init(&small->protected, large->protected.prev);
-
 	/* Check our accounting. */
 	assert("jmacd-1063",
 	       zcount + small->num_queued == small->capture_count);
@@ -3157,8 +3112,7 @@ static void capture_fuse_into(txn_atom * small, txn_atom * large)
 		 large->wb += small->wb;
 		 small->wb = 0;
 		 large->fq += small->fq;
-		 small->fq = 0;
-		 large->protect += small->protect; small->protect = 0;);
+		 small->fq = 0;);
 
 	/* count flushers in result atom */
 	large->nr_flushers += small->nr_flushers;
@@ -3221,29 +3175,6 @@ static void capture_fuse_into(txn_atom * small, txn_atom * large)
 	/* Unlock atoms */
 	spin_unlock_atom(large);
 	atom_dec_and_unlock(small);
-}
-
-void protected_jnodes_init(protected_jnodes *list)
-{
-	txn_atom *atom;
-
-	assert("nikita-3376", list != NULL);
-
-	atom = get_current_atom_locked();
-	list_add(&list->inatom, &atom->protected);
-	INIT_LIST_HEAD(&list->nodes);
-	spin_unlock_atom(atom);
-}
-
-void protected_jnodes_done(protected_jnodes *list)
-{
-	txn_atom *atom;
-
-	assert("nikita-3379", list_empty(&list->nodes));
-
-	atom = get_current_atom_locked();
-	list_del_init(&list->inatom);
-	spin_unlock_atom(atom);
 }
 
 /* TXNMGR STUFF */
@@ -3762,7 +3693,6 @@ void uncapture_block(jnode * node)
 #else
 	assert("jmacd-1023", atom_is_protected(atom));
 #endif
-	assert("", !JF_ISSET(node, JNODE_EFLUSH));
 
 	JF_CLR(node, JNODE_DIRTY);
 	JF_CLR(node, JNODE_RELOC);

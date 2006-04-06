@@ -896,7 +896,7 @@ ef_prepare(jnode * node, reiser4_block_nr * blk, eflush_node_t ** efnode,
 #endif
 	(*efnode)->reserve = usedreserve;
 
-	result = reiser4_alloc_block(hint, blk, ef_block_flags(node));
+qweqe	result = reiser4_alloc_block(hint, blk, ef_block_flags(node));
 	if (result)
 		kmem_cache_free(eflush_slab, *efnode);
       out:
