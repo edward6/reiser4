@@ -909,25 +909,25 @@ static int rapid_flush(flush_pos_t * pos)
 
 #endif				/* REISER4_USE_RAPID_FLUSH */
 
+extern int reloc_version;
+
 static jnode *find_flush_start_jnode(jnode *start, txn_atom *atom,
 				     flush_queue_t *fq, int *nr_queued,
 				     int flags)
 {
 	jnode * node;
 
+	/*printk("%d: find_flush_start_jnode: start %p\n", reloc_version++, start);*/
 	if (start != NULL) {
 		spin_lock_jnode(start);
 		if (!jnode_is_flushprepped(start)) {
 			assert("zam-1056", start->atom == atom);
 			node = start;
-			printk("!flushprepped: %p: reloc %d, dirty %d, ovrwr %d\n",
-			       node,
-			       JF_ISSET(node, JNODE_RELOC),
-			       JF_ISSET(node, JNODE_DIRTY),
-			       JF_ISSET(node, JNODE_OVRWR)
-			       );
+			/*printk("%d: not flushprepped: %p (0x%lx)\n",
+			  reloc_version++, node, node->state);*/
 			goto enter;
 		}
+		/*printk("%d: flushprepped: %p (0x%lx)\n", reloc_version++, start, start->state);*/
 		spin_unlock_jnode(start);
 	}
 	/*
@@ -936,6 +936,7 @@ static jnode *find_flush_start_jnode(jnode *start, txn_atom *atom,
 	 * not prepped node found in the atom dirty lists.
 	 */
 	while ((node = find_first_dirty_jnode(atom, flags))) {
+		/*printk("%d: found on dirty list: %p (0x%lx)\n", reloc_version++, node, node->state);*/
 		spin_lock_jnode(node);
 	enter:
 		assert("zam-881", JF_ISSET(node, JNODE_DIRTY));
@@ -968,12 +969,8 @@ static jnode *find_flush_start_jnode(jnode *start, txn_atom *atom,
 			 */
 			jnode_make_wander_nolock(node);
 		} else if (JF_ISSET(node, JNODE_RELOC)) {
-			printk("queue_jnode: %p: reloc %d, dirty %d, ovrwr %d\n",
-			       node,
-			       JF_ISSET(node, JNODE_RELOC),
-			       JF_ISSET(node, JNODE_DIRTY),
-			       JF_ISSET(node, JNODE_OVRWR)
-			       );
+			/*printk("%d: have to call queue_jnode: %p (0x%lx)\n",
+			  reloc_version++, node, node->state);*/
 			queue_jnode(fq, node);
 			++(*nr_queued);
 		} else

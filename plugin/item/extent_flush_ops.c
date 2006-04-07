@@ -513,15 +513,14 @@ static int conv_extent(coord_t *coord, reiser4_extent *replace)
 /**
  * assign_real_blocknrs
  * @flush_pos:
- * @first:
- * @count:
- * @state:
- *
- *
+ * @oid: objectid of file jnodes to assign block number to belongs to
+ * @index: first jnode on the range
+ * @count: number of jnodes to assign block numbers to
+ * @first: start of allocated block range
+ * 
+ * Assigns block numbers to each of @count jnodes. Index of first jnode is
+ * @index. Jnodes get lookuped with jlookup.
  */
-/* for every jnode from @protected_nodes list assign block number and mark it
-   RELOC and FLUSH_QUEUED. Attach whole @protected_nodes list to flush queue's
-   prepped list */
 static void assign_real_blocknrs(flush_pos_t *flush_pos, oid_t oid,
 				 unsigned long index, reiser4_block_nr count,
 				 reiser4_block_nr first)
@@ -758,6 +757,11 @@ int alloc_extent(flush_pos_t *flush_pos)
 			block_stage = BLOCK_FLUSH_RESERVED;
 			protected = allocated_extent_slum_size(flush_pos, oid,
 							       index, width);
+			if (protected == 0) {
+				flush_pos->state = POS_INVALID;
+				flush_pos->pos_in_unit = 0;
+				return 0;
+ 			}
 		} else {
 			block_stage = BLOCK_UNALLOCATED;
 			protected = width;
@@ -912,6 +916,11 @@ squalloc_extent(znode * left, const coord_t * coord, flush_pos_t * flush_pos,
 			block_stage = BLOCK_FLUSH_RESERVED;
 			protected = allocated_extent_slum_size(flush_pos, oid,
 							       index, width);
+			if (protected == 0) {
+				flush_pos->state = POS_INVALID;
+				flush_pos->pos_in_unit = 0;
+				return 0;
+ 			}
 		} else {
 			block_stage = BLOCK_UNALLOCATED;
 			protected = width;
