@@ -2743,11 +2743,6 @@ void jnode_make_wander(jnode * node)
 	spin_unlock_jnode(node);
 }
 
-
-jnode *reloc_node;
-void *reloc_path[8];
-int reloc_version;
-
 /* this just sets RELOC bit  */
 static void jnode_make_reloc_nolock(flush_queue_t * fq, jnode * node)
 {
@@ -2757,18 +2752,6 @@ static void jnode_make_reloc_nolock(flush_queue_t * fq, jnode * node)
 	assert("zam-918", !JF_ISSET(node, JNODE_OVRWR));
 	assert("zam-920", !JF_ISSET(node, JNODE_FLUSH_QUEUED));
 	assert("nikita-3367", !blocknr_is_fake(jnode_get_block(node)));
-
-
-	reloc_version ++;
-	reloc_node = node;
-	reloc_path[0] = __builtin_return_address(0);
-	reloc_path[1] = __builtin_return_address(1);
-	reloc_path[2] = __builtin_return_address(2);
-	reloc_path[3] = __builtin_return_address(3);
-	reloc_path[4] = __builtin_return_address(4);
-	reloc_path[5] = __builtin_return_address(5);
-	reloc_path[6] = __builtin_return_address(6);
-	reloc_path[7] = __builtin_return_address(7);
 	jnode_set_reloc(node);
 }
 
