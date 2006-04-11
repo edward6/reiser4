@@ -613,7 +613,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		},
 		.s = {
 			.file = {
-				.write = NULL,
+				.write = write_tail,
 				.read = read_tail,
 				.readpage = readpage_tail,
 				.capture = NULL,

@@ -33,7 +33,8 @@ int kill_units_tail(coord_t *, pos_in_node_t from, pos_in_node_t to,
 reiser4_key *unit_key_tail(const coord_t *, reiser4_key *);
 
 /* plugin->u.item.s.* */
-int write_tail(struct inode *, flow_t *, hint_t *, int grabbed, write_mode_t);
+ssize_t write_tail(struct file *file, const char __user *buf, size_t count,
+		   loff_t *pos);
 int read_tail(struct file *, flow_t *, hint_t *);
 int readpage_tail(void *vp, struct page *page);
 reiser4_key *append_key_tail(const coord_t *, reiser4_key *);

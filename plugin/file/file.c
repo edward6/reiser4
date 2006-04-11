@@ -62,25 +62,6 @@ static void set_file_state_unknown(struct inode *inode)
 	unix_file_inode_data(inode)->container = UF_CONTAINER_UNKNOWN;
 }
 
-#if 0
-/**
- * less_than_ldk - compare key and znode's left delimiting key
- * @node: node whose left delimiting key to compare with @key
- * @key: key to compare with @node's left delimiting key
- *
- * Returns true if @key is less than left delimiting key of @node.
- */
-static int less_than_ldk(znode *node, const reiser4_key *key)
-{
-	int result;
-
-	read_lock_dk(znode_get_tree(node));
-	result = keylt(key, znode_get_ld_key(node));
-	read_unlock_dk(znode_get_tree(node));
-	return result;
-}
-#endif
-
 /**
  * equal_to_rdk - compare key and znode's right delimiting key
  * @node: node whose right delimiting key to compare with @key
@@ -100,25 +81,6 @@ int equal_to_rdk(znode *node, const reiser4_key *key)
 
 #if REISER4_DEBUG
 
-#if 0
-/**
- * less_than_rdk - compare key and znode's right delimiting key
- * @node: node whose right delimiting key to compare with @key
- * @key: key to compare with @node's right delimiting key
- *
- * Returns true if @key is less than right delimiting key of @node.
- */
-static int less_than_rdk(znode *node, const reiser4_key *key)
-{
-	int result;
-
-	read_lock_dk(znode_get_tree(node));
-	result = keylt(key, znode_get_rd_key(node));
-	read_unlock_dk(znode_get_tree(node));
-	return result;
-}
-#endif
-
 /**
  * equal_to_ldk - compare key and znode's left delimiting key
  * @node: node whose left delimiting key to compare with @key
@@ -135,56 +97,6 @@ int equal_to_ldk(znode *node, const reiser4_key *key)
 	read_unlock_dk(znode_get_tree(node));
 	return result;
 }
-
-#if 0
-/**
- * get_next_item_key - get key of item next to the one @coord is set to
- * @coord: left neighbor of item which key is to be calculated
- * @next_key: where to store key of next item
- *
- * If @coord is set to last item in the node - return right delimiting key of
- * coord->node. Otherwise - return key of next item in the node.
- */
-static reiser4_key *get_next_item_key(const coord_t *coord,
-				      reiser4_key *next_key)
-{
-	if (coord->item_pos == node_num_items(coord->node) - 1) {
-		/* get key of next item if it is in right neighbor */
-		read_lock_dk(znode_get_tree(coord->node));
-		*next_key = *znode_get_rd_key(coord->node);
-		read_unlock_dk(znode_get_tree(coord->node));
-	} else {
-		/* get key of next item if it is in the same node */
-		coord_t next;
-
-		coord_dup_nocheck(&next, coord);
-		next.unit_pos = 0;
-		check_me("vs-730", coord_next_item(&next) == 0);
-		item_key_by_coord(&next, next_key);
-	}
-	return next_key;
-}
-#endif
-
-#if 0
-/**
- * item_of_that_file - check whether item if of certain file
- * @coord: item to check
- * @key: key of position in a file
- *
- * @key is key of position in a file. Returns true if @coord is set to an item
- * of that file.
- */
-static int item_of_that_file(const coord_t *coord, const reiser4_key *key)
-{
-	reiser4_key max_possible;
-	item_plugin *iplug;
-
-	iplug = item_plugin_by_coord(coord);
-	assert("vs-1011", iplug->b.max_key_inside);
-	return keylt(key, iplug->b.max_key_inside(coord, &max_possible));
-}
-#endif
 
 /**
  * check_coord - check whether coord corresponds to key
@@ -214,7 +126,6 @@ static int file_is_empty(const struct inode *inode)
 }
 
 #endif /* REISER4_DEBUG */
-
 
 /**
  * init_uf_coord - initialize extended coord
@@ -372,8 +283,7 @@ int goto_right_neighbor(coord_t * coord, lock_handle * lh)
 
 /* this is to be used after find_file_item and in find_file_item_nohint to
  * determine real state of file */
-static void
-set_file_state(struct inode *inode, int cbk_result, tree_level level)
+static void set_file_state(struct inode *inode, int cbk_result, tree_level level)
 {
 	assert("vs-1649", inode != NULL);
 
@@ -413,6 +323,22 @@ set_file_state(struct inode *inode, int cbk_result, tree_level level)
 	}
 }
 
+int find_file_item_nohint(coord_t *coord, lock_handle *lh,
+			  const reiser4_key *key, znode_lock_mode lock_mode,
+			  struct inode *inode)
+{
+	int result;
+
+	result = object_lookup(inode, key, coord, lh, lock_mode,
+			       FIND_MAX_NOT_MORE_THAN,
+			       TWIG_LEVEL, LEAF_LEVEL,
+			       (lock_mode == ZNODE_READ_LOCK) ? CBK_UNIQUE :
+			       (CBK_UNIQUE | CBK_FOR_INSERT),
+			       NULL /* ra_info */ );
+	set_file_state(inode, result, znode_get_level(coord->node));
+	return result;
+}
+
 /**
  * find_file_item - look for file item in the tree
  * @hint: provides coordinate, lock handle, seal
@@ -440,7 +366,7 @@ int find_file_item(hint_t *hint, const reiser4_key *key,
 	lh = hint->ext_coord.lh;
 	init_lh(lh);
 
-	result = hint_validate(hint, key, 1 /* check key */ , lock_mode);
+	result = hint_validate(hint, key, 1 /* check key */, lock_mode);
 	if (!result) {
 		if (coord->between == AFTER_UNIT
 		    && equal_to_rdk(coord->node, key)) {
@@ -450,8 +376,10 @@ int find_file_item(hint_t *hint, const reiser4_key *key,
 			if (result)
 				return result;
 			assert("vs-1152", equal_to_ldk(coord->node, key));
-			/* we moved to different node. Invalidate coord
-			   extension, zload is necessary to init it again */
+			/*
+			 * we moved to different node. Invalidate coord
+			 * extension, zload is necessary to init it again
+			 */
 			hint->ext_coord.valid = 0;
 		}
 
@@ -461,34 +389,11 @@ int find_file_item(hint_t *hint, const reiser4_key *key,
 	}
 
 	coord_init_zero(coord);
-	result = object_lookup(inode, key, coord, lh, lock_mode,
-			       FIND_MAX_NOT_MORE_THAN,
-			       TWIG_LEVEL, LEAF_LEVEL,
-			       (lock_mode == ZNODE_READ_LOCK) ? CBK_UNIQUE :
-			       (CBK_UNIQUE | CBK_FOR_INSERT), NULL);
-
+	result = find_file_item_nohint(coord, lh, key, lock_mode, inode);
 	set_file_state(inode, result, znode_get_level(coord->node));
 
 	/* FIXME: we might already have coord extension initialized */
 	hint->ext_coord.valid = 0;
-	return result;
-}
-
-int
-find_file_item_nohint(coord_t * coord, lock_handle * lh,
-		      const reiser4_key * key, znode_lock_mode lock_mode,
-		      struct inode *inode)
-{
-	int result;
-
-	result = object_lookup(inode, key, coord, lh, lock_mode,
-			       FIND_MAX_NOT_MORE_THAN,
-			       TWIG_LEVEL, LEAF_LEVEL,
-			       (lock_mode ==
-				ZNODE_READ_LOCK) ? CBK_UNIQUE : (CBK_UNIQUE |
-								 CBK_FOR_INSERT),
-			       NULL /* ra_info */ );
-	set_file_state(inode, result, znode_get_level(coord->node));
 	return result;
 }
 
@@ -553,20 +458,20 @@ static int find_file_size(struct inode *inode, loff_t * file_size)
 	return 0;
 }
 
-static int find_file_state(unix_file_info_t * uf_info)
+static int find_file_state(unix_file_info_t *uf_info)
 {
 	int result;
 
 	assert("vs-1628", ea_obtained(uf_info));
 
-	result = 0;
 	if (uf_info->container == UF_CONTAINER_UNKNOWN) {
 		loff_t file_size;
 
 		result =
 		    find_file_size(unix_file_info_to_inode(uf_info),
 				   &file_size);
-	}
+	} else
+		result = 0;
 	assert("vs-1074",
 	       ergo(result == 0, uf_info->container != UF_CONTAINER_UNKNOWN));
 	return result;
@@ -1491,18 +1396,7 @@ static int commit_file_atoms(struct inode *inode)
 
 	uf_info = unix_file_inode_data(inode);
 
-	/*
-	 * finish extent<->tail conversion if necessary
-	 */
 	get_exclusive_access(uf_info);
-	if (inode_get_flag(inode, REISER4_PART_CONV)) {
-		result = finish_conversion(inode);
-		if (result != 0) {
-			drop_exclusive_access(uf_info);
-			return result;
-		}
-	}
-
 	/*
 	 * find what items file is made from
 	 */
@@ -1928,10 +1822,17 @@ int readpage_unix_file(struct file *file, struct page *page)
 	return readpage_unix_file_nolock(file, page);
 }
 
+/**
+ * should_have_notail
+ * @uf_info:
+ * @new_size:
+ *
+ *
+ */
 /* returns 1 if file of that size (@new_size) has to be stored in unformatted
    nodes */
 /* Audited by: green(2002.06.15) */
-static int should_have_notail(const unix_file_info_t * uf_info, loff_t new_size)
+static int should_have_notail(const unix_file_info_t *uf_info, loff_t new_size)
 {
 	if (!uf_info->tplug)
 		return 1;
@@ -2178,14 +2079,6 @@ int mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 		 * tail items we have to convert it. Find what items the file
 		 * is built of
 		 */
-		result = finish_conversion(inode);
-		if (result) {
-			drop_exclusive_access(uf_info);
-			up(&uf_info->write);
-			reiser4_exit_context(ctx);
-			return result;
-		}
-
 		result = find_file_state(uf_info);
 		if (result != 0) {
 			drop_exclusive_access(uf_info);
@@ -2238,6 +2131,101 @@ int mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 }
 
 /**
+ * find_first_item
+ * @inode:
+ *
+ * Finds file item which is responsible for first byte in the file.
+ */
+static int find_first_item(struct inode *inode)
+{
+	coord_t coord;
+	lock_handle lh;
+	reiser4_key key;
+	int result;
+
+	coord_init_zero(&coord);
+	init_lh(&lh);
+	inode_file_plugin(inode)->key_by_inode(inode, 0, &key);
+	result = find_file_item_nohint(&coord, &lh, &key, ZNODE_READ_LOCK,
+				       inode);
+	if (result == CBK_COORD_FOUND) {
+		if (coord.between == AT_UNIT) {
+			result = zload(coord.node);
+			if (result == 0) {
+				result = item_id_by_coord(&coord);
+				zrelse(coord.node);
+				if (result != EXTENT_POINTER_ID &&
+				    result != FORMATTING_ID)
+					result = RETERR(-EIO);
+			}
+		} else
+			result = RETERR(-EIO);
+	}
+	done_lh(&lh);
+	return result;
+}
+
+/**
+ * open_unix_file
+ * @inode:
+ * @file:
+ *
+ * If filesystem is not readonly - complete uncompleted tail conversion if
+ * there was one
+ */
+int open_unix_file(struct inode *inode, struct file *file)
+{
+	int result;
+	unix_file_info_t *uf_info;
+
+	if (IS_RDONLY(inode))
+		return 0;
+
+	if (!inode_get_flag(inode, REISER4_PART_CONV))
+		return 0;
+
+	uf_info = unix_file_inode_data(inode);
+	get_exclusive_access(uf_info);
+
+	if (!inode_get_flag(inode, REISER4_PART_CONV)) {
+		drop_exclusive_access(uf_info);
+		return 0;
+	}
+
+	result = find_first_item(inode);
+	if (result == EXTENT_POINTER_ID)
+		/*
+		 * first item is extent, therefore there was incomplete
+		 * tail2extent conversion. Complete it
+		 */
+		result = tail2extent(unix_file_inode_data(inode));
+	else if (result == FORMATTING_ID)
+		/*
+		 * first item is formatting item, therefore there was
+		 * incomplete extent2tail conversion. Complete it
+		 */
+		result = extent2tail(unix_file_inode_data(inode));
+	else
+		result = -EIO;
+
+	assert("vs-1712",
+	       ergo(result == 0, !inode_get_flag(inode, REISER4_PART_CONV)));
+	return result;
+}
+
+#define NEITHER_OBTAINED 0
+#define EA_OBTAINED 1
+#define NEA_OBTAINED 2
+
+static void drop_access(unix_file_info_t *uf_info, int access)
+{
+	if (access == EA_OBTAINED)
+		drop_exclusive_access(uf_info);
+	else
+		drop_nonexclusive_access(uf_info);
+}
+
+/**
  * write_unix_file - write of struct file_operations
  * @file: file to write to
  * @buf: address of user-space buffer
@@ -2258,6 +2246,10 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 	int try_free_space;
 	int to_write = PAGE_CACHE_SIZE * WRITE_GRANULARITY;
 	size_t left;
+	ssize_t (*write_op)(struct file *, const char __user *, size_t,
+			    loff_t *pos);
+	int ea;
+	loff_t new_size;
 
 	inode = file->f_dentry->d_inode;
 	ctx = init_context(inode->i_sb);
@@ -2265,6 +2257,7 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 		return PTR_ERR(ctx);
 
 	assert("vs-947", !inode_get_flag(inode, REISER4_NO_SD));
+	assert("vs-9471", !inode_get_flag(inode, REISER4_PART_CONV));
 
 	/* check amount of bytes to write and writing position */
 	result = generic_write_checks(file, pos, &count, 0);
@@ -2280,32 +2273,81 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 		return result;
 	}
 
-	/*
-	  extents only so far
-	if (file state is unknown)
-		detect file state via find_file_item();
-	*/
+	uf_info = unix_file_inode_data(inode);
 
+	current->backing_dev_info = inode->i_mapping->backing_dev_info;
 	written = 0;
 	try_free_space = 0;
-	uf_info = unix_file_inode_data(inode);
-	current->backing_dev_info = inode->i_mapping->backing_dev_info;
-
 	left = count;
+	ea = NEITHER_OBTAINED;
+
+	new_size = i_size_read(inode);
+	if (*pos + count > new_size)
+		new_size = *pos + count;
+
 	while (left) {
 		if (left < to_write)
 			to_write = left;
 
-		get_nonexclusive_access(uf_info, 0);
-		written = write_extent(file, buf, to_write, pos);
+		if (uf_info->container == UF_CONTAINER_EMPTY) {
+			get_exclusive_access(uf_info);
+			ea = EA_OBTAINED;
+			if (uf_info->container == UF_CONTAINER_EMPTY) {
+				/* file is made not empty by another process */
+				drop_exclusive_access(uf_info);
+				ea = NEITHER_OBTAINED;
+				continue;
+			}
+		} else if (uf_info->container == UF_CONTAINER_UNKNOWN) {
+			get_exclusive_access(uf_info);
+			ea = EA_OBTAINED;
+			result = find_file_state(uf_info);
+			if (result) {
+				drop_exclusive_access(uf_info);
+				ea = NEITHER_OBTAINED;
+				break;
+			}
+		} else {
+			get_nonexclusive_access(uf_info, 0);
+			ea = NEA_OBTAINED;
+		}
+
+		if (uf_info->container == UF_CONTAINER_EXTENTS) {
+			/* file is built of extent items */
+			write_op = write_extent;
+		} else if (uf_info->container == UF_CONTAINER_EMPTY) {
+			/* file is empty */
+			if (should_have_notail(uf_info, new_size))
+				write_op = write_extent;
+			else
+				write_op = write_tail;
+		} else {
+			/* file is built of tail items */
+			if (should_have_notail(uf_info, new_size)) {
+				if (ea == NEA_OBTAINED) {
+					drop_nonexclusive_access(uf_info);
+					get_exclusive_access(uf_info);
+					ea = EA_OBTAINED;
+				}
+				if (uf_info->container == UF_CONTAINER_TAILS) {
+					result = tail2extent(uf_info);
+				}
+				drop_exclusive_access(uf_info);
+				ea = NEITHER_OBTAINED;
+				continue;
+			}
+			write_op = write_tail;
+		}
+
+		written = write_op(file, buf, to_write, pos);
 		if (written == -ENOSPC && try_free_space) {
-			drop_nonexclusive_access(uf_info);
+			drop_access(uf_info, ea);
 			txnmgr_force_commit_all(inode->i_sb, 0);
 			try_free_space = 0;
 			continue;
 		}
 		if (written < 0) {
-			drop_nonexclusive_access(uf_info);
+			drop_access(uf_info, ea);
 			result = written;
 			break;
 		}
@@ -2315,13 +2357,14 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 		result = reiser4_update_sd(inode);
 		if (result) {
 			current->backing_dev_info = NULL;
-			drop_nonexclusive_access(uf_info);
+			drop_access(uf_info, ea);
 			context_set_commit_async(ctx);
 			reiser4_exit_context(ctx);
 			current->backing_dev_info = NULL;
 			return result;
 		}
-		drop_nonexclusive_access(uf_info);
+		drop_access(uf_info, ea);
+		ea = NEITHER_OBTAINED;
 		txn_restart(ctx);
 
 		/*
@@ -2825,12 +2868,12 @@ prepare_write_unix_file(struct file *file, struct page *page,
 }
 
 /*
-   Local variables:
-   c-indentation-style: "K&R"
-   mode-name: "LC"
-   c-basic-offset: 8
-   tab-width: 8
-   fill-column: 120
-   scroll-step: 1
-   End:
-*/
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 79
+ * scroll-step: 1
+ * End:
+ */

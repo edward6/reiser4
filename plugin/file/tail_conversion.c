@@ -736,59 +736,6 @@ int extent2tail(unix_file_info_t * uf_info)
 	return result;
 }
 
-/* this is used to find which conversion did not complete */
-static int find_first_item(struct inode *inode)
-{
-	coord_t coord;
-	lock_handle lh;
-	reiser4_key key;
-	int result;
-
-	coord_init_zero(&coord);
-	init_lh(&lh);
-	inode_file_plugin(inode)->key_by_inode(inode, 0, &key);
-	result =
-	    find_file_item_nohint(&coord, &lh, &key, ZNODE_READ_LOCK, inode);
-	if (result == CBK_COORD_FOUND) {
-		if (coord.between == AT_UNIT) {
-			/*coord_clear_iplug(&coord); */
-			result = zload(coord.node);
-			if (result == 0) {
-				result = item_id_by_coord(&coord);
-				zrelse(coord.node);
-				if (result != EXTENT_POINTER_ID
-				    && result != FORMATTING_ID)
-					result = RETERR(-EIO);
-			}
-		} else
-			result = RETERR(-EIO);
-	}
-	done_lh(&lh);
-	return result;
-}
-
-/* exclusive access is obtained. File may be "partially converted" - that is file body may have both formatting and
-   extent items. Find which conversion did not completed and complete */
-int finish_conversion(struct inode *inode)
-{
-	int result;
-
-	if (inode_get_flag(inode, REISER4_PART_CONV)) {
-		result = find_first_item(inode);
-		if (result == EXTENT_POINTER_ID)
-			/* first item is extent, therefore there was incomplete tail2extent conversion. Complete it */
-			result = tail2extent(unix_file_inode_data(inode));
-		else if (result == FORMATTING_ID)
-			/* first item is formatting item, therefore there was incomplete extent2tail
-			   conversion. Complete it */
-			result = extent2tail(unix_file_inode_data(inode));
-	} else
-		result = 0;
-	assert("vs-1712",
-	       ergo(result == 0, !inode_get_flag(inode, REISER4_PART_CONV)));
-	return result;
-}
-
 /*
  * Local variables:
  * c-indentation-style: "K&R"

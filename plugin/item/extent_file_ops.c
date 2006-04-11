@@ -776,14 +776,12 @@ static int write_extent_reserve_space(struct inode *inode)
 }
 
 /**
- * write_extent - write method of extent plugin
+ * write_extent - write method of extent item plugin
  * @file: file to write to
  * @buf: address of user-space buffer
  * @write_amount: number of bytes to write
  * @off: position in file to write to
  *
- * This is implementation of write method of struct file_operations for
- * unix file plugin.
  */
 ssize_t write_extent(struct file *file, const char __user *buf, size_t count,
 		     loff_t *pos)

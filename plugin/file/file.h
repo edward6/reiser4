@@ -20,6 +20,7 @@ ssize_t write_unix_file(struct file *, const char __user *buf, size_t write_amou
 int ioctl_unix_file(struct inode *, struct file *, unsigned int cmd,
 		    unsigned long arg);
 int mmap_unix_file(struct file *, struct vm_area_struct *);
+int open_unix_file(struct inode *, struct file *);
 int release_unix_file(struct inode *, struct file *);
 int sync_unix_file(struct file *, struct dentry *, int datasync);
 ssize_t sendfile_unix_file(struct file *, loff_t *ppos, size_t count,
