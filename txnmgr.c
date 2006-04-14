@@ -2808,6 +2808,24 @@ int capture_super_block(struct super_block *s)
 	return 0;
 }
 
+int capture_bulk(jnode **jnodes, int count)
+{
+	int i;
+	jnode *node;
+	int result;
+
+	for (i = 0; i < count; i ++) {
+		node = jnodes[i];
+		spin_lock_jnode(node);
+ 		result = try_capture(node, ZNODE_WRITE_LOCK, 0, 1 /* can_coc */ );
+		BUG_ON(result != 0);
+		jnode_make_dirty_locked(node);
+		JF_CLR(node, JNODE_KEEPME);
+		spin_unlock_jnode(node);
+	}
+	return 0;
+}
+
 /* Wakeup every handle on the atom's WAITFOR list */
 static void wakeup_atom_waitfor_list(txn_atom * atom)
 {

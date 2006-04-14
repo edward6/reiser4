@@ -110,6 +110,11 @@ void drop_nonexclusive_access(unix_file_info_t *);
 int try_to_get_nonexclusive_access(unix_file_info_t *);
 int find_file_item(hint_t *, const reiser4_key *, znode_lock_mode,
 		   struct inode *);
+int find_file_item_nohint(coord_t *, lock_handle *,
+			  const reiser4_key *, znode_lock_mode,
+			  struct inode *);
+void set_file_state(unix_file_info_t *, int cbk_result, tree_level);
+
 void validate_extended_coord(uf_coord_t *, loff_t offset);
 int load_file_hint(struct file *, hint_t *);
 void save_file_hint(struct file *, const hint_t *);

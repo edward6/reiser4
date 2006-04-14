@@ -319,7 +319,7 @@ extern int item_utmost_child(const coord_t * coord, sideof side,
 struct flow {
 	reiser4_key key;	/* key of start of flow's sequence of bytes */
 	loff_t length;		/* length of flow's sequence of bytes */
-	char *data;		/* start of flow's sequence of bytes */
+	char *data;	        /* start of flow's sequence of bytes */
 	int user;		/* if 1 data is user space, 0 - kernel space */
 	rw_op op;		/* NIKITA-FIXME-HANS: comment is where?  */
 };

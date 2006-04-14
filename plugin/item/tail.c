@@ -12,7 +12,7 @@
 #include <linux/writeback.h>
 
 /* plugin->u.item.b.max_key_inside */
-reiser4_key *max_key_inside_tail(const coord_t * coord, reiser4_key * key)
+reiser4_key *max_key_inside_tail(const coord_t *coord, reiser4_key *key)
 {
 	item_key_by_coord(coord, key);
 	set_key_offset(key, get_key_offset(max_key()));
@@ -20,9 +20,8 @@ reiser4_key *max_key_inside_tail(const coord_t * coord, reiser4_key * key)
 }
 
 /* plugin->u.item.b.can_contain_key */
-int
-can_contain_key_tail(const coord_t * coord, const reiser4_key * key,
-		     const reiser4_item_data * data)
+int can_contain_key_tail(const coord_t *coord, const reiser4_key *key,
+			 const reiser4_item_data *data)
 {
 	reiser4_key item_key;
 
@@ -40,7 +39,7 @@ can_contain_key_tail(const coord_t * coord, const reiser4_key * key,
 /* plugin->u.item.b.mergeable
    first item is of tail type */
 /* Audited by: green(2002.06.14) */
-int mergeable_tail(const coord_t * p1, const coord_t * p2)
+int mergeable_tail(const coord_t *p1, const coord_t *p2)
 {
 	reiser4_key key1, key2;
 
@@ -304,31 +303,6 @@ reiser4_key *unit_key_tail(const coord_t * coord, reiser4_key * key)
 /* plugin->u.item.b.estimate
    plugin->u.item.b.item_data_by_flow */
 
-/* overwrite tail item or its part by use data */
-static int overwrite_tail(coord_t *coord, flow_t *f)
-{
-	unsigned count;
-
-	assert("vs-570", f->user == 1);
-	assert("vs-946", f->data);
-	assert("vs-947", coord_is_existing_unit(coord));
-	assert("vs-948", znode_is_write_locked(coord->node));
-	assert("nikita-3036", schedulable());
-
-	count = item_length_by_coord(coord) - coord->unit_pos;
-	if (count > f->length)
-		count = f->length;
-
-	if (__copy_from_user((char *)item_body_by_coord(coord) + coord->unit_pos,
-			     (const char __user *)f->data, count))
-		return RETERR(-EFAULT);
-
-	znode_make_dirty(coord->node);
-
-	move_flow_forward(f, count);
-	return 0;
-}
-
 /* tail redpage function. It is called from readpage_tail(). */
 static int do_readpage_tail(uf_coord_t * uf_coord, struct page *page)
 {
@@ -464,75 +438,158 @@ int readpage_tail(void *vp, struct page *page)
 	return do_readpage_tail(uf_coord, page);
 }
 
-/* drop longterm znode lock before calling
-   balance_dirty_pages. balance_dirty_pages may cause transaction to close,
-   therefore we have to update stat data if necessary */
-static int
-tail_balance_dirty_pages(struct address_space *mapping, const flow_t * f,
-			 hint_t * hint)
+/**
+ * overwrite_tail
+ * @flow:
+ * @coord:
+ *
+ * Overwrites tail item or its part by user data. Returns number of bytes
+ * written or error code.
+ */
+static int overwrite_tail(flow_t *flow, coord_t *coord)
+{
+	unsigned count;
+
+	assert("vs-570", flow->user == 1);
+	assert("vs-946", flow->data);
+	assert("vs-947", coord_is_existing_unit(coord));
+	assert("vs-948", znode_is_write_locked(coord->node));
+	assert("nikita-3036", schedulable());
+
+	count = item_length_by_coord(coord) - coord->unit_pos;
+	if (count > flow->length)
+		count = flow->length;
+
+	if (__copy_from_user((char *)item_body_by_coord(coord) + coord->unit_pos,
+			     (const char __user *)flow->data, count))
+		return RETERR(-EFAULT);
+
+	znode_make_dirty(coord->node);
+	return count;
+}
+
+/**
+ * insert_first_tail
+ * @inode:
+ * @flow:
+ * @coord:
+ * @lh:
+ *
+ * Returns number of bytes written or error code.
+ */
+static ssize_t insert_first_tail(struct inode *inode, flow_t *flow,
+				 coord_t *coord, lock_handle *lh)
 {
 	int result;
-	struct inode *inode;
-	int excl;
-	unix_file_info_t *uf_info;
+	loff_t to_write;
 
-	if (hint->ext_coord.valid)
-		set_hint(hint, &f->key, ZNODE_WRITE_LOCK);
-	else
-		unset_hint(hint);
+	if (get_key_offset(&flow->key) != 0) {
+		/*
+		 * file is empty and we have to write not to the beginning of
+		 * file. Create a hole at the beginning of file. On success
+		 * insert_flow returns 0 as number of written bytes which is
+		 * what we have to return on padding a file with holes
+		 */
+		flow->data = NULL;
+		flow->length = get_key_offset(&flow->key);
+		set_key_offset(&flow->key, 0);
+		/*
+		 * holes in files built of tails are stored just like if there
+		 * were real data which are all zeros. Therefore we have to
+		 * allocate quota here as well
+		 */
+		if (DQUOT_ALLOC_SPACE_NODIRTY(inode, flow->length))
+			return RETERR(-EDQUOT);
+		result = insert_flow(coord, lh, flow);
+		if (flow->length)
+			DQUOT_FREE_SPACE_NODIRTY(inode, flow->length);
+		return result;
+	}
 
-	inode = mapping->host;
-	if (get_key_offset(&f->key) > inode->i_size) {
-		assert("vs-1649", f->user == 1);
-		INODE_SET_FIELD(inode, i_size, get_key_offset(&f->key));
-	}
-	if (f->user != 0) {
-		/* this was writing data from user space. Update timestamps, therefore. Othrewise, this is tail
-		   conversion where we should not update timestamps */
-		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
-		result = reiser4_update_sd(inode);
-		if (result)
-			return result;
-	}
+	/* check quota before appending data */
+	if (DQUOT_ALLOC_SPACE_NODIRTY(inode, flow->length))
+		return RETERR(-EDQUOT);
 
-	if (!reiser4_is_set(inode->i_sb, REISER4_ATOMIC_WRITE)) {
-		uf_info = unix_file_inode_data(inode);
-		excl = unix_file_inode_data(inode)->exclusive_use;
-		if (excl) {
-			/* we are about to drop exclusive access. Set file
-			   container to UF_CONTAINER_TAILS if file is not under
-			   tail conversion */
-			if (!inode_get_flag(inode, REISER4_PART_CONV))
-				uf_info->container = UF_CONTAINER_TAILS;
-			drop_exclusive_access(uf_info);
-		} else
-			drop_nonexclusive_access(uf_info);
-		reiser4_throttle_write(inode);
-		if (excl)
-			get_exclusive_access(uf_info);
-		else
-			get_nonexclusive_access(uf_info, 0);
-	}
-	return 0;
+	to_write = flow->length;
+	result = insert_flow(coord, lh, flow);
+	if (flow->length)
+		DQUOT_FREE_SPACE_NODIRTY(inode, flow->length);
+	return (to_write - flow->length) ? (to_write - flow->length) : result;
 }
 
-/* calculate number of blocks which can be dirtied/added when flow is inserted
-   and stat data gets updated and grab them.  FIXME-VS: we may want to call
-   grab_space with BA_CAN_COMMIT flag but that would require all that
-   complexity with sealing coord, releasing long term lock and validating seal
-   later */
-static int insert_flow_reserve(reiser4_tree * tree)
+/**
+ * append_tail
+ * @inode:
+ * @flow:
+ * @coord:
+ * @lh:
+ *
+ * Returns number of bytes written or error code.
+ */
+static ssize_t append_tail(struct inode *inode,
+			   flow_t *flow, coord_t *coord, lock_handle *lh)
 {
-	grab_space_enable();
-	return reiser4_grab_space(estimate_insert_flow(tree->height) +
-				  estimate_one_insert_into_item(tree), 0);
+	int result;
+	reiser4_key append_key;
+	loff_t to_write;
+	
+	if (!keyeq(&flow->key, append_key_tail(coord, &append_key))) {
+		flow->data = NULL;
+		flow->length = get_key_offset(&flow->key) - get_key_offset(&append_key);
+		set_key_offset(&flow->key, get_key_offset(&append_key));
+		/*
+		 * holes in files built of tails are stored just like if there
+		 * were real data which are all zeros. Therefore we have to
+		 * allocate quota here as well
+		 */
+		if (DQUOT_ALLOC_SPACE_NODIRTY(inode, flow->length))
+			return RETERR(-EDQUOT);
+		result = insert_flow(coord, lh, flow);
+		if (flow->length)
+			DQUOT_FREE_SPACE_NODIRTY(inode, flow->length);
+		return result;
+	}
+
+	/* check quota before appending data */
+	if (DQUOT_ALLOC_SPACE_NODIRTY(inode, flow->length))
+		return RETERR(-EDQUOT);
+
+	to_write = flow->length;
+	result = insert_flow(coord, lh, flow);
+	if (flow->length)
+		DQUOT_FREE_SPACE_NODIRTY(inode, flow->length);
+	return (to_write - flow->length) ? (to_write - flow->length) : result;
 }
 
-/* one block gets overwritten and stat data may get updated */
-static int overwrite_reserve(reiser4_tree * tree)
+/**
+ * write_tail_reserve_space - reserve space for tail write operation
+ * @inode:
+ *
+ * Estimates and reserves space which may be required for writing one flow to a file
+ */
+static int write_extent_reserve_space(struct inode *inode)
 {
+	__u64 count;
+	reiser4_tree *tree;
+
+	/*
+	 * to write one flow to a file by tails we have to reserve disk space for:
+ 
+	 * 1. find_file_item may have to insert empty node to the tree (empty
+	 * leaf node between two extent items). This requires 1 block and
+	 * number of blocks which are necessary to perform insertion of an
+	 * internal item into twig level.
+	 *
+	 * 2. flow insertion
+	 *
+	 * 3. stat data update
+	 */
+	tree = tree_by_inode(inode);
+	count = estimate_one_insert_item(tree) + 
+		estimate_insert_flow(tree->height) +
+		estimate_one_insert_item(tree);
 	grab_space_enable();
-	return reiser4_grab_space(1 + estimate_one_insert_into_item(tree), 0);
+	return reiser4_grab_space(count, 0 /* flags */);
 }
 
 /**
@@ -542,73 +599,69 @@ static int overwrite_reserve(reiser4_tree * tree)
  * @count: number of bytes to write
  * @pos: position in file to write to
  *
+ * Returns number of written bytes or error code.
  */
 ssize_t write_tail(struct file *file, const char __user *buf, size_t count,
 		   loff_t *pos)
 {
-	int result;
-	coord_t *coord;
+	struct inode *inode;
 	struct hint hint;
+	int result;
+	flow_t flow;
+	coord_t *coord;
+	lock_handle *lh;
+	znode *loaded;
+
+	inode = file->f_dentry->d_inode;
+
+
+	if (write_extent_reserve_space(inode))
+		return RETERR(-ENOSPC);
 
 	result = load_file_hint(file, &hint);
 	BUG_ON(result != 0);
 
+	flow.length = count;
+	flow.user = 1;
+	memcpy(&flow.data, &buf, sizeof(buf));
+	flow.op = WRITE_OP;
+	key_by_inode_and_offset_common(inode, *pos, &flow.key);
 
-	assert("vs-1338", hint->ext_coord.valid == 1);
+	result = find_file_item(&hint, &flow.key, ZNODE_WRITE_LOCK, inode);
+	if (IS_CBKERR(result))
+		return result;
 
-	coord = &hint->ext_coord.coord;
-	result = 0;
-	while (f->length && hint->ext_coord.valid == 1) {
-		switch (mode) {
-		case FIRST_ITEM:
-		case APPEND_ITEM:
-			/* check quota before appending data */
-			if (DQUOT_ALLOC_SPACE_NODIRTY(inode, f->length)) {
-				result = RETERR(-EDQUOT);
-				break;
-			}
+	coord = &hint.ext_coord.coord;
+	lh = hint.ext_coord.lh;
 
-			if (!grabbed)
-				result =
-				    insert_flow_reserve(znode_get_tree
-							(coord->node));
-			if (!result)
-				result =
-				    insert_flow(coord, hint->ext_coord.lh, f);
-			if (f->length)
-				DQUOT_FREE_SPACE_NODIRTY(inode, f->length);
-			break;
-
-		case OVERWRITE_ITEM:
-			if (!grabbed)
-				result =
-				    overwrite_reserve(znode_get_tree
-						      (coord->node));
-			if (!result)
-				result = overwrite_tail(coord, f);
-			break;
-
-		default:
-			impossible("vs-1031", "does this ever happen?");
-			result = RETERR(-EIO);
-			break;
-
-		}
-
-		if (result) {
-			unset_hint(hint);
-			break;
-		}
-
-		/* FIXME: do not rely on a coord yet */
-		unset_hint(hint);
-
-		/* throttle the writer */
-		result = tail_balance_dirty_pages(inode->i_mapping, f, hint);
-		if (result)
-			break;
+	result = zload(coord->node);
+	BUG_ON(result != 0);
+	loaded = coord->node;
+	
+	if (coord->between == AFTER_UNIT) {
+		/* append with data or hole */
+		result = append_tail(inode, &flow, coord, lh);
+	} else if (coord->between == AT_UNIT) {
+		/* overwrite */
+		result = overwrite_tail(&flow, coord);
+	} else {
+		/* no items of this file yet. insert data or hole */
+		result = insert_first_tail(inode, &flow, coord, lh);
 	}
+	zrelse(loaded);
+	if (result < 0) {
+		done_lh(lh);
+		return result;
+	}
+	
+	/* seal and unlock znode */
+	hint.ext_coord.valid = 0;
+	if (hint.ext_coord.valid)
+		set_hint(&hint, &flow.key, ZNODE_WRITE_LOCK);
+	else
+		unset_hint(&hint);
 
+	save_file_hint(file, &hint);
 	return result;
 }
 
@@ -706,12 +759,12 @@ get_block_address_tail(const coord_t * coord, sector_t lblock, sector_t * block)
 }
 
 /*
-   Local variables:
-   c-indentation-style: "K&R"
-   mode-name: "LC"
-   c-basic-offset: 8
-   tab-width: 8
-   fill-column: 120
-   scroll-step: 1
-   End:
-*/
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 79
+ * scroll-step: 1
+ * End:
+ */

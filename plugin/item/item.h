@@ -234,7 +234,6 @@ typedef struct {
 	int (*write) (struct file *, const char __user *, size_t, loff_t *pos);
 	int (*read) (struct file *, flow_t *, hint_t *);
 	int (*readpage) (void *, struct page *);
-	int (*capture) (reiser4_key *, uf_coord_t *, struct page *, int *);
 	int (*get_block) (const coord_t *, sector_t, sector_t *);
 	void (*readpages) (void *, struct address_space *,
 			   struct list_head * pages);

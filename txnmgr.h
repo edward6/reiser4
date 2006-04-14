@@ -474,6 +474,7 @@ extern void atom_send_event(txn_atom *);
 
 extern void insert_into_atom_ovrwr_list(txn_atom * atom, jnode * node);
 extern int capture_super_block(struct super_block *s);
+int capture_bulk(jnode **, int count);
 
 /* See the comment on the function blocknrset.c:blocknr_set_add for the
    calling convention of these three routines. */

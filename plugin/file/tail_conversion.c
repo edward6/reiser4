@@ -290,7 +290,7 @@ static int complete_conversion(struct inode *inode)
 	return 0;
 }
 
-int tail2extent(unix_file_info_t * uf_info)
+int tail2extent(unix_file_info_t *uf_info)
 {
 	int result;
 	reiser4_key key;	/* key of next byte to be moved to page */

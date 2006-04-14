@@ -32,36 +32,6 @@ unix_file_info_t *unix_file_inode_data(const struct inode *inode)
 	return &reiser4_inode_data(inode)->file_plugin_data.unix_file_info;
 }
 
-static int file_is_built_of_tails(const struct inode *inode)
-{
-	return unix_file_inode_data(inode)->container == UF_CONTAINER_TAILS;
-}
-
-static int file_state_is_unknown(const struct inode *inode)
-{
-	return unix_file_inode_data(inode)->container == UF_CONTAINER_UNKNOWN;
-}
-
-static void set_file_state_extents(struct inode *inode)
-{
-	unix_file_inode_data(inode)->container = UF_CONTAINER_EXTENTS;
-}
-
-static void set_file_state_tails(struct inode *inode)
-{
-	unix_file_inode_data(inode)->container = UF_CONTAINER_TAILS;
-}
-
-static void set_file_state_empty(struct inode *inode)
-{
-	unix_file_inode_data(inode)->container = UF_CONTAINER_EMPTY;
-}
-
-static void set_file_state_unknown(struct inode *inode)
-{
-	unix_file_inode_data(inode)->container = UF_CONTAINER_UNKNOWN;
-}
-
 /**
  * equal_to_rdk - compare key and znode's right delimiting key
  * @node: node whose right delimiting key to compare with @key
@@ -115,16 +85,6 @@ static int check_coord(const coord_t *coord, const reiser4_key *key)
 	return coords_equal(coord, &twin);
 }
 
-static int file_is_built_of_extents(const struct inode *inode)
-{
-	return unix_file_inode_data(inode)->container == UF_CONTAINER_EXTENTS;
-}
-
-static int file_is_empty(const struct inode *inode)
-{
-	return unix_file_inode_data(inode)->container == UF_CONTAINER_EMPTY;
-}
-
 #endif /* REISER4_DEBUG */
 
 /**
@@ -134,7 +94,7 @@ static int file_is_empty(const struct inode *inode)
  *
  *
  */
-static void init_uf_coord(uf_coord_t *uf_coord, lock_handle *lh)
+void init_uf_coord(uf_coord_t *uf_coord, lock_handle *lh)
 {
 	coord_init_zero(&uf_coord->coord);
 	coord_clear_iplug(&uf_coord->coord);
@@ -159,99 +119,6 @@ void validate_extended_coord(uf_coord_t *uf_coord, loff_t offset)
 	item_plugin_by_coord(&uf_coord->coord)->s.file.
 	    init_coord_extension(uf_coord, offset);
 }
-
-#if 0
-write_mode_t how_to_write(uf_coord_t * uf_coord, const reiser4_key * key)
-{
-	write_mode_t result;
-	coord_t *coord;
-	ON_DEBUG(reiser4_key check);
-
-	coord = &uf_coord->coord;
-
-	assert("vs-1252", znode_is_wlocked(coord->node));
-	assert("vs-1253", znode_is_loaded(coord->node));
-
-	if (uf_coord->valid == 1) {
-		assert("vs-1332", check_coord(coord, key));
-		return (coord->between ==
-			AFTER_UNIT) ? APPEND_ITEM : OVERWRITE_ITEM;
-	}
-
-	if (less_than_ldk(coord->node, key)) {
-		assert("vs-1014", get_key_offset(key) == 0);
-
-		coord_init_before_first_item(coord, coord->node);
-		uf_coord->valid = 1;
-		result = FIRST_ITEM;
-		goto ok;
-	}
-
-	assert("vs-1335", less_than_rdk(coord->node, key));
-
-	if (node_is_empty(coord->node)) {
-		assert("vs-879", znode_get_level(coord->node) == LEAF_LEVEL);
-		assert("vs-880", get_key_offset(key) == 0);
-		/*
-		 * Situation that check below tried to handle is follows: some
-		 * other thread writes to (other) file and has to insert empty
-		 * leaf between two adjacent extents. Generally, we are not
-		 * supposed to muck with this node. But it is possible that
-		 * said other thread fails due to some error (out of disk
-		 * space, for example) and leaves empty leaf
-		 * lingering. Nothing prevents us from reusing it.
-		 */
-		assert("vs-1000", less_than_rdk(coord->node, key));
-		assert("vs-1002", coord->between == EMPTY_NODE);
-		result = FIRST_ITEM;
-		uf_coord->valid = 1;
-		goto ok;
-	}
-
-	assert("vs-1336", coord->item_pos < node_num_items(coord->node));
-	assert("vs-1007",
-	       ergo(coord->between == AFTER_UNIT
-		    || coord->between == AT_UNIT,
-		    keyle(item_key_by_coord(coord, &check), key)));
-	assert("vs-1008",
-	       ergo(coord->between == AFTER_UNIT
-		    || coord->between == AT_UNIT, keylt(key,
-							get_next_item_key(coord,
-									  &check))));
-
-	switch (coord->between) {
-	case AFTER_ITEM:
-		uf_coord->valid = 1;
-		result = FIRST_ITEM;
-		break;
-	case AFTER_UNIT:
-		assert("vs-1323", (item_is_tail(coord) || item_is_extent(coord))
-		       && item_of_that_file(coord, key));
-		assert("vs-1208",
-		       keyeq(item_plugin_by_coord(coord)->s.file.
-			     append_key(coord, &check), key));
-		result = APPEND_ITEM;
-		validate_extended_coord(uf_coord, get_key_offset(key));
-		break;
-	case AT_UNIT:
-		/* FIXME: it would be nice to check that coord matches to key */
-		assert("vs-1324", (item_is_tail(coord) || item_is_extent(coord))
-		       && item_of_that_file(coord, key));
-		validate_extended_coord(uf_coord, get_key_offset(key));
-		result = OVERWRITE_ITEM;
-		break;
-	default:
-		assert("vs-1337", 0);
-		result = OVERWRITE_ITEM;
-		break;
-	}
-
-      ok:
-	assert("vs-1349", uf_coord->valid == 1);
-	assert("vs-1332", check_coord(coord, key));
-	return result;
-}
-#endif
 
 /* obtain lock on right neighbor and drop lock on current node */
 int goto_right_neighbor(coord_t * coord, lock_handle * lh)
@@ -281,45 +148,44 @@ int goto_right_neighbor(coord_t * coord, lock_handle * lh)
 
 }
 
-/* this is to be used after find_file_item and in find_file_item_nohint to
- * determine real state of file */
-static void set_file_state(struct inode *inode, int cbk_result, tree_level level)
+/**
+ * set_file_state
+ * @uf_info:
+ * @cbk_result:
+ * @level:
+ *
+ * This is to be used by find_file_item and in find_file_state to
+ * determine real state of file
+ */
+void set_file_state(unix_file_info_t *uf_info, int cbk_result, tree_level level)
 {
-	assert("vs-1649", inode != NULL);
-
 	if (cbk_errored(cbk_result))
 		/* error happened in find_file_item */
 		return;
 
-	set_file_state_extents(inode);
-	return;
-
 	assert("vs-1164", level == LEAF_LEVEL || level == TWIG_LEVEL);
+	assert("", !inode_get_flag(unix_file_info_to_inode(uf_info),
+				   REISER4_PART_CONV));
 
-	if (inode_get_flag(inode, REISER4_PART_CONV)) {
-		set_file_state_unknown(inode);
-		return;
-	}
-
-	if (file_state_is_unknown(inode)) {
+	if (uf_info->container == UF_CONTAINER_UNKNOWN) {
 		if (cbk_result == CBK_COORD_NOTFOUND)
-			set_file_state_empty(inode);
+			uf_info->container = UF_CONTAINER_EMPTY;
 		else if (level == LEAF_LEVEL)
-			set_file_state_tails(inode);
+			uf_info->container = UF_CONTAINER_TAILS;
 		else
-			set_file_state_extents(inode);
+			uf_info->container = UF_CONTAINER_EXTENTS;
 	} else {
 		/* file state is known, check that it is set correctly */
 		assert("vs-1161", ergo(cbk_result == CBK_COORD_NOTFOUND,
-				       file_is_empty(inode)));
+				       uf_info->container == UF_CONTAINER_EMPTY));
 		assert("vs-1162",
-		       ergo(level == LEAF_LEVEL
-			    && cbk_result == CBK_COORD_FOUND,
-			    file_is_built_of_tails(inode)));
+		       ergo(level == LEAF_LEVEL &&
+			    cbk_result == CBK_COORD_FOUND,
+			    uf_info->container == UF_CONTAINER_TAILS));
 		assert("vs-1165",
-		       ergo(level == TWIG_LEVEL
-			    && cbk_result == CBK_COORD_FOUND,
-			    file_is_built_of_extents(inode)));
+		       ergo(level == TWIG_LEVEL &&
+			    cbk_result == CBK_COORD_FOUND,
+			    uf_info->container == UF_CONTAINER_EXTENTS));
 	}
 }
 
@@ -327,16 +193,12 @@ int find_file_item_nohint(coord_t *coord, lock_handle *lh,
 			  const reiser4_key *key, znode_lock_mode lock_mode,
 			  struct inode *inode)
 {
-	int result;
-
-	result = object_lookup(inode, key, coord, lh, lock_mode,
-			       FIND_MAX_NOT_MORE_THAN,
-			       TWIG_LEVEL, LEAF_LEVEL,
-			       (lock_mode == ZNODE_READ_LOCK) ? CBK_UNIQUE :
-			       (CBK_UNIQUE | CBK_FOR_INSERT),
-			       NULL /* ra_info */ );
-	set_file_state(inode, result, znode_get_level(coord->node));
-	return result;
+	return object_lookup(inode, key, coord, lh, lock_mode,
+			     FIND_MAX_NOT_MORE_THAN,
+			     TWIG_LEVEL, LEAF_LEVEL,
+			     (lock_mode == ZNODE_READ_LOCK) ? CBK_UNIQUE :
+			     (CBK_UNIQUE | CBK_FOR_INSERT),
+			     NULL /* ra_info */ );
 }
 
 /**
@@ -383,14 +245,15 @@ int find_file_item(hint_t *hint, const reiser4_key *key,
 			hint->ext_coord.valid = 0;
 		}
 
-		set_file_state(inode, CBK_COORD_FOUND,
+		set_file_state(unix_file_inode_data(inode), CBK_COORD_FOUND,
 			       znode_get_level(coord->node));
 		return CBK_COORD_FOUND;
 	}
 
 	coord_init_zero(coord);
 	result = find_file_item_nohint(coord, lh, key, lock_mode, inode);
-	set_file_state(inode, result, znode_get_level(coord->node));
+	set_file_state(unix_file_inode_data(inode), result,
+		       znode_get_level(coord->node));
 
 	/* FIXME: we might already have coord extension initialized */
 	hint->ext_coord.valid = 0;
@@ -407,69 +270,22 @@ void hint_init_zero(hint_t * hint)
 	hint->ext_coord.lh = &hint->lh;
 }
 
-/* find position of last byte of last item of the file plus 1. This is used by truncate and mmap to find real file
-   size */
-static int find_file_size(struct inode *inode, loff_t * file_size)
+static int find_file_state(struct inode *inode, unix_file_info_t *uf_info)
 {
 	int result;
 	reiser4_key key;
 	coord_t coord;
 	lock_handle lh;
-	item_plugin *iplug;
-
-	assert("vs-1247",
-	       inode_file_plugin(inode)->key_by_inode ==
-	       key_by_inode_and_offset_common);
-	key_by_inode_and_offset_common(inode, get_key_offset(max_key()), &key);
-
-	init_lh(&lh);
-	result =
-	    find_file_item_nohint(&coord, &lh, &key, ZNODE_READ_LOCK, inode);
-	if (cbk_errored(result)) {
-		/* error happened */
-		done_lh(&lh);
-		return result;
-	}
-
-	if (result == CBK_COORD_NOTFOUND) {
-		/* empty file */
-		done_lh(&lh);
-		*file_size = 0;
-		return 0;
-	}
-
-	/* there are items of this file (at least one) */
-	/*coord_clear_iplug(&coord); */
-	result = zload(coord.node);
-	if (unlikely(result)) {
-		done_lh(&lh);
-		return result;
-	}
-	iplug = item_plugin_by_coord(&coord);
-
-	assert("vs-853", iplug->s.file.append_key);
-	iplug->s.file.append_key(&coord, &key);
-
-	*file_size = get_key_offset(&key);
-
-	zrelse(coord.node);
-	done_lh(&lh);
-
-	return 0;
-}
-
-static int find_file_state(unix_file_info_t *uf_info)
-{
-	int result;
 
 	assert("vs-1628", ea_obtained(uf_info));
 
 	if (uf_info->container == UF_CONTAINER_UNKNOWN) {
-		loff_t file_size;
-
-		result =
-		    find_file_size(unix_file_info_to_inode(uf_info),
-				   &file_size);
+		key_by_inode_and_offset_common(inode, 0, &key);
+		init_lh(&lh);
+		result = find_file_item_nohint(&coord, &lh, &key,
+					       ZNODE_READ_LOCK, inode);
+		set_file_state(uf_info, result, znode_get_level(coord.node));
+		done_lh(&lh);
 	} else
 		result = 0;
 	assert("vs-1074",
@@ -597,28 +413,29 @@ static int shorten_file(struct inode *inode, loff_t new_size)
 	int padd_from;
 	unsigned long index;
 	char *kaddr;
+	unix_file_info_t *uf_info;
 
 	/*
 	 * all items of ordinary reiser4 file are grouped together. That is why
 	 * we can use cut_tree. Plan B files (for instance) can not be
 	 * truncated that simply
 	 */
-	result =
-		cut_file_items(inode, new_size, 1 /*update_sd */ ,
-			   get_key_offset(max_key()), update_file_size);
+	result = cut_file_items(inode, new_size, 1 /*update_sd */ ,
+				get_key_offset(max_key()), update_file_size);
 	if (result)
 		return result;
 
+	uf_info = unix_file_inode_data(inode);
 	assert("vs-1105", new_size == inode->i_size);
 	if (new_size == 0) {
-		set_file_state_empty(inode);
+		uf_info->container = UF_CONTAINER_EMPTY;
 		return 0;
 	}
 
-	result = find_file_state(unix_file_inode_data(inode));
+	result = find_file_state(inode, uf_info);
 	if (result)
 		return result;
-	if (file_is_built_of_tails(inode))
+	if (uf_info->container == UF_CONTAINER_TAILS)
 		/*
 		 * No need to worry about zeroing last page after new file
 		 * end
@@ -696,6 +513,23 @@ static int shorten_file(struct inode *inode, loff_t new_size)
 }
 
 /**
+ * should_have_notail
+ * @uf_info:
+ * @new_size:
+ *
+ * Calls formatting plugin to see whether file of size @new_size has to be
+ * stored in unformatted nodes or in tail items. 0 is returned for later case.
+ */
+static int should_have_notail(const unix_file_info_t *uf_info, loff_t new_size)
+{
+	if (!uf_info->tplug)
+		return 1;
+	return !uf_info->tplug->have_tail(unix_file_info_to_inode(uf_info),
+					  new_size);
+
+}
+
+/**
  * truncate_file_body - change length of file
  * @inode: inode of file
  * @new_size: new file length
@@ -709,15 +543,48 @@ static int truncate_file_body(struct inode *inode, loff_t new_size)
 	int result;
 
 	if (inode->i_size < new_size) {
+		/* expanding truncate */
 		struct dentry dentry;
 		struct file file;
+		unix_file_info_t *uf_info;
 
 		dentry.d_inode = inode;
 		file.f_dentry = &dentry;
 		file.private_data = NULL;
 		file.f_pos = new_size;
-		result = write_extent(&file, NULL, 0, &new_size);
-		BUG_ON(result != 0);
+		uf_info = unix_file_inode_data(inode);
+		result = find_file_state(inode, uf_info);
+		if (result)
+			return result;
+		
+		if (should_have_notail(uf_info, new_size)) {
+			/*
+			 * file of size @new_size has to be built of
+			 * extents. If it is built of tails - convert to
+			 * extents
+			 */
+			if (uf_info->container ==  UF_CONTAINER_TAILS) {
+				result = tail2extent(uf_info);
+				if (result)
+					return result;
+			}
+			result = write_extent(&file, NULL, 0, &new_size);
+			if (result)
+				return result;
+			uf_info->container = UF_CONTAINER_EXTENTS;
+		} else {
+			if (uf_info->container ==  UF_CONTAINER_EXTENTS) {
+				result = write_extent(&file, NULL, 0, &new_size);
+				if (result)
+					return result;
+			} else {
+				result = write_tail(&file, NULL, 0, &new_size);
+				if (result)
+					return result;
+				uf_info->container = UF_CONTAINER_TAILS;
+			}
+		}
+		BUG_ON(result > 0);
 		INODE_SET_FIELD(inode, i_size, new_size);
 		file_update_time(&file);
 		result = reiser4_update_sd(inode);
@@ -865,32 +732,43 @@ hint_validate(hint_t * hint, const reiser4_key * key, int check_key,
 int find_or_create_extent(struct page *page)
 {
 	int result;
-	uf_coord_t uf_coord;
-	coord_t *coord;
-	lock_handle lh;
-	reiser4_key key;
-	znode *loaded;
 	struct inode *inode;
 	int plugged_hole;
+
+	jnode *node;
 
 	assert("vs-1065", page->mapping && page->mapping->host);
 	inode = page->mapping->host;
 
-	/* get key of first byte of the page */
-	key_by_inode_and_offset_common(inode,
-				       (loff_t) page->index << PAGE_CACHE_SHIFT,
-				       &key);
+	lock_page(page);
+	node = jnode_of_page(page);
+	unlock_page(page);
+	if (IS_ERR(node))
+		return PTR_ERR(node);
 
-	init_uf_coord(&uf_coord, &lh);
-	coord = &uf_coord.coord;
-
-	result = find_file_item_nohint(coord, &lh, &key, ZNODE_WRITE_LOCK,
-				       inode);
-	if (IS_CBKERR(result)) {
-		done_lh(&lh);
-		return result;
+	if (node->blocknr == 0) {
+		plugged_hole = 0;
+		result = update_extent(inode, &node, 1,
+				       (loff_t)page->index << PAGE_CACHE_SHIFT,
+				       &plugged_hole);
+		if (result)
+			return result;
+		if (plugged_hole)
+			reiser4_update_sd(inode);
 	}
 
+	capture_bulk(&node, 1);
+	jput(node);
+
+	if (get_current_context()->entd) {
+		entd_context *ent = get_entd_context(node->tree->super);
+
+		if (ent->cur_request->page == page)
+			ent->cur_request->node = node;
+	}
+	return 0;
+}
+#if 0
 	result = zload(coord->node);
 	if (result) {
 		done_lh(&lh);
@@ -912,6 +790,7 @@ int find_or_create_extent(struct page *page)
 
 	return result;
 }
+#endif
 
 /**
  * has_anonymous_pages - check whether inode has pages dirtied via mmap
@@ -950,7 +829,8 @@ static int capture_page_and_create_extent(struct page *page)
 
 	assert("vs-1084", page->mapping && page->mapping->host);
 	inode = page->mapping->host;
-	assert("vs-1139", file_is_built_of_extents(inode));
+	assert("vs-1139",
+	       unix_file_inode_data(inode)->container == UF_CONTAINER_EXTENTS);
 	/* page belongs to file */
 	assert("vs-1393",
 	       inode->i_size > ((loff_t) page->index << PAGE_CACHE_SHIFT));
@@ -1400,7 +1280,7 @@ static int commit_file_atoms(struct inode *inode)
 	/*
 	 * find what items file is made from
 	 */
-	result = find_file_state(uf_info);
+	result = find_file_state(inode, uf_info);
 	drop_exclusive_access(uf_info);
 	if (result != 0)
 		return result;
@@ -1822,25 +1702,6 @@ int readpage_unix_file(struct file *file, struct page *page)
 	return readpage_unix_file_nolock(file, page);
 }
 
-/**
- * should_have_notail
- * @uf_info:
- * @new_size:
- *
- *
- */
-/* returns 1 if file of that size (@new_size) has to be stored in unformatted
-   nodes */
-/* Audited by: green(2002.06.15) */
-static int should_have_notail(const unix_file_info_t *uf_info, loff_t new_size)
-{
-	if (!uf_info->tplug)
-		return 1;
-	return !uf_info->tplug->have_tail(unix_file_info_to_inode(uf_info),
-					  new_size);
-
-}
-
 static reiser4_block_nr unix_file_estimate_read(struct inode *inode,
 						loff_t count UNUSED_ARG)
 {
@@ -2079,7 +1940,7 @@ int mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 		 * tail items we have to convert it. Find what items the file
 		 * is built of
 		 */
-		result = find_file_state(uf_info);
+		result = find_file_state(inode, uf_info);
 		if (result != 0) {
 			drop_exclusive_access(uf_info);
 			up(&uf_info->write);
@@ -2225,6 +2086,9 @@ static void drop_access(unix_file_info_t *uf_info, int access)
 		drop_nonexclusive_access(uf_info);
 }
 
+#define debug_wuf(format, ...) printk("%s: %d: %s: " format "\n", \
+			      __FILE__, __LINE__, __FUNCTION__, ## __VA_ARGS__)
+
 /**
  * write_unix_file - write of struct file_operations
  * @file: file to write to
@@ -2266,6 +2130,7 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 		reiser4_exit_context(ctx);
 		return result;
 	}
+
 	result = remove_suid(file->f_dentry);
 	if (result) {
 		context_set_commit_async(ctx);
@@ -2292,16 +2157,20 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 		if (uf_info->container == UF_CONTAINER_EMPTY) {
 			get_exclusive_access(uf_info);
 			ea = EA_OBTAINED;
-			if (uf_info->container == UF_CONTAINER_EMPTY) {
+			if (uf_info->container != UF_CONTAINER_EMPTY) {
 				/* file is made not empty by another process */
 				drop_exclusive_access(uf_info);
 				ea = NEITHER_OBTAINED;
 				continue;
 			}
 		} else if (uf_info->container == UF_CONTAINER_UNKNOWN) {
+			/*
+			 * get exclusive access directly just to not have to
+			 * re-obtain it if file will appear empty
+			 */
 			get_exclusive_access(uf_info);
 			ea = EA_OBTAINED;
-			result = find_file_state(uf_info);
+			result = find_file_state(inode, uf_info);
 			if (result) {
 				drop_exclusive_access(uf_info);
 				ea = NEITHER_OBTAINED;
@@ -2312,6 +2181,7 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 			ea = NEA_OBTAINED;
 		}
 
+		/* either EA or NEA is obtained. Choose item write method */
 		if (uf_info->container == UF_CONTAINER_EXTENTS) {
 			/* file is built of extent items */
 			write_op = write_extent;
@@ -2330,7 +2200,7 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 					ea = EA_OBTAINED;
 				}
 				if (uf_info->container == UF_CONTAINER_TAILS) {
-					result = tail2extent(uf_info);
+					result = tail2extent(uf_info);					
 				}
 				drop_exclusive_access(uf_info);
 				ea = NEITHER_OBTAINED;
@@ -2350,6 +2220,17 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 			drop_access(uf_info, ea);
 			result = written;
 			break;
+		}
+		/* something is written. */
+		if (uf_info->container == UF_CONTAINER_EMPTY) {
+			assert("", ea == EA_OBTAINED);
+			uf_info->container = (write_op == write_extent) ? 
+				UF_CONTAINER_EXTENTS : UF_CONTAINER_TAILS;
+		} else {
+			assert("", ergo(uf_info->container == UF_CONTAINER_EXTENTS,
+					write_op == write_extent));
+			assert("", ergo(uf_info->container == UF_CONTAINER_TAILS,
+					write_op == write_tail));
 		}
 		if (*pos + written > inode->i_size)
 			INODE_SET_FIELD(inode, i_size, *pos + written);
@@ -2505,7 +2386,7 @@ static int unpack(struct file *filp, struct inode *inode, int forever)
 	uf_info = unix_file_inode_data(inode);
 	assert("vs-1628", ea_obtained(uf_info));
 
-	result = find_file_state(uf_info);
+	result = find_file_state(inode, uf_info);
 	assert("vs-1074",
 	       ergo(result == 0, uf_info->container != UF_CONTAINER_UNKNOWN));
 	if (result == 0) {
@@ -2852,7 +2733,7 @@ prepare_write_unix_file(struct file *file, struct page *page,
 
 	uf_info = unix_file_inode_data(file->f_dentry->d_inode);
 	get_exclusive_access(uf_info);
-	ret = find_file_state(uf_info);
+	ret = find_file_state(file->f_dentry->d_inode, uf_info);
 	if (ret == 0) {
 		if (uf_info->container == UF_CONTAINER_TAILS)
 			ret = -EINVAL;

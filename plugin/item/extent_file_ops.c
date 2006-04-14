@@ -631,6 +631,8 @@ static int overwrite_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	return count;
 }
 
+void init_uf_coord(uf_coord_t *uf_coord, lock_handle *lh);
+
 /**
  * update_extent
  * @file:
@@ -639,7 +641,72 @@ static int overwrite_extent(uf_coord_t *uf_coord, const reiser4_key *key,
  * @off:
  * 
  */
-static int update_extent(struct file *file, jnode **jnodes, int count, loff_t pos)
+int update_extent(struct inode *inode, jnode **jnodes, int count, loff_t pos,
+		  int *plugged_hole)
+{
+	int result;
+	znode *loaded;
+	uf_coord_t uf_coord;
+	coord_t *coord;
+	lock_handle lh;
+	reiser4_key key;
+
+	key_by_inode_and_offset_common(inode, pos, &key);
+
+	init_uf_coord(&uf_coord, &lh);
+	coord = &uf_coord.coord;
+	result = find_file_item_nohint(coord, &lh, &key,
+				       ZNODE_WRITE_LOCK, inode);
+	set_file_state(unix_file_inode_data(inode), result,
+		       znode_get_level(coord->node));
+	if (IS_CBKERR(result))
+		return result;
+	
+	result = zload(coord->node);
+	BUG_ON(result != 0);
+	loaded = coord->node;
+
+	if (coord->between == AFTER_UNIT) {
+		/*
+		 * append existing extent item with unallocated extent of width
+		 * nr_jnodes
+		 */
+		init_coord_extension_extent(&uf_coord,
+					    get_key_offset(&key));
+		result = append_last_extent(&uf_coord, &key,
+					    jnodes, count);
+	} else if (coord->between == AT_UNIT) {
+		/*
+		 * overwrite
+		 * not optimal yet. Will be optimized if new write will show
+		 * performance win.
+		 */
+		init_coord_extension_extent(&uf_coord,
+					    get_key_offset(&key));
+		result = overwrite_extent(&uf_coord, &key,
+					  jnodes, count, plugged_hole);
+	} else {
+		/*
+		 * there are no items of this file in the tree yet. Create
+		 * first item of the file inserting one unallocated extent of
+		 * width nr_jnodes
+		 */
+		result = insert_first_extent(&uf_coord, &key, jnodes, count);
+	}
+	zrelse(loaded);
+	done_lh(&lh);
+	return result;
+}
+
+/**
+ * update_extents
+ * @file:
+ * @jnodes:
+ * @count:
+ * @off:
+ * 
+ */
+static int update_extents(struct file *file, jnode **jnodes, int count, loff_t pos)
 {
 	struct inode *inode;
 	struct hint hint;
@@ -722,24 +789,6 @@ static int update_extent(struct file *file, jnode **jnodes, int count, loff_t po
 	return result;
 }
 
-int capture_bulk(jnode **jnodes, int count)
-{
-	int i;
-	jnode *node;
-	int result;
-
-	for (i = 0; i < count; i ++) {
-		node = jnodes[i];
-		spin_lock_jnode(node);
- 		result = try_capture(node, ZNODE_WRITE_LOCK, 0, 1 /* can_coc */ );
-		BUG_ON(result != 0);
-		jnode_make_dirty_locked(node);
-		JF_CLR(node, JNODE_KEEPME);
-		spin_unlock_jnode(node);
-	}
-	return 0;
-}
-
 /**
  * write_extent_reserve_space - reserve space for extent write operation
  * @inode:
@@ -801,11 +850,11 @@ ssize_t write_extent(struct file *file, const char __user *buf, size_t count,
 
 	inode = file->f_dentry->d_inode;
 	if (write_extent_reserve_space(inode))
-		return RETERR(-ENOMEM);
+		return RETERR(-ENOSPC);
 
 	if (count == 0) {
 		/* truncate case */
-		update_extent(file, jnodes, 0, *pos);
+		update_extents(file, jnodes, 0, *pos);
 		return 0;
 	}
 
@@ -910,7 +959,7 @@ ssize_t write_extent(struct file *file, const char __user *buf, size_t count,
 	}
  
 	if (have_to_update_extent)
-		update_extent(file, jnodes, nr_pages, *pos);
+		update_extents(file, jnodes, nr_pages, *pos);
 
 	/*
 	 * capture all jnodes and mark them dirty. For the beginning it can be
@@ -1429,6 +1478,8 @@ int readpage_extent(void *vp, struct page *page)
 				  uf_coord->extension.extent.pos_in_unit, page);
 }
 
+
+#if 0
 /**
  * capture_extent - capture page, make sure there is non hole extent for it
  * @key: key of first byte in @page
@@ -1486,13 +1537,18 @@ capture_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page,
 
 	return 0;
 }
+#endif
 
-/*
-  plugin->u.item.s.file.get_block
-*/
-int
-get_block_address_extent(const coord_t * coord, sector_t block,
-			 sector_t * result)
+/**
+ * get_block_address_extent
+ * @coord:
+ * @block:
+ * @result:
+ *
+ *
+ */
+int get_block_address_extent(const coord_t *coord, sector_t block,
+			     sector_t *result)
 {
 	reiser4_extent *ext;
 

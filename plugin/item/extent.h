@@ -134,7 +134,6 @@ ssize_t write_extent(struct file *, const char __user *, size_t, loff_t *);
 int read_extent(struct file *, flow_t *, hint_t *);
 int readpage_extent(void *, struct page *);
 void readpages_extent(void *, struct address_space *, struct list_head *pages);
-int capture_extent(reiser4_key *, uf_coord_t *, struct page *, int *);
 reiser4_key *append_key_extent(const coord_t *, reiser4_key *);
 void init_coord_extension_extent(uf_coord_t *, loff_t offset);
 int get_block_address_extent(const coord_t *, sector_t block,
@@ -160,6 +159,7 @@ reiser4_block_nr extent_size(const coord_t * coord, pos_in_node_t nr);
 extent_state state_of_extent(reiser4_extent * ext);
 void set_extent(reiser4_extent * ext, reiser4_block_nr start,
 		reiser4_block_nr width);
+int update_extent(struct inode *inode, jnode **jnodes, int count, loff_t pos, int *plugged_hole);
 
 #include "../../coord.h"
 #include "../../lock.h"
