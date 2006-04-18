@@ -95,6 +95,17 @@ int init_inode_static_sd(struct inode *inode /* object being processed */ ,
 			/* handle extension */
 			sd_ext_plugin *sdplug;
 
+			if (bit >= LAST_SD_EXTENSION) {
+				warning("vpf-1904",
+					"No such extension %i in inode %llu",
+					bit,
+					(unsigned long long)
+					get_inode_oid(inode));
+
+				result = RETERR(-EINVAL);
+				break;
+			}
+
 			sdplug = sd_ext_plugin_by_id(bit);
 			if (sdplug == NULL) {
 				warning("nikita-627",
@@ -159,7 +170,7 @@ int init_inode_static_sd(struct inode *inode /* object being processed */ ,
 	state->extmask = bigmask;
 	/* common initialisations */
 	inode->i_blksize = get_super_private(inode->i_sb)->optimal_io_size;
-	if (len - (sizeof(d16) * bit / 16) > 0) {
+	if (len - (bit / 16 * sizeof(d16)) > 0) {
 		/* alignment in save_len_static_sd() is taken into account
 		   -edward */
 		warning("nikita-631", "unused space in inode %llu",
@@ -195,7 +206,7 @@ int save_len_static_sd(struct inode *inode /* object being processed */ )
 			result += sdplug->save_len(inode);
 		}
 	}
-	result += sizeof(d16) * bit / 16;
+	result += bit / 16 * sizeof(d16);
 	return result;
 }
 
