@@ -67,6 +67,7 @@ static inline void
 extent_set_width(reiser4_extent * ext, reiser4_block_nr width)
 {
 	cassert(sizeof(ext->width) == 8);
+	assert("", width > 0);
 	put_unaligned(cpu_to_le64(width), &ext->width);
 	assert("nikita-2511",
 	       ergo(extent_get_start(ext) > 1,
@@ -157,9 +158,9 @@ reiser4_item_data *init_new_extent(reiser4_item_data * data, void *ext_unit,
 				   int nr_extents);
 reiser4_block_nr extent_size(const coord_t * coord, pos_in_node_t nr);
 extent_state state_of_extent(reiser4_extent * ext);
-void set_extent(reiser4_extent * ext, reiser4_block_nr start,
+void set_extent(reiser4_extent *, reiser4_block_nr start,
 		reiser4_block_nr width);
-int update_extent(struct inode *inode, jnode **jnodes, int count, loff_t pos, int *plugged_hole);
+int update_extent(struct inode *, jnode *, loff_t pos, int *plugged_hole);
 
 #include "../../coord.h"
 #include "../../lock.h"

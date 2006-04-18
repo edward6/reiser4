@@ -221,11 +221,12 @@ static int append_last_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 		return result;
 	}
 
-	if (count) {
-		result = DQUOT_ALLOC_BLOCK_NODIRTY(mapping_jnode(jnodes[0])->host,
-						   count);
-		BUG_ON(result != 0);
-	}
+	if (count == 0)
+		return 0;
+
+	result = DQUOT_ALLOC_BLOCK_NODIRTY(mapping_jnode(jnodes[0])->host,
+					   count);
+	BUG_ON(result != 0);
 
 	switch (state_of_extent(ext)) {
 	case UNALLOCATED_EXTENT:
@@ -332,17 +333,18 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	assert("vs-719", znode_get_level(uf_coord->coord.node) == LEAF_LEVEL);
 	assert("vs-711", coord_is_between_items(&uf_coord->coord));
 
-
 	if (get_key_offset(key) != 0) {
 		result = insert_first_hole(&uf_coord->coord, uf_coord->lh, key);
 		uf_coord->valid = 0;
 		return result;
 	}
 
-	if (count) {
-		result = DQUOT_ALLOC_BLOCK_NODIRTY(mapping_jnode(jnodes[0])->host, count);
-		BUG_ON(result != 0);
-	}
+	if (count == 0)
+		return 0;
+
+	result = DQUOT_ALLOC_BLOCK_NODIRTY(mapping_jnode(jnodes[0])->host, count);
+	BUG_ON(result != 0);
+
 	/*
 	 * prepare for tree modification: compose body of item and item data
 	 * structure needed for insertion
@@ -641,7 +643,7 @@ void init_uf_coord(uf_coord_t *uf_coord, lock_handle *lh);
  * @off:
  * 
  */
-int update_extent(struct inode *inode, jnode **jnodes, int count, loff_t pos,
+int update_extent(struct inode *inode, jnode *node, loff_t pos,
 		  int *plugged_hole)
 {
 	int result;
@@ -657,8 +659,6 @@ int update_extent(struct inode *inode, jnode **jnodes, int count, loff_t pos,
 	coord = &uf_coord.coord;
 	result = find_file_item_nohint(coord, &lh, &key,
 				       ZNODE_WRITE_LOCK, inode);
-	set_file_state(unix_file_inode_data(inode), result,
-		       znode_get_level(coord->node));
 	if (IS_CBKERR(result))
 		return result;
 	
@@ -674,7 +674,7 @@ int update_extent(struct inode *inode, jnode **jnodes, int count, loff_t pos,
 		init_coord_extension_extent(&uf_coord,
 					    get_key_offset(&key));
 		result = append_last_extent(&uf_coord, &key,
-					    jnodes, count);
+					    &node, 1);
 	} else if (coord->between == AT_UNIT) {
 		/*
 		 * overwrite
@@ -684,18 +684,19 @@ int update_extent(struct inode *inode, jnode **jnodes, int count, loff_t pos,
 		init_coord_extension_extent(&uf_coord,
 					    get_key_offset(&key));
 		result = overwrite_extent(&uf_coord, &key,
-					  jnodes, count, plugged_hole);
+					  &node, 1, plugged_hole);
 	} else {
 		/*
 		 * there are no items of this file in the tree yet. Create
 		 * first item of the file inserting one unallocated extent of
 		 * width nr_jnodes
 		 */
-		result = insert_first_extent(&uf_coord, &key, jnodes, count);
+		result = insert_first_extent(&uf_coord, &key, &node, 1);
 	}
+	assert("", result == 1 || result < 0);
 	zrelse(loaded);
 	done_lh(&lh);
-	return result;
+	return (result == 1) ? 0 : result;
 }
 
 /**

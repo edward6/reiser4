@@ -748,7 +748,7 @@ int find_or_create_extent(struct page *page)
 
 	if (node->blocknr == 0) {
 		plugged_hole = 0;
-		result = update_extent(inode, &node, 1,
+		result = update_extent(inode, node,
 				       (loff_t)page->index << PAGE_CACHE_SHIFT,
 				       &plugged_hole);
 		if (result)
