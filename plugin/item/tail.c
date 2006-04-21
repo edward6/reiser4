@@ -420,7 +420,7 @@ static int do_readpage_tail(uf_coord_t *uf_coord, struct page *page)
 	if (mapped != PAGE_CACHE_SIZE) {
 		pagedata = kmap_atomic(page, KM_USER0);
 		memset(pagedata + mapped, 0, PAGE_CACHE_SIZE - mapped);
-		flush_dcache_page(new_page);
+		flush_dcache_page(page);
 		kunmap_atomic(pagedata, KM_USER0);
 	}
 	SetPageUptodate(page);
