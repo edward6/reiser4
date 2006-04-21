@@ -731,7 +731,7 @@ static lookup_result traverse_tree(cbk_handle * h /* search handle */ )
 			"lock_mode: %s, bias: %s",
 			h->error, h->level, h->lock_level, h->stop_level,
 			lock_mode_name(h->lock_mode), bias_name(h->bias));
-		print_address("block", &h->block);
+		reiser4_print_address("block", &h->block);
 		print_key("key", h->key);
 		print_coord_content("coord", h->coord);
 	}
@@ -1515,7 +1515,7 @@ void print_coord_content(const char *prefix /* prefix to print */ ,
 }
 
 /* debugging aid: print human readable information about @block */
-void print_address(const char *prefix /* prefix to print */ ,
+void reiser4_print_address(const char *prefix /* prefix to print */ ,
 		   const reiser4_block_nr * block /* block number to print */ )
 {
 	printk("%s: %s\n", prefix, sprint_address(block));
