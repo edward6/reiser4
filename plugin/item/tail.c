@@ -330,15 +330,15 @@ static int overwrite_tail(coord_t *coord, flow_t *f)
 }
 
 /* tail redpage function. It is called from readpage_tail(). */
-static int do_readpage_tail(uf_coord_t * uf_coord, struct page *page)
+static int do_readpage_tail(uf_coord_t *uf_coord, struct page *page)
 {
 	tap_t tap;
 	int result;
 	coord_t coord;
 	lock_handle lh;
-
 	int count, mapped;
 	struct inode *inode;
+	char *pagedata;
 
 	/* saving passed coord in order to do not move it by tap. */
 	init_lh(&lh);
@@ -352,33 +352,32 @@ static int do_readpage_tail(uf_coord_t * uf_coord, struct page *page)
 		goto out_tap_done;
 
 	/* lookup until page is filled up. */
-	for (mapped = 0; mapped < PAGE_CACHE_SIZE; mapped += count) {
-		char *pagedata;
-
-		/* number of bytes to be copied to page. */
+	for (mapped = 0; mapped < PAGE_CACHE_SIZE; ) {
+		/* number of bytes to be copied to page */
 		count = item_length_by_coord(&coord) - coord.unit_pos;
-
 		if (count > PAGE_CACHE_SIZE - mapped)
 			count = PAGE_CACHE_SIZE - mapped;
 
-		/* attaching @page to address space and getting data address. */
+		/* attach @page to address space and get data address */
 		pagedata = kmap_atomic(page, KM_USER0);
 
-		/* copying tail body to page. */
+		/* copy tail item to page */
 		memcpy(pagedata + mapped,
 		       ((char *)item_body_by_coord(&coord) + coord.unit_pos),
 		       count);
+		mapped += count;
 
 		flush_dcache_page(page);
 
-		/* dettaching page from address space. */
+		/* dettach page from address space */
 		kunmap_atomic(pagedata, KM_USER0);
 
 		/* Getting next tail item. */
-		if (mapped + count < PAGE_CACHE_SIZE) {
-
-			/* unlocking page in order to avoid keep it locked durring tree lookup,
-			   which takes long term locks. */
+		if (mapped < PAGE_CACHE_SIZE) {
+			/*
+			 * unlock page in order to avoid keep it locked
+			 * during tree lookup, which takes long term locks
+			 */
 			unlock_page(page);
 
 			/* getting right neighbour. */
@@ -386,50 +385,50 @@ static int do_readpage_tail(uf_coord_t * uf_coord, struct page *page)
 
 			/* lock page back */
 			lock_page(page);
-
-			/* page is uptodate due to another thread made it up to date. Getting
-			   out of here. */
 			if (PageUptodate(page)) {
+				/*
+				 * another thread read the page, we have
+				 * nothing to do
+				 */
 				result = 0;
 				goto out_unlock_page;
 			}
 
 			if (result) {
-				/* check if there is no neighbour node. */
 				if (result == -E_NO_NEIGHBOR) {
+					/*
+					 * rigth neighbor is not a formatted
+					 * node
+					 */
 					result = 0;
-					goto out_update_page;
+					goto done;
 				} else {
 					goto out_tap_relse;
 				}
 			} else {
-				/* check if found coord is not owned by file. */
 				if (!inode_file_plugin(inode)->
 				    owns_item(inode, &coord)) {
+					/* item of another file is found */
 					result = 0;
-					goto out_update_page;
+					goto done;
 				}
 			}
 		}
 	}
 
-	/* making page up to date and releasing it. */
+ done:
+	if (mapped != PAGE_CACHE_SIZE) {
+		pagedata = kmap_atomic(page, KM_USER0);
+		memset(pagedata + mapped, 0, PAGE_CACHE_SIZE - mapped);
+		flush_dcache_page(new_page);
+		kunmap_atomic(pagedata, KM_USER0);
+	}
 	SetPageUptodate(page);
+ out_unlock_page:
 	unlock_page(page);
-
-	/* releasing tap */
+ out_tap_relse:
 	tap_relse(&tap);
-	tap_done(&tap);
-
-	return 0;
-
-      out_update_page:
-	SetPageUptodate(page);
-      out_unlock_page:
-	unlock_page(page);
-      out_tap_relse:
-	tap_relse(&tap);
-      out_tap_done:
+ out_tap_done:
 	tap_done(&tap);
 	return result;
 }
