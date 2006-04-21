@@ -390,7 +390,7 @@ int reiser4_releasepage(struct page *page, gfp_t gfp UNUSED_ARG)
 		/* shrink_list() + radix-tree */
 		if (page_count(page) == 2) {
 			__remove_from_page_cache(page);
-			__put_page(page);
+			atomic_dec(&page->_count);
 		}
 		write_unlock_irq(&mapping->tree_lock);
 
