@@ -184,6 +184,34 @@ static int append_hole(coord_t *coord, lock_handle *lh,
 }
 
 /**
+ * check_jnodes
+ * @twig: longterm locked twig node
+ * @key: 
+ *
+ */
+static void check_jnodes(znode *twig, const reiser4_key *key, int count)
+{
+#if REISER4_DEBUG
+	coord_t c;
+	reiser4_key node_key, jnode_key;
+
+	jnode_key = *key;
+
+	zload(twig);
+	coord_init_first_unit(&c, twig);
+	unit_key_by_coord(&c, &node_key);
+	assert("", keyle(&node_key, &jnode_key));
+
+	coord_init_last_unit(&c, twig);
+	item_plugin_by_coord(&c)->s.file.append_key(&c, &node_key);
+	set_key_offset(&jnode_key,
+		       get_key_offset(&jnode_key) + (loff_t)count * PAGE_CACHE_SIZE - 1);
+	assert("", keylt(&jnode_key, &node_key));
+	zrelse(twig);
+#endif
+}
+
+/**
  * append_last_extent - append last file item
  * @uf_coord: coord to start insertion from
  * @jnodes: array of jnodes
@@ -203,6 +231,7 @@ static int append_last_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	extent_coord_extension_t *ext_coord;
 	reiser4_extent *ext;
 	reiser4_block_nr block;
+	jnode *node;
 	int i;
 
 	coord = &uf_coord->coord;
@@ -223,6 +252,8 @@ static int append_last_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 
 	if (count == 0)
 		return 0;
+
+	assert("", get_key_offset(key) == (loff_t)index_jnode(jnodes[0]) * PAGE_CACHE_SIZE);
 
 	result = DQUOT_ALLOC_BLOCK_NODIRTY(mapping_jnode(jnodes[0])->host,
 					   count);
@@ -264,13 +295,25 @@ static int append_last_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	}
 
 	/*
+	 * make sure that we hold long term locked twig node containing all
+	 * jnodes we are about to capture
+	 */
+	check_jnodes(uf_coord->lh->node, key, count);
+
+	/*
 	 * assign fake block numbers to all jnodes. FIXME: make sure whether
 	 * twig node containing inserted extent item is locked
 	 */
 	block = fake_blocknr_unformatted(count);
 	for (i = 0; i < count; i ++, block ++) {
-		JF_SET(jnodes[i], JNODE_CREATED);
-		jnode_set_block(jnodes[i], &block);
+		node = jnodes[i];
+		spin_lock_jnode(node);
+		JF_SET(node, JNODE_CREATED);
+		jnode_set_block(node, &block);
+ 		result = try_capture(node, ZNODE_WRITE_LOCK, 0, 1 /* can_coc */ );
+		BUG_ON(result != 0);
+		jnode_make_dirty_locked(node);
+		spin_unlock_jnode(node);		
 	}
 	return count;
 }
@@ -314,6 +357,7 @@ static int insert_first_hole(coord_t *coord, lock_handle *lh,
  * @uf_coord: coord to start insertion from
  * @jnodes: array of jnodes
  * @count: number of jnodes in the array
+ * @inode:
  *
  * There are no items of file @inode in the tree yet. Insert unallocated extent
  * of width @count into tree or hole extent if writing not to the
@@ -321,13 +365,16 @@ static int insert_first_hole(coord_t *coord, lock_handle *lh,
  * unallocated extent. Returns number of jnodes or error code.
  */
 static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
-			       jnode **jnodes, int count)
+			       jnode **jnodes, int count,
+			       struct inode *inode)
 {
 	int result;
 	int i;
 	reiser4_extent new_ext;
 	reiser4_item_data idata;
 	reiser4_block_nr block;
+	unix_file_info_t *uf_info;
+	jnode *node;
 
 	/* first extent insertion starts at leaf level */
 	assert("vs-719", znode_get_level(uf_coord->coord.node) == LEAF_LEVEL);
@@ -336,6 +383,12 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	if (get_key_offset(key) != 0) {
 		result = insert_first_hole(&uf_coord->coord, uf_coord->lh, key);
 		uf_coord->valid = 0;
+		uf_info = unix_file_inode_data(inode);
+		assert("", (uf_info->container == UF_CONTAINER_EMPTY ||
+			    inode_get_flag(inode, REISER4_PART_CONV)));
+		/* if file was empty - update its state */
+		if (result == 0 && uf_info->container == UF_CONTAINER_EMPTY)
+			uf_info->container = UF_CONTAINER_EXTENTS;
 		return result;
 	}
 
@@ -359,13 +412,23 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 		return result;
 
 	/*
-	 * assign fake block numbers to all jnodes. FIXME: make sure whether
-	 * twig node containing inserted extent item is locked
+	 * make sure that we hold long term locked twig node containing all
+	 * jnodes we are about to capture
+	 */
+	check_jnodes(uf_coord->lh->node, key, count);
+	/*
+	 * assign fake block numbers to all jnodes, capture and mark them dirty
 	 */
 	block = fake_blocknr_unformatted(count);
 	for (i = 0; i < count; i ++, block ++) {
-		JF_SET(jnodes[i], JNODE_CREATED);
-		jnode_set_block(jnodes[i], &block);
+		node = jnodes[i];
+		spin_lock_jnode(node);
+		JF_SET(node, JNODE_CREATED);
+		jnode_set_block(node, &block);
+ 		result = try_capture(node, ZNODE_WRITE_LOCK, 0, 1 /* can_coc */ );
+		BUG_ON(result != 0);
+		jnode_make_dirty_locked(node);
+		spin_unlock_jnode(node);		
 	}
 
 	/*
@@ -386,7 +449,7 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
  * Creates an unallocated extent of width 1 within a hole. In worst case two
  * additional extents can be created.
  */
-static int plug_hole(uf_coord_t *uf_coord, const reiser4_key *key)
+static int plug_hole(uf_coord_t *uf_coord, const reiser4_key *key, int *how)
 {
 	struct replace_handle rh;
 	reiser4_extent *ext;
@@ -408,12 +471,13 @@ static int plug_hole(uf_coord_t *uf_coord, const reiser4_key *key)
 	width = ext_coord->width;
 	pos_in_unit = ext_coord->pos_in_unit;
 
-
+	*how = 0;
 	if (width == 1) {
 		set_extent(ext, UNALLOCATED_EXTENT_START, 1);
 		znode_make_dirty(coord->node);
 		/* update uf_coord */
 		ON_DEBUG(ext_coord->extent = *ext);
+		*how = 1;
 		return 0;
 	} else if (pos_in_unit == 0) {
 		/* we deal with first element of extent */
@@ -437,6 +501,7 @@ static int plug_hole(uf_coord_t *uf_coord, const reiser4_key *key)
 				ext_coord->ext_offset -= sizeof(reiser4_extent);
 				ON_DEBUG(ext_coord->extent =
 					 *extent_by_coord(coord));
+				*how = 2;
 				return 0;
 			}
 		}
@@ -449,6 +514,7 @@ static int plug_hole(uf_coord_t *uf_coord, const reiser4_key *key)
 		/* have replace_extent to return with @coord and @uf_coord->lh
 		   set to unit which was replaced */
 		return_inserted_position = 0;
+		*how = 3;
 	} else if (pos_in_unit == width - 1) {
 		/* we deal with last element of extent */
 		if (coord->unit_pos < nr_units_extent(coord) - 1) {
@@ -471,6 +537,7 @@ static int plug_hole(uf_coord_t *uf_coord, const reiser4_key *key)
 				ext_coord->ext_offset += sizeof(reiser4_extent);
 				ON_DEBUG(ext_coord->extent =
 					 *extent_by_coord(coord));
+				*how = 4;
 				return 0;
 			}
 		}
@@ -483,6 +550,7 @@ static int plug_hole(uf_coord_t *uf_coord, const reiser4_key *key)
 		/* have replace_extent to return with @coord and @uf_coord->lh
 		   set to unit which was inserted */
 		return_inserted_position = 1;
+		*how = 5;
 	} else {
 		/* extent for replace */
 		set_extent(&rh.overwrite, HOLE_EXTENT_START, pos_in_unit);
@@ -495,6 +563,7 @@ static int plug_hole(uf_coord_t *uf_coord, const reiser4_key *key)
 		/* have replace_extent to return with @coord and @uf_coord->lh
 		   set to first of units which were inserted */
 		return_inserted_position = 1;
+		*how = 6;
 	}
 	unit_key_by_coord(coord, &rh.paste_key);
 	set_key_offset(&rh.paste_key, get_key_offset(&rh.paste_key) +
@@ -521,6 +590,7 @@ static int overwrite_one_block(uf_coord_t *uf_coord, const reiser4_key *key,
 	extent_coord_extension_t *ext_coord;
 	reiser4_extent *ext;
 	reiser4_block_nr block;
+	int how;
 
 	assert("vs-1312", uf_coord->coord.between == AT_UNIT);
 
@@ -537,7 +607,7 @@ static int overwrite_one_block(uf_coord_t *uf_coord, const reiser4_key *key,
 	case HOLE_EXTENT:
 		result = DQUOT_ALLOC_BLOCK_NODIRTY(mapping_jnode(node)->host, 1);
 		BUG_ON(result != 0);
-		result = plug_hole(uf_coord, key);
+		result = plug_hole(uf_coord, key, &how);
 		if (result)
 			return result;
 		block = fake_blocknr_unformatted(1);
@@ -605,14 +675,31 @@ static int overwrite_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	int result;
 	reiser4_key k;
 	int i;
+	jnode *node;
 
 	k = *key;
 	for (i = 0; i < count; i ++) {
-		if (*jnode_get_block(jnodes[i]) == 0) {
-			result = overwrite_one_block(uf_coord, &k, jnodes[i], plugged_hole);
+		node = jnodes[i];
+		if (*jnode_get_block(node) == 0) {
+			result = overwrite_one_block(uf_coord, &k, node, plugged_hole);
 			if (result)
 				return result;
 		}
+		/*
+		 * make sure that we hold long term locked twig node containing
+		 * all jnodes we are about to capture
+		 */
+		check_jnodes(uf_coord->lh->node, &k, 1);
+		/*
+		 * assign fake block numbers to all jnodes, capture and mark
+		 * them dirty
+		 */
+		spin_lock_jnode(node);
+		result = try_capture(node, ZNODE_WRITE_LOCK, 0, 1 /* can_coc */ );
+		BUG_ON(result != 0);
+		jnode_make_dirty_locked(node);
+		spin_unlock_jnode(node);
+
 		if (uf_coord->valid == 0)
 			return i + 1;
 
@@ -691,7 +778,7 @@ int update_extent(struct inode *inode, jnode *node, loff_t pos,
 		 * first item of the file inserting one unallocated extent of
 		 * width nr_jnodes
 		 */
-		result = insert_first_extent(&uf_coord, &key, &node, 1);
+		result = insert_first_extent(&uf_coord, &key, &node, 1, inode);
 	}
 	assert("", result == 1 || result < 0);
 	zrelse(loaded);
@@ -719,7 +806,6 @@ static int update_extents(struct file *file, jnode **jnodes, int count, loff_t p
 	BUG_ON(result != 0);
 	
 	inode = file->f_dentry->d_inode;
-
 	if (count != 0)
 		/*
 		 * count == 0 is special case: expanding truncate
@@ -766,7 +852,7 @@ static int update_extents(struct file *file, jnode **jnodes, int count, loff_t p
 			 * unallocated extent of * width nr_jnodes
 			 */
 			result = insert_first_extent(&hint.ext_coord, &key,
-						     jnodes, count);
+						     jnodes, count, inode);
 		}
 		zrelse(loaded);
 		if (result < 0) {
@@ -950,8 +1036,18 @@ ssize_t write_extent(struct file *file, const char __user *buf, size_t count,
 		SetPageUptodate(page);
 		page_cache_release(page);
 
-		if (jnodes[i]->blocknr == 0)
+		if (jnodes[i]->blocknr == 0) {
+			/*
+			 * extent may not exist yet. 
+			 */
 			have_to_update_extent ++;
+		} else {
+			spin_lock_jnode(jnodes[i]);
+			result = try_capture(jnodes[i], ZNODE_WRITE_LOCK, 0, 1 /* can_coc */ );
+			BUG_ON(result != 0);
+			jnode_make_dirty_locked(jnodes[i]);
+			spin_unlock_jnode(jnodes[i]);
+		}
 
 		page_off = 0;
 		buf += to_page;
@@ -962,11 +1058,6 @@ ssize_t write_extent(struct file *file, const char __user *buf, size_t count,
 	if (have_to_update_extent)
 		update_extents(file, jnodes, nr_pages, *pos);
 
-	/*
-	 * capture all jnodes and mark them dirty. For the beginning it can be
-	 * implemented as try_to_capture in for loop. no error handling yet.
-	 */
-	capture_bulk(jnodes, nr_pages);
 	for (i = 0; i < nr_pages; i ++)
 		jput(jnodes[i]);
 
@@ -1478,67 +1569,6 @@ int readpage_extent(void *vp, struct page *page)
 	return do_readpage_extent(ext_by_ext_coord(uf_coord),
 				  uf_coord->extension.extent.pos_in_unit, page);
 }
-
-
-#if 0
-/**
- * capture_extent - capture page, make sure there is non hole extent for it
- * @key: key of first byte in @page
- * @uf_coord: coordinate and lock handle of position in the tree
- * @page: page to create
- * @mode: preliminary hint obtained via search
- *
- * This implements capture method of item plugin for extent items.  At the
- * beginning uf_coord->coord.node is write locked, zloaded, @page is not
- * locked, @uf_coord is set to in accordance to @key. Extent and jnode
- * corresponding to @page are created if they do not exist yet. Jnode is
- * captured and marked dirty. Tag of @page->mapping->page_tree specifying that
- * page may have no corresponding extent item is cleared.
- */
-int
-capture_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page,
-	       int *plugged_hole)
-{
-	jnode *j;
-	int result;
-
-	assert("vs-1051", page->mapping && page->mapping->host);
-	assert("nikita-3139",
-	       !inode_get_flag(page->mapping->host, REISER4_NO_SD));
-	assert("vs-864", znode_is_wlocked(uf_coord->coord.node));
-	assert("vs-1398",
-	       get_key_objectid(key) == get_inode_oid(page->mapping->host));
-
-	lock_page(page);
-	j = jnode_of_page(page);
-	if (IS_ERR(j)) {
-		unlock_page(page);
-		done_lh(uf_coord->lh);
-		return PTR_ERR(j);
-	}
-	unlock_page(page);
-
-	result = overwrite_extent(uf_coord, key, &j, 1, plugged_hole);
-	BUG_ON(result != 1);
-
-	spin_lock_jnode(j);
-	result = try_capture(j, ZNODE_WRITE_LOCK, 0, 1 /* can_coc */ );
-	BUG_ON(result != 0);
-	jnode_make_dirty_locked(j);
-	spin_unlock_jnode(j);
-
-	jput(j);
-
-	if (get_current_context()->entd) {
-		entd_context *ent = get_entd_context(j->tree->super);
-
-		if (ent->cur_request->page == page)
-			ent->cur_request->node = j;
-	}
-
-	return 0;
-}
-#endif
 
 /**
  * get_block_address_extent

@@ -157,17 +157,18 @@ int goto_right_neighbor(coord_t * coord, lock_handle * lh)
  * This is to be used by find_file_item and in find_file_state to
  * determine real state of file
  */
-void set_file_state(unix_file_info_t *uf_info, int cbk_result, tree_level level)
+static void set_file_state(unix_file_info_t *uf_info, int cbk_result,
+			   tree_level level)
 {
 	if (cbk_errored(cbk_result))
 		/* error happened in find_file_item */
 		return;
 
 	assert("vs-1164", level == LEAF_LEVEL || level == TWIG_LEVEL);
-	assert("", !inode_get_flag(unix_file_info_to_inode(uf_info),
-				   REISER4_PART_CONV));
 
 	if (uf_info->container == UF_CONTAINER_UNKNOWN) {
+		assert("", !inode_get_flag(unix_file_info_to_inode(uf_info),
+					   REISER4_PART_CONV));
 		if (cbk_result == CBK_COORD_NOTFOUND)
 			uf_info->container = UF_CONTAINER_EMPTY;
 		else if (level == LEAF_LEVEL)
@@ -176,8 +177,6 @@ void set_file_state(unix_file_info_t *uf_info, int cbk_result, tree_level level)
 			uf_info->container = UF_CONTAINER_EXTENTS;
 	} else {
 		/* file state is known, check that it is set correctly */
-		assert("vs-1161", ergo(cbk_result == CBK_COORD_NOTFOUND,
-				       uf_info->container == UF_CONTAINER_EMPTY));
 		assert("vs-1162",
 		       ergo(level == LEAF_LEVEL &&
 			    cbk_result == CBK_COORD_FOUND,
@@ -552,6 +551,7 @@ static int truncate_file_body(struct inode *inode, loff_t new_size)
 		file.f_dentry = &dentry;
 		file.private_data = NULL;
 		file.f_pos = new_size;
+		file.private_data = NULL;
 		uf_info = unix_file_inode_data(inode);
 		result = find_file_state(inode, uf_info);
 		if (result)
@@ -589,6 +589,7 @@ static int truncate_file_body(struct inode *inode, loff_t new_size)
 		file_update_time(&file);
 		result = reiser4_update_sd(inode);
 		BUG_ON(result != 0);
+		reiser4_free_file_fsdata(&file);
 	} else
 		result = shorten_file(inode, new_size);
 	return result;
@@ -721,6 +722,8 @@ hint_validate(hint_t * hint, const reiser4_key * key, int check_key,
 			     hint->ext_coord.lh, lock_mode, ZNODE_LOCK_LOPRI);
 }
 
+int xversion;
+
 /**
  * find_or_create_extent - 
  * @page: 
@@ -751,13 +754,22 @@ int find_or_create_extent(struct page *page)
 		result = update_extent(inode, node,
 				       (loff_t)page->index << PAGE_CACHE_SHIFT,
 				       &plugged_hole);
-		if (result)
+		if (result) {
+			jput(node);
+			warning("", "update_extent failed: %d", result);
 			return result;
+		}
 		if (plugged_hole)
 			reiser4_update_sd(inode);
+	} else {
+		spin_lock_jnode(node);
+		result = try_capture(node, ZNODE_WRITE_LOCK, 0, 1 /* can_coc */ );
+		BUG_ON(result != 0);
+		jnode_make_dirty_locked(node);
+		spin_unlock_jnode(node);
 	}
 
-	capture_bulk(&node, 1);
+	BUG_ON(node->atom == NULL);
 	jput(node);
 
 	if (get_current_context()->entd) {
@@ -768,29 +780,6 @@ int find_or_create_extent(struct page *page)
 	}
 	return 0;
 }
-#if 0
-	result = zload(coord->node);
-	if (result) {
-		done_lh(&lh);
-		return result;
-	}
-	loaded = coord->node;
-
-	validate_extended_coord(&uf_coord,
-				(loff_t) page->index << PAGE_CACHE_SHIFT);
-
-	plugged_hole = 0;
-	result = capture_extent(&key, &uf_coord, page, &plugged_hole);
-	assert("vs-429378", result != -E_REPEAT);
-	zrelse(loaded);
-	done_lh(&lh);
-
-	if (plugged_hole)
-		reiser4_update_sd(inode);
-
-	return result;
-}
-#endif
 
 /**
  * has_anonymous_pages - check whether inode has pages dirtied via mmap
@@ -1409,7 +1398,7 @@ writepages_unix_file(struct address_space *mapping,
 				break;
 			}
 		} else
-			get_nonexclusive_access(uf_info, 0);
+			get_nonexclusive_access(uf_info);
 
 		while (to_capture > 0) {
 			pgoff_t start;
@@ -1832,7 +1821,7 @@ read_unix_file(struct file *file, char __user *buf, size_t read_amount,
 	while (left > 0) {
 		txn_restart_current();
 
-		get_nonexclusive_access(uf_info, 0);
+		get_nonexclusive_access(uf_info);
 
 		size = i_size_read(inode);
 		if (*off >= size) {
@@ -2177,7 +2166,7 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 				break;
 			}
 		} else {
-			get_nonexclusive_access(uf_info, 0);
+			get_nonexclusive_access(uf_info);
 			ea = NEA_OBTAINED;
 		}
 
@@ -2298,8 +2287,6 @@ int release_unix_file(struct inode *inode, struct file *file)
 	int result;
 	int in_reiser4;
 
-	reiser4_free_file_fsdata(file);
-	return 0;
 	in_reiser4 = is_in_reiser4_context();
 
 	ctx = init_context(inode->i_sb);
@@ -2711,7 +2698,7 @@ sendfile_unix_file(struct file *file, loff_t *ppos, size_t count,
 	mutex_unlock(&inode->i_mutex);
 
 	uf_info = unix_file_inode_data(inode);
-	get_nonexclusive_access(uf_info, 0);
+	get_nonexclusive_access(uf_info);
 	result = generic_file_sendfile(file, ppos, count, actor, target);
 	drop_nonexclusive_access(uf_info);
  error:

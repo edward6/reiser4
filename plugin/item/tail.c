@@ -482,6 +482,7 @@ static ssize_t insert_first_tail(struct inode *inode, flow_t *flow,
 {
 	int result;
 	loff_t to_write;
+	unix_file_info_t *uf_info;
 
 	if (get_key_offset(&flow->key) != 0) {
 		/*
@@ -503,6 +504,13 @@ static ssize_t insert_first_tail(struct inode *inode, flow_t *flow,
 		result = insert_flow(coord, lh, flow);
 		if (flow->length)
 			DQUOT_FREE_SPACE_NODIRTY(inode, flow->length);
+
+		/* if file was empty - update its state */
+		uf_info = unix_file_inode_data(inode);
+		assert("", (uf_info->container == UF_CONTAINER_EMPTY ||
+			    inode_get_flag(inode, REISER4_PART_CONV)));
+		if (result == 0 && uf_info->container == UF_CONTAINER_EMPTY)
+			uf_info->container = UF_CONTAINER_TAILS;
 		return result;
 	}
 
@@ -565,7 +573,8 @@ static ssize_t append_tail(struct inode *inode,
  * write_tail_reserve_space - reserve space for tail write operation
  * @inode:
  *
- * Estimates and reserves space which may be required for writing one flow to a file
+ * Estimates and reserves space which may be required for writing one flow to a
+ * file
  */
 static int write_extent_reserve_space(struct inode *inode)
 {
@@ -592,6 +601,27 @@ static int write_extent_reserve_space(struct inode *inode)
 	return reiser4_grab_space(count, 0 /* flags */);
 }
 
+#define PAGE_PER_FLOW 4
+
+static loff_t faultin_user_pages(const char __user *buf, size_t count)
+{
+	loff_t faulted;	
+	int to_fault;
+
+	if (count > PAGE_PER_FLOW * PAGE_CACHE_SIZE)
+		count = PAGE_PER_FLOW * PAGE_CACHE_SIZE;
+	faulted = 0;
+	while (count > 0) {
+		to_fault = PAGE_CACHE_SIZE;
+		if (count < to_fault)
+			to_fault = count;
+		fault_in_pages_readable(buf + faulted, to_fault);
+		count -= to_fault;
+		faulted += to_fault;
+	}
+	return faulted;
+}
+
 /**
  * write_extent - write method of tail item plugin
  * @file: file to write to
@@ -614,14 +644,13 @@ ssize_t write_tail(struct file *file, const char __user *buf, size_t count,
 
 	inode = file->f_dentry->d_inode;
 
-
 	if (write_extent_reserve_space(inode))
 		return RETERR(-ENOSPC);
 
 	result = load_file_hint(file, &hint);
 	BUG_ON(result != 0);
 
-	flow.length = count;
+	flow.length = faultin_user_pages(buf, count);
 	flow.user = 1;
 	memcpy(&flow.data, &buf, sizeof(buf));
 	flow.op = WRITE_OP;

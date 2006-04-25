@@ -45,6 +45,7 @@ void drop_exclusive_access(unix_file_info_t * uf_info)
 	assert("nikita-3049", LOCK_CNT_NIL(inode_sem_r));
 	assert("nikita-3049", LOCK_CNT_GTZ(inode_sem_w));
 	LOCK_CNT_DEC(inode_sem_w);
+	txn_restart_current();
 }
 
 /**
@@ -70,18 +71,12 @@ static void nea_grabbed(unix_file_info_t *uf_info)
  *
  * Nonexclusive access is obtained on a file before read, write, readpage.
  */
-void get_nonexclusive_access(unix_file_info_t *uf_info, int atom_may_exist)
+void get_nonexclusive_access(unix_file_info_t *uf_info)
 {
 	assert("nikita-3029", schedulable());
-	/* unix_file_filemap_nopage may call this when current atom exist already */
-	assert("nikita-3361",
-	       ergo(atom_may_exist == 0,
-		    get_current_context()->trans->atom == NULL));
-	BUG_ON(atom_may_exist == 0
-	       && get_current_context()->trans->atom != NULL);
+	assert("nikita-3361", get_current_context()->trans->atom == NULL);
 
 	down_read(&uf_info->latch);
-
 	nea_grabbed(uf_info);
 }
 
@@ -110,6 +105,7 @@ void drop_nonexclusive_access(unix_file_info_t * uf_info)
 	up_read(&uf_info->latch);
 
 	LOCK_CNT_DEC(inode_sem_r);
+	txn_restart_current();
 }
 
 /* part of tail2extent. Cut all items covering @count bytes starting from
@@ -228,49 +224,6 @@ static int reserve_tail2extent_iteration(struct inode *inode)
 	     inode_file_plugin(inode)->estimate.update(inode), BA_CAN_COMMIT);
 }
 
-/* this is used by tail2extent and extent2tail to detect where previous uncompleted conversion stopped */
-static int
-find_start(struct inode *object, reiser4_plugin_id id, __u64 * offset)
-{
-	int result;
-	lock_handle lh;
-	coord_t coord;
-	unix_file_info_t *ufo;
-	int found;
-	reiser4_key key;
-
-	ufo = unix_file_inode_data(object);
-	init_lh(&lh);
-	result = 0;
-	found = 0;
-	inode_file_plugin(object)->key_by_inode(object, *offset, &key);
-	do {
-		init_lh(&lh);
-		result = find_file_item_nohint(&coord, &lh, &key,
-					       ZNODE_READ_LOCK, object);
-
-		if (result == CBK_COORD_FOUND) {
-			if (coord.between == AT_UNIT) {
-				/*coord_clear_iplug(&coord); */
-				result = zload(coord.node);
-				if (result == 0) {
-					if (item_id_by_coord(&coord) == id)
-						found = 1;
-					else
-						item_plugin_by_coord(&coord)->s.
-						    file.append_key(&coord,
-								    &key);
-					zrelse(coord.node);
-				}
-			} else
-				result = RETERR(-ENOENT);
-		}
-		done_lh(&lh);
-	} while (result == 0 && !found);
-	*offset = get_key_offset(&key);
-	return result;
-}
-
 /* clear stat data's flag indicating that conversion is being converted */
 static int complete_conversion(struct inode *inode)
 {
@@ -290,12 +243,16 @@ static int complete_conversion(struct inode *inode)
 	return 0;
 }
 
+/**
+ * tail2extent
+ * @uf_info:
+ *
+ *
+ */
 int tail2extent(unix_file_info_t *uf_info)
 {
 	int result;
 	reiser4_key key;	/* key of next byte to be moved to page */
-	ON_DEBUG(reiser4_key tmp;
-	    )
 	char *p_data;		/* data of page */
 	unsigned page_off = 0,	/* offset within the page where to copy data */
 	    count;		/* number of bytes of item which can be
@@ -306,7 +263,6 @@ int tail2extent(unix_file_info_t *uf_info)
 	char *item;
 	int i;
 	struct inode *inode;
-	__u64 offset;
 	int first_iteration;
 	int bytes;
 
@@ -314,23 +270,10 @@ int tail2extent(unix_file_info_t *uf_info)
 	inode = unix_file_info_to_inode(uf_info);
 	assert("nikita-3412", !IS_RDONLY(inode));
 	assert("vs-1649", uf_info->container != UF_CONTAINER_EXTENTS);
-
-	offset = 0;
-	if (inode_get_flag(inode, REISER4_PART_CONV)) {
-		/* find_start() doesn't need block reservation */
-		result = find_start(inode, FORMATTING_ID, &offset);
-		if (result == -ENOENT) {
-			/* no tail items found, everything is converted */
-			uf_info->container = UF_CONTAINER_EXTENTS;
-			complete_conversion(inode);
-			return 0;
-		} else if (result != 0)
-			/* some other error */
-			return result;
-	}
+	assert("", !inode_get_flag(inode, REISER4_PART_CONV));
 
 	/* get key of first byte of a file */
-	inode_file_plugin(inode)->key_by_inode(inode, offset, &key);
+	inode_file_plugin(inode)->key_by_inode(inode, 0, &key);
 
 	done = 0;
 	result = 0;
@@ -358,13 +301,14 @@ int tail2extent(unix_file_info_t *uf_info)
 			page->index =
 			    (unsigned long)(get_key_offset(&key) >>
 					    PAGE_CACHE_SHIFT);
-			/* usually when one is going to longterm lock znode (as
-			   find_file_item does, for instance) he must not hold
-			   locked pages. However, there is an exception for
-			   case tail2extent. Pages appearing here are not
-			   reachable to everyone else, they are clean, they do
-			   not have jnodes attached so keeping them locked do
-			   not risk deadlock appearance
+			/*
+			 * usually when one is going to longterm lock znode (as
+			 * find_file_item does, for instance) he must not hold
+			 * locked pages. However, there is an exception for
+			 * case tail2extent. Pages appearing here are not
+			 * reachable to everyone else, they are clean, they do
+			 * not have jnodes attached so keeping them locked do
+			 * not risk deadlock appearance
 			 */
 			assert("vs-983", !PagePrivate(page));
 			reiser4_invalidate_pages(inode->i_mapping, page->index,
@@ -380,16 +324,21 @@ int tail2extent(unix_file_info_t *uf_info)
 				    find_file_item_nohint(&coord, &lh, &key,
 							  ZNODE_READ_LOCK,
 							  inode);
-				if (cbk_errored(result)
-				    || result == CBK_COORD_NOTFOUND) {
-					/* error happened of not items of file were found */
+				if (result != CBK_COORD_FOUND) {
+					/*
+					 * error happened of not items of file
+					 * were found
+					 */
 					done_lh(&lh);
 					page_cache_release(page);
 					goto error;
 				}
 
 				if (coord.between == AFTER_UNIT) {
-					/* this is used to detect end of file when inode->i_size can not be used */
+					/*
+					 * end of file is reached. Padd page
+					 * with zeros
+					 */
 					done_lh(&lh);
 					done = 1;
 					p_data = kmap_atomic(page, KM_USER0);
@@ -405,15 +354,9 @@ int tail2extent(unix_file_info_t *uf_info)
 					done_lh(&lh);
 					goto error;
 				}
-				assert("vs-562",
-				       owns_item_unix_file(inode, &coord));
 				assert("vs-856", coord.between == AT_UNIT);
-				assert("green-11",
-				       keyeq(&key,
-					     unit_key_by_coord(&coord, &tmp)));
-				item =
-				    ((char *)item_body_by_coord(&coord)) +
-				    coord.unit_pos;
+				item = ((char *)item_body_by_coord(&coord)) +
+					coord.unit_pos;
 
 				/* how many bytes to copy */
 				count =
@@ -423,13 +366,12 @@ int tail2extent(unix_file_info_t *uf_info)
 				if (count > PAGE_CACHE_SIZE - page_off)
 					count = PAGE_CACHE_SIZE - page_off;
 
-				/* kmap/kunmap are necessary for pages which are not addressable by direct kernel
-				   virtual addresses */
+				/*
+				 * copy item (as much as will fit starting from
+				 * the beginning of the item) into the page
+				 */
 				p_data = kmap_atomic(page, KM_USER0);
-				/* copy item (as much as will fit starting from the beginning of the item) into the
-				   page */
-				memcpy(p_data + page_off, item,
-				       (unsigned)count);
+				memcpy(p_data + page_off, item, count);
 				kunmap_atomic(p_data, KM_USER0);
 
 				page_off += count;
@@ -439,7 +381,8 @@ int tail2extent(unix_file_info_t *uf_info)
 
 				zrelse(coord.node);
 				done_lh(&lh);
-			}	/* end of loop which fills one page by content of formatting items */
+			} /* end of loop which fills one page by content of
+			   * formatting items */
 
 			if (page_off) {
 				/* something was copied into page */
@@ -449,14 +392,15 @@ int tail2extent(unix_file_info_t *uf_info)
 				assert("vs-1648", done == 1);
 				break;
 			}
-		}		/* end of loop through pages of one conversion iteration */
+		} /* end of loop through pages of one conversion iteration */
 
 		if (i > 0) {
 			result = replace(inode, pages, i, bytes);
 			release_all_pages(pages, sizeof_array(pages));
 			if (result)
 				goto error;
-			/* we have to drop exclusive access to avoid deadlock
+			/*
+			 * we have to drop exclusive access to avoid deadlock
 			 * which may happen because called by
 			 * reiser4_writepages capture_unix_file requires to get
 			 * non-exclusive access to a file. It is safe to drop
@@ -464,11 +408,17 @@ int tail2extent(unix_file_info_t *uf_info)
 			 * write_unix_file/unix_setattr(truncate)/release_unix_file(extent2tail)
 			 * are serialized by uf_info->write semaphore and
 			 * because read_unix_file works (should at least) on
-			 * partially converted files */
+			 * partially converted files
+			 */
 			drop_exclusive_access(uf_info);
 			/* throttle the conversion */
 			reiser4_throttle_write(inode);
 			get_exclusive_access(uf_info);
+			if (!inode_get_flag(inode, REISER4_PART_CONV)) {
+				/* other thread completed the conversion */
+				assert("", uf_info->container == UF_CONTAINER_EXTENTS);
+				return 0;
+			}
 		}
 	}
 
@@ -479,9 +429,11 @@ int tail2extent(unix_file_info_t *uf_info)
 		uf_info->container = UF_CONTAINER_EXTENTS;
 		complete_conversion(inode);
 	} else {
-		/* conversion is not complete. Inode was already marked as
+		/*
+		 * conversion is not complete. Inode was already marked as
 		 * REISER4_PART_CONV and stat-data were updated at the first
-		 * iteration of the loop above. */
+		 * iteration of the loop above.
+		 */
 	      error:
 		release_all_pages(pages, sizeof_array(pages));
 		warning("nikita-2282", "Partial conversion of %llu: %i",
@@ -489,90 +441,6 @@ int tail2extent(unix_file_info_t *uf_info)
 	}
 
       out:
-	return result;
-}
-
-/* part of extent2tail. Page contains data which are to be put into tree by
-   tail items. Use tail_write for this. flow is composed like in
-   unix_file_write. The only difference is that data for writing are in
-   kernel space */
-/* Audited by: green(2002.06.15) */
-static int
-write_page_by_tail(struct inode *inode, struct page *page, unsigned count)
-{
-	flow_t f;
-	hint_t *hint;
-	lock_handle *lh;
-	coord_t *coord;
-	znode *loaded;
-	item_plugin *iplug;
-	int result;
-
-	result = 0;
-
-	assert("vs-1089", count);
-	assert("vs-1647",
-	       inode_file_plugin(inode)->flow_by_inode ==
-	       flow_by_inode_unix_file);
-
-	hint = kmalloc(sizeof(*hint), GFP_KERNEL);
-	if (hint == NULL)
-		return RETERR(-ENOMEM);
-	hint_init_zero(hint);
-	lh = &hint->lh;
-
-	/* build flow */
-	/* FIXME: do not kmap here */
-	flow_by_inode_unix_file(inode, (char __user *)kmap(page), 0 /* not user space */ ,
-				count,
-				(loff_t) (page->index << PAGE_CACHE_SHIFT),
-				WRITE_OP, &f);
-	iplug = item_plugin_by_id(FORMATTING_ID);
-
-	coord = &hint->ext_coord.coord;
-	while (f.length) {
-		result =
-		    find_file_item_nohint(coord, lh, &f.key, ZNODE_WRITE_LOCK,
-					  inode);
-		if (IS_CBKERR(result))
-			break;
-
-		assert("vs-957",
-		       ergo(result == CBK_COORD_NOTFOUND,
-			    get_key_offset(&f.key) == 0));
-		assert("vs-958",
-		       ergo(result == CBK_COORD_FOUND,
-			    get_key_offset(&f.key) != 0));
-
-		result = zload(coord->node);
-		if (result)
-			break;
-		loaded = coord->node;
-
-		BUG();
-		result = 0;
-#if 0
-		result =
-		    iplug->s.file.write(inode, &f, hint, 1 /*grabbed */ ,
-					how_to_write(&hint->ext_coord, &f.key));
-#endif
-		zrelse(loaded);
-		done_lh(lh);
-
-		if (result == -E_REPEAT)
-			result = 0;
-		else if (result)
-			break;
-	}
-
-	done_lh(lh);
-	kfree(hint);
-	kunmap(page);
-
-	/* result of write is 0 or error */
-	assert("vs-589", result <= 0);
-	/* if result is 0 - all @count bytes is written completely */
-	assert("vs-588", ergo(result == 0, f.length == 0));
 	return result;
 }
 
@@ -617,33 +485,19 @@ int extent2tail(unix_file_info_t * uf_info)
 	reiser4_key from;
 	reiser4_key to;
 	unsigned count;
-	__u64 offset;
 
 	assert("nikita-3362", ea_obtained(uf_info));
 	inode = unix_file_info_to_inode(uf_info);
 	assert("nikita-3412", !IS_RDONLY(inode));
 	assert("vs-1649", uf_info->container != UF_CONTAINER_TAILS);
-
-	offset = 0;
-	if (inode_get_flag(inode, REISER4_PART_CONV)) {
-		/* find_start() doesn't need block reservation */
-		result = find_start(inode, EXTENT_POINTER_ID, &offset);
-		if (result == -ENOENT) {
-			/* no extent found, everything is converted */
-			uf_info->container = UF_CONTAINER_TAILS;
-			complete_conversion(inode);
-			return 0;
-		} else if (result != 0)
-			/* some other error */
-			return result;
-	}
+	assert("", !inode_get_flag(inode, REISER4_PART_CONV));
 
 	/* number of pages in the file */
 	num_pages =
-	    (inode->i_size - offset + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
-	start_page = offset >> PAGE_CACHE_SHIFT;
+	    (inode->i_size + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
+	start_page = 0;
 
-	inode_file_plugin(inode)->key_by_inode(inode, offset, &from);
+	inode_file_plugin(inode)->key_by_inode(inode, 0, &from);
 	to = from;
 
 	result = 0;
@@ -674,7 +528,7 @@ int extent2tail(unix_file_info_t * uf_info)
 		}
 
 		/* cut part of file we have read */
-		start_byte = (__u64) (i << PAGE_CACHE_SHIFT) + offset;
+		start_byte = (__u64) (i << PAGE_CACHE_SHIFT);
 		set_key_offset(&from, start_byte);
 		set_key_offset(&to, start_byte + PAGE_CACHE_SIZE - 1);
 		/*
@@ -692,14 +546,30 @@ int extent2tail(unix_file_info_t * uf_info)
 
 		/* put page data into tree via tail_write */
 		count = PAGE_CACHE_SIZE;
-		if (i == num_pages - 1)
-			count =
-			    (inode->
-			     i_size & ~PAGE_CACHE_MASK) ? : PAGE_CACHE_SIZE;
-		result = write_page_by_tail(inode, page, count);
-		if (result) {
-			page_cache_release(page);
-			break;
+		if ((i == (num_pages - 1)) &&
+		    (inode->i_size & ~PAGE_CACHE_MASK))
+			/* last page can be incompleted */
+			count = (inode->i_size & ~PAGE_CACHE_MASK);
+		while (count) {
+			struct dentry dentry;
+			struct file file;
+			loff_t pos;
+
+			dentry.d_inode = inode;
+			file.f_dentry = &dentry;
+			file.private_data = NULL;
+			file.f_pos = start_byte;
+			file.private_data = NULL;
+			pos = start_byte;
+			result = write_tail(&file, (char __user *)kmap(page),
+					    count, &pos);
+			reiser4_free_file_fsdata(&file);
+			if (result <= 0) {
+				warning("", "write_tail failed");
+				page_cache_release(page);
+				return result;
+			}
+			count -= result;
 		}
 
 		/* release page */
@@ -725,9 +595,11 @@ int extent2tail(unix_file_info_t * uf_info)
 		uf_info->container = UF_CONTAINER_TAILS;
 		complete_conversion(inode);
 	} else {
-		/* conversion is not complete. Inode was already marked as
+		/*
+		 * conversion is not complete. Inode was already marked as
 		 * REISER4_PART_CONV and stat-data were updated at the first
-		 * iteration of the loop above. */
+		 * iteration of the loop above.
+		 */
 		warning("nikita-2282",
 			"Partial conversion of %llu: %lu of %lu: %i",
 			(unsigned long long)get_inode_oid(inode), i,

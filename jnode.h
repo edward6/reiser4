@@ -282,16 +282,7 @@ typedef enum {
 	 *     (3) extent is allocated
 	 *
 	 */
-	JNODE_FLUSH_RESERVED = 29,
-	/* if page was dirtied through mmap, we don't want to lose data, even
-	 * though page and jnode may be clean. Mark jnode with JNODE_KEEPME so
-	 * that ->releasepage() can tell. This is used only for
-	 * unformatted */
-	JNODE_KEEPME = 30,
-#if REISER4_DEBUG
-	/* uneflushed */
-	JNODE_UNEFLUSHED = 31
-#endif
+	JNODE_FLUSH_RESERVED = 29
 } reiser4_jnode_state;
 
 /* Macros for accessing the jnode state. */

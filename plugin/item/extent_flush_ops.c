@@ -532,6 +532,7 @@ static void assign_real_blocknrs(flush_pos_t *flush_pos, oid_t oid,
 
 	atom = atom_locked_by_fq(flush_pos->fq);
 	assert("vs-1468", atom);
+	BUG_ON(atom == NULL);
 
 	nr = 0;
 	tree = current_tree;
@@ -540,6 +541,7 @@ static void assign_real_blocknrs(flush_pos_t *flush_pos, oid_t oid,
 
 		node = jlookup(tree, oid, index);
 		assert("", node != NULL);
+		BUG_ON(node == NULL);
 
 		spin_lock_jnode(node);
 		assert("", !jnode_is_flushprepped(node));
@@ -819,7 +821,7 @@ int alloc_extent(flush_pos_t *flush_pos)
 }
 
 /* if @key is glueable to the item @coord is set to */
-static int must_insert(const coord_t * coord, const reiser4_key * key)
+static int must_insert(const coord_t *coord, const reiser4_key *key)
 {
 	reiser4_key last;
 
@@ -829,11 +831,10 @@ static int must_insert(const coord_t * coord, const reiser4_key * key)
 	return 1;
 }
 
-  /* copy extent @copy to the end of @node. It may have to either insert new item after the last one, or append last item,
-     or modify last unit of last item to have greater width */
-static int
-put_unit_to_end(znode * node, const reiser4_key * key,
-		reiser4_extent * copy_ext)
+/* copy extent @copy to the end of @node. It may have to either insert new item after the last one, or append last item,
+   or modify last unit of last item to have greater width */
+static int put_unit_to_end(znode *node, const reiser4_key *key,
+			   reiser4_extent *copy_ext)
 {
 	int result;
 	coord_t coord;
@@ -878,9 +879,9 @@ put_unit_to_end(znode * node, const reiser4_key * key,
 }
 
 /* @coord is set to extent unit */
-squeeze_result
-squalloc_extent(znode * left, const coord_t * coord, flush_pos_t * flush_pos,
-		reiser4_key * stop_key)
+squeeze_result squalloc_extent(znode *left, const coord_t *coord,
+			       flush_pos_t *flush_pos,
+			       reiser4_key *stop_key)
 {
 	reiser4_extent *ext;
 	__u64 index;
@@ -908,7 +909,8 @@ squalloc_extent(znode * left, const coord_t * coord, flush_pos_t * flush_pos,
 	unit_key_by_coord(coord, &key);
 	oid = get_key_objectid(&key);
 
-	if (flush_pos->leaf_relocate || state == UNALLOCATED_EXTENT) {
+	if ((flush_pos->leaf_relocate && state == ALLOCATED_EXTENT) ||
+	    (state == UNALLOCATED_EXTENT)) {
 		/* relocate */
 		if (state == ALLOCATED_EXTENT) {
 			/* all protected nodes are not flushprepped, therefore
@@ -983,10 +985,11 @@ squalloc_extent(znode * left, const coord_t * coord, flush_pos_t * flush_pos,
 		 */
 		set_extent(&copy_extent, start, width);
 		result = put_unit_to_end(left, &key, &copy_extent);
-		if (result == -E_NODE_FULL) {
+		if (result == -E_NODE_FULL)
 			return SQUEEZE_TARGET_FULL;
-		}
-		mark_jnodes_overwrite(flush_pos, oid, index, width);
+
+		if (state != HOLE_EXTENT)
+			mark_jnodes_overwrite(flush_pos, oid, index, width);
 		set_key_offset(&key,
 			       get_key_offset(&key) +
 			       (width << current_blocksize_bits));

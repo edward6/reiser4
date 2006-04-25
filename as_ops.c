@@ -310,7 +310,6 @@ int jnode_is_releasable(jnode * node /* node to check */ )
 	if (JF_ISSET(node, JNODE_WRITEBACK)) {
 		return 0;
 	}
-	BUG_ON(JF_ISSET(node, JNODE_KEEPME));
 	/* don't flush bitmaps or journal records */
 	if (!jnode_is_znode(node) && !jnode_is_unformatted(node)) {
 		return 0;

@@ -3,7 +3,6 @@
 /* this prototypes functions used by both file.c and tail_conversion.c */
 void get_exclusive_access(unix_file_info_t *);
 void drop_exclusive_access(unix_file_info_t *);
-void get_nonexclusive_access(unix_file_info_t *, int);
 void drop_nonexclusive_access(unix_file_info_t *);
 
 int tail2extent(unix_file_info_t *);
