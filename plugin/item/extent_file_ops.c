@@ -924,7 +924,6 @@ ssize_t write_extent(struct file *file, const char __user *buf, size_t count,
 {
 	int have_to_update_extent;
 	int nr_pages;
-	struct page *pages[WRITE_GRANULARITY + 1];
 	struct page *page;
 	jnode *jnodes[WRITE_GRANULARITY + 1];
 	struct inode *inode;
@@ -955,26 +954,26 @@ ssize_t write_extent(struct file *file, const char __user *buf, size_t count,
 
 	/* get pages and jnodes */
 	for (i = 0; i < nr_pages; i ++) {
-		pages[i] = find_or_create_page(inode->i_mapping, index + i, get_gfp_mask());
-		if (pages[i] == NULL) {
+		page = find_or_create_page(inode->i_mapping, index + i, get_gfp_mask());
+		if (page == NULL) {
 			while(i --) {
-				unlock_page(pages[i]);
-				page_cache_release(pages[i]);
+				unlock_page(jnode_page(jnodes[i]));
+				page_cache_release(jnode_page(jnodes[i]));
 			}
 			return RETERR(-ENOMEM);			
 		}
 
-		jnodes[i] = jnode_of_page(pages[i]);
+		jnodes[i] = jnode_of_page(page);
 		if (IS_ERR(jnodes[i])) {
-			unlock_page(pages[i]);
-			page_cache_release(pages[i]);
+			unlock_page(page);
+			page_cache_release(page);
 			while (i --) {
 				jput(jnodes[i]);
-				page_cache_release(pages[i]);
+				page_cache_release(jnode_page(jnodes[i]));
 			}
 			return RETERR(-ENOMEM);			
 		}
-		unlock_page(pages[i]);
+		unlock_page(page);
 	}
 
 	BUG_ON(get_current_context()->trans->atom != NULL);
@@ -987,7 +986,7 @@ ssize_t write_extent(struct file *file, const char __user *buf, size_t count,
 		to_page = PAGE_CACHE_SIZE - page_off;
 		if (to_page > left)
 			to_page = left;
-		page = pages[i];
+		page = jnode_page(jnodes[i]);
 		if (((loff_t)page->index << PAGE_CACHE_SHIFT) < inode->i_size &&
 		    !PageUptodate(page) && to_page != PAGE_CACHE_SIZE) {
 			/*
@@ -1036,18 +1035,8 @@ ssize_t write_extent(struct file *file, const char __user *buf, size_t count,
 		SetPageUptodate(page);
 		page_cache_release(page);
 
-		if (jnodes[i]->blocknr == 0) {
-			/*
-			 * extent may not exist yet. 
-			 */
+		if (jnodes[i]->blocknr == 0)
 			have_to_update_extent ++;
-		} else {
-			spin_lock_jnode(jnodes[i]);
-			result = try_capture(jnodes[i], ZNODE_WRITE_LOCK, 0, 1 /* can_coc */ );
-			BUG_ON(result != 0);
-			jnode_make_dirty_locked(jnodes[i]);
-			spin_unlock_jnode(jnodes[i]);
-		}
 
 		page_off = 0;
 		buf += to_page;
@@ -1055,8 +1044,17 @@ ssize_t write_extent(struct file *file, const char __user *buf, size_t count,
 		BUG_ON(get_current_context()->trans->atom != NULL);
 	}
  
-	if (have_to_update_extent)
+	if (have_to_update_extent) {
 		update_extents(file, jnodes, nr_pages, *pos);
+	} else {
+		for (i = 0; i < nr_pages; i ++) {
+			spin_lock_jnode(jnodes[i]);
+			result = try_capture(jnodes[i], ZNODE_WRITE_LOCK, 0, 1 /* can_coc */ );
+			BUG_ON(result != 0);
+			jnode_make_dirty_locked(jnodes[i]);
+			spin_unlock_jnode(jnodes[i]);
+		}
+	}
 
 	for (i = 0; i < nr_pages; i ++)
 		jput(jnodes[i]);
