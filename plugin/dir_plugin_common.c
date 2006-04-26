@@ -763,7 +763,7 @@ int find_entry(struct inode *dir,	/* directory to scan */
 	assert("nikita-1129", name != NULL);
 
 	/* dentry private data don't require lock, because dentry
-	   manipulations are protected by i_sem on parent.
+	   manipulations are protected by i_mutex on parent.
 
 	   This is not so for inodes, because there is no -the- parent in
 	   inode case.

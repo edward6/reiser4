@@ -2780,11 +2780,11 @@ ssize_t write_cryptcompress(struct file *file, const char __user *buf,
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 
-	down(&inode->i_sem);
+	mutex_lock(&inode->i_mutex);
 
 	result = write_crc_file(file, inode, buf, count, off);
 
-	up(&inode->i_sem);
+	mutex_unlock(&inode->i_mutex);
 
 	context_set_commit_async(ctx);
 	reiser4_exit_context(ctx);

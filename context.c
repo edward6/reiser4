@@ -135,7 +135,7 @@ int is_in_reiser4_context(void)
  *
  * This introduces another problem: sometimes we do not want to run
  * balance_dirty_pages_ratelimited() when leaving a context, for example
- * because some important lock (like ->i_sem on the parent directory) is
+ * because some important lock (like ->i_mutex on the parent directory) is
  * held. To achieve this, ->nobalance flag can be set in the current context.
  */
 static void balance_dirty_pages_at(reiser4_context *context)

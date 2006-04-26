@@ -559,7 +559,7 @@ int try_to_attach_fsdata(struct file *file, struct inode *inode)
 	dir_cursor *cursor;
 
 	/*
-	 * we are serialized by inode->i_sem
+	 * we are serialized by inode->i_mutex
 	 */
 	if (!file_is_stateless(file))
 		return 0;
