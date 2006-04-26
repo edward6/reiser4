@@ -594,17 +594,18 @@ int extent2tail(unix_file_info_t * uf_info)
 
 		uf_info->container = UF_CONTAINER_TAILS;
 		complete_conversion(inode);
-	} else {
-		/*
-		 * conversion is not complete. Inode was already marked as
-		 * REISER4_PART_CONV and stat-data were updated at the first
-		 * iteration of the loop above.
-		 */
-		warning("nikita-2282",
-			"Partial conversion of %llu: %lu of %lu: %i",
-			(unsigned long long)get_inode_oid(inode), i,
-			num_pages, result);
+		return 0;
 	}
+	/*
+	 * conversion is not complete. Inode was already marked as
+	 * REISER4_PART_CONV and stat-data were updated at the first *
+	 * iteration of the loop above.
+	 */
+	warning("nikita-2282",
+		"Partial conversion of %llu: %lu of %lu: %i",
+		(unsigned long long)get_inode_oid(inode), i,
+		num_pages, result);
+
 	return result;
 }
 

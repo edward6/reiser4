@@ -2306,8 +2306,8 @@ int release_unix_file(struct inode *inode, struct file *file)
 			result = extent2tail(uf_info);
 			if (result != 0) {
 				warning("nikita-3233",
-					"Failed to convert in %s (%llu)",
-					__FUNCTION__,
+					"Failed (%d) to convert in %s (%llu)",
+					result, __FUNCTION__,
 					(unsigned long long)
 					get_inode_oid(inode));
 			}
