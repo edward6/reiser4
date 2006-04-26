@@ -1908,72 +1908,6 @@ static reiser4_block_nr unix_file_estimate_read(struct inode *inode,
 	return estimate_update_common(inode);
 }
 
-#define NR_PAGES_TO_PIN 8
-
-static int
-get_nr_pages_nr_bytes(unsigned long addr, size_t count, int *nr_pages)
-{
-	int nr_bytes;
-
-	/* number of pages through which count bytes starting of address addr
-	   are spread */
-	*nr_pages = ((addr + count + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT) -
-	    (addr >> PAGE_CACHE_SHIFT);
-	if (*nr_pages > NR_PAGES_TO_PIN) {
-		*nr_pages = NR_PAGES_TO_PIN;
-		nr_bytes =
-		    (*nr_pages * PAGE_CACHE_SIZE) -
-		    (addr & (PAGE_CACHE_SIZE - 1));
-	} else
-		nr_bytes = count;
-
-	return nr_bytes;
-}
-
-/**
- * adjust_nr_bytes - recalcualte number of bytes more accurately
- * @addr: address of user space buffer
- * @count: number of bytes to be written
- * @nr_pages: number of pages faulted into pagetables
- *
- * Sometimes get_user_pages "gets" less pages than it is asked for. When this
- * happens we have to recalculate number of bytes which will be written/read in
- * one iteration of read/write.
- */
-static size_t adjust_nr_bytes(unsigned long addr, size_t count, int nr_pages)
-{
-	size_t bytes;
-
-	bytes = 0;
-	if (addr % PAGE_CACHE_SIZE) {
-		nr_pages --;
-		bytes = PAGE_CACHE_SIZE - (addr % PAGE_CACHE_SIZE);
-	}
-	bytes += nr_pages * PAGE_CACHE_SIZE;
-	if (count > bytes)
-		return bytes;
-	return count;
-}
-
-static int
-reiser4_get_user_pages(struct page **pages, unsigned long addr, int nr_pages,
-		       int rw)
-{
-	down_read(&current->mm->mmap_sem);
-	nr_pages = get_user_pages(current, current->mm, addr,
-				  nr_pages, (rw == READ), 0, pages, NULL);
-	up_read(&current->mm->mmap_sem);
-	return nr_pages;
-}
-
-static void reiser4_put_user_pages(struct page **pages, int nr_pages)
-{
-	int i;
-
-	for (i = 0; i < nr_pages; i++)
-		page_cache_release(pages[i]);
-}
-
 /* this is called with nonexclusive access obtained, file's container can not change */
 static size_t read_file(hint_t * hint, struct file *file,	/* file to read from to */
 			char __user *buf,	/* address of user-space buffer */
@@ -2037,11 +1971,6 @@ static size_t read_file(hint_t * hint, struct file *file,	/* file to read from t
 	return (count - flow.length) ? (count - flow.length) : result;
 }
 
-static int is_user_space(const char __user *buf)
-{
-	return (unsigned long)buf < PAGE_OFFSET;
-}
-
 /**
  * read_unix_file - read of struct file_operations
  * @file: file to read from
@@ -2061,12 +1990,9 @@ read_unix_file(struct file *file, char __user *buf, size_t read_amount,
 	struct inode *inode;
 	hint_t *hint;
 	unix_file_info_t *uf_info;
-	struct page *pages[NR_PAGES_TO_PIN];
-	int nr_pages;
 	size_t count, read, left;
 	reiser4_block_nr needed;
 	loff_t size;
-	int user_space;
 
 	if (unlikely(read_amount == 0))
 		return 0;
@@ -2097,61 +2023,31 @@ read_unix_file(struct file *file, char __user *buf, size_t read_amount,
 
 	left = read_amount;
 	count = 0;
-	user_space = is_user_space(buf);
-	nr_pages = 0;
 	uf_info = unix_file_inode_data(inode);
 	while (left > 0) {
-		unsigned long addr;
-		size_t to_read;
-
-		addr = (unsigned long)buf;
 		txn_restart_current();
-
-		size = i_size_read(inode);
-		if (*off >= size)
-			/* position to read from is past the end of file */
-			break;
-		if (*off + left > size)
-			left = size - *off;
-
-		if (user_space) {
-			memset(pages, 0, sizeof(pages));
-			to_read = get_nr_pages_nr_bytes(addr, left, &nr_pages);
-			nr_pages =
-			    reiser4_get_user_pages(pages, addr, nr_pages, READ);
-			if (nr_pages < 0) {
-				result = nr_pages;
-				break;
-			}
-			to_read = adjust_nr_bytes(addr, to_read, nr_pages);
-			/* get_user_pages might create a transaction */
-			txn_restart_current();
-		} else
-			to_read = left;
 
 		get_nonexclusive_access(uf_info, 0);
 
-		/* define more precisely read size now when filesize can not change */
-		if (*off >= inode->i_size) {
-			if (user_space)
-				reiser4_put_user_pages(pages, nr_pages);
-
+		size = i_size_read(inode);
+		if (*off >= size) {
 			/* position to read from is past the end of file */
 			drop_nonexclusive_access(uf_info);
 			break;
 		}
-		if (*off + left > inode->i_size)
-			left = inode->i_size - *off;
-		if (*off + to_read > inode->i_size)
-			to_read = inode->i_size - *off;
+		if (*off + left > size)
+			left = size - *off;
 
-		assert("vs-1706", to_read <= left);
-		read = read_file(hint, file, buf, to_read, off);
+		/* faultin user page */
+		result = fault_in_pages_writeable(buf, left > PAGE_CACHE_SIZE ? PAGE_CACHE_SIZE : left);
+		if (result) {
+			drop_nonexclusive_access(uf_info);
+			return RETERR(-EFAULT);
+		}
 
-		if (user_space)
-			reiser4_put_user_pages(pages, nr_pages);
+		read = read_file(hint, file, buf, left, off);
 
-		drop_nonexclusive_access(uf_info);
+ 		drop_nonexclusive_access(uf_info);
 
 		if (read < 0) {
 			result = read;
@@ -2529,10 +2425,7 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 	struct inode *inode;
 	hint_t *hint;
 	unix_file_info_t *uf_info;
-	struct page *pages[NR_PAGES_TO_PIN];
-	int nr_pages;
 	size_t count, written, left;
-	int user_space;
 	int try_free_space;
 
 	if (unlikely(write_amount == 0))
@@ -2638,35 +2531,18 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 
 	left = write_amount;
 	count = 0;
-	user_space = is_user_space(buf);
-	nr_pages = 0;
 	try_free_space = 1;
 
 	while (left > 0) {
-		unsigned long addr;
-		size_t to_write;
 		int excl = 0;
-
-		addr = (unsigned long)buf;
 
 		/* getting exclusive or not exclusive access requires no
 		   transaction open */
 		txn_restart_current();
 
-		if (user_space) {
-			to_write = get_nr_pages_nr_bytes(addr, left, &nr_pages);
-			nr_pages =
-			    reiser4_get_user_pages(pages, addr, nr_pages,
-						   WRITE);
-			if (nr_pages < 0) {
-				result = nr_pages;
-				break;
-			}
-			to_write = adjust_nr_bytes(addr, to_write, nr_pages);
-			/* get_user_pages might create a transaction */
-			txn_restart_current();
-		} else
-			to_write = left;
+		/* faultin user page */
+		fault_in_pages_readable(buf,
+					left > PAGE_CACHE_SIZE ? PAGE_CACHE_SIZE : left);
 
 		if (inode->i_size == 0) {
 			get_exclusive_access(uf_info);
@@ -2677,10 +2553,7 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 		}
 
 		all_grabbed2free();
-		written = write_file(hint, file, buf, to_write, off, excl);
-		if (user_space)
-			reiser4_put_user_pages(pages, nr_pages);
-
+		written = write_file(hint, file, buf, left, off, excl);
 		if (excl)
 			drop_exclusive_access(uf_info);
 		else
@@ -2704,7 +2577,7 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 		count += written;
 	}
 
-	if ((file->f_flags & O_SYNC) || IS_SYNC(inode)) {
+	if (result == 0 && ((file->f_flags & O_SYNC) || IS_SYNC(inode))) {
 		txn_restart_current();
 		grab_space_enable();
 		result =
@@ -2723,6 +2596,7 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 	context_set_commit_async(ctx);
 	reiser4_exit_context(ctx);
 
+	/* return number of written bytes or error code if nothing is written */
 	return count ? count : result;
 }
 

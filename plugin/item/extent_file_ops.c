@@ -754,17 +754,17 @@ static void assign_jnode_blocknr(jnode * j, reiser4_block_nr blocknr,
 }
 
 static int
-extent_balance_dirty_pages(struct inode *inode, const flow_t * f, hint_t * hint)
+extent_balance_dirty_pages(struct inode *inode, const flow_t *f,hint_t *hint)
 {
 	int result;
 	int excl;
 	unix_file_info_t *uf_info;
 
+	/* seal twig node if possible and unlock it */
 	if (hint->ext_coord.valid)
 		set_hint(hint, &f->key, ZNODE_WRITE_LOCK);
 	else
 		unset_hint(hint);
-	/* &hint->lh is done-ed */
 
 	/* file was appended, update its size */
 	if (get_key_offset(&f->key) > inode->i_size) {
@@ -772,28 +772,38 @@ extent_balance_dirty_pages(struct inode *inode, const flow_t * f, hint_t * hint)
 		INODE_SET_FIELD(inode, i_size, get_key_offset(&f->key));
 	}
 	if (f->user != 0) {
-		/* this was writing data from user space. Update timestamps,
-		   therefore. Othrewise, this is tail conversion where we
-		   should not update timestamps */
+		/*
+		 * this was writing data from user space. Update timestamps,
+		 * therefore. Othrewise, this is tail conversion where we
+		 * should not update timestamps
+		 */
 		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
 		result = reiser4_update_sd(inode);
 		if (result)
 			return result;
 	}
 
-	if (!reiser4_is_set(inode->i_sb, REISER4_ATOMIC_WRITE)) {
+	if (likely(!reiser4_is_set(inode->i_sb, REISER4_ATOMIC_WRITE))) {
 		uf_info = unix_file_inode_data(inode);
 		excl = unix_file_inode_data(inode)->exclusive_use;
 		if (excl) {
-			/* we are about to drop exclusive access. Set file
-			   container to UF_CONTAINER_EXTENTS if file is not
-			   under tail conversion */
+			/*
+			 * we are about to drop exclusive access. Set file
+			 * container to UF_CONTAINER_EXTENTS if file is not
+			 * under tail conversion
+			 */
 			if (!inode_get_flag(inode, REISER4_PART_CONV))
 				uf_info->container = UF_CONTAINER_EXTENTS;
 			drop_exclusive_access(uf_info);
 		} else
 			drop_nonexclusive_access(uf_info);
 		reiser4_throttle_write(inode);
+
+		/* faultin next user page */
+		fault_in_pages_readable(f->data,
+					f->length > PAGE_CACHE_SIZE ?
+					PAGE_CACHE_SIZE : f->length);
+
 		if (excl)
 			get_exclusive_access(uf_info);
 		else
@@ -1399,7 +1409,7 @@ static int filler(void *vp, struct page *page)
 }
 
 /* Implements plugin->u.item.s.file.read operation for extent items. */
-int read_extent(struct file *file, flow_t * flow, hint_t * hint)
+int read_extent(struct file *file, flow_t *flow, hint_t *hint)
 {
 	int result;
 	struct page *page;
@@ -1412,6 +1422,7 @@ int read_extent(struct file *file, flow_t * flow, hint_t * hint)
 	extent_coord_extension_t *ext_coord;
 	unsigned long nr_pages, prev_page;
 	struct file_ra_state ra;
+	char *kaddr;
 
 	assert("vs-1353", current_blocksize == PAGE_CACHE_SIZE);
 	assert("vs-572", flow->user == 1);
@@ -1506,23 +1517,32 @@ int read_extent(struct file *file, flow_t * flow, hint_t * hint)
 		/* number of bytes which are to be read from the page */
 		if (count > flow->length)
 			count = flow->length;
-		/* user area is already get_user_pages-ed in read_unix_file,
-		   which makes major page faults impossible */
-		result =
-		    __copy_to_user((char __user *)flow->data,
-				   (char *)kmap(page) + page_off,
-				   count);
-		kunmap(page);
+
+		result = fault_in_pages_writeable(flow->data, count);
+		if (result) {
+			page_cache_release(page);
+			return RETERR(-EFAULT);
+		}
+
+		kaddr = kmap_atomic(page, KM_USER0);
+		result = __copy_to_user_inatomic(flow->data,
+					       kaddr + page_off, count);
+		kunmap_atomic(kaddr, KM_USER0);
+		if (result != 0) {
+			kaddr = kmap(page);
+			result = __copy_to_user(flow->data, kaddr + page_off, count);
+			kunmap(page);
+			if (unlikely(result))
+				return RETERR(-EFAULT);
+		}
 
 		page_cache_release(page);
-		if (unlikely(result))
-			return RETERR(-EFAULT);
 
 		/* increase key (flow->key), update user area pointer (flow->data) */
 		move_flow_forward(flow, count);
 
 		page_off = 0;
-		cur_page++;
+		cur_page ++;
 		count = PAGE_CACHE_SIZE;
 		nr_pages--;
 	} while (flow->length);
