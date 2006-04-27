@@ -21,7 +21,7 @@ write_mode_t how_to_write(uf_coord_t *, const reiser4_key *);
 int equal_to_ldk(znode *, const reiser4_key *);
 #endif
 
-extern inline int cbk_errored(int cbk_result)
+static inline int cbk_errored(int cbk_result)
 {
 	return (cbk_result != CBK_COORD_NOTFOUND
 		&& cbk_result != CBK_COORD_FOUND);

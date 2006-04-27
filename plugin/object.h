@@ -34,8 +34,6 @@ loff_t llseek_common_dir(struct file *, loff_t off, int origin);
 int readdir_common(struct file *, void *dirent, filldir_t);
 int release_dir_common(struct inode *, struct file *);
 int sync_common(struct file *, struct dentry *, int datasync);
-ssize_t sendfile_common(struct file *, loff_t *ppos, size_t count,
-			read_actor_t, void *target);
 
 /* common implementations of address space operations */
 int prepare_write_common(struct file *, struct page *, unsigned from,
@@ -105,7 +103,6 @@ reiser4_block_nr dir_estimate_unlink_common(const struct inode *,
 int do_prepare_write(struct file *, struct page *, unsigned from, unsigned to);
 
 /* merely useful functions */
-int locate_inode_sd(struct inode *, reiser4_key *, coord_t *, lock_handle *);
 int lookup_sd(struct inode *, znode_lock_mode, coord_t *, lock_handle *,
 	      const reiser4_key *, int silent);
 

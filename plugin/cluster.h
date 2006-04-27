@@ -244,8 +244,6 @@ void forget_cluster_pages(struct page **page, int nrpages);
 int flush_cluster_pages(reiser4_cluster_t *, jnode *, struct inode *);
 int deflate_cluster(reiser4_cluster_t *, struct inode *);
 void truncate_page_cluster(struct inode *inode, cloff_t start);
-void set_hint_cluster(struct inode *inode, hint_t * hint, unsigned long index,
-		      znode_lock_mode mode);
 void invalidate_hint_cluster(reiser4_cluster_t * clust);
 void put_hint_cluster(reiser4_cluster_t * clust, struct inode *inode,
 		      znode_lock_mode mode);
@@ -262,7 +260,6 @@ int grab_tfm_stream(struct inode *inode, tfm_cluster_t * tc, tfm_stream_id id);
 int tfm_cluster_is_uptodate(tfm_cluster_t * tc);
 void tfm_cluster_set_uptodate(tfm_cluster_t * tc);
 void tfm_cluster_clr_uptodate(tfm_cluster_t * tc);
-unsigned long clust_by_coord(const coord_t * coord, struct inode *inode);
 
 /* move cluster handle to the target position
    specified by the page of index @pgidx

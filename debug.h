@@ -229,8 +229,6 @@ extern void reiser4_print_stats(void);
 
 
 #if REISER4_DEBUG
-extern void print_lock_counters(const char *prefix,
-				const lock_counters_info * info);
 extern int no_counters_are_held(void);
 extern int commit_check_locks(void);
 #else

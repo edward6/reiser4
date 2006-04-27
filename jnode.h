@@ -449,12 +449,10 @@ extern int jnodes_tree_done(reiser4_tree * tree);
 
 extern int znode_is_any_locked(const znode * node);
 extern void jnode_list_remove(jnode * node);
-extern void info_jnode(const char *prefix, const jnode * node);
 
 #else
 
 #define jnode_list_remove(node) noop
-#define info_jnode(p, n) noop
 
 #endif
 

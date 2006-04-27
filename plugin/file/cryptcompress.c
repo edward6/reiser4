@@ -19,7 +19,7 @@
 #include <linux/random.h>
 
 /* get cryptcompress specific portion of inode */
-cryptcompress_info_t *cryptcompress_inode_data(const struct inode *inode)
+static cryptcompress_info_t *cryptcompress_inode_data(const struct inode *inode)
 {
 	return &reiser4_inode_data(inode)->file_plugin_data.cryptcompress_info;
 }
@@ -101,6 +101,7 @@ crypto_stat_t * alloc_crypto_stat (struct inode * inode)
 	return info;
 }
 
+#if 0
 static int
 alloc_crypto_tfms(plugin_set * pset, crypto_stat_t * info)
 {
@@ -140,6 +141,7 @@ alloc_crypto_tfms(plugin_set * pset, crypto_stat_t * info)
 	}
 	return RETERR(-EINVAL);
 }
+#endif  /*  0  */
 
 static void
 free_crypto_tfms(crypto_stat_t * info)
@@ -154,6 +156,7 @@ free_crypto_tfms(crypto_stat_t * info)
 	return;
 }
 
+#if 0
 static int create_keyid (crypto_stat_t * info, crypto_data_t * data)
 {
 	int ret = -ENOMEM;
@@ -208,6 +211,7 @@ static int create_keyid (crypto_stat_t * info, crypto_data_t * data)
  exit1:
 	return ret;
 }
+#endif  /*  0  */
 
 static void destroy_keyid(crypto_stat_t * info)
 {
@@ -226,12 +230,14 @@ static void free_crypto_stat (crypto_stat_t * info)
 	kfree(info);
 }
 
+#if 0
 static void instantiate_crypto_stat(crypto_stat_t * info)
 {
 	assert("edward-1373", info != NULL);
 	assert("edward-1374", info->inst == 0);
 	info->inst = 1;
 }
+#endif  /*  0  */
 
 static void uninstantiate_crypto_stat(crypto_stat_t * info)
 {
@@ -239,7 +245,7 @@ static void uninstantiate_crypto_stat(crypto_stat_t * info)
 	info->inst = 0;
 }
 
-int crypto_stat_instantiated(crypto_stat_t * info)
+static int crypto_stat_instantiated(crypto_stat_t * info)
 {
 	return info->inst;
 }
@@ -257,7 +263,14 @@ static void inode_free_crypto_stat (struct inode * inode)
 	free_crypto_stat(inode_crypto_stat(inode));
 }
 
+static int need_cipher(struct inode * inode)
+{
+	return inode_cipher_plugin(inode) !=
+		cipher_plugin_by_id(NONE_CIPHER_ID);
+}
+
 /* Instantiate a crypto-stat represented by low-lewel @data for the @object */
+#if 0
 crypto_stat_t *
 create_crypto_stat(struct inode * object, crypto_data_t * data)
 {
@@ -302,6 +315,7 @@ create_crypto_stat(struct inode * object, crypto_data_t * data)
 	free_crypto_stat(info);
  	return ERR_PTR(ret);
 }
+#endif  /*  0  */
 
 static void load_crypto_stat(crypto_stat_t * info)
 {
@@ -330,6 +344,24 @@ void attach_crypto_stat(struct inode * inode, crypto_stat_t * info)
 	load_crypto_stat(info);
 }
 
+/* returns true, if crypto stat can be attached to the @host */
+#if REISER4_DEBUG
+static int host_allows_crypto_stat(struct inode * host)
+{
+	int ret;
+	file_plugin * fplug = inode_file_plugin(host);
+
+	switch (fplug->h.id) {
+	case CRC_FILE_PLUGIN_ID:
+		ret = 1;
+		break;
+	default:
+		ret = 0;
+	}
+	return ret;
+}
+#endif  /*  REISER4_DEBUG  */
+
 void detach_crypto_stat(struct inode * inode)
 {
 	assert("edward-1385", inode != NULL);
@@ -339,6 +371,8 @@ void detach_crypto_stat(struct inode * inode)
 		unload_crypto_stat(inode);
 	set_inode_crypto_stat(inode, NULL);
 }
+
+#if 0
 
 static int keyid_eq(crypto_stat_t * child, crypto_stat_t * parent)
 {
@@ -361,27 +395,7 @@ int can_inherit_crypto_crc(struct inode *child, struct inode *parent)
 		keyid_eq(inode_crypto_stat(child), inode_crypto_stat(parent)));
 }
 
-int need_cipher(struct inode * inode)
-{
-	return inode_cipher_plugin(inode) !=
-		cipher_plugin_by_id(NONE_CIPHER_ID);
-}
-
-/* returns true, if crypto stat can be attached to the @host */
-int host_allows_crypto_stat(struct inode * host)
-{
-	int ret;
-	file_plugin * fplug = inode_file_plugin(host);
-
-	switch (fplug->h.id) {
-	case CRC_FILE_PLUGIN_ID:
-		ret = 1;
-		break;
-	default:
-		ret = 0;
-	}
-	return ret;
-}
+#endif  /*  0  */
 
 static int inode_set_crypto(struct inode * object)
 {
@@ -1800,9 +1814,8 @@ flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
 }
 
 /* set hint for the cluster of the index @index */
-void
-set_hint_cluster(struct inode *inode, hint_t * hint,
-		 cloff_t index, znode_lock_mode mode)
+static void set_hint_cluster(struct inode *inode, hint_t * hint,
+			     cloff_t index, znode_lock_mode mode)
 {
 	reiser4_key key;
 	assert("edward-722", crc_inode_ok(inode));

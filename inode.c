@@ -521,11 +521,13 @@ dir_plugin *inode_dir_plugin(const struct inode * inode)
 	return reiser4_inode_data(inode)->pset->dir;
 }
 
+#if 0
 perm_plugin *inode_perm_plugin(const struct inode * inode)
 {
 	assert("nikita-1999", inode != NULL);
 	return reiser4_inode_data(inode)->pset->perm;
 }
+#endif  /*  0  */
 
 formatting_plugin *inode_formatting_plugin(const struct inode * inode)
 {

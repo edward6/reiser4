@@ -709,7 +709,7 @@ int lookup_sd(struct inode *inode /* inode to look sd for */ ,
 	return result;
 }
 
-int
+static int
 locate_inode_sd(struct inode *inode,
 		reiser4_key * key, coord_t * coord, lock_handle * lh)
 {

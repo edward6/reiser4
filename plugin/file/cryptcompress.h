@@ -452,14 +452,11 @@ static inline int compression_is_on (cryptcompress_info_t * info)
 	return info->compress_toggle;
 }
 
-cryptcompress_info_t *cryptcompress_inode_data(const struct inode *inode);
 int equal_to_rdk(znode *, const reiser4_key *);
 int goto_right_neighbor(coord_t *, lock_handle *);
 int load_file_hint(struct file *, hint_t *);
 void save_file_hint(struct file *, const hint_t *);
 void hint_init_zero(hint_t *);
-int need_cipher (struct inode *);
-int host_allows_crypto_stat(struct inode * inode);
 int crc_inode_ok(struct inode *inode);
 int jnode_of_cluster(const jnode * node, struct page * page);
 extern int ctail_read_disk_cluster (reiser4_cluster_t *, struct inode *, int);
@@ -473,14 +470,10 @@ crypto_stat_t * inode_crypto_stat (struct inode * inode);
 void inherit_crypto_stat_common(struct inode * parent, struct inode * object,
 				int (*can_inherit)(struct inode * child,
 						   struct inode * parent));
-crypto_stat_t * create_crypto_stat(struct inode * parent, crypto_data_t * data);
-int crypto_stat_instantiated(crypto_stat_t * info);
 void attach_crypto_stat(struct inode * inode, crypto_stat_t * info);
 void detach_crypto_stat(struct inode * inode);
 void change_crypto_stat(struct inode * inode, crypto_stat_t * new);
-int can_inherit_crypto_crc(struct inode *child, struct inode *parent);
 crypto_stat_t * alloc_crypto_stat (struct inode * inode);
-int switch_compression(struct inode *inode);
 
 
 static inline reiser4_tfma_t *
