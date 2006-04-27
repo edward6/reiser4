@@ -477,6 +477,39 @@ int set_page_dirty_internal(struct page *page)
 	return 0;
 }
 
+static inline int valid_stack_ptr(struct thread_info *tinfo, void *p)
+{
+       return  p > (void *)tinfo &&
+               p < (void *)tinfo + THREAD_SIZE - 3;
+}
+
+static inline void _save_trace(long *st, int size, unsigned long *stack,
+                               unsigned long bp)
+{
+        struct thread_info *tinfo = (struct thread_info *)
+                ((unsigned long)stack & (~(THREAD_SIZE - 1)));
+        int i = 0;
+        unsigned long addr;
+
+        memset(st, 0, sizeof(long) * size);
+
+        while (valid_stack_ptr(tinfo, (void *)bp)) {
+                addr = *(unsigned long *)(bp + sizeof(long));
+                st[i] = addr;
+                if (++i >= size)
+                        break;
+                bp = *(unsigned long *)bp;
+        }
+}
+
+static inline void save_trace(long *st, int size)
+{
+        unsigned long address, bp;
+
+       asm ("movl %%ebp, %0" : "=r" (bp) : );
+       _save_trace(st, size, &address, bp);
+}
+
 /**
  * can_hit_entd
  *
@@ -484,7 +517,11 @@ int set_page_dirty_internal(struct page *page)
  */
 static int can_hit_entd(reiser4_context *ctx, struct super_block *s)
 {
+	long bt[10];
+
 	if (get_super_private(s)->entd.tsk == current) {
+		save_trace(bt, 10);
+		BUG();
 		printk("this is entd: ctx %p, current %p\n", ctx, current);
 		return 0;
 	}
@@ -498,6 +535,8 @@ static int can_hit_entd(reiser4_context *ctx, struct super_block *s)
 		printk("lockstack is not clean: ctx %p, current %p\n", ctx, current);
 	if (ctx->trans->atom != NULL)
 		printk("atom != NULL: ctx %p, current %p\n", ctx, current);
+	save_trace(bt, 10);
+	BUG();
 	return 0;
 }
 

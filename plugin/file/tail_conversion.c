@@ -292,7 +292,7 @@ int tail2extent(unix_file_info_t *uf_info)
 		for (i = 0; i < sizeof_array(pages) && done == 0; i++) {
 			assert("vs-598",
 			       (get_key_offset(&key) & ~PAGE_CACHE_MASK) == 0);
-			page = alloc_page(mapping_gfp_mask(inode->i_mapping));
+			page = alloc_page(get_gfp_mask());
 			if (!page) {
 				result = RETERR(-ENOMEM);
 				goto error;

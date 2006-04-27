@@ -2026,6 +2026,7 @@ static int find_first_item(struct inode *inode)
 int open_unix_file(struct inode *inode, struct file *file)
 {
 	int result;
+	reiser4_context *ctx;
 	unix_file_info_t *uf_info;
 
 	if (IS_RDONLY(inode))
@@ -2034,11 +2035,16 @@ int open_unix_file(struct inode *inode, struct file *file)
 	if (!inode_get_flag(inode, REISER4_PART_CONV))
 		return 0;
 
+	ctx = init_context(inode->i_sb);
+	if (IS_ERR(ctx))
+		return PTR_ERR(ctx);
+
 	uf_info = unix_file_inode_data(inode);
 	get_exclusive_access(uf_info);
 
 	if (!inode_get_flag(inode, REISER4_PART_CONV)) {
 		drop_exclusive_access(uf_info);
+		reiser4_exit_context(ctx);
 		return 0;
 	}
 
@@ -2060,6 +2066,7 @@ int open_unix_file(struct inode *inode, struct file *file)
 
 	assert("vs-1712",
 	       ergo(result == 0, !inode_get_flag(inode, REISER4_PART_CONV)));
+	reiser4_exit_context(ctx);
 	return result;
 }
 
