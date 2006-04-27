@@ -452,6 +452,7 @@ static inline int compression_is_on (cryptcompress_info_t * info)
 	return info->compress_toggle;
 }
 
+cryptcompress_info_t *cryptcompress_inode_data(const struct inode *);
 int equal_to_rdk(znode *, const reiser4_key *);
 int goto_right_neighbor(coord_t *, lock_handle *);
 int load_file_hint(struct file *, hint_t *);
