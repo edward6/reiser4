@@ -1451,9 +1451,6 @@ static int commit_file_atoms(struct inode *inode)
 	int result;
 	unix_file_info_t *uf_info;
 
-	/* close current transaction */
-	txn_restart_current();
-
 	uf_info = unix_file_inode_data(inode);
 
 	/*
@@ -2175,7 +2172,6 @@ append_and_or_overwrite(hint_t * hint, struct file *file, struct inode *inode,
 				done_lh(&hint->lh);
 				if (!exclusive) {
 					drop_nonexclusive_access(uf_info);
-					txn_restart_current();
 					get_exclusive_access(uf_info);
 				}
 				result = tail2extent(uf_info);
@@ -2964,15 +2960,6 @@ int delete_object_unix_file(struct inode *inode)
 {
 	unix_file_info_t *uf_info;
 	int result;
-
-	/*
-	 * transaction can be open already. For example:
-	 * writeback_inodes->sync_sb_inodes->reiser4_sync_inodes->
-	 * generic_sync_sb_inodes->iput->generic_drop_inode->
-	 * generic_delete_inode->reiser4_delete_inode->delete_object_unix_file.
-	 * So, restart transaction to avoid deadlock with file rw semaphore.
-	 */
-	txn_restart_current();
 
 	if (inode_get_flag(inode, REISER4_NO_SD))
 		return 0;
