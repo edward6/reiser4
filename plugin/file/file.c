@@ -1547,7 +1547,7 @@ writepages_unix_file(struct address_space *mapping,
 		result = 0;
 		goto end;
 	}
-	jindex = pindex = wbc->start >> PAGE_CACHE_SHIFT;
+	jindex = pindex = wbc->range_start >> PAGE_CACHE_SHIFT;
 	result = 0;
 	nr_pages =
 	    (i_size_read(inode) + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;

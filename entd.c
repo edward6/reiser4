@@ -269,14 +269,14 @@ static void entd_flush(struct super_block *super, struct wbq *rq)
 	init_stack_context(&ctx, super);
 	ctx.entd = 1;
 
-	rq->wbc->start = rq->page->index << PAGE_CACHE_SHIFT;
-	rq->wbc->end = (rq->page->index + ENTD_CAPTURE_APAGE_BURST) << PAGE_CACHE_SHIFT;
+	rq->wbc->range_start = rq->page->index << PAGE_CACHE_SHIFT;
+	rq->wbc->range_end = (rq->page->index + ENTD_CAPTURE_APAGE_BURST) << PAGE_CACHE_SHIFT;
 	tmp = rq->wbc->nr_to_write;
 	rq->mapping->a_ops->writepages(rq->mapping, rq->wbc);
 
 	if (rq->wbc->nr_to_write > 0) {
-		rq->wbc->start = 0;
-		rq->wbc->end = 0;
+		rq->wbc->range_start = 0;
+		rq->wbc->range_end = LLONG_MAX;
 		generic_sync_sb_inodes(super, rq->wbc);
 	}
 	rq->wbc->nr_to_write = ENTD_CAPTURE_APAGE_BURST;
