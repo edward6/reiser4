@@ -981,8 +981,7 @@ static void dispatch_wb_list(txn_atom * atom, flush_queue_t * fq)
 				queue_jnode(fq, cur);
 			} else {
 				/* move jnode to atom's clean list */
-				list_del(&cur->capture_link);
-				list_add_tail(&cur->capture_link,
+				list_move_tail(&cur->capture_link,
 					      ATOM_CLEAN_LIST(atom));
 			}
 		}
@@ -2474,8 +2473,7 @@ static void do_jnode_make_dirty(jnode * node, txn_atom * atom)
 		assert("nikita-2606", level <= REAL_MAX_ZTREE_HEIGHT);
 
 		/* move node to atom's dirty list */
-		list_del(&node->capture_link);
-		list_add_tail(&node->capture_link, ATOM_DIRTY_LIST(atom, level));
+		list_move_tail(&node->capture_link, ATOM_DIRTY_LIST(atom, level));
 		ON_DEBUG(count_jnode
 			 (atom, node, NODE_LIST(node), DIRTY_LIST, 1));
 		/*
@@ -2748,8 +2746,7 @@ void jnode_make_wander_nolock(jnode * node)
 
 	JF_SET(node, JNODE_OVRWR);
 	/* move node to atom's overwrite list */
-	list_del(&node->capture_link);
-	list_add_tail(&node->capture_link, ATOM_OVRWR_LIST(atom));
+	list_move_tail(&node->capture_link, ATOM_OVRWR_LIST(atom));
 	ON_DEBUG(count_jnode(atom, node, DIRTY_LIST, OVRWR_LIST, 1));
 }
 
