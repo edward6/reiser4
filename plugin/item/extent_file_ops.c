@@ -197,13 +197,20 @@ static void check_jnodes(znode *twig, const reiser4_key *key, int count)
 
 	jnode_key = *key;
 
+	assert("", twig != NULL);
+	assert("", znode_get_level(twig) == TWIG_LEVEL);
+	assert("", znode_is_write_locked(twig));
+
 	zload(twig);
+	/* get the smallest key in twig node */
 	coord_init_first_unit(&c, twig);
 	unit_key_by_coord(&c, &node_key);
 	assert("", keyle(&node_key, &jnode_key));
 
 	coord_init_last_unit(&c, twig);
-	item_plugin_by_coord(&c)->s.file.append_key(&c, &node_key);
+	unit_key_by_coord(&c, &node_key);
+	if (item_plugin_by_coord(&c)->s.file.append_key)
+		item_plugin_by_coord(&c)->s.file.append_key(&c, &node_key);
 	set_key_offset(&jnode_key,
 		       get_key_offset(&jnode_key) + (loff_t)count * PAGE_CACHE_SIZE - 1);
 	assert("", keylt(&jnode_key, &node_key));

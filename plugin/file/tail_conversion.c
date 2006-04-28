@@ -148,8 +148,7 @@ static void release_all_pages(struct page **pages, unsigned nr_pages)
    items (@count bytes) being cut are copied already into
    pages. extent_writepage method is called to create extents corresponding to
    those pages */
-static int
-replace(struct inode *inode, struct page **pages, unsigned nr_pages, int count)
+static int replace(struct inode *inode, struct page **pages, unsigned nr_pages, int count)
 {
 	int result;
 	unsigned i;
@@ -266,6 +265,7 @@ int tail2extent(unix_file_info_t *uf_info)
 	int first_iteration;
 	int bytes;
 
+
 	assert("nikita-3362", ea_obtained(uf_info));
 	inode = unix_file_info_to_inode(uf_info);
 	assert("nikita-3412", !IS_RDONLY(inode));
@@ -313,6 +313,7 @@ int tail2extent(unix_file_info_t *uf_info)
 			assert("vs-983", !PagePrivate(page));
 			reiser4_invalidate_pages(inode->i_mapping, page->index,
 						 1, 0);
+
 			for (page_off = 0; page_off < PAGE_CACHE_SIZE;) {
 				coord_t coord;
 				lock_handle lh;

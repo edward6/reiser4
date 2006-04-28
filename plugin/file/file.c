@@ -177,14 +177,17 @@ static void set_file_state(unix_file_info_t *uf_info, int cbk_result,
 			uf_info->container = UF_CONTAINER_EXTENTS;
 	} else {
 		/* file state is known, check that it is set correctly */
-		assert("vs-1162",
-		       ergo(level == LEAF_LEVEL &&
-			    cbk_result == CBK_COORD_FOUND,
-			    uf_info->container == UF_CONTAINER_TAILS));
-		assert("vs-1165",
-		       ergo(level == TWIG_LEVEL &&
-			    cbk_result == CBK_COORD_FOUND,
-			    uf_info->container == UF_CONTAINER_EXTENTS));
+		if (!inode_get_flag(unix_file_info_to_inode(uf_info),
+				    REISER4_PART_CONV)) {
+			assert("vs-1162",
+			       ergo(level == LEAF_LEVEL &&
+				    cbk_result == CBK_COORD_FOUND,
+				    uf_info->container == UF_CONTAINER_TAILS));
+			assert("vs-1165",
+			       ergo(level == TWIG_LEVEL &&
+				    cbk_result == CBK_COORD_FOUND,
+				    uf_info->container == UF_CONTAINER_EXTENTS));
+		}
 	}
 }
 
