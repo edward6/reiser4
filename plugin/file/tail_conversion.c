@@ -60,7 +60,7 @@ static void nea_grabbed(unix_file_info_t *uf_info)
 	assert("vs-1716", uf_info->ea_owner == NULL);
 	atomic_inc(&uf_info->nr_neas);
 	uf_info->last_reader = current;
-#endif	
+#endif
 }
 
 /**

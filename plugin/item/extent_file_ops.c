@@ -528,7 +528,7 @@ check_make_extent_result(int result, write_mode_t mode, const reiser4_key * key,
 #endif
 
 /**
- * get_extent - 
+ * get_extent -
  *
  *
  *
@@ -907,7 +907,7 @@ static int extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 				lock_page(page);
 				if (!PageUptodate(page))
 					goto exit3;
-				do_make_extent = 0;				
+				do_make_extent = 0;
 				spin_lock_jnode(j);
 				eflush_del(j, 1);
 				spin_unlock_jnode(j);
