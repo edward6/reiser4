@@ -11,6 +11,7 @@
 #include <linux/writeback.h>
 #include <linux/mount.h>
 #include <linux/seq_file.h>
+#include <linux/debugfs.h>
 
 /* slab cache for inodes */
 static kmem_cache_t *inode_cache;
@@ -219,11 +220,15 @@ static void reiser4_put_super(struct super_block *super)
 	sbinfo = get_super_private(super);
 	assert("vs-1699", sbinfo);
 
+	debugfs_remove(sbinfo->tmgr.debugfs_atom_count);
+	debugfs_remove(sbinfo->tmgr.debugfs_id_count);
+	debugfs_remove(sbinfo->debugfs_root);
+
 	ctx = init_context(super);
 	if (IS_ERR(ctx)) {
 		warning("vs-17", "failed to init context");
 		return;
-	}
+	}	
 
 	/* have disk format plugin to free its resources */
 	if (get_super_private(super)->df_plug->release)
@@ -517,6 +522,19 @@ static int fill_super(struct super_block *super, void *data, int silent)
 
 	process_safelinks(super);
 	reiser4_exit_context(&ctx);
+
+	sbinfo->debugfs_root = debugfs_create_dir(super->s_id,
+						  reiser4_debugfs_root);
+	if (sbinfo->debugfs_root) {
+		sbinfo->tmgr.debugfs_atom_count =
+			debugfs_create_u32("atom_count", S_IFREG|S_IRUSR,
+					   sbinfo->debugfs_root,
+					   &sbinfo->tmgr.atom_count);
+		sbinfo->tmgr.debugfs_id_count =
+			debugfs_create_u32("id_count", S_IFREG|S_IRUSR,
+					   sbinfo->debugfs_root,
+					   &sbinfo->tmgr.id_count);
+	}
 	return 0;
 
  failed_init_root_inode:
@@ -575,6 +593,8 @@ void destroy_reiser4_cache(kmem_cache_t **cachep)
 	*cachep = NULL;
 }
 
+struct dentry *reiser4_debugfs_root = NULL;
+
 /**
  * init_reiser4 - reiser4 initialization entry point
  *
@@ -632,8 +652,10 @@ static int __init init_reiser4(void)
 	if ((result = init_d_cursor()) != 0)
 		goto failed_init_d_cursor;
 
-	if ((result = register_filesystem(&reiser4_fs_type)) == 0)
+	if ((result = register_filesystem(&reiser4_fs_type)) == 0) {
+		reiser4_debugfs_root = debugfs_create_dir("reiser4", NULL);
 		return 0;
+	}
 
 	done_d_cursor();
  failed_init_d_cursor:
@@ -667,6 +689,7 @@ static void __exit done_reiser4(void)
 {
 	int result;
 
+	debugfs_remove(reiser4_debugfs_root);
 	result = unregister_filesystem(&reiser4_fs_type);
 	BUG_ON(result != 0);
 	done_d_cursor();

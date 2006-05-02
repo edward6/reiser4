@@ -384,6 +384,8 @@ struct txn_mgr {
 	unsigned int atom_min_size;
 	/* max number of concurrent flushers for one atom, 0 - unlimited.  */
 	unsigned int atom_max_flushers;
+	struct dentry *debugfs_atom_count;
+	struct dentry *debugfs_id_count;
 };
 
 /* FUNCTION DECLARATIONS */
