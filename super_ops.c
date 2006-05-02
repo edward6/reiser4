@@ -5,7 +5,6 @@
 #include "page_cache.h"
 #include "ktxnmgrd.h"
 #include "flush.h"
-#include "emergency_flush.h"
 #include "safe_link.h"
 
 #include <linux/vfs.h>

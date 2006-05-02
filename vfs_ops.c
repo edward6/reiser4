@@ -27,7 +27,6 @@
 #include "super.h"
 #include "reiser4.h"
 #include "entd.h"
-#include "emergency_flush.h"
 #include "status_flags.h"
 #include "flush.h"
 #include "dscale.h"

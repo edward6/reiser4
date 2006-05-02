@@ -6,7 +6,6 @@
 #include "../../carry.h"
 #include "../../safe_link.h"
 #include "../../vfs_ops.h"
-#include "funcs.h"
 
 #include <linux/writeback.h>
 

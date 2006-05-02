@@ -221,15 +221,6 @@ struct reiser4_super_info_data {
 	/* parameters for the flush algorithm */
 	flush_params flush;
 
-#if REISER4_USE_EFLUSH
-	/* see emergency_flush.c for details */
-	spinlock_t eflush_guard;
-	/* number of emergency flushed nodes */
-	int eflushed;
-	/* hash table used by emergency flush. Protected by ->eflush_guard */
-	ef_hash_table efhash_table;
-	__u64 eflushed_unformatted;	/* number of eflushed unformatted nodes */
-#endif
 	/* pointers to jnodes for journal header and footer */
 	jnode *journal_header;
 	jnode *journal_footer;

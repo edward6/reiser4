@@ -17,7 +17,6 @@
 #include "../../ioctl.h"
 #include "../object.h"
 #include "../../safe_link.h"
-#include "funcs.h"
 
 #include <linux/writeback.h>
 #include <linux/pagevec.h>
@@ -176,7 +175,10 @@ static void set_file_state(unix_file_info_t *uf_info, int cbk_result,
 		else
 			uf_info->container = UF_CONTAINER_EXTENTS;
 	} else {
-		/* file state is known, check that it is set correctly */
+		/*
+		 * file state is known, check whether it is set correctly if
+		 * file is not being tail converted
+		 */
 		if (!inode_get_flag(unix_file_info_to_inode(uf_info),
 				    REISER4_PART_CONV)) {
 			assert("vs-1162",
@@ -292,6 +294,7 @@ static int find_file_state(struct inode *inode, unix_file_info_t *uf_info)
 		result = 0;
 	assert("vs-1074",
 	       ergo(result == 0, uf_info->container != UF_CONTAINER_UNKNOWN));
+	txn_restart_current();
 	return result;
 }
 
@@ -798,11 +801,7 @@ static int has_anonymous_pages(struct inode *inode)
 	int result;
 
 	read_lock_irq(&inode->i_mapping->tree_lock);
-	result = radix_tree_tagged(&inode->i_mapping->page_tree, PAGECACHE_TAG_REISER4_MOVED)
-#if REISER4_USE_EFLUSH
-		| radix_tree_tagged(jnode_tree_by_inode(inode), EFLUSH_TAG_ANONYMOUS)
-#endif
-		;
+	result = radix_tree_tagged(&inode->i_mapping->page_tree, PAGECACHE_TAG_REISER4_MOVED);
 	read_unlock_irq(&inode->i_mapping->tree_lock);
 	return result;
 }
@@ -1062,127 +1061,8 @@ static int
 capture_anonymous_jnodes(struct address_space *mapping,
 			 pgoff_t *from, pgoff_t to, int to_capture)
 {
-#if REISER4_USE_EFLUSH
-	int found_jnodes;
-	int count;
-	int nr;
-	int i;
-	int result;
-	jnode *jvec[PAGEVEC_SIZE];
-	reiser4_tree *tree;
-	struct radix_tree_root *root;
-
-	count = min(PAGEVEC_SIZE, to_capture);
-	nr = 0;
-	result = 0;
-
-	tree = &get_super_private(mapping->host->i_sb)->tree;
-	root = jnode_tree_by_inode(mapping->host);
-
-	write_lock_irq(&mapping->tree_lock);
-
-	found_jnodes =
-	    radix_tree_gang_lookup_tag(root, (void **)&jvec, *from, count,
-				       EFLUSH_TAG_ANONYMOUS);
-	if (found_jnodes == 0) {
-		/* there are no anonymous jnodes from index @from down to the
-		   end of file */
-		write_unlock_irq(&mapping->tree_lock);
-		*from = to;
-		return 0;
-	}
-
-	for (i = 0; i < found_jnodes; i++) {
-		if (index_jnode(jvec[i]) < to) {
-			void *p;
-
-			jref(jvec[i]);
-			p = radix_tree_tag_clear(root, index_jnode(jvec[i]),
-						 EFLUSH_TAG_ANONYMOUS);
-			assert("", p == jvec[i]);
-
-			/* if page is tagged PAGECACHE_TAG_REISER4_MOVED it has
-			   to be untagged because we are about to capture it */
-			radix_tree_tag_clear(&mapping->page_tree, index_jnode(jvec[i]),
-					     PAGECACHE_TAG_REISER4_MOVED);
-		} else {
-			found_jnodes = i;
-			break;
-		}
-	}
-	write_unlock_irq(&mapping->tree_lock);
-
-	if (found_jnodes == 0) {
-		/* there are no anonymous jnodes in the given range of
-		   indexes */
-		*from = to;
-		return 0;
-	}
-
-	/* there are anonymous jnodes from given range */
-
-	/* start i/o for eflushed nodes */
-	for (i = 0; i < found_jnodes; i++)
-		jstartio(jvec[i]);
-
-	*from = index_jnode(jvec[found_jnodes - 1]) + 1;
-
-	for (i = 0; i < found_jnodes; i++) {
-		result = jload(jvec[i]);
-		if (result == 0) {
-			result = capture_anonymous_page(jnode_page(jvec[i]));
-			if (result == 1)
-				nr++;
-			else if (result < 0) {
-				jrelse(jvec[i]);
-				warning("nikita-3328",
-					"failed for anonymous jnode: result=%i, captured %d\n",
-					result, i);
-				/* set ANONYMOUS tag to all jnodes which left
-				   not captured */
-				write_lock_irq(&mapping->tree_lock);
-				for (; i < found_jnodes; i ++)
-					/* page should be in the mapping. Do
-					 * not tag jnode back as anonymous
-					 * because it is not now (after
-					 * jload) */
-					radix_tree_tag_set(&mapping->page_tree,
-							   index_jnode(jvec[i]),
-							   PAGECACHE_TAG_REISER4_MOVED);
-				write_unlock_irq(&mapping->tree_lock);
-				break;
-			} else {
-				/* result == 0. capture_anonymous_page returns
-				   0 for Writeback-ed page. Set ANONYMOUS tag
-				   on that jnode */
-				write_lock_irq(&mapping->tree_lock);
-				radix_tree_tag_set(&mapping->page_tree,
-						   index_jnode(jvec[i]),
-						   PAGECACHE_TAG_REISER4_MOVED);
-				write_unlock_irq(&mapping->tree_lock);
-				if (i == 0)
-					*from = index_jnode(jvec[0]);
-				else
-					*from = index_jnode(jvec[i - 1]) + 1;
-			}
-			jrelse(jvec[i]);
-		} else {
-			warning("vs-1454",
-				"jload for anonymous jnode failed: result=%i, captured %d\n",
-				result, i);
-			break;
-		}
-	}
-
-	for (i = 0; i < found_jnodes; i++)
-		jput(jvec[i]);
-	if (result)
-		return result;
-	return nr;
-#else				/* REISER4_USE_EFLUSH */
 	*from = to;
 	return 0;
-#endif
 }
 
 /*
@@ -1336,8 +1216,7 @@ static int commit_file_atoms(struct inode *inode)
  * pages which are dirtied via mmapping. Anonymous jnodes are ones which were
  * created by reiser4_writepage.
  */
-int
-writepages_unix_file(struct address_space *mapping,
+int writepages_unix_file(struct address_space *mapping,
 		     struct writeback_control *wbc)
 {
 	int result;
@@ -1778,9 +1657,8 @@ static size_t read_file(hint_t * hint, struct file *file,	/* file to read from t
  * This is implementation of vfs's read method of struct file_operations for
  * unix file plugin.
  */
-ssize_t
-read_unix_file(struct file *file, char __user *buf, size_t read_amount,
-	       loff_t *off)
+ssize_t read_unix_file(struct file *file, char __user *buf, size_t read_amount,
+		       loff_t *off)
 {
 	reiser4_context *ctx;
 	int result;

@@ -25,7 +25,6 @@
 #include "super.h"
 #include "reiser4.h"
 #include "entd.h"
-#include "emergency_flush.h"
 
 #include <linux/profile.h>
 #include <linux/types.h>

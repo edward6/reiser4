@@ -158,6 +158,8 @@ int hint_is_set(const hint_t *);
 void unset_hint(hint_t *);
 int hint_validate(hint_t *, const reiser4_key *, int check_key,
 		  znode_lock_mode);
+void hint_init_zero(hint_t *);
+
 int update_file_size(struct inode *, reiser4_key *, int update_sd);
 int cut_file_items(struct inode *, loff_t new_size, int update_sd,
 		   loff_t cur_size, int (*update_actor) (struct inode *,
@@ -224,6 +226,21 @@ void destroy_inode_cryptcompress(struct inode *);
 extern reiser4_plugin_ops cryptcompress_plugin_ops;
 
 #define WRITE_GRANULARITY 32
+
+
+int tail2extent(unix_file_info_t *);
+int extent2tail(unix_file_info_t *);
+
+int goto_right_neighbor(coord_t *, lock_handle *);
+int find_or_create_extent(struct page *);
+int equal_to_ldk(znode *, const reiser4_key *);
+
+
+extern inline int cbk_errored(int cbk_result)
+{
+	return (cbk_result != CBK_COORD_NOTFOUND
+		&& cbk_result != CBK_COORD_FOUND);
+}
 
 /* __REISER4_FILE_H__ */
 #endif

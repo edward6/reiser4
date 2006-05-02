@@ -13,7 +13,6 @@
 #include "debug.h"
 #include "dformat.h"
 #include "context.h"
-#include "emergency_flush.h"
 
 #include "plugin/plugin.h"
 
