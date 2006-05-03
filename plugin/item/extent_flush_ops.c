@@ -673,7 +673,6 @@ static int allocated_extent_slum_size(flush_pos_t *flush_pos, oid_t oid,
 			 * capture several unformatted nodes without capturing
 			 * any formatted nodes.
 			 */
-			spin_unlock_jnode(node);
 			atomic_dec(&node->x_count);
 			break;			
 		}

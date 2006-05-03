@@ -234,8 +234,8 @@ int find_file_item(hint_t *hint, const reiser4_key *key,
 
 	result = hint_validate(hint, key, 1 /* check key */, lock_mode);
 	if (!result) {
-		if (coord->between == AFTER_UNIT
-		    && equal_to_rdk(coord->node, key)) {
+		if (coord->between == AFTER_UNIT &&
+		    equal_to_rdk(coord->node, key)) {
 			result = goto_right_neighbor(coord, lh);
 			if (result == -E_NO_NEIGHBOR)
 				return RETERR(-EIO);
@@ -251,6 +251,7 @@ int find_file_item(hint_t *hint, const reiser4_key *key,
 
 		set_file_state(unix_file_inode_data(inode), CBK_COORD_FOUND,
 			       znode_get_level(coord->node));
+		
 		return CBK_COORD_FOUND;
 	}
 
