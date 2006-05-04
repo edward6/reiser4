@@ -59,7 +59,7 @@ char *extract_dent_name(const coord_t * coord, directory_entry_format * dent,
 
 	unit_key_by_coord(coord, &key);
 	if (get_key_type(&key) != KEY_FILE_NAME_MINOR)
-		print_address("oops", znode_get_block(coord->node));
+		reiser4_print_address("oops", znode_get_block(coord->node));
 	if (!is_longname_key(&key)) {
 		if (is_dot_key(&key))
 			return (char *)".";
