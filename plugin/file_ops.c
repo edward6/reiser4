@@ -64,6 +64,7 @@ int sync_common(struct file *file, struct dentry *dentry, int datasync)
    Reads @count bytes from @file and calls @actor for every page read. This is
    needed for loop back devices support.
 */
+#if 0
 ssize_t
 sendfile_common(struct file *file, loff_t *ppos, size_t count,
 		read_actor_t actor, void *target)
@@ -78,6 +79,7 @@ sendfile_common(struct file *file, loff_t *ppos, size_t count,
 	reiser4_exit_context(ctx);
 	return result;
 }
+#endif  /*  0  */
 
 /* address space operations */
 

@@ -86,6 +86,8 @@ static struct wbq *__get_wbq(entd_context * ent)
 	return wbq;
 }
 
+#if 0
+
 struct wbq * get_wbq(struct super_block * super)
 {
 	struct wbq *result;
@@ -106,6 +108,8 @@ void put_wbq(struct super_block *super, struct wbq * rq)
 	__put_wbq(ent, rq);
 	spin_unlock(&ent->guard);
 }
+
+#endif  /*  0  */
 
 static void wakeup_all_wbq(entd_context * ent)
 {

@@ -68,7 +68,7 @@ static int coord_is_unprepped_ctail(const coord_t * coord)
 	return (int)cluster_shift_by_coord(coord) == (int)UCTAIL_SHIFT;
 }
 
-cloff_t clust_by_coord(const coord_t * coord, struct inode *inode)
+static cloff_t clust_by_coord(const coord_t * coord, struct inode *inode)
 {
 	int shift;
 

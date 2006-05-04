@@ -1813,34 +1813,6 @@ int jnode_invariant_f(const jnode * node, char const **msg)
 
 }
 
-/* debugging aid: check znode invariant and panic if it doesn't hold */
-static int jnode_invariant(const jnode * node, int tlocked, int jlocked)
-{
-	char const *failed_msg;
-	int result;
-	reiser4_tree *tree;
-
-	tree = jnode_get_tree(node);
-
-	assert("umka-063312", node != NULL);
-	assert("umka-064321", tree != NULL);
-
-	if (!jlocked && !tlocked)
-		spin_lock_jnode((jnode *) node);
-	if (!tlocked)
-		read_lock_tree(jnode_get_tree(node));
-	result = jnode_invariant_f(node, &failed_msg);
-	if (!result) {
-		info_jnode("corrupted node", node);
-		warning("jmacd-555", "Condition %s failed", failed_msg);
-	}
-	if (!tlocked)
-		read_unlock_tree(jnode_get_tree(node));
-	if (!jlocked && !tlocked)
-		spin_unlock_jnode((jnode *) node);
-	return result;
-}
-
 static const char *jnode_type_name(jnode_type type)
 {
 	switch (type) {
@@ -1869,8 +1841,8 @@ static const char *jnode_type_name(jnode_type type)
 	( JF_ISSET( ( node ), ( flag ) ) ? ((#flag "|")+6) : "" )
 
 /* debugging aid: output human readable information about @node */
-void info_jnode(const char *prefix /* prefix to print */ ,
-		const jnode * node /* node to print */ )
+static void info_jnode(const char *prefix /* prefix to print */ ,
+		       const jnode * node /* node to print */ )
 {
 	assert("umka-068", prefix != NULL);
 
@@ -1910,11 +1882,40 @@ void info_jnode(const char *prefix /* prefix to print */ ,
 		       node->key.j.objectid, node->key.j.index);
 	}
 }
+#endif  /*  REISER4_COPY_ON_CAPTURE  */
 
+#if REISER4_DEBUG
+/* debugging aid: check znode invariant and panic if it doesn't hold */
+static int jnode_invariant(const jnode * node, int tlocked, int jlocked)
+{
+	char const *failed_msg;
+	int result;
+	reiser4_tree *tree;
+
+	tree = jnode_get_tree(node);
+
+	assert("umka-063312", node != NULL);
+	assert("umka-064321", tree != NULL);
+
+	if (!jlocked && !tlocked)
+		spin_lock_jnode((jnode *) node);
+	if (!tlocked)
+		read_lock_tree(jnode_get_tree(node));
+	result = jnode_invariant_f(node, &failed_msg);
+	if (!result) {
+		info_jnode("corrupted node", node);
+		warning("jmacd-555", "Condition %s failed", failed_msg);
+	}
+	if (!tlocked)
+		read_unlock_tree(jnode_get_tree(node));
+	if (!jlocked && !tlocked)
+		spin_unlock_jnode((jnode *) node);
+	return result;
+}
 
 #endif				/* REISER4_DEBUG */
 
-#ifdef REISER4_COPY_ON_CAPTURE
+#if REISER4_COPY_ON_CAPTURE
 /* this is only used to created jnode during capture copy */
 jnode *jclone(jnode * node)
 {

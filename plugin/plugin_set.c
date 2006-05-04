@@ -320,12 +320,12 @@ DEFINE_PLUGIN_SET(file_plugin, file)
     DEFINE_PLUGIN_SET(hash_plugin, hash)
     DEFINE_PLUGIN_SET(fibration_plugin, fibration)
     DEFINE_PLUGIN_SET(item_plugin, sd)
-    DEFINE_PLUGIN_SET(cipher_plugin, cipher)
-    DEFINE_PLUGIN_SET(digest_plugin, digest)
+    /* DEFINE_PLUGIN_SET(cipher_plugin, cipher) */
+    /* DEFINE_PLUGIN_SET(digest_plugin, digest) */
     DEFINE_PLUGIN_SET(compression_plugin, compression)
-    DEFINE_PLUGIN_SET(compression_mode_plugin, compression_mode)
+    /* DEFINE_PLUGIN_SET(compression_mode_plugin, compression_mode) */
     DEFINE_PLUGIN_SET(cluster_plugin, cluster)
-    DEFINE_PLUGIN_SET(regular_plugin, regular_entry)
+    /* DEFINE_PLUGIN_SET(regular_plugin, regular_entry) */
 
 
 /**
