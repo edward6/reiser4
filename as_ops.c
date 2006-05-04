@@ -343,11 +343,6 @@ int reiser4_releasepage(struct page *page, gfp_t gfp UNUSED_ARG)
 	assert("reiser4-4", page->mapping != NULL);
 	assert("reiser4-5", page->mapping->host != NULL);
 
-	/* is_page_cache_freeable() check
-	   (mapping + private + page_cache_get() by shrink_cache()) */
-	if (page_count(page) > 3)
-		return 0;
-
 	if (PageDirty(page))
 		return 0;
 
@@ -369,14 +364,6 @@ int reiser4_releasepage(struct page *page, gfp_t gfp UNUSED_ARG)
 
 		/* we are under memory pressure so release jnode also. */
 		jput(node);
-
-		write_lock_irq(&mapping->tree_lock);
-		/* shrink_list() + radix-tree */
-		if (page_count(page) == 2) {
-			__remove_from_page_cache(page);
-			atomic_dec(&page->_count);
-		}
-		write_unlock_irq(&mapping->tree_lock);
 
 		return 1;
 	} else {
