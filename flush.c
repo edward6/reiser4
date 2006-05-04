@@ -937,8 +937,7 @@ static jnode *find_flush_start_jnode(jnode *start, txn_atom *atom,
 
 		if (JF_ISSET(node, JNODE_WRITEBACK)) {
 			/* move node to the end of atom's writeback list */
-			list_del_init(&node->capture_link);
-			list_add_tail(&node->capture_link, ATOM_WB_LIST(atom));
+			list_move_tail(&node->capture_link, ATOM_WB_LIST(atom));
 
 			/*
 			 * jnode is not necessarily on dirty list: if it was dirtied when

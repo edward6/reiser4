@@ -581,8 +581,7 @@ static void make_node_ovrwr(struct list_head *jnodes, jnode *node)
 	assert("zam-918", !JF_ISSET(node, JNODE_OVRWR));
 
 	JF_SET(node, JNODE_OVRWR);
-	list_del_init(&node->capture_link);
-	list_add_tail(&node->capture_link, jnodes);
+	list_move_tail(&node->capture_link, jnodes);
 	ON_DEBUG(count_jnode(node->atom, node, DIRTY_LIST, OVRWR_LIST, 0));
 
 	spin_unlock_jnode(node);

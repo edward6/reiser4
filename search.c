@@ -153,8 +153,7 @@ void cbk_cache_invalidate(const znode * node /* node to remove from cache */ ,
 	write_lock(&(cache->guard));
 	for (i = 0, slot = cache->slot; i < cache->nr_slots; ++i, ++slot) {
 		if (slot->node == node) {
-			list_del(&slot->lru);
-			list_add_tail(&slot->lru, &cache->lru);
+			list_move_tail(&slot->lru, &cache->lru);
 			slot->node = NULL;
 			break;
 		}
@@ -191,8 +190,7 @@ static void cbk_cache_add(const znode *node /* node to add to the cache */ )
 		slot = list_entry(cache->lru.prev, cbk_cache_slot, lru);
 		slot->node = (znode *) node;
 	}
-	list_del(&slot->lru);
-	list_add(&slot->lru, &cache->lru);
+	list_move(&slot->lru, &cache->lru);
 	write_unlock(&(cache->guard));
 	assert("nikita-2473", cbk_cache_invariant(cache));
 }
@@ -1257,8 +1255,7 @@ static int cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 			if (slot->node == h->active_lh->node /*node */ ) {
 				/* if this node is still in cbk cache---move
 				   its slot to the head of the LRU list. */
-				list_del(&slot->lru);
-				list_add(&slot->lru, &cache->lru);
+				list_move(&slot->lru, &cache->lru);
 			}
 			write_unlock(&(cache->guard));
 		}

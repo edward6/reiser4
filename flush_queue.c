@@ -214,8 +214,7 @@ void queue_jnode(flush_queue_t * fq, jnode * node)
 	assert("vs-1481", NODE_LIST(node) != FQ_LIST);
 
 	mark_jnode_queued(fq, node);
-	list_del(&node->capture_link);
-	list_add_tail(&node->capture_link, ATOM_FQ_LIST(fq));
+	list_move_tail(&node->capture_link, ATOM_FQ_LIST(fq));
 
 	ON_DEBUG(count_jnode(node->atom, node, NODE_LIST(node),
 			     FQ_LIST, 1));
