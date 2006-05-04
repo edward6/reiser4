@@ -545,7 +545,7 @@ static int can_hit_entd(reiser4_context *ctx, struct super_block *s)
  * @page: page to write
  * @wbc:
  *
- * 
+ *
  */
 /* Common memory pressure notification. */
 int reiser4_writepage(struct page *page,

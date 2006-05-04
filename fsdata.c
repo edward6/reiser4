@@ -423,33 +423,11 @@ static void process_cursors(struct inode *inode, enum cursor_action act)
 				switch (act) {
 				case CURSOR_DISPOSE:
 					list_del_init(&fsdata->dir.linkage);
-					printk("dispose: %p: (%p %p %p %p %p)\n",
-					       scan,
-					       __builtin_return_address(0),
-					       __builtin_return_address(1),
-					       __builtin_return_address(2),
-					       __builtin_return_address(3),
-					       __builtin_return_address(4));
-					
 					break;
 				case CURSOR_LOAD:
-					printk("load: %p: (%p %p %p %p %p)\n",
-					       scan,
-					       __builtin_return_address(0),
-					       __builtin_return_address(1),
-					       __builtin_return_address(2),
-					       __builtin_return_address(3),
-					       __builtin_return_address(4));
 					list_add(&fsdata->dir.linkage, head);
 					break;
 				case CURSOR_KILL:
-					printk("kill: %p: (%p %p %p %p %p)\n",
-					       scan,
-					       __builtin_return_address(0),
-					       __builtin_return_address(1),
-					       __builtin_return_address(2),
-					       __builtin_return_address(3),
-					       __builtin_return_address(4));
 					kill_cursor(scan);
 					break;
 				}

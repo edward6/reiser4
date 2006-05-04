@@ -142,7 +142,7 @@ reiser4_readpages(struct file *file, struct address_space *mapping,
 		else {
 			while (!list_empty(pages)) {
 				struct page *victim;
-				
+
 				victim = list_entry(pages->prev, struct page, lru);
 				list_del(&victim->lru);
 				page_cache_release(victim);

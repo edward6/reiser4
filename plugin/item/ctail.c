@@ -101,7 +101,7 @@ static int is_disk_cluster_key(const reiser4_key * key, const coord_t * coord)
 	assert("edward-1239", item_id_by_coord(coord) == CTAIL_ID);
 
 	return coord_is_unprepped_ctail(coord) ||
-	    ((get_key_offset(key) & 
+	    ((get_key_offset(key) &
 	      ((loff_t) disk_cluster_size(coord) - 1)) == 0);
 }
 

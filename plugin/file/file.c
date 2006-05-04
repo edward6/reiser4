@@ -1388,7 +1388,7 @@ int sync_unix_file(struct file *file, struct dentry *dentry, int datasync)
 /**
  * readpage_unix_file_nolock - readpage of struct address_space_operations
  * @file:
- * @page: 
+ * @page:
  *
  * Compose a key and search for item containing information about @page
  * data. If item is found - its readpage method is called.
@@ -1406,8 +1406,8 @@ int readpage_unix_file_nolock(struct file *file, struct page *page)
 
 	assert("vs-1062", PageLocked(page));
 	assert("vs-976", !PageUptodate(page));
-	assert("vs-1061", page->mapping && page->mapping->host);	
-	
+	assert("vs-1061", page->mapping && page->mapping->host);
+
 	if ((page->mapping->host->i_size <=
 	     ((loff_t) page->index << PAGE_CACHE_SHIFT))) {
 		/* page is out of file already */
@@ -1447,7 +1447,7 @@ int readpage_unix_file_nolock(struct file *file, struct page *page)
 	page_cache_get(page);
 	unlock_page(page);
 	result = find_file_item(hint, &key, ZNODE_READ_LOCK, inode);
-	lock_page(page);	
+	lock_page(page);
 	page_cache_release(page);
 
 	if (page->mapping == NULL) {
@@ -1460,7 +1460,7 @@ int readpage_unix_file_nolock(struct file *file, struct page *page)
 		unlock_page(page);
 		txn_restart(ctx);
 		reiser4_exit_context(ctx);
-		return -EINVAL;		
+		return -EINVAL;
 	}
 
 	if (result != CBK_COORD_FOUND || hint->ext_coord.coord.between != AT_UNIT) {
