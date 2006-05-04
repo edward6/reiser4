@@ -983,6 +983,7 @@ int shrink_item_node40(coord_t * coord, int delta)
 	pos_in_node_t nr_items;
 	char *end;
 	znode *node;
+	int off;
 
 	assert("nikita-3487", coord != NULL);
 	assert("nikita-3488", delta >= 0);
@@ -993,10 +994,11 @@ int shrink_item_node40(coord_t * coord, int delta)
 
 	ih = node40_ih_at_coord(coord);
 	assert("nikita-3489", delta <= length_by_coord_node40(coord));
-	end = zdata(node) + ih40_get_offset(ih) + length_by_coord_node40(coord);
+	off = ih40_get_offset(ih) + length_by_coord_node40(coord);
+	end = zdata(node) + off;
 
 	/* remove gap made up by removal */
-	memmove(end - delta, end, nh40_get_free_space_start(nh) - delta);
+	memmove(end - delta, end, nh40_get_free_space_start(nh) - off);
 
 	/* update item headers of moved items - change their locations */
 	pos = coord->item_pos + 1;

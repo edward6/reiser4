@@ -558,7 +558,7 @@ int resize_item(coord_t * coord /* coord of item being resized */ ,
 
 	if (data->length < 0)
 		result = node_plugin_by_coord(coord)->shrink_item(coord,
-								  data->length);
+								  -data->length);
 	else
 		result = insert_into_item(coord, lh, key, data, flags);
 
