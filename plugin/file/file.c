@@ -2124,11 +2124,11 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 		txn_restart(ctx);
 
 		/*
-		 * call bdprl so that it for sure calls bdp: this can be done
-		 * be calling bdplrl in a loop and checking flag in context
-		 * and have reiser4_sync_inodes to set that flag
+		 * tell VM how many pages were dirtied. Maybe number of pages
+		 * which were dirty already should not be counted
 		 */
-		balance_dirty_pages(inode->i_mapping);
+		balance_dirty_pages_ratelimited_nr(inode->i_mapping,
+						   (written + PAGE_CACHE_SIZE - 1) / PAGE_CACHE_SIZE);
 
 		left -= written;
 		buf += written;
@@ -2139,7 +2139,7 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 		txn_restart_current();
 		grab_space_enable();
 		result = sync_unix_file(file, file->f_dentry,
-				       0 /* data and stat data */ );
+					0 /* data and stat data */ );
 		if (result)
 			warning("reiser4-7", "failed to sync file %llu",
 				(unsigned long long)get_inode_oid(inode));
