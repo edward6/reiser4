@@ -624,6 +624,11 @@ static void mark_jnodes_overwrite(flush_pos_t *flush_pos, oid_t oid,
 			atomic_dec(&node->x_count);
 			break;
 		}
+		if (node->atom != atom) {
+			flush_pos->state = POS_INVALID;
+			atomic_dec(&node->x_count);
+			break;
+		}
 		make_node_ovrwr(&jnodes, node);
 		atomic_dec(&node->x_count);
 	}

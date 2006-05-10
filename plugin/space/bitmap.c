@@ -1160,7 +1160,7 @@ static int alloc_blocks_backward(reiser4_blocknr_hint * hint, int needed,
 
 	assert("zam-969", super != NULL);
 	assert("zam-970", hint != NULL);
-	assert("zam-971", hint->blk < reiser4_block_count(super));
+	assert("zam-971", hint->blk <= reiser4_block_count(super));
 
 	search_start = hint->blk;
 	if (hint->max_dist == 0 || search_start <= hint->max_dist)

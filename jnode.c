@@ -431,7 +431,7 @@ static void inode_attach_jnode(jnode * node)
 	inode = node->key.j.mapping->host;
 	info = reiser4_inode_data(inode);
 	rtree = jnode_tree_by_reiser4_inode(info);
-	if (rtree->height == 0 && rtree->rnode == NULL) {
+	if (rtree->rnode == NULL) {
 		/* prevent inode from being pruned when it has jnodes attached
 		   to it */
 		write_lock_irq(&inode->i_data.tree_lock);
@@ -462,7 +462,7 @@ static void inode_detach_jnode(jnode * node)
 
 	/* delete jnode from inode's radix tree of jnodes */
 	check_me("zam-1046", radix_tree_delete(rtree, node->key.j.index));
-	if (rtree->height == 0) {
+	if (rtree->rnode == NULL) {
 		/* inode can be pruned now */
 		write_lock_irq(&inode->i_data.tree_lock);
 		inode->i_data.nrpages--;
