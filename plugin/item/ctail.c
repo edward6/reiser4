@@ -33,7 +33,6 @@ Internal on-disk structure:
 #include "../cluster.h"
 #include "../../flush.h"
 #include "../../tree_walk.h"
-#include "../file/funcs.h"
 
 #include <linux/pagevec.h>
 #include <linux/swap.h>

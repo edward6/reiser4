@@ -1558,6 +1558,98 @@ int readpage_unix_file_nolock(struct file *file, struct page *page)
 	return result;
 }
 
+struct reiser4_readpages_context {
+	lock_handle lh;
+	coord_t coord;
+	struct {
+		int reused;
+		int cbk;
+	} stat;
+};
+
+static int reiser4_readpages_filler(void * data, struct page * page)
+{
+	struct reiser4_readpages_context *rc = data;
+	jnode * node;
+	int ret = 0;
+
+	if (PageUptodate(page))
+		goto out;
+	node = jnode_of_page(page);
+	if (unlikely(IS_ERR(node)))
+		goto out;
+	if (*jnode_get_block(node) == 0) {
+		reiser4_extent *ext;
+		__u64 ext_index, block;
+		int cbk_done = 0;
+		struct address_space * mapping = page->mapping;
+
+		if (rc->lh.node == 0) {
+			reiser4_key key;
+		repeat:
+			unlock_page(page);
+			key_by_inode_and_offset_common(
+				mapping->host, 
+				(loff_t) page->index << PAGE_CACHE_SHIFT, &key);
+			ret = coord_by_key(
+				&get_super_private(mapping->host->i_sb)->tree,
+				&key, &rc->coord, &rc->lh,
+				ZNODE_READ_LOCK, FIND_EXACT, 
+				TWIG_LEVEL, TWIG_LEVEL, 0, NULL);
+			cbk_done = 1;
+			rc->stat.cbk++;
+			lock_page(page);
+			if (ret != 0)
+				goto out_jput;
+		}
+		ret = zload(rc->coord.node);
+		if (ret)
+			goto out_jput;
+		ext = extent_by_coord(&rc->coord);
+		ext_index = extent_unit_index(&rc->coord);
+		if (!cbk_done && (page->index < ext_index ||
+		     page->index >= ext_index + extent_get_width(ext)))
+		{
+			zrelse(rc->coord.node);
+			done_lh(&rc->lh);
+			goto repeat;
+		}
+		rc->stat.reused += !cbk_done;
+		block = extent_get_start(ext) + page->index - ext_index; 
+		jnode_set_block(node, &block);
+		zrelse(rc->coord.node);
+	}
+	ret = page_io(page, node, READ, GFP_NOIO);
+ out_jput:
+	jput(node);
+ out:
+	return ret;
+}
+
+int readpages_unix_file(struct file *file, struct address_space *mapping,
+			struct list_head *pages, unsigned nr_pages)
+{
+	reiser4_context *ctx;
+	struct reiser4_readpages_context rc = {.stat = {0, 0 }};
+	int ret;
+
+	ctx = init_context(mapping->host->i_sb);
+	if (IS_ERR(ctx))
+		return PTR_ERR(ctx);
+	init_lh(&rc.lh);
+	ret = read_cache_pages(mapping, pages,  reiser4_readpages_filler, &rc);
+	done_lh(&rc.lh);
+
+#if 1
+	printk(KERN_DEBUG "Reiser4: readpages_unix_file: "
+		"nr = %u, cbk = %d, reused = %d\n",
+	       nr_pages, rc.stat.cbk, rc.stat.reused);
+#endif
+	context_set_commit_async(ctx);
+	reiser4_exit_context(ctx);
+	return ret;
+}
+
 /**
  * readpage_unix_file - readpage of struct address_space_operations
  * @file: file @page belongs to
@@ -1655,6 +1747,68 @@ static size_t read_file(hint_t * hint, struct file *file,	/* file to read from t
  * This is implementation of vfs's read method of struct file_operations for
  * unix file plugin.
  */
+#if 1
+ssize_t read_unix_file(struct file *file, char __user *buf, size_t read_amount,
+		       loff_t *off)
+{
+	reiser4_context *ctx;
+	ssize_t result;
+	struct inode *inode;
+	unix_file_info_t *uf_info;
+
+	if (unlikely(read_amount == 0))
+		return 0;
+
+	assert("umka-072", file != NULL);
+	assert("umka-074", off != NULL);
+	inode = file->f_dentry->d_inode;
+	assert("vs-972", !inode_get_flag(inode, REISER4_NO_SD));
+
+	ctx = init_context(inode->i_sb);
+	if (IS_ERR(ctx))
+		return PTR_ERR(ctx);
+
+	uf_info = unix_file_inode_data(inode);
+
+	if (uf_info->container == UF_CONTAINER_UNKNOWN) {
+		get_exclusive_access(uf_info);
+		result = find_file_state(inode, uf_info);
+		if (unlikely(result != 0))
+			goto out;
+		// FIXME: downgrade_access(uf_info);
+	} else
+		get_nonexclusive_access(uf_info);
+
+	if (unlikely(inode_get_flag(inode, REISER4_PART_CONV) != 0)) {
+		result = RETERR(-EIO);
+		goto out;
+	}
+
+	result = unix_file_estimate_read(inode, read_amount);
+	if (unlikely(result != 0))
+		goto out;
+
+	switch(uf_info->container) {
+	    case UF_CONTAINER_EXTENTS:
+		    result = generic_file_read(file, buf, read_amount, off);
+		    break;
+	    case UF_CONTAINER_TAILS:
+		    // break;
+	    default:
+		    warning("zam-1085", "wrong uf container %d\n", uf_info->container);
+		    result = RETERR(-EIO);
+	}
+ out:
+	if (uf_info->exclusive_use)
+		drop_exclusive_access(uf_info);
+	else
+		drop_nonexclusive_access(uf_info);
+	context_set_commit_async(ctx);
+	reiser4_exit_context(ctx);
+	/* return number of read bytes or error code if nothing is read */
+	return result;
+}
+#else
 ssize_t read_unix_file(struct file *file, char __user *buf, size_t read_amount,
 		       loff_t *off)
 {
@@ -1756,6 +1910,7 @@ ssize_t read_unix_file(struct file *file, char __user *buf, size_t read_amount,
 	/* return number of read bytes or error code if nothing is read */
 	return count ? count : result;
 }
+#endif
 
 /* This function takes care about @file's pages. First of all it checks if
    filesystems readonly and if so gets out. Otherwise, it throws out all

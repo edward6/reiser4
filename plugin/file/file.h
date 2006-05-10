@@ -29,6 +29,7 @@ ssize_t sendfile_unix_file(struct file *, loff_t *ppos, size_t count,
 /* address space operations */
 int readpage_unix_file(struct file *, struct page *);
 int readpage_unix_file_nolock(struct file *, struct page *);
+int readpages_unix_file(struct file*, struct address_space*, struct list_head*, unsigned);
 int writepages_unix_file(struct address_space *, struct writeback_control *);
 int prepare_write_unix_file(struct file *, struct page *, unsigned from,
 			    unsigned to);
