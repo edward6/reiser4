@@ -905,7 +905,7 @@ search_one_bitmap_forward(bmap_nr_t bmap, bmap_off_t * offset,
 
 	assert("zam-364", min_len > 0);
 	assert("zam-365", max_len >= min_len);
-	assert("zam-366", *offset < max_offset);
+	assert("zam-366", *offset <= max_offset);
 
 	ret = load_and_lock_bnode(bnode);
 
@@ -1048,7 +1048,7 @@ static int bitmap_alloc_forward(reiser4_block_nr * start,
 	++end_offset;
 
 	assert("zam-358", end_bmap >= bmap);
-	assert("zam-359", ergo(end_bmap == bmap, end_offset > offset));
+	assert("zam-359", ergo(end_bmap == bmap, end_offset >= offset));
 
 	for (; bmap < end_bmap; bmap++, offset = 0) {
 		len =
@@ -1101,9 +1101,8 @@ static int bitmap_alloc_backward(reiser4_block_nr * start,
 }
 
 /* plugin->u.space_allocator.alloc_blocks() */
-static int
-alloc_blocks_forward(reiser4_blocknr_hint * hint, int needed,
-		     reiser4_block_nr * start, reiser4_block_nr * len)
+static int alloc_blocks_forward(reiser4_blocknr_hint *hint, int needed,
+				reiser4_block_nr *start, reiser4_block_nr *len)
 {
 	struct super_block *super = get_current_context()->super;
 	int actual_len;
@@ -1113,7 +1112,7 @@ alloc_blocks_forward(reiser4_blocknr_hint * hint, int needed,
 
 	assert("zam-398", super != NULL);
 	assert("zam-412", hint != NULL);
-	assert("zam-397", hint->blk < reiser4_block_count(super));
+	assert("zam-397", hint->blk <= reiser4_block_count(super));
 
 	if (hint->max_dist == 0)
 		search_end = reiser4_block_count(super);
