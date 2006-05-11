@@ -1574,54 +1574,48 @@ static int reiser4_readpages_filler(void * data, struct page * page)
 	struct reiser4_readpages_context *rc = data;
 	jnode * node;
 	int ret = 0;
+	reiser4_extent *ext;
+	__u64 ext_index;
+	int cbk_done = 0;
+	struct address_space * mapping = page->mapping;
 
 	if (PageUptodate(page))
 		goto out;
 	node = jnode_of_page(page);
 	if (unlikely(IS_ERR(node)))
 		goto out;
-	if (*jnode_get_block(node) == 0) {
-		reiser4_extent *ext;
-		__u64 ext_index, block;
-		int cbk_done = 0;
-		struct address_space * mapping = page->mapping;
-
-		if (rc->lh.node == 0) {
-			reiser4_key key;
-		repeat:
-			unlock_page(page);
-			key_by_inode_and_offset_common(
-				mapping->host, 
-				(loff_t) page->index << PAGE_CACHE_SHIFT, &key);
-			ret = coord_by_key(
-				&get_super_private(mapping->host->i_sb)->tree,
-				&key, &rc->coord, &rc->lh,
-				ZNODE_READ_LOCK, FIND_EXACT, 
-				TWIG_LEVEL, TWIG_LEVEL, 0, NULL);
-			cbk_done = 1;
-			ON_DEBUG(rc->stat.cbk++);
-			lock_page(page);
-			if (ret != 0)
-				goto out_jput;
-		}
-		ret = zload(rc->coord.node);
-		if (ret)
+	if (rc->lh.node == 0) {
+		reiser4_key key;
+	repeat:
+		unlock_page(page);
+		key_by_inode_and_offset_common(
+			mapping->host, page_offset(page), &key);
+		ret = coord_by_key(
+			&get_super_private(mapping->host->i_sb)->tree,
+			&key, &rc->coord, &rc->lh,
+			ZNODE_READ_LOCK, FIND_EXACT, 
+			TWIG_LEVEL, TWIG_LEVEL, 0, NULL);
+		cbk_done = 1;
+		ON_DEBUG(rc->stat.cbk++);
+		lock_page(page);
+		if (ret != 0)
 			goto out_jput;
-		ext = extent_by_coord(&rc->coord);
-		ext_index = extent_unit_index(&rc->coord);
-		if (!cbk_done && (page->index < ext_index ||
-		     page->index >= ext_index + extent_get_width(ext)))
-		{
-			zrelse(rc->coord.node);
-			done_lh(&rc->lh);
-			goto repeat;
-		}
-		ON_DEBUG(rc->stat.reused += !cbk_done);
-		block = extent_get_start(ext) + page->index - ext_index; 
-		jnode_set_block(node, &block);
-		zrelse(rc->coord.node);
 	}
-	ret = page_io(page, node, READ, GFP_NOIO);
+	ret = zload(rc->coord.node);
+	if (ret)
+		goto out_jput;
+	ext = extent_by_coord(&rc->coord);
+	ext_index = extent_unit_index(&rc->coord);
+	if (!cbk_done && (page->index < ext_index ||
+			  page->index >= ext_index + extent_get_width(ext)))
+	{
+		zrelse(rc->coord.node);
+		done_lh(&rc->lh);
+		goto repeat;
+	}
+	ON_DEBUG(rc->stat.reused += !cbk_done);
+	ret = do_readpage_extent(ext, page->index - ext_index, page);
+	zrelse(rc->coord.node);
  out_jput:
 	jput(node);
  out:

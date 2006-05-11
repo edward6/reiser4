@@ -1081,9 +1081,8 @@ static inline void zero_page(struct page *page)
 	unlock_page(page);
 }
 
-static int
-do_readpage_extent(reiser4_extent * ext, reiser4_block_nr pos,
-		   struct page *page)
+int do_readpage_extent(reiser4_extent * ext, reiser4_block_nr pos,
+		       struct page *page)
 {
 	jnode *j;
 	struct address_space *mapping;
