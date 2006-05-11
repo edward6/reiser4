@@ -1561,10 +1561,12 @@ int readpage_unix_file_nolock(struct file *file, struct page *page)
 struct reiser4_readpages_context {
 	lock_handle lh;
 	coord_t coord;
+#if REISER4_DEBUG
 	struct {
 		int reused;
 		int cbk;
 	} stat;
+#endif
 };
 
 static int reiser4_readpages_filler(void * data, struct page * page)
@@ -1597,7 +1599,7 @@ static int reiser4_readpages_filler(void * data, struct page * page)
 				ZNODE_READ_LOCK, FIND_EXACT, 
 				TWIG_LEVEL, TWIG_LEVEL, 0, NULL);
 			cbk_done = 1;
-			rc->stat.cbk++;
+			ON_DEBUG(rc->stat.cbk++);
 			lock_page(page);
 			if (ret != 0)
 				goto out_jput;
@@ -1614,7 +1616,7 @@ static int reiser4_readpages_filler(void * data, struct page * page)
 			done_lh(&rc->lh);
 			goto repeat;
 		}
-		rc->stat.reused += !cbk_done;
+		ON_DEBUG(rc->stat.reused += !cbk_done);
 		block = extent_get_start(ext) + page->index - ext_index; 
 		jnode_set_block(node, &block);
 		zrelse(rc->coord.node);
@@ -1630,17 +1632,18 @@ int readpages_unix_file(struct file *file, struct address_space *mapping,
 			struct list_head *pages, unsigned nr_pages)
 {
 	reiser4_context *ctx;
-	struct reiser4_readpages_context rc = {.stat = {0, 0 }};
+	struct reiser4_readpages_context rc;
 	int ret;
 
 	ctx = init_context(mapping->host->i_sb);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 	init_lh(&rc.lh);
+	ON_DEBUG(memset(&rc, 0, sizeof(rc)));
 	ret = read_cache_pages(mapping, pages,  reiser4_readpages_filler, &rc);
 	done_lh(&rc.lh);
 
-#if 1
+#if 0 && REISER4_DEBUG
 	printk(KERN_DEBUG "Reiser4: readpages_unix_file: "
 		"nr = %u, cbk = %d, reused = %d\n",
 	       nr_pages, rc.stat.cbk, rc.stat.reused);
@@ -1737,6 +1740,8 @@ static size_t read_file(hint_t * hint, struct file *file,	/* file to read from t
 	return (count - flow.length) ? (count - flow.length) : result;
 }
 
+static ssize_t read_unix_file_container_tails(struct file*, char __user*, size_t, loff_t*);
+
 /**
  * read_unix_file - read of struct file_operations
  * @file: file to read from
@@ -1747,7 +1752,7 @@ static size_t read_file(hint_t * hint, struct file *file,	/* file to read from t
  * This is implementation of vfs's read method of struct file_operations for
  * unix file plugin.
  */
-#if 1
+
 ssize_t read_unix_file(struct file *file, char __user *buf, size_t read_amount,
 		       loff_t *off)
 {
@@ -1793,7 +1798,8 @@ ssize_t read_unix_file(struct file *file, char __user *buf, size_t read_amount,
 		    result = generic_file_read(file, buf, read_amount, off);
 		    break;
 	    case UF_CONTAINER_TAILS:
-		    // break;
+		    result = read_unix_file_container_tails(file, buf, read_amount, off);
+		    break;
 	    default:
 		    warning("zam-1085", "wrong uf container %d\n", uf_info->container);
 		    result = RETERR(-EIO);
@@ -1808,9 +1814,9 @@ ssize_t read_unix_file(struct file *file, char __user *buf, size_t read_amount,
 	/* return number of read bytes or error code if nothing is read */
 	return result;
 }
-#else
-ssize_t read_unix_file(struct file *file, char __user *buf, size_t read_amount,
-		       loff_t *off)
+
+static ssize_t read_unix_file_container_tails(
+	struct file *file, char __user *buf, size_t read_amount, loff_t *off)
 {
 	reiser4_context *ctx;
 	int result;
@@ -1910,7 +1916,6 @@ ssize_t read_unix_file(struct file *file, char __user *buf, size_t read_amount,
 	/* return number of read bytes or error code if nothing is read */
 	return count ? count : result;
 }
-#endif
 
 /* This function takes care about @file's pages. First of all it checks if
    filesystems readonly and if so gets out. Otherwise, it throws out all
