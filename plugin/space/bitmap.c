@@ -1048,7 +1048,7 @@ static int bitmap_alloc_forward(reiser4_block_nr * start,
 	++end_offset;
 
 	assert("zam-358", end_bmap >= bmap);
-	assert("zam-359", ergo(end_bmap == bmap, end_offset > offset));
+	assert("zam-359", ergo(end_bmap == bmap, end_offset >= offset));
 
 	for (; bmap < end_bmap; bmap++, offset = 0) {
 		len =
