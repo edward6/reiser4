@@ -905,7 +905,7 @@ search_one_bitmap_forward(bmap_nr_t bmap, bmap_off_t * offset,
 
 	assert("zam-364", min_len > 0);
 	assert("zam-365", max_len >= min_len);
-	assert("zam-366", *offset < max_offset);
+	assert("zam-366", *offset <= max_offset);
 
 	ret = load_and_lock_bnode(bnode);
 
