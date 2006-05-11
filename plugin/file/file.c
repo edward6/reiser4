@@ -2113,9 +2113,9 @@ int open_unix_file(struct inode *inode, struct file *file)
 #define EA_OBTAINED 1
 #define NEA_OBTAINED 2
 
-static void drop_access(unix_file_info_t *uf_info, int access)
+static void drop_access(unix_file_info_t *uf_info)
 {
-	if (access == EA_OBTAINED)
+	if (uf_info->exclusive_use)
 		drop_exclusive_access(uf_info);
 	else
 		drop_nonexclusive_access(uf_info);
@@ -2246,13 +2246,13 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 
 		written = write_op(file, buf, to_write, pos);
 		if (written == -ENOSPC && try_free_space) {
-			drop_access(uf_info, ea);
+			drop_access(uf_info);
 			txnmgr_force_commit_all(inode->i_sb, 0);
 			try_free_space = 0;
 			continue;
 		}
 		if (written < 0) {
-			drop_access(uf_info, ea);
+			drop_access(uf_info);
 			result = written;
 			break;
 		}
@@ -2273,13 +2273,13 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 		result = reiser4_update_sd(inode);
 		if (result) {
 			current->backing_dev_info = NULL;
-			drop_access(uf_info, ea);
+			drop_access(uf_info);
 			context_set_commit_async(ctx);
 			reiser4_exit_context(ctx);
 			current->backing_dev_info = NULL;
 			return result;
 		}
-		drop_access(uf_info, ea);
+		drop_access(uf_info);
 		ea = NEITHER_OBTAINED;
 		txn_restart(ctx);
 
