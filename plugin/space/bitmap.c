@@ -1101,9 +1101,8 @@ static int bitmap_alloc_backward(reiser4_block_nr * start,
 }
 
 /* plugin->u.space_allocator.alloc_blocks() */
-static int
-alloc_blocks_forward(reiser4_blocknr_hint * hint, int needed,
-		     reiser4_block_nr * start, reiser4_block_nr * len)
+static int alloc_blocks_forward(reiser4_blocknr_hint *hint, int needed,
+				reiser4_block_nr *start, reiser4_block_nr *len)
 {
 	struct super_block *super = get_current_context()->super;
 	int actual_len;
@@ -1113,7 +1112,7 @@ alloc_blocks_forward(reiser4_blocknr_hint * hint, int needed,
 
 	assert("zam-398", super != NULL);
 	assert("zam-412", hint != NULL);
-	assert("zam-397", hint->blk < reiser4_block_count(super));
+	assert("zam-397", hint->blk <= reiser4_block_count(super));
 
 	if (hint->max_dist == 0)
 		search_end = reiser4_block_count(super);

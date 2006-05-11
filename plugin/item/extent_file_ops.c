@@ -980,6 +980,8 @@ ssize_t write_extent(struct file *file, const char __user *buf, size_t count,
 			}
 			return RETERR(-ENOMEM);			
 		}
+		/* prevent jnode and page from disconnecting */
+		JF_SET(jnodes[i], JNODE_WRITE_PREPARED);
 		unlock_page(page);
 	}
 
@@ -1063,8 +1065,10 @@ ssize_t write_extent(struct file *file, const char __user *buf, size_t count,
 		}
 	}
 
-	for (i = 0; i < nr_pages; i ++)
+	for (i = 0; i < nr_pages; i ++) {
+		JF_CLR(jnodes[i], JNODE_WRITE_PREPARED);
 		jput(jnodes[i]);
+	}
 
 	/* the only error handled so far is EFAULT on copy_from_user  */
 	return (count - left) ? (count - left) : -EFAULT;

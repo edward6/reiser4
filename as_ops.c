@@ -282,37 +282,50 @@ int jnode_is_releasable(jnode * node /* node to check */ )
 
 	assert("vs-1214", !jnode_is_loaded(node));
 
-	/* this jnode is just a copy. Its page cannot be released, because
+	/*
+	 * this jnode is just a copy. Its page cannot be released, because
 	 * otherwise next jload() would load obsolete data from disk
-	 * (up-to-date version may still be in memory). */
+	 * (up-to-date version may still be in memory).
+	 */
 	if (is_cced(node)) {
 		return 0;
 	}
 
-	/* can only release page if real block number is assigned to
-	   it. Simple check for ->atom wouldn't do, because it is possible for
-	   node to be clean, not it atom yet, and still having fake block
-	   number. For example, node just created in jinit_new(). */
-	if (blocknr_is_fake(jnode_get_block(node))) {
+	/*
+	 * can only release page if real block number is assigned to it. Simple
+	 * check for ->atom wouldn't do, because it is possible for node to be
+	 * clean, not it atom yet, and still having fake block number. For
+	 * example, node just created in jinit_new().
+	 */
+	if (blocknr_is_fake(jnode_get_block(node)))
 		return 0;
-	}
-	/* dirty jnode cannot be released. It can however be submitted to disk
-	 * as part of early flushing, but only after getting flush-prepped. */
-	if (JF_ISSET(node, JNODE_DIRTY)) {
+
+	/*
+	 * pages prepared for write can not be released anyway, so avoid
+	 * detaching jnode from the page
+	 */
+	if (JF_ISSET(node, JNODE_WRITE_PREPARED))
 		return 0;
-	}
+
+	/*
+	 * dirty jnode cannot be released. It can however be submitted to disk
+	 * as part of early flushing, but only after getting flush-prepped.
+	 */
+	if (JF_ISSET(node, JNODE_DIRTY))
+		return 0;
+
 	/* overwrite set is only written by log writer. */
-	if (JF_ISSET(node, JNODE_OVRWR)) {
+	if (JF_ISSET(node, JNODE_OVRWR))
 		return 0;
-	}
+
 	/* jnode is already under writeback */
-	if (JF_ISSET(node, JNODE_WRITEBACK)) {
+	if (JF_ISSET(node, JNODE_WRITEBACK))
 		return 0;
-	}
+
 	/* don't flush bitmaps or journal records */
-	if (!jnode_is_znode(node) && !jnode_is_unformatted(node)) {
+	if (!jnode_is_znode(node) && !jnode_is_unformatted(node))
 		return 0;
-	}
+
 	return 1;
 }
 

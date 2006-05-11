@@ -1995,12 +1995,15 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 
+	mutex_lock(&inode->i_mutex);
+
 	assert("vs-947", !inode_get_flag(inode, REISER4_NO_SD));
 	assert("vs-9471", !inode_get_flag(inode, REISER4_PART_CONV));
 
 	/* check amount of bytes to write and writing position */
 	result = generic_write_checks(file, pos, &count, 0);
 	if (result) {
+		mutex_unlock(&inode->i_mutex);
 		context_set_commit_async(ctx);
 		reiser4_exit_context(ctx);
 		return result;
@@ -2008,6 +2011,7 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 
 	result = remove_suid(file->f_dentry);
 	if (result) {
+		mutex_unlock(&inode->i_mutex);
 		context_set_commit_async(ctx);
 		reiser4_exit_context(ctx);
 		return result;
@@ -2112,11 +2116,11 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 		file_update_time(file);
 		result = reiser4_update_sd(inode);
 		if (result) {
+			mutex_unlock(&inode->i_mutex);
 			current->backing_dev_info = NULL;
 			drop_access(uf_info);
 			context_set_commit_async(ctx);
 			reiser4_exit_context(ctx);
-			current->backing_dev_info = NULL;
 			return result;
 		}
 		drop_access(uf_info);
@@ -2134,6 +2138,8 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 		buf += written;
 		*pos += written;
 	}
+
+	mutex_unlock(&inode->i_mutex);
 
 	if (result == 0 && ((file->f_flags & O_SYNC) || IS_SYNC(inode))) {
 		txn_restart_current();

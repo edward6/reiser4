@@ -252,6 +252,9 @@ typedef enum {
 	/* delimiting keys are already set for this znode. */
 	JNODE_DKSET = 20,
 
+	/* when this bit is set page and jnode can not be disconnected */
+	JNODE_WRITE_PREPARED = 21,
+
 	JNODE_CLUSTER_PAGE = 22,
 	/* Jnode is marked for repacking, that means the reiser4 flush and the
 	 * block allocator should process this node special way  */
