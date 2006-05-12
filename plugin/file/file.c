@@ -2126,13 +2126,14 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 		drop_access(uf_info);
 		ea = NEITHER_OBTAINED;
 		txn_restart(ctx);
-
+		current->journal_info = NULL;
 		/*
 		 * tell VM how many pages were dirtied. Maybe number of pages
 		 * which were dirty already should not be counted
 		 */
 		balance_dirty_pages_ratelimited_nr(inode->i_mapping,
 						   (written + PAGE_CACHE_SIZE - 1) / PAGE_CACHE_SIZE);
+		current->journal_info = ctx;
 
 		left -= written;
 		buf += written;
