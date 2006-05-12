@@ -1579,14 +1579,14 @@ static int reiser4_readpages_filler(void * data, struct page * page)
 	int cbk_done = 0;
 	struct address_space * mapping = page->mapping;
 
-	if (PageUptodate(page)) {
+	if (PageUptodate(page))
 		unlock_page(page);
 		return 0;
 	}
 	node = jnode_of_page(page);
 	if (unlikely(IS_ERR(node))) {
-		unlock_page(page);
-		return PTR_ERR(node);
+		ret = PTR_ERR(node);
+		goto err;
 	}
 	if (rc->lh.node == 0) {
 		reiser4_key key;
@@ -1599,17 +1599,15 @@ static int reiser4_readpages_filler(void * data, struct page * page)
 			&key, &rc->coord, &rc->lh,
 			ZNODE_READ_LOCK, FIND_EXACT, 
 			TWIG_LEVEL, TWIG_LEVEL, 0, NULL);
+		lock_page(page);
 		cbk_done = 1;
 		ON_DEBUG(rc->stat.cbk++);
 		if (ret != 0)
-			goto out_jput;
-		lock_page(page);
+			goto err;
 	}
 	ret = zload(rc->coord.node);
-	if (ret) {
-		unlock_page(page);
-		goto out_jput;
-	}
+	if (ret)
+		goto err;
 	ext = extent_by_coord(&rc->coord);
 	ext_index = extent_unit_index(&rc->coord);
 	if (!cbk_done && (page->index < ext_index ||
@@ -1622,9 +1620,11 @@ static int reiser4_readpages_filler(void * data, struct page * page)
 	ON_DEBUG(rc->stat.reused += !cbk_done);
 	ret = do_readpage_extent(ext, page->index - ext_index, page);
 	zrelse(rc->coord.node);
- out_jput:
+	if (ret) { 
+	err:
+		unlock_page(page);
+	}
 	jput(node);
- out:
 	return ret;
 }
 
