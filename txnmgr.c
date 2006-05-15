@@ -256,7 +256,7 @@ static void capture_assign_block_nolock(txn_atom * atom, jnode * node);
 static void fuse_not_fused_lock_owners(txn_handle * txnh, znode * node);
 
 static int capture_init_fusion(jnode * node, txn_handle * txnh,
-			       txn_capture mode, int can_coc);
+			       txn_capture mode);
 
 static int capture_fuse_wait(txn_handle *, txn_atom *, txn_atom *, txn_capture);
 
@@ -900,70 +900,6 @@ jnode *find_first_dirty_jnode(txn_atom * atom, int flags)
 	return find_first_dirty_in_list(ATOM_DIRTY_LIST(atom, 0), flags);
 }
 
-#if REISER4_COPY_ON_CAPTURE
-
-/* this spin lock is used to prevent races during steal on capture.
-   FIXME: should be per filesystem or even per atom */
-spinlock_t scan_lock = SPIN_LOCK_UNLOCKED;
-
-/* Scan atom->writeback_nodes list and dispatch jnodes according to their state:
- * move dirty and !writeback jnodes to @fq, clean jnodes to atom's clean
- * list. */
-/* NOTE: doing that in end IO handler requires using of special spinlocks which
- * disables interrupts in all places except IO handler. That is expensive. */
-static void dispatch_wb_list(txn_atom * atom, flush_queue_t * fq)
-{
-	jnode *cur;
-	int total, moved;
-
-	assert_spin_locked(&(atom->alock));
-
-	total = 0;
-	moved = 0;
-
-	spin_lock(&scan_lock);
-	cur = capture_list_front(ATOM_WB_LIST(atom));
-	while (!capture_list_end(ATOM_WB_LIST(atom), cur)) {
-		jnode *next;
-
-		total++;
-		JF_SET(cur, JNODE_SCANNED);
-		next = capture_list_next(cur);
-		if (!capture_list_end(ATOM_WB_LIST(atom), next))
-			JF_SET(next, JNODE_SCANNED);
-
-		spin_unlock(&scan_lock);
-
-		LOCK_JNODE(cur);
-		assert("vs-1441", NODE_LIST(cur) == WB_LIST);
-		if (!JF_ISSET(cur, JNODE_WRITEBACK)) {
-			moved++;
-			if (JF_ISSET(cur, JNODE_DIRTY)) {
-				queue_jnode(fq, cur);
-			} else {
-				/* move from writeback list to clean list */
-				capture_list_remove(cur);
-				capture_list_push_back(ATOM_CLEAN_LIST(atom),
-						       cur);
-				ON_DEBUG(count_jnode
-					 (atom, cur, WB_LIST, CLEAN_LIST, 1));
-			}
-		}
-		UNLOCK_JNODE(cur);
-
-		spin_lock(&scan_lock);
-		JF_CLR(cur, JNODE_SCANNED);
-		cur = next;
-		assert("vs-1450",
-		       ergo(!capture_list_end(ATOM_WB_LIST(atom), cur),
-			    JF_ISSET(cur, JNODE_SCANNED)
-			    && NODE_LIST(cur) == WB_LIST));
-	}
-	spin_unlock(&scan_lock);
-}
-
-#else
-
 static void dispatch_wb_list(txn_atom * atom, flush_queue_t * fq)
 {
 	jnode *cur;
@@ -989,8 +925,6 @@ static void dispatch_wb_list(txn_atom * atom, flush_queue_t * fq)
 		cur = next;
 	}
 }
-
-#endif
 
 /* Scan current atom->writeback_nodes list, re-submit dirty and !writeback
  * jnodes to disk. */
@@ -1534,38 +1468,6 @@ flush_some_atom(jnode * start, long *nr_submitted, const struct writeback_contro
 	return ret;
 }
 
-#if REISER4_COPY_ON_CAPTURE
-
-/* Remove processed nodes from atom's clean list (thereby remove them from transaction). */
-void invalidate_list(capture_list_head * head)
-{
-	txn_atom *atom;
-
-	spin_lock(&scan_lock);
-	while (!capture_list_empty(head)) {
-		jnode *node;
-
-		node = capture_list_front(head);
-		JF_SET(node, JNODE_SCANNED);
-		spin_unlock(&scan_lock);
-
-		atom = node->atom;
-		spin_lock_atom(atom);
-		LOCK_JNODE(node);
-		if (JF_ISSET(node, JNODE_CC) && node->pg)
-			page_cache_release(node->pg);
-		uncapture_block(node);
-		spin_unlock_atom(atom);
-		JF_CLR(node, JNODE_SCANNED);
-		jput(node);
-
-		spin_lock(&scan_lock);
-	}
-	spin_unlock(&scan_lock);
-}
-
-#else
-
 /* Remove processed nodes from atom's clean list (thereby remove them from transaction). */
 void invalidate_list(struct list_head *head)
 {
@@ -1578,8 +1480,6 @@ void invalidate_list(struct list_head *head)
 		jput(node);
 	}
 }
-
-#endif
 
 static void init_wlinks(txn_wait_links * wlinks)
 {
@@ -1975,7 +1875,7 @@ static int try_capture_block(
 					 * already part of transaction. */
 					return RETERR(-E_NO_NEIGHBOR);
 				}
-				return capture_init_fusion(node, txnh, mode, 1);
+				return capture_init_fusion(node, txnh, mode);
 			}
 			spin_unlock_txnh(txnh);
 		}
@@ -2031,8 +1931,8 @@ build_capture_mode(jnode * node, znode_lock_mode lock_mode, txn_capture flags)
             cannot be processed immediately as it was requested in flags,
 	    < 0 - other errors.
 */
-int try_capture(jnode * node, znode_lock_mode lock_mode,
-		txn_capture flags, int can_coc)
+int try_capture(jnode *node, znode_lock_mode lock_mode,
+		txn_capture flags)
 {
 	txn_atom *atom_alloc = NULL;
 	txn_capture cap_mode;
@@ -2101,15 +2001,6 @@ int try_capture(jnode * node, znode_lock_mode lock_mode,
 		 */
 		goto repeat;
 	}
-#if REISER4_COPY_ON_CAPTURE
-	if (ret == -E_WAIT) {
-		reiser4_stat_inc(coc.coc_wait);
-		/* disable COC for the next loop iteration */
-		coc_enabled = 0;
-		spin_lock_jnode(node);
-		goto repeat;
-	}
-#endif
 
 	/* free extra atom object that was possibly allocated by
 	   try_capture_block().
@@ -2254,8 +2145,7 @@ int try_capture_page_to_invalidate(struct page *pg)
 	spin_lock_jnode(node);
 	unlock_page(pg);
 
-	ret =
-	    try_capture(node, ZNODE_WRITE_LOCK, 0, 0 /* no copy on capture */ );
+	ret = try_capture(node, ZNODE_WRITE_LOCK, 0);
 	spin_unlock_jnode(node);
 	jput(node);
 	lock_page(pg);
@@ -2403,24 +2293,6 @@ static void capture_assign_block_nolock(txn_atom *atom, jnode *node)
 	LOCK_CNT_INC(t_refs);
 }
 
-#if REISER4_COPY_ON_CAPTURE
-static void set_cced_bit(jnode * node)
-{
-	BUG_ON(JF_ISSET(node, JNODE_CCED));
-	JF_SET(node, JNODE_CCED);
-}
-#endif
-
-static void clear_cced_bits(jnode * node)
-{
-	JF_CLR(node, JNODE_CCED);
-}
-
-int is_cced(const jnode * node)
-{
-	return JF_ISSET(node, JNODE_CCED);
-}
-
 /* common code for dirtying both unformatted jnodes and formatted znodes. */
 static void do_jnode_make_dirty(jnode * node, txn_atom * atom)
 {
@@ -2465,16 +2337,6 @@ static void do_jnode_make_dirty(jnode * node, txn_atom * atom)
 		list_move_tail(&node->capture_link, ATOM_DIRTY_LIST(atom, level));
 		ON_DEBUG(count_jnode
 			 (atom, node, NODE_LIST(node), DIRTY_LIST, 1));
-		/*
-		 * JNODE_CCED bit protects clean copy (page created by
-		 * copy-on-capture) from being evicted from the memory. This
-		 * is necessary, because otherwise jload() would load obsolete
-		 * disk block (up-to-date original is still in memory). But
-		 * once jnode is dirtied, it cannot be released without
-		 * storing its content on the disk, so protection is no longer
-		 * necessary.
-		 */
-		clear_cced_bits(node);
 	}
 }
 
@@ -2584,11 +2446,8 @@ count_jnode(txn_atom * atom, jnode * node, atom_list old_list,
 	    atom_list new_list, int check_lists)
 {
 	struct list_head *pos;
-#if REISER4_COPY_ON_CAPTURE
-	assert_spin_locked(&(atom->alock));
-#else
+
 	assert("zam-1018", atom_is_protected(atom));
-#endif
 	assert_spin_locked(&(node->guard));
 	assert("", NODE_LIST(node) == old_list);
 
@@ -2948,9 +2807,7 @@ static void lock_two_atoms(txn_atom * one, txn_atom * two)
  * atom with fewer pointers to be fused into the atom with more pointer and
  * call capture_fuse_into.
  */
-static int
-capture_init_fusion(jnode * node, txn_handle * txnh, txn_capture mode,
-		    int can_coc)
+static int capture_init_fusion(jnode *node, txn_handle *txnh, txn_capture mode)
 {
 	txn_atom * txnh_atom = txnh->atom;
 	txn_atom * block_atom = node->atom;
@@ -3175,498 +3032,6 @@ static void capture_fuse_into(txn_atom * small, txn_atom * large)
 
 /* TXNMGR STUFF */
 
-#if REISER4_COPY_ON_CAPTURE
-
-/* copy on capture steals jnode (J) from capture list. It may replace (J) with
-   special newly created jnode (CCJ) to which J's page gets attached. J in its
-   turn gets newly created copy of page.
-   Or, it may merely take J from capture list if J was never dirtied
-
-   The problem with this replacement is that capture lists are being contiguously
-   scanned.
-   Race between replacement and scanning are avoided with one global spin lock
-   (scan_lock) and JNODE_SCANNED state of jnode. Replacement (in capture copy)
-   goes under scan_lock locked only if jnode is not in JNODE_SCANNED state. This
-   state gets set under scan_lock locked whenever scanning is working with that
-   jnode.
-*/
-
-/* remove jnode page from mapping's tree and insert new page with the same index */
-static void replace_page_in_mapping(jnode * node, struct page *new_page)
-{
-	struct address_space *mapping;
-	unsigned long index;
-
-	mapping = jnode_get_mapping(node);
-	index = jnode_get_index(node);
-
-	spin_lock(&mapping->page_lock);
-
-	/* delete old page from. This resembles __remove_from_page_cache */
-	assert("vs-1416",
-	       radix_tree_lookup(&mapping->page_tree, index) == node->pg);
-	assert("vs-1428", node->pg->mapping == mapping);
-	__remove_from_page_cache(node->pg);
-
-	/* insert new page into mapping */
-	check_me("vs-1411",
-		 radix_tree_insert(&mapping->page_tree, index, new_page) == 0);
-
-	/* this resembles add_to_page_cache */
-	page_cache_get(new_page);
-	___add_to_page_cache(new_page, mapping, index);
-
-	spin_unlock(&mapping->page_lock);
-	lru_cache_add(new_page);
-}
-
-/* attach page of @node to @copy, @new_page to @node */
-static void swap_jnode_pages(jnode * node, jnode * copy, struct page *new_page)
-{
-	/* attach old page to new jnode */
-	assert("vs-1414", jnode_by_page(node->pg) == node);
-	copy->pg = node->pg;
-	copy->data = page_address(copy->pg);
-	jnode_set_block(copy, jnode_get_block(node));
-	set_page_private(copy->pg, (unsigned long)copy);
-
-	/* attach new page to jnode */
-	assert("vs-1412", !PagePrivate(new_page));
-	page_cache_get(new_page);
-	node->pg = new_page;
-	node->data = page_address(new_page);
-	set_page_private(new_page, (unsigned long)node);
-	SetPagePrivate(new_page);
-
-	{
-		/* insert old page to new mapping */
-		struct address_space *mapping;
-		unsigned long index;
-
-		mapping = get_current_super_private()->cc->i_mapping;
-		index = (unsigned long)copy;
-		spin_lock(&mapping->page_lock);
-
-		/* insert old page into new (fake) mapping. No page_cache_get
-		   because page reference counter was not decreased on removing
-		   it from old mapping */
-		assert("vs-1416",
-		       radix_tree_lookup(&mapping->page_tree, index) == NULL);
-		check_me("vs-1418",
-			 radix_tree_insert(&mapping->page_tree, index,
-					   copy->pg) == 0);
-		___add_to_page_cache(copy->pg, mapping, index);
-
-		/* corresponding page_cache_release is in invalidate_list */
-		page_cache_get(copy->pg);
-		spin_unlock(&mapping->page_lock);
-	}
-}
-
-/* this is to make capture copied jnode looking like if there were jload called for it */
-static void fake_jload(jnode * node)
-{
-	jref(node);
-	atomic_inc(&node->d_count);
-	JF_SET(node, JNODE_PARSED);
-}
-
-/* for now - refuse to copy-on-capture any suspicious nodes (WRITEBACK, DIRTY, FLUSH_QUEUED) */
-static int check_capturable(jnode * node, const txn_atom * atom)
-{
-	assert_spin_locked(&(node->guard));
-	assert_spin_locked(&scan_lock);
-
-	if (JF_ISSET(node, JNODE_WRITEBACK)) {
-		reiser4_stat_inc(coc.writeback);
-		return RETERR(-E_WAIT);
-	}
-	if (JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
-		reiser4_stat_inc(coc.flush_queued);
-		return RETERR(-E_WAIT);
-	}
-	if (JF_ISSET(node, JNODE_DIRTY)) {
-		reiser4_stat_inc(coc.dirty);
-		return RETERR(-E_WAIT);
-	}
-	if (JF_ISSET(node, JNODE_SCANNED)) {
-		reiser4_stat_inc(coc.scan_race);
-		return RETERR(-E_REPEAT);
-	}
-	if (node->atom != atom) {
-		reiser4_stat_inc(coc.atom_changed);
-		return RETERR(-E_WAIT);
-	}
-	return 0;		/* OK */
-}
-
-static void remove_from_capture_list(jnode * node)
-{
-	ON_DEBUG_MODIFY(znode_set_checksum(node, 1));
-	JF_CLR(node, JNODE_DIRTY);
-	JF_CLR(node, JNODE_RELOC);
-	JF_CLR(node, JNODE_OVRWR);
-	JF_CLR(node, JNODE_CREATED);
-	JF_CLR(node, JNODE_WRITEBACK);
-	JF_CLR(node, JNODE_REPACK);
-
-	capture_list_remove_clean(node);
-	node->atom->capture_count--;
-	atomic_dec(&node->x_count);
-
-	ON_DEBUG(count_jnode(node->atom, node, NODE_LIST(node),
-			     NOT_CAPTURED, 1));
-	node->atom = 0;
-}
-
-/* insert new jnode (copy) to capture list instead of old one */
-static void replace_on_capture_list(jnode * node, jnode * copy)
-{
-	assert("vs-1415", node->atom);
-	assert("vs-1489", !capture_list_is_clean(node));
-	assert("vs-1493", JF_ISSET(copy, JNODE_CC)
-	       && JF_ISSET(copy, JNODE_HEARD_BANSHEE));
-
-	copy->state |= node->state;
-
-	/* insert cc-jnode @copy into capture list before old jnode @node */
-	capture_list_insert_before(node, copy);
-	jref(copy);
-	copy->atom = node->atom;
-	node->atom->capture_count++;
-
-	ON_DEBUG(count_jnode(node->atom, copy, NODE_LIST(copy),
-			     NODE_LIST(node), 1));
-
-	/* remove old jnode from capture list */
-	remove_from_capture_list(node);
-}
-
-/* when capture request is made for a node which is captured but was never
-   dirtied copy on capture will merely uncapture it */
-static int copy_on_capture_clean(jnode * node, txn_atom * atom)
-{
-	int result;
-
-	assert_spin_locked(&(atom->alock));
-	assert_spin_locked(&(node->guard));
-	assert("vs-1627", !JF_ISSET(node, JNODE_WRITEBACK));
-
-	spin_lock(&scan_lock);
-	result = check_capturable(node, atom);
-	if (result == 0) {
-		/* remove jnode from capture list */
-		remove_from_capture_list(node);
-		reiser4_stat_inc(coc.ok_clean);
-	}
-	spin_unlock(&scan_lock);
-	spin_unlock_jnode(node);
-	spin_unlock_atom(atom);
-
-	return result;
-}
-
-static void lock_two_nodes(jnode * node1, jnode * node2)
-{
-	if (node1 > node2) {
-		spin_lock_jnode(node2);
-		spin_lock_jnode(node1);
-	} else {
-		spin_lock_jnode(node1);
-		spin_lock_jnode(node2);
-	}
-}
-
-/* capture request is made for node which does not have page. In most cases this
-   is "uber" znode */
-static int copy_on_capture_nopage(jnode * node, txn_atom * atom)
-{
-	int result;
-	jnode *copy;
-
-
-	assert("vs-1432", spin_atom_is_locked(atom));
-	assert("vs-1432", spin_jnode_is_locked(node));
-
-	jref(node);
-	spin_unlock_jnode(node);
-	spin_unlock_atom(atom);
-	assert("nikita-3475", schedulable());
-	copy = jclone(node);
-	if (IS_ERR(copy)) {
-		jput(node);
-		return PTR_ERR(copy);
-	}
-
-	spin_lock_atom(atom);
-	lock_two_nodes(node, copy);
-	spin_lock(&scan_lock);
-
-	result = check_capturable(node, atom);
-	if (result == 0) {
-		if (jnode_page(node) == NULL) {
-			replace_on_capture_list(node, copy);
-#if REISER4_STATS
-			if (znode_above_root(JZNODE(node)))
-				reiser4_stat_inc(coc.ok_uber);
-			else
-				reiser4_stat_inc(coc.ok_nopage);
-#endif
-		} else
-			result = RETERR(-E_REPEAT);
-	}
-
-	spin_unlock(&scan_lock);
-	spin_unlock_jnode(node);
-	spin_unlock_jnode(copy);
-	spin_unlock_atom(atom);
-	assert("nikita-3476", schedulable());
-	jput(copy);
-	assert("nikita-3477", schedulable());
-	jput(node);
-	assert("nikita-3478", schedulable());
-	ON_TRACE(TRACE_CAPTURE_COPY, "nopage\n");
-	return result;
-}
-
-static int
-handle_coc(jnode * node, jnode * copy, struct page *page, struct page *new_page,
-	   txn_atom * atom)
-{
-	char *to;
-	char *from;
-	int result;
-
-	to = kmap(new_page);
-	lock_page(page);
-	from = kmap(page);
-	/*
-	 * FIXME(zam): one preloaded radix tree node may be not enough for two
-	 * insertions, one insertion is in replace_page_in_mapping(), another
-	 * one is in swap_jnode_pages(). The radix_tree_delete() call might
-	 * not help, because an empty radix tree node is freed and the node's
-	 * free space may not be re-used in insertion.
-	 */
-	radix_tree_preload(get_gfp_mask());
-	spin_lock_atom(atom);
-	lock_two_nodes(node, copy);
-	spin_lock(&scan_lock);
-
-	result = check_capturable(node, atom);
-	if (result == 0) {
-		/* if node was jloaded by get_overwrite_set, we have to jrelse
-		   it here, because we remove jnode from atom's capture list -
-		   put_overwrite_set will not jrelse it */
-		int was_jloaded;
-
-		was_jloaded =
-		    JF_ISSET(node, JNODE_JLOADED_BY_GET_OVERWRITE_SET);
-
-		replace_page_in_mapping(node, new_page);
-		swap_jnode_pages(node, copy, new_page);
-		replace_on_capture_list(node, copy);
-		/* statistics */
-		if (JF_ISSET(copy, JNODE_RELOC)) {
-			reiser4_stat_inc(coc.ok_reloc);
-		} else if (JF_ISSET(copy, JNODE_OVRWR)) {
-			reiser4_stat_inc(coc.ok_ovrwr);
-		} else
-			impossible("", "");
-
-		memcpy(to, from, PAGE_CACHE_SIZE);
-		SetPageUptodate(new_page);
-		if (was_jloaded)
-			fake_jload(copy);
-		else
-			kunmap(page);
-
-		assert("vs-1419", page_count(new_page) >= 3);
-		spin_unlock(&scan_lock);
-		spin_unlock_jnode(node);
-		spin_unlock_jnode(copy);
-		spin_unlock_atom(atom);
-		radix_tree_preload_end();
-		unlock_page(page);
-
-		if (was_jloaded) {
-			jrelse_tail(node);
-			assert("vs-1494",
-			       JF_ISSET(node,
-					JNODE_JLOADED_BY_GET_OVERWRITE_SET));
-			JF_CLR(node, JNODE_JLOADED_BY_GET_OVERWRITE_SET);
-		} else
-			kunmap(new_page);
-
-		jput(copy);
-		jrelse(node);
-		jput(node);
-		page_cache_release(page);
-		page_cache_release(new_page);
-		ON_TRACE(TRACE_CAPTURE_COPY, "copy on capture done\n");
-	} else {
-		spin_unlock(&scan_lock);
-		spin_unlock_jnode(node);
-		spin_unlock_jnode(copy);
-		spin_unlock_atom(atom);
-		radix_tree_preload_end();
-		kunmap(page);
-		unlock_page(page);
-		kunmap(new_page);
-		page_cache_release(new_page);
-	}
-	return result;
-}
-
-static int real_copy_on_capture(jnode * node, txn_atom * atom)
-{
-	int result;
-	jnode *copy;
-	struct page *page;
-	struct page *new_page;
-
-	assert("vs-1432", spin_jnode_is_locked(node));
-	assert("vs-1490", !JF_ISSET(node, JNODE_EFLUSH));
-	assert("vs-1491", node->pg);
-	assert("vs-1492", jprivate(node->pg) == node);
-
-	page = node->pg;
-	page_cache_get(page);
-	jref(node);
-	spin_unlock_jnode(node);
-	spin_unlock_atom(atom);
-
-	/* prevent node from eflushing */
-	result = jload(node);
-	if (!result) {
-		copy = jclone(node);
-		if (likely(!IS_ERR(copy))) {
-			new_page = alloc_page(get_gfp_mask());
-			if (new_page) {
-				result = handle_coc(node,
-						    copy, page, new_page, atom);
-				if (result == 0)
-					return 0;
-			} else
-				result = RETERR(-ENOMEM);
-			jput(copy);
-		}
-		jrelse(node);
-	}
-
-	jput(node);
-	page_cache_release(page);
-	return result;
-}
-
-/* create new jnode, create new page, jload old jnode, copy data, detach old
-   page from old jnode, attach new page to old jnode, attach old page to new
-   jnode this returns 0 if copy on capture succeeded, E_REPEAT to have
-   capture_fuse_wait to be called */
-static int create_copy_and_replace(jnode * node, txn_atom * atom)
-{
-	int result;
-	struct inode *inode;	/* inode for which filemap_nopage is blocked */
-
-	assert("jmacd-321", spin_jnode_is_locked(node));
-	assert("umka-295", spin_atom_is_locked(atom));
-	assert("vs-1381", node->atom == atom);
-	assert("vs-1409", atom->stage > ASTAGE_CAPTURE_WAIT
-	       && atom->stage < ASTAGE_DONE);
-	assert("vs-1410", jnode_is_znode(node) || jnode_is_unformatted(node));
-
-	if (JF_ISSET(node, JNODE_CCED)) {
-		/* node is under copy on capture already */
-		reiser4_stat_inc(coc.coc_race);
-		spin_unlock_jnode(node);
-		spin_unlock_atom(atom);
-		return RETERR(-E_WAIT);
-	}
-
-	/* measure how often suspicious (WRITEBACK, DIRTY, FLUSH_QUEUED) appear
-	   here. For most often case we can return EAGAIN right here and avoid
-	   all the preparations made for copy on capture */
-	ON_TRACE(TRACE_CAPTURE_COPY, "copy_on_capture: node %p, atom %p..",
-		 node, atom);
-	if (JF_ISSET(node, JNODE_EFLUSH)) {
-		spin_unlock_jnode(node);
-		spin_unlock_atom(atom);
-
-		reiser4_stat_inc(coc.eflush);
-		ON_TRACE(TRACE_CAPTURE_COPY, "eflushed\n");
-		result = jload(node);
-		if (result)
-			return RETERR(result);
-		jrelse(node);
-		return RETERR(-E_REPEAT);
-	}
-
-	set_cced_bit(node);
-
-	if (jnode_is_unformatted(node)) {
-		/* to capture_copy unformatted node we have to take care of its
-		   page mappings. Page gets unmapped here and concurrent
-		   mappings are blocked on reiser4 inodes's coc_sem in reiser4's
-		   filemap_nopage */
-		struct page *page;
-
-		inode = mapping_jnode(node)->host;
-		page = jnode_page(node);
-		assert("vs-1640", inode != NULL);
-		assert("vs-1641", page != NULL);
-		assert("vs-1642", page->mapping != NULL);
-		spin_unlock_jnode(node);
-		spin_unlock_atom(atom);
-
-		down_write(&reiser4_inode_data(inode)->coc_sem);
-		lock_page(page);
-		pte_chain_lock(page);
-
-		if (page_mapped(page)) {
-			result = try_to_unmap(page);
-			if (result == SWAP_AGAIN) {
-				result = RETERR(-E_REPEAT);
-
-			} else if (result == SWAP_FAIL)
-				result = RETERR(-E_WAIT);
-			else {
-				assert("vs-1643", result == SWAP_SUCCESS);
-				result = 0;
-			}
-			if (result != 0) {
-				unlock_page(page);
-				pte_chain_unlock(page);
-				up_write(&reiser4_inode_data(inode)->coc_sem);
-				return result;
-			}
-		}
-		pte_chain_unlock(page);
-		unlock_page(page);
-		spin_lock_atom(atom);
-		spin_lock_jnode(node);
-	} else
-		inode = NULL;
-
-	if (!JF_ISSET(node, JNODE_OVRWR) && !JF_ISSET(node, JNODE_RELOC)) {
-		/* clean node can be made available for capturing. Just take
-		   care to preserve atom list during uncapturing */
-		ON_TRACE(TRACE_CAPTURE_COPY, "clean\n");
-		result = copy_on_capture_clean(node, atom);
-	} else if (!node->pg) {
-		ON_TRACE(TRACE_CAPTURE_COPY, "uber\n");
-		result = copy_on_capture_nopage(node, atom);
-	} else
-		result = real_copy_on_capture(node, atom);
-	if (result != 0)
-		clear_cced_bits(node);
-	assert("vs-1626", spin_atom_is_not_locked(atom));
-
-	if (inode != NULL)
-		up_write(&reiser4_inode_data(inode)->coc_sem);
-
-	return result;
-}
-#endif				/* REISER4_COPY_ON_CAPTURE */
-
 /* Release a block from the atom, reversing the effects of being captured,
    do not release atom's reference to jnode due to holding spin-locks.
    Currently this is only called when the atom commits.
@@ -3684,11 +3049,7 @@ void uncapture_block(jnode * node)
 
 	assert("jmacd-1021", node->atom == atom);
 	assert_spin_locked(&(node->guard));
-#if REISER4_COPY_ON_CAPTURE
-	assert_spin_locked(&(atom->alock));
-#else
 	assert("jmacd-1023", atom_is_protected(atom));
-#endif
 
 	JF_CLR(node, JNODE_DIRTY);
 	JF_CLR(node, JNODE_RELOC);
@@ -3696,7 +3057,6 @@ void uncapture_block(jnode * node)
 	JF_CLR(node, JNODE_CREATED);
 	JF_CLR(node, JNODE_WRITEBACK);
 	JF_CLR(node, JNODE_REPACK);
-	clear_cced_bits(node);
 
 	list_del_init(&node->capture_link);
 	if (JF_ISSET(node, JNODE_FLUSH_QUEUED)) {

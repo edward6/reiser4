@@ -504,10 +504,17 @@ static ssize_t insert_first_tail(struct inode *inode, flow_t *flow,
 		if (flow->length)
 			DQUOT_FREE_SPACE_NODIRTY(inode, flow->length);
 
-		/* if file was empty - update its state */
 		uf_info = unix_file_inode_data(inode);
+
+		/*
+		 * first item insertion is only possible when writing to empty
+		 * file or performing tail conversion
+		 */
 		assert("", (uf_info->container == UF_CONTAINER_EMPTY ||
-			    inode_get_flag(inode, REISER4_PART_CONV)));
+			    (inode_get_flag(inode, REISER4_PART_MIXED) &&
+			     inode_get_flag(inode, REISER4_PART_IN_CONV))));
+
+		/* if file was empty - update its state */
 		if (result == 0 && uf_info->container == UF_CONTAINER_EMPTY)
 			uf_info->container = UF_CONTAINER_TAILS;
 		return result;

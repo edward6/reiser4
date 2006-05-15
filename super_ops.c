@@ -42,7 +42,6 @@ static void init_once(void *obj, kmem_cache_t *cache, unsigned long flags)
 		 * etc. that will be added to our private inode part.
 		 */
 		INIT_LIST_HEAD(get_readdir_list(&info->vfs_inode));
-		init_rwsem(&info->p.coc_sem);
 		/* init semaphore which is used during inode loading */
 		loading_init_once(&info->p);
 		INIT_RADIX_TREE(jnode_tree_by_reiser4_inode(&info->p),

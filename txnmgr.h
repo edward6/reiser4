@@ -58,10 +58,7 @@ typedef enum {
 	TXN_CAPTURE_NONBLOCKING = (1 << 4),
 
 	/* An option to try_capture to prevent atom fusion, just simple capturing is allowed */
-	TXN_CAPTURE_DONT_FUSE = (1 << 5),
-
-	/* if it is set - copy on capture is allowed */
-	/*TXN_CAPTURE_CAN_COC = (1 << 6) */
+	TXN_CAPTURE_DONT_FUSE = (1 << 5)
 
 	/* This macro selects only the exclusive capture request types, stripping out any
 	   options that were supplied (i.e., NONBLOCKING). */
@@ -390,8 +387,6 @@ struct txn_mgr {
 
 /* FUNCTION DECLARATIONS */
 
-extern int is_cced(const jnode *node);
-
 /* These are the externally (within Reiser4) visible transaction functions, therefore they
    are prefixed with "txn_".  For comments, see txnmgr.c. */
 
@@ -426,8 +421,7 @@ extern int same_slum_check(jnode * base, jnode * check, int alloc_check,
 			   int alloc_value);
 extern void atom_dec_and_unlock(txn_atom * atom);
 
-extern int try_capture(jnode * node, znode_lock_mode mode, txn_capture flags,
-		       int can_coc);
+extern int try_capture(jnode * node, znode_lock_mode mode, txn_capture flags);
 extern int try_capture_page_to_invalidate(struct page *pg);
 
 extern void uncapture_page(struct page *pg);

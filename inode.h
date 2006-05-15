@@ -57,9 +57,9 @@ typedef enum {
 	 * kill-hook of tail items. It is never cleared once set. This bit is
 	 * modified and inspected under i_mutex. */
 	REISER4_HAS_MMAP = 8,
-	/* file was partially converted. It's body consists of a mix of tail
-	 * and extent items. */
-	REISER4_PART_CONV = 9,
+
+	REISER4_PART_MIXED = 9,
+	REISER4_PART_IN_CONV = 10 
 } reiser4_file_plugin_flags;
 
 /* state associated with each inode.
@@ -130,9 +130,6 @@ struct reiser4_inode {
 		/* fields specific to cryptcompress plugin */
 		cryptcompress_info_t cryptcompress_info;
 	} file_plugin_data;
-	struct rw_semaphore coc_sem;	/* filemap_nopage takes it for read, copy_on_capture - for write. Under this it
-					   tries to unmap page for which it is called. This prevents process from using page which
-					   was copied on capture */
 
 	/* tree of jnodes. Phantom jnodes (ones not attched to any atom) are
 	   tagged in that tree by EFLUSH_TAG_ANONYMOUS */

@@ -317,7 +317,7 @@ static int append_last_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 		spin_lock_jnode(node);
 		JF_SET(node, JNODE_CREATED);
 		jnode_set_block(node, &block);
- 		result = try_capture(node, ZNODE_WRITE_LOCK, 0, 1 /* can_coc */ );
+ 		result = try_capture(node, ZNODE_WRITE_LOCK, 0);
 		BUG_ON(result != 0);
 		jnode_make_dirty_locked(node);
 		spin_unlock_jnode(node);		
@@ -391,8 +391,15 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 		result = insert_first_hole(&uf_coord->coord, uf_coord->lh, key);
 		uf_coord->valid = 0;
 		uf_info = unix_file_inode_data(inode);
+
+		/*
+		 * first item insertion is only possible when writing to empty
+		 * file or performing tail conversion
+		 */
 		assert("", (uf_info->container == UF_CONTAINER_EMPTY ||
-			    inode_get_flag(inode, REISER4_PART_CONV)));
+			    (inode_get_flag(inode, REISER4_PART_MIXED) &&
+			     inode_get_flag(inode, REISER4_PART_IN_CONV))));
+
 		/* if file was empty - update its state */
 		if (result == 0 && uf_info->container == UF_CONTAINER_EMPTY)
 			uf_info->container = UF_CONTAINER_EXTENTS;
@@ -432,7 +439,7 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 		spin_lock_jnode(node);
 		JF_SET(node, JNODE_CREATED);
 		jnode_set_block(node, &block);
- 		result = try_capture(node, ZNODE_WRITE_LOCK, 0, 1 /* can_coc */ );
+ 		result = try_capture(node, ZNODE_WRITE_LOCK, 0);
 		BUG_ON(result != 0);
 		jnode_make_dirty_locked(node);
 		spin_unlock_jnode(node);		
@@ -702,7 +709,7 @@ static int overwrite_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 		 * them dirty
 		 */
 		spin_lock_jnode(node);
-		result = try_capture(node, ZNODE_WRITE_LOCK, 0, 1 /* can_coc */ );
+		result = try_capture(node, ZNODE_WRITE_LOCK, 0);
 		BUG_ON(result != 0);
 		jnode_make_dirty_locked(node);
 		spin_unlock_jnode(node);
@@ -1058,7 +1065,7 @@ ssize_t write_extent(struct file *file, const char __user *buf, size_t count,
 	} else {
 		for (i = 0; i < nr_pages; i ++) {
 			spin_lock_jnode(jnodes[i]);
-			result = try_capture(jnodes[i], ZNODE_WRITE_LOCK, 0, 1 /* can_coc */ );
+			result = try_capture(jnodes[i], ZNODE_WRITE_LOCK, 0);
 			BUG_ON(result != 0);
 			jnode_make_dirty_locked(jnodes[i]);
 			spin_unlock_jnode(jnodes[i]);
