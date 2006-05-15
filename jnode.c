@@ -1161,14 +1161,12 @@ struct address_space *mapping_jnode(const jnode * node)
 	assert("nikita-2714", map != NULL);
 	assert("nikita-2897", is_reiser4_inode(map->host));
 	assert("nikita-2715", get_inode_oid(map->host) == node->key.j.objectid);
-	assert("vs-1447", !JF_ISSET(node, JNODE_CC));
 	return map;
 }
 
 /* ->index() method for unformatted jnodes */
 unsigned long index_jnode(const jnode * node)
 {
-	assert("vs-1447", !JF_ISSET(node, JNODE_CC));
 	/* index is stored in jnode */
 	return node->key.j.index;
 }
@@ -1184,7 +1182,6 @@ static inline void remove_jnode(jnode * node, reiser4_tree * tree)
 /* ->mapping() method for znodes */
 static struct address_space *mapping_znode(const jnode * node)
 {
-	assert("vs-1447", !JF_ISSET(node, JNODE_CC));
 	/* all znodes belong to fake inode */
 	return get_super_fake(jnode_get_tree(node)->super)->i_mapping;
 }
@@ -1882,9 +1879,7 @@ static void info_jnode(const char *prefix /* prefix to print */ ,
 		       node->key.j.objectid, node->key.j.index);
 	}
 }
-#endif  /*  REISER4_COPY_ON_CAPTURE  */
 
-#if REISER4_DEBUG
 /* debugging aid: check znode invariant and panic if it doesn't hold */
 static int jnode_invariant(const jnode * node, int tlocked, int jlocked)
 {
@@ -1914,24 +1909,6 @@ static int jnode_invariant(const jnode * node, int tlocked, int jlocked)
 }
 
 #endif				/* REISER4_DEBUG */
-
-#if REISER4_COPY_ON_CAPTURE
-/* this is only used to created jnode during capture copy */
-jnode *jclone(jnode * node)
-{
-	jnode *clone;
-
-	assert("vs-1429", jnode_ops(node)->clone);
-	clone = jnode_ops(node)->clone(node);
-	if (IS_ERR(clone))
-		return clone;
-
-	jref(clone);
-	JF_SET(clone, JNODE_HEARD_BANSHEE);
-	JF_SET(clone, JNODE_CC);
-	return clone;
-}
-#endif  /*  REISER4_COPY_ON_CAPTURE  */
 
 /* Make Linus happy.
    Local variables:

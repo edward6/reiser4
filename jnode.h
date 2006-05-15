@@ -261,13 +261,14 @@ typedef enum {
 	JNODE_REPACK = 23,
 	/* node should be converted by flush in squalloc phase */
 	JNODE_CONVERTIBLE = 24,
-
+#if 0
 	JNODE_SCANNED = 25,
 	JNODE_JLOADED_BY_GET_OVERWRITE_SET = 26,
 	/* capture copy jnode */
 	JNODE_CC = 27,
 	/* this jnode is copy of coced original */
 	JNODE_CCED = 28,
+#endif
 	/*
 	 * When jnode is dirtied for the first time in given transaction,
 	 * do_jnode_make_dirty() checks whether this jnode can possible became

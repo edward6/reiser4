@@ -1471,7 +1471,7 @@ static int try_capture_cluster(reiser4_cluster_t * clust, struct inode *inode)
 	if (clust->win)
 		inode_set_new_size(clust, inode);
 
-	result = try_capture(node, ZNODE_WRITE_LOCK, 0, 0);
+	result = try_capture(node, ZNODE_WRITE_LOCK, 0);
 	if (result)
 		goto exit;
 	make_cluster_jnode_dirty_locked(clust, node, &old_size, inode);

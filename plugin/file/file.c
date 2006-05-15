@@ -166,8 +166,12 @@ static void set_file_state(unix_file_info_t *uf_info, int cbk_result,
 	assert("vs-1164", level == LEAF_LEVEL || level == TWIG_LEVEL);
 
 	if (uf_info->container == UF_CONTAINER_UNKNOWN) {
+		/*
+		 * container is unknown, therefore conversion can not be in
+		 * progress
+		 */
 		assert("", !inode_get_flag(unix_file_info_to_inode(uf_info),
-					   REISER4_PART_CONV));
+					   REISER4_PART_IN_CONV));
 		if (cbk_result == CBK_COORD_NOTFOUND)
 			uf_info->container = UF_CONTAINER_EMPTY;
 		else if (level == LEAF_LEVEL)
@@ -180,7 +184,7 @@ static void set_file_state(unix_file_info_t *uf_info, int cbk_result,
 		 * file is not being tail converted
 		 */
 		if (!inode_get_flag(unix_file_info_to_inode(uf_info),
-				    REISER4_PART_CONV)) {
+				    REISER4_PART_IN_CONV)) {
 			assert("vs-1162",
 			       ergo(level == LEAF_LEVEL &&
 				    cbk_result == CBK_COORD_FOUND,
@@ -571,9 +575,25 @@ static int truncate_file_body(struct inode *inode, loff_t new_size)
 			 * extents
 			 */
 			if (uf_info->container ==  UF_CONTAINER_TAILS) {
-				result = tail2extent(uf_info);
-				if (result)
-					return result;
+				/*
+				 * if file is being convered by another process
+				 * - wait until it completes
+				 */
+				while (1) {
+					if (inode_get_flag(inode, REISER4_PART_IN_CONV)) {
+						drop_exclusive_access(uf_info);
+						schedule();
+						get_exclusive_access(uf_info);
+						continue;
+					}
+					break;
+				}
+				
+				if (uf_info->container ==  UF_CONTAINER_TAILS) {
+					result = tail2extent(uf_info);
+					if (result)
+						return result;
+				}
 			}
 			result = write_extent(&file, NULL, 0, &new_size);
 			if (result)
@@ -770,7 +790,7 @@ int find_or_create_extent(struct page *page)
 			reiser4_update_sd(inode);
 	} else {
 		spin_lock_jnode(node);
-		result = try_capture(node, ZNODE_WRITE_LOCK, 0, 1 /* can_coc */ );
+		result = try_capture(node, ZNODE_WRITE_LOCK, 0);
 		BUG_ON(result != 0);
 		jnode_make_dirty_locked(node);
 		spin_unlock_jnode(node);
@@ -1911,7 +1931,7 @@ int open_unix_file(struct inode *inode, struct file *file)
 	if (IS_RDONLY(inode))
 		return 0;
 
-	if (!inode_get_flag(inode, REISER4_PART_CONV))
+	if (!inode_get_flag(inode, REISER4_PART_MIXED))
 		return 0;
 
 	ctx = init_context(inode->i_sb);
@@ -1921,12 +1941,34 @@ int open_unix_file(struct inode *inode, struct file *file)
 	uf_info = unix_file_inode_data(inode);
 	get_exclusive_access(uf_info);
 
-	if (!inode_get_flag(inode, REISER4_PART_CONV)) {
+	/*
+	 * it may happen that another process is doing tail conversion. Wait
+	 * until it completes
+	 */
+	while (1) {
+		if (inode_get_flag(inode, REISER4_PART_IN_CONV)) {
+			drop_exclusive_access(uf_info);
+			schedule();
+			get_exclusive_access(uf_info);
+			continue;
+		}
+		break;
+	}
+
+	if (!inode_get_flag(inode, REISER4_PART_MIXED)) {
+		/*
+		 * other process completed the conversion
+		 */
 		drop_exclusive_access(uf_info);
 		reiser4_exit_context(ctx);
 		return 0;
 	}
 
+	/*
+	 * file left in semi converted state after unclean shutdown or another
+	 * thread is doing conversion and dropped exclusive access which doing
+	 * balance dirty pages. Complete the conversion
+	 */
 	result = find_first_item(inode);
 	if (result == EXTENT_POINTER_ID)
 		/*
@@ -1944,7 +1986,8 @@ int open_unix_file(struct inode *inode, struct file *file)
 		result = -EIO;
 
 	assert("vs-1712",
-	       ergo(result == 0, !inode_get_flag(inode, REISER4_PART_CONV)));
+	       ergo(result == 0, (!inode_get_flag(inode, REISER4_PART_MIXED) &&
+				  !inode_get_flag(inode, REISER4_PART_IN_CONV))));
 	reiser4_exit_context(ctx);
 	return result;
 }
@@ -1998,7 +2041,7 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 	mutex_lock(&inode->i_mutex);
 
 	assert("vs-947", !inode_get_flag(inode, REISER4_NO_SD));
-	assert("vs-9471", !inode_get_flag(inode, REISER4_PART_CONV));
+	assert("vs-9471", (!inode_get_flag(inode, REISER4_PART_MIXED)));
 
 	/* check amount of bytes to write and writing position */
 	result = generic_write_checks(file, pos, &count, 0);
@@ -2079,7 +2122,24 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 					ea = EA_OBTAINED;
 				}
 				if (uf_info->container == UF_CONTAINER_TAILS) {
-					result = tail2extent(uf_info);					
+					/*
+					 * if file is being convered by another
+					 * process - wait until it completes
+					 */
+					while (1) {
+						if (inode_get_flag(inode, REISER4_PART_IN_CONV)) {
+							drop_exclusive_access(uf_info);
+							schedule();
+							get_exclusive_access(uf_info);
+							continue;
+						}
+						break;
+					}					
+					if (uf_info->container ==  UF_CONTAINER_TAILS) {
+						result = tail2extent(uf_info);
+						if (result)
+							break;
+					}
 				}
 				drop_exclusive_access(uf_info);
 				ea = NEITHER_OBTAINED;
@@ -2267,23 +2327,42 @@ static int unpack(struct file *filp, struct inode *inode, int forever)
 	assert("vs-1628", ea_obtained(uf_info));
 
 	result = find_file_state(inode, uf_info);
-	assert("vs-1074",
-	       ergo(result == 0, uf_info->container != UF_CONTAINER_UNKNOWN));
-	if (result == 0) {
-		if (uf_info->container == UF_CONTAINER_TAILS)
-			result = tail2extent(uf_info);
-		if (result == 0 && forever)
-			set_file_notail(inode);
-		if (result == 0) {
-			__u64 tograb;
+	if (result)
+		return result;
+	assert("vs-1074", uf_info->container != UF_CONTAINER_UNKNOWN);
 
-			grab_space_enable();
-			tograb =
-			    inode_file_plugin(inode)->estimate.update(inode);
-			result = reiser4_grab_space(tograb, BA_CAN_COMMIT);
+	if (uf_info->container == UF_CONTAINER_TAILS) {
+		/*
+		 * if file is being convered by another process - wait until it
+		 * completes
+		 */
+		while (1) {
+			if (inode_get_flag(inode, REISER4_PART_IN_CONV)) {
+				drop_exclusive_access(uf_info);
+				schedule();
+				get_exclusive_access(uf_info);
+				continue;
+			}
+			break;
+		}
+		if (uf_info->container == UF_CONTAINER_TAILS) {
+			result = tail2extent(uf_info);
+			if (result)
+				return result;
 		}
 	}
-
+	if (forever) {
+		/* safe new formatting plugin in stat data */
+		__u64 tograb;
+		
+		set_file_notail(inode);
+		
+		grab_space_enable();
+		tograb = inode_file_plugin(inode)->estimate.update(inode);
+		result = reiser4_grab_space(tograb, BA_CAN_COMMIT);
+		result = reiser4_update_sd(inode);
+	}
+	
 	return result;
 }
 

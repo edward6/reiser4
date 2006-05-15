@@ -246,7 +246,6 @@ void reiser4_invalidatepage(struct page *page, unsigned long offset)
 
 	if (offset == 0) {
 		/* remove jnode from transaction and detach it from page. */
-		assert("vs-1435", !JF_ISSET(node, JNODE_CC));
 		jref(node);
 		JF_SET(node, JNODE_HEARD_BANSHEE);
 		/* page cannot be detached from jnode concurrently, because it
@@ -281,15 +280,6 @@ int jnode_is_releasable(jnode * node /* node to check */ )
 	}
 
 	assert("vs-1214", !jnode_is_loaded(node));
-
-	/*
-	 * this jnode is just a copy. Its page cannot be released, because
-	 * otherwise next jload() would load obsolete data from disk
-	 * (up-to-date version may still be in memory).
-	 */
-	if (is_cced(node)) {
-		return 0;
-	}
 
 	/*
 	 * can only release page if real block number is assigned to it. Simple

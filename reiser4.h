@@ -44,16 +44,6 @@
 #define REISER4_AES (0)
 #endif
 
-#if defined(CONFIG_REISER4_COPY_ON_CAPTURE)
-/*
- * Turns on copy-on-capture (COC) optimization. See
- * http://www.namesys.com/v4/v4.html#cp_on_capture
- */
-#define REISER4_COPY_ON_CAPTURE (1)
-#else
-#define REISER4_COPY_ON_CAPTURE (0)
-#endif
-
 /*
  * Turn on large keys mode. In his mode (which is default), reiser4 key has 4
  * 8-byte components. In the old "small key" mode, it's 3 8-byte

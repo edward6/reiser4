@@ -727,9 +727,7 @@ static int longterm_lock_tryfast(lock_stack * owner)
 
 	if (likely(result != -EINVAL)) {
 		spin_lock_znode(node);
-		result =
-		    try_capture(ZJNODE(node), ZNODE_READ_LOCK, 0,
-				1 /* can copy on capture */ );
+		result = try_capture(ZJNODE(node), ZNODE_READ_LOCK, 0);
 		spin_unlock_znode(node);
 		spin_lock_zlock(lock);
 		if (unlikely(result != 0)) {
@@ -915,9 +913,7 @@ int longterm_lock_znode(
 			 */
 			spin_unlock_zlock(lock);
 			spin_lock_znode(node);
-			ret =
-			    try_capture(ZJNODE(node), mode, cap_flags,
-					1 /* can copy on capture */ );
+			ret = try_capture(ZJNODE(node), mode, cap_flags);
 			spin_unlock_znode(node);
 			spin_lock_zlock(lock);
 			if (unlikely(ret != 0)) {
