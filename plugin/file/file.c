@@ -1599,7 +1599,7 @@ static int reiser4_readpages_filler(void * data, struct page * page)
 	int cbk_done = 0;
 	struct address_space * mapping = page->mapping;
 
-	if (PageUptodate(page))
+	if (PageUptodate(page)) {
 		unlock_page(page);
 		return 0;
 	}
@@ -1804,7 +1804,7 @@ ssize_t read_unix_file(struct file *file, char __user *buf, size_t read_amount,
 	} else
 		get_nonexclusive_access(uf_info);
 
-	if (unlikely(inode_get_flag(inode, REISER4_PART_CONV) != 0)) {
+	if (unlikely(inode_get_flag(inode, REISER4_PART_IN_CONV) != 0)) {
 		result = RETERR(-EIO);
 		goto out;
 	}
