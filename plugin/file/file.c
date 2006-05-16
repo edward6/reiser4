@@ -24,6 +24,7 @@
 
 
 static int unpack(struct file *file, struct inode *inode, int forever);
+static void drop_access(unix_file_info_t *);
 
 /* get unix file plugin specific portion of inode */
 unix_file_info_t *unix_file_inode_data(const struct inode *inode)
@@ -1825,10 +1826,7 @@ ssize_t read_unix_file(struct file *file, char __user *buf, size_t read_amount,
 		    result = RETERR(-EIO);
 	}
  out:
-	if (uf_info->exclusive_use)
-		drop_exclusive_access(uf_info);
-	else
-		drop_nonexclusive_access(uf_info);
+	drop_access(uf_info);
 	context_set_commit_async(ctx);
 	reiser4_exit_context(ctx);
 	/* return number of read bytes or error code if nothing is read */
@@ -1838,7 +1836,6 @@ ssize_t read_unix_file(struct file *file, char __user *buf, size_t read_amount,
 static ssize_t read_unix_file_container_tails(
 	struct file *file, char __user *buf, size_t read_amount, loff_t *off)
 {
-	reiser4_context *ctx;
 	int result;
 	struct inode *inode;
 	hint_t *hint;
@@ -1855,22 +1852,13 @@ static ssize_t read_unix_file_container_tails(
 	inode = file->f_dentry->d_inode;
 	assert("vs-972", !inode_get_flag(inode, REISER4_NO_SD));
 
-	ctx = init_context(inode->i_sb);
-	if (IS_ERR(ctx))
-		return PTR_ERR(ctx);
-
 	hint = kmalloc(sizeof(*hint), get_gfp_mask());
-	if (hint == NULL) {
-		context_set_commit_async(ctx);
-		reiser4_exit_context(ctx);
+	if (hint == NULL)
 		return RETERR(-ENOMEM);
-	}
 
 	result = load_file_hint(file, hint);
 	if (result) {
 		kfree(hint);
-		context_set_commit_async(ctx);
-		reiser4_exit_context(ctx);
 		return result;
 	}
 
@@ -1878,14 +1866,9 @@ static ssize_t read_unix_file_container_tails(
 	count = 0;
 	uf_info = unix_file_inode_data(inode);
 	while (left > 0) {
-		txn_restart_current();
-
-		get_nonexclusive_access(uf_info);
-
 		size = i_size_read(inode);
 		if (*off >= size) {
 			/* position to read from is past the end of file */
-			drop_nonexclusive_access(uf_info);
 			break;
 		}
 		if (*off + left > size)
@@ -1893,14 +1876,10 @@ static ssize_t read_unix_file_container_tails(
 
 		/* faultin user page */
 		result = fault_in_pages_writeable(buf, left > PAGE_CACHE_SIZE ? PAGE_CACHE_SIZE : left);
-		if (result) {
-			drop_nonexclusive_access(uf_info);
+		if (result)
 			return RETERR(-EFAULT);
-		}
 
 		read = read_file(hint, file, buf, left, off);
-
- 		drop_nonexclusive_access(uf_info);
 
 		if (read < 0) {
 			result = read;
@@ -1913,26 +1892,15 @@ static ssize_t read_unix_file_container_tails(
 		*off += read;
 		/* total number of read bytes */
 		count += read;
+
+ 		drop_nonexclusive_access(uf_info);
+		txn_restart_current();
+		get_nonexclusive_access(uf_info);
 	}
 	save_file_hint(file, hint);
 	kfree(hint);
-
-	if (count) {
-		/*
-		 * something was read. Grab space for stat data update and
-		 * update atime
-		 */
-		needed = unix_file_estimate_read(inode, read_amount);
-		result = reiser4_grab_space_force(needed, BA_CAN_COMMIT);
-		if (result == 0)
-			file_accessed(file);
-		else
-			warning("", "failed to grab space for atime update");
-	}
-
-	context_set_commit_async(ctx);
-	reiser4_exit_context(ctx);
-
+	if (count)
+		file_accessed(file);
 	/* return number of read bytes or error code if nothing is read */
 	return count ? count : result;
 }
