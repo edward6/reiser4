@@ -281,7 +281,7 @@ void hint_init_zero(hint_t * hint)
 
 static int find_file_state(struct inode *inode, unix_file_info_t *uf_info)
 {
-	int result;
+	int result = 0;
 	reiser4_key key;
 	coord_t coord;
 	lock_handle lh;
@@ -294,11 +294,12 @@ static int find_file_state(struct inode *inode, unix_file_info_t *uf_info)
 		result = find_file_item_nohint(&coord, &lh, &key,
 					       ZNODE_READ_LOCK, inode);
 		set_file_state(uf_info, result, znode_get_level(coord.node));
+		assert("vs-1074",
+			ergo(result == 0, uf_info->container != UF_CONTAINER_UNKNOWN));
 		done_lh(&lh);
-	} else
-		result = 0;
-	assert("vs-1074",
-	       ergo(result == 0, uf_info->container != UF_CONTAINER_UNKNOWN));
+		if (!IS_CBKERR(result))
+			result = 0; 
+	}
 	txn_restart_current();
 	return result;
 }
