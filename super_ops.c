@@ -267,7 +267,7 @@ static void reiser4_write_super(struct super_block *super)
 	if (ret != 0)
 		warning("vs-1701",
 			"capture_super_block failed in write_super: %d", ret);
-	ret = txnmgr_force_commit_all(super, 1);
+	ret = txnmgr_force_commit_all(super, 0);
 	if (ret != 0)
 		warning("jmacd-77113",
 			"txn_force failed in write_super: %d", ret);

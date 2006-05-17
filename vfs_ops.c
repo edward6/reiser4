@@ -159,7 +159,7 @@ void writeout(struct super_block *sb, struct writeback_control *wbc)
 	/* Commit all atoms if reiser4_writepages() is called from sys_sync() or
 	   sys_fsync(). */
 	if (wbc->sync_mode != WB_SYNC_NONE) {
-		txnmgr_force_commit_all(sb, 1);
+		txnmgr_force_commit_all(sb, 0);
 		return;
 	}
 
