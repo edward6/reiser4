@@ -1805,31 +1805,25 @@ ssize_t read_unix_file(struct file *file, char __user *buf, size_t read_amount,
 	} else
 		get_nonexclusive_access(uf_info);
 
-	if (unlikely(inode_get_flag(inode, REISER4_PART_IN_CONV) != 0)) {
-		result = RETERR(-EIO);
-		goto out;
-	}
-
 	result = reiser4_grab_space(unix_file_estimate_read(inode, read_amount), BA_CAN_COMMIT);
 	if (unlikely(result != 0))
 		goto out;
 
-	switch(uf_info->container) {
-	    case UF_CONTAINER_EXTENTS:
-		    result = generic_file_read(file, buf, read_amount, off);
-		    break;
-	    case UF_CONTAINER_TAILS:
-		    result = read_unix_file_container_tails(file, buf, read_amount, off);
-		    break;
-	    default:
-		    warning("zam-1085", "wrong uf container %d\n", uf_info->container);
-		    result = RETERR(-EIO);
+	if (uf_info->container == UF_CONTAINER_TAILS ||
+	    inode_get_flag(inode, REISER4_PART_IN_CONV) != 0 ||
+	    inode_get_flag(inode, REISER4_PART_MIXED))
+	{
+		result = read_unix_file_container_tails(file, buf, read_amount, off);
+	} else if (uf_info->container == UF_CONTAINER_EXTENTS){
+		result = generic_file_read(file, buf, read_amount, off);
+	} else {
+		assert("zam-1085", uf_info->container == UF_CONTAINER_EMPTY);
+		result = 0;
 	}
  out:
 	drop_access(uf_info);
 	context_set_commit_async(ctx);
 	reiser4_exit_context(ctx);
-	/* return number of read bytes or error code if nothing is read */
 	return result;
 }
 
@@ -1841,11 +1835,7 @@ static ssize_t read_unix_file_container_tails(
 	hint_t *hint;
 	unix_file_info_t *uf_info;
 	size_t count, read, left;
-	reiser4_block_nr needed;
 	loff_t size;
-
-	if (unlikely(read_amount == 0))
-		return 0;
 
 	assert("umka-072", file != NULL);
 	assert("umka-074", off != NULL);
