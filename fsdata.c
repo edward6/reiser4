@@ -32,7 +32,7 @@ static void kill_cursor(dir_cursor *);
  * Shrinks d_cursor_cache. Scan LRU list of unused cursors, freeing requested
  * number. Return number of still freeable cursors.
  */
-static int d_cursor_shrink(int nr, unsigned int mask)
+static int d_cursor_shrink(int nr, gfp_t mask)
 {
 	if (nr != 0) {
 		dir_cursor *scan;

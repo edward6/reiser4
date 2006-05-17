@@ -166,11 +166,11 @@ ON_DEBUG(extern atomic_t delim_key_version;
 #define	ZF_ISSET(p,f)	        JF_ISSET(ZJNODE(p), (f))
 #define	ZF_SET(p,f)		JF_SET  (ZJNODE(p), (f))
 extern znode *zget(reiser4_tree * tree, const reiser4_block_nr * const block,
-		   znode * parent, tree_level level, int gfp_flag);
+		   znode * parent, tree_level level, gfp_t gfp_flag);
 extern znode *zlook(reiser4_tree * tree, const reiser4_block_nr * const block);
 extern int zload(znode * node);
 extern int zload_ra(znode * node, ra_info_t * info);
-extern int zinit_new(znode * node, int gfp_flags);
+extern int zinit_new(znode * node, gfp_t gfp_flags);
 extern void zrelse(znode * node);
 extern void znode_change_parent(znode * new_parent, reiser4_block_nr * block);
 
@@ -226,7 +226,7 @@ extern int znode_contains_key(znode * node, const reiser4_key * key);
 extern int znode_contains_key_lock(znode * node, const reiser4_key * key);
 extern unsigned znode_save_free_space(znode * node);
 extern unsigned znode_recover_free_space(znode * node);
-extern znode *zalloc(unsigned int gfp_flag);
+extern znode *zalloc(gfp_t gfp_flag);
 extern void zinit(znode *, const znode * parent, reiser4_tree *);
 extern int zparse(znode * node);
 

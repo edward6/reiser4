@@ -32,7 +32,7 @@ static inline void lock_and_wait_page_writeback(struct page *page)
 
 #define jprivate(page) ((jnode *)page_private(page))
 
-extern int page_io(struct page *page, jnode * node, int rw, int gfp);
+extern int page_io(struct page *page, jnode * node, int rw, gfp_t gfp);
 extern void drop_page(struct page *page);
 extern void reiser4_invalidate_pages(struct address_space *, pgoff_t from,
 				     unsigned long count, int even_cows);

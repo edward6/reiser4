@@ -362,7 +362,7 @@ jnode *find_get_jnode(reiser4_tree * tree,
 		      unsigned long index);
 
 void unhash_unformatted_jnode(jnode *);
-struct page *jnode_get_page_locked(jnode *, int gfp_flags);
+struct page *jnode_get_page_locked(jnode *, gfp_t gfp_flags);
 extern jnode *page_next_jnode(jnode * node) NONNULL;
 extern void jnode_init(jnode * node, reiser4_tree * tree, jnode_type) NONNULL;
 extern void jnode_make_dirty(jnode * node) NONNULL;
@@ -512,18 +512,18 @@ static inline void jnode_set_reloc(jnode * node)
 
 /* jload/jwrite/junload give a bread/bwrite/brelse functionality for jnodes */
 
-extern int jload_gfp(jnode * node, int gfp, int do_kmap) NONNULL;
+extern int jload_gfp(jnode *, gfp_t, int do_kmap) NONNULL;
 
-static inline int jload(jnode * node)
+static inline int jload(jnode *node)
 {
 	return jload_gfp(node, get_gfp_mask(), 1);
 }
 
-extern int jinit_new(jnode * node, int gfp_flags) NONNULL;
-extern int jstartio(jnode * node) NONNULL;
+extern int jinit_new(jnode *, gfp_t) NONNULL;
+extern int jstartio(jnode *) NONNULL;
 
-extern void jdrop(jnode * node) NONNULL;
-extern int jwait_io(jnode * node, int rw) NONNULL;
+extern void jdrop(jnode *) NONNULL;
+extern int jwait_io(jnode *, int rw) NONNULL;
 
 void jload_prefetch(jnode *);
 

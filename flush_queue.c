@@ -137,7 +137,7 @@ void done_fqs(void)
 }
 
 /* create new flush queue object */
-static flush_queue_t *create_fq(unsigned int gfp)
+static flush_queue_t *create_fq(gfp_t gfp)
 {
 	flush_queue_t *fq;
 
@@ -539,7 +539,7 @@ int write_fq(flush_queue_t * fq, long *nr_submitted, int flags)
    atom lock is obtained by different ways in different parts of reiser4,
    usually it is current atom, but we need a possibility for getting fq for the
    atom of given jnode. */
-static int fq_by_atom_gfp(txn_atom *atom, flush_queue_t **new_fq, int gfp)
+static int fq_by_atom_gfp(txn_atom *atom, flush_queue_t **new_fq, gfp_t gfp)
 {
 	flush_queue_t *fq;
 

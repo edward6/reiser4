@@ -1923,7 +1923,7 @@ static carry_node *find_dir_carry(carry_node * node	/* node to start scanning
  * Memory reservation is implemented by perthread-pages.diff patch from
  * core-patches. Its API is defined in <linux/gfp.h>
  *
- *     int  perthread_pages_reserve(int nrpages, int gfp);
+ *     int  perthread_pages_reserve(int nrpages, gfp_t gfp);
  *     void perthread_pages_release(int nrpages);
  *     int  perthread_pages_count(void);
  *
