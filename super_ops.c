@@ -267,7 +267,7 @@ static void reiser4_write_super(struct super_block *super)
 	if (ret != 0)
 		warning("vs-1701",
 			"capture_super_block failed in write_super: %d", ret);
-	ret = txnmgr_force_commit_all(super, 1);
+	ret = txnmgr_force_commit_all(super, 0);
 	if (ret != 0)
 		warning("jmacd-77113",
 			"txn_force failed in write_super: %d", ret);
@@ -284,7 +284,7 @@ static void reiser4_write_super(struct super_block *super)
  *
  * Returns information about filesystem.
  */
-static int reiser4_statfs(struct super_block *super, struct kstatfs *statfs)
+static int reiser4_statfs(struct vfsmount *mnt, struct kstatfs *statfs)
 {
 	sector_t total;
 	sector_t reserved;
@@ -292,6 +292,7 @@ static int reiser4_statfs(struct super_block *super, struct kstatfs *statfs)
 	sector_t forroot;
 	sector_t deleted;
 	reiser4_context *ctx;
+	struct super_block *super = mnt->mnt_sb;
 
 	assert("nikita-408", super != NULL);
 	assert("nikita-409", statfs != NULL);
@@ -564,12 +565,11 @@ static int fill_super(struct super_block *super, void *data, int silent)
  *
  * Reiser4 mount entry.
  */
-static struct super_block *reiser4_get_sb(struct file_system_type *fs_type,
-					  int flags,
-					  const char *dev_name,
-					  void *data)
+static int reiser4_get_sb(struct file_system_type *fs_type,
+			  int flags, const char *dev_name,
+			  void *data, struct vfsmount *mnt)
 {
-	return get_sb_bdev(fs_type, flags, dev_name, data, fill_super);
+	return get_sb_bdev(fs_type, flags, dev_name, data, fill_super, mnt);
 }
 
 /* structure describing the reiser4 filesystem implementation */

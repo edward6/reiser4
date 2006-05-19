@@ -306,7 +306,7 @@ void znodes_tree_done(reiser4_tree * tree /* tree to finish with znodes of */ )
 /* ZNODE STRUCTURES */
 
 /* allocate fresh znode */
-znode *zalloc(unsigned int gfp_flag /* allocation flag */ )
+znode *zalloc(gfp_t gfp_flag /* allocation flag */ )
 {
 	znode *node;
 
@@ -463,7 +463,7 @@ static z_hash_table *znode_get_htable(const znode * node)
 */
 znode *zget(reiser4_tree * tree,
 	    const reiser4_block_nr * const blocknr,
-	    znode * parent, tree_level level, int gfp_flag)
+	    znode * parent, tree_level level, gfp_t gfp_flag)
 {
 	znode *result;
 	__u32 hashi;
@@ -640,7 +640,7 @@ int zload(znode * node)
 }
 
 /* call node plugin to initialise newly allocated node. */
-int zinit_new(znode * node /* znode to initialise */ , int gfp_flags)
+int zinit_new(znode * node /* znode to initialise */ , gfp_t gfp_flags)
 {
 	return jinit_new(ZJNODE(node), gfp_flags);
 }

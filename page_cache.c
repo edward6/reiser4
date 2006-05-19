@@ -184,7 +184,7 @@
 #include <linux/writeback.h>
 #include <linux/blkdev.h>
 
-static struct bio *page_bio(struct page *, jnode *, int rw, unsigned int gfp);
+static struct bio *page_bio(struct page *, jnode *, int rw, gfp_t gfp);
 
 static struct address_space_operations formatted_fake_as_ops;
 
@@ -370,7 +370,7 @@ formatted_readpage(struct file *f UNUSED_ARG,
  *
  * Submits single page read or write.
  */
-int page_io(struct page *page, jnode *node, int rw, int gfp)
+int page_io(struct page *page, jnode *node, int rw, gfp_t gfp)
 {
 	struct bio *bio;
 	int result;
@@ -404,8 +404,7 @@ int page_io(struct page *page, jnode *node, int rw, int gfp)
 }
 
 /* helper function to construct bio for page */
-static struct bio *page_bio(struct page *page, jnode * node, int rw,
-			    unsigned int gfp)
+static struct bio *page_bio(struct page *page, jnode * node, int rw, gfp_t gfp)
 {
 	struct bio *bio;
 	assert("nikita-2092", page != NULL);

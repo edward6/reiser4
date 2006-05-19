@@ -786,7 +786,7 @@ static inline int jparse(jnode * node)
 
 /* Lock a page attached to jnode, create and attach page to jnode if it had no
  * one. */
-struct page *jnode_get_page_locked(jnode * node, int gfp_flags)
+struct page *jnode_get_page_locked(jnode * node, gfp_t gfp_flags)
 {
 	struct page *page;
 
@@ -865,7 +865,7 @@ void jload_prefetch(jnode * node)
 
 /* load jnode's data into memory */
 int jload_gfp(jnode * node /* node to load */ ,
-	      int gfp_flags /* allocation flags */ ,
+	      gfp_t gfp_flags /* allocation flags */ ,
 	      int do_kmap /* true if page should be kmapped */ )
 {
 	struct page *page;
@@ -955,7 +955,7 @@ int jstartio(jnode * node)
 
 /* Initialize a node by calling appropriate plugin instead of reading
  * node from disk as in jload(). */
-int jinit_new(jnode * node, int gfp_flags)
+int jinit_new(jnode * node, gfp_t gfp_flags)
 {
 	struct page *page;
 	int result;
