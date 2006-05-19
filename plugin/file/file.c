@@ -1884,7 +1884,7 @@ static ssize_t read_unix_file_container_tails(
 		/* total number of read bytes */
 		count += read;
 
- 		drop_nonexclusive_access(uf_info);
+ 		drop_access(uf_info);
 		txn_restart_current();
 		get_nonexclusive_access(uf_info);
 	}
