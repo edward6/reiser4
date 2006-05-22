@@ -120,8 +120,14 @@ void validate_extended_coord(uf_coord_t *uf_coord, loff_t offset)
 	    init_coord_extension(uf_coord, offset);
 }
 
-/* obtain lock on right neighbor and drop lock on current node */
-int goto_right_neighbor(coord_t * coord, lock_handle * lh)
+/**
+ * goto_right_neighbor - lock right neighbor, drop current node lock
+ * @coord:
+ * @lh:
+ *
+ * Obtain lock on right neighbor and drop lock on current node.
+ */
+int goto_right_neighbor(coord_t *coord, lock_handle *lh)
 {
 	int result;
 	lock_handle lh_right;
@@ -130,8 +136,7 @@ int goto_right_neighbor(coord_t * coord, lock_handle * lh)
 
 	init_lh(&lh_right);
 	result = reiser4_get_right_neighbor(&lh_right, coord->node,
-					    znode_is_wlocked(coord->
-							     node) ?
+					    znode_is_wlocked(coord->node) ?
 					    ZNODE_WRITE_LOCK : ZNODE_READ_LOCK,
 					    GN_CAN_USE_UPPER_LEVELS);
 	if (result) {
@@ -139,6 +144,10 @@ int goto_right_neighbor(coord_t * coord, lock_handle * lh)
 		return result;
 	}
 
+	/*
+	 * we hold two longterm locks on neighboring nodes. Unlock left of
+	 * them
+	 */
 	done_lh(lh);
 
 	coord_init_first_unit_nocheck(coord, lh_right.node);
@@ -931,44 +940,18 @@ commit_write_unix_file(struct file *file, struct page *page,
  */
 static int capture_anonymous_page(struct page *page)
 {
-	struct address_space *mapping;
-	jnode *node;
 	int result;
 
 	if (PageWriteback(page))
 		/* FIXME: do nothing? */
 		return 0;
 
-	mapping = page->mapping;
-
-	lock_page(page);
-	/* page is guaranteed to be in the mapping, because we are operating
-	   under rw-semaphore. */
-	assert("nikita-3336", page->mapping == mapping);
-	node = jnode_of_page(page);
-	unlock_page(page);
-	if (!IS_ERR(node)) {
-		result = jload(node);
-		assert("nikita-3334", result == 0);
-		assert("nikita-3335", jnode_page(node) == page);
-		result = capture_page_and_create_extent(page);
-		if (result == 0) {
-			/*
-			 * node has beed captured into atom by
-			 * capture_page_and_create_extent(). Atom cannot commit
-			 * (because we have open transaction handle), and node
-			 * cannot be truncated, because we have non-exclusive
-			 * access to the file.
-			 */
-			assert("nikita-3327", node->atom != NULL);
-			result = 1;
-		} else
-			warning("nikita-3329",
-				"Cannot capture anon page: %i", result);
-		jrelse(node);
-		jput(node);
+	result = capture_page_and_create_extent(page);
+	if (result == 0) {
+		result = 1;
 	} else
-		result = PTR_ERR(node);
+		warning("nikita-3329",
+				"Cannot capture anon page: %i", result);
 
 	return result;
 }
@@ -1002,14 +985,16 @@ capture_anonymous_pages(struct address_space *mapping, pgoff_t *index,
 					     (void **)pvec.pages, *index, count,
 					     PAGECACHE_TAG_REISER4_MOVED);
 	if (pagevec_count(&pvec) == 0) {
-		/* there are no pages tagged MOVED in mapping->page_tree
-		   starting from *index */
+		/*
+		 * there are no pages tagged MOVED in mapping->page_tree
+		 * starting from *index
+		 */
 		write_unlock_irq(&mapping->tree_lock);
 		*index = (pgoff_t)-1;
 		return 0;
 	}
 
-	/* clear tag for all found pages */
+	/* clear MOVED tag for all found pages */
 	for (i = 0; i < pagevec_count(&pvec); i++) {
 		void *p;
 
@@ -1024,9 +1009,11 @@ capture_anonymous_pages(struct address_space *mapping, pgoff_t *index,
 	*index = pvec.pages[i - 1]->index + 1;
 
 	for (i = 0; i < pagevec_count(&pvec); i++) {
-		/* tag PAGECACHE_TAG_REISER4_MOVED will be cleared by
-		   set_page_dirty_internal which is called when jnode is
-		   captured */
+		/*
+		 * tag PAGECACHE_TAG_REISER4_MOVED will be cleared by
+		 * set_page_dirty_internal which is called when jnode is
+		 * captured
+		 */
 		result = capture_anonymous_page(pvec.pages[i]);
 		if (result == 1)
 			nr++;
@@ -1037,8 +1024,10 @@ capture_anonymous_pages(struct address_space *mapping, pgoff_t *index,
 					"result=%d, captured=%d)\n",
 					result, i);
 
-				/* set MOVED tag to all pages which
-				   left not captured */
+				/*
+				 * set MOVED tag to all pages which left not
+				 * captured
+				 */
 				write_lock_irq(&mapping->tree_lock);
 				for (; i < pagevec_count(&pvec); i ++) {
 					radix_tree_tag_set(&mapping->page_tree,
@@ -1050,9 +1039,11 @@ capture_anonymous_pages(struct address_space *mapping, pgoff_t *index,
 				pagevec_release(&pvec);
 				return result;
 			} else {
-				/* result == 0. capture_anonymous_page returns
-				   0 for Writeback-ed page. Set MOVED tag on
-				   that page */
+				/*
+				 * result == 0. capture_anonymous_page returns
+				 * 0 for Writeback-ed page. Set MOVED tag on
+				 * that page
+				 */
 				write_lock_irq(&mapping->tree_lock);
 				radix_tree_tag_set(&mapping->page_tree,
 						   pvec.pages[i]->index,

@@ -754,14 +754,18 @@ int update_extent(struct inode *inode, jnode *node, loff_t pos,
 	lock_handle lh;
 	reiser4_key key;
 
+	assert("", lock_counters()->d_refs == 0);
+
 	key_by_inode_and_offset_common(inode, pos, &key);
 
 	init_uf_coord(&uf_coord, &lh);
 	coord = &uf_coord.coord;
 	result = find_file_item_nohint(coord, &lh, &key,
 				       ZNODE_WRITE_LOCK, inode);
-	if (IS_CBKERR(result))
+	if (IS_CBKERR(result)) {
+		assert("", lock_counters()->d_refs == 0);
 		return result;
+	}
 	
 	result = zload(coord->node);
 	BUG_ON(result != 0);
@@ -797,6 +801,7 @@ int update_extent(struct inode *inode, jnode *node, loff_t pos,
 	assert("", result == 1 || result < 0);
 	zrelse(loaded);
 	done_lh(&lh);
+	assert("", lock_counters()->d_refs == 0);
 	return (result == 1) ? 0 : result;
 }
 
@@ -826,11 +831,15 @@ static int update_extents(struct file *file, jnode **jnodes, int count, loff_t p
 		 */
 		pos = (loff_t)index_jnode(jnodes[0]) << PAGE_CACHE_SHIFT;
 	key_by_inode_and_offset_common(inode, pos, &key);
+
+	assert("", lock_counters()->d_refs == 0);
 	
 	do {
 		result = find_file_item(&hint, &key, ZNODE_WRITE_LOCK, inode);
-		if (IS_CBKERR(result))
+		if (IS_CBKERR(result)) {
+			assert("", lock_counters()->d_refs == 0);
 			return result;
+		}
 
 		result = zload(hint.ext_coord.coord.node);
 		BUG_ON(result != 0);
@@ -887,6 +896,7 @@ static int update_extents(struct file *file, jnode **jnodes, int count, loff_t p
 	} while (count > 0);
 
 	save_file_hint(file, &hint);
+	assert("", lock_counters()->d_refs == 0);
 	return result;
 }
 
@@ -1011,12 +1021,15 @@ ssize_t write_extent(struct file *file, const char __user *buf, size_t count,
 			 * page
 			 */
 			lock_page(page);
-			result = readpage_unix_file(NULL, page);
-			BUG_ON(result != 0);
-			/* wait for read completion */
-			lock_page(page);
-			BUG_ON(!PageUptodate(page));
-			unlock_page(page);
+			if (!PageUptodate(page)) {
+				result = readpage_unix_file(NULL, page);
+				BUG_ON(result != 0);
+				/* wait for read completion */
+				lock_page(page);
+				BUG_ON(!PageUptodate(page));
+				unlock_page(page);
+			} else
+				result = 0;
 		}
 
 		BUG_ON(get_current_context()->trans->atom != NULL);

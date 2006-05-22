@@ -78,14 +78,6 @@ void cbk_cache_done(cbk_cache * cache /* cache to release */ )
 	}
 }
 
-#if 0
-/* macro to iterate over all cbk cache slots */
-#define for_all_slots( cache, slot )					\
-	for( ( slot ) = cbk_cache_list_front( &( cache ) -> lru ) ;	\
-	     !cbk_cache_list_end( &( cache ) -> lru, ( slot ) ) ; 	\
-	     ( slot ) = cbk_cache_list_next( slot ) )
-#endif
-
 /* macro to iterate over all cbk cache slots */
 #define for_all_slots(cache, slot)						\
 	for ((slot) = list_entry((cache)->lru.next, cbk_cache_slot, lru);	\

@@ -86,31 +86,6 @@ static struct wbq *__get_wbq(entd_context * ent)
 	return wbq;
 }
 
-#if 0
-
-struct wbq * get_wbq(struct super_block * super)
-{
-	struct wbq *result;
-	entd_context * ent = get_entd_context(super);
-
-	spin_lock(&ent->guard);
-	result = __get_wbq(ent);
-	spin_unlock(&ent->guard);
-
-	return result;
-}
-
-void put_wbq(struct super_block *super, struct wbq * rq)
-{
-	entd_context * ent = get_entd_context(super);
-
-	spin_lock(&ent->guard);
-	__put_wbq(ent, rq);
-	spin_unlock(&ent->guard);
-}
-
-#endif  /*  0  */
-
 static void wakeup_all_wbq(entd_context * ent)
 {
 	struct wbq *rq;
