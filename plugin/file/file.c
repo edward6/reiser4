@@ -1611,7 +1611,7 @@ static int reiser4_readpages_filler(void * data, struct page * page)
 			&get_super_private(mapping->host->i_sb)->tree,
 			&key, &rc->coord, &rc->lh,
 			ZNODE_READ_LOCK, FIND_EXACT, 
-			TWIG_LEVEL, TWIG_LEVEL, 0, NULL);
+			TWIG_LEVEL, TWIG_LEVEL, CBK_UNIQUE, NULL);
 		lock_page(page);
 		cbk_done = 1;
 		ON_DEBUG(rc->stat.cbk++);
