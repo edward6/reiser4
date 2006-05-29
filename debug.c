@@ -52,7 +52,7 @@ static char panic_buf[REISER4_PANIC_MSG_BUFFER_SIZE];
 /*
  * lock protecting consistency of panic_buf under concurrent panics
  */
-static spinlock_t panic_guard = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(panic_guard);
 
 /* Your best friend. Call it on each occasion.  This is called by
     fs/reiser4/debug.h:reiser4_panic(). */

@@ -17,7 +17,7 @@ static LIST_HEAD(cursor_cache);
 static unsigned long d_cursor_unused = 0;
 
 /* spinlock protecting manipulations with dir_cursor's hash table and lists */
-spinlock_t d_lock = SPIN_LOCK_UNLOCKED;
+DEFINE_SPINLOCK(d_lock);
 
 static reiser4_file_fsdata *create_fsdata(struct file *file);
 static int file_is_stateless(struct file *file);

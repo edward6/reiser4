@@ -505,7 +505,7 @@ void cluster_reserved2free(int count)
 	spin_unlock_reiser4_super(sbinfo);
 }
 
-static spinlock_t fake_lock = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(fake_lock);
 static reiser4_block_nr fake_gen = 0;
 
 /**
