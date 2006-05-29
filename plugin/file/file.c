@@ -1765,7 +1765,6 @@ static ssize_t read_unix_file_container_tails(struct file*, char __user*, size_t
  * This is implementation of vfs's read method of struct file_operations for
  * unix file plugin.
  */
-
 ssize_t read_unix_file(struct file *file, char __user *buf, size_t read_amount,
 		       loff_t *off)
 {

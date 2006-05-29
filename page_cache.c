@@ -353,9 +353,8 @@ end_bio_single_page_write(struct bio *bio, unsigned int bytes_done UNUSED_ARG,
 }
 
 /* ->readpage() method for formatted nodes */
-static int
-formatted_readpage(struct file *f UNUSED_ARG,
-		   struct page *page /* page to read */ )
+static int formatted_readpage(struct file *f UNUSED_ARG,
+			      struct page *page /* page to read */ )
 {
 	assert("nikita-2412", PagePrivate(page) && jprivate(page));
 	return page_io(page, jprivate(page), READ, get_gfp_mask());
@@ -476,68 +475,29 @@ int set_page_dirty_internal(struct page *page)
 	return 0;
 }
 
-static inline int valid_stack_ptr(struct thread_info *tinfo, void *p)
-{
-       return  p > (void *)tinfo &&
-               p < (void *)tinfo + THREAD_SIZE - 3;
-}
-
-static inline void _save_trace(long *st, int size, unsigned long *stack,
-                               unsigned long bp)
-{
-        struct thread_info *tinfo = (struct thread_info *)
-                ((unsigned long)stack & (~(THREAD_SIZE - 1)));
-        int i = 0;
-        unsigned long addr;
-
-        memset(st, 0, sizeof(long) * size);
-
-        while (valid_stack_ptr(tinfo, (void *)bp)) {
-                addr = *(unsigned long *)(bp + sizeof(long));
-                st[i] = addr;
-                if (++i >= size)
-                        break;
-                bp = *(unsigned long *)bp;
-        }
-}
-
-static inline void save_trace(long *st, int size)
-{
-        unsigned long address, bp;
-
-       asm ("movl %%ebp, %0" : "=r" (bp) : );
-       _save_trace(st, size, &address, bp);
-}
+#if REISER4_DEBUG
 
 /**
  * can_hit_entd
  *
- *
+ * This is used on 
  */
 static int can_hit_entd(reiser4_context *ctx, struct super_block *s)
 {
-	long bt[10];
-
-	if (get_super_private(s)->entd.tsk == current) {
-		save_trace(bt, 10);
-		BUG();
-		printk("this is entd: ctx %p, current %p\n", ctx, current);
-		return 0;
-	}
 	if (ctx == NULL || ((unsigned long)ctx->magic) != context_magic)
 		return 1;
 	if (ctx->super != s)
 		return 1;
-	if (lock_stack_isclean(&ctx->stack) && ctx->trans->atom == NULL)
-		return 1;
+	if (get_super_private(s)->entd.tsk == current)
+		return 0;
 	if (!lock_stack_isclean(&ctx->stack))
-		printk("lockstack is not clean: ctx %p, current %p\n", ctx, current);
+		return 0;
 	if (ctx->trans->atom != NULL)
-		printk("atom != NULL: ctx %p, current %p\n", ctx, current);
-	save_trace(bt, 10);
-	BUG();
-	return 0;
+		return 0;
+	return 1;
 }
+
+#endif
 
 /**
  * reiser4_writepage - writepage of struct address_space_operations
@@ -558,15 +518,9 @@ int reiser4_writepage(struct page *page,
 	s = page->mapping->host->i_sb;
 	ctx = get_current_context_check();
 
-	if (can_hit_entd(ctx, s))
-		/*
-		 * Throttle memory allocations if we were not in reiser4 or if
-		 * lock stack is clean and atom is not opened
-		 */
-		return write_page_by_ent(page, wbc);
+	assert("", !can_hit_entd(ctx, s));
 
-	assert("",  1 == 2);
-	return 0;
+	return write_page_by_ent(page, wbc);
 }
 
 /* ->set_page_dirty() method of formatted address_space */
