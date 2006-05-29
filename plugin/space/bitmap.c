@@ -729,9 +729,8 @@ static void done_bnode(struct bitmap_node *bnode)
 }
 
 /* ZAM-FIXME-HANS: comment this.  Called only by load_and_lock_bnode()*/
-static int
-prepare_bnode(struct bitmap_node *bnode, jnode ** cjnode_ret,
-	      jnode ** wjnode_ret)
+static int prepare_bnode(struct bitmap_node *bnode, jnode **cjnode_ret,
+			 jnode **wjnode_ret)
 {
 	struct super_block *super;
 	jnode *cjnode;
@@ -742,8 +741,10 @@ prepare_bnode(struct bitmap_node *bnode, jnode ** cjnode_ret,
 	super = reiser4_get_current_sb();
 
 	*wjnode_ret = wjnode = bnew();
-	if (wjnode == NULL)
+	if (wjnode == NULL) {
+		*cjnode_ret = NULL;
 		return RETERR(-ENOMEM);
+	}
 
 	*cjnode_ret = cjnode = bnew();
 	if (cjnode == NULL)
@@ -1579,12 +1580,12 @@ destroy_allocator_bitmap(reiser4_space_allocator * allocator,
 }
 
 /*
-   Local variables:
-   c-indentation-style: "K&R"
-   mode-name: "LC"
-   c-basic-offset: 8
-   tab-width: 8
-   fill-column: 80
-   scroll-step: 1
-   End:
-*/
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 79
+ * scroll-step: 1
+ * End:
+ */
