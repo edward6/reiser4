@@ -518,7 +518,7 @@ int reiser4_writepage(struct page *page,
 	s = page->mapping->host->i_sb;
 	ctx = get_current_context_check();
 
-	assert("", !can_hit_entd(ctx, s));
+	assert("", can_hit_entd(ctx, s));
 
 	return write_page_by_ent(page, wbc);
 }
