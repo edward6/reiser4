@@ -2093,6 +2093,7 @@ int open_unix_file(struct inode *inode, struct file *file)
 	assert("vs-1712",
 	       ergo(result == 0, (!inode_get_flag(inode, REISER4_PART_MIXED) &&
 				  !inode_get_flag(inode, REISER4_PART_IN_CONV))));
+	drop_exclusive_access(uf_info);
 	reiser4_exit_context(ctx);
 	return result;
 }
