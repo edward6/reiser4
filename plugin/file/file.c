@@ -1662,6 +1662,8 @@ int readpages_unix_file(struct file *file, struct address_space *mapping,
 	       nr_pages, rc.stat.cbk, rc.stat.reused);
 #endif
 	context_set_commit_async(ctx);
+	/* close the transaction to protect further page allocation from deadlocks */
+	txn_restart(ctx);
 	reiser4_exit_context(ctx);
 	return ret;
 }
