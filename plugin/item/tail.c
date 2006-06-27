@@ -546,7 +546,7 @@ static ssize_t append_tail(struct inode *inode,
 	int result;
 	reiser4_key append_key;
 	loff_t to_write;
-	
+
 	if (!keyeq(&flow->key, append_key_tail(coord, &append_key))) {
 		flow->data = NULL;
 		flow->length = get_key_offset(&flow->key) - get_key_offset(&append_key);
@@ -611,7 +611,7 @@ static int write_extent_reserve_space(struct inode *inode)
 
 static loff_t faultin_user_pages(const char __user *buf, size_t count)
 {
-	loff_t faulted;	
+	loff_t faulted;
 	int to_fault;
 
 	if (count > PAGE_PER_FLOW * PAGE_CACHE_SIZE)
@@ -672,7 +672,7 @@ ssize_t write_tail(struct file *file, const char __user *buf, size_t count,
 	result = zload(coord->node);
 	BUG_ON(result != 0);
 	loaded = coord->node;
-	
+
 	if (coord->between == AFTER_UNIT) {
 		/* append with data or hole */
 		result = append_tail(inode, &flow, coord, lh);
@@ -688,7 +688,7 @@ ssize_t write_tail(struct file *file, const char __user *buf, size_t count,
 		done_lh(lh);
 		return result;
 	}
-	
+
 	/* seal and unlock znode */
 	hint.ext_coord.valid = 0;
 	if (hint.ext_coord.valid)

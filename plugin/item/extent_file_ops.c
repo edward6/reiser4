@@ -51,7 +51,7 @@ static void check_uf_coord(const uf_coord_t *uf_coord, const reiser4_key *key)
 				 sizeof(reiser4_extent)) == 0)));
 	if (key) {
 		reiser4_key coord_key;
-		
+
 		unit_key_by_coord(&uf_coord->coord, &coord_key);
 		set_key_offset(&coord_key,
 			       get_key_offset(&coord_key) +
@@ -148,7 +148,7 @@ static int append_hole(coord_t *coord, lock_handle *lh,
 	append_key_extent(coord, &append_key);
 
 	assert("", keyle(&append_key, key));
-	
+
 	/*
 	 * extent item has to be appended with hole. Calculate length of that
 	 * hole
@@ -320,7 +320,7 @@ static int append_last_extent(uf_coord_t *uf_coord, const reiser4_key *key,
  		result = try_capture(node, ZNODE_WRITE_LOCK, 0);
 		BUG_ON(result != 0);
 		jnode_make_dirty_locked(node);
-		spin_unlock_jnode(node);		
+		spin_unlock_jnode(node);
 	}
 	return count;
 }
@@ -346,7 +346,7 @@ static int insert_first_hole(coord_t *coord, lock_handle *lh,
 
 	item_key = *key;
 	set_key_offset(&item_key, 0ull);
-	
+
 	hole_width = ((get_key_offset(key) + current_blocksize - 1) >>
 		      current_blocksize_bits);
 	assert("vs-710", hole_width > 0);
@@ -442,7 +442,7 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
  		result = try_capture(node, ZNODE_WRITE_LOCK, 0);
 		BUG_ON(result != 0);
 		jnode_make_dirty_locked(node);
-		spin_unlock_jnode(node);		
+		spin_unlock_jnode(node);
 	}
 
 	/*
@@ -764,7 +764,7 @@ int update_extent(struct inode *inode, jnode *node, loff_t pos,
 		assert("", lock_counters()->d_refs == 0);
 		return result;
 	}
-	
+
 	result = zload(coord->node);
 	BUG_ON(result != 0);
 	loaded = coord->node;
@@ -818,10 +818,10 @@ static int update_extents(struct file *file, jnode **jnodes, int count, loff_t p
 	reiser4_key key;
 	int result;
 	znode *loaded;
-	
+
 	result = load_file_hint(file, &hint);
 	BUG_ON(result != 0);
-	
+
 	inode = file->f_dentry->d_inode;
 	if (count != 0)
 		/*
@@ -831,7 +831,7 @@ static int update_extents(struct file *file, jnode **jnodes, int count, loff_t p
 	key_by_inode_and_offset_common(inode, pos, &key);
 
 	assert("", lock_counters()->d_refs == 0);
-	
+
 	do {
 		result = find_file_item(&hint, &key, ZNODE_WRITE_LOCK, inode);
 		if (IS_CBKERR(result)) {
@@ -982,7 +982,7 @@ ssize_t write_extent(struct file *file, const char __user *buf, size_t count,
 				unlock_page(jnode_page(jnodes[i]));
 				page_cache_release(jnode_page(jnodes[i]));
 			}
-			return RETERR(-ENOMEM);			
+			return RETERR(-ENOMEM);
 		}
 
 		jnodes[i] = jnode_of_page(page);
@@ -993,7 +993,7 @@ ssize_t write_extent(struct file *file, const char __user *buf, size_t count,
 				jput(jnodes[i]);
 				page_cache_release(jnode_page(jnodes[i]));
 			}
-			return RETERR(-ENOMEM);			
+			return RETERR(-ENOMEM);
 		}
 		/* prevent jnode and page from disconnecting */
 		JF_SET(jnodes[i], JNODE_WRITE_PREPARED);
@@ -1428,7 +1428,7 @@ int read_extent(struct file *file, flow_t *flow, hint_t *hint)
 	assert("vs-1351", flow->length > 0);
 
 	uf_coord = &hint->ext_coord;
-	
+
 	check_uf_coord(uf_coord, NULL);
 	assert("vs-33", uf_coord->lh == &hint->lh);
 

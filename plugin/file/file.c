@@ -265,7 +265,7 @@ int find_file_item(hint_t *hint, const reiser4_key *key,
 
 		set_file_state(unix_file_inode_data(inode), CBK_COORD_FOUND,
 			       znode_get_level(coord->node));
-		
+
 		return CBK_COORD_FOUND;
 	}
 
@@ -578,7 +578,7 @@ static int truncate_file_body(struct inode *inode, loff_t new_size)
 		result = find_file_state(inode, uf_info);
 		if (result)
 			return result;
-		
+
 		if (should_have_notail(uf_info, new_size)) {
 			/*
 			 * file of size @new_size has to be built of
@@ -599,7 +599,7 @@ static int truncate_file_body(struct inode *inode, loff_t new_size)
 					}
 					break;
 				}
-				
+
 				if (uf_info->container ==  UF_CONTAINER_TAILS) {
 					result = tail2extent(uf_info);
 					if (result)
@@ -2240,7 +2240,7 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 							continue;
 						}
 						break;
-					}					
+					}
 					if (uf_info->container ==  UF_CONTAINER_TAILS) {
 						result = tail2extent(uf_info);
 						if (result)
@@ -2460,15 +2460,15 @@ static int unpack(struct file *filp, struct inode *inode, int forever)
 	if (forever) {
 		/* safe new formatting plugin in stat data */
 		__u64 tograb;
-		
+
 		set_file_notail(inode);
-		
+
 		grab_space_enable();
 		tograb = inode_file_plugin(inode)->estimate.update(inode);
 		result = reiser4_grab_space(tograb, BA_CAN_COMMIT);
 		result = reiser4_update_sd(inode);
 	}
-	
+
 	return result;
 }
 

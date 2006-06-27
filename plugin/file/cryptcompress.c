@@ -1547,7 +1547,7 @@ static int grab_cluster_pages(struct inode *inode, reiser4_cluster_t * clust)
 	int result = 0;
 
 	assert("edward-1428", inode != NULL);
-	assert("edward-1429", inode->i_mapping != NULL);	
+	assert("edward-1429", inode->i_mapping != NULL);
 	assert("edward-787", clust != NULL);
 	assert("edward-788", clust->pages != NULL);
 	assert("edward-789", clust->nr_pages != 0);
@@ -1605,7 +1605,7 @@ void release_cluster_pages(reiser4_cluster_t * clust)
 {
 	int i;
 
-	assert("edward-447", clust != NULL);	
+	assert("edward-447", clust != NULL);
 	for (i = 0; i < clust->nr_pages; i++) {
 
 		assert("edward-449", clust->pages[i] != NULL);
@@ -2394,7 +2394,7 @@ void truncate_page_cluster(struct inode *inode, cloff_t index)
 	if (JF_ISSET(node, JNODE_DIRTY)) {
 		/* someone has done modifications which are not
 		   yet committed, so we need to release some resources */
-		
+
 		/* free disk space grabbed for disk cluster converting */
 		cluster_reserved2grabbed(estimate_update_cluster(inode));
 		grabbed2free(get_current_context(),
@@ -2406,7 +2406,7 @@ void truncate_page_cluster(struct inode *inode, cloff_t index)
 #if REISER4_DEBUG
 		node->page_count = 0;
 #endif
-		/* This will clear dirty bit */	
+		/* This will clear dirty bit */
 		uncapture_cluster_jnode(node);
 
 		/* put pages grabbed for last uncommitted modifications */
@@ -3453,7 +3453,7 @@ capture_page_cluster(reiser4_cluster_t * clust, struct inode *inode)
 				   clust_to_pg(clust->index, inode),
 				   PAGECACHE_TAG_REISER4_MOVED);
 		read_unlock_irq(&inode->i_mapping->tree_lock);
-		
+
 		release_cluster_pages_and_jnode(clust);
 	}
 	return result;

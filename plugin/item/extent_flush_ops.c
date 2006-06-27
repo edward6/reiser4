@@ -678,7 +678,7 @@ static int allocated_extent_slum_size(flush_pos_t *flush_pos, oid_t oid,
 			 * any formatted nodes.
 			 */
 			atomic_dec(&node->x_count);
-			break;			
+			break;
 		}
 
 		assert("vs-1476", atomic_read(&node->x_count) > 1);

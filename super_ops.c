@@ -230,7 +230,7 @@ static void reiser4_put_super(struct super_block *super)
 	if (IS_ERR(ctx)) {
 		warning("vs-17", "failed to init context");
 		return;
-	}	
+	}
 
 	/* have disk format plugin to free its resources */
 	if (get_super_private(super)->df_plug->release)
