@@ -554,8 +554,8 @@ reiser4_block_nr fake_blocknr_unformatted(int count)
 
 /* adjust sb block counters, if real (on-disk) block allocation immediately
    follows grabbing of free disk space. */
-void grabbed2used(reiser4_context *ctx, reiser4_super_info_data *sbinfo,
-		  __u64 count)
+static void grabbed2used(reiser4_context *ctx, reiser4_super_info_data *sbinfo,
+			 __u64 count)
 {
 	sub_from_ctx_grabbed(ctx, count);
 
@@ -570,8 +570,8 @@ void grabbed2used(reiser4_context *ctx, reiser4_super_info_data *sbinfo,
 }
 
 /* adjust sb block counters when @count unallocated blocks get mapped to disk */
-void fake_allocated2used(reiser4_super_info_data *sbinfo, __u64 count,
-			 reiser4_ba_flags_t flags)
+static void fake_allocated2used(reiser4_super_info_data *sbinfo, __u64 count,
+				reiser4_ba_flags_t flags)
 {
 	spin_lock_reiser4_super(sbinfo);
 
@@ -583,7 +583,7 @@ void fake_allocated2used(reiser4_super_info_data *sbinfo, __u64 count,
 	spin_unlock_reiser4_super(sbinfo);
 }
 
-void flush_reserved2used(txn_atom * atom, __u64 count)
+static void flush_reserved2used(txn_atom * atom, __u64 count)
 {
 	reiser4_super_info_data *sbinfo;
 

@@ -16,6 +16,8 @@
 /* slab cache for inodes */
 static kmem_cache_t *inode_cache;
 
+static struct dentry *reiser4_debugfs_root = NULL;
+
 /**
  * init_once - constructor for reiser4 inodes
  * @obj: inode to be initialized
@@ -591,8 +593,6 @@ void destroy_reiser4_cache(kmem_cache_t **cachep)
 	BUG_ON(result != 0);
 	*cachep = NULL;
 }
-
-struct dentry *reiser4_debugfs_root = NULL;
 
 /**
  * init_reiser4 - reiser4 initialization entry point

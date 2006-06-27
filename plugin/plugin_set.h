@@ -57,7 +57,6 @@ extern int plugin_set_formatting(plugin_set ** set, formatting_plugin * plug);
 extern int plugin_set_hash(plugin_set ** set, hash_plugin * plug);
 extern int plugin_set_fibration(plugin_set ** set, fibration_plugin * plug);
 extern int plugin_set_sd(plugin_set ** set, item_plugin * plug);
-extern int plugin_set_compression(plugin_set ** set, compression_plugin * plug);
 extern int plugin_set_cluster(plugin_set ** set, cluster_plugin * plug);
 
 extern int init_plugin_set(void);

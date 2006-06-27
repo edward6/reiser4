@@ -240,7 +240,6 @@ static inline void coord_set_between_clusters(coord_t * coord)
 
 int inflate_cluster(reiser4_cluster_t *, struct inode *);
 int find_cluster(reiser4_cluster_t *, struct inode *, int read, int write);
-void forget_cluster_pages(struct page **page, int nrpages);
 int flush_cluster_pages(reiser4_cluster_t *, jnode *, struct inode *);
 int deflate_cluster(reiser4_cluster_t *, struct inode *);
 void truncate_page_cluster(struct inode *inode, cloff_t start);

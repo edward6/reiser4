@@ -380,7 +380,7 @@ static int host_allows_crypto_stat(struct inode * host)
 }
 #endif  /*  REISER4_DEBUG  */
 
-void detach_crypto_stat(struct inode * inode)
+static void detach_crypto_stat(struct inode * inode)
 {
 	assert("edward-1385", inode != NULL);
 	assert("edward-1386", host_allows_crypto_stat(inode));
@@ -1574,6 +1574,7 @@ static int grab_cluster_pages(struct inode *inode, reiser4_cluster_t * clust)
    understand that pages of cryptcompress files are not
    flushable.
 */
+#if 0
 int jnode_of_cluster(const jnode * node, struct page * page)
 {
 	assert("edward-1339", node != NULL);
@@ -1597,6 +1598,7 @@ int jnode_of_cluster(const jnode * node, struct page * page)
 	}
 	return 0;
 }
+#endif  /*  0  */
 
 /* put cluster pages */
 void release_cluster_pages(reiser4_cluster_t * clust)
@@ -1751,7 +1753,7 @@ static void uncapture_cluster_jnode(jnode * node)
 	jput(node);
 }
 
-void forget_cluster_pages(struct page **pages, int nr)
+static void forget_cluster_pages(struct page **pages, int nr)
 {
 	int i;
 	for (i = 0; i < nr; i++) {

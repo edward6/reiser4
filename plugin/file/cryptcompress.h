@@ -459,7 +459,6 @@ int load_file_hint(struct file *, hint_t *);
 void save_file_hint(struct file *, const hint_t *);
 void hint_init_zero(hint_t *);
 int crc_inode_ok(struct inode *inode);
-int jnode_of_cluster(const jnode * node, struct page * page);
 extern int ctail_read_disk_cluster (reiser4_cluster_t *, struct inode *, int);
 extern int do_readpage_ctail(struct inode *, reiser4_cluster_t *,
 			     struct page * page);
@@ -472,7 +471,6 @@ void inherit_crypto_stat_common(struct inode * parent, struct inode * object,
 				int (*can_inherit)(struct inode * child,
 						   struct inode * parent));
 void attach_crypto_stat(struct inode * inode, crypto_stat_t * info);
-void detach_crypto_stat(struct inode * inode);
 void change_crypto_stat(struct inode * inode, crypto_stat_t * new);
 crypto_stat_t * alloc_crypto_stat (struct inode * inode);
 

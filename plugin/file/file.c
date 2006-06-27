@@ -104,7 +104,7 @@ void init_uf_coord(uf_coord_t *uf_coord, lock_handle *lh)
 	uf_coord->valid = 0;
 }
 
-void validate_extended_coord(uf_coord_t *uf_coord, loff_t offset)
+static void validate_extended_coord(uf_coord_t *uf_coord, loff_t offset)
 {
 	assert("vs-1333", uf_coord->valid == 0);
 
@@ -759,8 +759,6 @@ hint_validate(hint_t * hint, const reiser4_key * key, int check_key,
 	return seal_validate(&hint->seal, &hint->ext_coord.coord, key,
 			     hint->ext_coord.lh, lock_mode, ZNODE_LOCK_LOPRI);
 }
-
-int xversion;
 
 /**
  * find_or_create_extent - 

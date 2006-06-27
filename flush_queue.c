@@ -191,7 +191,7 @@ static void done_fq(flush_queue_t * fq)
 }
 
 /* */
-void mark_jnode_queued(flush_queue_t * fq, jnode * node)
+static void mark_jnode_queued(flush_queue_t * fq, jnode * node)
 {
 	JF_SET(node, JNODE_FLUSH_QUEUED);
 	count_enqueued_node(fq);

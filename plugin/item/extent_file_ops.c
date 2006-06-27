@@ -734,8 +734,6 @@ static int overwrite_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	return count;
 }
 
-void init_uf_coord(uf_coord_t *uf_coord, lock_handle *lh);
-
 /**
  * update_extent
  * @file:

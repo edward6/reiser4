@@ -452,7 +452,6 @@ extern void destroy_reiser4_cache(kmem_cache_t **);
 extern struct super_operations reiser4_super_operations;
 extern struct export_operations reiser4_export_operations;
 extern struct dentry_operations reiser4_dentry_operations;
-extern struct dentry *reiser4_debugfs_root;
 
 /* __REISER4_SUPER_H__ */
 #endif

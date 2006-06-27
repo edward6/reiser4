@@ -348,6 +348,7 @@ grab_plugin_from(struct inode *self, pset_member memb, reiser4_plugin * plug)
 	return result;
 }
 
+#if 0
 int force_plugin(struct inode *self, pset_member memb, reiser4_plugin * plug)
 {
 	reiser4_inode *info;
@@ -362,6 +363,7 @@ int force_plugin(struct inode *self, pset_member memb, reiser4_plugin * plug)
 		update_plugin_mask(info, memb);
 	return result;
 }
+#endif  /*  0  */
 
 reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 	/* C90 initializers */

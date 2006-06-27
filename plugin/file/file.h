@@ -115,7 +115,6 @@ int find_file_item_nohint(coord_t *, lock_handle *,
 			  const reiser4_key *, znode_lock_mode,
 			  struct inode *);
 
-void validate_extended_coord(uf_coord_t *, loff_t offset);
 int load_file_hint(struct file *, hint_t *);
 void save_file_hint(struct file *, const hint_t *);
 
@@ -236,8 +235,9 @@ int goto_right_neighbor(coord_t *, lock_handle *);
 int find_or_create_extent(struct page *);
 int equal_to_ldk(znode *, const reiser4_key *);
 
+void init_uf_coord(uf_coord_t *uf_coord, lock_handle *lh);
 
-extern inline int cbk_errored(int cbk_result)
+static inline int cbk_errored(int cbk_result)
 {
 	return (cbk_result != CBK_COORD_NOTFOUND
 		&& cbk_result != CBK_COORD_FOUND);

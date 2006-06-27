@@ -537,8 +537,9 @@ void unhash_unformatted_jnode(jnode * node)
  * allocate new jnode, insert it, and also insert into radix tree for the
  * given inode/mapping.
  */
-jnode *find_get_jnode(reiser4_tree * tree, struct address_space *mapping,
-		      oid_t oid, unsigned long index)
+static jnode *find_get_jnode(reiser4_tree * tree,
+			     struct address_space *mapping,
+			     oid_t oid, unsigned long index)
 {
 	jnode *result;
 	jnode *shadow;
@@ -786,7 +787,7 @@ static inline int jparse(jnode * node)
 
 /* Lock a page attached to jnode, create and attach page to jnode if it had no
  * one. */
-struct page *jnode_get_page_locked(jnode * node, gfp_t gfp_flags)
+static struct page *jnode_get_page_locked(jnode * node, gfp_t gfp_flags)
 {
 	struct page *page;
 
