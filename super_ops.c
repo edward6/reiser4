@@ -287,7 +287,7 @@ static void reiser4_write_super(struct super_block *super)
  *
  * Returns information about filesystem.
  */
-static int reiser4_statfs(struct super_block *super, struct kstatfs *statfs)
+static int reiser4_statfs(struct dentry *dentry, struct kstatfs *statfs)
 {
 	sector_t total;
 	sector_t reserved;
@@ -295,6 +295,7 @@ static int reiser4_statfs(struct super_block *super, struct kstatfs *statfs)
 	sector_t forroot;
 	sector_t deleted;
 	reiser4_context *ctx;
+	struct super_block *super = dentry->d_sb;
 
 	assert("nikita-408", super != NULL);
 	assert("nikita-409", statfs != NULL);
@@ -567,12 +568,10 @@ static int fill_super(struct super_block *super, void *data, int silent)
  *
  * Reiser4 mount entry.
  */
-static struct super_block *reiser4_get_sb(struct file_system_type *fs_type,
-					  int flags,
-					  const char *dev_name,
-					  void *data)
+static int reiser4_get_sb(struct file_system_type *fs_type, int flags,
+			const char *dev_name, void *data, struct vfsmount *mnt)
 {
-	return get_sb_bdev(fs_type, flags, dev_name, data, fill_super);
+	return get_sb_bdev(fs_type, flags, dev_name, data, fill_super, mnt);
 }
 
 /* structure describing the reiser4 filesystem implementation */
