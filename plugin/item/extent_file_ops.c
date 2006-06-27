@@ -112,7 +112,7 @@ coord_matches_key_extent(const coord_t * coord, const reiser4_key * key)
 #endif
 
 /**
- * can_append - 
+ * can_append -
  * @key:
  * @coord:
  *
@@ -186,7 +186,7 @@ static int append_hole(coord_t *coord, lock_handle *lh,
 /**
  * check_jnodes
  * @twig: longterm locked twig node
- * @key: 
+ * @key:
  *
  */
 static void check_jnodes(znode *twig, const reiser4_key *key, int count)
@@ -678,7 +678,7 @@ static int move_coord(uf_coord_t *uf_coord)
 }
 
 /**
- * overwrite_extent - 
+ * overwrite_extent -
  * @inode:
  *
  * Returns number of handled jnodes.
@@ -740,7 +740,7 @@ static int overwrite_extent(uf_coord_t *uf_coord, const reiser4_key *key,
  * @jnodes:
  * @count:
  * @off:
- * 
+ *
  */
 int update_extent(struct inode *inode, jnode *node, loff_t pos,
 		  int *plugged_hole)
@@ -809,7 +809,7 @@ int update_extent(struct inode *inode, jnode *node, loff_t pos,
  * @jnodes:
  * @count:
  * @off:
- * 
+ *
  */
 static int update_extents(struct file *file, jnode **jnodes, int count, loff_t pos)
 {
@@ -912,8 +912,8 @@ static int write_extent_reserve_space(struct inode *inode)
 
 	/*
 	 * to write WRITE_GRANULARITY pages to a file by extents we have to
-	 * reserve disk space for: 
- 
+	 * reserve disk space for:
+
 	 * 1. find_file_item may have to insert empty node to the tree (empty
 	 * leaf node between two extent items). This requires 1 block and
 	 * number of blocks which are necessary to perform insertion of an
@@ -1070,7 +1070,7 @@ ssize_t write_extent(struct file *file, const char __user *buf, size_t count,
 		left -= to_page;
 		BUG_ON(get_current_context()->trans->atom != NULL);
 	}
- 
+
 	if (have_to_update_extent) {
 		update_extents(file, jnodes, nr_pages, *pos);
 	} else {

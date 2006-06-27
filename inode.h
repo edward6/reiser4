@@ -59,7 +59,7 @@ typedef enum {
 	REISER4_HAS_MMAP = 8,
 
 	REISER4_PART_MIXED = 9,
-	REISER4_PART_IN_CONV = 10 
+	REISER4_PART_IN_CONV = 10
 } reiser4_file_plugin_flags;
 
 /* state associated with each inode.

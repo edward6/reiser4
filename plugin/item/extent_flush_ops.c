@@ -517,7 +517,7 @@ static int conv_extent(coord_t *coord, reiser4_extent *replace)
  * @index: first jnode on the range
  * @count: number of jnodes to assign block numbers to
  * @first: start of allocated block range
- * 
+ *
  * Assigns block numbers to each of @count jnodes. Index of first jnode is
  * @index. Jnodes get lookuped with jlookup.
  */

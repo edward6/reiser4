@@ -308,7 +308,7 @@ static int find_file_state(struct inode *inode, unix_file_info_t *uf_info)
 			ergo(result == 0, uf_info->container != UF_CONTAINER_UNKNOWN));
 		done_lh(&lh);
 		if (!IS_CBKERR(result))
-			result = 0; 
+			result = 0;
 	}
 	txn_restart_current();
 	return result;
@@ -761,8 +761,8 @@ hint_validate(hint_t * hint, const reiser4_key * key, int check_key,
 }
 
 /**
- * find_or_create_extent - 
- * @page: 
+ * find_or_create_extent -
+ * @page:
  *
  *
  */
@@ -1608,7 +1608,7 @@ static int reiser4_readpages_filler(void * data, struct page * page)
 		ret = coord_by_key(
 			&get_super_private(mapping->host->i_sb)->tree,
 			&key, &rc->coord, &rc->lh,
-			ZNODE_READ_LOCK, FIND_EXACT, 
+			ZNODE_READ_LOCK, FIND_EXACT,
 			TWIG_LEVEL, TWIG_LEVEL, CBK_UNIQUE, NULL);
 		lock_page(page);
 		cbk_done = 1;
@@ -1631,7 +1631,7 @@ static int reiser4_readpages_filler(void * data, struct page * page)
 	ON_DEBUG(rc->stat.reused += !cbk_done);
 	ret = do_readpage_extent(ext, page->index - ext_index, page);
 	zrelse(rc->coord.node);
-	if (ret) { 
+	if (ret) {
 	err:
 		unlock_page(page);
 	}
@@ -2269,7 +2269,7 @@ ssize_t write_unix_file(struct file *file, const char __user *buf,
 		/* something is written. */
 		if (uf_info->container == UF_CONTAINER_EMPTY) {
 			assert("", ea == EA_OBTAINED);
-			uf_info->container = (write_op == write_extent) ? 
+			uf_info->container = (write_op == write_extent) ?
 				UF_CONTAINER_EXTENTS : UF_CONTAINER_TAILS;
 		} else {
 			assert("", ergo(uf_info->container == UF_CONTAINER_EXTENTS,

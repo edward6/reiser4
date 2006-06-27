@@ -1853,7 +1853,7 @@ static void info_jnode(const char *prefix /* prefix to print */ ,
 	    ("%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i,"
 	     " block: %s, d_count: %d, x_count: %d, "
 	     "pg: %p, atom: %p, lock: %i:%i, type: %s, ", prefix, node,
-	     node->state, 
+	     node->state,
 	     jnode_state_name(node, JNODE_PARSED),
 	     jnode_state_name(node, JNODE_HEARD_BANSHEE),
 	     jnode_state_name(node, JNODE_LEFT_CONNECTED),

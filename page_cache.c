@@ -480,7 +480,7 @@ int set_page_dirty_internal(struct page *page)
 /**
  * can_hit_entd
  *
- * This is used on 
+ * This is used on
  */
 static int can_hit_entd(reiser4_context *ctx, struct super_block *s)
 {

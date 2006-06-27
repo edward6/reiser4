@@ -1,4 +1,4 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by 
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
    reiser4/README */
 
 /* This file contains implementations of inode/file/address_space/file plugin
@@ -283,9 +283,9 @@ static int need_cipher(struct inode * inode)
    If success is returned, then low-level cipher info contains
    an instantiated key */
 #if 0
-crypto_stat_t * 
-create_crypto_stat(struct inode * object, 
-		   crypto_data_t * data /* this contains a (uninstantiated) 
+crypto_stat_t *
+create_crypto_stat(struct inode * object,
+		   crypto_data_t * data /* this contains a (uninstantiated)
 					   cipher key imported from user
 					   space */)
 {
@@ -332,7 +332,7 @@ create_crypto_stat(struct inode * object,
 }
 #endif
 
-/* increment/decrement a load counter when 
+/* increment/decrement a load counter when
    attaching/detaching the crypto-stat to any object */
 static void load_crypto_stat(crypto_stat_t * info)
 {
@@ -759,7 +759,7 @@ free_reserved4cluster(struct inode *inode, reiser4_cluster_t * clust, int count)
 
 /* The core search procedure of the cryptcompress plugin.
    If returned value is not cbk_errored, then current znode is locked */
-static int find_cluster_item(hint_t * hint, 
+static int find_cluster_item(hint_t * hint,
 			     const reiser4_key * key, /* key of the item we are
 							 looking for */
 			     znode_lock_mode lock_mode /* which lock */ ,
@@ -1791,7 +1791,7 @@ flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
 	spin_lock_jnode(node);
 	assert("edward-1435", JF_ISSET(node, JNODE_DIRTY));
 
-	/* Check out a size of logical cluster and 
+	/* Check out a size of logical cluster and
 	   set a number of cluster pages to commit. */
 	tc->len = tc->lsize = fsize_to_count(clust, inode);
 	clust->nr_pages = count_to_nrpages(tc->len);
@@ -1816,7 +1816,7 @@ flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
 
 		assert("edward-242", clust->pages[i] != NULL);
 		assert("edward-1436", clust->pages[i]->index ==
-		       clust_to_pg(clust->index, inode) + i); 
+		       clust_to_pg(clust->index, inode) + i);
 		assert("edward-1437", PageUptodate(clust->pages[i]));
 		/* flush the page into the input stream */
 		lock_page(clust->pages[i]);
@@ -3149,7 +3149,7 @@ cryptcompress_append_hole(struct inode *inode /*contains old i_size */ ,
 	if (off_to_cloff(inode->i_size, inode) == 0)
 		goto fake_append;
 	hole_size = new_size - inode->i_size;
-	nr_zeroes = 
+	nr_zeroes =
 		inode_cluster_size(inode) - off_to_cloff(inode->i_size, inode);
 	if (hole_size < nr_zeroes)
 		nr_zeroes = hole_size;
@@ -3290,7 +3290,7 @@ prune_cryptcompress(struct inode *inode, loff_t new_size, int update_sd,
 
 	to_prune = inode->i_size - new_size;
 
-	/* partial truncate of leftmost cluster, 
+	/* partial truncate of leftmost cluster,
 	   first check if it is fake */
 	result = find_real_disk_cluster(inode, &aidx, ridx);
 	if (result)
@@ -3418,7 +3418,7 @@ static void clear_moved_tag_cluster(struct address_space * mapping,
 	read_lock_irq(&mapping->tree_lock);
 	for (i = 0; i < clust->nr_pages; i++) {
 		assert("edward-1438", clust->pages[i] != NULL);
-		ret = radix_tree_tag_clear(&mapping->page_tree, 
+		ret = radix_tree_tag_clear(&mapping->page_tree,
 					   clust->pages[i]->index,
 					   PAGECACHE_TAG_REISER4_MOVED);
 		assert("edward-1439", ret == clust->pages[i]);

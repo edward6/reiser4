@@ -589,7 +589,7 @@ static int write_extent_reserve_space(struct inode *inode)
 
 	/*
 	 * to write one flow to a file by tails we have to reserve disk space for:
- 
+
 	 * 1. find_file_item may have to insert empty node to the tree (empty
 	 * leaf node between two extent items). This requires 1 block and
 	 * number of blocks which are necessary to perform insertion of an
@@ -600,7 +600,7 @@ static int write_extent_reserve_space(struct inode *inode)
 	 * 3. stat data update
 	 */
 	tree = tree_by_inode(inode);
-	count = estimate_one_insert_item(tree) + 
+	count = estimate_one_insert_item(tree) +
 		estimate_insert_flow(tree->height) +
 		estimate_one_insert_item(tree);
 	grab_space_enable();

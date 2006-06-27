@@ -37,7 +37,7 @@ typedef struct crypto_data {
    validating, binding to host inode, etc..) by reiser4 key manager.
 
    This info can be allocated in two cases:
-   1. importing a key from user space. 
+   1. importing a key from user space.
    2. reading inode from disk */
 typedef struct crypto_stat {
 	reiser4_tfma_t tfma[LAST_TFM];
