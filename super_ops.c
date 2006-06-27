@@ -202,6 +202,7 @@ static void reiser4_delete_inode(struct inode *inode)
 			fplug->delete_object(inode);
 	}
 
+	truncate_inode_pages(inode->i_mapping, 0);
 	inode->i_blocks = 0;
 	clear_inode(inode);
 	reiser4_exit_context(ctx);
