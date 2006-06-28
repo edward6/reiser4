@@ -273,14 +273,14 @@ static struct {
 #if REISER4_DEBUG
 static reiser4_plugin_type pset_member_to_type(pset_member memb)
 {
-	assert("nikita-3501", 0 <= memb && memb < PSET_LAST);
+	assert("nikita-3501", memb < PSET_LAST);
 	return pset_descr[memb].type;
 }
 #endif
 
 reiser4_plugin_type pset_member_to_type_unsafe(pset_member memb)
 {
-	if (0 <= memb && memb < PSET_LAST)
+	if (memb < PSET_LAST)
 		return pset_descr[memb].type;
 	else
 		return REISER4_PLUGIN_TYPES;
@@ -291,7 +291,7 @@ int pset_set(plugin_set ** set, pset_member memb, reiser4_plugin * plugin)
 	assert("nikita-3492", set != NULL);
 	assert("nikita-3493", *set != NULL);
 	assert("nikita-3494", plugin != NULL);
-	assert("nikita-3495", 0 <= memb && memb < PSET_LAST);
+	assert("nikita-3495", memb < PSET_LAST);
 	assert("nikita-3496", plugin->h.type_id == pset_member_to_type(memb));
 
 	return plugin_set_field(set,
@@ -301,7 +301,7 @@ int pset_set(plugin_set ** set, pset_member memb, reiser4_plugin * plugin)
 reiser4_plugin *pset_get(plugin_set * set, pset_member memb)
 {
 	assert("nikita-3497", set != NULL);
-	assert("nikita-3498", 0 <= memb && memb < PSET_LAST);
+	assert("nikita-3498", memb < PSET_LAST);
 
 	return *(reiser4_plugin **) (((char *)set) + pset_descr[memb].offset);
 }

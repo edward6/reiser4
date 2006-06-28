@@ -615,7 +615,7 @@ void longterm_unlock_znode(lock_handle * handle)
 	 */
 
 	/* was this lock of hi or lo priority */
-	hipri = oldowner->curpri ? -1 : 0;
+	hipri = oldowner->curpri ? 1 : 0;
 	/* number of readers */
 	readers = node->lock.nr_readers;
 	/* +1 if write lock, -1 if read lock */
@@ -628,8 +628,8 @@ void longterm_unlock_znode(lock_handle * handle)
 	assert("zam-101", znode_is_locked(node));
 
 	/* Adjust a number of high priority owners of this lock */
-	node->lock.nr_hipri_owners += hipri;
-	assert("nikita-1836", node->lock.nr_hipri_owners >= 0);
+	assert("nikita-1836", node->lock.nr_hipri_owners >= hipri);
+	node->lock.nr_hipri_owners -= hipri;
 
 	/* Handle znode deallocation on last write-lock release. */
 	if (znode_is_wlocked_once(node)) {

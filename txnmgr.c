@@ -1517,7 +1517,7 @@ void atom_set_stage(txn_atom * atom, txn_stage stage)
 {
 	assert("nikita-3535", atom != NULL);
 	assert_spin_locked(&(atom->alock));
-	assert("nikita-3536", ASTAGE_FREE <= stage && stage <= ASTAGE_INVALID);
+	assert("nikita-3536", stage <= ASTAGE_INVALID);
 	/* Excelsior! */
 	assert("nikita-3537", stage >= atom->stage);
 	if (atom->stage != stage) {

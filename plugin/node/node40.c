@@ -679,8 +679,6 @@ int parse_node40(znode * node /* node to parse */ )
 		node->nr_items = node40_num_of_items_internal(node);
 		result = 0;
 	}
-	if (unlikely(result != 0))
-		/* print_znode("node", node) */ ;
 	return RETERR(result);
 }
 

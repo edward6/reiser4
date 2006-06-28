@@ -613,9 +613,7 @@ static int prepare_object_lookup(cbk_handle * h)
 				}
 			}
 		}
-	} else
-		/* long-term locking failed. Restart. */
-		;
+	}
 
 	zput(vroot);
 

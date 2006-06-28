@@ -308,7 +308,6 @@ reiser4_find_last_set_bit(bmap_off_t * result, void *addr, bmap_off_t low_off,
 	int last_bit;
 	int nr;
 
-	assert("zam-961", high_off >= 0);
 	assert("zam-962", high_off >= low_off);
 
 	last_word = high_off >> LONG_INT_SHIFT;

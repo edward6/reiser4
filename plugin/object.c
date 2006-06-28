@@ -159,9 +159,9 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.desc = "directory",
 			.linkage = {NULL, NULL}
 		},
-		.inode_ops = {NULL,},
-		.file_ops = {NULL,},
-		.as_ops = {NULL,},
+		.inode_ops = {.create = NULL},
+		.file_ops = {.owner = NULL},
+		.as_ops = {.writepage = NULL},
 
 		.write_sd_by_inode = write_sd_by_inode_common,
 		.flow_by_inode = bugop,
@@ -210,8 +210,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.getattr = getattr_common
 		},
 		/* inode->i_fop of symlink is initialized by NULL in setup_inode_ops */
-		.file_ops = {NULL,},
-		.as_ops = {NULL,},
+		.file_ops = {.owner = NULL},
+		.as_ops = {.writepage = NULL},
 
 		.write_sd_by_inode = write_sd_by_inode_common,
 		.set_plug_in_inode = set_plug_in_inode_common,
@@ -257,8 +257,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		},
 		/* file_ops of special files (sockets, block, char, fifo) are
 		   initialized by init_special_inode. */
-		.file_ops = {NULL,},
-		.as_ops = {NULL,},
+		.file_ops = {.owner = NULL},
+		.as_ops = {.writepage = NULL},
 
 		.write_sd_by_inode = write_sd_by_inode_common,
 		.set_plug_in_inode = set_plug_in_inode_common,
