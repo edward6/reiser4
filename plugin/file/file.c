@@ -1796,7 +1796,8 @@ ssize_t read_unix_file(struct file *file, char __user *buf, size_t read_amount,
 	} else
 		get_nonexclusive_access(uf_info);
 
-	result = reiser4_grab_space(unix_file_estimate_read(inode, read_amount), BA_CAN_COMMIT);
+	result = reiser4_grab_space_force(unix_file_estimate_read(inode, read_amount),
+					  BA_CAN_COMMIT);
 	if (unlikely(result != 0))
 		goto out;
 
