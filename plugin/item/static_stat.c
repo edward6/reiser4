@@ -169,7 +169,6 @@ int init_inode_static_sd(struct inode *inode /* object being processed */ ,
 	}
 	state->extmask = bigmask;
 	/* common initialisations */
-	inode->i_blksize = get_super_private(inode->i_sb)->optimal_io_size;
 	if (len - (bit / 16 * sizeof(d16)) > 0) {
 		/* alignment in save_len_static_sd() is taken into account
 		   -edward */
