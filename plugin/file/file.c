@@ -1807,7 +1807,7 @@ ssize_t read_unix_file(struct file *file, char __user *buf, size_t read_amount,
 	{
 		result = read_unix_file_container_tails(file, buf, read_amount, off);
 	} else if (uf_info->container == UF_CONTAINER_EXTENTS){
-		result = generic_file_read(file, buf, read_amount, off);
+		result = do_sync_read(file, buf, read_amount, off);
 	} else {
 		assert("zam-1085", uf_info->container == UF_CONTAINER_EMPTY);
 		result = 0;
