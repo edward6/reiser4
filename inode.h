@@ -41,7 +41,7 @@ typedef enum {
 	REISER4_IMMUTABLE = 2,
 	/* inode was read from storage */
 	REISER4_LOADED = 3,
-	/* this bit is set for symlinks. inode->u.generic_ip points to target
+	/* this bit is set for symlinks. inode->i_private points to target
 	   name of symlink. */
 	REISER4_GENERIC_PTR_USED = 4,
 	/* set if size of stat-data item for this inode is known. If this is

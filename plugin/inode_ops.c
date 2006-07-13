@@ -389,16 +389,16 @@ int mknod_common(struct inode *parent, struct dentry *dentry,
  *
  * This is common implementation of vfs's followlink method of struct
  * inode_operations.
- * Assumes that inode's generic_ip points to the content of symbolic link.
+ * Assumes that inode's i_private points to the content of symbolic link.
  */
 void *follow_link_common(struct dentry *dentry, struct nameidata *nd)
 {
 	assert("vs-851", S_ISLNK(dentry->d_inode->i_mode));
 
-	if (!dentry->d_inode->u.generic_ip
+	if (!dentry->d_inode->i_private
 	    || !inode_get_flag(dentry->d_inode, REISER4_GENERIC_PTR_USED))
 		return ERR_PTR(RETERR(-EINVAL));
-	nd_set_link(nd, dentry->d_inode->u.generic_ip);
+	nd_set_link(nd, dentry->d_inode->i_private);
 	return NULL;
 }
 
