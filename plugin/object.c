@@ -305,6 +305,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.llseek = generic_file_llseek,
 			.read = read_cryptcompress,
 			.write = write_cryptcompress,
+			.aio_read = generic_file_aio_read,
 			.mmap = mmap_cryptcompress,
 			.release = release_cryptcompress,
 			.fsync = sync_common,
