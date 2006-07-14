@@ -101,6 +101,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.llseek = generic_file_llseek,
 			.read = read_unix_file,
 			.write = write_unix_file,
+			.aio_read = generic_file_aio_read,
 			.ioctl = ioctl_unix_file,
 			.mmap = mmap_unix_file,
 			.open = open_unix_file,
