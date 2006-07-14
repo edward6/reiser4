@@ -644,7 +644,7 @@ static int truncate_file_body(struct inode *inode, loff_t new_size)
  * stored on exiting from previous read or write. That information includes
  * seal of znode and coord within that znode where previous read or write
  * stopped. This function copies that information to @hint if it was stored or
- * initializes @hint by 0n  otherwise.
+ * initializes @hint by 0s  otherwise.
  */
 int load_file_hint(struct file *file, hint_t *hint)
 {
