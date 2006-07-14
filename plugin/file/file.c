@@ -808,8 +808,7 @@ int find_or_create_extent(struct page *page)
 
 	if (node->blocknr == 0) {
 		plugged_hole = 0;
-		result = update_extent(inode, node,
-				       (loff_t)page->index << PAGE_CACHE_SHIFT,
+		result = update_extent(inode, node, page_offset(page),
 				       &plugged_hole);
 		if (result) {
 			jput(node);
@@ -875,7 +874,7 @@ static int capture_page_and_create_extent(struct page *page)
 	       unix_file_inode_data(inode)->container == UF_CONTAINER_EXTENTS);
 	/* page belongs to file */
 	assert("vs-1393",
-	       inode->i_size > ((loff_t) page->index << PAGE_CACHE_SHIFT));
+	       inode->i_size > page_offset(page));
 
 	/* page capture may require extent creation (if it does not exist yet)
 	   and stat data's update (number of blocks changes on extent
@@ -1440,8 +1439,7 @@ int readpage_unix_file_nolock(struct file *file, struct page *page)
 	assert("vs-976", !PageUptodate(page));
 	assert("vs-1061", page->mapping && page->mapping->host);
 
-	if ((page->mapping->host->i_size <=
-	     ((loff_t) page->index << PAGE_CACHE_SHIFT))) {
+	if (page->mapping->host->i_size <= page_offset(page)) {
 		/* page is out of file already */
 		unlock_page(page);
 		return -EINVAL;
@@ -1463,9 +1461,7 @@ int readpage_unix_file_nolock(struct file *file, struct page *page)
 	lh = &hint->lh;
 
 	/* get key of first byte of the page */
-	key_by_inode_and_offset_common(inode,
-				       (loff_t) page->index << PAGE_CACHE_SHIFT,
-				       &key);
+	key_by_inode_and_offset_common(inode, page_offset(page), &key);
 
 	/* look for file metadata corresponding to first byte of page */
 	page_cache_get(page);
@@ -1505,8 +1501,7 @@ int readpage_unix_file_nolock(struct file *file, struct page *page)
 	if (result)
 		goto out_unlock;
 
-	validate_extended_coord(&hint->ext_coord,
-				(loff_t) page->index << PAGE_CACHE_SHIFT);
+	validate_extended_coord(&hint->ext_coord, page_offset(page));
 
 	if (!coord_is_existing_unit(coord)) {
 		/* this indicates corruption */

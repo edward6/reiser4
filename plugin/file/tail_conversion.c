@@ -158,10 +158,7 @@ static int replace(struct inode *inode, struct page **pages, unsigned nr_pages, 
 	assert("vs-596", pages[0]);
 
 	/* cut copied items */
-	result =
-	    cut_formatting_items(inode,
-				 (loff_t) pages[0]->index << PAGE_CACHE_SHIFT,
-				 count);
+	result = cut_formatting_items(inode, page_offset(pages[0]), count);
 	if (result)
 		return result;
 

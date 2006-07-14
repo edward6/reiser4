@@ -1011,7 +1011,7 @@ ssize_t write_extent(struct file *file, const char __user *buf, size_t count,
 		if (to_page > left)
 			to_page = left;
 		page = jnode_page(jnodes[i]);
-		if (((loff_t)page->index << PAGE_CACHE_SHIFT) < inode->i_size &&
+		if (page_offset(page) < inode->i_size &&
 		    !PageUptodate(page) && to_page != PAGE_CACHE_SIZE) {
 			/*
 			 * the above is not optimal for partial write to last
@@ -1239,9 +1239,7 @@ static int readahead_readpage_extent(void *vp, struct page *page)
 			return RETERR(-EINVAL);
 		}
 
-		assert("vs-1274", offset_is_in_unit(coord,
-						    (loff_t) page->
-						    index << PAGE_CACHE_SHIFT));
+		assert("vs-1274", offset_is_in_unit(coord, page_offset(page)));
 		ext_coord->expected_page = page->index;
 	}
 
@@ -1296,7 +1294,7 @@ static int extent_readpage_filler(void *data, struct page *page)
 	uf_coord_t *ext_coord;
 	int result;
 
-	offset = (loff_t) page->index << PAGE_CACHE_SHIFT;
+	offset = page_offset(page);
 	key_by_inode_and_offset_common(page->mapping->host, offset, &key);
 
 	hint = (hint_t *) data;

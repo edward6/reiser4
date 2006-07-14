@@ -245,8 +245,9 @@ static void entd_flush(struct super_block *super, struct wbq *rq)
 	ctx.entd = 1;
 	ctx.gfp_mask = GFP_NOFS;
 
-	rq->wbc->range_start = rq->page->index << PAGE_CACHE_SHIFT;
-	rq->wbc->range_end = (rq->page->index + ENTD_CAPTURE_APAGE_BURST) << PAGE_CACHE_SHIFT;
+	rq->wbc->range_start = page_offset(rq->page);
+	rq->wbc->range_end = rq->wbc->range_start +
+		(ENTD_CAPTURE_APAGE_BURST << PAGE_CACHE_SHIFT);
 	tmp = rq->wbc->nr_to_write;
 	rq->mapping->a_ops->writepages(rq->mapping, rq->wbc);
 
