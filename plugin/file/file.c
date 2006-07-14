@@ -644,7 +644,7 @@ static int truncate_file_body(struct inode *inode, loff_t new_size)
  * stored on exiting from previous read or write. That information includes
  * seal of znode and coord within that znode where previous read or write
  * stopped. This function copies that information to @hint if it was stored or
- * initializes @hint by 0s otherwise.
+ * initializes @hint by 0n  otherwise.
  */
 int load_file_hint(struct file *file, hint_t *hint)
 {
@@ -676,6 +676,27 @@ int load_file_hint(struct file *file, hint_t *hint)
 	}
 	hint_init_zero(hint);
 	return 0;
+}
+
+
+static void free_file_hint (hint_t *hint)
+{
+	done_lh(&hint->lh);
+	kfree(hint);
+}
+
+static hint_t *get_file_hint_by_file(struct file *file)
+{
+	hint_t *hint;
+	int ret;
+
+	hint = kmalloc(sizeof(*hint), get_gfp_mask());
+	if (unlikely(hint == NULL))
+		return ERR_PTR(RETERR(-ENOMEM));
+	ret = load_file_hint(file, hint);
+	if (unlikely(ret != 0))
+		return ERR_PTR(ret);
+	return hint;
 }
 
 /**
@@ -1433,19 +1454,11 @@ int readpage_unix_file_nolock(struct file *file, struct page *page)
 		return PTR_ERR(ctx);
 	}
 
-	hint = kmalloc(sizeof(*hint), get_gfp_mask());
-	if (hint == NULL) {
+	hint = get_file_hint_by_file(file);
+	if (unlikely(IS_ERR(hint))) {
 		unlock_page(page);
 		reiser4_exit_context(ctx);
-		return RETERR(-ENOMEM);
-	}
-
-	result = load_file_hint(file, hint);
-	if (result) {
-		kfree(hint);
-		unlock_page(page);
-		reiser4_exit_context(ctx);
-		return result;
+		return PTR_ERR(hint);
 	}
 	lh = &hint->lh;
 
@@ -1466,12 +1479,8 @@ int readpage_unix_file_nolock(struct file *file, struct page *page)
 		 * readpage allows truncate to run concurrently. Page was
 		 * truncated while it was not locked
 		 */
-		done_lh(lh);
-		kfree(hint);
-		unlock_page(page);
-		txn_restart(ctx);
-		reiser4_exit_context(ctx);
-		return -EINVAL;
+		result = RETERR(-EINVAL);
+		goto out_unlock;
 	}
 
 	if (result != CBK_COORD_FOUND || hint->ext_coord.coord.between != AT_UNIT) {
@@ -1479,12 +1488,7 @@ int readpage_unix_file_nolock(struct file *file, struct page *page)
 		    hint->ext_coord.coord.between != AT_UNIT)
 			/* file is truncated */
 			result = -EINVAL;
-		done_lh(lh);
-		kfree(hint);
-		unlock_page(page);
-		txn_restart(ctx);
-		reiser4_exit_context(ctx);
-		return result;
+		goto out_unlock;
 	}
 
 	/*
@@ -1492,24 +1496,14 @@ int readpage_unix_file_nolock(struct file *file, struct page *page)
 	 * znode lock is held
 	 */
 	if (PageUptodate(page)) {
-		done_lh(lh);
-		kfree(hint);
-		unlock_page(page);
-		txn_restart(ctx);
-		reiser4_exit_context(ctx);
-		return 0;
+		result = 0;
+		goto out_unlock;
 	}
 
 	coord = &hint->ext_coord.coord;
 	result = zload(coord->node);
-	if (result) {
-		done_lh(lh);
-		kfree(hint);
-		unlock_page(page);
-		txn_restart(ctx);
-		reiser4_exit_context(ctx);
-		return result;
-	}
+	if (result)
+		goto out_unlock;
 
 	validate_extended_coord(&hint->ext_coord,
 				(loff_t) page->index << PAGE_CACHE_SHIFT);
@@ -1522,12 +1516,8 @@ int readpage_unix_file_nolock(struct file *file, struct page *page)
 			page->index, (unsigned long long)get_inode_oid(inode),
 			inode->i_size, result);
 		zrelse(coord->node);
-		done_lh(lh);
-		kfree(hint);
-		unlock_page(page);
-		txn_restart(ctx);
-		reiser4_exit_context(ctx);
-		return RETERR(-EIO);
+		result = RETERR(-EIO);
+		goto out_unlock;
 	}
 
 	/*
@@ -1554,16 +1544,19 @@ int readpage_unix_file_nolock(struct file *file, struct page *page)
 	assert("vs-9791", ergo(result != 0, !PageLocked(page)));
 
 	zrelse(coord->node);
-	done_lh(lh);
 
 	save_file_hint(file, hint);
-	kfree(hint);
 
 	/*
 	 * FIXME: explain why it is needed. HINT: page allocation in write can
 	 * not be done when atom is not NULL because reiser4_writepage can not
 	 * kick entd and have to eflush
 	 */
+	if (0) {
+out_unlock:
+		unlock_page(page);
+	}
+	free_file_hint(hint);
 	txn_restart(ctx);
 	reiser4_exit_context(ctx);
 	return result;
@@ -1822,7 +1815,7 @@ ssize_t read_unix_file(struct file *file, char __user *buf, size_t read_amount,
 static ssize_t read_unix_file_container_tails(
 	struct file *file, char __user *buf, size_t read_amount, loff_t *off)
 {
-	int result;
+	int result = 0;
 	struct inode *inode;
 	hint_t *hint;
 	unix_file_info_t *uf_info;
@@ -1834,15 +1827,9 @@ static ssize_t read_unix_file_container_tails(
 	inode = file->f_dentry->d_inode;
 	assert("vs-972", !inode_get_flag(inode, REISER4_NO_SD));
 
-	hint = kmalloc(sizeof(*hint), get_gfp_mask());
-	if (hint == NULL)
-		return RETERR(-ENOMEM);
-
-	result = load_file_hint(file, hint);
-	if (result) {
-		kfree(hint);
-		return result;
-	}
+	hint = get_file_hint_by_file(file);
+	if (unlikely(IS_ERR(hint)))
+		return PTR_ERR(hint);
 
 	left = read_amount;
 	count = 0;
@@ -1857,9 +1844,10 @@ static ssize_t read_unix_file_container_tails(
 			left = size - *off;
 
 		/* faultin user page */
-		result = fault_in_pages_writeable(buf, left > PAGE_CACHE_SIZE ? PAGE_CACHE_SIZE : left);
-		if (result)
-			return RETERR(-EFAULT);
+		if (fault_in_pages_writeable(buf, left > PAGE_CACHE_SIZE ? PAGE_CACHE_SIZE : left)) {
+			result = RETERR(-EFAULT);
+			break;
+		}
 
 		read = read_file(hint, file, buf, left, off);
 
@@ -1876,7 +1864,7 @@ static ssize_t read_unix_file_container_tails(
 		count += read;
 	}
 	save_file_hint(file, hint);
-	kfree(hint);
+	free_file_hint(hint);
 	if (count)
 		file_accessed(file);
 	/* return number of read bytes or error code if nothing is read */
