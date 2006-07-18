@@ -629,7 +629,7 @@ int readdir_common(struct file *f /* directory file being read */ ,
 	detach_fsdata(f);
 
 	/* try to update directory's atime */
-	if (reiser4_grab_space(inode_file_plugin(inode)->estimate.update(inode),
+	if (reiser4_grab_space_force(inode_file_plugin(inode)->estimate.update(inode),
 			       BA_CAN_COMMIT) != 0)
 		warning("", "failed to update atime on readdir: %llu",
 			get_inode_oid(inode));
