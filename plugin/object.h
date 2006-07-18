@@ -106,7 +106,6 @@ int do_prepare_write(struct file *, struct page *, unsigned from, unsigned to);
 int lookup_sd(struct inode *, znode_lock_mode, coord_t *, lock_handle *,
 	      const reiser4_key *, int silent);
 
-
 /* __FS_REISER4_PLUGIN_OBJECT_H__ */
 #endif
 

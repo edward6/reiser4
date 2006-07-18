@@ -201,7 +201,6 @@ int delete_object_common(struct inode *inode)
 	assert("nikita-3420", inode->i_size == 0 || S_ISLNK(inode->i_mode));
 	assert("nikita-3421", inode->i_nlink == 0);
 
-
 	if (!inode_get_flag(inode, REISER4_NO_SD)) {
 		reiser4_block_nr reserve;
 

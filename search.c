@@ -84,7 +84,6 @@ void cbk_cache_done(cbk_cache * cache /* cache to release */ )
 	     &(cache)->lru != &(slot)->lru;					\
 	     (slot) = list_entry(slot->lru.next, cbk_cache_slot, lru))
 
-
 #if REISER4_DEBUG
 /* this function assures that [cbk-cache-invariant] invariant holds */
 static int cbk_cache_invariant(const cbk_cache *cache)

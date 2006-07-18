@@ -51,7 +51,6 @@
 #include <linux/reboot.h>
 #include <linux/rcupdate.h>
 
-
 /* update inode stat-data by calling plugin */
 int reiser4_update_sd(struct inode *object)
 {
@@ -131,9 +130,6 @@ int reiser4_del_nlink(struct inode *object	/* object from which link is
 	return result;
 }
 
-
-
-
 /* Release reiser4 dentry. This is d_op->d_release() method. */
 static void reiser4_d_release(struct dentry *dentry /* dentry released */ )
 {
@@ -205,7 +201,6 @@ void writeout(struct super_block *sb, struct writeback_control *wbc)
 	} while (wbc->nr_to_write > 0);
 }
 
-
 void reiser4_throttle_write(struct inode *inode)
 {
 	txn_restart_current();
@@ -216,8 +211,6 @@ const char *REISER4_SUPER_MAGIC_STRING = "ReIsEr4";
 const int REISER4_MAGIC_OFFSET = 16 * 4096;	/* offset to magic string from the
 						 * beginning of device */
 
-
-
 /*
  * Reiser4 initialization/shutdown.
  *
@@ -225,7 +218,6 @@ const int REISER4_MAGIC_OFFSET = 16 * 4096;	/* offset to magic string from the
  * part of kernel initialization (when reiser4 is statically built-in), or
  * during reiser4 module load (when compiled as module).
  */
-
 
 void reiser4_handle_error(void)
 {

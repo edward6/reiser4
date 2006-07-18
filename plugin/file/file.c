@@ -22,7 +22,6 @@
 #include <linux/pagevec.h>
 #include <linux/syscalls.h>
 
-
 static int unpack(struct file *file, struct inode *inode, int forever);
 static void drop_access(unix_file_info_t *);
 
@@ -678,7 +677,6 @@ int load_file_hint(struct file *file, hint_t *hint)
 	return 0;
 }
 
-
 static void free_file_hint (hint_t *hint)
 {
 	done_lh(&hint->lh);
@@ -1027,7 +1025,6 @@ capture_anonymous_pages(struct address_space *mapping, pgoff_t *index,
 		assert("vs-49", p == pvec.pages[i]);
 	}
 	write_unlock_irq(&mapping->tree_lock);
-
 
 	*index = pvec.pages[i - 1]->index + 1;
 

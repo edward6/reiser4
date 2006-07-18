@@ -17,7 +17,6 @@
 #include <linux/spinlock.h>
 #include <linux/sched.h>	/* for struct task_struct */
 
-
 /* reiser4 per-thread context */
 struct reiser4_context {
 	/* magic constant. For identification of reiser4 contexts. */

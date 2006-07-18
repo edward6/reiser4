@@ -109,7 +109,6 @@ static void init_fq(flush_queue_t * fq)
 /* slab for flush queues */
 static kmem_cache_t *fq_slab;
 
-
 /**
  * init_fqs - create flush queue cache
  *

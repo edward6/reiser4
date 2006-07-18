@@ -9,7 +9,6 @@
 #include <linux/swap.h>
 #include "../../../../mm/filemap.h"
 
-
 static inline reiser4_extent *ext_by_offset(const znode *node, int offset)
 {
 	reiser4_extent *ext;
@@ -356,7 +355,6 @@ static int insert_first_hole(coord_t *coord, lock_handle *lh,
 	init_new_extent(&idata, &new_ext, 1);
 	return insert_extent_by_coord(coord, &idata, &item_key, lh);
 }
-
 
 /**
  * insert_first_extent - insert first file item

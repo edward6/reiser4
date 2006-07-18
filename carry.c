@@ -168,7 +168,6 @@ static carry_op *add_op(carry_level * level, pool_ordering order,
 static void fatal_carry_error(carry_level * doing, int ecode);
 static int add_new_root(carry_level * level, carry_node * node, znode * fake);
 
-
 static void print_level(const char *prefix, carry_level * level);
 
 #if REISER4_DEBUG

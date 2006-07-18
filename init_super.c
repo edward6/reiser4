@@ -6,7 +6,6 @@
 
 #include <linux/swap.h>
 
-
 /**
  * init_fs_info - allocate reiser4 specific super block
  * @super: super block of filesystem

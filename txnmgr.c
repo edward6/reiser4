@@ -2798,7 +2798,6 @@ static void lock_two_atoms(txn_atom * one, txn_atom * two)
 	}
 }
 
-
 /* Perform the necessary work to prepare for fusing two atoms, which involves
  * acquiring two atom locks in the proper order.  If one of the node's atom is
  * blocking fusion (i.e., it is in the CAPTURE_WAIT stage) and the handle's
@@ -3090,7 +3089,6 @@ void insert_into_atom_ovrwr_list(txn_atom * atom, jnode * node)
 	atom->capture_count++;
 	ON_DEBUG(count_jnode(atom, node, NODE_LIST(node), OVRWR_LIST, 1));
 }
-
 
 #if REISER4_DEBUG
 

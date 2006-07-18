@@ -12,7 +12,6 @@
 #include <linux/mm.h>		/* for struct page  */
 #include <linux/pagemap.h>	/* for lock_page()  */
 
-
 extern int init_formatted_fake(struct super_block *);
 extern void done_formatted_fake(struct super_block *);
 

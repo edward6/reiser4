@@ -248,7 +248,6 @@ static inline struct inode *unix_file_info_to_inode(const unix_file_info_t *
 			     p.file_plugin_data.unix_file_info)->vfs_inode;
 }
 
-
 extern ino_t oid_to_ino(oid_t oid) __attribute__ ((const));
 extern ino_t oid_to_uino(oid_t oid) __attribute__ ((const));
 
@@ -309,7 +308,6 @@ static inline void spin_unlock_inode(struct inode *inode)
 
 	spin_unlock(&reiser4_inode_data(inode)->guard);
 }
-
 
 extern znode *inode_get_vroot(struct inode *inode);
 extern void inode_set_vroot(struct inode *inode, znode * vroot);

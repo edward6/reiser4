@@ -230,7 +230,6 @@ extern znode *zalloc(gfp_t gfp_flag);
 extern void zinit(znode *, const znode * parent, reiser4_tree *);
 extern int zparse(znode * node);
 
-
 extern int znode_just_created(const znode * node);
 
 extern void zfree(znode * node);

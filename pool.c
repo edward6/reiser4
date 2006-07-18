@@ -41,7 +41,6 @@
    functions in the style of tslist/tshash, i.e., make them unreadable, but
    type-safe.
 
-
 */
 
 #include "debug.h"

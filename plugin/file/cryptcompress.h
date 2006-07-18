@@ -441,7 +441,6 @@ typedef struct cryptcompress_info {
 #endif
 } cryptcompress_info_t;
 
-
 static inline void toggle_compression (cryptcompress_info_t * info, int val)
 {
 	info->compress_toggle = val;
@@ -473,7 +472,6 @@ void inherit_crypto_stat_common(struct inode * parent, struct inode * object,
 void attach_crypto_stat(struct inode * inode, crypto_stat_t * info);
 void change_crypto_stat(struct inode * inode, crypto_stat_t * new);
 crypto_stat_t * alloc_crypto_stat (struct inode * inode);
-
 
 static inline reiser4_tfma_t *
 info_get_tfma (crypto_stat_t * info, reiser4_tfm id)

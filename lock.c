@@ -350,7 +350,6 @@ static int recursive(lock_stack * owner)
 	assert("nikita-1841", owner == get_current_lock_stack());
 	assert_spin_locked(&(node->lock.guard));
 
-
 	lh = list_entry(node->lock.owners.next, lock_handle, owners_link);
 	ret = (lh->owner == owner);
 
@@ -551,7 +550,6 @@ static void remove_lock_request(lock_stack * requestor)
 	}
 	list_del(&requestor->requestors_link);
 }
-
 
 static void invalidate_all_lock_requests(znode * node)
 {

@@ -797,7 +797,6 @@ int alloc_extent(flush_pos_t *flush_pos)
 		/* assign new block numbers to protected nodes */
 		assign_real_blocknrs(flush_pos, oid, index, allocated, first_allocated);
 
-
 		/* prepare extent which will replace current one */
 		set_extent(&replace_ext, first_allocated, allocated);
 

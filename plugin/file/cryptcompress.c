@@ -1732,7 +1732,6 @@ static int update_sd_cryptcompress(struct inode *inode)
 	return result;
 }
 
-
 /* NOTE-Edward: this is too similar to reiser4/txnmgr.c:uncapture_jnode() */
 static void uncapture_cluster_jnode(jnode * node)
 {

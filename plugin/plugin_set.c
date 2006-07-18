@@ -327,7 +327,6 @@ DEFINE_PLUGIN_SET(file_plugin, file)
     DEFINE_PLUGIN_SET(cluster_plugin, cluster)
     /* DEFINE_PLUGIN_SET(regular_plugin, regular_entry) */
 
-
 /**
  * init_plugin_set - create pset cache and hash table
  *

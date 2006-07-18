@@ -307,7 +307,6 @@ static int try_init_format40(struct super_block *super,
 	height = get_format40_tree_height(sb_copy);
 	nplug = node_plugin_by_id(NODE40_ID);
 
-
 	/* initialize reiser4_super_info_data */
 	sbinfo = get_super_private(super);
 	assert("", sbinfo->tree.super == super);

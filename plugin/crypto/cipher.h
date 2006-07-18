@@ -8,7 +8,6 @@
 
 #include <linux/crypto.h>
 
-
 /* Transform actions involved in ciphering process and
    supported by reiser4 via appropriate transform plugins */
 typedef enum {

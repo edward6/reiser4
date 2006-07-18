@@ -64,7 +64,6 @@ static inline node40_header *node40_node_header(const znode * node	/* node to
 #define nh40_set_num_items(nh, value) put_unaligned(cpu_to_le16(value), &(nh)->nr_items)
 #define nh40_set_mkfs_id(nh, value) put_unaligned(cpu_to_le32(value), &(nh)->mkfs_id)
 
-
 /* plugin field of node header should be read/set by
    plugin_by_disk_id/save_disk_plugin */
 

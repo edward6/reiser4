@@ -296,7 +296,6 @@ int create_hook_internal(const coord_t * item /* coord of item */ ,
     . when last reference to this node will be dropped, bitmap will be updated
     and node will be actually removed from the memory.
 
-
 */
 int kill_hook_internal(const coord_t * item /* coord of item */ ,
 		       pos_in_node_t from UNUSED_ARG /* start unit */ ,

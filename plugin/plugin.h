@@ -807,7 +807,6 @@ typedef struct plugin_locator {
 
 extern int locate_plugin(struct inode *inode, plugin_locator * loc);
 
-
 #define PLUGIN_BY_ID(TYPE,ID,FIELD)					\
 static inline TYPE *TYPE ## _by_id( reiser4_plugin_id id )		\
 {									\
@@ -861,7 +860,6 @@ extern struct list_head *get_plugin_list(reiser4_plugin_type type_id);
 for (plugin = list_entry(get_plugin_list(ptype)->next, reiser4_plugin, h.linkage);	\
      get_plugin_list(ptype) != &plugin->h.linkage;					\
      plugin = list_entry(plugin->h.linkage.next, reiser4_plugin, h.linkage))
-
 
 /* enumeration of fields within plugin_set */
 typedef enum {

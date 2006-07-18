@@ -971,7 +971,6 @@ static jnode *find_flush_start_jnode(jnode *start, txn_atom *atom,
 	return node;
 }
 
-
 /* Flush some nodes of current atom, usually slum, return -E_REPEAT if there are more nodes
  * to flush, return 0 if atom's dirty lists empty and keep current atom locked, return
  * other errors as they are. */

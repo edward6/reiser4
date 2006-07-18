@@ -13,7 +13,6 @@
 #include <linux/quotaops.h>
 #include <linux/namei.h>
 
-
 static int create_vfs_object(struct inode *parent, struct dentry *dentry,
 		      reiser4_object_create_data *data);
 

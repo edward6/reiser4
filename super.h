@@ -300,7 +300,6 @@ struct reiser4_super_info_data {
 extern reiser4_super_info_data *get_super_private_nocheck(const struct
 							  super_block *super);
 
-
 /* Return reiser4-specific part of super block */
 static inline reiser4_super_info_data *get_super_private(const struct
 							 super_block *super)
@@ -315,7 +314,6 @@ static inline entd_context *get_entd_context(struct super_block *super)
 {
 	return &get_super_private(super)->entd;
 }
-
 
 /* "Current" super-block: main super block used during current system
    call. Reference to this super block is stored in reiser4_context. */
@@ -429,7 +427,6 @@ extern void done_fs_info(struct super_block *);
 extern int init_super_data(struct super_block *, char *opt_string);
 extern int init_read_super(struct super_block *, int silent);
 extern int init_root_inode(struct super_block *);
-
 
 /* Maximal possible object id. */
 #define  ABSOLUTE_MAX_OID ((oid_t)~0)

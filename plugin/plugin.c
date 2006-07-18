@@ -188,7 +188,6 @@ int init_plugins(void);
 int setup_plugins(struct super_block *super, reiser4_plugin ** area);
 int locate_plugin(struct inode *inode, plugin_locator * loc);
 
-
 /**
  * init_plugins - initialize plugins
  *

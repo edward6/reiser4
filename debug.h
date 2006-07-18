@@ -225,7 +225,6 @@ extern void reiser4_print_prefix(const char *level, int reperr, const char *mid,
 extern int preempt_point(void);
 extern void reiser4_print_stats(void);
 
-
 #if REISER4_DEBUG
 extern int no_counters_are_held(void);
 extern int commit_check_locks(void);

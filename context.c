@@ -40,7 +40,6 @@
 #include <linux/writeback.h>	/* balance_dirty_pages() */
 #include <linux/hardirq.h>
 
-
 static void _init_context(reiser4_context * context, struct super_block *super)
 {
 	memset(context, 0, sizeof(*context));

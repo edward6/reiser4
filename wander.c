@@ -235,7 +235,6 @@ static void disable_write_barrier(struct super_block * s)
 	set_bit((int)REISER4_NO_WRITE_BARRIER, &get_super_private(s)->fs_flags);
 }
 
-
 /* fill journal header block data  */
 static void format_journal_header(struct commit_handle *ch)
 {
@@ -1149,7 +1148,6 @@ static int commit_tx(struct commit_handle *ch)
 	}
 	return ret;
 }
-
 
 static int write_tx_back(struct commit_handle * ch)
 {

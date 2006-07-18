@@ -385,7 +385,6 @@ static inline void jnode_set_block(jnode *node, const reiser4_block_nr *blocknr)
 	node->blocknr = *blocknr;
 }
 
-
 /* block number for IO. Usually this is the same as jnode_get_block(), unless
  * jnode was emergency flushed---then block number chosen by eflush is
  * used. */

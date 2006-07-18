@@ -661,7 +661,6 @@ void reiser4_free_dentry_fsdata(struct dentry *dentry)
 	}
 }
 
-
 /* slab for reiser4_file_fsdata */
 static kmem_cache_t *file_fsdata_cache;
 

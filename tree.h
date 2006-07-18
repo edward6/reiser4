@@ -66,7 +66,6 @@ typedef struct cbk_cache {
 	cbk_cache_slot *slot;
 } cbk_cache;
 
-
 /* level_lookup_result - possible outcome of looking up key at some level.
    This is used by coord_by_key when traversing tree downward. */
 typedef enum {
@@ -432,7 +431,6 @@ int lookup_couple(reiser4_tree * tree,
 		  tree_level lock_level, tree_level stop_level, __u32 flags,
 		  int *result1, int *result2);
 
-
 static inline void read_lock_tree(reiser4_tree *tree)
 {
 	/* check that tree is not locked */
@@ -562,7 +560,6 @@ reiser4_block_nr calc_estimate_one_insert(tree_level);
 reiser4_block_nr estimate_dirty_cluster(struct inode *);
 reiser4_block_nr estimate_insert_cluster(struct inode *);
 reiser4_block_nr estimate_update_cluster(struct inode *);
-
 
 /* __REISER4_TREE_H__ */
 #endif

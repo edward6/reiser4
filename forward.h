@@ -242,8 +242,6 @@ typedef enum {
 	OVRWR_LIST
 } atom_list;
 
-
-
 /* __REISER4_FORWARD_H__ */
 #endif
 

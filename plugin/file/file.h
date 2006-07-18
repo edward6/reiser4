@@ -118,7 +118,6 @@ int find_file_item_nohint(coord_t *, lock_handle *,
 int load_file_hint(struct file *, hint_t *);
 void save_file_hint(struct file *, const hint_t *);
 
-
 #include "../item/extent.h"
 #include "../item/tail.h"
 #include "../item/ctail.h"
@@ -165,7 +164,6 @@ int cut_file_items(struct inode *, loff_t new_size, int update_sd,
 		   loff_t cur_size, int (*update_actor) (struct inode *,
 							 reiser4_key *, int));
 
-
 #if REISER4_DEBUG
 
 /* return 1 is exclusive access is obtained, 0 - otherwise */
@@ -206,7 +204,6 @@ extern int readpage_cryptcompress(struct file *, struct page *);
 extern int writepages_cryptcompress(struct address_space *,
 				     struct writeback_control *);
 
-
 /* file plugin operations */
 int flow_by_inode_cryptcompress(struct inode *, const char __user *buf,
 				int user, loff_t, loff_t, rw_op, flow_t *);
@@ -226,7 +223,6 @@ void destroy_inode_cryptcompress(struct inode *);
 extern reiser4_plugin_ops cryptcompress_plugin_ops;
 
 #define WRITE_GRANULARITY 32
-
 
 int tail2extent(unix_file_info_t *);
 int extent2tail(unix_file_info_t *);

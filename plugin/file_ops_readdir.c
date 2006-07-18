@@ -31,7 +31,6 @@ static cmp_t dir_pos_cmp(const dir_pos * p1, const dir_pos * p2)
 	return result;
 }
 
-
 /* see comment before readdir_common() for overview of why "adjustment" is
  * necessary. */
 static void
@@ -426,7 +425,6 @@ static void move_entry(readdir_pos * pos, coord_t * coord)
  * is used d_cursor_shrink to reclaim d_cursors on memory pressure.
  *
  */
-
 
 /*
  * prepare for readdir.

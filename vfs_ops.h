@@ -31,7 +31,6 @@ extern int reiser4_update_sd(struct inode *);
 extern int reiser4_add_nlink(struct inode *, struct inode *, int);
 extern int reiser4_del_nlink(struct inode *, struct inode *, int);
 
-
 extern int reiser4_start_up_io(struct page *page);
 extern void reiser4_throttle_write(struct inode *);
 extern int jnode_is_releasable(jnode *);
@@ -39,9 +38,7 @@ extern int jnode_is_releasable(jnode *);
 #define CAPTURE_APAGE_BURST (1024l)
 void writeout(struct super_block *, struct writeback_control *);
 
-
 extern void reiser4_handle_error(void);
-
 
 /* __FS_REISER4_VFS_OPS_H__ */
 #endif

@@ -87,7 +87,6 @@ extern void done_dentry_fsdata(void);
 extern reiser4_dentry_fsdata *reiser4_get_dentry_fsdata(struct dentry *);
 extern void reiser4_free_dentry_fsdata(struct dentry *dentry);
 
-
 /**
  * reiser4_file_fsdata - reiser4-specific data attached to file->private_data
  *
@@ -136,7 +135,6 @@ extern void done_file_fsdata(void);
 extern reiser4_file_fsdata *reiser4_get_file_fsdata(struct file *);
 extern void reiser4_free_file_fsdata(struct file *);
 
-
 /*
  * d_cursor is reiser4_file_fsdata not attached to struct file. d_cursors are
  * used to address problem reiser4 has with readdir accesses via NFS. See
@@ -183,7 +181,6 @@ extern void done_super_d_info(struct super_block *);
 extern loff_t get_dir_fpos(struct file *);
 extern int try_to_attach_fsdata(struct file *, struct inode *);
 extern void detach_fsdata(struct file *);
-
 
 /* these are needed for "stateless" readdir. See plugin/file_ops_readdir.c for
    more details */
