@@ -802,15 +802,19 @@ int find_or_create_extent(struct page *page)
 
 	lock_page(page);
 	node = jnode_of_page(page);
-	unlock_page(page);
-	if (IS_ERR(node))
+	if (IS_ERR(node)) {
+		unlock_page(page);
 		return PTR_ERR(node);
+	}
+	JF_SET(node, JNODE_WRITE_PREPARED);
+	unlock_page(page);
 
 	if (node->blocknr == 0) {
 		plugged_hole = 0;
 		result = update_extent(inode, node, page_offset(page),
 				       &plugged_hole);
 		if (result) {
+			JF_CLR(node, JNODE_WRITE_PREPARED);
 			jput(node);
 			warning("", "update_extent failed: %d", result);
 			return result;
@@ -826,6 +830,7 @@ int find_or_create_extent(struct page *page)
 	}
 
 	BUG_ON(node->atom == NULL);
+	JF_CLR(node, JNODE_WRITE_PREPARED);
 	jput(node);
 
 	if (get_current_context()->entd) {
@@ -1844,7 +1849,9 @@ static ssize_t read_unix_file_container_tails(
 			break;
 		}
 
-		read = read_file(hint, file, buf, left, off);
+		read = read_file(hint, file, buf,
+				 left > PAGE_CACHE_SIZE ? PAGE_CACHE_SIZE : left,
+				 off);
 
 		if (read < 0) {
 			result = read;
