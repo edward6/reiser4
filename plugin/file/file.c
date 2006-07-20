@@ -1797,7 +1797,15 @@ ssize_t read_unix_file(struct file *file, char __user *buf, size_t read_amount,
 	{
 		result = read_unix_file_container_tails(file, buf, read_amount, off);
 	} else if (uf_info->container == UF_CONTAINER_EXTENTS){
-		result = do_sync_read(file, buf, read_amount, off);
+		struct iovec iov = { .iov_base = buf, .iov_len = read_amount };
+		struct kiocb kiocb;
+
+		init_sync_kiocb(&kiocb, file);
+		kiocb.ki_pos = *off;
+		kiocb.ki_left = read_amount;
+
+		result = generic_file_aio_read(&kiocb, &iov, 1, kiocb.ki_pos);
+		*off = kiocb.ki_pos;
 	} else {
 		assert("zam-1085", uf_info->container == UF_CONTAINER_EMPTY);
 		result = 0;

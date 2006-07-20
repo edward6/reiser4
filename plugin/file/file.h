@@ -16,7 +16,7 @@ int setattr_unix_file(struct dentry *, struct iattr *);
 ssize_t read_unix_file(struct file *, char __user *buf, size_t read_amount,
 		       loff_t *off);
 ssize_t write_unix_file(struct file *, const char __user *buf, size_t write_amount,
-			loff_t * off);
+			loff_t *off);
 int ioctl_unix_file(struct inode *, struct file *, unsigned int cmd,
 		    unsigned long arg);
 int mmap_unix_file(struct file *, struct vm_area_struct *);
