@@ -348,8 +348,7 @@ add_empty_leaf(coord_t *insert_coord, lock_handle *lh,
 					write_unlock_tree(tree);
 					result =
 					    connect_znode(insert_coord, node);
-					if (result == 0)
-						ON_DEBUG(check_dkeys(node));
+					ON_DEBUG(if (result == 0) check_dkeys(node););
 
 					done_lh(lh);
 					move_lh(lh, &local_lh);
