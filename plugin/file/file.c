@@ -959,7 +959,7 @@ long batch_write_unix_file(struct file *file,
 	loff_t new_size;
 	loff_t pos;
 	char __user *buf;
-	
+
 	inode = file->f_dentry->d_inode;
 	assert("vs-947", !inode_get_flag(inode, REISER4_NO_SD));
 	assert("vs-9471", (!inode_get_flag(inode, REISER4_PART_MIXED)));
