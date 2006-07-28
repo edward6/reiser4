@@ -35,6 +35,8 @@ int prepare_write_unix_file(struct file *, struct page *, unsigned from,
 			    unsigned to);
 int commit_write_unix_file(struct file *, struct page *, unsigned from,
 			   unsigned to);
+long batch_write_unix_file(struct file *, struct write_descriptor *,
+			   size_t *written);
 sector_t bmap_unix_file(struct address_space *, sector_t lblock);
 
 /* file plugin operations */
