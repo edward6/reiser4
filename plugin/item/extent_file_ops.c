@@ -1338,8 +1338,7 @@ int read_extent(struct file *file, flow_t *flow, hint_t *hint)
 
 	do {
 		txn_restart_current();
-		page = read_cache_page(mapping, cur_page,
-				       readpage_unix_file_filler, file);
+		page = read_mapping_page(mapping, cur_page, file);
 		if (IS_ERR(page))
 			return PTR_ERR(page);
 		lock_page(page);

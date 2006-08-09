@@ -420,13 +420,6 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd,
 
 int find_or_create_extent(struct page *page);
 
-/* This trivial wrapper is needed because readpage_unix_file can't be
- * calledfrom read_cache_page directly due to function prototypes mismatch. */
-int readpage_unix_file_filler(void *vp, struct page *page)
-{
-	return readpage_unix_file(vp, page);
-}
-
 /* part of truncate_file_body: it is called when truncate is used to make file
    shorter */
 static int shorten_file(struct inode *inode, loff_t new_size)
@@ -478,8 +471,7 @@ static int shorten_file(struct inode *inode, loff_t new_size)
 
 	/* last page is partially truncated - zero its content */
 	index = (inode->i_size >> PAGE_CACHE_SHIFT);
-	page = read_cache_page(inode->i_mapping, index,
-			       readpage_unix_file_filler, NULL);
+	page = read_mapping_page(inode->i_mapping, index, NULL);
 	if (IS_ERR(page)) {
 		/*
 		 * the below does up(sbinfo->delete_sema). Do not get

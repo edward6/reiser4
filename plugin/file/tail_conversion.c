@@ -598,9 +598,8 @@ int extent2tail(unix_file_info_t *uf_info)
 			reiser4_update_sd(inode);
 		}
 
-		page = read_cache_page(inode->i_mapping,
-				       (unsigned)(i + start_page),
-				       readpage_unix_file_filler, NULL);
+		page = read_mapping_page(inode->i_mapping,
+					 (unsigned)(i + start_page), NULL);
 		if (IS_ERR(page)) {
 			result = PTR_ERR(page);
 			break;
