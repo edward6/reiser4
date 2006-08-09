@@ -20,6 +20,7 @@
 
 #include <linux/writeback.h>
 #include <linux/pagevec.h>
+#include <linux/uio.h>
 #include <linux/syscalls.h>
 
 static int unpack(struct file *file, struct inode *inode, int forever);
@@ -923,6 +924,190 @@ commit_write_unix_file(struct file *file, struct page *page,
 	page_cache_release(page);
 
 	/* don't commit transaction under inode semaphore */
+	context_set_commit_async(ctx);
+	reiser4_exit_context(ctx);
+	return result;
+}
+
+static void drop_access(unix_file_info_t *uf_info)
+{
+	if (uf_info->exclusive_use)
+		drop_exclusive_access(uf_info);
+	else
+		drop_nonexclusive_access(uf_info);
+}
+
+#define NEITHER_OBTAINED 0
+#define EA_OBTAINED 1
+#define NEA_OBTAINED 2
+
+long batch_write_unix_file(struct file *file,
+			   struct write_descriptor *desc,
+			   size_t *written)
+{
+	int result;
+	reiser4_context *ctx;
+	struct inode *inode;
+	unix_file_info_t *uf_info;
+	ssize_t written1;
+	int try_free_space;
+	int to_write = PAGE_CACHE_SIZE * WRITE_GRANULARITY;
+	size_t count;
+	ssize_t (*write_op)(struct file *, const char __user *, size_t,
+			    loff_t *pos);
+	int ea;
+	loff_t new_size;
+	loff_t pos;
+	char __user *buf;
+
+	inode = file->f_dentry->d_inode;
+	assert("vs-947", !inode_get_flag(inode, REISER4_NO_SD));
+	assert("vs-9471", (!inode_get_flag(inode, REISER4_PART_MIXED)));
+
+	ctx = init_context(inode->i_sb);
+	if (IS_ERR(ctx))
+		return PTR_ERR(ctx);
+
+	uf_info = unix_file_inode_data(inode);
+
+	*written = 0;
+	result = 0;
+	try_free_space = 1;
+	count = desc->count;
+	pos = desc->pos;
+	buf = desc->buf;
+
+	ea = NEITHER_OBTAINED;
+
+	new_size = i_size_read(inode);
+	if (pos + count > new_size)
+		new_size = pos + count;
+
+	while (count) {
+		if (count < to_write)
+			to_write = count;
+
+		if (uf_info->container == UF_CONTAINER_EMPTY) {
+			get_exclusive_access(uf_info);
+			ea = EA_OBTAINED;
+			if (uf_info->container != UF_CONTAINER_EMPTY) {
+				/* file is made not empty by another process */
+				drop_exclusive_access(uf_info);
+				ea = NEITHER_OBTAINED;
+				continue;
+			}
+		} else if (uf_info->container == UF_CONTAINER_UNKNOWN) {
+			/*
+			 * get exclusive access directly just to not have to
+			 * re-obtain it if file will appear empty
+			 */
+			get_exclusive_access(uf_info);
+			ea = EA_OBTAINED;
+			result = find_file_state(inode, uf_info);
+			if (result) {
+				drop_exclusive_access(uf_info);
+				ea = NEITHER_OBTAINED;
+				break;
+			}
+		} else {
+			get_nonexclusive_access(uf_info);
+			ea = NEA_OBTAINED;
+		}
+
+		/* either EA or NEA is obtained. Choose item write method */
+		if (uf_info->container == UF_CONTAINER_EXTENTS) {
+			/* file is built of extent items */
+			write_op = write_extent;
+		} else if (uf_info->container == UF_CONTAINER_EMPTY) {
+			/* file is empty */
+			if (should_have_notail(uf_info, new_size))
+				write_op = write_extent;
+			else
+				write_op = write_tail;
+		} else {
+			/* file is built of tail items */
+			if (should_have_notail(uf_info, new_size)) {
+				if (ea == NEA_OBTAINED) {
+					drop_nonexclusive_access(uf_info);
+					get_exclusive_access(uf_info);
+					ea = EA_OBTAINED;
+				}
+				if (uf_info->container == UF_CONTAINER_TAILS) {
+					/*
+					 * if file is being convered by another
+					 * process - wait until it completes
+					 */
+					while (1) {
+						if (inode_get_flag(inode, REISER4_PART_IN_CONV)) {
+							drop_exclusive_access(uf_info);
+							schedule();
+							get_exclusive_access(uf_info);
+							continue;
+						}
+						break;
+					}
+					if (uf_info->container ==  UF_CONTAINER_TAILS) {
+						result = tail2extent(uf_info);
+						if (result)
+							break;
+					}
+				}
+				drop_exclusive_access(uf_info);
+				ea = NEITHER_OBTAINED;
+				continue;
+			}
+			write_op = write_tail;
+		}
+
+		written1 = write_op(file, buf, to_write, &pos);
+		if (written1 == -ENOSPC && try_free_space) {
+			drop_access(uf_info);
+			txnmgr_force_commit_all(inode->i_sb, 0);
+			try_free_space = 0;
+			continue;
+		}
+		if (written1 < 0) {
+			drop_access(uf_info);
+			result = written1;
+			break;
+		}
+		/* something is written. */
+		if (uf_info->container == UF_CONTAINER_EMPTY) {
+			assert("", ea == EA_OBTAINED);
+			uf_info->container = (write_op == write_extent) ?
+				UF_CONTAINER_EXTENTS : UF_CONTAINER_TAILS;
+		} else {
+			assert("", ergo(uf_info->container == UF_CONTAINER_EXTENTS,
+					write_op == write_extent));
+			assert("", ergo(uf_info->container == UF_CONTAINER_TAILS,
+					write_op == write_tail));
+		}
+		pos += written1;
+		if (pos > inode->i_size)
+			i_size_write(inode, pos);
+		file_update_time(file);
+		result = reiser4_update_sd(inode);
+		if (result) {
+			drop_access(uf_info);
+			break;
+		}
+		drop_access(uf_info);
+		ea = NEITHER_OBTAINED;
+		txn_restart(ctx);
+		current->journal_info = NULL;
+		/*
+		 * tell VM how many pages were dirtied. Maybe number of pages
+		 * which were dirty already should not be counted
+		 */
+		balance_dirty_pages_ratelimited_nr(inode->i_mapping,
+						   (written1 + PAGE_CACHE_SIZE - 1) / PAGE_CACHE_SIZE);
+		current->journal_info = ctx;
+
+		count -= written1;
+		buf += written1;
+		*written += written1;
+	}
+
 	context_set_commit_async(ctx);
 	reiser4_exit_context(ctx);
 	return result;
@@ -2103,238 +2288,6 @@ int open_unix_file(struct inode *inode, struct file *file)
 	drop_exclusive_access(uf_info);
 	reiser4_exit_context(ctx);
 	return result;
-}
-
-#define NEITHER_OBTAINED 0
-#define EA_OBTAINED 1
-#define NEA_OBTAINED 2
-
-static void drop_access(unix_file_info_t *uf_info)
-{
-	if (uf_info->exclusive_use)
-		drop_exclusive_access(uf_info);
-	else
-		drop_nonexclusive_access(uf_info);
-}
-
-#define debug_wuf(format, ...) printk("%s: %d: %s: " format "\n", \
-			      __FILE__, __LINE__, __FUNCTION__, ## __VA_ARGS__)
-
-/**
- * write_unix_file - write of struct file_operations
- * @file: file to write to
- * @buf: address of user-space buffer
- * @write_amount: number of bytes to write
- * @off: position in file to write to
- *
- * This is implementation of vfs's write method of struct file_operations for
- * unix file plugin.
- */
-ssize_t write_unix_file(struct file *file, const char __user *buf,
-			size_t count, loff_t *pos)
-{
-	int result;
-	reiser4_context *ctx;
-	struct inode *inode;
-	unix_file_info_t *uf_info;
-	ssize_t written;
-	int try_free_space;
-	int to_write = PAGE_CACHE_SIZE * WRITE_GRANULARITY;
-	size_t left;
-	ssize_t (*write_op)(struct file *, const char __user *, size_t,
-			    loff_t *pos);
-	int ea;
-	loff_t new_size;
-
-	inode = file->f_dentry->d_inode;
-	ctx = init_context(inode->i_sb);
-	if (IS_ERR(ctx))
-		return PTR_ERR(ctx);
-
-	mutex_lock(&inode->i_mutex);
-
-	assert("vs-947", !inode_get_flag(inode, REISER4_NO_SD));
-	assert("vs-9471", (!inode_get_flag(inode, REISER4_PART_MIXED)));
-
-	/* check amount of bytes to write and writing position */
-	result = generic_write_checks(file, pos, &count, 0);
-	if (result) {
-		mutex_unlock(&inode->i_mutex);
-		context_set_commit_async(ctx);
-		reiser4_exit_context(ctx);
-		return result;
-	}
-
-	result = remove_suid(file->f_dentry);
-	if (result) {
-		mutex_unlock(&inode->i_mutex);
-		context_set_commit_async(ctx);
-		reiser4_exit_context(ctx);
-		return result;
-	}
-
-	uf_info = unix_file_inode_data(inode);
-
-	current->backing_dev_info = inode->i_mapping->backing_dev_info;
-	written = 0;
-	try_free_space = 0;
-	left = count;
-	ea = NEITHER_OBTAINED;
-
-	new_size = i_size_read(inode);
-	if (*pos + count > new_size)
-		new_size = *pos + count;
-
-	while (left) {
-		if (left < to_write)
-			to_write = left;
-
-		if (uf_info->container == UF_CONTAINER_EMPTY) {
-			get_exclusive_access(uf_info);
-			ea = EA_OBTAINED;
-			if (uf_info->container != UF_CONTAINER_EMPTY) {
-				/* file is made not empty by another process */
-				drop_exclusive_access(uf_info);
-				ea = NEITHER_OBTAINED;
-				continue;
-			}
-		} else if (uf_info->container == UF_CONTAINER_UNKNOWN) {
-			/*
-			 * get exclusive access directly just to not have to
-			 * re-obtain it if file will appear empty
-			 */
-			get_exclusive_access(uf_info);
-			ea = EA_OBTAINED;
-			result = find_file_state(inode, uf_info);
-			if (result) {
-				drop_exclusive_access(uf_info);
-				ea = NEITHER_OBTAINED;
-				break;
-			}
-		} else {
-			get_nonexclusive_access(uf_info);
-			ea = NEA_OBTAINED;
-		}
-
-		/* either EA or NEA is obtained. Choose item write method */
-		if (uf_info->container == UF_CONTAINER_EXTENTS) {
-			/* file is built of extent items */
-			write_op = write_extent;
-		} else if (uf_info->container == UF_CONTAINER_EMPTY) {
-			/* file is empty */
-			if (should_have_notail(uf_info, new_size))
-				write_op = write_extent;
-			else
-				write_op = write_tail;
-		} else {
-			/* file is built of tail items */
-			if (should_have_notail(uf_info, new_size)) {
-				if (ea == NEA_OBTAINED) {
-					drop_nonexclusive_access(uf_info);
-					get_exclusive_access(uf_info);
-					ea = EA_OBTAINED;
-				}
-				if (uf_info->container == UF_CONTAINER_TAILS) {
-					/*
-					 * if file is being convered by another
-					 * process - wait until it completes
-					 */
-					while (1) {
-						if (inode_get_flag(inode, REISER4_PART_IN_CONV)) {
-							drop_exclusive_access(uf_info);
-							schedule();
-							get_exclusive_access(uf_info);
-							continue;
-						}
-						break;
-					}
-					if (uf_info->container ==  UF_CONTAINER_TAILS) {
-						result = tail2extent(uf_info);
-						if (result)
-							break;
-					}
-				}
-				drop_exclusive_access(uf_info);
-				ea = NEITHER_OBTAINED;
-				continue;
-			}
-			write_op = write_tail;
-		}
-
-		written = write_op(file, buf, to_write, pos);
-		if (written == -ENOSPC && try_free_space) {
-			drop_access(uf_info);
-			txnmgr_force_commit_all(inode->i_sb, 0);
-			try_free_space = 0;
-			continue;
-		}
-		if (written < 0) {
-			drop_access(uf_info);
-			result = written;
-			break;
-		}
-		/* something is written. */
-		if (uf_info->container == UF_CONTAINER_EMPTY) {
-			assert("", ea == EA_OBTAINED);
-			uf_info->container = (write_op == write_extent) ?
-				UF_CONTAINER_EXTENTS : UF_CONTAINER_TAILS;
-		} else {
-			assert("", ergo(uf_info->container == UF_CONTAINER_EXTENTS,
-					write_op == write_extent));
-			assert("", ergo(uf_info->container == UF_CONTAINER_TAILS,
-					write_op == write_tail));
-		}
-		if (*pos + written > inode->i_size)
-			INODE_SET_FIELD(inode, i_size, *pos + written);
-		file_update_time(file);
-		result = reiser4_update_sd(inode);
-		if (result) {
-			mutex_unlock(&inode->i_mutex);
-			current->backing_dev_info = NULL;
-			drop_access(uf_info);
-			context_set_commit_async(ctx);
-			reiser4_exit_context(ctx);
-			return result;
-		}
-		drop_access(uf_info);
-		ea = NEITHER_OBTAINED;
-		txn_restart(ctx);
-		current->journal_info = NULL;
-		/*
-		 * tell VM how many pages were dirtied. Maybe number of pages
-		 * which were dirty already should not be counted
-		 */
-		balance_dirty_pages_ratelimited_nr(inode->i_mapping,
-						   (written + PAGE_CACHE_SIZE - 1) / PAGE_CACHE_SIZE);
-		current->journal_info = ctx;
-
-		left -= written;
-		buf += written;
-		*pos += written;
-	}
-
-	mutex_unlock(&inode->i_mutex);
-
-	if (result == 0 && ((file->f_flags & O_SYNC) || IS_SYNC(inode))) {
-		txn_restart_current();
-		grab_space_enable();
-		result = sync_unix_file(file, file->f_dentry,
-					0 /* data and stat data */ );
-		if (result)
-			warning("reiser4-7", "failed to sync file %llu",
-				(unsigned long long)get_inode_oid(inode));
-	}
-
-	current->backing_dev_info = NULL;
-
-	reiser4_exit_context(ctx);
-
-	/*
-	 * return number of written bytes or error code if nothing is
-	 * written. Note, that it does not work correctly in case when
-	 * sync_unix_file returns error
-	 */
-	return (count - left) ? (count - left) : result;
 }
 
 /**
