@@ -1250,39 +1250,6 @@ static int readahead_readpage_extent(void *vp, struct page *page)
 	return result;
 }
 
-static int move_coord_forward(uf_coord_t *ext_coord)
-{
-	coord_t *coord;
-	extent_coord_extension_t *extension;
-
-	check_uf_coord(ext_coord, NULL);
-
-	extension = &ext_coord->extension.extent;
-	extension->pos_in_unit++;
-	if (extension->pos_in_unit < extension->width)
-		/* stay within the same extent unit */
-		return 0;
-
-	coord = &ext_coord->coord;
-
-	/* try to move to the next extent unit */
-	coord->unit_pos++;
-	if (coord->unit_pos < extension->nr_units) {
-		/* went to the next extent unit */
-		reiser4_extent *ext;
-
-		extension->pos_in_unit = 0;
-		extension->ext_offset += sizeof(reiser4_extent);
-		ext = ext_by_offset(coord->node, extension->ext_offset);
-		ON_DEBUG(extension->extent = *ext);
-		extension->width = extent_get_width(ext);
-		return 0;
-	}
-
-	/* there is no units in the item anymore */
-	return 1;
-}
-
 /* Implements plugin->u.item.s.file.read operation for extent items. */
 int read_extent(struct file *file, flow_t *flow, hint_t *hint)
 {
