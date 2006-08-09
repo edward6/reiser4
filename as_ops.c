@@ -292,6 +292,11 @@ int reiser4_releasepage(struct page *page, gfp_t gfp UNUSED_ARG)
 	if (PageDirty(page))
 		return 0;
 
+	/* extra page reference is used by reiser4 to protect
+	 * jnode<->page link from this ->releasepage(). */
+	if (page_count(page) > 3)
+		return 0;
+
 	/* releasable() needs jnode lock, because it looks at the jnode fields
 	 * and we need jload_lock here to avoid races with jload(). */
 	spin_lock_jnode(node);
