@@ -117,15 +117,6 @@ typedef struct reiser4_file_fsdata {
 	struct {
 		hint_t hint;
 	} reg;
-	/* */
-	struct {
-		/* this is called by reiser4_readpages if set */
-		void (*readpages) (struct address_space *,
-				   struct list_head * pages, void *data);
-		/* reiser4_readpaextended coord. It is set by read_extent before
-		   calling page_cache_readahead */
-		void *data;
-	} ra2;
 	struct reiser4_file_ra_state ra1;
 
 } reiser4_file_fsdata;

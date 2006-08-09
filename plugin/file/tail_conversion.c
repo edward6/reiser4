@@ -538,11 +538,6 @@ static int reserve_extent2tail_iteration(struct inode *inode)
 	     inode_file_plugin(inode)->estimate.update(inode), BA_CAN_COMMIT);
 }
 
-static int filler(void *vp, struct page *page)
-{
-	return readpage_unix_file_nolock(vp, page);
-}
-
 /* for every page of file: read page, cut part of extent pointing to this page,
    put data of page tree by tail item */
 int extent2tail(unix_file_info_t *uf_info)
@@ -604,7 +599,8 @@ int extent2tail(unix_file_info_t *uf_info)
 		}
 
 		page = read_cache_page(inode->i_mapping,
-				       (unsigned)(i + start_page), filler, NULL);
+				       (unsigned)(i + start_page),
+				       readpage_unix_file_filler, NULL);
 		if (IS_ERR(page)) {
 			result = PTR_ERR(page);
 			break;

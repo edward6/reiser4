@@ -1283,126 +1283,6 @@ static int move_coord_forward(uf_coord_t *ext_coord)
 	return 1;
 }
 
-/* this is called by read_cache_pages for each of readahead pages */
-static int extent_readpage_filler(void *data, struct page *page)
-{
-	hint_t *hint;
-	loff_t offset;
-	reiser4_key key;
-	uf_coord_t *ext_coord;
-	int result;
-
-	offset = page_offset(page);
-	key_by_inode_and_offset_common(page->mapping->host, offset, &key);
-
-	hint = (hint_t *) data;
-	ext_coord = &hint->ext_coord;
-
-	BUG_ON(PageUptodate(page));
-	unlock_page(page);
-
-	if (hint_validate(hint, &key, 1 /* check key */ , ZNODE_READ_LOCK) != 0) {
-		result = coord_by_key(current_tree, &key, &ext_coord->coord,
-				      ext_coord->lh, ZNODE_READ_LOCK,
-				      FIND_EXACT, TWIG_LEVEL,
-				      TWIG_LEVEL, CBK_UNIQUE, NULL);
-		if (result != CBK_COORD_FOUND) {
-			unset_hint(hint);
-			return result;
-		}
-		ext_coord->valid = 0;
-	}
-
-	if (zload(ext_coord->coord.node)) {
-		unset_hint(hint);
-		return RETERR(-EIO);
-	}
-	if (!item_is_extent(&ext_coord->coord)) {
-		/* tail conversion is running in parallel */
-		zrelse(ext_coord->coord.node);
-		unset_hint(hint);
-		return RETERR(-EIO);
-	}
-
-	if (ext_coord->valid == 0)
-		init_coord_extension_extent(ext_coord, offset);
-
-	check_uf_coord(ext_coord, &key);
-
-	lock_page(page);
-	if (!PageUptodate(page)) {
-		result = do_readpage_extent(ext_by_ext_coord(ext_coord),
-					    ext_coord->extension.extent.
-					    pos_in_unit, page);
-		if (result)
-			unlock_page(page);
-	} else {
-		unlock_page(page);
-		result = 0;
-	}
-	if (!result && move_coord_forward(ext_coord) == 0) {
-		set_key_offset(&key, offset + PAGE_CACHE_SIZE);
-		set_hint(hint, &key, ZNODE_READ_LOCK);
-	} else
-		unset_hint(hint);
-	zrelse(ext_coord->coord.node);
-	return result;
-}
-
-/* this is called by reiser4_readpages */
-static void
-extent_readpages_hook(struct address_space *mapping, struct list_head *pages,
-		      void *data)
-{
-	/* FIXME: try whether having reiser4_read_cache_pages improves anything */
-	read_cache_pages(mapping, pages, extent_readpage_filler, data);
-}
-
-static int
-call_page_cache_readahead(struct address_space *mapping, struct file *file,
-			  hint_t * hint,
-			  unsigned long page_nr,
-			  unsigned long ra_pages, struct file_ra_state *ra)
-{
-	reiser4_file_fsdata *fsdata;
-	int result;
-
-	fsdata = reiser4_get_file_fsdata(file);
-	if (IS_ERR(fsdata))
-		return page_nr;
-	fsdata->ra2.data = hint;
-	fsdata->ra2.readpages = extent_readpages_hook;
-
-	result = page_cache_readahead(mapping, ra, file, page_nr, ra_pages);
-	fsdata->ra2.readpages = NULL;
-	return result;
-}
-
-/* this is called when readahead did not */
-static int call_readpage(struct file *file, struct page *page)
-{
-	int result;
-
-	result = readpage_unix_file_nolock(file, page);
-	if (result)
-		return result;
-
-	lock_page(page);
-	if (!PageUptodate(page)) {
-		unlock_page(page);
-		page_detach_jnode(page, page->mapping, page->index);
-		warning("jmacd-97178", "page is not up to date");
-		return RETERR(-EIO);
-	}
-	unlock_page(page);
-	return 0;
-}
-
-static int filler(void *vp, struct page *page)
-{
-	return readpage_unix_file_nolock(vp, page);
-}
-
 /* Implements plugin->u.item.s.file.read operation for extent items. */
 int read_extent(struct file *file, flow_t *flow, hint_t *hint)
 {
@@ -1415,8 +1295,7 @@ int read_extent(struct file *file, flow_t *flow, hint_t *hint)
 	uf_coord_t *uf_coord;
 	coord_t *coord;
 	extent_coord_extension_t *ext_coord;
-	unsigned long nr_pages, prev_page;
-	struct file_ra_state ra;
+	unsigned long nr_pages;
 	char *kaddr;
 
 	assert("vs-1353", current_blocksize == PAGE_CACHE_SIZE);
@@ -1457,50 +1336,21 @@ int read_extent(struct file *file, flow_t *flow, hint_t *hint)
 	set_hint(hint, &flow->key, ZNODE_READ_LOCK);
 	/* &hint->lh is done-ed */
 
-	ra = file->f_ra;
-	prev_page = ra.prev_page;
 	do {
 		txn_restart_current();
-		if (next_page == cur_page)
-			next_page =
-			    call_page_cache_readahead(mapping, file, hint,
-						      cur_page, nr_pages, &ra);
-
-		page = find_get_page(mapping, cur_page);
-		if (unlikely(page == NULL)) {
-			handle_ra_miss(mapping, &ra, cur_page);
-			page = read_cache_page(mapping, cur_page, filler, file);
-			if (IS_ERR(page))
-				return PTR_ERR(page);
-			lock_page(page);
-			if (!PageUptodate(page)) {
-				unlock_page(page);
-				page_detach_jnode(page, mapping, cur_page);
-				page_cache_release(page);
-				warning("jmacd-97178",
-					"extent_read: page is not up to date");
-				return RETERR(-EIO);
-			}
+		page = read_cache_page(mapping, cur_page,
+				       readpage_unix_file_filler, file);
+		if (IS_ERR(page))
+			return PTR_ERR(page);
+		lock_page(page);
+		if (!PageUptodate(page)) {
 			unlock_page(page);
-		} else {
-			if (!PageUptodate(page)) {
-				lock_page(page);
-
-				assert("", page->mapping == mapping);
-				if (PageUptodate(page))
-					unlock_page(page);
-				else {
-					result = call_readpage(file, page);
-					if (result) {
-						page_cache_release(page);
-						return RETERR(result);
-					}
-				}
-			}
-			if (prev_page != cur_page)
-				mark_page_accessed(page);
-			prev_page = cur_page;
+			page_cache_release(page);
+			warning("jmacd-97178", "extent_read: page is not up to date");
+			return RETERR(-EIO);
 		}
+		mark_page_accessed(page);
+		unlock_page(page);
 
 		/* If users can be writing to this page using arbitrary virtual
 		   addresses, take care about potential aliasing before reading
@@ -1544,7 +1394,6 @@ int read_extent(struct file *file, flow_t *flow, hint_t *hint)
 		nr_pages--;
 	} while (flow->length);
 
-	file->f_ra = ra;
 	return 0;
 }
 

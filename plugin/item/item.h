@@ -235,8 +235,6 @@ typedef struct {
 	int (*read) (struct file *, flow_t *, hint_t *);
 	int (*readpage) (void *, struct page *);
 	int (*get_block) (const coord_t *, sector_t, sector_t *);
-	void (*readpages) (void *, struct address_space *,
-			   struct list_head * pages);
 	/*
 	 * key of first byte which is not addressed by the item @coord is set
 	 * to.

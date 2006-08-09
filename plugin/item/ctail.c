@@ -731,14 +731,11 @@ assert("edward-214", ergo(!list_empty(pages) && pages->next != pages->prev,   \
        list_to_page(pages)->index < list_to_next_page(pages)->index))
 #endif
 
-/* plugin->u.item.s.file.readpages
-   Populate an address space with some page clusters,
-   and start reads against them.
-   FIXME-EDWARD: this function should return errors?
-*/
-void
-readpages_ctail(void *vp, struct address_space *mapping,
-		struct list_head *pages)
+/* Populate an address space with some page clusters,
+ * and start reads against them.
+ */
+int readpages_ctail(struct file *file, struct address_space *mapping,
+		       struct list_head *pages)
 {
 	int ret = 0;
 	hint_t *hint;
@@ -754,10 +751,11 @@ readpages_ctail(void *vp, struct address_space *mapping,
 				  list_to_next_page(pages)->index));
 	pagevec_init(&lru_pvec, 0);
 	cluster_init_read(&clust, NULL);
-	clust.file = vp;
+	clust.file = file;
 	hint = kmalloc(sizeof(*hint), GFP_KERNEL);
 	if (hint == NULL) {
 		warning("vs-28", "failed to allocate hint");
+		ret = RETERR(-ENOMEM);
 		goto exit1;
 	}
 	clust.hint = hint;
@@ -824,7 +822,7 @@ readpages_ctail(void *vp, struct address_space *mapping,
 	}
 	put_cluster_handle(&clust);
 	pagevec_lru_add(&lru_pvec);
-	return;
+	return ret;
 }
 
 /*

@@ -420,9 +420,11 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd,
 
 int find_or_create_extent(struct page *page);
 
-static int filler(void *vp, struct page *page)
+/* This trivial wrapper is needed because readpage_unix_file can't be
+ * calledfrom read_cache_page directly due to function prototypes mismatch. */
+int readpage_unix_file_filler(void *vp, struct page *page)
 {
-	return readpage_unix_file_nolock(vp, page);
+	return readpage_unix_file(vp, page);
 }
 
 /* part of truncate_file_body: it is called when truncate is used to make file
@@ -476,7 +478,8 @@ static int shorten_file(struct inode *inode, loff_t new_size)
 
 	/* last page is partially truncated - zero its content */
 	index = (inode->i_size >> PAGE_CACHE_SHIFT);
-	page = read_cache_page(inode->i_mapping, index, filler, NULL);
+	page = read_cache_page(inode->i_mapping, index,
+			       readpage_unix_file_filler, NULL);
 	if (IS_ERR(page)) {
 		/*
 		 * the below does up(sbinfo->delete_sema). Do not get
@@ -1611,7 +1614,7 @@ int sync_unix_file(struct file *file, struct dentry *dentry, int datasync)
  * Compose a key and search for item containing information about @page
  * data. If item is found - its readpage method is called.
  */
-int readpage_unix_file_nolock(struct file *file, struct page *page)
+int readpage_unix_file(struct file *file, struct page *page)
 {
 	reiser4_context *ctx;
 	int result;
@@ -1850,19 +1853,6 @@ int readpages_unix_file(struct file *file, struct address_space *mapping,
 	txn_restart(ctx);
 	reiser4_exit_context(ctx);
 	return ret;
-}
-
-/**
- * readpage_unix_file - readpage of struct address_space_operations
- * @file: file @page belongs to
- * @page: page to read
- *
- * Get non exclusive access to a file to avoid races with truncate. If page is
- * out of file - return error. Call readpage_unix_file_nolock to do the rest.
- */
-int readpage_unix_file(struct file *file, struct page *page)
-{
-	return readpage_unix_file_nolock(file, page);
 }
 
 static reiser4_block_nr unix_file_estimate_read(struct inode *inode,

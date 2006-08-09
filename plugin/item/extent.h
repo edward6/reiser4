@@ -135,7 +135,6 @@ ssize_t write_extent(struct file *, const char __user *, size_t, loff_t *);
 int read_extent(struct file *, flow_t *, hint_t *);
 int readpage_extent(void *, struct page *);
 int do_readpage_extent(reiser4_extent*, reiser4_block_nr, struct page*);
-void readpages_extent(void *, struct address_space *, struct list_head *pages);
 reiser4_key *append_key_extent(const coord_t *, reiser4_key *);
 void init_coord_extension_extent(uf_coord_t *, loff_t offset);
 int get_block_address_extent(const coord_t *, sector_t block,
