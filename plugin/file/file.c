@@ -1441,6 +1441,8 @@ int readpage_unix_file_nolock(struct file *file, struct page *page)
 	assert("vs-976", !PageUptodate(page));
 	assert("vs-1061", page->mapping && page->mapping->host);
 
+	printk(KERN_DEBUG "REISER4 : debug : readpage_uf called\n");
+
 	if (page->mapping->host->i_size <= page_offset(page)) {
 		/* page is out of file already */
 		unlock_page(page);
@@ -1559,20 +1561,22 @@ out_unlock:
 	return result;
 }
 
-struct reiser4_readpages_context {
+struct uf_readpages_context {
 	lock_handle lh;
 	coord_t coord;
-#if REISER4_DEBUG
-	struct {
-		int reused;
-		int cbk;
-	} stat;
-#endif
 };
 
-static int reiser4_readpages_filler(void * data, struct page * page)
+/* A callback function for readpages_unix_file/read_cache_pages.
+ * It assumes that the file is build of extents.
+ *
+ * @data -- a pointer to reiser4_readpages_context object,
+ *            to save the twig lock and the coord between
+ *            read_cache_page iterations.
+ * @page -- page to start read.
+ */
+static int uf_readpages_filler(void * data, struct page * page)
 {
-	struct reiser4_readpages_context *rc = data;
+	struct uf_readpages_context *rc = data;
 	jnode * node;
 	int ret = 0;
 	reiser4_extent *ext;
@@ -1602,7 +1606,6 @@ static int reiser4_readpages_filler(void * data, struct page * page)
 			TWIG_LEVEL, TWIG_LEVEL, CBK_UNIQUE, NULL);
 		lock_page(page);
 		cbk_done = 1;
-		ON_DEBUG(rc->stat.cbk++);
 		if (ret != 0)
 			goto err;
 	}
@@ -1611,14 +1614,21 @@ static int reiser4_readpages_filler(void * data, struct page * page)
 		goto err;
 	ext = extent_by_coord(&rc->coord);
 	ext_index = extent_unit_index(&rc->coord);
-	if (!cbk_done && (page->index < ext_index ||
-			  page->index >= ext_index + extent_get_width(ext)))
+	if (page->index < ext_index || page->index >= ext_index + extent_get_width(ext))
 	{
+		/* the page index doesn't belong to the extent unit which the
+		 * coord points to, -- release the lock and repeat with tree
+		 * search. */
 		zrelse(rc->coord.node);
 		done_lh(&rc->lh);
+		/* we can be here after a CBK call only in case of corruption
+		 * of the tree or the tree lookup algorithm bug. */
+		if (unlikely(cbk_done)) {
+                        ret = RETERR(-EIO);
+                        goto err;
+                }
 		goto repeat;
 	}
-	ON_DEBUG(rc->stat.reused += !cbk_done);
 	ret = do_readpage_extent(ext, page->index - ext_index, page);
 	zrelse(rc->coord.node);
 	if (ret) {
@@ -1629,26 +1639,27 @@ static int reiser4_readpages_filler(void * data, struct page * page)
 	return ret;
 }
 
+/* A callback function for readpages_unix_file/read_cache_pages.
+ * It assumes that the file is build of extents.
+ *
+ * @data -- a pointer to reiser4_readpages_context object,
+ *            to save the twig lock and the coord between
+ *            read_cache_page iterations.
+ * @page -- page to start read.
+ */
 int readpages_unix_file(struct file *file, struct address_space *mapping,
 			struct list_head *pages, unsigned nr_pages)
 {
 	reiser4_context *ctx;
-	struct reiser4_readpages_context rc;
+	struct uf_readpages_context rc;
 	int ret;
 
 	ctx = init_context(mapping->host->i_sb);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 	init_lh(&rc.lh);
-	ON_DEBUG(memset(&rc, 0, sizeof(rc)));
-	ret = read_cache_pages(mapping, pages,  reiser4_readpages_filler, &rc);
+	ret = read_cache_pages(mapping, pages,  uf_readpages_filler, &rc);
 	done_lh(&rc.lh);
-
-#if 0 && REISER4_DEBUG
-	printk(KERN_DEBUG "Reiser4: readpages_unix_file: "
-		"nr = %u, cbk = %d, reused = %d\n",
-	       nr_pages, rc.stat.cbk, rc.stat.reused);
-#endif
 	context_set_commit_async(ctx);
 	/* close the transaction to protect further page allocation from deadlocks */
 	txn_restart(ctx);
