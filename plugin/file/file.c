@@ -1819,6 +1819,19 @@ static int uf_readpages_filler(void * data, struct page * page)
 	return ret;
 }
 
+/* A readpages cleanup helper
+ * FIXME to be moved to the VFS layer */
+void reiser4_readpages_cleanup(struct list_head *pages)
+{
+	while (!list_empty(pages)) {
+		struct page *victim;
+
+		victim = list_entry(pages->prev, struct page, lru);
+		list_del(&victim->lru);
+		page_cache_release(victim);
+	}	
+}
+
 /* A callback function for readpages_unix_file/read_cache_pages.
  * It assumes that the file is build of extents.
  *
@@ -1835,8 +1848,10 @@ int readpages_unix_file(struct file *file, struct address_space *mapping,
 	int ret;
 
 	ctx = init_context(mapping->host->i_sb);
-	if (IS_ERR(ctx))
+	if (IS_ERR(ctx)) {
+		reiser4_readpages_cleanup(pages);
 		return PTR_ERR(ctx);
+        }
 	init_lh(&rc.lh);
 	ret = read_cache_pages(mapping, pages,  uf_readpages_filler, &rc);
 	done_lh(&rc.lh);

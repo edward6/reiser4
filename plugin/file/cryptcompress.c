@@ -2813,8 +2813,21 @@ ssize_t write_cryptcompress(struct file *file, const char __user *buf,
 int readpages_crc(struct file *file, struct address_space *mapping,
 		  struct list_head *pages, unsigned nr_pages)
 {
+	reiser4_context * ctx;
+	int ret;
+
+	ctx = init_context(mapping->host->i_sb);
+	if (IS_ERR(ctx)) {
+		ret = PTR_ERR(ctx);
+		goto err;
+	}
 	/* crc files can be built of ctail items only */
-	return readpages_ctail(file, mapping, pages);
+	ret = readpages_ctail(file, mapping, pages);
+	if (ret) {
+err:
+		reiser4_readpages_cleanup(pages);
+	}
+	return ret;
 }
 
 static reiser4_block_nr cryptcompress_estimate_read(struct inode *inode)

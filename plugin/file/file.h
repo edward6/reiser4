@@ -38,6 +38,9 @@ long batch_write_unix_file(struct file *, struct write_descriptor *,
 			   size_t *written);
 sector_t bmap_unix_file(struct address_space *, sector_t lblock);
 
+/* a readpages cleanup helper */
+extern void reiser4_readpages_cleanup(struct list_head *pages);
+
 /* file plugin operations */
 int flow_by_inode_unix_file(struct inode *, const char __user *buf,
 			    int user, loff_t, loff_t, rw_op, flow_t *);
