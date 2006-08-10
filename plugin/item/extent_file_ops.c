@@ -1176,80 +1176,6 @@ int do_readpage_extent(reiser4_extent * ext, reiser4_block_nr pos,
 	return 0;
 }
 
-static int
-move_coord_pages(coord_t * coord, extent_coord_extension_t * ext_coord,
-		 unsigned count)
-{
-	reiser4_extent *ext;
-
-	ext_coord->expected_page += count;
-
-	ext = ext_by_offset(coord->node, ext_coord->ext_offset);
-
-	do {
-		if (ext_coord->pos_in_unit + count < ext_coord->width) {
-			ext_coord->pos_in_unit += count;
-			break;
-		}
-
-		if (coord->unit_pos == ext_coord->nr_units - 1) {
-			coord->between = AFTER_UNIT;
-			return 1;
-		}
-
-		/* shift to next unit */
-		count -= (ext_coord->width - ext_coord->pos_in_unit);
-		coord->unit_pos++;
-		ext_coord->pos_in_unit = 0;
-		ext_coord->ext_offset += sizeof(reiser4_extent);
-		ext++;
-		ON_DEBUG(ext_coord->extent = *ext);
-		ext_coord->width = extent_get_width(ext);
-	} while (1);
-
-	return 0;
-}
-
-static int readahead_readpage_extent(void *vp, struct page *page)
-{
-	int result;
-	uf_coord_t *uf_coord;
-	coord_t *coord;
-	extent_coord_extension_t *ext_coord;
-
-	uf_coord = vp;
-	coord = &uf_coord->coord;
-
-	if (coord->between != AT_UNIT) {
-		unlock_page(page);
-		return RETERR(-EINVAL);
-	}
-
-	ext_coord = &uf_coord->extension.extent;
-	if (ext_coord->expected_page != page->index) {
-		/* read_cache_pages skipped few pages. Try to adjust coord to page */
-		assert("vs-1269", page->index > ext_coord->expected_page);
-		if (move_coord_pages
-		    (coord, ext_coord,
-		     page->index - ext_coord->expected_page)) {
-			/* extent pointing to this page is not here */
-			unlock_page(page);
-			return RETERR(-EINVAL);
-		}
-
-		assert("vs-1274", offset_is_in_unit(coord, page_offset(page)));
-		ext_coord->expected_page = page->index;
-	}
-
-	assert("vs-1281", page->index == ext_coord->expected_page);
-	result =
-	    do_readpage_extent(ext_by_ext_coord(uf_coord),
-			       ext_coord->pos_in_unit, page);
-	if (!result)
-		move_coord_pages(coord, ext_coord, 1);
-	return result;
-}
-
 /* Implements plugin->u.item.s.file.read operation for extent items. */
 int read_extent(struct file *file, flow_t *flow, hint_t *hint)
 {
@@ -1361,18 +1287,6 @@ int read_extent(struct file *file, flow_t *flow, hint_t *hint)
 	} while (flow->length);
 
 	return 0;
-}
-
-/*
-  plugin->u.item.s.file.readpages
-*/
-void
-readpages_extent(void *vp, struct address_space *mapping,
-		 struct list_head *pages)
-{
-	assert("vs-1739", 0);
-	if (vp)
-		read_cache_pages(mapping, pages, readahead_readpage_extent, vp);
 }
 
 /*
