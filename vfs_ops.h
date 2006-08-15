@@ -22,15 +22,12 @@
 /* address space operations */
 int reiser4_writepage(struct page *, struct writeback_control *);
 int reiser4_set_page_dirty(struct page *);
-int reiser4_readpages(struct file *, struct address_space *,
-		      struct list_head *pages, unsigned nr_pages);
-int reiser4_invalidatepage(struct page *, unsigned long offset);
+void reiser4_invalidatepage(struct page *, unsigned long offset);
 int reiser4_releasepage(struct page *, gfp_t);
 
 extern int reiser4_update_sd(struct inode *);
 extern int reiser4_add_nlink(struct inode *, struct inode *, int);
 extern int reiser4_del_nlink(struct inode *, struct inode *, int);
-
 
 extern int reiser4_start_up_io(struct page *page);
 extern void reiser4_throttle_write(struct inode *);
@@ -39,9 +36,7 @@ extern int jnode_is_releasable(jnode *);
 #define CAPTURE_APAGE_BURST (1024l)
 void writeout(struct super_block *, struct writeback_control *);
 
-
 extern void reiser4_handle_error(void);
-
 
 /* __FS_REISER4_VFS_OPS_H__ */
 #endif

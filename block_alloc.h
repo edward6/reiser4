@@ -91,7 +91,7 @@ extern void get_blocknr_hint_default(reiser4_block_nr *);
 extern reiser4_block_nr reiser4_fs_reserved_space(struct super_block *super);
 
 int assign_fake_blocknr_formatted(reiser4_block_nr *);
-reiser4_block_nr fake_blocknr_unformatted(void);
+reiser4_block_nr fake_blocknr_unformatted(int);
 
 /* free -> grabbed -> fake_allocated -> used */
 

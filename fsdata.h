@@ -19,7 +19,7 @@
 
 /*
  * locking: fields of per file descriptor readdir_pos and ->f_pos are
- * protected by ->i_sem on inode. Under this lock following invariant
+ * protected by ->i_mutex on inode. Under this lock following invariant
  * holds:
  *
  *     file descriptor is "looking" at the entry_no-th directory entry from
@@ -87,7 +87,6 @@ extern void done_dentry_fsdata(void);
 extern reiser4_dentry_fsdata *reiser4_get_dentry_fsdata(struct dentry *);
 extern void reiser4_free_dentry_fsdata(struct dentry *dentry);
 
-
 /**
  * reiser4_file_fsdata - reiser4-specific data attached to file->private_data
  *
@@ -118,15 +117,6 @@ typedef struct reiser4_file_fsdata {
 	struct {
 		hint_t hint;
 	} reg;
-	/* */
-	struct {
-		/* this is called by reiser4_readpages if set */
-		void (*readpages) (struct address_space *,
-				   struct list_head * pages, void *data);
-		/* reiser4_readpaextended coord. It is set by read_extent before
-		   calling page_cache_readahead */
-		void *data;
-	} ra2;
 	struct reiser4_file_ra_state ra1;
 
 } reiser4_file_fsdata;
@@ -135,7 +125,6 @@ extern int init_file_fsdata(void);
 extern void done_file_fsdata(void);
 extern reiser4_file_fsdata *reiser4_get_file_fsdata(struct file *);
 extern void reiser4_free_file_fsdata(struct file *);
-
 
 /*
  * d_cursor is reiser4_file_fsdata not attached to struct file. d_cursors are
@@ -183,7 +172,6 @@ extern void done_super_d_info(struct super_block *);
 extern loff_t get_dir_fpos(struct file *);
 extern int try_to_attach_fsdata(struct file *, struct inode *);
 extern void detach_fsdata(struct file *);
-
 
 /* these are needed for "stateless" readdir. See plugin/file_ops_readdir.c for
    more details */

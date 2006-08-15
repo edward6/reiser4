@@ -188,7 +188,6 @@ int init_plugins(void);
 int setup_plugins(struct super_block *super, reiser4_plugin ** area);
 int locate_plugin(struct inode *inode, plugin_locator * loc);
 
-
 /**
  * init_plugins - initialize plugins
  *
@@ -251,26 +250,6 @@ int is_plugin_id_valid(reiser4_plugin_type type_id /* plugin type id */ ,
 	return id < plugins[type_id].builtin_num;
 }
 
-#if 0
-/* lookup plugin by scanning tables */
-reiser4_plugin *lookup_plugin(const char *type_label /* plugin type label */ ,
-			      const char *plug_label /* plugin label */ )
-{
-	reiser4_plugin *result;
-	reiser4_plugin_type type_id;
-
-	assert("nikita-546", type_label != NULL);
-	assert("nikita-547", plug_label != NULL);
-
-	type_id = find_type(type_label);
-	if (is_type_id_valid(type_id))
-		result = find_plugin(&plugins[type_id], plug_label);
-	else
-		result = NULL;
-	return result;
-}
-#endif  /*  0  */
-
 /* return plugin by its @type_id and @id.
 
    Both arguments are checked for validness: this is supposed to be called
@@ -325,52 +304,8 @@ struct list_head *get_plugin_list(reiser4_plugin_type type_id	/* plugin type
 	return &plugins[type_id].plugins_list;
 }
 
-#if 0
-
-/* find plugin type by label */
-static reiser4_plugin_type find_type(const char *label	/* plugin type
-							 * label */ )
+static void update_pset_mask(reiser4_inode * info, pset_member memb)
 {
-	reiser4_plugin_type type_id;
-
-	assert("nikita-550", label != NULL);
-
-	for (type_id = 0; type_id < REISER4_PLUGIN_TYPES &&
-	     strcmp(label, plugins[type_id].label); ++type_id) {
-		;
-	}
-	return type_id;
-}
-
-/* given plugin label find it within given plugin type by scanning
-    array. Used to map user-visible symbolic name to internal kernel
-    id */
-static reiser4_plugin *find_plugin(reiser4_plugin_type_data * ptype	/* plugin
-									 * type to
-									 * find
-									 * plugin
-									 * within */ ,
-				   const char *label /* plugin label */ )
-{
-	int i;
-	reiser4_plugin *result;
-
-	assert("nikita-551", ptype != NULL);
-	assert("nikita-552", label != NULL);
-
-	for (i = 0; i < ptype->builtin_num; ++i) {
-		result = plugin_at(ptype, i);
-		if (result->h.label == NULL)
-			continue;
-		if (!strcmp(result->h.label, label))
-			return result;
-	}
-	return NULL;
-}
-
-#endif  /*  0  */
-
-static void update_pset_mask(reiser4_inode * info, pset_member memb) {
 	struct dentry *rootdir;
 	reiser4_inode *root;
 

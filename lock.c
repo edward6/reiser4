@@ -276,6 +276,7 @@ link_object(lock_handle * handle, lock_stack * owner, znode * node)
 	/* add lock handle to the end of lock_stack's list of locks */
 	list_add_tail(&handle->locks_link, &owner->locks);
 	ON_DEBUG(owner->nr_locks++);
+	set_gfp_mask();
 
 	/* add lock handle to the head of znode's list of owners */
 	list_add(&handle->owners_link, &node->lock.owners);
@@ -294,6 +295,7 @@ static inline void unlink_object(lock_handle * handle)
 	/* remove lock handle from lock_stack's list of locks */
 	list_del(&handle->locks_link);
 	ON_DEBUG(handle->owner->nr_locks--);
+	set_gfp_mask();
 	assert("reiser4-6",
 	       ergo(list_empty_careful(&handle->owner->locks),
 		    handle->owner->nr_locks == 0));
@@ -347,7 +349,6 @@ static int recursive(lock_stack * owner)
 	assert("zam-314", !list_empty_careful(&node->lock.owners));
 	assert("nikita-1841", owner == get_current_lock_stack());
 	assert_spin_locked(&(node->lock.guard));
-
 
 	lh = list_entry(node->lock.owners.next, lock_handle, owners_link);
 	ret = (lh->owner == owner);
@@ -550,7 +551,6 @@ static void remove_lock_request(lock_stack * requestor)
 	list_del(&requestor->requestors_link);
 }
 
-
 static void invalidate_all_lock_requests(znode * node)
 {
 	lock_stack *requestor, *tmp;
@@ -613,7 +613,7 @@ void longterm_unlock_znode(lock_handle * handle)
 	 */
 
 	/* was this lock of hi or lo priority */
-	hipri = oldowner->curpri ? -1 : 0;
+	hipri = oldowner->curpri ? 1 : 0;
 	/* number of readers */
 	readers = node->lock.nr_readers;
 	/* +1 if write lock, -1 if read lock */
@@ -626,8 +626,8 @@ void longterm_unlock_znode(lock_handle * handle)
 	assert("zam-101", znode_is_locked(node));
 
 	/* Adjust a number of high priority owners of this lock */
-	node->lock.nr_hipri_owners += hipri;
-	assert("nikita-1836", node->lock.nr_hipri_owners >= 0);
+	assert("nikita-1836", node->lock.nr_hipri_owners >= hipri);
+	node->lock.nr_hipri_owners -= hipri;
 
 	/* Handle znode deallocation on last write-lock release. */
 	if (znode_is_wlocked_once(node)) {
@@ -725,9 +725,7 @@ static int longterm_lock_tryfast(lock_stack * owner)
 
 	if (likely(result != -EINVAL)) {
 		spin_lock_znode(node);
-		result =
-		    try_capture(ZJNODE(node), ZNODE_READ_LOCK, 0,
-				1 /* can copy on capture */ );
+		result = try_capture(ZJNODE(node), ZNODE_READ_LOCK, 0);
 		spin_unlock_znode(node);
 		spin_lock_zlock(lock);
 		if (unlikely(result != 0)) {
@@ -913,9 +911,7 @@ int longterm_lock_znode(
 			 */
 			spin_unlock_zlock(lock);
 			spin_lock_znode(node);
-			ret =
-			    try_capture(ZJNODE(node), mode, cap_flags,
-					1 /* can copy on capture */ );
+			ret = try_capture(ZJNODE(node), mode, cap_flags);
 			spin_unlock_znode(node);
 			spin_lock_zlock(lock);
 			if (unlikely(ret != 0)) {

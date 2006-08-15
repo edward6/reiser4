@@ -52,7 +52,7 @@ static char panic_buf[REISER4_PANIC_MSG_BUFFER_SIZE];
 /*
  * lock protecting consistency of panic_buf under concurrent panics
  */
-static spinlock_t panic_guard = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(panic_guard);
 
 /* Your best friend. Call it on each occasion.  This is called by
     fs/reiser4/debug.h:reiser4_panic(). */
@@ -123,22 +123,6 @@ int preempt_point(void)
 }
 
 #if REISER4_DEBUG
-
-/* check that no spinlocks are held */
-int schedulable(void)
-{
-	if (get_current_context_check() != NULL) {
-		if (!LOCK_CNT_NIL(spin_locked)) {
-			print_lock_counters("in atomic", lock_counters());
-			return 0;
-		}
-	}
-	might_sleep();
-	return 1;
-}
-#endif
-
-#if REISER4_DEBUG
 /* Debugging aid: return struct where information about locks taken by current
    thread is accumulated. This can be used to formulate lock ordering
    constraints and various assertions.
@@ -154,7 +138,8 @@ lock_counters_info *lock_counters(void)
 /*
  * print human readable information about locks held by the reiser4 context.
  */
-void print_lock_counters(const char *prefix, const lock_counters_info * info)
+static void print_lock_counters(const char *prefix,
+				const lock_counters_info * info)
 {
 	printk("%s: jnode: %i, tree: %i (r:%i,w:%i), dk: %i (r:%i,w:%i)\n"
 	       "jload: %i, "
@@ -187,6 +172,18 @@ void print_lock_counters(const char *prefix, const lock_counters_info * info)
 	       info->d_refs, info->x_refs, info->t_refs);
 }
 
+/* check that no spinlocks are held */
+int schedulable(void)
+{
+	if (get_current_context_check() != NULL) {
+		if (!LOCK_CNT_NIL(spin_locked)) {
+			print_lock_counters("in atomic", lock_counters());
+			return 0;
+		}
+	}
+	might_sleep();
+	return 1;
+}
 /*
  * return true, iff no locks are held.
  */

@@ -209,7 +209,6 @@ typedef enum format40_init_stage {
 	CONSULT_DISKMAP,
 	FIND_A_SUPER,
 	INIT_JOURNAL_INFO,
-	INIT_EFLUSH,
 	INIT_STATUS,
 	JOURNAL_REPLAY,
 	READ_SUPER,
@@ -226,7 +225,7 @@ static format40_disk_super_block *copy_sb(const struct buffer_head *super_bh)
 {
 	format40_disk_super_block *sb_copy;
 
-	sb_copy = kmalloc(sizeof(format40_disk_super_block), GFP_KERNEL);
+	sb_copy = kmalloc(sizeof(format40_disk_super_block), get_gfp_mask());
 	if (sb_copy == NULL)
 		return ERR_PTR(RETERR(-ENOMEM));
 	memcpy(sb_copy, ((format40_disk_super_block *) super_bh->b_data),
@@ -287,12 +286,7 @@ static int try_init_format40(struct super_block *super,
 		return result;
 	*stage = INIT_JOURNAL_INFO;
 
-	/* FIXME: this has to be in fill_super */
-	result = eflush_init_at(super);
-	if (result)
-		return result;
-	*stage = INIT_EFLUSH;
-
+	/* ok, we are sure that filesystem format is a format40 format */
 	/* Now check it's state */
 	result = reiser4_status_init(FORMAT40_STATUS_BLOCKNR);
 	if (result != 0 && result != -EINVAL)
@@ -379,7 +373,6 @@ static int try_init_format40(struct super_block *super,
 	root_block = get_format40_root_block(sb_copy);
 	height = get_format40_tree_height(sb_copy);
 	nplug = node_plugin_by_id(NODE40_ID);
-
 
 	/* initialize reiser4_super_info_data */
 	sbinfo = get_super_private(super);
@@ -482,8 +475,6 @@ int init_format_format40(struct super_block *s, void *data UNUSED_ARG)
 	case JOURNAL_REPLAY:
 	case INIT_STATUS:
 		reiser4_status_finish();
-	case INIT_EFLUSH:
-		eflush_done_at(s);
 	case INIT_JOURNAL_INFO:
 		done_journal_info(s);
 	case FIND_A_SUPER:
@@ -577,7 +568,6 @@ int release_format40(struct super_block *s)
 
 	sa_destroy_allocator(&sbinfo->space_allocator, s);
 	done_journal_info(s);
-	eflush_done_at(s);
 	done_super_jnode(s);
 
 	rcu_barrier();

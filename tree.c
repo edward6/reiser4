@@ -654,7 +654,7 @@ znode *child_znode(const coord_t * parent_coord	/* coord of pointer to
 		else
 			child =
 			    zget(tree, &addr, parent,
-				 znode_get_level(parent) - 1, GFP_KERNEL);
+				 znode_get_level(parent) - 1, get_gfp_mask());
 		if ((child != NULL) && !IS_ERR(child) && setup_dkeys_p)
 			set_child_delimiting_keys(parent, parent_coord, child);
 	} else {
@@ -670,13 +670,6 @@ static void uncapture_znode(znode * node)
 	struct page *page;
 
 	assert("zam-1001", ZF_ISSET(node, JNODE_HEARD_BANSHEE));
-
-	/* Get e-flush block allocation back before deallocating node's
-	 * block number. */
-	spin_lock_znode(node);
-	if (ZF_ISSET(node, JNODE_EFLUSH))
-		eflush_del(ZJNODE(node), 0);
-	spin_unlock_znode(node);
 
 	if (!blocknr_is_fake(znode_get_block(node))) {
 		int ret;
@@ -1846,7 +1839,7 @@ int init_tree(reiser4_tree * tree	/* pointer to structure being
 	if (result == 0)
 		result = jnodes_tree_init(tree);
 	if (result == 0) {
-		tree->uber = zget(tree, &UBER_TREE_ADDR, NULL, 0, GFP_KERNEL);
+		tree->uber = zget(tree, &UBER_TREE_ADDR, NULL, 0, get_gfp_mask());
 		if (IS_ERR(tree->uber)) {
 			result = PTR_ERR(tree->uber);
 			tree->uber = NULL;

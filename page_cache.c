@@ -184,7 +184,7 @@
 #include <linux/writeback.h>
 #include <linux/blkdev.h>
 
-static struct bio *page_bio(struct page *, jnode *, int rw, unsigned int gfp);
+static struct bio *page_bio(struct page *, jnode *, int rw, gfp_t gfp);
 
 static struct address_space_operations formatted_fake_as_ops;
 
@@ -198,10 +198,6 @@ init_fake_inode(struct super_block *super, struct inode *fake,
 {
 	assert("nikita-2168", fake->i_state & I_NEW);
 	fake->i_mapping->a_ops = &formatted_fake_as_ops;
-	fake->i_blkbits = super->s_blocksize_bits;
-	fake->i_size = ~0ull;
-	fake->i_rdev = super->s_bdev->bd_dev;
-	fake->i_bdev = super->s_bdev;
 	*pfake = fake;
 	/* NOTE-NIKITA something else? */
 	unlock_new_inode(fake);
@@ -357,12 +353,11 @@ end_bio_single_page_write(struct bio *bio, unsigned int bytes_done UNUSED_ARG,
 }
 
 /* ->readpage() method for formatted nodes */
-static int
-formatted_readpage(struct file *f UNUSED_ARG,
-		   struct page *page /* page to read */ )
+static int formatted_readpage(struct file *f UNUSED_ARG,
+			      struct page *page /* page to read */ )
 {
 	assert("nikita-2412", PagePrivate(page) && jprivate(page));
-	return page_io(page, jprivate(page), READ, GFP_KERNEL);
+	return page_io(page, jprivate(page), READ, get_gfp_mask());
 }
 
 /**
@@ -374,7 +369,7 @@ formatted_readpage(struct file *f UNUSED_ARG,
  *
  * Submits single page read or write.
  */
-int page_io(struct page *page, jnode *node, int rw, int gfp)
+int page_io(struct page *page, jnode *node, int rw, gfp_t gfp)
 {
 	struct bio *bio;
 	int result;
@@ -408,8 +403,7 @@ int page_io(struct page *page, jnode *node, int rw, int gfp)
 }
 
 /* helper function to construct bio for page */
-static struct bio *page_bio(struct page *page, jnode * node, int rw,
-			    unsigned int gfp)
+static struct bio *page_bio(struct page *page, jnode * node, int rw, gfp_t gfp)
 {
 	struct bio *bio;
 	assert("nikita-2092", page != NULL);
@@ -470,7 +464,7 @@ int set_page_dirty_internal(struct page *page)
 
 	if (!TestSetPageDirty(page)) {
 		if (mapping_cap_account_dirty(mapping))
-			inc_page_state(nr_dirty);
+			inc_zone_page_state(page, NR_FILE_DIRTY);
 
 		__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 	}
@@ -481,23 +475,36 @@ int set_page_dirty_internal(struct page *page)
 	return 0;
 }
 
-static int can_hit_entd(reiser4_context * ctx, struct super_block *s)
+#if REISER4_DEBUG
+
+/**
+ * can_hit_entd
+ *
+ * This is used on
+ */
+static int can_hit_entd(reiser4_context *ctx, struct super_block *s)
 {
-	if (get_super_private(s)->entd.tsk == current)
-		return 0;
 	if (ctx == NULL || ((unsigned long)ctx->magic) != context_magic)
 		return 1;
 	if (ctx->super != s)
 		return 1;
-	return 0;
+	if (get_super_private(s)->entd.tsk == current)
+		return 0;
+	if (!lock_stack_isclean(&ctx->stack))
+		return 0;
+	if (ctx->trans->atom != NULL)
+		return 0;
+	return 1;
 }
+
+#endif
 
 /**
  * reiser4_writepage - writepage of struct address_space_operations
  * @page: page to write
  * @wbc:
  *
- * 
+ *
  */
 /* Common memory pressure notification. */
 int reiser4_writepage(struct page *page,
@@ -505,71 +512,15 @@ int reiser4_writepage(struct page *page,
 {
 	struct super_block *s;
 	reiser4_context *ctx;
-	reiser4_tree *tree;
-	txn_atom *atom;
-	jnode *node;
-	int result;
 
 	assert("vs-828", PageLocked(page));
 
 	s = page->mapping->host->i_sb;
 	ctx = get_current_context_check();
 
-#if REISER4_USE_ENTD
-	if (can_hit_entd(ctx, s) ||
-	    (ctx && lock_stack_isclean(get_current_lock_stack()) &&
-	     ctx->trans->atom == NULL && ctx->entd == 0)) {
-		/* Throttle memory allocations if we were not in reiser4 or if
-		   lock stack is clean and atom is not opened */
-		return write_page_by_ent(page, wbc);
-	}
-#endif				/* REISER4_USE_ENTD */
+	assert("", can_hit_entd(ctx, s));
 
-	BUG_ON(ctx == NULL);
-	BUG_ON(s != ctx->super);
-
-	tree = &get_super_private(s)->tree;
-	node = jnode_of_page(page);
-	if (!IS_ERR(node)) {
-		int phantom;
-
-		assert("nikita-2419", node != NULL);
-
-		spin_lock_jnode(node);
-		/*
-		 * page was dirty, but jnode is not. This is (only?)
-		 * possible if page was modified through mmap(). We
-		 * want to handle such jnodes specially.
-		 */
-		phantom = !JF_ISSET(node, JNODE_DIRTY);
-		atom = jnode_get_atom(node);
-		if (atom != NULL) {
-			if (!(atom->flags & ATOM_FORCE_COMMIT)) {
-				atom->flags |= ATOM_FORCE_COMMIT;
-				ktxnmgrd_kick(&get_super_private(s)->tmgr);
-			}
-			spin_unlock_atom(atom);
-		}
-		spin_unlock_jnode(node);
-
-		result = emergency_flush(page);
-		if (result == 0)
-			if (phantom && jnode_is_unformatted(node))
-				JF_SET(node, JNODE_KEEPME);
-		jput(node);
-	} else {
-		result = PTR_ERR(node);
-	}
-	if (result != 0) {
-		/*
-		 * shrink list doesn't move page to another mapping
-		 * list when clearing dirty flag. So it is enough to
-		 * just set dirty bit.
-		 */
-		set_page_dirty_internal(page);
-		unlock_page(page);
-	}
-	return result;
+	return write_page_by_ent(page, wbc);
 }
 
 /* ->set_page_dirty() method of formatted address_space */
@@ -663,7 +614,7 @@ static void invalidate_unformatted(jnode * node)
 		page_cache_get(page);
 		spin_unlock_jnode(node);
 		/* FIXME: use truncate_complete_page instead */
-		from = (loff_t) page->index << PAGE_CACHE_SHIFT;
+		from = page_offset(page);
 		to = from + PAGE_CACHE_SIZE - 1;
 		truncate_inode_pages_range(page->mapping, from, to);
 		page_cache_release(page);

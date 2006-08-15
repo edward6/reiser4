@@ -667,7 +667,7 @@ jnode_flush(jnode * node, long nr_to_write, long *nr_written,
 
 	/* allocate right_scan, left_scan and flush_pos */
 	right_scan =
-	    kmalloc(2 * sizeof(*right_scan) + sizeof(*flush_pos), GFP_KERNEL);
+	    kmalloc(2 * sizeof(*right_scan) + sizeof(*flush_pos), get_gfp_mask());
 	if (right_scan == NULL)
 		return RETERR(-ENOMEM);
 	left_scan = right_scan + 1;
@@ -909,18 +909,15 @@ static int rapid_flush(flush_pos_t * pos)
 
 #endif				/* REISER4_USE_RAPID_FLUSH */
 
-static jnode * find_flush_start_jnode(
-	jnode * start,
-	txn_atom * atom,
-	flush_queue_t * fq,
-	int *nr_queued,
-	int flags)
+static jnode *find_flush_start_jnode(jnode *start, txn_atom *atom,
+				     flush_queue_t *fq, int *nr_queued,
+				     int flags)
 {
 	jnode * node;
 
 	if (start != NULL) {
 		spin_lock_jnode(start);
-		if (JF_ISSET(start, JNODE_DIRTY) && !JF_ISSET(start, JNODE_OVRWR)) {
+		if (!jnode_is_flushprepped(start)) {
 			assert("zam-1056", start->atom == atom);
 			node = start;
 			goto enter;
@@ -940,8 +937,7 @@ static jnode * find_flush_start_jnode(
 
 		if (JF_ISSET(node, JNODE_WRITEBACK)) {
 			/* move node to the end of atom's writeback list */
-			list_del_init(&node->capture_link);
-			list_add_tail(&node->capture_link, ATOM_WB_LIST(atom));
+			list_move_tail(&node->capture_link, ATOM_WB_LIST(atom));
 
 			/*
 			 * jnode is not necessarily on dirty list: if it was dirtied when
@@ -974,7 +970,6 @@ static jnode * find_flush_start_jnode(
 	}
 	return node;
 }
-
 
 /* Flush some nodes of current atom, usually slum, return -E_REPEAT if there are more nodes
  * to flush, return 0 if atom's dirty lists empty and keep current atom locked, return
@@ -1116,8 +1111,8 @@ reverse_relocate_test(jnode * node, const coord_t * parent_coord,
 	 */
 
 	/* New nodes are treated as if they are being relocated. */
-	if (jnode_created(node)
-	    || (pos->leaf_relocate && jnode_get_level(node) == LEAF_LEVEL)) {
+	if (JF_ISSET (node, JNODE_CREATED) ||
+	    (pos->leaf_relocate && jnode_get_level(node) == LEAF_LEVEL)) {
 		return 1;
 	}
 
@@ -2605,20 +2600,6 @@ static int shift_one_internal_unit(znode * left, znode * right)
 	return moved ? SUBTREE_MOVED : SQUEEZE_TARGET_FULL;
 }
 
-/* ALLOCATE INTERFACE */
-/* Audited by: umka (2002.06.11) */
-void jnode_set_block(jnode * node /* jnode to update */ ,
-		     const reiser4_block_nr * blocknr /* new block nr */ )
-{
-	assert("nikita-2020", node != NULL);
-	assert("umka-055", blocknr != NULL);
-	assert("zam-819",
-	       ergo(JF_ISSET(node, JNODE_EFLUSH), node->blocknr == 0));
-	assert("vs-1453",
-	       ergo(JF_ISSET(node, JNODE_EFLUSH), jnode_is_unformatted(node)));
-	node->blocknr = *blocknr;
-}
-
 /* Make the final relocate/wander decision during forward parent-first squalloc for a
    znode.  For unformatted nodes this is done in plugin/item/extent.c:extent_needs_allocation(). */
 static int
@@ -2635,8 +2616,8 @@ allocate_znode_loaded(znode * node,
 	assert("jmacd-7989", coord_is_invalid(parent_coord)
 	       || znode_is_write_locked(parent_coord->node));
 
-	if (ZF_ISSET(node, JNODE_REPACK) || znode_created(node)
-	    || znode_is_root(node) ||
+	if (ZF_ISSET(node, JNODE_REPACK) || ZF_ISSET(node, JNODE_CREATED) ||
+	    znode_is_root(node) ||
 	    /* We have enough nodes to relocate no matter what. */
 	    (pos->leaf_relocate != 0 && znode_get_level(node) == LEAF_LEVEL)) {
 		/* No need to decide with new nodes, they are treated the same as
@@ -2742,10 +2723,15 @@ allocate_znode_update(znode * node, const coord_t * parent_coord,
 	lock_handle uber_lock;
 	int flush_reserved_used = 0;
 	int grabbed;
+	reiser4_context *ctx;
+	reiser4_super_info_data *sbinfo;
 
 	init_lh(&uber_lock);
 
-	grabbed = get_current_context()->grabbed_blocks;
+	ctx = get_current_context();
+	sbinfo = get_super_private(ctx->super);
+
+	grabbed = ctx->grabbed_blocks;
 
 	/* discard e-flush allocation */
 	ret = zload(node);
@@ -2787,9 +2773,8 @@ allocate_znode_update(znode * node, const coord_t * parent_coord,
 	}
 
 	/* We may do not use 5% of reserved disk space here and flush will not pack tightly. */
-	ret =
-	    reiser4_alloc_block(&pos->preceder, &blk,
-				BA_FORMATTED | BA_PERMANENT);
+	ret = reiser4_alloc_block(&pos->preceder, &blk,
+				  BA_FORMATTED | BA_PERMANENT);
 	if (ret)
 		goto exit;
 

@@ -17,7 +17,6 @@
 #include <linux/spinlock.h>
 #include <linux/sched.h>	/* for struct task_struct */
 
-
 /* reiser4 per-thread context */
 struct reiser4_context {
 	/* magic constant. For identification of reiser4 contexts. */
@@ -57,7 +56,7 @@ struct reiser4_context {
 	/* true, if balance_dirty_pages() should not be run when leaving this
 	 * context. This is used to avoid lengthly balance_dirty_pages()
 	 * operation when holding some important resource, like directory
-	 * ->i_sem */
+	 * ->i_mutex */
 	unsigned int nobalance:1;
 
 	/* this bit is used on done_context to decide whether context is
@@ -93,6 +92,7 @@ struct reiser4_context {
 	err_site err;
 #endif
 	void *vp;
+	gfp_t gfp_mask;
 };
 
 extern reiser4_context *get_context_by_lock_stack(lock_stack *);
@@ -145,6 +145,16 @@ static inline reiser4_context *get_current_context(void)
 	return get_context(current);
 }
 
+static inline gfp_t get_gfp_mask(void)
+{
+	reiser4_context *ctx;
+
+	ctx = get_current_context_check();
+	return (ctx == NULL) ? GFP_KERNEL : ctx->gfp_mask;
+}
+
+void set_gfp_mask(void);
+
 /*
  * true if current thread is in the write-out mode. Thread enters write-out
  * mode during jnode_flush and reiser4_write_logs().
@@ -194,7 +204,7 @@ static inline int is_grab_enabled(reiser4_context * ctx)
 
 /* mark transaction handle in @ctx as TXNH_DONT_COMMIT, so that no commit or
  * flush would be performed when it is closed. This is necessary when handle
- * has to be closed under some coarse semaphore, like i_sem of
+ * has to be closed under some coarse semaphore, like i_mutex of
  * directory. Commit will be performed by ktxnmgrd. */
 static inline void context_set_commit_async(reiser4_context * context)
 {

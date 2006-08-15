@@ -4,7 +4,6 @@
 #include "inode.h"
 #include "plugin/plugin.h"
 
-
 /*
  * Supported file-handle types
  */

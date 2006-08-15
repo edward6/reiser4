@@ -291,7 +291,7 @@ jnode *jnode_by_page(struct page *pg)
 /* exported functions to allocate/free jnode objects outside this file */
 jnode *jalloc(void)
 {
-	jnode *jal = kmem_cache_alloc(_jnode_slab, GFP_KERNEL);
+	jnode *jal = kmem_cache_alloc(_jnode_slab, get_gfp_mask());
 	return jal;
 }
 
@@ -302,7 +302,6 @@ inline void jfree(jnode * node)
 
 	assert("nikita-2663", (list_empty_careful(&node->capture_link) &&
 			       NODE_LIST(node) == NOT_CAPTURED));
-	assert("nikita-2774", !JF_ISSET(node, JNODE_EFLUSH));
 	assert("nikita-3222", list_empty(&node->jnodes));
 	assert("nikita-3221", jnode_page(node) == NULL);
 
@@ -432,7 +431,7 @@ static void inode_attach_jnode(jnode * node)
 	inode = node->key.j.mapping->host;
 	info = reiser4_inode_data(inode);
 	rtree = jnode_tree_by_reiser4_inode(info);
-	if (rtree->height == 0) {
+	if (rtree->rnode == NULL) {
 		/* prevent inode from being pruned when it has jnodes attached
 		   to it */
 		write_lock_irq(&inode->i_data.tree_lock);
@@ -459,12 +458,11 @@ static void inode_detach_jnode(jnode * node)
 
 	assert("zam-1051", info->nr_jnodes != 0);
 	assert("zam-1052", rtree->rnode != NULL);
-	assert("vs-1730", !JF_ISSET(node, JNODE_EFLUSH));
 	ON_DEBUG(info->nr_jnodes--);
 
 	/* delete jnode from inode's radix tree of jnodes */
 	check_me("zam-1046", radix_tree_delete(rtree, node->key.j.index));
-	if (rtree->height == 0) {
+	if (rtree->rnode == NULL) {
 		/* inode can be pruned now */
 		write_lock_irq(&inode->i_data.tree_lock);
 		inode->i_data.nrpages--;
@@ -539,8 +537,9 @@ void unhash_unformatted_jnode(jnode * node)
  * allocate new jnode, insert it, and also insert into radix tree for the
  * given inode/mapping.
  */
-jnode *find_get_jnode(reiser4_tree * tree, struct address_space *mapping,
-		      oid_t oid, unsigned long index)
+static jnode *find_get_jnode(reiser4_tree * tree,
+			     struct address_space *mapping,
+			     oid_t oid, unsigned long index)
 {
 	jnode *result;
 	jnode *shadow;
@@ -551,7 +550,7 @@ jnode *find_get_jnode(reiser4_tree * tree, struct address_space *mapping,
 	if (unlikely(result == NULL))
 		return ERR_PTR(RETERR(-ENOMEM));
 
-	preload = radix_tree_preload(GFP_KERNEL);
+	preload = radix_tree_preload(get_gfp_mask());
 	if (preload != 0)
 		return ERR_PTR(preload);
 
@@ -788,7 +787,7 @@ static inline int jparse(jnode * node)
 
 /* Lock a page attached to jnode, create and attach page to jnode if it had no
  * one. */
-struct page *jnode_get_page_locked(jnode * node, int gfp_flags)
+static struct page *jnode_get_page_locked(jnode * node, gfp_t gfp_flags)
 {
 	struct page *page;
 
@@ -831,7 +830,7 @@ static int jnode_start_read(jnode * node, struct page *page)
 		unlock_page(page);
 		return 0;
 	}
-	return page_io(page, node, READ, GFP_KERNEL);
+	return page_io(page, node, READ, get_gfp_mask());
 }
 
 #if REISER4_DEBUG
@@ -867,7 +866,7 @@ void jload_prefetch(jnode * node)
 
 /* load jnode's data into memory */
 int jload_gfp(jnode * node /* node to load */ ,
-	      int gfp_flags /* allocation flags */ ,
+	      gfp_t gfp_flags /* allocation flags */ ,
 	      int do_kmap /* true if page should be kmapped */ )
 {
 	struct page *page;
@@ -925,12 +924,6 @@ int jload_gfp(jnode * node /* node to load */ ,
 			node->data = kmap(page);
 	}
 
-	if (unlikely(JF_ISSET(node, JNODE_EFLUSH))) {
-		spin_lock_jnode(node);
-		eflush_del(node, 0);
-		spin_unlock_jnode(node);
-	}
-
 	if (!is_writeout_mode())
 		/* We do not mark pages active if jload is called as a part of
 		 * jnode_flush() or reiser4_write_logs().  Both jnode_flush()
@@ -954,7 +947,7 @@ int jstartio(jnode * node)
 {
 	struct page *page;
 
-	page = jnode_get_page_locked(node, GFP_KERNEL);
+	page = jnode_get_page_locked(node, get_gfp_mask());
 	if (IS_ERR(page))
 		return PTR_ERR(page);
 
@@ -963,7 +956,7 @@ int jstartio(jnode * node)
 
 /* Initialize a node by calling appropriate plugin instead of reading
  * node from disk as in jload(). */
-int jinit_new(jnode * node, int gfp_flags)
+int jinit_new(jnode * node, gfp_t gfp_flags)
 {
 	struct page *page;
 	int result;
@@ -1169,14 +1162,12 @@ struct address_space *mapping_jnode(const jnode * node)
 	assert("nikita-2714", map != NULL);
 	assert("nikita-2897", is_reiser4_inode(map->host));
 	assert("nikita-2715", get_inode_oid(map->host) == node->key.j.objectid);
-	assert("vs-1447", !JF_ISSET(node, JNODE_CC));
 	return map;
 }
 
 /* ->index() method for unformatted jnodes */
 unsigned long index_jnode(const jnode * node)
 {
-	assert("vs-1447", !JF_ISSET(node, JNODE_CC));
 	/* index is stored in jnode */
 	return node->key.j.index;
 }
@@ -1192,7 +1183,6 @@ static inline void remove_jnode(jnode * node, reiser4_tree * tree)
 /* ->mapping() method for znodes */
 static struct address_space *mapping_znode(const jnode * node)
 {
-	assert("vs-1447", !JF_ISSET(node, JNODE_CC));
 	/* all znodes belong to fake inode */
 	return get_super_fake(jnode_get_tree(node)->super)->i_mapping;
 }
@@ -1350,7 +1340,7 @@ static jnode *clone_formatted(jnode * node)
 	znode *clone;
 
 	assert("vs-1430", jnode_is_znode(node));
-	clone = zalloc(GFP_KERNEL);
+	clone = zalloc(get_gfp_mask());
 	if (clone == NULL)
 		return ERR_PTR(RETERR(-ENOMEM));
 	zinit(clone, NULL, current_tree);
@@ -1604,7 +1594,6 @@ static int jnode_try_drop(jnode * node)
 	result = jnode_is_busy(node, jtype);
 	if (result == 0) {
 		assert("nikita-2582", !JF_ISSET(node, JNODE_HEARD_BANSHEE));
-		assert("nikita-3223", !JF_ISSET(node, JNODE_EFLUSH));
 		assert("jmacd-511/b", atomic_read(&node->d_count) == 0);
 
 		spin_unlock_jnode(node);
@@ -1632,9 +1621,6 @@ static int jdelete(jnode * node /* jnode to finish with */ )
 
 	assert("nikita-467", node != NULL);
 	assert("nikita-2531", JF_ISSET(node, JNODE_RIP));
-	/* jnode cannot be eflushed at this point, because emegrency flush
-	 * acquired additional reference counter. */
-	assert("nikita-2917", !JF_ISSET(node, JNODE_EFLUSH));
 
 	jtype = jnode_get_type(node);
 
@@ -1825,34 +1811,6 @@ int jnode_invariant_f(const jnode * node, char const **msg)
 
 }
 
-/* debugging aid: check znode invariant and panic if it doesn't hold */
-static int jnode_invariant(const jnode * node, int tlocked, int jlocked)
-{
-	char const *failed_msg;
-	int result;
-	reiser4_tree *tree;
-
-	tree = jnode_get_tree(node);
-
-	assert("umka-063312", node != NULL);
-	assert("umka-064321", tree != NULL);
-
-	if (!jlocked && !tlocked)
-		spin_lock_jnode((jnode *) node);
-	if (!tlocked)
-		read_lock_tree(jnode_get_tree(node));
-	result = jnode_invariant_f(node, &failed_msg);
-	if (!result) {
-		info_jnode("corrupted node", node);
-		warning("jmacd-555", "Condition %s failed", failed_msg);
-	}
-	if (!tlocked)
-		read_unlock_tree(jnode_get_tree(node));
-	if (!jlocked && !tlocked)
-		spin_unlock_jnode((jnode *) node);
-	return result;
-}
-
 static const char *jnode_type_name(jnode_type type)
 {
 	switch (type) {
@@ -1881,8 +1839,8 @@ static const char *jnode_type_name(jnode_type type)
 	( JF_ISSET( ( node ), ( flag ) ) ? ((#flag "|")+6) : "" )
 
 /* debugging aid: output human readable information about @node */
-void info_jnode(const char *prefix /* prefix to print */ ,
-		const jnode * node /* node to print */ )
+static void info_jnode(const char *prefix /* prefix to print */ ,
+		       const jnode * node /* node to print */ )
 {
 	assert("umka-068", prefix != NULL);
 
@@ -1892,29 +1850,27 @@ void info_jnode(const char *prefix /* prefix to print */ ,
 	}
 
 	printk
-	    ("%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i,"
+	    ("%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i,"
 	     " block: %s, d_count: %d, x_count: %d, "
 	     "pg: %p, atom: %p, lock: %i:%i, type: %s, ", prefix, node,
-	     node->state, jnode_state_name(node, JNODE_PARSED),
-	     jnode_state_name(node, JNODE_HEARD_BANSHEE), jnode_state_name(node,
-									   JNODE_LEFT_CONNECTED),
+	     node->state,
+	     jnode_state_name(node, JNODE_PARSED),
+	     jnode_state_name(node, JNODE_HEARD_BANSHEE),
+	     jnode_state_name(node, JNODE_LEFT_CONNECTED),
 	     jnode_state_name(node, JNODE_RIGHT_CONNECTED),
-	     jnode_state_name(node, JNODE_ORPHAN), jnode_state_name(node,
-								    JNODE_CREATED),
-	     jnode_state_name(node, JNODE_RELOC), jnode_state_name(node,
-								   JNODE_OVRWR),
-	     jnode_state_name(node, JNODE_DIRTY), jnode_state_name(node,
-								   JNODE_IS_DYING),
-	     jnode_state_name(node, JNODE_EFLUSH), jnode_state_name(node,
-								    JNODE_FLUSH_QUEUED),
-	     jnode_state_name(node, JNODE_RIP), jnode_state_name(node,
-								 JNODE_MISSED_IN_CAPTURE),
-	     jnode_state_name(node, JNODE_WRITEBACK), jnode_state_name(node,
-								       JNODE_NEW),
-	     jnode_state_name(node, JNODE_DKSET), jnode_state_name(node,
-								   JNODE_EPROTECTED),
-	     jnode_state_name(node, JNODE_REPACK), jnode_state_name(node,
-								    JNODE_CLUSTER_PAGE),
+	     jnode_state_name(node, JNODE_ORPHAN),
+	     jnode_state_name(node, JNODE_CREATED),
+	     jnode_state_name(node, JNODE_RELOC),
+	     jnode_state_name(node, JNODE_OVRWR),
+	     jnode_state_name(node, JNODE_DIRTY),
+	     jnode_state_name(node, JNODE_IS_DYING),
+	     jnode_state_name(node, JNODE_RIP),
+	     jnode_state_name(node, JNODE_MISSED_IN_CAPTURE),
+	     jnode_state_name(node, JNODE_WRITEBACK),
+	     jnode_state_name(node, JNODE_NEW),
+	     jnode_state_name(node, JNODE_DKSET),
+	     jnode_state_name(node, JNODE_REPACK),
+	     jnode_state_name(node, JNODE_CLUSTER_PAGE),
 	     jnode_get_level(node), sprint_address(jnode_get_block(node)),
 	     atomic_read(&node->d_count), atomic_read(&node->x_count),
 	     jnode_page(node), node->atom, 0, 0,
@@ -1925,24 +1881,35 @@ void info_jnode(const char *prefix /* prefix to print */ ,
 	}
 }
 
+/* debugging aid: check znode invariant and panic if it doesn't hold */
+static int jnode_invariant(const jnode * node, int tlocked, int jlocked)
+{
+	char const *failed_msg;
+	int result;
+	reiser4_tree *tree;
+
+	tree = jnode_get_tree(node);
+
+	assert("umka-063312", node != NULL);
+	assert("umka-064321", tree != NULL);
+
+	if (!jlocked && !tlocked)
+		spin_lock_jnode((jnode *) node);
+	if (!tlocked)
+		read_lock_tree(jnode_get_tree(node));
+	result = jnode_invariant_f(node, &failed_msg);
+	if (!result) {
+		info_jnode("corrupted node", node);
+		warning("jmacd-555", "Condition %s failed", failed_msg);
+	}
+	if (!tlocked)
+		read_unlock_tree(jnode_get_tree(node));
+	if (!jlocked && !tlocked)
+		spin_unlock_jnode((jnode *) node);
+	return result;
+}
 
 #endif				/* REISER4_DEBUG */
-
-/* this is only used to created jnode during capture copy */
-jnode *jclone(jnode * node)
-{
-	jnode *clone;
-
-	assert("vs-1429", jnode_ops(node)->clone);
-	clone = jnode_ops(node)->clone(node);
-	if (IS_ERR(clone))
-		return clone;
-
-	jref(clone);
-	JF_SET(clone, JNODE_HEARD_BANSHEE);
-	JF_SET(clone, JNODE_CC);
-	return clone;
-}
 
 /* Make Linus happy.
    Local variables:

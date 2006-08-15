@@ -6,7 +6,6 @@
 
 #include <linux/swap.h>
 
-
 /**
  * init_fs_info - allocate reiser4 specific super block
  * @super: super block of filesystem
@@ -18,7 +17,7 @@ int init_fs_info(struct super_block *super)
 {
 	reiser4_super_info_data *sbinfo;
 
-	sbinfo = kmalloc(sizeof(reiser4_super_info_data), GFP_KERNEL);
+	sbinfo = kmalloc(sizeof(reiser4_super_info_data), get_gfp_mask());
 	if (!sbinfo)
 		return RETERR(-ENOMEM);
 
@@ -32,9 +31,7 @@ int init_fs_info(struct super_block *super)
 	sema_init(&sbinfo->delete_sema, 1);
 	sema_init(&sbinfo->flush_sema, 1);
 	spin_lock_init(&(sbinfo->guard));
-#if REISER4_USE_EFLUSH
-	spin_lock_init(&(sbinfo->eflush_guard));
-#endif
+
 	/*  initialize per-super-block d_cursor resources */
 	init_super_d_info(super);
 
@@ -346,7 +343,7 @@ int init_super_data(struct super_block *super, char *opt_string)
 	sbinfo->ra_params.flags = 0;
 
 	/* allocate memory for structure describing reiser4 mount options */
-	opts = kmalloc(sizeof(opt_desc_t) * MAX_NR_OPTIONS, GFP_KERNEL);
+	opts = kmalloc(sizeof(opt_desc_t) * MAX_NR_OPTIONS, get_gfp_mask());
 	if (opts == NULL)
 		return RETERR(-ENOMEM);
 
@@ -751,25 +748,6 @@ int init_root_inode(struct super_block *super)
 	super->s_maxbytes = MAX_LFS_FILESIZE;
 	return result;
 }
-
-/**
- * done_root_inode - put inode of root directory
- * @super: super block of filesystem
- *
- * Puts inode of root directory.
- */
-#if 0
-void done_root_inode(struct super_block *super)
-{
-	/* remove unused children of the parent dentry */
-	shrink_dcache_parent(super->s_root);
-	assert("vs-1714", hlist_empty(&super->s_anon));
-	dput(super->s_root);
-	super->s_root = NULL;
-	/* discard all inodes of filesystem */
-	invalidate_inodes(super);
-}
-#endif  /*  0  */
 
 /*
  * Local variables:

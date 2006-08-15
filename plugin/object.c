@@ -107,9 +107,11 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.file_ops = {
 			.llseek = generic_file_llseek,
 			.read = read_unix_file,
-			.write = write_unix_file,
+			.write = do_sync_write,
+			.aio_write = generic_file_aio_write,
 			.ioctl = ioctl_unix_file,
 			.mmap = mmap_unix_file,
+			.open = open_unix_file,
 			.release = release_unix_file,
 			.fsync = sync_unix_file,
 			.sendfile = sendfile_unix_file
@@ -120,9 +122,10 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.sync_page = block_sync_page,
 			.writepages = writepages_unix_file,
 			.set_page_dirty = reiser4_set_page_dirty,
-			.readpages = reiser4_readpages,
+			.readpages = readpages_unix_file,
 			.prepare_write = prepare_write_unix_file,
 			.commit_write =	commit_write_unix_file,
+			.batch_write = batch_write_unix_file,
 			.bmap = bmap_unix_file,
 			.invalidatepage = reiser4_invalidatepage,
 			.releasepage = reiser4_releasepage
@@ -166,9 +169,9 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.desc = "directory",
 			.linkage = {NULL, NULL}
 		},
-		.inode_ops = {NULL,},
-		.file_ops = {NULL,},
-		.as_ops = {NULL,},
+		.inode_ops = {.create = NULL},
+		.file_ops = {.owner = NULL},
+		.as_ops = {.writepage = NULL},
 
 		.write_sd_by_inode = write_sd_by_inode_common,
 		.flow_by_inode = bugop,
@@ -218,8 +221,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.getattr = getattr_common
 		},
 		/* inode->i_fop of symlink is initialized by NULL in setup_inode_ops */
-		.file_ops = {NULL,},
-		.as_ops = {NULL,},
+		.file_ops = {.owner = NULL},
+		.as_ops = {.writepage = NULL},
 
 		.write_sd_by_inode = write_sd_by_inode_common,
 		.set_plug_in_inode = set_plug_in_inode_common,
@@ -266,8 +269,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		},
 		/* file_ops of special files (sockets, block, char, fifo) are
 		   initialized by init_special_inode. */
-		.file_ops = {NULL,},
-		.as_ops = {NULL,},
+		.file_ops = {.owner = NULL},
+		.as_ops = {.writepage = NULL},
 
 		.write_sd_by_inode = write_sd_by_inode_common,
 		.set_plug_in_inode = set_plug_in_inode_common,
@@ -315,6 +318,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.llseek = generic_file_llseek,
 			.read = read_cryptcompress,
 			.write = write_cryptcompress,
+			.aio_read = generic_file_aio_read,
 			.mmap = mmap_cryptcompress,
 			.release = release_cryptcompress,
 			.fsync = sync_common,
@@ -326,7 +330,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.sync_page = block_sync_page,
 			.writepages = writepages_cryptcompress,
 			.set_page_dirty = reiser4_set_page_dirty,
-			.readpages = reiser4_readpages,
+			.readpages = readpages_crc,
 			.prepare_write = prepare_write_common,
 			.invalidatepage = reiser4_invalidatepage,
 			.releasepage = reiser4_releasepage

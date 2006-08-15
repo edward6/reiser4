@@ -308,7 +308,6 @@ reiser4_find_last_set_bit(bmap_off_t * result, void *addr, bmap_off_t low_off,
 	int last_bit;
 	int nr;
 
-	assert("zam-961", high_off >= 0);
 	assert("zam-962", high_off >= low_off);
 
 	last_word = high_off >> LONG_INT_SHIFT;
@@ -729,9 +728,8 @@ static void done_bnode(struct bitmap_node *bnode)
 }
 
 /* ZAM-FIXME-HANS: comment this.  Called only by load_and_lock_bnode()*/
-static int
-prepare_bnode(struct bitmap_node *bnode, jnode ** cjnode_ret,
-	      jnode ** wjnode_ret)
+static int prepare_bnode(struct bitmap_node *bnode, jnode **cjnode_ret,
+			 jnode **wjnode_ret)
 {
 	struct super_block *super;
 	jnode *cjnode;
@@ -742,8 +740,10 @@ prepare_bnode(struct bitmap_node *bnode, jnode ** cjnode_ret,
 	super = reiser4_get_current_sb();
 
 	*wjnode_ret = wjnode = bnew();
-	if (wjnode == NULL)
+	if (wjnode == NULL) {
+		*cjnode_ret = NULL;
 		return RETERR(-ENOMEM);
+	}
 
 	*cjnode_ret = cjnode = bnew();
 	if (cjnode == NULL)
@@ -905,7 +905,7 @@ search_one_bitmap_forward(bmap_nr_t bmap, bmap_off_t * offset,
 
 	assert("zam-364", min_len > 0);
 	assert("zam-365", max_len >= min_len);
-	assert("zam-366", *offset < max_offset);
+	assert("zam-366", *offset <= max_offset);
 
 	ret = load_and_lock_bnode(bnode);
 
@@ -1048,7 +1048,7 @@ static int bitmap_alloc_forward(reiser4_block_nr * start,
 	++end_offset;
 
 	assert("zam-358", end_bmap >= bmap);
-	assert("zam-359", ergo(end_bmap == bmap, end_offset > offset));
+	assert("zam-359", ergo(end_bmap == bmap, end_offset >= offset));
 
 	for (; bmap < end_bmap; bmap++, offset = 0) {
 		len =
@@ -1101,9 +1101,8 @@ static int bitmap_alloc_backward(reiser4_block_nr * start,
 }
 
 /* plugin->u.space_allocator.alloc_blocks() */
-static int
-alloc_blocks_forward(reiser4_blocknr_hint * hint, int needed,
-		     reiser4_block_nr * start, reiser4_block_nr * len)
+static int alloc_blocks_forward(reiser4_blocknr_hint *hint, int needed,
+				reiser4_block_nr *start, reiser4_block_nr *len)
 {
 	struct super_block *super = get_current_context()->super;
 	int actual_len;
@@ -1113,7 +1112,7 @@ alloc_blocks_forward(reiser4_blocknr_hint * hint, int needed,
 
 	assert("zam-398", super != NULL);
 	assert("zam-412", hint != NULL);
-	assert("zam-397", hint->blk < reiser4_block_count(super));
+	assert("zam-397", hint->blk <= reiser4_block_count(super));
 
 	if (hint->max_dist == 0)
 		search_end = reiser4_block_count(super);
@@ -1160,7 +1159,7 @@ static int alloc_blocks_backward(reiser4_blocknr_hint * hint, int needed,
 
 	assert("zam-969", super != NULL);
 	assert("zam-970", hint != NULL);
-	assert("zam-971", hint->blk < reiser4_block_count(super));
+	assert("zam-971", hint->blk <= reiser4_block_count(super));
 
 	search_start = hint->blk;
 	if (hint->max_dist == 0 || search_start <= hint->max_dist)
@@ -1367,116 +1366,6 @@ apply_dset_to_commit_bmap(txn_atom * atom, const reiser4_block_nr * start,
    only one transaction can be committed a time, therefore it is safe to access
    some global variables without any locking */
 
-#if REISER4_COPY_ON_CAPTURE
-
-extern spinlock_t scan_lock;
-
-int pre_commit_hook_bitmap(void)
-{
-	struct super_block *super = reiser4_get_current_sb();
-	txn_atom *atom;
-
-	long long blocks_freed = 0;
-
-	atom = get_current_atom_locked();
-	BUG_ON(atom->stage != ASTAGE_PRE_COMMIT);
-	assert("zam-876", atom->stage == ASTAGE_PRE_COMMIT);
-	spin_unlock_atom(atom);
-
-	{			/* scan atom's captured list and find all freshly allocated nodes,
-				 * mark corresponded bits in COMMIT BITMAP as used */
-		/* how cpu significant is this scan, should we someday have a freshly_allocated list? -Hans */
-		capture_list_head *head = ATOM_CLEAN_LIST(atom);
-		jnode *node;
-
-		spin_lock(&scan_lock);
-		node = capture_list_front(head);
-
-		while (!capture_list_end(head, node)) {
-			int ret;
-
-			assert("vs-1445", NODE_LIST(node) == CLEAN_LIST);
-			BUG_ON(node->atom != atom);
-			JF_SET(node, JNODE_SCANNED);
-			spin_unlock(&scan_lock);
-
-			/* we detect freshly allocated jnodes */
-			if (JF_ISSET(node, JNODE_RELOC)) {
-				bmap_nr_t bmap;
-
-				bmap_off_t offset;
-				bmap_off_t index;
-				struct bitmap_node *bn;
-				__u32 size = bmap_size(super->s_blocksize);
-				char byte;
-				__u32 crc;
-
-				assert("zam-559", !JF_ISSET(node, JNODE_OVRWR));
-				assert("zam-460",
-				       !blocknr_is_fake(&node->blocknr));
-
-				parse_blocknr(&node->blocknr, &bmap, &offset);
-				bn = get_bnode(super, bmap);
-
-				index = offset >> 3;
-				assert("vpf-276", index < size);
-
-				ret = bnode_check_crc(bnode);
-				if (ret != 0)
-					return ret;
-
-				check_bnode_loaded(bn);
-				load_and_lock_bnode(bn);
-
-				byte = *(bnode_commit_data(bn) + index);
-				reiser4_set_bit(offset, bnode_commit_data(bn));
-
-				crc = adler32_recalc(bnode_commit_crc(bn), byte,
-						     *(bnode_commit_data(bn) +
-						       index),
-						     size - index),
-				    bnode_set_commit_crc(bn, crc);
-
-				release_and_unlock_bnode(bn);
-
-				ret = bnode_check_crc(bnode);
-				if (ret != 0)
-					return ret;
-
-				/* working of this depends on how it inserts
-				   new j-node into clean list, because we are
-				   scanning the same list now. It is OK, if
-				   insertion is done to the list front */
-				cond_add_to_overwrite_set(atom, bn->cjnode);
-			}
-
-			spin_lock(&scan_lock);
-			JF_CLR(node, JNODE_SCANNED);
-			node = capture_list_next(node);
-		}
-		spin_unlock(&scan_lock);
-	}
-
-	blocknr_set_iterator(atom, &atom->delete_set, apply_dset_to_commit_bmap,
-			     &blocks_freed, 0);
-
-	blocks_freed -= atom->nr_blocks_allocated;
-
-	{
-		reiser4_super_info_data *sbinfo;
-
-		sbinfo = get_super_private(super);
-
-		reiser4_spin_lock_sb(sbinfo);
-		sbinfo->blocks_free_committed += blocks_freed;
-		reiser4_spin_unlock_sb(sbinfo);
-	}
-
-	return 0;
-}
-
-#else				/* ! REISER4_COPY_ON_CAPTURE */
-
 int pre_commit_hook_bitmap(void)
 {
 	struct super_block *super = reiser4_get_current_sb();
@@ -1566,7 +1455,6 @@ int pre_commit_hook_bitmap(void)
 
 	return 0;
 }
-#endif				/* ! REISER4_COPY_ON_CAPTURE */
 
 /* plugin->u.space_allocator.init_allocator
     constructor of reiser4_space_allocator object. It is called on fs mount */
@@ -1691,12 +1579,12 @@ destroy_allocator_bitmap(reiser4_space_allocator * allocator,
 }
 
 /*
-   Local variables:
-   c-indentation-style: "K&R"
-   mode-name: "LC"
-   c-basic-offset: 8
-   tab-width: 8
-   fill-column: 80
-   scroll-step: 1
-   End:
-*/
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 79
+ * scroll-step: 1
+ * End:
+ */

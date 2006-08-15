@@ -40,7 +40,6 @@
 #include <linux/writeback.h>	/* balance_dirty_pages() */
 #include <linux/hardirq.h>
 
-
 static void _init_context(reiser4_context * context, struct super_block *super)
 {
 	memset(context, 0, sizeof(*context));
@@ -50,6 +49,7 @@ static void _init_context(reiser4_context * context, struct super_block *super)
 	context->outer = current->journal_info;
 	current->journal_info = (void *)context;
 	context->nr_children = 0;
+	context->gfp_mask = GFP_KERNEL;
 
 	init_lock_stack(&context->stack);
 
@@ -135,7 +135,7 @@ int is_in_reiser4_context(void)
  *
  * This introduces another problem: sometimes we do not want to run
  * balance_dirty_pages_ratelimited() when leaving a context, for example
- * because some important lock (like ->i_sem on the parent directory) is
+ * because some important lock (like ->i_mutex on the parent directory) is
  * held. To achieve this, ->nobalance flag can be set in the current context.
  */
 static void balance_dirty_pages_at(reiser4_context *context)
@@ -250,6 +250,19 @@ void reiser4_exit_context(reiser4_context * context)
 		txn_end(context);
 	}
 	done_context(context);
+}
+
+void set_gfp_mask(void)
+{
+	reiser4_context *ctx;
+
+	ctx = get_current_context();
+	if (ctx->entd == 0 &&
+	    list_empty(&ctx->stack.locks) &&
+	    ctx->trans->atom == NULL)
+		ctx->gfp_mask = GFP_KERNEL;
+	else
+		ctx->gfp_mask = GFP_NOFS;
 }
 
 /*

@@ -201,7 +201,6 @@ int delete_object_common(struct inode *inode)
 	assert("nikita-3420", inode->i_size == 0 || S_ISLNK(inode->i_mode));
 	assert("nikita-3421", inode->i_nlink == 0);
 
-
 	if (!inode_get_flag(inode, REISER4_NO_SD)) {
 		reiser4_block_nr reserve;
 
@@ -248,7 +247,6 @@ int delete_directory_common(struct inode *inode)
 	result = dplug->done(inode);
 	if (!result)
 		result = common_object_delete_no_reserve(inode);
-	all_grabbed2free();
 	return result;
 }
 
@@ -709,7 +707,7 @@ int lookup_sd(struct inode *inode /* inode to look sd for */ ,
 	return result;
 }
 
-int
+static int
 locate_inode_sd(struct inode *inode,
 		reiser4_key * key, coord_t * coord, lock_handle * lh)
 {
@@ -921,11 +919,11 @@ static int process_truncate(struct inode *inode, __u64 size)
 	attr.ia_valid = ATTR_SIZE | ATTR_CTIME;
 	fplug = inode_file_plugin(inode);
 
-	down(&inode->i_sem);
+	mutex_lock(&inode->i_mutex);
 	assert("vs-1704", get_current_context()->trans->atom == NULL);
 	dentry.d_inode = inode;
 	result = inode->i_op->setattr(&dentry, &attr);
-	up(&inode->i_sem);
+	mutex_unlock(&inode->i_mutex);
 
 	context_set_commit_async(ctx);
 	reiser4_exit_context(ctx);

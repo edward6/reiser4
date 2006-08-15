@@ -41,7 +41,7 @@ typedef enum {
 	REISER4_IMMUTABLE = 2,
 	/* inode was read from storage */
 	REISER4_LOADED = 3,
-	/* this bit is set for symlinks. inode->u.generic_ip points to target
+	/* this bit is set for symlinks. inode->i_private points to target
 	   name of symlink. */
 	REISER4_GENERIC_PTR_USED = 4,
 	/* set if size of stat-data item for this inode is known. If this is
@@ -55,11 +55,11 @@ typedef enum {
 	 * were created by ->readpage. It is set by mmap_unix_file() and
 	 * sendfile_unix_file(). This bit is inspected by write_unix_file and
 	 * kill-hook of tail items. It is never cleared once set. This bit is
-	 * modified and inspected under i_sem. */
+	 * modified and inspected under i_mutex. */
 	REISER4_HAS_MMAP = 8,
-	/* file was partially converted. It's body consists of a mix of tail
-	 * and extent items. */
-	REISER4_PART_CONV = 9,
+
+	REISER4_PART_MIXED = 9,
+	REISER4_PART_IN_CONV = 10
 } reiser4_file_plugin_flags;
 
 /* state associated with each inode.
@@ -132,9 +132,6 @@ struct reiser4_inode {
 		/* fields specific to cryptcompress plugin */
 		cryptcompress_info_t cryptcompress_info;
 	} file_plugin_data;
-	struct rw_semaphore coc_sem;	/* filemap_nopage takes it for read, copy_on_capture - for write. Under this it
-					   tries to unmap page for which it is called. This prevents process from using page which
-					   was copied on capture */
 
 	/* tree of jnodes. Phantom jnodes (ones not attched to any atom) are
 	   tagged in that tree by EFLUSH_TAG_ANONYMOUS */
@@ -253,7 +250,6 @@ static inline struct inode *unix_file_info_to_inode(const unix_file_info_t *
 			     p.file_plugin_data.unix_file_info)->vfs_inode;
 }
 
-
 extern ino_t oid_to_ino(oid_t oid) __attribute__ ((const));
 extern ino_t oid_to_uino(oid_t oid) __attribute__ ((const));
 
@@ -315,7 +311,6 @@ static inline void spin_unlock_inode(struct inode *inode)
 	spin_unlock(&reiser4_inode_data(inode)->guard);
 }
 
-
 extern znode *inode_get_vroot(struct inode *inode);
 extern void inode_set_vroot(struct inode *inode, znode * vroot);
 
@@ -343,7 +338,6 @@ is_inode_loaded(const struct inode *inode /* inode queried */ )
 
 extern file_plugin *inode_file_plugin(const struct inode *inode);
 extern dir_plugin *inode_dir_plugin(const struct inode *inode);
-extern perm_plugin *inode_perm_plugin(const struct inode *inode);
 extern formatting_plugin *inode_formatting_plugin(const struct inode *inode);
 extern hash_plugin *inode_hash_plugin(const struct inode *inode);
 extern fibration_plugin *inode_fibration_plugin(const struct inode *inode);

@@ -16,10 +16,11 @@ int setattr_unix_file(struct dentry *, struct iattr *);
 ssize_t read_unix_file(struct file *, char __user *buf, size_t read_amount,
 		       loff_t *off);
 ssize_t write_unix_file(struct file *, const char __user *buf, size_t write_amount,
-			loff_t * off);
+			loff_t *off);
 int ioctl_unix_file(struct inode *, struct file *, unsigned int cmd,
 		    unsigned long arg);
 int mmap_unix_file(struct file *, struct vm_area_struct *);
+int open_unix_file(struct inode *, struct file *);
 int release_unix_file(struct inode *, struct file *);
 int sync_unix_file(struct file *, struct dentry *, int datasync);
 ssize_t sendfile_unix_file(struct file *, loff_t *ppos, size_t count,
@@ -27,13 +28,18 @@ ssize_t sendfile_unix_file(struct file *, loff_t *ppos, size_t count,
 
 /* address space operations */
 int readpage_unix_file(struct file *, struct page *);
-int readpage_unix_file_nolock(struct file *, struct page *);
+int readpages_unix_file(struct file*, struct address_space*, struct list_head*, unsigned);
 int writepages_unix_file(struct address_space *, struct writeback_control *);
 int prepare_write_unix_file(struct file *, struct page *, unsigned from,
 			    unsigned to);
 int commit_write_unix_file(struct file *, struct page *, unsigned from,
 			   unsigned to);
+long batch_write_unix_file(struct file *, struct write_descriptor *,
+			   size_t *written);
 sector_t bmap_unix_file(struct address_space *, sector_t lblock);
+
+/* a readpages cleanup helper */
+extern void reiser4_readpages_cleanup(struct list_head *pages);
 
 /* file plugin operations */
 int flow_by_inode_unix_file(struct inode *, const char __user *buf,
@@ -77,11 +83,11 @@ typedef struct unix_file_info {
 	 */
 	struct rw_semaphore latch;
 	/*
-	 * this semaphore is used to serialize writes instead of inode->i_sem,
+	 * this semaphore is used to serialize writes instead of inode->i_mutex,
 	 * because write_unix_file uses get_user_pages which is to be used
 	 * under mm->mmap_sem and because it is required to take mm->mmap_sem
-	 * before inode->i_sem, so inode->i_sem would have to be up()-ed before
-	 * calling to get_user_pages which is unacceptable
+	 * before inode->i_mutex, so inode->i_mutex would have to be unlocked
+	 * before calling to get_user_pages which is unacceptable
 	 */
 	struct semaphore write;
 	/* this enum specifies which items are used to build the file */
@@ -104,9 +110,17 @@ typedef struct unix_file_info {
 struct unix_file_info *unix_file_inode_data(const struct inode *inode);
 void get_exclusive_access(unix_file_info_t *);
 void drop_exclusive_access(unix_file_info_t *);
-void get_nonexclusive_access(unix_file_info_t *, int);
+void get_nonexclusive_access(unix_file_info_t *);
 void drop_nonexclusive_access(unix_file_info_t *);
 int try_to_get_nonexclusive_access(unix_file_info_t *);
+int find_file_item(hint_t *, const reiser4_key *, znode_lock_mode,
+		   struct inode *);
+int find_file_item_nohint(coord_t *, lock_handle *,
+			  const reiser4_key *, znode_lock_mode,
+			  struct inode *);
+
+int load_file_hint(struct file *, hint_t *);
+void save_file_hint(struct file *, const hint_t *);
 
 #include "../item/extent.h"
 #include "../item/tail.h"
@@ -147,11 +161,12 @@ int hint_is_set(const hint_t *);
 void unset_hint(hint_t *);
 int hint_validate(hint_t *, const reiser4_key *, int check_key,
 		  znode_lock_mode);
+void hint_init_zero(hint_t *);
+
 int update_file_size(struct inode *, reiser4_key *, int update_sd);
 int cut_file_items(struct inode *, loff_t new_size, int update_sd,
 		   loff_t cur_size, int (*update_actor) (struct inode *,
 							 reiser4_key *, int));
-
 
 #if REISER4_DEBUG
 
@@ -192,10 +207,6 @@ int release_cryptcompress(struct inode *, struct file *);
 extern int readpage_cryptcompress(struct file *, struct page *);
 extern int writepages_cryptcompress(struct address_space *,
 				     struct writeback_control *);
-extern void readpages_cryptcompress(struct file *, struct address_space *,
-				    struct list_head *pages);
-extern sector_t bmap_cryptcompress(struct address_space *, sector_t lblock);
-
 
 /* file plugin operations */
 int flow_by_inode_cryptcompress(struct inode *, const char __user *buf,
@@ -212,6 +223,25 @@ int cut_tree_worker_cryptcompress(tap_t *, const reiser4_key * from_key,
 				  struct inode *object, int truncate,
 				  int *progress);
 void destroy_inode_cryptcompress(struct inode *);
+
+extern reiser4_plugin_ops cryptcompress_plugin_ops;
+
+#define WRITE_GRANULARITY 32
+
+int tail2extent(unix_file_info_t *);
+int extent2tail(unix_file_info_t *);
+
+int goto_right_neighbor(coord_t *, lock_handle *);
+int find_or_create_extent(struct page *);
+int equal_to_ldk(znode *, const reiser4_key *);
+
+void init_uf_coord(uf_coord_t *uf_coord, lock_handle *lh);
+
+static inline int cbk_errored(int cbk_result)
+{
+	return (cbk_result != CBK_COORD_NOTFOUND
+		&& cbk_result != CBK_COORD_FOUND);
+}
 
 /* __REISER4_FILE_H__ */
 #endif

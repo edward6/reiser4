@@ -6,7 +6,6 @@
 #include "../../carry.h"
 #include "../../inode.h"
 #include "../../page_cache.h"
-#include "../../emergency_flush.h"
 #include "../../flush.h"
 #include "../object.h"
 
@@ -69,7 +68,6 @@ set_extent(reiser4_extent * ext, reiser4_block_nr start, reiser4_block_nr width)
 	extent_set_start(ext, start);
 	extent_set_width(ext, width);
 }
-
 
 /**
  * replace_extent - replace extent and paste 1 or 2 after it

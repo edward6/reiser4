@@ -169,7 +169,6 @@ int init_inode_static_sd(struct inode *inode /* object being processed */ ,
 	}
 	state->extmask = bigmask;
 	/* common initialisations */
-	inode->i_blksize = get_super_private(inode->i_sb)->optimal_io_size;
 	if (len - (bit / 16 * sizeof(d16)) > 0) {
 		/* alignment in save_len_static_sd() is taken into account
 		   -edward */
@@ -274,7 +273,8 @@ static int present_lw_sd(struct inode *inode /* object being processed */ ,
 		inode->i_size = le64_to_cpu(get_unaligned(&sd_lw->size));
 		if ((inode->i_mode & S_IFMT) == (S_IFREG | S_IFIFO)) {
 			inode->i_mode &= ~S_IFIFO;
-			inode_set_flag(inode, REISER4_PART_CONV);
+			warning("", "partially converted file is encountered");
+			inode_set_flag(inode, REISER4_PART_MIXED);
 		}
 		move_on(len, area, sizeof *sd_lw);
 		return 0;
@@ -300,7 +300,7 @@ static int save_lw_sd(struct inode *inode /* object being processed */ ,
 
 	sd = (reiser4_light_weight_stat *) * area;
 
-	delta = inode_get_flag(inode, REISER4_PART_CONV) ? S_IFIFO : 0;
+	delta = (inode_get_flag(inode, REISER4_PART_MIXED) ? S_IFIFO : 0);
 	put_unaligned(cpu_to_le16(inode->i_mode | delta), &sd->mode);
 	put_unaligned(cpu_to_le32(inode->i_nlink), &sd->nlink);
 	put_unaligned(cpu_to_le64((__u64) inode->i_size), &sd->size);
@@ -429,21 +429,21 @@ save_large_times_sd(struct inode *inode /* object being processed */ ,
 
 /* symlink stat data extension */
 
-/* allocate memory for symlink target and attach it to inode->u.generic_ip */
+/* allocate memory for symlink target and attach it to inode->i_private */
 static int
 symlink_target_to_inode(struct inode *inode, const char *target, int len)
 {
-	assert("vs-845", inode->u.generic_ip == NULL);
+	assert("vs-845", inode->i_private == NULL);
 	assert("vs-846", !inode_get_flag(inode, REISER4_GENERIC_PTR_USED));
 
 	/* FIXME-VS: this is prone to deadlock. Not more than other similar
 	   places, though */
-	inode->u.generic_ip = kmalloc((size_t) len + 1, GFP_KERNEL);
-	if (!inode->u.generic_ip)
+	inode->i_private = kmalloc((size_t) len + 1, get_gfp_mask());
+	if (!inode->i_private)
 		return RETERR(-ENOMEM);
 
-	memcpy((char *)(inode->u.generic_ip), target, (size_t) len);
-	((char *)(inode->u.generic_ip))[len] = 0;
+	memcpy((char *)(inode->i_private), target, (size_t) len);
+	((char *)(inode->i_private))[len] = 0;
 	inode_set_flag(inode, REISER4_GENERIC_PTR_USED);
 	return 0;
 }
@@ -498,8 +498,8 @@ static int save_symlink_sd(struct inode *inode, char **area)
 	if (!inode_get_flag(inode, REISER4_GENERIC_PTR_USED)) {
 		const char *target;
 
-		target = (const char *)(inode->u.generic_ip);
-		inode->u.generic_ip = NULL;
+		target = (const char *)(inode->i_private);
+		inode->i_private = NULL;
 
 		result = symlink_target_to_inode(inode, target, length);
 
@@ -509,7 +509,7 @@ static int save_symlink_sd(struct inode *inode, char **area)
 	} else {
 		/* there is nothing to do in update but move area */
 		assert("vs-844",
-		       !memcmp(inode->u.generic_ip, sd->body,
+		       !memcmp(inode->i_private, sd->body,
 			       (size_t) length + 1));
 	}
 

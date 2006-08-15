@@ -59,7 +59,6 @@
 #  define LZO_HAVE_CONFIG_H
 #endif
 
-
 #ifndef __LZO_CONF_H
 #define __LZO_CONF_H
 
@@ -491,7 +490,6 @@ extern "C" {
 #define MEMMOVE_DS(dest,src,len) \
     do *dest++ = *src++; \
     while (--len > 0)
-
 
 #if (LZO_UINT_MAX <= SIZE_T_MAX) && defined(HAVE_MEMSET)
 

@@ -62,7 +62,7 @@ int check_ctail(const coord_t * coord, const char **error);
 /* plugin->u.item.s.* */
 int read_ctail(struct file *, flow_t *, hint_t *);
 int readpage_ctail(void *, struct page *);
-void readpages_ctail(void *, struct address_space *, struct list_head *);
+int readpages_ctail(struct file *, struct address_space *, struct list_head *);
 reiser4_key *append_key_ctail(const coord_t *, reiser4_key *);
 int create_hook_ctail(const coord_t * coord, void *arg);
 int kill_hook_ctail(const coord_t *, pos_in_node_t, pos_in_node_t,

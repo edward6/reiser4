@@ -78,20 +78,11 @@ void cbk_cache_done(cbk_cache * cache /* cache to release */ )
 	}
 }
 
-#if 0
-/* macro to iterate over all cbk cache slots */
-#define for_all_slots( cache, slot )					\
-	for( ( slot ) = cbk_cache_list_front( &( cache ) -> lru ) ;	\
-	     !cbk_cache_list_end( &( cache ) -> lru, ( slot ) ) ; 	\
-	     ( slot ) = cbk_cache_list_next( slot ) )
-#endif
-
 /* macro to iterate over all cbk cache slots */
 #define for_all_slots(cache, slot)						\
 	for ((slot) = list_entry((cache)->lru.next, cbk_cache_slot, lru);	\
 	     &(cache)->lru != &(slot)->lru;					\
 	     (slot) = list_entry(slot->lru.next, cbk_cache_slot, lru))
-
 
 #if REISER4_DEBUG
 /* this function assures that [cbk-cache-invariant] invariant holds */
@@ -153,8 +144,7 @@ void cbk_cache_invalidate(const znode * node /* node to remove from cache */ ,
 	write_lock(&(cache->guard));
 	for (i = 0, slot = cache->slot; i < cache->nr_slots; ++i, ++slot) {
 		if (slot->node == node) {
-			list_del(&slot->lru);
-			list_add_tail(&slot->lru, &cache->lru);
+			list_move_tail(&slot->lru, &cache->lru);
 			slot->node = NULL;
 			break;
 		}
@@ -191,8 +181,7 @@ static void cbk_cache_add(const znode *node /* node to add to the cache */ )
 		slot = list_entry(cache->lru.prev, cbk_cache_slot, lru);
 		slot->node = (znode *) node;
 	}
-	list_del(&slot->lru);
-	list_add(&slot->lru, &cache->lru);
+	list_move(&slot->lru, &cache->lru);
 	write_unlock(&(cache->guard));
 	assert("nikita-2473", cbk_cache_invariant(cache));
 }
@@ -623,9 +612,7 @@ static int prepare_object_lookup(cbk_handle * h)
 				}
 			}
 		}
-	} else
-		/* long-term locking failed. Restart. */
-		;
+	}
 
 	zput(vroot);
 
@@ -731,7 +718,7 @@ static lookup_result traverse_tree(cbk_handle * h /* search handle */ )
 			"lock_mode: %s, bias: %s",
 			h->error, h->level, h->lock_level, h->stop_level,
 			lock_mode_name(h->lock_mode), bias_name(h->bias));
-		print_address("block", &h->block);
+		reiser4_print_address("block", &h->block);
 		print_key("key", h->key);
 		print_coord_content("coord", h->coord);
 	}
@@ -851,7 +838,7 @@ static level_lookup_result cbk_level_lookup(cbk_handle * h /* search handle */ )
 
 	/* acquire reference to @active node */
 	active =
-	    zget(h->tree, &h->block, h->parent_lh->node, h->level, GFP_KERNEL);
+	    zget(h->tree, &h->block, h->parent_lh->node, h->level, get_gfp_mask());
 
 	if (IS_ERR(active)) {
 		h->result = PTR_ERR(active);
@@ -1257,8 +1244,7 @@ static int cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 			if (slot->node == h->active_lh->node /*node */ ) {
 				/* if this node is still in cbk cache---move
 				   its slot to the head of the LRU list. */
-				list_del(&slot->lru);
-				list_add(&slot->lru, &cache->lru);
+				list_move(&slot->lru, &cache->lru);
 			}
 			write_unlock(&(cache->guard));
 		}
@@ -1513,7 +1499,7 @@ void print_coord_content(const char *prefix /* prefix to print */ ,
 }
 
 /* debugging aid: print human readable information about @block */
-void print_address(const char *prefix /* prefix to print */ ,
+void reiser4_print_address(const char *prefix /* prefix to print */ ,
 		   const reiser4_block_nr * block /* block number to print */ )
 {
 	printk("%s: %s\n", prefix, sprint_address(block));

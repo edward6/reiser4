@@ -40,7 +40,6 @@ int reiser4_status_init(reiser4_block_nr block)
 	struct bio *bio;
 	struct page *page;
 
-
 	get_super_private(sb)->status_page = NULL;
 	get_super_private(sb)->status_bio = NULL;
 

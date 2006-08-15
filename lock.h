@@ -163,7 +163,6 @@ struct lock_stack {
 #endif
 };
 
-
 /*
   User-visible znode locking functions
 */
@@ -239,7 +238,6 @@ static inline void spin_unlock_stack(lock_stack *stack)
 	LOCK_CNT_DEC(spin_locked);
 	spin_unlock(&(stack->sguard));
 }
-
 
 static inline void reiser4_wake_up(lock_stack * owner)
 {

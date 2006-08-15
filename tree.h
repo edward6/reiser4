@@ -66,7 +66,6 @@ typedef struct cbk_cache {
 	cbk_cache_slot *slot;
 } cbk_cache;
 
-
 /* level_lookup_result - possible outcome of looking up key at some level.
    This is used by coord_by_key when traversing tree downward. */
 typedef enum {
@@ -361,13 +360,14 @@ extern char *sprint_address(const reiser4_block_nr * block);
 
 #if REISER4_DEBUG
 extern void print_coord_content(const char *prefix, coord_t * p);
-extern void print_address(const char *prefix, const reiser4_block_nr * block);
+extern void reiser4_print_address(const char *prefix,
+			const reiser4_block_nr * block);
 extern void print_tree_rec(const char *prefix, reiser4_tree * tree,
 			   __u32 flags);
 extern void check_dkeys(znode *node);
 #else
 #define print_coord_content(p, c) noop
-#define print_address(p, b) noop
+#define reiser4_print_address(p, b) noop
 #endif
 
 extern void forget_znode(lock_handle * handle);
@@ -430,7 +430,6 @@ int lookup_couple(reiser4_tree * tree,
 		  znode_lock_mode lock_mode, lookup_bias bias,
 		  tree_level lock_level, tree_level stop_level, __u32 flags,
 		  int *result1, int *result2);
-
 
 static inline void read_lock_tree(reiser4_tree *tree)
 {
@@ -561,7 +560,6 @@ reiser4_block_nr calc_estimate_one_insert(tree_level);
 reiser4_block_nr estimate_dirty_cluster(struct inode *);
 reiser4_block_nr estimate_insert_cluster(struct inode *);
 reiser4_block_nr estimate_update_cluster(struct inode *);
-
 
 /* __REISER4_TREE_H__ */
 #endif

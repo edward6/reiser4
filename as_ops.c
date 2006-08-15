@@ -25,7 +25,6 @@
 #include "super.h"
 #include "reiser4.h"
 #include "entd.h"
-#include "emergency_flush.h"
 
 #include <linux/profile.h>
 #include <linux/types.h>
@@ -84,7 +83,8 @@ int reiser4_set_page_dirty(struct page *page)
 			if (page->mapping) {
 				assert("vs-1652", page->mapping == mapping);
 				if (mapping_cap_account_dirty(mapping))
-					inc_page_state(nr_dirty);
+					inc_zone_page_state(page,
+							NR_FILE_DIRTY);
 				radix_tree_tag_set(&mapping->page_tree,
 						   page->index,
 						   PAGECACHE_TAG_REISER4_MOVED);
@@ -93,64 +93,6 @@ int reiser4_set_page_dirty(struct page *page)
 			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 		}
 	}
-	return 0;
-}
-
-static int filler(void *vp, struct page *page)
-{
-	return page->mapping->a_ops->readpage(vp, page);
-}
-
-/**
- * reiser4_readpages - submit read for a set of pages
- * @file: file to read
- * @mapping: address space
- * @pages: list of pages to submit read for
- * @nr_pages: number of pages no the list
- *
- * Operation of struct address_space_operations. This implementation is used by
- * unix and crc file plugins.
- *
- * Calls read_cache_pages or readpages hook if it is set.
- */
-int
-reiser4_readpages(struct file *file, struct address_space *mapping,
-		  struct list_head *pages, unsigned nr_pages)
-{
-	reiser4_context *ctx;
-	reiser4_file_fsdata *fsdata;
-
-	ctx = init_context(mapping->host->i_sb);
-	if (IS_ERR(ctx))
-		return PTR_ERR(ctx);
-
-	fsdata = reiser4_get_file_fsdata(file);
-	if (IS_ERR(fsdata)) {
-		reiser4_exit_context(ctx);
-		return PTR_ERR(fsdata);
-	}
-
-	if (fsdata->ra2.readpages)
-		fsdata->ra2.readpages(mapping, pages, fsdata->ra2.data);
-	else {
-		/*
-		 * filler (reiser4 readpage method) may involve tree search
-		 * which is not allowed when lock stack is not clean. If lock
-		 * stack is not clean - do nothing.
-		 */
-		if (lock_stack_isclean(get_current_lock_stack()))
-			read_cache_pages(mapping, pages, filler, file);
-		else {
-			while (!list_empty(pages)) {
-				struct page *victim;
-				
-				victim = list_entry(pages->prev, struct page, lru);
-				list_del(&victim->lru);
-				page_cache_release(victim);
-			}
-		}
-	}
-	reiser4_exit_context(ctx);
 	return 0;
 }
 
@@ -170,7 +112,7 @@ reiser4_readpages(struct file *file, struct address_space *mapping,
  * @offset: starting offset for partial invalidation
  *
  */
-int reiser4_invalidatepage(struct page *page, unsigned long offset)
+void reiser4_invalidatepage(struct page *page, unsigned long offset)
 {
 	int ret = 0;
 	reiser4_context *ctx;
@@ -208,11 +150,11 @@ int reiser4_invalidatepage(struct page *page, unsigned long offset)
 	 * them. Check for this, and do nothing.
 	 */
 	if (get_super_fake(inode->i_sb) == inode)
-		return 0;
+		return;
 	if (get_cc_fake(inode->i_sb) == inode)
-		return 0;
+		return;
 	if (get_bitmap_fake(inode->i_sb) == inode)
-		return 0;
+		return;
 	assert("vs-1426", PagePrivate(page));
 	assert("vs-1427",
 	       page->mapping == jnode_get_mapping(jnode_by_page(page)));
@@ -222,7 +164,7 @@ int reiser4_invalidatepage(struct page *page, unsigned long offset)
 
 	ctx = init_context(inode->i_sb);
 	if (IS_ERR(ctx))
-		return PTR_ERR(ctx);
+		return;
 
 	node = jprivate(page);
 	spin_lock_jnode(node);
@@ -236,7 +178,7 @@ int reiser4_invalidatepage(struct page *page, unsigned long offset)
 		unhash_unformatted_jnode(node);
 		jput(node);
 		reiser4_exit_context(ctx);
-		return 0;
+		return;
 	}
 	spin_unlock_jnode(node);
 
@@ -247,7 +189,6 @@ int reiser4_invalidatepage(struct page *page, unsigned long offset)
 
 	if (offset == 0) {
 		/* remove jnode from transaction and detach it from page. */
-		assert("vs-1435", !JF_ISSET(node, JNODE_CC));
 		jref(node);
 		JF_SET(node, JNODE_HEARD_BANSHEE);
 		/* page cannot be detached from jnode concurrently, because it
@@ -265,7 +206,6 @@ int reiser4_invalidatepage(struct page *page, unsigned long offset)
 	}
 
 	reiser4_exit_context(ctx);
-	return ret;
 }
 
 /* help function called from reiser4_releasepage(). It returns true if jnode
@@ -284,51 +224,41 @@ int jnode_is_releasable(jnode * node /* node to check */ )
 
 	assert("vs-1214", !jnode_is_loaded(node));
 
-	/* this jnode is just a copy. Its page cannot be released, because
-	 * otherwise next jload() would load obsolete data from disk
-	 * (up-to-date version may still be in memory). */
-	if (is_cced(node)) {
+	/*
+	 * can only release page if real block number is assigned to it. Simple
+	 * check for ->atom wouldn't do, because it is possible for node to be
+	 * clean, not it atom yet, and still having fake block number. For
+	 * example, node just created in jinit_new().
+	 */
+	if (blocknr_is_fake(jnode_get_block(node)))
 		return 0;
-	}
 
-	/* emergency flushed page can be released. This is what emergency
-	 * flush is all about after all. */
-	if (JF_ISSET(node, JNODE_EFLUSH)) {
-		return 1;	/* yeah! */
-	}
+	/*
+	 * pages prepared for write can not be released anyway, so avoid
+	 * detaching jnode from the page
+	 */
+	if (JF_ISSET(node, JNODE_WRITE_PREPARED))
+		return 0;
 
-	/* can only release page if real block number is assigned to
-	   it. Simple check for ->atom wouldn't do, because it is possible for
-	   node to be clean, not it atom yet, and still having fake block
-	   number. For example, node just created in jinit_new(). */
-	if (blocknr_is_fake(jnode_get_block(node))) {
+	/*
+	 * dirty jnode cannot be released. It can however be submitted to disk
+	 * as part of early flushing, but only after getting flush-prepped.
+	 */
+	if (JF_ISSET(node, JNODE_DIRTY))
 		return 0;
-	}
-	/* dirty jnode cannot be released. It can however be submitted to disk
-	 * as part of early flushing, but only after getting flush-prepped. */
-	if (JF_ISSET(node, JNODE_DIRTY)) {
-		return 0;
-	}
+
 	/* overwrite set is only written by log writer. */
-	if (JF_ISSET(node, JNODE_OVRWR)) {
+	if (JF_ISSET(node, JNODE_OVRWR))
 		return 0;
-	}
+
 	/* jnode is already under writeback */
-	if (JF_ISSET(node, JNODE_WRITEBACK)) {
+	if (JF_ISSET(node, JNODE_WRITEBACK))
 		return 0;
-	}
-#if 0
-	/* page was modified through mmap, but its jnode is not yet
-	 * captured. Don't discard modified data. */
-	if (jnode_is_unformatted(node) && JF_ISSET(node, JNODE_KEEPME)) {
-		return 0;
-	}
-#endif
-	BUG_ON(JF_ISSET(node, JNODE_KEEPME));
+
 	/* don't flush bitmaps or journal records */
-	if (!jnode_is_znode(node) && !jnode_is_unformatted(node)) {
+	if (!jnode_is_znode(node) && !jnode_is_unformatted(node))
 		return 0;
-	}
+
 	return 1;
 }
 
@@ -359,12 +289,12 @@ int reiser4_releasepage(struct page *page, gfp_t gfp UNUSED_ARG)
 	assert("reiser4-4", page->mapping != NULL);
 	assert("reiser4-5", page->mapping->host != NULL);
 
-	/* is_page_cache_freeable() check
-	   (mapping + private + page_cache_get() by shrink_cache()) */
-	if (page_count(page) > 3)
+	if (PageDirty(page))
 		return 0;
 
-	if (PageDirty(page))
+	/* extra page reference is used by reiser4 to protect
+	 * jnode<->page link from this ->releasepage(). */
+	if (page_count(page) > 3)
 		return 0;
 
 	/* releasable() needs jnode lock, because it looks at the jnode fields
@@ -385,14 +315,6 @@ int reiser4_releasepage(struct page *page, gfp_t gfp UNUSED_ARG)
 
 		/* we are under memory pressure so release jnode also. */
 		jput(node);
-
-		write_lock_irq(&mapping->tree_lock);
-		/* shrink_list() + radix-tree */
-		if (page_count(page) == 2) {
-			__remove_from_page_cache(page);
-			__put_page(page);
-		}
-		write_unlock_irq(&mapping->tree_lock);
 
 		return 1;
 	} else {

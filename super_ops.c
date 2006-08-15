@@ -5,16 +5,18 @@
 #include "page_cache.h"
 #include "ktxnmgrd.h"
 #include "flush.h"
-#include "emergency_flush.h"
 #include "safe_link.h"
 
 #include <linux/vfs.h>
 #include <linux/writeback.h>
 #include <linux/mount.h>
 #include <linux/seq_file.h>
+#include <linux/debugfs.h>
 
 /* slab cache for inodes */
 static kmem_cache_t *inode_cache;
+
+static struct dentry *reiser4_debugfs_root = NULL;
 
 /**
  * init_once - constructor for reiser4 inodes
@@ -42,7 +44,6 @@ static void init_once(void *obj, kmem_cache_t *cache, unsigned long flags)
 		 * etc. that will be added to our private inode part.
 		 */
 		INIT_LIST_HEAD(get_readdir_list(&info->vfs_inode));
-		init_rwsem(&info->p.coc_sem);
 		/* init semaphore which is used during inode loading */
 		loading_init_once(&info->p);
 		INIT_RADIX_TREE(jnode_tree_by_reiser4_inode(&info->p),
@@ -205,6 +206,7 @@ static void reiser4_delete_inode(struct inode *inode)
 			fplug->delete_object(inode);
 	}
 
+	truncate_inode_pages(&inode->i_data, 0);
 	inode->i_blocks = 0;
 	clear_inode(inode);
 	reiser4_exit_context(ctx);
@@ -223,6 +225,10 @@ static void reiser4_put_super(struct super_block *super)
 
 	sbinfo = get_super_private(super);
 	assert("vs-1699", sbinfo);
+
+	debugfs_remove(sbinfo->tmgr.debugfs_atom_count);
+	debugfs_remove(sbinfo->tmgr.debugfs_id_count);
+	debugfs_remove(sbinfo->debugfs_root);
 
 	ctx = init_context(super);
 	if (IS_ERR(ctx)) {
@@ -268,7 +274,7 @@ static void reiser4_write_super(struct super_block *super)
 	if (ret != 0)
 		warning("vs-1701",
 			"capture_super_block failed in write_super: %d", ret);
-	ret = txnmgr_force_commit_all(super, 1);
+	ret = txnmgr_force_commit_all(super, 0);
 	if (ret != 0)
 		warning("jmacd-77113",
 			"txn_force failed in write_super: %d", ret);
@@ -285,7 +291,7 @@ static void reiser4_write_super(struct super_block *super)
  *
  * Returns information about filesystem.
  */
-static int reiser4_statfs(struct super_block *super, struct kstatfs *statfs)
+static int reiser4_statfs(struct dentry *dentry, struct kstatfs *statfs)
 {
 	sector_t total;
 	sector_t reserved;
@@ -293,6 +299,7 @@ static int reiser4_statfs(struct super_block *super, struct kstatfs *statfs)
 	sector_t forroot;
 	sector_t deleted;
 	reiser4_context *ctx;
+	struct super_block *super = dentry->d_sb;
 
 	assert("nikita-408", super != NULL);
 	assert("nikita-409", statfs != NULL);
@@ -525,6 +532,19 @@ static int fill_super(struct super_block *super, void *data, int silent)
 
 	process_safelinks(super);
 	reiser4_exit_context(&ctx);
+
+	sbinfo->debugfs_root = debugfs_create_dir(super->s_id,
+						  reiser4_debugfs_root);
+	if (sbinfo->debugfs_root) {
+		sbinfo->tmgr.debugfs_atom_count =
+			debugfs_create_u32("atom_count", S_IFREG|S_IRUSR,
+					   sbinfo->debugfs_root,
+					   &sbinfo->tmgr.atom_count);
+		sbinfo->tmgr.debugfs_id_count =
+			debugfs_create_u32("id_count", S_IFREG|S_IRUSR,
+					   sbinfo->debugfs_root,
+					   &sbinfo->tmgr.id_count);
+	}
 	return 0;
 
  failed_update_format_version:
@@ -556,12 +576,10 @@ static int fill_super(struct super_block *super, void *data, int silent)
  *
  * Reiser4 mount entry.
  */
-static struct super_block *reiser4_get_sb(struct file_system_type *fs_type,
-					  int flags,
-					  const char *dev_name,
-					  void *data)
+static int reiser4_get_sb(struct file_system_type *fs_type, int flags,
+			const char *dev_name, void *data, struct vfsmount *mnt)
 {
-	return get_sb_bdev(fs_type, flags, dev_name, data, fill_super);
+	return get_sb_bdev(fs_type, flags, dev_name, data, fill_super, mnt);
 }
 
 /* structure describing the reiser4 filesystem implementation */
@@ -622,10 +640,6 @@ static int __init init_reiser4(void)
 	if ((result = init_jnodes()) != 0)
 		goto failed_init_jnodes;
 
-	/* initialize cache of eflush nodes */
-	if ((result = init_eflush()) != 0)
-		goto failed_init_eflush;
-
 	/* initialize cache of flush queues */
 	if ((result = init_fqs()) != 0)
 		goto failed_init_fqs;
@@ -645,8 +659,10 @@ static int __init init_reiser4(void)
 	if ((result = init_d_cursor()) != 0)
 		goto failed_init_d_cursor;
 
-	if ((result = register_filesystem(&reiser4_fs_type)) == 0)
+	if ((result = register_filesystem(&reiser4_fs_type)) == 0) {
+		reiser4_debugfs_root = debugfs_create_dir("reiser4", NULL);
 		return 0;
+	}
 
 	done_d_cursor();
  failed_init_d_cursor:
@@ -656,8 +672,6 @@ static int __init init_reiser4(void)
  failed_init_dentry_fsdata:
 	done_fqs();
  failed_init_fqs:
-	done_eflush();
- failed_init_eflush:
 	done_jnodes();
  failed_init_jnodes:
 	done_txnmgr_static();
@@ -682,13 +696,13 @@ static void __exit done_reiser4(void)
 {
 	int result;
 
+	debugfs_remove(reiser4_debugfs_root);
 	result = unregister_filesystem(&reiser4_fs_type);
 	BUG_ON(result != 0);
 	done_d_cursor();
 	done_file_fsdata();
 	done_dentry_fsdata();
 	done_fqs();
-	done_eflush();
 	done_jnodes();
 	done_txnmgr_static();
 	done_plugin_set();

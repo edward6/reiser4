@@ -17,7 +17,7 @@ static LIST_HEAD(cursor_cache);
 static unsigned long d_cursor_unused = 0;
 
 /* spinlock protecting manipulations with dir_cursor's hash table and lists */
-spinlock_t d_lock = SPIN_LOCK_UNLOCKED;
+DEFINE_SPINLOCK(d_lock);
 
 static reiser4_file_fsdata *create_fsdata(struct file *file);
 static int file_is_stateless(struct file *file);
@@ -32,7 +32,7 @@ static void kill_cursor(dir_cursor *);
  * Shrinks d_cursor_cache. Scan LRU list of unused cursors, freeing requested
  * number. Return number of still freeable cursors.
  */
-static int d_cursor_shrink(int nr, unsigned int mask)
+static int d_cursor_shrink(int nr, gfp_t mask)
 {
 	if (nr != 0) {
 		dir_cursor *scan;
@@ -76,7 +76,6 @@ int init_d_cursor(void)
 	 */
 	d_cursor_shrinker = set_shrinker(DEFAULT_SEEKS << 3,
 					 d_cursor_shrink);
-	kmem_set_shrinker(d_cursor_cache, d_cursor_shrinker);
 	if (d_cursor_shrinker == NULL) {
 		destroy_reiser4_cache(&d_cursor_cache);
 		d_cursor_cache = NULL;
@@ -117,7 +116,7 @@ static inline int d_cursor_eq(const d_cursor_key *k1, const d_cursor_key *k2)
  * define functions to manipulate reiser4 super block's hash table of
  * dir_cursors
  */
-#define KMALLOC(size) kmalloc((size), GFP_KERNEL)
+#define KMALLOC(size) kmalloc((size), get_gfp_mask())
 #define KFREE(ptr, size) kfree(ptr)
 TYPE_SAFE_HASH_DEFINE(d_cursor,
 		      dir_cursor,
@@ -138,7 +137,7 @@ int init_super_d_info(struct super_block *super)
 
 	p = &get_super_private(super)->d_info;
 
-	INIT_RADIX_TREE(&p->tree, GFP_KERNEL);
+	INIT_RADIX_TREE(&p->tree, get_gfp_mask());
 	return d_cursor_hash_init(&p->table, D_CURSOR_TABLE_SIZE);
 }
 
@@ -327,7 +326,7 @@ static int insert_cursor(dir_cursor *cursor, struct file *file,
 	 * cursor. */
 	fsdata = create_fsdata(NULL);
 	if (fsdata != NULL) {
-		result = radix_tree_preload(GFP_KERNEL);
+		result = radix_tree_preload(get_gfp_mask());
 		if (result == 0) {
 			d_cursor_info *info;
 			oid_t oid;
@@ -342,14 +341,6 @@ static int insert_cursor(dir_cursor *cursor, struct file *file,
 			cursor->fsdata = fsdata;
 			cursor->info = info;
 			cursor->ref = 1;
-
-			printk("insert_cursor: %p: (%p %p %p %p %p)\n",
-			       cursor,
-			       __builtin_return_address(0),
-			       __builtin_return_address(1),
-			       __builtin_return_address(2),
-			       __builtin_return_address(3),
-			       __builtin_return_address(4));
 
 			spin_lock_inode(inode);
 			/* install cursor as @f's private_data, discarding old
@@ -431,33 +422,11 @@ static void process_cursors(struct inode *inode, enum cursor_action act)
 				switch (act) {
 				case CURSOR_DISPOSE:
 					list_del_init(&fsdata->dir.linkage);
-					printk("dispose: %p: (%p %p %p %p %p)\n",
-					       scan,
-					       __builtin_return_address(0),
-					       __builtin_return_address(1),
-					       __builtin_return_address(2),
-					       __builtin_return_address(3),
-					       __builtin_return_address(4));
-					
 					break;
 				case CURSOR_LOAD:
-					printk("load: %p: (%p %p %p %p %p)\n",
-					       scan,
-					       __builtin_return_address(0),
-					       __builtin_return_address(1),
-					       __builtin_return_address(2),
-					       __builtin_return_address(3),
-					       __builtin_return_address(4));
 					list_add(&fsdata->dir.linkage, head);
 					break;
 				case CURSOR_KILL:
-					printk("kill: %p: (%p %p %p %p %p)\n",
-					       scan,
-					       __builtin_return_address(0),
-					       __builtin_return_address(1),
-					       __builtin_return_address(2),
-					       __builtin_return_address(3),
-					       __builtin_return_address(4));
 					kill_cursor(scan);
 					break;
 				}
@@ -559,7 +528,7 @@ int try_to_attach_fsdata(struct file *file, struct inode *inode)
 	dir_cursor *cursor;
 
 	/*
-	 * we are serialized by inode->i_sem
+	 * we are serialized by inode->i_mutex
 	 */
 	if (!file_is_stateless(file))
 		return 0;
@@ -571,7 +540,7 @@ int try_to_attach_fsdata(struct file *file, struct inode *inode)
 		 * first call to readdir (or rewind to the beginning of
 		 * directory)
 		 */
-		cursor = kmem_cache_alloc(d_cursor_cache, GFP_KERNEL);
+		cursor = kmem_cache_alloc(d_cursor_cache, get_gfp_mask());
 		if (cursor != NULL)
 			result = insert_cursor(cursor, file, inode);
 		else
@@ -670,7 +639,7 @@ reiser4_dentry_fsdata *reiser4_get_dentry_fsdata(struct dentry *dentry)
 
 	if (dentry->d_fsdata == NULL) {
 		dentry->d_fsdata = kmem_cache_alloc(dentry_fsdata_cache,
-						    GFP_KERNEL);
+						    get_gfp_mask());
 		if (dentry->d_fsdata == NULL)
 			return ERR_PTR(RETERR(-ENOMEM));
 		memset(dentry->d_fsdata, 0, sizeof(reiser4_dentry_fsdata));
@@ -691,7 +660,6 @@ void reiser4_free_dentry_fsdata(struct dentry *dentry)
 		dentry->d_fsdata = NULL;
 	}
 }
-
 
 /* slab for reiser4_file_fsdata */
 static kmem_cache_t *file_fsdata_cache;
@@ -734,7 +702,7 @@ static reiser4_file_fsdata *create_fsdata(struct file *file)
 {
 	reiser4_file_fsdata *fsdata;
 
-	fsdata = kmem_cache_alloc(file_fsdata_cache, GFP_KERNEL);
+	fsdata = kmem_cache_alloc(file_fsdata_cache, get_gfp_mask());
 	if (fsdata != NULL) {
 		memset(fsdata, 0, sizeof *fsdata);
 		fsdata->ra1.max_window_size = VM_MAX_READAHEAD * 1024;

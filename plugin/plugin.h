@@ -813,7 +813,6 @@ typedef struct plugin_locator {
 
 extern int locate_plugin(struct inode *inode, plugin_locator * loc);
 
-
 #define PLUGIN_BY_ID(TYPE,ID,FIELD)					\
 static inline TYPE *TYPE ## _by_id( reiser4_plugin_id id )		\
 {									\

@@ -231,10 +231,9 @@ static inline int reiser4_use_write_barrier(struct super_block * s)
 static void disable_write_barrier(struct super_block * s)
 {
 	notice("zam-1055", "%s does not support write barriers,"
-	       " using synchronous write instead.\n", s->s_id);
+	       " using synchronous write instead.", s->s_id);
 	set_bit((int)REISER4_NO_WRITE_BARRIER, &get_super_private(s)->fs_flags);
 }
-
 
 /* fill journal header block data  */
 static void format_journal_header(struct commit_handle *ch)
@@ -541,7 +540,6 @@ get_more_wandered_blocks(int count, reiser4_block_nr * start, int *len)
 
 	ret = reiser4_alloc_blocks(&hint, start, &wide_len,
 				   BA_FORMATTED | BA_USE_DEFAULT_SEARCH_START);
-
 	*len = (int)wide_len;
 
 	return ret;
@@ -635,7 +633,7 @@ static int get_overwrite_set(struct commit_handle *ch)
 				spin_unlock_jnode(sj);
 
 				/* jload it as the rest of overwrite set */
-				jload_gfp(sj, GFP_KERNEL, 0);
+				jload_gfp(sj, get_gfp_mask(), 0);
 
 				ch->overwrite_set_size++;
 			}
@@ -646,7 +644,7 @@ static int get_overwrite_set(struct commit_handle *ch)
 		} else {
 			int ret;
 			ch->overwrite_set_size++;
-			ret = jload_gfp(cur, GFP_KERNEL, 0);
+			ret = jload_gfp(cur, get_gfp_mask(), 0);
 			if (ret)
 				reiser4_panic("zam-783",
 					      "cannot load e-flushed jnode back (ret = %d)\n",
@@ -769,7 +767,6 @@ static int write_jnodes_to_disk_extent(
 			assert("nikita-3166",
 			       pg->mapping == jnode_get_mapping(cur));
 			assert("zam-912", !JF_ISSET(cur, JNODE_WRITEBACK));
-			assert("", !JF_ISSET(cur, JNODE_EFLUSH));
 #if REISER4_DEBUG
 			spin_lock(&cur->load);
 			assert("nikita-3165", !jnode_is_releasable(cur));
@@ -999,9 +996,14 @@ static int alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 	jnode *cur;
 	jnode *txhead;
 	int ret;
+	reiser4_context *ctx;
+	reiser4_super_info_data *sbinfo;
 
 	assert("zam-698", ch->tx_size > 0);
 	assert("zam-699", list_empty_careful(&ch->tx_list));
+
+	ctx = get_current_context();
+	sbinfo = get_super_private(ctx->super);
 
 	while (allocated < (unsigned)ch->tx_size) {
 		len = (ch->tx_size - allocated);
@@ -1018,7 +1020,6 @@ static int alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 		ret = reiser4_alloc_blocks(&hint, &first, &len,
 					   BA_FORMATTED | BA_RESERVED |
 					   BA_USE_DEFAULT_SEARCH_START);
-
 		blocknr_hint_done(&hint);
 
 		if (ret)
@@ -1035,7 +1036,7 @@ static int alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 				goto free_not_assigned;
 			}
 
-			ret = jinit_new(cur, GFP_KERNEL);
+			ret = jinit_new(cur, get_gfp_mask());
 
 			if (ret != 0) {
 				jfree(cur);
@@ -1124,9 +1125,6 @@ static int commit_tx(struct commit_handle *ch)
 			break;
 	} while (0);
 
-	/* Release all grabbed space if it was not fully used for
-	 * wandered blocks/records allocation. */
-	all_grabbed2free();
 	fq_put(fq);
 	if (ret)
 		return ret;
@@ -1150,7 +1148,6 @@ static int commit_tx(struct commit_handle *ch)
 	}
 	return ret;
 }
-
 
 static int write_tx_back(struct commit_handle * ch)
 {

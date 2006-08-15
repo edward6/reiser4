@@ -86,27 +86,6 @@ static struct wbq *__get_wbq(entd_context * ent)
 	return wbq;
 }
 
-struct wbq * get_wbq(struct super_block * super)
-{
-	struct wbq *result;
-	entd_context * ent = get_entd_context(super);
-
-	spin_lock(&ent->guard);
-	result = __get_wbq(ent);
-	spin_unlock(&ent->guard);
-
-	return result;
-}
-
-void put_wbq(struct super_block *super, struct wbq * rq)
-{
-	entd_context * ent = get_entd_context(super);
-
-	spin_lock(&ent->guard);
-	__put_wbq(ent, rq);
-	spin_unlock(&ent->guard);
-}
-
 static void wakeup_all_wbq(entd_context * ent)
 {
 	struct wbq *rq;
@@ -264,15 +243,17 @@ static void entd_flush(struct super_block *super, struct wbq *rq)
 
 	init_stack_context(&ctx, super);
 	ctx.entd = 1;
+	ctx.gfp_mask = GFP_NOFS;
 
-	rq->wbc->start = rq->page->index << PAGE_CACHE_SHIFT;
-	rq->wbc->end = (rq->page->index + ENTD_CAPTURE_APAGE_BURST) << PAGE_CACHE_SHIFT;
+	rq->wbc->range_start = page_offset(rq->page);
+	rq->wbc->range_end = rq->wbc->range_start +
+		(ENTD_CAPTURE_APAGE_BURST << PAGE_CACHE_SHIFT);
 	tmp = rq->wbc->nr_to_write;
 	rq->mapping->a_ops->writepages(rq->mapping, rq->wbc);
 
 	if (rq->wbc->nr_to_write > 0) {
-		rq->wbc->start = 0;
-		rq->wbc->end = 0;
+		rq->wbc->range_start = 0;
+		rq->wbc->range_end = LLONG_MAX;
 		generic_sync_sb_inodes(super, rq->wbc);
 	}
 	rq->wbc->nr_to_write = ENTD_CAPTURE_APAGE_BURST;

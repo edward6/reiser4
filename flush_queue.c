@@ -109,7 +109,6 @@ static void init_fq(flush_queue_t * fq)
 /* slab for flush queues */
 static kmem_cache_t *fq_slab;
 
-
 /**
  * init_fqs - create flush queue cache
  *
@@ -137,7 +136,7 @@ void done_fqs(void)
 }
 
 /* create new flush queue object */
-static flush_queue_t *create_fq(unsigned int gfp)
+static flush_queue_t *create_fq(gfp_t gfp)
 {
 	flush_queue_t *fq;
 
@@ -191,7 +190,7 @@ static void done_fq(flush_queue_t * fq)
 }
 
 /* */
-void mark_jnode_queued(flush_queue_t * fq, jnode * node)
+static void mark_jnode_queued(flush_queue_t * fq, jnode * node)
 {
 	JF_SET(node, JNODE_FLUSH_QUEUED);
 	count_enqueued_node(fq);
@@ -214,8 +213,7 @@ void queue_jnode(flush_queue_t * fq, jnode * node)
 	assert("vs-1481", NODE_LIST(node) != FQ_LIST);
 
 	mark_jnode_queued(fq, node);
-	list_del(&node->capture_link);
-	list_add_tail(&node->capture_link, ATOM_FQ_LIST(fq));
+	list_move_tail(&node->capture_link, ATOM_FQ_LIST(fq));
 
 	ON_DEBUG(count_jnode(node->atom, node, NODE_LIST(node),
 			     FQ_LIST, 1));
@@ -540,7 +538,7 @@ int write_fq(flush_queue_t * fq, long *nr_submitted, int flags)
    atom lock is obtained by different ways in different parts of reiser4,
    usually it is current atom, but we need a possibility for getting fq for the
    atom of given jnode. */
-static int fq_by_atom_gfp(txn_atom *atom, flush_queue_t **new_fq, int gfp)
+static int fq_by_atom_gfp(txn_atom *atom, flush_queue_t **new_fq, gfp_t gfp)
 {
 	flush_queue_t *fq;
 
@@ -591,7 +589,7 @@ static int fq_by_atom_gfp(txn_atom *atom, flush_queue_t **new_fq, int gfp)
 
 int fq_by_atom(txn_atom * atom, flush_queue_t ** new_fq)
 {
-	return fq_by_atom_gfp(atom, new_fq, GFP_KERNEL);
+	return fq_by_atom_gfp(atom, new_fq, get_gfp_mask());
 }
 
 /* A wrapper around fq_by_atom for getting a flush queue object for current
@@ -645,72 +643,6 @@ void init_atom_fq_parts(txn_atom *atom)
 {
 	INIT_LIST_HEAD(&atom->flush_queues);
 }
-
-#ifdef REISER4_USE_EFLUSH
-/* get a flush queue for an atom pointed by given jnode (spin-locked) ; returns
- * both atom and jnode locked and found and took exclusive access for flush
- * queue object.  */
-int fq_by_jnode_gfp(jnode * node, flush_queue_t ** fq, int gfp)
-{
-	txn_atom *atom;
-	int ret;
-
-	assert_spin_locked(&(node->guard));
-
-	*fq = NULL;
-
-	while (1) {
-		/* begin with taking lock on atom */
-		atom = jnode_get_atom(node);
-		spin_unlock_jnode(node);
-
-		if (atom == NULL) {
-			/* jnode does not point to the atom anymore, it is
-			 * possible because jnode lock could be removed for a
-			 * time in atom_get_locked_by_jnode() */
-			if (*fq) {
-				done_fq(*fq);
-				*fq = NULL;
-			}
-			return 0;
-		}
-
-		/* atom lock is required for taking flush queue */
-		ret = fq_by_atom_gfp(atom, fq, gfp);
-
-		if (ret) {
-			if (ret == -E_REPEAT)
-				/* atom lock was released for doing memory
-				 * allocation, start with locked jnode one more
-				 * time */
-				goto lock_again;
-			return ret;
-		}
-
-		/* It is correct to lock atom first, then lock a jnode */
-		spin_lock_jnode(node);
-
-		if (node->atom == atom)
-			break;	/* Yes! it is our jnode. We got all of them:
-				 * flush queue, and both locked atom and
-				 * jnode */
-
-		/* release all locks and allocated objects and restart from
-		 * locked jnode. */
-		spin_unlock_jnode(node);
-
-		fq_put(*fq);
-		fq = NULL;
-
-		spin_unlock_atom(atom);
-
-	      lock_again:
-		spin_lock_jnode(node);
-	}
-
-	return 0;
-}
-#endif  /*  REISER4_USE_EFLUSH  */
 
 #if REISER4_DEBUG
 

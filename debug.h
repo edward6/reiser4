@@ -14,10 +14,8 @@
    This is for use by other debugging macros, not by users. */
 #define DCALL(lev, fun, reperr, label, format, ...)			\
 ({									\
-/*	reiser4_print_prefix(lev, reperr, label,*/			\
-/*	__FUNCTION__, __FILE__, __LINE__);*/				\
-	fun(lev "%sreiser4[%.16s(%i)]: %s (%s:%i)[%s]:\n" format "\n" ,	\
-	    lev, current->comm, current->pid, __FUNCTION__,		\
+	fun(lev "reiser4[%.16s(%i)]: %s (%s:%i)[%s]:\n" format "\n" ,	\
+	    current->comm, current->pid, __FUNCTION__,			\
 	    __FILE__, __LINE__, label, ## __VA_ARGS__);			\
 })
 
@@ -227,10 +225,7 @@ extern void reiser4_print_prefix(const char *level, int reperr, const char *mid,
 extern int preempt_point(void);
 extern void reiser4_print_stats(void);
 
-
 #if REISER4_DEBUG
-extern void print_lock_counters(const char *prefix,
-				const lock_counters_info * info);
 extern int no_counters_are_held(void);
 extern int commit_check_locks(void);
 #else

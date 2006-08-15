@@ -33,7 +33,6 @@ Internal on-disk structure:
 #include "../cluster.h"
 #include "../../flush.h"
 #include "../../tree_walk.h"
-#include "../file/funcs.h"
 
 #include <linux/pagevec.h>
 #include <linux/swap.h>
@@ -68,7 +67,7 @@ static int coord_is_unprepped_ctail(const coord_t * coord)
 	return (int)cluster_shift_by_coord(coord) == (int)UCTAIL_SHIFT;
 }
 
-cloff_t clust_by_coord(const coord_t * coord, struct inode *inode)
+static cloff_t clust_by_coord(const coord_t * coord, struct inode *inode)
 {
 	int shift;
 
@@ -101,7 +100,7 @@ static int is_disk_cluster_key(const reiser4_key * key, const coord_t * coord)
 	assert("edward-1239", item_id_by_coord(coord) == CTAIL_ID);
 
 	return coord_is_unprepped_ctail(coord) ||
-	    ((get_key_offset(key) & 
+	    ((get_key_offset(key) &
 	      ((loff_t) disk_cluster_size(coord) - 1)) == 0);
 }
 
@@ -732,14 +731,11 @@ assert("edward-214", ergo(!list_empty(pages) && pages->next != pages->prev,   \
        list_to_page(pages)->index < list_to_next_page(pages)->index))
 #endif
 
-/* plugin->u.item.s.file.readpages
-   Populate an address space with some page clusters,
-   and start reads against them.
-   FIXME-EDWARD: this function should return errors?
-*/
-void
-readpages_ctail(void *vp, struct address_space *mapping,
-		struct list_head *pages)
+/* Populate an address space with some page clusters,
+ * and start reads against them.
+ */
+int readpages_ctail(struct file *file, struct address_space *mapping,
+		       struct list_head *pages)
 {
 	int ret = 0;
 	hint_t *hint;
@@ -755,10 +751,11 @@ readpages_ctail(void *vp, struct address_space *mapping,
 				  list_to_next_page(pages)->index));
 	pagevec_init(&lru_pvec, 0);
 	cluster_init_read(&clust, NULL);
-	clust.file = vp;
+	clust.file = file;
 	hint = kmalloc(sizeof(*hint), GFP_KERNEL);
 	if (hint == NULL) {
 		warning("vs-28", "failed to allocate hint");
+		ret = RETERR(-ENOMEM);
 		goto exit1;
 	}
 	clust.hint = hint;
@@ -825,7 +822,7 @@ readpages_ctail(void *vp, struct address_space *mapping,
 	}
 	put_cluster_handle(&clust);
 	pagevec_lru_add(&lru_pvec);
-	return;
+	return ret;
 }
 
 /*

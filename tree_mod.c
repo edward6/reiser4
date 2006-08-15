@@ -52,7 +52,7 @@ znode *new_node(znode * brother /* existing left neighbor of new node */ ,
 	if (retcode == 0) {
 		result =
 		    zget(znode_get_tree(brother), &blocknr, NULL, level,
-			 GFP_KERNEL);
+			 get_gfp_mask());
 		if (IS_ERR(result)) {
 			ewarning(PTR_ERR(result), "nikita-929",
 				 "Cannot allocate znode for carry: %li",
@@ -72,7 +72,7 @@ znode *new_node(znode * brother /* existing left neighbor of new node */ ,
 		result->nplug = znode_get_tree(brother)->nplug;
 		assert("nikita-933", result->nplug != NULL);
 
-		retcode = zinit_new(result, GFP_KERNEL);
+		retcode = zinit_new(result, get_gfp_mask());
 		if (retcode == 0) {
 			ZF_SET(result, JNODE_CREATED);
 			zrelse(result);

@@ -396,8 +396,8 @@ int detach_common(struct inode *object, struct inode *parent)
 	reiser4_free_dentry_fsdata(&goodby_dots);
 	if (result == 0) {
 		/* the dot should be the only entry remaining at this time... */
-		assert("nikita-3400", object->i_size == 1 &&
-		       (object->i_nlink >= 0 && object->i_nlink <= 2));
+		assert("nikita-3400",
+		       object->i_size == 1 && object->i_nlink <= 2);
 #if 0
 		/* and, together with the only name directory can have, they
 		 * provides for the last 2 remaining references. If we get
@@ -763,7 +763,7 @@ int find_entry(struct inode *dir,	/* directory to scan */
 	assert("nikita-1129", name != NULL);
 
 	/* dentry private data don't require lock, because dentry
-	   manipulations are protected by i_sem on parent.
+	   manipulations are protected by i_mutex on parent.
 
 	   This is not so for inodes, because there is no -the- parent in
 	   inode case.

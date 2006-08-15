@@ -58,10 +58,7 @@ typedef enum {
 	TXN_CAPTURE_NONBLOCKING = (1 << 4),
 
 	/* An option to try_capture to prevent atom fusion, just simple capturing is allowed */
-	TXN_CAPTURE_DONT_FUSE = (1 << 5),
-
-	/* if it is set - copy on capture is allowed */
-	/*TXN_CAPTURE_CAN_COC = (1 << 6) */
+	TXN_CAPTURE_DONT_FUSE = (1 << 5)
 
 	/* This macro selects only the exclusive capture request types, stripping out any
 	   options that were supplied (i.e., NONBLOCKING). */
@@ -242,7 +239,6 @@ struct txn_atom {
 	int ovrwr;
 	int wb;
 	int fq;
-	int protect;
 #endif
 
 	__u32 flushed;
@@ -287,8 +283,6 @@ struct txn_atom {
 
 	/* List of this atom's handles that are waiting: see 'capture_fuse_wait' comment. */
 	struct list_head fwaiting_list;
-
-	struct list_head protected;
 
 	/* Numbers of objects which were deleted/created in this transaction
 	   thereby numbers of objects IDs which were released/deallocated. */
@@ -387,11 +381,11 @@ struct txn_mgr {
 	unsigned int atom_min_size;
 	/* max number of concurrent flushers for one atom, 0 - unlimited.  */
 	unsigned int atom_max_flushers;
+	struct dentry *debugfs_atom_count;
+	struct dentry *debugfs_id_count;
 };
 
 /* FUNCTION DECLARATIONS */
-
-extern int is_cced(const jnode *node);
 
 /* These are the externally (within Reiser4) visible transaction functions, therefore they
    are prefixed with "txn_".  For comments, see txnmgr.c. */
@@ -427,8 +421,7 @@ extern int same_slum_check(jnode * base, jnode * check, int alloc_check,
 			   int alloc_value);
 extern void atom_dec_and_unlock(txn_atom * atom);
 
-extern int try_capture(jnode * node, znode_lock_mode mode, txn_capture flags,
-		       int can_coc);
+extern int try_capture(jnode * node, znode_lock_mode mode, txn_capture flags);
 extern int try_capture_page_to_invalidate(struct page *pg);
 
 extern void uncapture_page(struct page *pg);
@@ -477,6 +470,7 @@ extern void atom_send_event(txn_atom *);
 
 extern void insert_into_atom_ovrwr_list(txn_atom * atom, jnode * node);
 extern int capture_super_block(struct super_block *s);
+int capture_bulk(jnode **, int count);
 
 /* See the comment on the function blocknrset.c:blocknr_set_add for the
    calling convention of these three routines. */
@@ -663,12 +657,10 @@ struct flush_queue {
 };
 
 extern int fq_by_atom(txn_atom *, flush_queue_t **);
-extern int fq_by_jnode_gfp(jnode *, flush_queue_t **, int);
 extern void fq_put_nolock(flush_queue_t *);
 extern void fq_put(flush_queue_t *);
 extern void fuse_fq(txn_atom * to, txn_atom * from);
 extern void queue_jnode(flush_queue_t *, jnode *);
-extern void mark_jnode_queued(flush_queue_t *, jnode *);
 
 extern int write_fq(flush_queue_t *, long *, int);
 extern int current_atom_finish_all_fq(void);

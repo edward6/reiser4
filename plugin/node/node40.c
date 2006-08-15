@@ -64,7 +64,6 @@ static inline node40_header *node40_node_header(const znode * node	/* node to
 #define nh40_set_num_items(nh, value) put_unaligned(cpu_to_le16(value), &(nh)->nr_items)
 #define nh40_set_mkfs_id(nh, value) put_unaligned(cpu_to_le32(value), &(nh)->mkfs_id)
 
-
 /* plugin field of node header should be read/set by
    plugin_by_disk_id/save_disk_plugin */
 
@@ -679,8 +678,6 @@ int parse_node40(znode * node /* node to parse */ )
 		node->nr_items = node40_num_of_items_internal(node);
 		result = 0;
 	}
-	if (unlikely(result != 0))
-		/* print_znode("node", node) */ ;
 	return RETERR(result);
 }
 
@@ -2486,7 +2483,7 @@ void *shift_check_prepare(const znode * left, const znode * right)
 	    node40_num_of_items_internal(left) +
 	    node40_num_of_items_internal(right) - (mergeable ? 1 : 0);
 	data =
-		kmalloc(sizeof(struct shift_check) * nr_items, GFP_KERNEL);
+		kmalloc(sizeof(struct shift_check) * nr_items, get_gfp_mask());
 	if (data != NULL) {
 		coord_t coord;
 		pos_in_node_t item_pos;

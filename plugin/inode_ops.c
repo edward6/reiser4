@@ -13,7 +13,6 @@
 #include <linux/quotaops.h>
 #include <linux/namei.h>
 
-
 static int create_vfs_object(struct inode *parent, struct dentry *dentry,
 		      reiser4_object_create_data *data);
 
@@ -100,7 +99,7 @@ struct dentry *lookup_common(struct inode *parent, struct dentry *dentry,
 	reiser4_iget_complete(inode);
 
 	/* prevent balance_dirty_pages() from being called: we don't want to
-	 * do this under directory i_sem. */
+	 * do this under directory i_mutex. */
 	context_set_commit_async(ctx);
 	reiser4_exit_context(ctx);
 	return new;
@@ -170,7 +169,7 @@ int link_common(struct dentry *existing, struct inode *parent,
 	}
 
 	/*
-	 * Subtle race handling: sys_link() doesn't take i_sem on @parent. It
+	 * Subtle race handling: sys_link() doesn't take i_mutex on @parent. It
 	 * means that link(2) can race against unlink(2) or rename(2), and
 	 * inode is dead (->i_nlink == 0) when reiser4_link() is entered.
 	 *
@@ -312,7 +311,7 @@ int unlink_common(struct inode *parent, struct dentry *victim)
 	 * we cannot release directory semaphore here, because name has
 	 * already been deleted, but dentry (@victim) still exists.  Prevent
 	 * balance_dirty_pages() from being called on exiting this context: we
-	 * don't want to do this under directory i_sem.
+	 * don't want to do this under directory i_mutex.
 	 */
 	context_set_commit_async(ctx);
 	reiser4_exit_context(ctx);
@@ -396,16 +395,16 @@ int mknod_common(struct inode *parent, struct dentry *dentry,
  *
  * This is common implementation of vfs's followlink method of struct
  * inode_operations.
- * Assumes that inode's generic_ip points to the content of symbolic link.
+ * Assumes that inode's i_private points to the content of symbolic link.
  */
 void *follow_link_common(struct dentry *dentry, struct nameidata *nd)
 {
 	assert("vs-851", S_ISLNK(dentry->d_inode->i_mode));
 
-	if (!dentry->d_inode->u.generic_ip
+	if (!dentry->d_inode->i_private
 	    || !inode_get_flag(dentry->d_inode, REISER4_GENERIC_PTR_USED))
 		return ERR_PTR(RETERR(-EINVAL));
-	nd_set_link(nd, dentry->d_inode->u.generic_ip);
+	nd_set_link(nd, dentry->d_inode->i_private);
 	return NULL;
 }
 
@@ -455,7 +454,6 @@ int setattr_common(struct dentry *dentry, struct iattr *attr)
 			&& attr->ia_gid != inode->i_gid)) {
 			result = DQUOT_TRANSFER(inode, attr) ? -EDQUOT : 0;
 			if (result) {
-				all_grabbed2free();
 				context_set_commit_async(ctx);
 				reiser4_exit_context(ctx);
 				return result;
@@ -466,7 +464,6 @@ int setattr_common(struct dentry *dentry, struct iattr *attr)
 			reiser4_update_sd(inode);
 	}
 
-	all_grabbed2free();
 	context_set_commit_async(ctx);
 	reiser4_exit_context(ctx);
 	return result;

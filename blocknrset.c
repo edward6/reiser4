@@ -6,6 +6,7 @@
 #include "debug.h"
 #include "dformat.h"
 #include "txnmgr.h"
+#include "context.h"
 
 #include <linux/slab.h>
 
@@ -80,7 +81,7 @@ static blocknr_set_entry *bse_alloc(void)
 	blocknr_set_entry *e;
 
 	if ((e = (blocknr_set_entry *) kmalloc(sizeof(blocknr_set_entry),
-					       GFP_KERNEL)) == NULL)
+					       get_gfp_mask())) == NULL)
 		return NULL;
 
 	bse_init(e);

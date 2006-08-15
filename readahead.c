@@ -87,12 +87,6 @@ void formatted_readahead(znode * node, ra_info_t * info)
 		    (&next_lh, cur, ZNODE_READ_LOCK, grn_flags))
 			break;
 
-		if (JF_ISSET(ZJNODE(next_lh.node), JNODE_EFLUSH)) {
-			/* emergency flushed znode is encountered. That means we are low on memory. Do not readahead
-			   then */
-			break;
-		}
-
 		nextblk = znode_get_block(next_lh.node);
 		if (blocknr_is_fake(nextblk) ||
 		    (ra_adjacent_only(ra_params->flags)

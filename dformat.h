@@ -17,7 +17,6 @@
 #include <asm/unaligned.h>
 #include <linux/types.h>
 
-
 typedef __u8 d8;
 typedef __le16 d16;
 typedef __le32 d32;

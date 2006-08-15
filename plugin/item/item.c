@@ -552,9 +552,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				.write = write_extent,
 				.read = read_extent,
 				.readpage = readpage_extent,
-				.capture = capture_extent,
 				.get_block = get_block_address_extent,
-				.readpages = readpages_extent,
 				.append_key = append_key_extent,
 				.init_coord_extension =
 				init_coord_extension_extent
@@ -607,9 +605,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				.write = write_tail,
 				.read = read_tail,
 				.readpage = readpage_tail,
-				.capture = NULL,
 				.get_block = NULL,
-				.readpages = NULL,
 				.append_key = append_key_tail,
 				.init_coord_extension =
 				init_coord_extension_tail
@@ -663,9 +659,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				.write = NULL,
 				.read = read_ctail,
 				.readpage = readpage_ctail,
-				.capture = NULL,
 				.get_block = get_block_address_tail,
-				.readpages = readpages_ctail,
 				.append_key = append_key_ctail,
 				.init_coord_extension =
 				init_coord_extension_tail

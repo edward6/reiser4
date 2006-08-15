@@ -31,7 +31,6 @@ static cmp_t dir_pos_cmp(const dir_pos * p1, const dir_pos * p2)
 	return result;
 }
 
-
 /* see comment before readdir_common() for overview of why "adjustment" is
  * necessary. */
 static void
@@ -325,7 +324,7 @@ feed_entry(struct file *f,
 	   deadlock which may happen if filldir causes page fault. So, copy
 	   name to intermediate buffer */
 	if (strlen(name) + 1 > sizeof(name_buf)) {
-		local_name = kmalloc(strlen(name) + 1, GFP_KERNEL);
+		local_name = kmalloc(strlen(name) + 1, get_gfp_mask());
 		if (local_name == NULL)
 			return RETERR(-ENOMEM);
 	} else
@@ -349,6 +348,7 @@ feed_entry(struct file *f,
 	 */
 	assert("nikita-3436", lock_stack_isclean(get_current_lock_stack()));
 
+	txn_restart_current();
 	result = filldir(dirent, name, (int)strlen(name),
 			 /* offset of this entry */
 			 f->f_pos,
@@ -426,7 +426,6 @@ static void move_entry(readdir_pos * pos, coord_t * coord)
  *
  */
 
-
 /*
  * prepare for readdir.
  */
@@ -482,7 +481,7 @@ loff_t llseek_common_dir(struct file * file, loff_t off, int origin)
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 
-	down(&inode->i_sem);
+	mutex_lock(&inode->i_mutex);
 
 	/* update ->f_pos */
 	result = default_llseek(file, off, origin);
@@ -504,7 +503,7 @@ loff_t llseek_common_dir(struct file * file, loff_t off, int origin)
 		tap_done(&tap);
 	}
 	detach_fsdata(file);
-	up(&inode->i_sem);
+	mutex_unlock(&inode->i_mutex);
 
 	reiser4_exit_context(ctx);
 	return result;
@@ -630,7 +629,7 @@ int readdir_common(struct file *f /* directory file being read */ ,
 	detach_fsdata(f);
 
 	/* try to update directory's atime */
-	if (reiser4_grab_space(inode_file_plugin(inode)->estimate.update(inode),
+	if (reiser4_grab_space_force(inode_file_plugin(inode)->estimate.update(inode),
 			       BA_CAN_COMMIT) != 0)
 		warning("", "failed to update atime on readdir: %llu",
 			get_inode_oid(inode));

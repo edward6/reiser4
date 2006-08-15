@@ -41,7 +41,6 @@ reiser4-y := \
 		   inode.o \
 		   vfs_ops.o \
 		   as_ops.o \
-		   emergency_flush.o \
 		   entd.o\
 		   readahead.o \
 		   status_flags.o \

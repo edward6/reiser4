@@ -75,8 +75,6 @@ extern int write_page_by_ent(struct page *, struct writeback_control *);
 extern int wbq_available(void);
 extern void ent_writes_page(struct super_block *, struct page *);
 
-extern struct wbq *get_wbq(struct super_block *);
-extern void put_wbq(struct super_block *, struct wbq *);
 extern jnode *get_jnode_by_wbq(struct super_block *, struct wbq *);
 /* __ENTD_H__ */
 #endif
