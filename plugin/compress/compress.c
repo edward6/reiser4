@@ -73,7 +73,7 @@ static coa_t gzip1_alloc(tfm_action act)
 	int ret = 0;
 	switch (act) {
 	case TFM_WRITE_ACT:	/* compress */
-		coa = vmalloc(zlib_deflate_workspacesize());
+		coa = reiser4_vmalloc(zlib_deflate_workspacesize());
 		if (!coa) {
 			ret = -ENOMEM;
 			break;
@@ -81,7 +81,7 @@ static coa_t gzip1_alloc(tfm_action act)
 		memset(coa, 0, zlib_deflate_workspacesize());
 		break;
 	case TFM_READ_ACT:	/* decompress */
-		coa = vmalloc(zlib_inflate_workspacesize());
+		coa = reiser4_vmalloc(zlib_inflate_workspacesize());
 		if (!coa) {
 			ret = -ENOMEM;
 			break;
@@ -249,7 +249,7 @@ static coa_t lzo1_alloc(tfm_action act)
 
 	switch (act) {
 	case TFM_WRITE_ACT:	/* compress */
-		coa = vmalloc(LZO_HEAP_SIZE(LZO1X_1_MEM_COMPRESS));
+		coa = reiser4_vmalloc(LZO_HEAP_SIZE(LZO1X_1_MEM_COMPRESS));
 		if (!coa) {
 			ret = -ENOMEM;
 			break;

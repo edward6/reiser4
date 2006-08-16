@@ -6,11 +6,12 @@
 #define __REISER4_PAGE_CACHE_H__
 
 #include "forward.h"
-#include "debug.h"
+#include "context.h"            /* for get_gfp_mask() */
 
 #include <linux/fs.h>		/* for struct super_block, address_space  */
 #include <linux/mm.h>		/* for struct page  */
 #include <linux/pagemap.h>	/* for lock_page()  */
+#include <linux/vmalloc.h>	/* for __vmalloc()  */
 
 extern int init_formatted_fake(struct super_block *);
 extern void done_formatted_fake(struct super_block *);
@@ -37,6 +38,12 @@ extern void reiser4_invalidate_pages(struct address_space *, pgoff_t from,
 				     unsigned long count, int even_cows);
 extern void capture_reiser4_inodes(struct super_block *,
 				   struct writeback_control *);
+static inline void * reiser4_vmalloc (unsigned long size)
+{
+	return __vmalloc(size,
+			 get_gfp_mask() | __GFP_HIGHMEM,
+			 PAGE_KERNEL);
+}
 
 #define PAGECACHE_TAG_REISER4_MOVED PAGECACHE_TAG_DIRTY
 

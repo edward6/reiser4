@@ -661,7 +661,7 @@ int readpage_ctail(void *vp, struct page *page)
 	assert("edward-118", page->mapping && page->mapping->host);
 	assert("edward-867", !tfm_cluster_is_uptodate(&clust->tc));
 
-	hint = kmalloc(sizeof(*hint), GFP_KERNEL);
+	hint = kmalloc(sizeof(*hint), get_gfp_mask());
 	if (hint == NULL)
 		return RETERR(-ENOMEM);
 	clust->hint = hint;
@@ -752,7 +752,7 @@ int readpages_ctail(struct file *file, struct address_space *mapping,
 	pagevec_init(&lru_pvec, 0);
 	cluster_init_read(&clust, NULL);
 	clust.file = file;
-	hint = kmalloc(sizeof(*hint), GFP_KERNEL);
+	hint = kmalloc(sizeof(*hint), get_gfp_mask());
 	if (hint == NULL) {
 		warning("vs-28", "failed to allocate hint");
 		ret = RETERR(-ENOMEM);
@@ -775,7 +775,8 @@ int readpages_ctail(struct file *file, struct address_space *mapping,
 	while (!list_empty(pages)) {
 		page = list_to_page(pages);
 		list_del(&page->lru);
-		if (add_to_page_cache(page, mapping, page->index, GFP_KERNEL)) {
+		if (add_to_page_cache(page, mapping, page->index,
+				      get_gfp_mask())) {
 			page_cache_release(page);
 			continue;
 		}
@@ -1149,7 +1150,7 @@ static int alloc_item_convert_data(convert_info_t * sq)
 	assert("edward-816", sq != NULL);
 	assert("edward-817", sq->itm == NULL);
 
-	sq->itm = kmalloc(sizeof(*sq->itm), GFP_KERNEL);
+	sq->itm = kmalloc(sizeof(*sq->itm), get_gfp_mask());
 	if (sq->itm == NULL)
 		return RETERR(-ENOMEM);
 	return 0;
@@ -1171,7 +1172,7 @@ static int alloc_convert_data(flush_pos_t * pos)
 	assert("edward-821", pos != NULL);
 	assert("edward-822", pos->sq == NULL);
 
-	pos->sq = kmalloc(sizeof(*pos->sq), GFP_KERNEL);
+	pos->sq = kmalloc(sizeof(*pos->sq), get_gfp_mask());
 	if (!pos->sq)
 		return RETERR(-ENOMEM);
 	memset(pos->sq, 0, sizeof(*pos->sq));

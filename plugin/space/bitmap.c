@@ -14,7 +14,6 @@
 #include <linux/types.h>
 #include <linux/fs.h>		/* for struct super_block  */
 #include <asm/semaphore.h>
-#include <linux/vmalloc.h>
 #include <asm/div64.h>
 
 /* Proposed (but discarded) optimization: dynamic loading/unloading of bitmap
@@ -145,7 +144,7 @@ struct bitmap_allocator_data {
 /* allocate and initialize jnode with JNODE_BITMAP type */
 static jnode *bnew(void)
 {
-	jnode *jal = jalloc();
+	jnode *jal = jalloc(NULL);
 
 	if (jal)
 		jnode_init(jal, current_tree, JNODE_BITMAP);
@@ -1470,7 +1469,7 @@ init_allocator_bitmap(reiser4_space_allocator * allocator,
 
 	/* getting memory for bitmap allocator private data holder */
 	data =
-		kmalloc(sizeof(struct bitmap_allocator_data), GFP_KERNEL);
+		kmalloc(sizeof(struct bitmap_allocator_data), get_gfp_mask());
 
 	if (data == NULL)
 		return RETERR(-ENOMEM);
@@ -1486,7 +1485,7 @@ init_allocator_bitmap(reiser4_space_allocator * allocator,
 	   probably, another dynamic data structure should replace a static
 	   array of bnodes. */
 	/*data->bitmap = reiser4_kmalloc((size_t) (sizeof (struct bitmap_node) * bitmap_blocks_nr), GFP_KERNEL); */
-	data->bitmap = vmalloc(sizeof(struct bitmap_node) * bitmap_blocks_nr);
+	data->bitmap = reiser4_vmalloc(sizeof(struct bitmap_node) * bitmap_blocks_nr);
 	if (data->bitmap == NULL) {
 		kfree(data);
 		return RETERR(-ENOMEM);

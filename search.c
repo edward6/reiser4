@@ -55,7 +55,8 @@ int cbk_cache_init(cbk_cache *cache /* cache to init */ )
 	assert("nikita-346", cache != NULL);
 
 	cache->slot =
-	    kmalloc(sizeof(cbk_cache_slot) * cache->nr_slots, GFP_KERNEL);
+		kmalloc(sizeof(cbk_cache_slot) * cache->nr_slots,
+			get_gfp_mask());
 	if (cache->slot == NULL)
 		return RETERR(-ENOMEM);
 

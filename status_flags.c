@@ -43,11 +43,11 @@ int reiser4_status_init(reiser4_block_nr block)
 	get_super_private(sb)->status_page = NULL;
 	get_super_private(sb)->status_bio = NULL;
 
-	page = alloc_pages(GFP_KERNEL, 0);
+	page = alloc_pages(get_gfp_mask(), 0);
 	if (!page)
 		return -ENOMEM;
 
-	bio = bio_alloc(GFP_KERNEL, 1);
+	bio = bio_alloc(get_gfp_mask(), 1);
 	if (bio != NULL) {
 		bio->bi_sector = block * (sb->s_blocksize >> 9);
 		bio->bi_bdev = sb->s_bdev;

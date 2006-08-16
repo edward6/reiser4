@@ -119,7 +119,6 @@
 #include <linux/types.h>
 #include <linux/slab.h>
 #include <linux/pagemap.h>
-#include <linux/vmalloc.h>	/* for vmalloc(), vfree() */
 #include <linux/swap.h>
 #include <linux/fs.h>		/* for struct address_space  */
 #include <linux/writeback.h>	/* for inode_lock */
@@ -163,7 +162,7 @@ jnode_key_hashfn(j_hash_table * table, const jnode_key_t * key)
 }
 
 /* The hash table definition */
-#define KMALLOC(size) vmalloc(size)
+#define KMALLOC(size) reiser4_vmalloc(size)
 #define KFREE(ptr, size) vfree(ptr)
 TYPE_SAFE_HASH_DEFINE(j, jnode, jnode_key_t, key.j, link.j, jnode_key_hashfn,
 		      jnode_key_eq);
@@ -289,9 +288,10 @@ jnode *jnode_by_page(struct page *pg)
 }
 
 /* exported functions to allocate/free jnode objects outside this file */
-jnode *jalloc(void)
+jnode *jalloc(gfp_t * gfp_flags)
 {
-	jnode *jal = kmem_cache_alloc(_jnode_slab, get_gfp_mask());
+	jnode *jal = kmem_cache_alloc(_jnode_slab,
+				      gfp_flags ? *gfp_flags : get_gfp_mask());
 	return jal;
 }
 
@@ -353,11 +353,11 @@ static inline void jnode_free(jnode * node, jnode_type jtype)
 }
 
 /* allocate new unformatted jnode */
-static jnode *jnew_unformatted(void)
+static jnode *jnew_unformatted(gfp_t * gfp_flags)
 {
 	jnode *jal;
 
-	jal = jalloc();
+	jal = jalloc(gfp_flags);
 	if (jal == NULL)
 		return NULL;
 
@@ -539,13 +539,13 @@ void unhash_unformatted_jnode(jnode * node)
  */
 static jnode *find_get_jnode(reiser4_tree * tree,
 			     struct address_space *mapping,
-			     oid_t oid, unsigned long index)
+			     oid_t oid, unsigned long index, gfp_t *gfp_flags)
 {
 	jnode *result;
 	jnode *shadow;
 	int preload;
 
-	result = jnew_unformatted();
+	result = jnew_unformatted(gfp_flags);
 
 	if (unlikely(result == NULL))
 		return ERR_PTR(RETERR(-ENOMEM));
@@ -595,6 +595,7 @@ static jnode *do_jget(reiser4_tree * tree, struct page *pg)
 
 	jnode *result;
 	oid_t oid = get_inode_oid(pg->mapping->host);
+	gfp_t gfp_flags = GFP_NOFS;
 
 	assert("umka-176", pg != NULL);
 	assert("nikita-2394", PageLocked(pg));
@@ -615,7 +616,8 @@ static jnode *do_jget(reiser4_tree * tree, struct page *pg)
 		return result;
 	}
 
-	result = find_get_jnode(tree, pg->mapping, oid, pg->index);
+	/* since page is locked, jnode should be allocated with GFP_NOFS flag */
+	result = find_get_jnode(tree, pg->mapping, oid, pg->index, &gfp_flags);
 	if (unlikely(IS_ERR(result)))
 		return result;
 	/* attach jnode to page */
@@ -1357,7 +1359,7 @@ static jnode *clone_unformatted(jnode * node)
 	jnode *clone;
 
 	assert("vs-1431", jnode_is_unformatted(node));
-	clone = jalloc();
+	clone = jalloc(NULL);
 	if (clone == NULL)
 		return ERR_PTR(RETERR(-ENOMEM));
 
@@ -1733,7 +1735,7 @@ void jdrop(jnode * node)
 
 jnode *alloc_io_head(const reiser4_block_nr * block)
 {
-	jnode *jal = jalloc();
+	jnode *jal = jalloc(NULL);
 
 	if (jal != NULL) {
 		jnode_init(jal, current_tree, JNODE_IO_HEAD);

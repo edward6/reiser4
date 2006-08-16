@@ -12,7 +12,7 @@
 #include "key.h"
 #include "debug.h"
 #include "dformat.h"
-#include "context.h"
+#include "page_cache.h"
 
 #include "plugin/plugin.h"
 
@@ -340,7 +340,7 @@ extern int init_jnodes(void);
 extern void done_jnodes(void);
 
 /* Jnode routines */
-extern jnode *jalloc(void);
+extern jnode *jalloc(gfp_t *);
 extern void jfree(jnode * node) NONNULL;
 extern jnode *jclone(jnode *);
 extern jnode *jlookup(reiser4_tree * tree,

@@ -392,7 +392,7 @@ int rename_common(struct inode *old_dir /* directory where @old is located */ ,
 
 	old_entry = kmalloc(3 * sizeof(*old_entry) + 2 * sizeof(*new_lh) +
 			    sizeof(*dotdot_name) + sizeof(*dataonstack),
-			    GFP_KERNEL);
+			    get_gfp_mask());
 	if (old_entry == NULL) {
 		context_set_commit_async(ctx);
 		reiser4_exit_context(ctx);

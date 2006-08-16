@@ -188,7 +188,7 @@ blknrhashfn(z_hash_table * table, const reiser4_block_nr * b)
 }
 
 /* The hash table definition */
-#define KMALLOC(size) kmalloc((size), GFP_KERNEL)
+#define KMALLOC(size) kmalloc((size), get_gfp_mask())
 #define KFREE(ptr, size) kfree(ptr)
 TYPE_SAFE_HASH_DEFINE(z, znode, reiser4_block_nr, zjnode.key.z, zjnode.link.z,
 		      blknrhashfn, blknreq);

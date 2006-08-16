@@ -290,7 +290,7 @@ alloc_clust_pages(reiser4_cluster_t * clust, struct inode *inode)
 	assert("edward-792", inode != NULL);
 	clust->pages =
 		kmalloc(sizeof(*clust->pages) << inode_cluster_shift(inode),
-			GFP_KERNEL);
+			get_gfp_mask());
 	if (!clust->pages)
 		return -ENOMEM;
 	return 0;

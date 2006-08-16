@@ -7,7 +7,6 @@
  * CTAIL_ID (see http://www.namesys.com/cryptcompress_design.html for details).
  */
 
-#include "../../page_cache.h"
 #include "../../inode.h"
 #include "../cluster.h"
 #include "../object.h"
@@ -95,12 +94,12 @@ crypto_stat_t * alloc_crypto_stat (struct inode * inode)
 	int fipsize;
 
 	assert("edward-1421", 0);
-	info = kmalloc(sizeof(*info), GFP_KERNEL);
+	info = kmalloc(sizeof(*info), get_gfp_mask());
 	if (!info)
 		return ERR_PTR(-ENOMEM);
 	memset(info, 0, sizeof (*info));
 	fipsize = inode_digest_plugin(inode)->fipsize;
-	info->keyid = kmalloc(fipsize, GFP_KERNEL);
+	info->keyid = kmalloc(fipsize, get_gfp_mask());
 	if (!info->keyid) {
 		kfree(info);
 		return ERR_PTR(-ENOMEM);
@@ -185,7 +184,7 @@ static int create_keyid (crypto_stat_t * info, crypto_data_t * data)
 	ctfm = info_cipher_tfm(info);
 
 	dmem = kmalloc((size_t)crypto_tfm_alg_digestsize(dtfm),
-			       GFP_KERNEL);
+		       get_gfp_mask());
 	if (!dmem)
 		goto exit1;
 
@@ -194,7 +193,7 @@ static int create_keyid (crypto_stat_t * info, crypto_data_t * data)
 	pad = data->keyid_size % blk;
 	pad = (pad ? blk - pad : 0);
 
-	cmem = kmalloc((size_t)data->keyid_size + pad, GFP_KERNEL);
+	cmem = kmalloc((size_t)data->keyid_size + pad, get_gfp_mask());
 	if (!cmem)
 		goto exit2;
 	memcpy(cmem, data->keyid, data->keyid_size);
@@ -1312,7 +1311,7 @@ static void clear_cluster_pages_dirty(reiser4_cluster_t * clust)
 		lock_page(clust->pages[i]);
 		if (PageDirty(clust->pages[i])) {
 			assert("edward-1277", PageUptodate(clust->pages[i]));
-			clear_page_dirty_for_io(clust->pages[i]);
+			test_clear_page_dirty(clust->pages[i]);
 		}
 #if REISER4_DEBUG
 		else
@@ -1485,8 +1484,9 @@ grab_cluster_pages_jnode(struct inode *inode, reiser4_cluster_t * clust)
 		assert("edward-1044", clust->pages[i] == NULL);
 
 		clust->pages[i] =
-		    grab_cache_page(inode->i_mapping,
-				    clust_to_pg(clust->index, inode) + i);
+			find_or_create_page(inode->i_mapping,
+					    clust_to_pg(clust->index, inode) + i,
+					    get_gfp_mask());
 		if (!clust->pages[i]) {
 			result = RETERR(-ENOMEM);
 			break;
@@ -1534,8 +1534,9 @@ static int grab_cluster_pages(struct inode *inode, reiser4_cluster_t * clust)
 
 	for (i = 0; i < clust->nr_pages; i++) {
 		clust->pages[i] =
-		    grab_cache_page(inode->i_mapping,
-				    clust_to_pg(clust->index, inode) + i);
+		       find_or_create_page(inode->i_mapping,
+					   clust_to_pg(clust->index, inode) + i,
+					   get_gfp_mask());
 		if (!clust->pages[i]) {
 			result = RETERR(-ENOMEM);
 			break;
@@ -2580,7 +2581,7 @@ write_cryptcompress_flow(struct file *file, struct inode *inode,
 	result = check_cryptcompress(inode);
 	if (result)
 		return result;
-	hint = kmalloc(sizeof(*hint), GFP_KERNEL);
+	hint = kmalloc(sizeof(*hint), get_gfp_mask());
 	if (hint == NULL)
 		return RETERR(-ENOMEM);
 
@@ -2892,7 +2893,7 @@ find_real_disk_cluster(struct inode *inode, cloff_t * found, cloff_t index)
 	assert("edward-1131", inode != NULL);
 	assert("edward-95", crc_inode_ok(inode));
 
-	hint = kmalloc(sizeof(*hint), GFP_KERNEL);
+	hint = kmalloc(sizeof(*hint), get_gfp_mask());
 	if (hint == NULL)
 		return RETERR(-ENOMEM);
 	hint_init_zero(hint);
@@ -3107,7 +3108,7 @@ cryptcompress_append_hole(struct inode *inode /*contains old i_size */ ,
 	assert("edward-1136", current_blocksize == PAGE_CACHE_SIZE);
 	assert("edward-1333", off_to_cloff(inode->i_size, inode) != 0);
 
-	hint = kmalloc(sizeof(*hint), GFP_KERNEL);
+	hint = kmalloc(sizeof(*hint), get_gfp_mask());
 	if (hint == NULL)
 		return RETERR(-ENOMEM);
 	hint_init_zero(hint);
@@ -3231,7 +3232,9 @@ prune_cryptcompress(struct inode *inode, loff_t new_size, int update_sd,
 	assert("edward-1142", crc_inode_ok(inode));
 	assert("edward-1143", current_blocksize == PAGE_CACHE_SIZE);
 
-	hint = kmalloc(sizeof(*hint), GFP_KERNEL);
+	old_size = inode->i_size;
+
+	hint = kmalloc(sizeof(*hint), get_gfp_mask());
 	if (hint == NULL)
 		return RETERR(-ENOMEM);
 	hint_init_zero(hint);
@@ -3452,7 +3455,7 @@ capture_anonymous_clusters(struct address_space *mapping, pgoff_t * index,
 	assert("edward-1128", mapping->host != NULL);
 	assert("edward-1440",  mapping->host->i_mapping == mapping);
 
-	hint = kmalloc(sizeof(*hint), GFP_KERNEL);
+	hint = kmalloc(sizeof(*hint), get_gfp_mask());
 	if (hint == NULL)
 		return RETERR(-ENOMEM);
 	hint_init_zero(hint);
@@ -3481,7 +3484,7 @@ capture_anonymous_clusters(struct address_space *mapping, pgoff_t * index,
 		page_cache_release(page);
 		if (result)
 			break;
-		to_capture--;
+		to_capture -= clust.nr_pages;
 	}
 	if (result) {
 		warning("edward-1077",

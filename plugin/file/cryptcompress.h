@@ -4,11 +4,11 @@
 #if !defined( __FS_REISER4_CRYPTCOMPRESS_H__ )
 #define __FS_REISER4_CRYPTCOMPRESS_H__
 
+#include "../../page_cache.h"
 #include "../compress/compress.h"
 #include "../crypto/cipher.h"
 
 #include <linux/pagemap.h>
-#include <linux/vmalloc.h>
 
 #define MIN_CLUSTER_SIZE PAGE_CACHE_SIZE
 #define MIN_CLUSTER_SHIFT PAGE_CACHE_SHIFT
@@ -70,7 +70,7 @@ static inline int alloc_ts(tfm_stream_t ** stm)
 	assert("edward-931", stm);
 	assert("edward-932", *stm == NULL);
 
-	*stm = kmalloc(sizeof **stm, GFP_KERNEL);
+	*stm = kmalloc(sizeof **stm, get_gfp_mask());
 	if (*stm == NULL)
 		return -ENOMEM;
 	memset(*stm, 0, sizeof **stm);
@@ -91,7 +91,7 @@ static inline int alloc_ts_data(tfm_stream_t * stm, size_t size)
 	assert("edward-936", !ts_size(stm));
 	assert("edward-937", size != 0);
 
-	stm->data = vmalloc(size);
+	stm->data = reiser4_vmalloc(size);
 	if (!stm->data)
 		return -ENOMEM;
 	set_ts_size(stm, size);
@@ -224,7 +224,7 @@ alloc_tfm_stream(tfm_cluster_t * tc, size_t size, tfm_stream_id id)
 	assert("edward-939", tc != NULL);
 	assert("edward-940", !tfm_stream(tc, id));
 
-	tc->tun[id] = kmalloc(sizeof(tfm_stream_t), GFP_KERNEL);
+	tc->tun[id] = kmalloc(sizeof(tfm_stream_t), get_gfp_mask());
 	if (!tc->tun[id])
 		return -ENOMEM;
 	memset(tfm_stream(tc, id), 0, sizeof(tfm_stream_t));
@@ -393,7 +393,7 @@ static inline int alloc_cluster_pgset(reiser4_cluster_t * clust, int nrpages)
 	assert("edward-950", nrpages != 0 && nrpages <= MAX_CLUSTER_NRPAGES);
 
 	clust->pages =
-		kmalloc(sizeof(*clust->pages) * nrpages, GFP_KERNEL);
+		kmalloc(sizeof(*clust->pages) * nrpages, get_gfp_mask());
 	if (!clust->pages)
 		return RETERR(-ENOMEM);
 	reset_cluster_pgset(clust, nrpages);
