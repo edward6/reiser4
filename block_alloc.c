@@ -491,18 +491,11 @@ void cluster_reserved2free(int count)
 	reiser4_context *ctx;
 	reiser4_super_info_data *sbinfo;
 
-	assert("edward-503", get_current_context()->grabbed_blocks == 0);
-
 	ctx = get_current_context();
 	sbinfo = get_super_private(ctx->super);
-	spin_lock_reiser4_super(sbinfo);
 
-	sub_from_cluster_reserved(sbinfo, count);
-	sbinfo->blocks_free += count;
-
-	assert("edward-502", check_block_counters(ctx->super));
-
-	spin_unlock_reiser4_super(sbinfo);
+	cluster_reserved2grabbed(count);
+	grabbed2free(ctx, sbinfo, count);
 }
 
 static DEFINE_SPINLOCK(fake_lock);

@@ -93,10 +93,12 @@ reiser4_block_nr estimate_update_cluster(struct inode * inode)
 	return estimate_cluster(inode, 0); /* 44, for 64K-cluster */
 }
 
-/* how many nodes occupied by a disk cluster might get dirty */
+/* how many nodes occupied by a disk cluster might get dirty
+   FIXME-EDWARD: This estimation is pretty bad (65536 nodes for
+   64K-cluster, it means 256M of dead space on the partition) */
 reiser4_block_nr estimate_dirty_cluster(struct inode * inode)
 {
-	return 2 + cluster_nrpages(inode);
+	return inode_cluster_size(inode);
 }
 
 /* Make Linus happy.

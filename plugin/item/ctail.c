@@ -369,9 +369,11 @@ kill_hook_ctail(const coord_t * coord, pos_in_node_t from, pos_in_node_t count,
 		item_key_by_coord(coord, &key);
 
 		if (from == 0 && is_disk_cluster_key(&key, coord)) {
+			/* disk cluster is killed */
 			cloff_t start =
 			    off_to_clust(get_key_offset(&key), inode);
 			truncate_page_cluster(inode, start);
+			inode_sub_bytes(inode, inode_cluster_size(inode));
 		}
 	}
 	return 0;
@@ -1005,8 +1007,6 @@ ctail_insert_unprepped_cluster(reiser4_cluster_t * clust, struct inode *inode)
 	assert("edward-1245", clust->hint != NULL);
 	assert("edward-1246", clust->dstat == FAKE_DISK_CLUSTER);
 	assert("edward-1247", clust->reserved == 1);
-	assert("edward-1248", get_current_context()->grabbed_blocks ==
-	       estimate_insert_cluster(inode));
 
 	result = get_disk_cluster_locked(clust, inode, ZNODE_WRITE_LOCK);
 	if (cbk_errored(result))
