@@ -2798,15 +2798,12 @@ int readpages_crc(struct file *file, struct address_space *mapping,
 
 	ctx = init_context(mapping->host->i_sb);
 	if (IS_ERR(ctx)) {
-		ret = PTR_ERR(ctx);
-		goto err;
+		reiser4_readpages_cleanup(pages);
+		return PTR_ERR(ctx);
 	}
 	/* crc files can be built of ctail items only */
 	ret = readpages_ctail(file, mapping, pages);
-	if (ret) {
-err:
-		reiser4_readpages_cleanup(pages);
-	}
+	reiser4_exit_context(ctx);
 	return ret;
 }
 
