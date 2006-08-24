@@ -340,7 +340,7 @@ extern int init_jnodes(void);
 extern void done_jnodes(void);
 
 /* Jnode routines */
-extern jnode *jalloc(gfp_t *);
+extern jnode *jalloc(void);
 extern void jfree(jnode * node) NONNULL;
 extern jnode *jclone(jnode *);
 extern jnode *jlookup(reiser4_tree * tree,

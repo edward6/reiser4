@@ -144,7 +144,7 @@ struct bitmap_allocator_data {
 /* allocate and initialize jnode with JNODE_BITMAP type */
 static jnode *bnew(void)
 {
-	jnode *jal = jalloc(NULL);
+	jnode *jal = jalloc();
 
 	if (jal)
 		jnode_init(jal, current_tree, JNODE_BITMAP);

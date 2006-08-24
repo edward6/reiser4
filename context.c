@@ -265,6 +265,16 @@ void set_gfp_mask(void)
 		ctx->gfp_mask = GFP_NOFS;
 }
 
+void reiser4_ctx_gfp_mask_force (gfp_t mask)
+{
+	reiser4_context *ctx;
+	ctx = get_current_context();
+
+	assert("edward-1454", ctx != NULL);
+
+	ctx->gfp_mask = mask;
+}
+
 /*
  * Local variables:
  * c-indentation-style: "K&R"

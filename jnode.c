@@ -288,10 +288,9 @@ jnode *jnode_by_page(struct page *pg)
 }
 
 /* exported functions to allocate/free jnode objects outside this file */
-jnode *jalloc(gfp_t * gfp_flags)
+jnode *jalloc(void)
 {
-	jnode *jal = kmem_cache_alloc(_jnode_slab,
-				      gfp_flags ? *gfp_flags : get_gfp_mask());
+	jnode *jal = kmem_cache_alloc(_jnode_slab, get_gfp_mask());
 	return jal;
 }
 
@@ -353,11 +352,11 @@ static inline void jnode_free(jnode * node, jnode_type jtype)
 }
 
 /* allocate new unformatted jnode */
-static jnode *jnew_unformatted(gfp_t * gfp_flags)
+static jnode *jnew_unformatted(void)
 {
 	jnode *jal;
 
-	jal = jalloc(gfp_flags);
+	jal = jalloc();
 	if (jal == NULL)
 		return NULL;
 
@@ -539,13 +538,13 @@ void unhash_unformatted_jnode(jnode * node)
  */
 static jnode *find_get_jnode(reiser4_tree * tree,
 			     struct address_space *mapping,
-			     oid_t oid, unsigned long index, gfp_t *gfp_flags)
+			     oid_t oid, unsigned long index)
 {
 	jnode *result;
 	jnode *shadow;
 	int preload;
 
-	result = jnew_unformatted(gfp_flags);
+	result = jnew_unformatted();
 
 	if (unlikely(result == NULL))
 		return ERR_PTR(RETERR(-ENOMEM));
@@ -595,7 +594,6 @@ static jnode *do_jget(reiser4_tree * tree, struct page *pg)
 
 	jnode *result;
 	oid_t oid = get_inode_oid(pg->mapping->host);
-	gfp_t gfp_flags = GFP_NOFS;
 
 	assert("umka-176", pg != NULL);
 	assert("nikita-2394", PageLocked(pg));
@@ -617,7 +615,8 @@ static jnode *do_jget(reiser4_tree * tree, struct page *pg)
 	}
 
 	/* since page is locked, jnode should be allocated with GFP_NOFS flag */
-	result = find_get_jnode(tree, pg->mapping, oid, pg->index, &gfp_flags);
+	reiser4_ctx_gfp_mask_force(GFP_NOFS);
+	result = find_get_jnode(tree, pg->mapping, oid, pg->index);
 	if (unlikely(IS_ERR(result)))
 		return result;
 	/* attach jnode to page */
@@ -1359,7 +1358,7 @@ static jnode *clone_unformatted(jnode * node)
 	jnode *clone;
 
 	assert("vs-1431", jnode_is_unformatted(node));
-	clone = jalloc(NULL);
+	clone = jalloc();
 	if (clone == NULL)
 		return ERR_PTR(RETERR(-ENOMEM));
 
@@ -1735,7 +1734,7 @@ void jdrop(jnode * node)
 
 jnode *alloc_io_head(const reiser4_block_nr * block)
 {
-	jnode *jal = jalloc(NULL);
+	jnode *jal = jalloc();
 
 	if (jal != NULL) {
 		jnode_init(jal, current_tree, JNODE_IO_HEAD);

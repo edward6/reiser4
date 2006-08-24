@@ -154,6 +154,7 @@ static inline gfp_t get_gfp_mask(void)
 }
 
 void set_gfp_mask(void);
+void reiser4_ctx_gfp_mask_force (gfp_t mask);
 
 /*
  * true if current thread is in the write-out mode. Thread enters write-out
