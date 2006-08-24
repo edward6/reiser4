@@ -176,8 +176,15 @@ static inline void reiser4_slide_init(reiser4_slide_t * win)
 	memset(win, 0, sizeof *win);
 }
 
+static inline tfm_action
+cluster_get_tfm_act(tfm_cluster_t * tc)
+{
+	assert("edward-1356", tc != NULL);
+	return tc->act;
+}
+
 static inline void
-tfm_cluster_init_act(tfm_cluster_t * tc, tfm_action act)
+cluster_set_tfm_act(tfm_cluster_t * tc, tfm_action act)
 {
 	assert("edward-1356", tc != NULL);
 	tc->act = act;
@@ -187,7 +194,7 @@ static inline void
 cluster_init_act (reiser4_cluster_t * clust, tfm_action act, reiser4_slide_t * window){
 	assert("edward-84", clust != NULL);
 	memset(clust, 0, sizeof *clust);
-	tfm_cluster_init_act(&clust->tc, act);
+	cluster_set_tfm_act(&clust->tc, act);
 	clust->dstat = INVAL_DISK_CLUSTER;
 	clust->win = window;
 }
@@ -204,12 +211,22 @@ cluster_init_write(reiser4_cluster_t * clust, reiser4_slide_t * window)
 	cluster_init_act (clust, TFM_WRITE_ACT, window);
 }
 
-static inline int dclust_get_extension(hint_t * hint)
+static inline int dclust_get_extension_dsize(hint_t * hint)
+{
+	return hint->ext_coord.extension.ctail.dsize;
+}
+
+static inline void dclust_set_extension_dsize(hint_t * hint, int dsize)
+{
+	hint->ext_coord.extension.ctail.dsize = dsize;
+}
+
+static inline int dclust_get_extension_shift(hint_t * hint)
 {
 	return hint->ext_coord.extension.ctail.shift;
 }
 
-static inline void dclust_set_extension(hint_t * hint)
+static inline void dclust_set_extension_shift(hint_t * hint)
 {
 	assert("edward-1270",
 	       item_id_by_coord(&hint->ext_coord.coord) == CTAIL_ID);
@@ -219,7 +236,8 @@ static inline void dclust_set_extension(hint_t * hint)
 
 static inline int hint_is_unprepped_dclust(hint_t * hint)
 {
-	return dclust_get_extension(hint) == (int)UCTAIL_SHIFT;
+	assert("edward-1451", hint_is_valid(hint));
+	return dclust_get_extension_shift(hint) == (int)UCTAIL_SHIFT;
 }
 
 static inline void coord_set_between_clusters(coord_t * coord)
@@ -239,7 +257,8 @@ static inline void coord_set_between_clusters(coord_t * coord)
 }
 
 int inflate_cluster(reiser4_cluster_t *, struct inode *);
-int find_cluster(reiser4_cluster_t *, struct inode *, int read, int write);
+int find_disk_cluster(reiser4_cluster_t *, struct inode *, int read,
+		      znode_lock_mode mode);
 int flush_cluster_pages(reiser4_cluster_t *, jnode *, struct inode *);
 int deflate_cluster(reiser4_cluster_t *, struct inode *);
 void truncate_page_cluster(struct inode *inode, cloff_t start);

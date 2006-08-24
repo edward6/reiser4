@@ -311,18 +311,18 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		},
 		.inode_ops = {
 			.permission = permission_common,
-			.setattr = setattr_cryptcompress,
+			.setattr = prot_setattr_cryptcompress,
 			.getattr = getattr_common
 		},
 		.file_ops = {
 			.llseek = generic_file_llseek,
-			.read = read_cryptcompress,
-			.write = write_cryptcompress,
+			.read = prot_read_cryptcompress,
+			.write = prot_write_cryptcompress,
 			.aio_read = generic_file_aio_read,
-			.mmap = mmap_cryptcompress,
-			.release = release_cryptcompress,
+			.mmap = prot_mmap_cryptcompress,
+			.release = prot_release_cryptcompress,
 			.fsync = sync_common,
-			.sendfile = sendfile_cryptcompress
+			.sendfile = prot_sendfile_cryptcompress
 		},
 		.as_ops = {
 			.writepage = reiser4_writepage,
@@ -341,8 +341,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.set_plug_in_inode = set_plug_in_inode_common,
 		.adjust_to_parent = adjust_to_parent_cryptcompress,
 		.create_object = create_cryptcompress,
-		.open_object = open_cryptcompress,
-		.delete_object = delete_cryptcompress,
+		.open_object = open_object_cryptcompress,
+		.delete_object = delete_object_cryptcompress,
 		.add_link = add_link_common,
 		.rem_link = rem_link_common,
 		.owns_item = owns_item_common,

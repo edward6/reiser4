@@ -74,8 +74,12 @@ typedef struct {
 	 */
 	int (*mergeable) (const coord_t *, const coord_t *);
 
-	/* number of atomic things in an item */
-	 pos_in_node_t(*nr_units) (const coord_t *);
+	/* number of atomic things in an item.
+	   NOTE FOR CONTRIBUTORS: use a generic method
+	   nr_units_single_unit() for solid (atomic) items, as
+	   tree operations use it as a criterion of solidness
+	   (see is_solid_item macro) */
+	pos_in_node_t(*nr_units) (const coord_t *);
 
 	/* search within item for a unit within the item, and return a
 	   pointer to it.  This can be used to calculate how many
@@ -286,6 +290,8 @@ struct item_plugin {
 
 };
 
+#define is_solid_item(iplug) ((iplug)->b.nr_units == nr_units_single_unit)
+
 static inline item_id item_id_by_plugin(item_plugin * plugin)
 {
 	return plugin->h.id;
@@ -326,13 +332,13 @@ extern int item_is_statdata(const coord_t * item);
 extern int item_is_ctail(const coord_t *);
 
 extern pos_in_node_t item_length_by_coord(const coord_t * coord);
+extern pos_in_node_t nr_units_single_unit(const coord_t * coord);
 extern item_id item_id_by_coord(const coord_t * coord /* coord to query */ );
 extern reiser4_key *item_key_by_coord(const coord_t * coord, reiser4_key * key);
 extern reiser4_key *max_item_key_by_coord(const coord_t *, reiser4_key *);
 extern reiser4_key *unit_key_by_coord(const coord_t * coord, reiser4_key * key);
 extern reiser4_key *max_unit_key_by_coord(const coord_t * coord,
 					  reiser4_key * key);
-
 extern void obtain_item_plugin(const coord_t * coord);
 
 #if defined(REISER4_DEBUG)

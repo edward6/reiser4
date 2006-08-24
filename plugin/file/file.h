@@ -82,14 +82,6 @@ typedef struct unix_file_info {
 	 * take write-lock.
 	 */
 	struct rw_semaphore latch;
-	/*
-	 * this semaphore is used to serialize writes instead of inode->i_mutex,
-	 * because write_unix_file uses get_user_pages which is to be used
-	 * under mm->mmap_sem and because it is required to take mm->mmap_sem
-	 * before inode->i_mutex, so inode->i_mutex would have to be unlocked
-	 * before calling to get_user_pages which is unacceptable
-	 */
-	struct semaphore write;
 	/* this enum specifies which items are used to build the file */
 	file_container_t container;
 	/*
@@ -156,6 +148,24 @@ struct hint {
 	lock_handle lh;
 };
 
+static inline int hint_is_valid(hint_t * hint)
+{
+	return hint->ext_coord.valid;
+}
+
+static inline void hint_set_valid(hint_t * hint)
+{
+	hint->ext_coord.valid = 1;
+}
+
+static inline void hint_clr_valid(hint_t * hint)
+{
+	hint->ext_coord.valid = 0;
+}
+
+int load_file_hint(struct file *, hint_t *);
+void save_file_hint(struct file *, const hint_t *);
+void hint_init_zero(hint_t *);
 void set_hint(hint_t *, const reiser4_key *, znode_lock_mode);
 int hint_is_set(const hint_t *);
 void unset_hint(hint_t *);
@@ -192,16 +202,29 @@ void destroy_inode_symlink(struct inode *);
 
 /* inode operations */
 int setattr_cryptcompress(struct dentry *, struct iattr *);
+int prot_setattr_cryptcompress(struct dentry *, struct iattr *);
 
 /* file operations */
 ssize_t read_cryptcompress(struct file *, char __user *buf, size_t read_amount,
 			   loff_t * off);
+ssize_t prot_read_cryptcompress(struct file *, char __user *buf,
+				size_t read_amount, loff_t * off);
+
+int prepare_write_cryptcompress(struct file *file, struct page *page,
+				unsigned from, unsigned to);
 ssize_t write_cryptcompress(struct file *, const char __user *buf, size_t write_amount,
-			    loff_t * off);
+			    loff_t * off, int * conv);
+ssize_t prot_write_cryptcompress(struct file *, const char __user *buf, size_t write_amount,
+				 loff_t * off);
 int mmap_cryptcompress(struct file *, struct vm_area_struct *);
+int prot_mmap_cryptcompress(struct file *, struct vm_area_struct *);
 ssize_t sendfile_cryptcompress(struct file *file, loff_t *ppos, size_t count,
 			       read_actor_t actor, void *target);
+ssize_t prot_sendfile_cryptcompress(struct file *file, loff_t *ppos, size_t count,
+				    read_actor_t actor, void *target);
+
 int release_cryptcompress(struct inode *, struct file *);
+int prot_release_cryptcompress(struct inode *, struct file *);
 
 /* address space operations */
 extern int readpage_cryptcompress(struct file *, struct page *);
@@ -214,7 +237,8 @@ int flow_by_inode_cryptcompress(struct inode *, const char __user *buf,
 int key_by_inode_cryptcompress(struct inode *, loff_t off, reiser4_key *);
 int create_cryptcompress(struct inode *, struct inode *,
 			 reiser4_object_create_data *);
-int delete_cryptcompress(struct inode *);
+int delete_object_cryptcompress(struct inode *);
+int prot_delete_object_cryptcompress(struct inode *);
 void init_inode_data_cryptcompress(struct inode *, reiser4_object_create_data *,
 				   int create);
 int cut_tree_worker_cryptcompress(tap_t *, const reiser4_key * from_key,
@@ -223,6 +247,7 @@ int cut_tree_worker_cryptcompress(tap_t *, const reiser4_key * from_key,
 				  struct inode *object, int truncate,
 				  int *progress);
 void destroy_inode_cryptcompress(struct inode *);
+int open_object_cryptcompress(struct inode * inode, struct file * file);
 
 extern reiser4_plugin_ops cryptcompress_plugin_ops;
 

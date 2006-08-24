@@ -56,7 +56,7 @@ static loff_t off_by_coord(const coord_t * coord)
 	return get_key_offset(item_key_by_coord(coord, &key));
 }
 
-static int coord_is_unprepped_ctail(const coord_t * coord)
+int coord_is_unprepped_ctail(const coord_t * coord)
 {
 	assert("edward-1233", coord != NULL);
 	assert("edward-1234", item_id_by_coord(coord) == CTAIL_ID);
@@ -524,7 +524,7 @@ int read_ctail(struct file *file UNUSED_ARG, flow_t * f, hint_t * hint)
 		memcpy(f->data, (char *)first_unit(coord),
 		       (size_t) nr_units_ctail(coord));
 
-	dclust_set_extension(hint);
+	dclust_set_extension_shift(hint);
 	mark_page_accessed(znode_page(coord->node));
 	move_flow_forward(f, nr_units_ctail(coord));
 
@@ -534,9 +534,10 @@ int read_ctail(struct file *file UNUSED_ARG, flow_t * f, hint_t * hint)
 /* Reads a disk cluster consists of ctail items,
    attaches a transform stream with plain text */
 int ctail_read_disk_cluster(reiser4_cluster_t * clust, struct inode *inode,
-			    int write)
+			    znode_lock_mode mode)
 {
 	int result;
+	assert("edward-1450", mode == ZNODE_READ_LOCK || ZNODE_WRITE_LOCK);
 	assert("edward-671", clust->hint != NULL);
 	assert("edward-140", clust->dstat == INVAL_DISK_CLUSTER);
 	assert("edward-672", crc_inode_ok(inode));
@@ -546,17 +547,14 @@ int ctail_read_disk_cluster(reiser4_cluster_t * clust, struct inode *inode,
 	if (result)
 		return result;
 
-	result = find_cluster(clust, inode, 1 /* read */ , write);
+	result = find_disk_cluster(clust, inode, 1 /* read items */, mode);
 	assert("edward-1340", !result);
 	if (result)
 		return result;
-	if (!write)
+	if (mode == ZNODE_READ_LOCK)
 		/* write still need the lock to insert unprepped
 		   items, etc... */
 		put_hint_cluster(clust, inode, ZNODE_READ_LOCK);
-
-	assert("edward-673",
-	       ergo(write, znode_is_write_locked(clust->hint->lh.node)));
 
 	if (clust->dstat == FAKE_DISK_CLUSTER ||
 	    clust->dstat == UNPR_DISK_CLUSTER) {
@@ -575,7 +573,7 @@ int ctail_read_disk_cluster(reiser4_cluster_t * clust, struct inode *inode,
 
 /* read one locked page */
 int do_readpage_ctail(struct inode * inode, reiser4_cluster_t * clust,
-		      struct page *page)
+		      struct page *page, znode_lock_mode mode)
 {
 	int ret;
 	unsigned cloff;
@@ -591,7 +589,7 @@ int do_readpage_ctail(struct inode * inode, reiser4_cluster_t * clust,
 	if (!tfm_cluster_is_uptodate(&clust->tc)) {
 		clust->index = pg_to_clust(page->index, inode);
 		unlock_page(page);
-		ret = ctail_read_disk_cluster(clust, inode, 0 /* read */ );
+		ret = ctail_read_disk_cluster(clust, inode, mode);
 		lock_page(page);
 		if (ret)
 			return ret;
@@ -673,7 +671,8 @@ int readpage_ctail(void *vp, struct page *page)
 		return result;
 	}
 	assert("vs-25", hint->ext_coord.lh == &hint->lh);
-	result = do_readpage_ctail(page->mapping->host, clust, page);
+	result = do_readpage_ctail(page->mapping->host, clust, page,
+				   ZNODE_READ_LOCK);
 
 	assert("edward-213", PageLocked(page));
 	assert("edward-1163", ergo(!result, PageUptodate(page)));
@@ -690,8 +689,7 @@ int readpage_ctail(void *vp, struct page *page)
 	return result;
 }
 
-/* This unconditionally reads a disk cluster.
-   Helper function for ->readpages() */
+/* Helper function for ->readpages() */
 static int
 ctail_read_page_cluster(reiser4_cluster_t * clust, struct inode *inode)
 {
@@ -704,7 +702,7 @@ ctail_read_page_cluster(reiser4_cluster_t * clust, struct inode *inode)
 	result = prepare_page_cluster(inode, clust, 0 /* do not capture */ );
 	if (result)
 		return result;
-	result = ctail_read_disk_cluster(clust, inode, 0 /* read */ );
+	result = ctail_read_disk_cluster(clust, inode, ZNODE_READ_LOCK);
 	if (result)
 		goto out;
 	/* at this point stream with valid plain text is attached */
@@ -713,7 +711,7 @@ ctail_read_page_cluster(reiser4_cluster_t * clust, struct inode *inode)
 	for (i = 0; i < clust->nr_pages; i++) {
 		struct page *page = clust->pages[i];
 		lock_page(page);
-		result = do_readpage_ctail(inode, clust, page);
+		result = do_readpage_ctail(inode, clust, page, ZNODE_READ_LOCK);
 		unlock_page(page);
 		if (result)
 			break;
@@ -797,7 +795,7 @@ int readpages_ctail(struct file *file, struct address_space *mapping,
 		assert("edward-869", !tfm_cluster_is_uptodate(&clust.tc));
 		lock_page(page);
 
-		ret = do_readpage_ctail(inode, &clust, page);
+		ret = do_readpage_ctail(inode, &clust, page, ZNODE_READ_LOCK);
 		if (!pagevec_add(&lru_pvec, page))
 			__pagevec_lru_add(&lru_pvec);
 		if (ret) {

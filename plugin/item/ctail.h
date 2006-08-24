@@ -26,8 +26,10 @@ typedef enum {
 } dc_item_stat;
 
 typedef struct {
-	int shift;		/* we keep here a cpu value of cluster_shift field
-				   of ctail_item_format (see above) */
+	int shift; /* cpu value of cluster_shift field (see ctail_item_format
+		      above) for ctail items of prepped disk cluster, and
+		      UCTAIL_SHIFT for unprepped ones */
+	int dsize; /* size of a prepped disk cluster */
 } ctail_coord_extension_t;
 
 struct cut_list;

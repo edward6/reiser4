@@ -163,7 +163,7 @@ static reiser4_key *max_key_inside_single_key(const coord_t *
 }
 
 /* ->nr_units() method for items consisting of exactly one unit always */
-static pos_in_node_t
+pos_in_node_t
 nr_units_single_unit(const coord_t * coord UNUSED_ARG /* coord of item */ )
 {
 	return 1;

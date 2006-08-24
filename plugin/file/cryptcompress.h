@@ -16,6 +16,17 @@
 #define MAX_CLUSTER_NRPAGES (1U << MAX_CLUSTER_SHIFT >> PAGE_CACHE_SHIFT)
 #define DC_CHECKSUM_SIZE 4
 
+/* this mask contains all non-standard plugins that might
+   be present in reiser4-specific part of inode managed by
+   cryptcompress file plugin */
+#define cryptcompress_mask				\
+	((1 << PSET_FILE) |				\
+	 (1 << PSET_CLUSTER) |				\
+	 (1 << PSET_CIPHER) |				\
+	 (1 << PSET_DIGEST) |				\
+	 (1 << PSET_COMPRESSION) |			\
+	 (1 << PSET_COMPRESSION_MODE))
+
 static inline loff_t min_count(loff_t a, loff_t b)
 {
 	return (a < b ? a : b);
@@ -454,18 +465,20 @@ static inline int compression_is_on (cryptcompress_info_t * info)
 cryptcompress_info_t *cryptcompress_inode_data(const struct inode *);
 int equal_to_rdk(znode *, const reiser4_key *);
 int goto_right_neighbor(coord_t *, lock_handle *);
-int load_file_hint(struct file *, hint_t *);
-void save_file_hint(struct file *, const hint_t *);
-void hint_init_zero(hint_t *);
 int crc_inode_ok(struct inode *inode);
-extern int ctail_read_disk_cluster (reiser4_cluster_t *, struct inode *, int);
+int coord_is_unprepped_ctail(const coord_t * coord);
+extern int ctail_read_disk_cluster (reiser4_cluster_t *, struct inode *,
+				    znode_lock_mode mode);
 extern int do_readpage_ctail(struct inode *, reiser4_cluster_t *,
-			     struct page * page);
+			     struct page * page, znode_lock_mode mode);
 extern int ctail_insert_unprepped_cluster(reiser4_cluster_t * clust,
 					  struct inode * inode);
 extern int readpages_crc(struct file*, struct address_space*, struct list_head*, unsigned);
 int bind_cryptcompress(struct inode *child, struct inode *parent);
 void destroy_inode_cryptcompress(struct inode * inode);
+int grab_cluster_pages(struct inode *inode, reiser4_cluster_t * clust);
+int write_conversion_hook(struct file *file, struct inode * inode, loff_t pos,
+ 			  reiser4_cluster_t * clust, int * progress);
 crypto_stat_t * inode_crypto_stat (struct inode * inode);
 void inherit_crypto_stat_common(struct inode * parent, struct inode * object,
 				int (*can_inherit)(struct inode * child,

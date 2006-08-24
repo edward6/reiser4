@@ -219,7 +219,7 @@ static int reserve_tail2extent_iteration(struct inode *inode)
 }
 
 /* clear stat data's flag indicating that conversion is being converted */
-static int complete_conversion(struct inode *inode)
+int complete_conversion(struct inode *inode)
 {
 	int result;
 
@@ -473,7 +473,7 @@ int tail2extent(unix_file_info_t *uf_info)
 			 * non-exclusive access to a file. It is safe to drop
 			 * EA in the middle of tail2extent conversion because
 			 * write_unix_file/unix_setattr(truncate)/release_unix_file(extent2tail)
-			 * are serialized by uf_info->write semaphore and
+			 * are serialized by reiser4_inode->mutex_write semaphore and
 			 * because read_unix_file works (should at least) on
 			 * partially converted files
 			 */

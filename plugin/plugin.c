@@ -309,6 +309,8 @@ static void update_pset_mask(reiser4_inode * info, pset_member memb)
 	struct dentry *rootdir;
 	reiser4_inode *root;
 
+	assert("edward-1443", memb != PSET_FILE);
+
 	rootdir = inode_by_reiser4_inode(info)->i_sb->s_root;
 	if (rootdir != NULL) {
 		root = reiser4_inode_data(rootdir->d_inode);
@@ -319,11 +321,9 @@ static void update_pset_mask(reiser4_inode * info, pset_member memb)
 		if (pset_get(info->pset, memb) != 
 		    pset_get(root->pset, memb) ||
 		    info == root)
-		{
 			info->plugin_mask |= (1 << memb);
-		} else {
+		else
 			info->plugin_mask &= ~(1 << memb);
-		}
 	}
 }
 
@@ -384,10 +384,10 @@ int force_plugin_pset(struct inode *self, pset_member memb, reiser4_plugin * plu
 	else
 		result = pset_set_unsafe(&info->pset, memb, plug);
 	if (result == 0) {
-		__u16 mask = info->plugin_mask;
+		__u16 oldmask = info->plugin_mask;
 		
 		update_pset_mask(info, memb);
-		if (mask != info->plugin_mask)
+		if (oldmask != info->plugin_mask)
 			inode_clr_flag(self, REISER4_SDLEN_KNOWN);
 	}
 	return result;

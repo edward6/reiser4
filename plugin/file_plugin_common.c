@@ -743,6 +743,75 @@ locate_inode_sd(struct inode *inode,
 	return result;
 }
 
+#if REISER4_DEBUG
+void edward_break_sd(void){;}
+
+static int all_but_offset_key_eq(const reiser4_key * k1, const reiser4_key * k2)
+{
+	return (get_key_locality(k1) == get_key_locality(k2) &&
+		get_key_type(k1) == get_key_type(k2) &&
+		get_key_band(k1) == get_key_band(k2) &&
+		get_key_ordering(k1) == get_key_ordering(k2) &&
+		get_key_objectid(k1) == get_key_objectid(k2));
+}
+
+#include "../tree_walk.h"
+
+/* make some checks before and after stat-data resize operation */
+static int check_sd_resize(struct inode * inode, coord_t * coord,
+			   int length, int progress /* 1 means after resize */)
+{
+	int ret = 0;
+	lock_handle left_lock;
+	coord_t left_coord;
+	reiser4_key left_key;
+	reiser4_key key;
+
+	if (inode_file_plugin(inode) != file_plugin_by_id(CRC_FILE_PLUGIN_ID))
+		return 0;
+	if (!length)
+		return 0;
+
+	if (progress == 0 &&
+	    (coord->item_pos == coord->node->nr_items - 1) &&
+	    node_plugin_by_node(coord->node)->free_space(coord->node) < length)
+		edward_break_sd();
+
+	if (coord->item_pos != 0)
+		return 0;
+
+	init_lh(&left_lock);
+	ret = reiser4_get_left_neighbor(&left_lock,
+					coord->node,
+					ZNODE_WRITE_LOCK,
+					GN_CAN_USE_UPPER_LEVELS);
+	if (ret == -E_REPEAT || ret == -E_NO_NEIGHBOR ||
+	    ret == -ENOENT || ret == -EINVAL
+	    || ret == -E_DEADLOCK) {
+		ret = 0;
+		goto exit;
+	}
+	if (ret)
+		edward_break_sd();
+	ret = zload(left_lock.node);
+	if (ret)
+		goto exit;
+	coord_init_last_unit(&left_coord, left_lock.node);
+	item_key_by_coord(&left_coord, &left_key);
+	item_key_by_coord(coord, &key);
+
+	if (all_but_offset_key_eq(&key, &left_key)) {
+		/* corruption occured */
+		ret = 1;
+		edward_break_sd();
+	}
+	zrelse(left_lock.node);
+ exit:
+	done_lh(&left_lock);
+	return ret;
+}
+#endif
+
 /* update stat-data at @coord */
 static int
 update_sd_at(struct inode *inode, coord_t * coord, reiser4_key * key,
@@ -798,9 +867,14 @@ update_sd_at(struct inode *inode, coord_t * coord, reiser4_key * key,
 
 	/* if on-disk stat data is of different length than required
 	   for this inode, resize it */
+
 	if (data.length != 0) {
 		data.data = NULL;
 		data.user = 0;
+
+		assert("edward-1441",
+		       !check_sd_resize(inode, coord,
+					data.length, 0/* before resize */));
 
 		/* insertion code requires that insertion point (coord) was
 		 * between units. */
@@ -821,8 +895,10 @@ update_sd_at(struct inode *inode, coord_t * coord, reiser4_key * key,
 				return result;
 			loaded = coord->node;
 		}
+		assert("edward-1442",
+		       !check_sd_resize(inode, coord,
+					data.length, 1/* after resize */));
 	}
-
 	area = item_body_by_coord(coord);
 	spin_lock_inode(inode);
 	result = data.iplug->s.sd.save(inode, &area);
@@ -931,11 +1007,13 @@ static int process_truncate(struct inode *inode, __u64 size)
 	return result;
 }
 
-/* Local variables:
-   c-indentation-style: "K&R"
-   mode-name: "LC"
-   c-basic-offset: 8
-   tab-width: 8
-   fill-column: 120
-   End:
+/*
+  Local variables:
+  c-indentation-style: "K&R"
+  mode-name: "LC"
+  c-basic-offset: 8
+  tab-width: 8
+  fill-column: 80
+  scroll-step: 1
+  End:
 */

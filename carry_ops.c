@@ -569,6 +569,24 @@ static int make_space(carry_op * op /* carry operation, insert or paste */ ,
 		    (blk_alloc > 0) ||
 		    coord_is_after_rightmost(op->u.insert.d->coord);
 
+		if (gointo &&
+		    op->op == COP_PASTE &&
+		    coord_is_existing_item(op->u.insert.d->coord) &&
+		    is_solid_item((item_plugin_by_coord(op->u.insert.d->coord)))) {
+			/* paste into solid (atomic) item, which can contain
+			   only one unit, so we need to shift it right, where
+			   insertion point supposed to be */
+
+			assert("edward-1444", op->u.insert.d->data->iplug ==
+			       item_plugin_by_id(STATIC_STAT_DATA_ID));
+			assert("edward-1445",
+			       op->u.insert.d->data->length >
+			       node_plugin_by_node(coord->node)->free_space
+			       (coord->node));
+
+			op->u.insert.d->coord->between = BEFORE_UNIT;
+		}
+
 		result = carry_shift_data(RIGHT_SIDE, coord, carry_real(fresh),
 					  doing, todo, gointo);
 		/* if insertion point was actually moved into new node,

@@ -112,9 +112,9 @@ typedef struct reiser4_stat_data_base {
 typedef struct reiser4_light_weight_stat {
 	/*  0 */ __le16 mode;
 	/*  2 */ __le32 nlink;
-	/*  8 */ __le64 size;
+	/*  6 */ __le64 size;
 	/* size in bytes */
-	/* 16 */
+	/* 14 */
 } PACKED reiser4_light_weight_stat;
 
 typedef struct reiser4_unix_stat {
@@ -186,12 +186,12 @@ typedef struct reiser4_crypto_stat {
 
 typedef struct reiser4_large_times_stat {
 	/* access time */
-	/*  0 */ d32 atime;
+	/* 0 */ d32 atime;
 	/* modification time */
-	/*  8 */ d32 mtime;
+	/* 4 */ d32 mtime;
 	/* change time */
-	/* 16 */ d32 ctime;
-	/* 24 */
+	/* 8 */ d32 ctime;
+	/* 12 */
 } PACKED reiser4_large_times_stat;
 
 /* this structure is filled by sd_item_stat */

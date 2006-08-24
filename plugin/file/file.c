@@ -1108,6 +1108,12 @@ long batch_write_unix_file(struct file *file,
 	return result;
 }
 
+ssize_t write_unix_file(struct file *file, const char __user *buf,
+			size_t count, loff_t *off)
+{
+	return do_sync_write(file, buf, count, off);
+}
+
 /*
  * Support for "anonymous" pages and jnodes.
  *
@@ -2113,7 +2119,7 @@ int mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 
 	uf_info = unix_file_inode_data(inode);
 
-	down(&uf_info->write);
+	down(&reiser4_inode_data(inode)->mutex_write);
 	get_exclusive_access(uf_info);
 
 	if (!IS_RDONLY(inode) && (vma->vm_flags & (VM_MAYWRITE | VM_SHARED))) {
@@ -2125,7 +2131,7 @@ int mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 		result = find_file_state(inode, uf_info);
 		if (result != 0) {
 			drop_exclusive_access(uf_info);
-			up(&uf_info->write);
+			up(&reiser4_inode_data(inode)->mutex_write);
 			reiser4_exit_context(ctx);
 			return result;
 		}
@@ -2141,7 +2147,7 @@ int mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 			result = check_pages_unix_file(file, inode);
 			if (result) {
 				drop_exclusive_access(uf_info);
-				up(&uf_info->write);
+				up(&reiser4_inode_data(inode)->mutex_write);
 				reiser4_exit_context(ctx);
 				return result;
 			}
@@ -2156,7 +2162,7 @@ int mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 	result = reiser4_grab_space_force(needed, BA_CAN_COMMIT);
 	if (result) {
 		drop_exclusive_access(uf_info);
-		up(&uf_info->write);
+		up(&reiser4_inode_data(inode)->mutex_write);
 		reiser4_exit_context(ctx);
 		return result;
 	}
@@ -2168,7 +2174,7 @@ int mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 	}
 
 	drop_exclusive_access(uf_info);
-	up(&uf_info->write);
+	up(&reiser4_inode_data(inode)->mutex_write);
 	reiser4_exit_context(ctx);
 	return result;
 }
@@ -2313,7 +2319,7 @@ int release_unix_file(struct inode *inode, struct file *file)
 	if (in_reiser4 == 0) {
 		uf_info = unix_file_inode_data(inode);
 
-		down(&uf_info->write);
+		down(&reiser4_inode_data(inode)->mutex_write);
 		get_exclusive_access(uf_info);
 		if (atomic_read(&file->f_dentry->d_count) == 1 &&
 		    uf_info->container == UF_CONTAINER_EXTENTS &&
@@ -2329,7 +2335,7 @@ int release_unix_file(struct inode *inode, struct file *file)
 			}
 		}
 		drop_exclusive_access(uf_info);
-		up(&uf_info->write);
+		up(&reiser4_inode_data(inode)->mutex_write);
 	} else {
 		/*
 		   we are within reiser4 context already. How latter is
@@ -2625,11 +2631,11 @@ int setattr_unix_file(struct dentry *dentry,	/* Object to change attributes */
 			return PTR_ERR(ctx);
 
 		uf_info = unix_file_inode_data(dentry->d_inode);
-		down(&uf_info->write);
+		down(&reiser4_inode_data(dentry->d_inode)->mutex_write);
 		get_exclusive_access(uf_info);
 		result = setattr_truncate(dentry->d_inode, attr);
 		drop_exclusive_access(uf_info);
-		up(&uf_info->write);
+		up(&reiser4_inode_data(dentry->d_inode)->mutex_write);
 		context_set_commit_async(ctx);
 		reiser4_exit_context(ctx);
 	} else
@@ -2648,7 +2654,6 @@ init_inode_data_unix_file(struct inode *inode,
 	data = unix_file_inode_data(inode);
 	data->container = create ? UF_CONTAINER_EMPTY : UF_CONTAINER_UNKNOWN;
 	init_rwsem(&data->latch);
-	sema_init(&data->write, 1);
 	data->tplug = inode_formatting_plugin(inode);
 	data->exclusive_use = 0;
 

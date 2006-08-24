@@ -36,14 +36,6 @@ static int turn_on_compression(struct inode *inode, cloff_t index)
 	return 0;
 }
 
-static int turn_off_compression_on_zero(struct inode *inode, cloff_t index)
-{
-	assert("edward-1308", inode != NULL);
-	if (index == 0)
-		toggle_compression(cryptcompress_inode_data(inode), 0);
-	return 0;
-}
-
 /* Check on lattice (COL) of some sparseness factor,
    the family of adaptive compression modes which define
    the following behavior:
@@ -104,24 +96,27 @@ compression_mode_plugin compression_mode_plugins[LAST_COMPRESSION_MODE_ID] = {
 		.accept_hook = NULL,
 		.discard_hook = NULL
 	},
-	/* Check-on-lattice adaptive compression modes */
+	/* Check-on-lattice adaptive compression modes.
+	   Turn compression on/off in flush time */
 	SUPPORT_COL_COMPRESSION_MODE(8, "col8"),
 	SUPPORT_COL_COMPRESSION_MODE(16, "col16"),
 	SUPPORT_COL_COMPRESSION_MODE(32, "col32"),
-	/* Turn off compression if logical cluster of index == 0
-	   is incompressible, then don't check anymore */
+	/* This compression mode enables file conversion, i.e. ->write() checks
+	   whether the first complete
+	   logical cluster (of index #0) is compressible. If not, then items are
+	   converted to extents, and management is passed to unix file plugin */
 	[COZ_COMPRESSION_MODE_ID] = {
 		.h = {
 			.type_id = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
 			.id = COZ_COMPRESSION_MODE_ID,
 			.pops = NULL,
 			.label = "coz",
-			.desc = "Check on zero",
+			.desc = "Convert on zero",
 			.linkage = {NULL, NULL}
 		},
 		.should_deflate = should_deflate_common,
 		.accept_hook = NULL,
-		.discard_hook = turn_off_compression_on_zero
+		.discard_hook = NULL
 	},
 	[FORCE_COMPRESSION_MODE_ID] = {
 		.h = {
@@ -129,7 +124,7 @@ compression_mode_plugin compression_mode_plugins[LAST_COMPRESSION_MODE_ID] = {
 			.id = FORCE_COMPRESSION_MODE_ID,
 			.pops = NULL,
 			.label = "force",
-			.desc = "Compress everything",
+			.desc = "Force to compress everything",
 			.linkage = {NULL, NULL}
 		},
 		.should_deflate = NULL,

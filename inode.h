@@ -59,7 +59,9 @@ typedef enum {
 	REISER4_HAS_MMAP = 8,
 
 	REISER4_PART_MIXED = 9,
-	REISER4_PART_IN_CONV = 10
+	REISER4_PART_IN_CONV = 10,
+	/* This flag indicates that file plugin conversion is in progress */
+	REISER4_FILE_CONV_IN_PROGRESS = 11
 } reiser4_file_plugin_flags;
 
 /* state associated with each inode.
@@ -132,6 +134,20 @@ struct reiser4_inode {
 		/* fields specific to cryptcompress plugin */
 		cryptcompress_info_t cryptcompress_info;
 	} file_plugin_data;
+
+ 	/* this semaphore is used to serialize writes of any file plugin,
+	 * and should be invariant during file plugin conversion (which
+	 * is going in the context of ->write()).
+ 	 * inode->i_mutex can not be used for the serialization, because
+ 	 * write_unix_file uses get_user_pages which is to be used under
+ 	 * mm->mmap_sem and because it is required to take mm->mmap_sem before
+ 	 * inode->i_mutex, so inode->i_mutex would have to be up()-ed before
+ 	 * calling to get_user_pages which is unacceptable. */
+ 	struct semaphore mutex_write;
+
+	/* this semaphore is to serialize readers and writers of @pset->file
+	 * when file plugin conversion is enabled */
+ 	struct rw_semaphore conv_sem;
 
 	/* tree of jnodes. Phantom jnodes (ones not attched to any atom) are
 	   tagged in that tree by EFLUSH_TAG_ANONYMOUS */
