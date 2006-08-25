@@ -9,15 +9,17 @@
  *
  *     panicking: reiser4_do_panic(), reiser4_print_prefix().
  *
- *     locking: schedulable(), lock_counters(), print_lock_counters(),
- *     no_counters_are_held(), commit_check_locks()
+ *     locking:
+ *     reiser4_schedulable(), reiser4_lock_counters(), print_lock_counters(),
+ *     reiser4_no_counters_are_held(), reiser4_commit_check_locks()
  *
- *     error code monitoring (see comment before RETERR macro): return_err(),
- *     report_err().
+ *     error code monitoring (see comment before RETERR macro):
+ *     reiser4_return_err(), reiser4_report_err().
  *
  *     stack back-tracing: fill_backtrace()
  *
- *     miscellaneous: preempt_point(), call_on_each_assert(), debugtrap().
+ *     miscellaneous: reiser4_preempt_point(), call_on_each_assert(),
+ *     reiser4_debugtrap().
  *
  */
 
@@ -39,9 +41,9 @@
 #include <linux/hardirq.h>
 
 #if REISER4_DEBUG
-static void report_err(void);
+static void reiser4_report_err(void);
 #else
-#define report_err() noop
+#define reiser4_report_err() noop
 #endif
 
 /*
@@ -110,14 +112,14 @@ reiser4_print_prefix(const char *level, int reperr, const char *mid,
 	printk("%sreiser4[%.16s(%i)]: %s (%s:%i)[%s]:\n",
 	       level, comm, pid, function, file, lineno, mid);
 	if (reperr)
-		report_err();
+		reiser4_report_err();
 }
 
 /* Preemption point: this should be called periodically during long running
    operations (carry, allocate, and squeeze are best examples) */
-int preempt_point(void)
+int reiser4_preempt_point(void)
 {
-	assert("nikita-3008", schedulable());
+	assert("nikita-3008", reiser4_schedulable());
 	cond_resched();
 	return signal_pending(current);
 }
@@ -128,7 +130,7 @@ int preempt_point(void)
    constraints and various assertions.
 
 */
-lock_counters_info *lock_counters(void)
+reiser4_lock_counters_info *reiser4_lock_counters(void)
 {
 	reiser4_context *ctx = get_current_context();
 	assert("jmacd-1123", ctx != NULL);
@@ -139,7 +141,7 @@ lock_counters_info *lock_counters(void)
  * print human readable information about locks held by the reiser4 context.
  */
 static void print_lock_counters(const char *prefix,
-				const lock_counters_info * info)
+				const reiser4_lock_counters_info * info)
 {
 	printk("%s: jnode: %i, tree: %i (r:%i,w:%i), dk: %i (r:%i,w:%i)\n"
 	       "jload: %i, "
@@ -173,11 +175,11 @@ static void print_lock_counters(const char *prefix,
 }
 
 /* check that no spinlocks are held */
-int schedulable(void)
+int reiser4_schedulable(void)
 {
 	if (get_current_context_check() != NULL) {
 		if (!LOCK_CNT_NIL(spin_locked)) {
-			print_lock_counters("in atomic", lock_counters());
+			print_lock_counters("in atomic", reiser4_lock_counters());
 			return 0;
 		}
 	}
@@ -187,11 +189,11 @@ int schedulable(void)
 /*
  * return true, iff no locks are held.
  */
-int no_counters_are_held(void)
+int reiser4_no_counters_are_held(void)
 {
-	lock_counters_info *counters;
+	reiser4_lock_counters_info *counters;
 
-	counters = lock_counters();
+	counters = reiser4_lock_counters();
 	return
 	    (counters->spin_locked_zlock == 0) &&
 	    (counters->spin_locked_jnode == 0) &&
@@ -216,9 +218,9 @@ int no_counters_are_held(void)
  * return true, iff transaction commit can be done under locks held by the
  * current thread.
  */
-int commit_check_locks(void)
+int reiser4_commit_check_locks(void)
 {
-	lock_counters_info *counters;
+	reiser4_lock_counters_info *counters;
 	int inode_sem_r;
 	int inode_sem_w;
 	int result;
@@ -228,12 +230,12 @@ int commit_check_locks(void)
 	 * held during commit.
 	 */
 
-	counters = lock_counters();
+	counters = reiser4_lock_counters();
 	inode_sem_r = counters->inode_sem_r;
 	inode_sem_w = counters->inode_sem_w;
 
 	counters->inode_sem_r = counters->inode_sem_w = 0;
-	result = no_counters_are_held();
+	result = reiser4_no_counters_are_held();
 	counters->inode_sem_r = inode_sem_r;
 	counters->inode_sem_w = inode_sem_w;
 	return result;
@@ -243,7 +245,7 @@ int commit_check_locks(void)
  * fill "error site" in the current reiser4 context. See comment before RETERR
  * macro for more details.
  */
-void return_err(int code, const char *file, int line)
+void reiser4_return_err(int code, const char *file, int line)
 {
 	if (code < 0 && is_in_reiser4_context()) {
 		reiser4_context *ctx = get_current_context();
@@ -257,9 +259,9 @@ void return_err(int code, const char *file, int line)
 }
 
 /*
- * report error information recorder by return_err().
+ * report error information recorder by reiser4_return_err().
  */
-static void report_err(void)
+static void reiser4_report_err(void)
 {
 	reiser4_context *ctx = get_current_context_check();
 
@@ -279,7 +281,7 @@ static void report_err(void)
  * this functions just drops into kernel debugger. It is a convenient place to
  * put breakpoint in.
  */
-void debugtrap(void)
+void reiser4_debugtrap(void)
 {
 	/* do nothing. Put break point here. */
 #if defined(CONFIG_KGDB) && !defined(CONFIG_REISER4_FS_MODULE)

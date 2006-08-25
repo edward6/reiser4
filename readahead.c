@@ -11,9 +11,9 @@
 
 #include <linux/swap.h>		/* for totalram_pages */
 
-void init_ra_info(ra_info_t * rai)
+void reiser4_init_ra_info(ra_info_t * rai)
 {
-	rai->key_to_stop = *min_key();
+	rai->key_to_stop = *reiser4_min_key();
 }
 
 /* global formatted node readahead parameter. It can be set by mount option -o readahead:NUM:1 */
@@ -54,7 +54,7 @@ void formatted_readahead(znode * node, ra_info_t * info)
 	lock_handle next_lh;
 
 	/* do nothing if node block number has not been assigned to node (which means it is still in cache). */
-	if (blocknr_is_fake(znode_get_block(node)))
+	if (reiser4_blocknr_is_fake(znode_get_block(node)))
 		return;
 
 	ra_params = get_current_super_ra_params();
@@ -88,7 +88,7 @@ void formatted_readahead(znode * node, ra_info_t * info)
 			break;
 
 		nextblk = znode_get_block(next_lh.node);
-		if (blocknr_is_fake(nextblk) ||
+		if (reiser4_blocknr_is_fake(nextblk) ||
 		    (ra_adjacent_only(ra_params->flags)
 		     && *nextblk != *znode_get_block(cur) + 1)) {
 			break;
@@ -122,9 +122,9 @@ void reiser4_readdir_readahead_init(struct inode *dir, tap_t * tap)
 	 * stat data of all files of the directory */
 	set_key_locality(stop_key, get_inode_oid(dir));
 	set_key_type(stop_key, KEY_SD_MINOR);
-	set_key_ordering(stop_key, get_key_ordering(max_key()));
-	set_key_objectid(stop_key, get_key_objectid(max_key()));
-	set_key_offset(stop_key, get_key_offset(max_key()));
+	set_key_ordering(stop_key, get_key_ordering(reiser4_max_key()));
+	set_key_objectid(stop_key, get_key_objectid(reiser4_max_key()));
+	set_key_offset(stop_key, get_key_offset(reiser4_max_key()));
 }
 
 /*

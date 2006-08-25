@@ -94,7 +94,7 @@
 	type _result = 0;						\
 	struct rw_semaphore * guard =					\
 		&reiser4_inode_data(inode)->conv_sem;			\
-	reiser4_context * ctx =	init_context(inode->i_sb);		\
+	reiser4_context * ctx =	reiser4_init_context(inode->i_sb);	\
 	if (IS_ERR(ctx))						\
 		return PTR_ERR(ctx);					\
 									\
@@ -132,7 +132,7 @@ static int __cryptcompress2unixfile(struct file *file, struct inode * inode)
 	/* get rid of plugin stat-data extension */
 	info->extmask &= ~(1 << PLUGIN_STAT);
 
-	inode_clr_flag(inode, REISER4_SDLEN_KNOWN);
+	reiser4_inode_clr_flag(inode, REISER4_SDLEN_KNOWN);
 
 	/* FIXME use init_inode_data_unix_file() instead,
 	   but aviod init_inode_ordering() */
@@ -266,7 +266,7 @@ static void finish_check_compressibility(struct inode * inode,
 					 reiser4_cluster_t * clust,
 					 hint_t * hint)
 {
-	unset_hint(clust->hint);
+	reiser4_unset_hint(clust->hint);
 	clust->hint = hint;
 	clust->index ++;
 }
@@ -362,7 +362,7 @@ static int read_check_compressibility(struct inode * inode,
 					     inode_cluster_size(inode));
 	return 0;
  error:
-	release_cluster_pages(clust);
+	reiser4_release_cluster_pages(clust);
 	return result;
 }
 
@@ -376,7 +376,8 @@ static int cut_disk_cluster(struct inode * inode, cloff_t idx)
 	to = from;
 	set_key_offset(&to,
 		       get_key_offset(&from) + inode_cluster_size(inode) - 1);
-	return cut_tree(tree_by_inode(inode), &from, &to, inode, 0);
+	return reiser4_cut_tree(reiser4_tree_by_inode(inode),
+				&from, &to, inode, 0);
 }
 
 static int reserve_cryptcompress2unixfile(struct inode *inode)
@@ -384,7 +385,7 @@ static int reserve_cryptcompress2unixfile(struct inode *inode)
 	reiser4_block_nr unformatted_nodes;
 	reiser4_tree *tree;
 
-	tree = tree_by_inode(inode);
+	tree = reiser4_tree_by_inode(inode);
 
 	/* number of unformatted nodes which will be created */
 	unformatted_nodes = cluster_nrpages(inode); /* N */
@@ -425,7 +426,7 @@ static int complete_file_conversion(struct inode *inode)
 	    reiser4_grab_space(inode_file_plugin(inode)->estimate.update(inode),
 			       BA_CAN_COMMIT);
 	if (result == 0) {
-		inode_clr_flag(inode, REISER4_FILE_CONV_IN_PROGRESS);
+		reiser4_inode_clr_flag(inode, REISER4_FILE_CONV_IN_PROGRESS);
 		result = reiser4_update_sd(inode);
 	}
 	if (result)
@@ -453,8 +454,8 @@ int cryptcompress2unixfile(struct file *file, struct inode * inode,
 	result = reserve_cryptcompress2unixfile(inode);
 	if (result)
 		goto out;
-	inode_set_flag(inode, REISER4_FILE_CONV_IN_PROGRESS);
-	unset_hint(clust->hint);
+	reiser4_inode_set_flag(inode, REISER4_FILE_CONV_IN_PROGRESS);
+	reiser4_unset_hint(clust->hint);
 	result = cut_disk_cluster(inode, 0);
 	if (result)
 		goto out;
@@ -521,7 +522,7 @@ int write_conversion_hook(struct file *file, struct inode * inode, loff_t pos,
 	else
 		result = disable_conversion(inode);
 
-	release_cluster_pages(clust);
+	reiser4_release_cluster_pages(clust);
 	return result;
 }
 

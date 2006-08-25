@@ -54,7 +54,7 @@ typedef struct {
 	   For items that occupy exactly one key (like stat-data)
 	   this method should return this key. For items that can
 	   grow indefinitely (extent, directory item) this should
-	   return max_key().
+	   return reiser4_max_key().
 
 	   For example extent with the key
 
@@ -93,8 +93,8 @@ typedef struct {
 	   item */
 	int (*init) (coord_t * target, coord_t * from,
 		     reiser4_item_data * data);
-	/* method called (e.g., by resize_item()) to place new data into
-	   item when it grows */
+	/* method called (e.g., by reiser4_resize_item()) to place new data
+	   into item when it grows */
 	int (*paste) (coord_t *, reiser4_item_data *, carry_plugin_info *);
 	/* return true if paste into @coord is allowed to skip
 	   carry. That is, if such paste would require any changes

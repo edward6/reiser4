@@ -177,12 +177,12 @@ static int get_super_jnode(struct super_block *s)
 	jnode *sb_jnode;
 	int ret;
 
-	sb_jnode = alloc_io_head(&get_sb_info(s)->loc.super);
+	sb_jnode = reiser4_alloc_io_head(&get_sb_info(s)->loc.super);
 
 	ret = jload(sb_jnode);
 
 	if (ret) {
-		drop_io_head(sb_jnode);
+		reiser4_drop_io_head(sb_jnode);
 		return ret;
 	}
 
@@ -200,7 +200,7 @@ static void done_super_jnode(struct super_block *s)
 
 	if (sb_jnode) {
 		unpin_jnode_data(sb_jnode);
-		drop_io_head(sb_jnode);
+		reiser4_drop_io_head(sb_jnode);
 	}
 }
 
@@ -225,7 +225,8 @@ static format40_disk_super_block *copy_sb(const struct buffer_head *super_bh)
 {
 	format40_disk_super_block *sb_copy;
 
-	sb_copy = kmalloc(sizeof(format40_disk_super_block), get_gfp_mask());
+	sb_copy = kmalloc(sizeof(format40_disk_super_block),
+			  reiser4_ctx_gfp_mask_get());
 	if (sb_copy == NULL)
 		return ERR_PTR(RETERR(-ENOMEM));
 	memcpy(sb_copy, ((format40_disk_super_block *) super_bh->b_data),
@@ -281,7 +282,7 @@ static int try_init_format40(struct super_block *super,
 	/* ok, we are sure that filesystem format is a format40 format */
 	
 	/* map jnodes for journal control blocks (header, footer) to disk  */
-	result = init_journal_info(super);
+	result = reiser4_init_journal_info(super);
 	if (result)
 		return result;
 	*stage = INIT_JOURNAL_INFO;
@@ -378,7 +379,7 @@ static int try_init_format40(struct super_block *super,
 	sbinfo = get_super_private(super);
 	assert("", sbinfo->tree.super == super);
 	/* init reiser4_tree for the filesystem */
-	result = init_tree(&sbinfo->tree, &root_block, height, nplug);
+	result = reiser4_init_tree(&sbinfo->tree, &root_block, height, nplug);
 	if (result) {
 		kfree(sb_copy);
 		return result;
@@ -440,7 +441,8 @@ static int try_init_format40(struct super_block *super,
 #endif
 
 	/* init disk space allocator */
-	result = sa_init_allocator(get_space_allocator(super), super, NULL);
+	result = sa_init_allocator(reiser4_get_space_allocator(super),
+				   super, NULL);
 	if (result)
 		return result;
 	*stage = INIT_SA;
@@ -465,10 +467,10 @@ int init_format_format40(struct super_block *s, void *data UNUSED_ARG)
 	case INIT_JNODE:
 		done_super_jnode(s);
 	case INIT_SA:
-		sa_destroy_allocator(get_space_allocator(s), s);
+		sa_destroy_allocator(reiser4_get_space_allocator(s), s);
 	case JOURNAL_RECOVER:
 	case INIT_TREE:
-		done_tree(&get_super_private(s)->tree);
+		reiser4_done_tree(&get_super_private(s)->tree);
 	case INIT_OID:
 	case KEY_CHECK:
 	case READ_SUPER:
@@ -476,7 +478,7 @@ int init_format_format40(struct super_block *s, void *data UNUSED_ARG)
 	case INIT_STATUS:
 		reiser4_status_finish();
 	case INIT_JOURNAL_INFO:
-		done_journal_info(s);
+		reiser4_done_journal_info(s);
 	case FIND_A_SUPER:
 	case CONSULT_DISKMAP:
 	case NONE_DONE:
@@ -554,9 +556,10 @@ int release_format40(struct super_block *s)
 	assert("zam-579", sbinfo != NULL);
 
 	if (!rofs_super(s)) {
-		ret = capture_super_block(s);
+		ret = reiser4_capture_super_block(s);
 		if (ret != 0)
-			warning("vs-898", "capture_super_block failed: %d",
+			warning("vs-898",
+				"reiser4_capture_super_block failed: %d",
 				ret);
 
 		ret = txnmgr_force_commit_all(s, 1);
@@ -567,13 +570,13 @@ int release_format40(struct super_block *s)
 	}
 
 	sa_destroy_allocator(&sbinfo->space_allocator, s);
-	done_journal_info(s);
+	reiser4_done_journal_info(s);
 	done_super_jnode(s);
 
 	rcu_barrier();
-	done_tree(&sbinfo->tree);
+	reiser4_done_tree(&sbinfo->tree);
 	/* call finish_rcu(), because some znode were "released" in
-	 * done_tree(). */
+	 * reiser4_done_tree(). */
 	rcu_barrier();
 
 	return 0;
@@ -656,7 +659,7 @@ int version_update_format40(struct super_block *super) {
 	
 	/* Mark the uber znode dirty to call log_super on write_logs. */
 	init_lh(&lh);
-	ret = get_uber_znode(get_tree(super), ZNODE_WRITE_LOCK, 
+	ret = get_uber_znode(reiser4_get_tree(super), ZNODE_WRITE_LOCK, 
 			     ZNODE_LOCK_HIPRI, &lh);
 	if (ret != 0)
 		return ret;

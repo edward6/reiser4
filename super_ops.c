@@ -109,7 +109,7 @@ static struct inode *reiser4_alloc_inode(struct super_block *super)
 #if !REISER4_INO_IS_OID
 		info->oid_hi = 0;
 #endif
-		seal_init(&info->sd_seal, NULL, NULL);
+		reiser4_seal_init(&info->sd_seal, NULL, NULL);
 		coord_init_invalid(&info->sd_coord, NULL);
 		info->flags = 0;
 		spin_lock_init(&info->guard);
@@ -140,7 +140,7 @@ static void reiser4_destroy_inode(struct inode *inode)
 		if (fplug->destroy_inode != NULL)
 			fplug->destroy_inode(inode);
 	}
-	dispose_cursors(inode);
+	reiser4_dispose_cursors(inode);
 	if (info->pset)
 		plugin_set_put(info->pset);
 	if (info->hset)
@@ -196,7 +196,7 @@ static void reiser4_delete_inode(struct inode *inode)
 	reiser4_context *ctx;
 	file_plugin *fplug;
 
-	ctx = init_context(inode->i_sb);
+	ctx = reiser4_init_context(inode->i_sb);
 	if (IS_ERR(ctx)) {
 		warning("vs-15", "failed to init context");
 		return;
@@ -232,7 +232,7 @@ static void reiser4_put_super(struct super_block *super)
 	debugfs_remove(sbinfo->tmgr.debugfs_id_count);
 	debugfs_remove(sbinfo->debugfs_root);
 
-	ctx = init_context(super);
+	ctx = reiser4_init_context(super);
 	if (IS_ERR(ctx)) {
 		warning("vs-17", "failed to init context");
 		return;
@@ -242,14 +242,14 @@ static void reiser4_put_super(struct super_block *super)
 	if (get_super_private(super)->df_plug->release)
 		get_super_private(super)->df_plug->release(super);
 
-	done_formatted_fake(super);
+	reiser4_done_formatted_fake(super);
 
 	/* stop daemons: ktxnmgr and entd */
-	done_entd(super);
-	done_ktxnmgrd(super);
-	done_txnmgr(&sbinfo->tmgr);
+	reiser4_done_entd(super);
+	reiser4_done_ktxnmgrd(super);
+	reiser4_done_txnmgr(&sbinfo->tmgr);
 
-	done_fs_info(super);
+	reiser4_done_fs_info(super);
 	reiser4_exit_context(ctx);
 }
 
@@ -266,16 +266,17 @@ static void reiser4_write_super(struct super_block *super)
 
 	assert("vs-1700", !rofs_super(super));
 
-	ctx = init_context(super);
+	ctx = reiser4_init_context(super);
 	if (IS_ERR(ctx)) {
 		warning("vs-16", "failed to init context");
 		return;
 	}
 
-	ret = capture_super_block(super);
+	ret = reiser4_capture_super_block(super);
 	if (ret != 0)
 		warning("vs-1701",
-			"capture_super_block failed in write_super: %d", ret);
+			"reiser4_capture_super_block failed in write_super: %d",
+			ret);
 	ret = txnmgr_force_commit_all(super, 0);
 	if (ret != 0)
 		warning("jmacd-77113",
@@ -306,11 +307,11 @@ static int reiser4_statfs(struct dentry *dentry, struct kstatfs *statfs)
 	assert("nikita-408", super != NULL);
 	assert("nikita-409", statfs != NULL);
 
-	ctx = init_context(super);
+	ctx = reiser4_init_context(super);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 
-	statfs->f_type = statfs_type(super);
+	statfs->f_type = reiser4_statfs_type(super);
 	statfs->f_bsize = super->s_blocksize;
 
 	/*
@@ -406,7 +407,7 @@ static void reiser4_sync_inodes(struct super_block *super,
 	to_write = wbc->nr_to_write;
 	assert("vs-49", wbc->older_than_this == NULL);
 
-	ctx = init_context(super);
+	ctx = reiser4_init_context(super);
 	if (IS_ERR(ctx)) {
 		warning("vs-13", "failed to init context");
 		return;
@@ -420,7 +421,7 @@ static void reiser4_sync_inodes(struct super_block *super,
 
 	/* flush goes here */
 	wbc->nr_to_write = to_write;
-	writeout(super, wbc);
+	reiser4_writeout(super, wbc);
 
 	/* avoid recursive calls to ->sync_inodes */
 	context_set_commit_async(ctx);
@@ -486,31 +487,31 @@ static int fill_super(struct super_block *super, void *data, int silent)
 	init_stack_context(&ctx, super);
 
 	/* allocate reiser4 specific super block */
-	if ((result = init_fs_info(super)) != 0)
+	if ((result = reiser4_init_fs_info(super)) != 0)
 		goto failed_init_sinfo;
 
 	sbinfo = get_super_private(super);
 	/* initialize various reiser4 parameters, parse mount options */
-	if ((result = init_super_data(super, data)) != 0)
+	if ((result = reiser4_init_super_data(super, data)) != 0)
 		goto failed_init_super_data;
 
 	/* read reiser4 master super block, initialize disk format plugin */
-	if ((result = init_read_super(super, silent)) != 0)
+	if ((result = reiser4_init_read_super(super, silent)) != 0)
 		goto failed_init_read_super;
 
 	/* initialize transaction manager */
-	init_txnmgr(&sbinfo->tmgr);
+	reiser4_init_txnmgr(&sbinfo->tmgr);
 
 	/* initialize ktxnmgrd context and start kernel thread ktxnmrgd */
-	if ((result = init_ktxnmgrd(super)) != 0)
+	if ((result = reiser4_init_ktxnmgrd(super)) != 0)
 		goto failed_init_ktxnmgrd;
 
 	/* initialize entd context and start kernel thread entd */
-	if ((result = init_entd(super)) != 0)
+	if ((result = reiser4_init_entd(super)) != 0)
 		goto failed_init_entd;
 
 	/* initialize address spaces for formatted nodes and bitmaps */
-	if ((result = init_formatted_fake(super)) != 0)
+	if ((result = reiser4_init_formatted_fake(super)) != 0)
 		goto failed_init_formatted_fake;
 
 	/* initialize disk format plugin */
@@ -526,7 +527,7 @@ static int fill_super(struct super_block *super, void *data, int silent)
 	sbinfo->nr_files_committed = oids_used(super);
 
 	/* get inode of root directory */
-	if ((result = init_root_inode(super)) != 0)
+	if ((result = reiser4_init_root_inode(super)) != 0)
 		goto failed_init_root_inode;
 
 	if ((result = get_super_private(super)->df_plug->version_update(super)) != 0 )
@@ -554,16 +555,16 @@ static int fill_super(struct super_block *super, void *data, int silent)
 	if (sbinfo->df_plug->release)
 		sbinfo->df_plug->release(super);
  failed_init_disk_format:
-	done_formatted_fake(super);
+	reiser4_done_formatted_fake(super);
  failed_init_formatted_fake:
-	done_entd(super);
+	reiser4_done_entd(super);
  failed_init_entd:
-	done_ktxnmgrd(super);
+	reiser4_done_ktxnmgrd(super);
  failed_init_ktxnmgrd:
-	done_txnmgr(&sbinfo->tmgr);
+	reiser4_done_txnmgr(&sbinfo->tmgr);
  failed_init_read_super:
  failed_init_super_data:
-	done_fs_info(super);
+	reiser4_done_fs_info(super);
  failed_init_sinfo:
 	reiser4_exit_context(&ctx);
 	return result;
@@ -643,22 +644,22 @@ static int __init init_reiser4(void)
 		goto failed_init_jnodes;
 
 	/* initialize cache of flush queues */
-	if ((result = init_fqs()) != 0)
+	if ((result = reiser4_init_fqs()) != 0)
 		goto failed_init_fqs;
 
 	/* initialize cache of structures attached to dentry->d_fsdata */
-	if ((result = init_dentry_fsdata()) != 0)
+	if ((result = reiser4_init_dentry_fsdata()) != 0)
 		goto failed_init_dentry_fsdata;
 
 	/* initialize cache of structures attached to file->private_data */
-	if ((result = init_file_fsdata()) != 0)
+	if ((result = reiser4_init_file_fsdata()) != 0)
 		goto failed_init_file_fsdata;
 
 	/*
 	 * initialize cache of d_cursors. See plugin/file_ops_readdir.c for
 	 * more details
 	 */
-	if ((result = init_d_cursor()) != 0)
+	if ((result = reiser4_init_d_cursor()) != 0)
 		goto failed_init_d_cursor;
 
 	if ((result = register_filesystem(&reiser4_fs_type)) == 0) {
@@ -666,13 +667,13 @@ static int __init init_reiser4(void)
 		return 0;
 	}
 
-	done_d_cursor();
+	reiser4_done_d_cursor();
  failed_init_d_cursor:
-	done_file_fsdata();
+	reiser4_done_file_fsdata();
  failed_init_file_fsdata:
-	done_dentry_fsdata();
+	reiser4_done_dentry_fsdata();
  failed_init_dentry_fsdata:
-	done_fqs();
+	reiser4_done_fqs();
  failed_init_fqs:
 	done_jnodes();
  failed_init_jnodes:
@@ -701,10 +702,10 @@ static void __exit done_reiser4(void)
 	debugfs_remove(reiser4_debugfs_root);
 	result = unregister_filesystem(&reiser4_fs_type);
 	BUG_ON(result != 0);
-	done_d_cursor();
-	done_file_fsdata();
-	done_dentry_fsdata();
-	done_fqs();
+	reiser4_done_d_cursor();
+	reiser4_done_file_fsdata();
+	reiser4_done_dentry_fsdata();
+	reiser4_done_fqs();
 	done_jnodes();
 	done_txnmgr_static();
 	done_plugin_set();

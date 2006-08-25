@@ -140,7 +140,7 @@ static void reiser4_d_release(struct dentry *dentry /* dentry released */ )
  * Called by reiser4_sync_inodes(), during speculative write-back (through
  * pdflush, or balance_dirty_pages()).
  */
-void writeout(struct super_block *sb, struct writeback_control *wbc)
+void reiser4_writeout(struct super_block *sb, struct writeback_control *wbc)
 {
 	long written = 0;
 	int repeats = 0;
@@ -159,8 +159,8 @@ void writeout(struct super_block *sb, struct writeback_control *wbc)
 		return;
 	}
 
-	BUG_ON(get_super_fake(sb) == NULL);
-	mapping = get_super_fake(sb)->i_mapping;
+	BUG_ON(reiser4_get_super_fake(sb) == NULL);
+	mapping = reiser4_get_super_fake(sb)->i_mapping;
 	do {
 		long nr_submitted = 0;
 		jnode *node = NULL;
@@ -203,7 +203,7 @@ void writeout(struct super_block *sb, struct writeback_control *wbc)
 
 void reiser4_throttle_write(struct inode *inode)
 {
-	txn_restart_current();
+	reiser4_txn_restart_current();
 	balance_dirty_pages_ratelimited(inode->i_mapping);
 }
 

@@ -616,7 +616,7 @@ check_block_range(const reiser4_block_nr * start, const reiser4_block_nr * len)
 
 	assert("zam-455", start != NULL);
 	assert("zam-437", *start != 0);
-	assert("zam-541", !blocknr_is_fake(start));
+	assert("zam-541", !reiser4_blocknr_is_fake(start));
 	assert("zam-441", *start < reiser4_block_count(sb));
 
 	if (len != NULL) {
@@ -816,7 +816,7 @@ static int load_and_lock_bnode(struct bitmap_node *bnode)
 	jnode *cjnode;
 	jnode *wjnode;
 
-	assert("nikita-3040", schedulable());
+	assert("nikita-3040", reiser4_schedulable());
 
 /* ZAM-FIXME-HANS: since bitmaps are never unloaded, this does not
  * need to be atomic, right? Just leave a comment that if bitmaps were
@@ -1178,10 +1178,9 @@ static int alloc_blocks_backward(reiser4_blocknr_hint * hint, int needed,
 }
 
 /* plugin->u.space_allocator.alloc_blocks() */
-int
-alloc_blocks_bitmap(reiser4_space_allocator * allocator UNUSED_ARG,
-		    reiser4_blocknr_hint * hint, int needed,
-		    reiser4_block_nr * start, reiser4_block_nr * len)
+int reiser4_alloc_blocks_bitmap(reiser4_space_allocator * allocator,
+				reiser4_blocknr_hint * hint, int needed,
+				reiser4_block_nr * start, reiser4_block_nr * len)
 {
 	if (hint->backward)
 		return alloc_blocks_backward(hint, needed, start, len);
@@ -1193,9 +1192,8 @@ alloc_blocks_bitmap(reiser4_space_allocator * allocator UNUSED_ARG,
    nodes deletion is deferred until transaction commit.  However, deallocation
    of temporary objects like wandered blocks and transaction commit records
    requires immediate node deletion from WORKING BITMAP.*/
-void
-dealloc_blocks_bitmap(reiser4_space_allocator * allocator UNUSED_ARG,
-		      reiser4_block_nr start, reiser4_block_nr len)
+void reiser4_dealloc_blocks_bitmap(reiser4_space_allocator * allocator,
+				   reiser4_block_nr start, reiser4_block_nr len)
 {
 	struct super_block *super = reiser4_get_current_sb();
 
@@ -1228,9 +1226,8 @@ dealloc_blocks_bitmap(reiser4_space_allocator * allocator UNUSED_ARG,
 }
 
 /* plugin->u.space_allocator.check_blocks(). */
-void
-check_blocks_bitmap(const reiser4_block_nr * start,
-		    const reiser4_block_nr * len, int desired)
+void reiser4_check_blocks_bitmap(const reiser4_block_nr * start,
+				 const reiser4_block_nr * len, int desired)
 {
 #if REISER4_DEBUG
 	struct super_block *super = reiser4_get_current_sb();
@@ -1365,7 +1362,7 @@ apply_dset_to_commit_bmap(txn_atom * atom, const reiser4_block_nr * start,
    only one transaction can be committed a time, therefore it is safe to access
    some global variables without any locking */
 
-int pre_commit_hook_bitmap(void)
+int reiser4_pre_commit_hook_bitmap(void)
 {
 	struct super_block *super = reiser4_get_current_sb();
 	txn_atom *atom;
@@ -1396,7 +1393,7 @@ int pre_commit_hook_bitmap(void)
 
 				assert("zam-559", !JF_ISSET(node, JNODE_OVRWR));
 				assert("zam-460",
-				       !blocknr_is_fake(&node->blocknr));
+				       !reiser4_blocknr_is_fake(&node->blocknr));
 
 				parse_blocknr(&node->blocknr, &bmap, &offset);
 				bn = get_bnode(super, bmap);
@@ -1457,19 +1454,19 @@ int pre_commit_hook_bitmap(void)
 
 /* plugin->u.space_allocator.init_allocator
     constructor of reiser4_space_allocator object. It is called on fs mount */
-int
-init_allocator_bitmap(reiser4_space_allocator * allocator,
-		      struct super_block *super, void *arg UNUSED_ARG)
+int reiser4_init_allocator_bitmap(reiser4_space_allocator * allocator,
+				  struct super_block *super, void *arg)
 {
 	struct bitmap_allocator_data *data = NULL;
 	bmap_nr_t bitmap_blocks_nr;
 	bmap_nr_t i;
 
-	assert("nikita-3039", schedulable());
+	assert("nikita-3039", reiser4_schedulable());
 
 	/* getting memory for bitmap allocator private data holder */
 	data =
-		kmalloc(sizeof(struct bitmap_allocator_data), get_gfp_mask());
+		kmalloc(sizeof(struct bitmap_allocator_data),
+			reiser4_ctx_gfp_mask_get());
 
 	if (data == NULL)
 		return RETERR(-ENOMEM);
@@ -1515,7 +1512,8 @@ init_allocator_bitmap(reiser4_space_allocator * allocator,
 			bnode = data->bitmap + i;
 			ret = load_and_lock_bnode(bnode);
 			if (ret) {
-				destroy_allocator_bitmap(allocator, super);
+				reiser4_destroy_allocator_bitmap(allocator,
+								 super);
 				return ret;
 			}
 			release_and_unlock_bnode(bnode);
@@ -1532,9 +1530,8 @@ init_allocator_bitmap(reiser4_space_allocator * allocator,
 
 /* plugin->u.space_allocator.destroy_allocator
    destructor. It is called on fs unmount */
-int
-destroy_allocator_bitmap(reiser4_space_allocator * allocator,
-			 struct super_block *super)
+int reiser4_destroy_allocator_bitmap(reiser4_space_allocator * allocator,
+				     struct super_block *super)
 {
 	bmap_nr_t bitmap_blocks_nr;
 	bmap_nr_t i;

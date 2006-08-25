@@ -423,7 +423,8 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child,
 			neighbor = zlook(tree, &da);
 		} else {
 			neighbor =
-			    zget(tree, &da, side_parent, level, get_gfp_mask());
+			    zget(tree, &da, side_parent, level,
+				 reiser4_ctx_gfp_mask_get());
 		}
 
 		if (IS_ERR(neighbor)) {
@@ -766,7 +767,7 @@ reiser4_get_neighbor(lock_handle * neighbor, znode * node,
 			/* there was lock request from hi-pri locker. if
 			   it is possible we unlock last parent node and
 			   re-lock it again. */
-			for (; check_deadlock(); h--) {
+			for (; reiser4_check_deadlock(); h--) {
 				done_lh(&path[h]);
 				if (h == 0)
 					goto fail;

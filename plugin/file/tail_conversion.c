@@ -15,7 +15,7 @@
 /* exclusive access to a file is acquired when file state changes: tail2extent, empty2tail, extent2tail, etc */
 void get_exclusive_access(unix_file_info_t * uf_info)
 {
-	assert("nikita-3028", schedulable());
+	assert("nikita-3028", reiser4_schedulable());
 	assert("nikita-3047", LOCK_CNT_NIL(inode_sem_w));
 	assert("nikita-3048", LOCK_CNT_NIL(inode_sem_r));
 	/*
@@ -24,7 +24,7 @@ void get_exclusive_access(unix_file_info_t * uf_info)
 	 * thread that captured some block (hence preventing atom from being
 	 * committed) and waits on rw-semaphore.
 	 */
-	txn_restart_current();
+	reiser4_txn_restart_current();
 	LOCK_CNT_INC(inode_sem_w);
 	down_write(&uf_info->latch);
 	uf_info->exclusive_use = 1;
@@ -43,7 +43,7 @@ void drop_exclusive_access(unix_file_info_t * uf_info)
 	assert("nikita-3049", LOCK_CNT_NIL(inode_sem_r));
 	assert("nikita-3049", LOCK_CNT_GTZ(inode_sem_w));
 	LOCK_CNT_DEC(inode_sem_w);
-	txn_restart_current();
+	reiser4_txn_restart_current();
 }
 
 /**
@@ -71,7 +71,7 @@ static void nea_grabbed(unix_file_info_t *uf_info)
  */
 void get_nonexclusive_access(unix_file_info_t *uf_info)
 {
-	assert("nikita-3029", schedulable());
+	assert("nikita-3029", reiser4_schedulable());
 	assert("nikita-3361", get_current_context()->trans->atom == NULL);
 
 	down_read(&uf_info->latch);
@@ -103,7 +103,7 @@ void drop_nonexclusive_access(unix_file_info_t * uf_info)
 	up_read(&uf_info->latch);
 
 	LOCK_CNT_DEC(inode_sem_r);
-	txn_restart_current();
+	reiser4_txn_restart_current();
 }
 
 /* part of tail2extent. Cut all items covering @count bytes starting from
@@ -123,7 +123,8 @@ static int cut_formatting_items(struct inode *inode, loff_t offset, int count)
 	set_key_offset(&to, (__u64) (offset + count - 1));
 
 	/* cut everything between those keys */
-	return cut_tree(tree_by_inode(inode), &from, &to, inode, 0);
+	return reiser4_cut_tree(reiser4_tree_by_inode(inode), &from, &to,
+				inode, 0);
 }
 
 static void release_all_pages(struct page **pages, unsigned nr_pages)
@@ -189,7 +190,7 @@ static int reserve_tail2extent_iteration(struct inode *inode)
 	reiser4_block_nr unformatted_nodes;
 	reiser4_tree *tree;
 
-	tree = tree_by_inode(inode);
+	tree = reiser4_tree_by_inode(inode);
 
 	/* number of unformatted nodes which will be created */
 	unformatted_nodes = TAIL2EXTENT_PAGE_NUM;
@@ -228,7 +229,7 @@ int complete_conversion(struct inode *inode)
 	    reiser4_grab_space(inode_file_plugin(inode)->estimate.update(inode),
 			       BA_CAN_COMMIT);
 	if (result == 0) {
-		inode_clr_flag(inode, REISER4_PART_MIXED);
+		reiser4_inode_clr_flag(inode, REISER4_PART_MIXED);
 		result = reiser4_update_sd(inode);
 	}
 	if (result)
@@ -315,12 +316,12 @@ int tail2extent(unix_file_info_t *uf_info)
 	inode = unix_file_info_to_inode(uf_info);
 	assert("nikita-3412", !IS_RDONLY(inode));
 	assert("vs-1649", uf_info->container != UF_CONTAINER_EXTENTS);
-	assert("", !inode_get_flag(inode, REISER4_PART_IN_CONV));
+	assert("", !reiser4_inode_get_flag(inode, REISER4_PART_IN_CONV));
 
 	offset = 0;
 	first_iteration = 1;
 	result = 0;
-	if (inode_get_flag(inode, REISER4_PART_MIXED)) {
+	if (reiser4_inode_get_flag(inode, REISER4_PART_MIXED)) {
 		/*
 		 * file is marked on disk as there was a conversion which did
 		 * not complete due to either crash or some error. Find which
@@ -338,7 +339,7 @@ int tail2extent(unix_file_info_t *uf_info)
 		first_iteration = 0;
 	}
 
-	inode_set_flag(inode, REISER4_PART_IN_CONV);
+	reiser4_inode_set_flag(inode, REISER4_PART_IN_CONV);
 
 	/* get key of first byte of a file */
 	inode_file_plugin(inode)->key_by_inode(inode, offset, &key);
@@ -350,7 +351,7 @@ int tail2extent(unix_file_info_t *uf_info)
 		if (result != 0)
 			goto out;
 		if (first_iteration) {
-			inode_set_flag(inode, REISER4_PART_MIXED);
+			reiser4_inode_set_flag(inode, REISER4_PART_MIXED);
 			reiser4_update_sd(inode);
 			first_iteration = 0;
 		}
@@ -358,7 +359,7 @@ int tail2extent(unix_file_info_t *uf_info)
 		for (i = 0; i < sizeof_array(pages) && done == 0; i++) {
 			assert("vs-598",
 			       (get_key_offset(&key) & ~PAGE_CACHE_MASK) == 0);
-			page = alloc_page(get_gfp_mask());
+			page = alloc_page(reiser4_ctx_gfp_mask_get());
 			if (!page) {
 				result = RETERR(-ENOMEM);
 				goto error;
@@ -486,15 +487,17 @@ int tail2extent(unix_file_info_t *uf_info)
 			 * nobody is allowed to complete conversion but a
 			 * process which started it
 			 */
-			assert("", inode_get_flag(inode, REISER4_PART_MIXED));
+			assert("", reiser4_inode_get_flag(inode,
+							  REISER4_PART_MIXED));
 		}
 	}
 
-	inode_clr_flag(inode, REISER4_PART_IN_CONV);
+	reiser4_inode_clr_flag(inode, REISER4_PART_IN_CONV);
 
 	if (result == 0) {
 		/* file is converted to extent items */
-		assert("vs-1697", inode_get_flag(inode, REISER4_PART_MIXED));
+		assert("vs-1697", reiser4_inode_get_flag(inode,
+							 REISER4_PART_MIXED));
 
 		uf_info->container = UF_CONTAINER_EXTENTS;
 		complete_conversion(inode);
@@ -518,7 +521,7 @@ static int reserve_extent2tail_iteration(struct inode *inode)
 {
 	reiser4_tree *tree;
 
-	tree = tree_by_inode(inode);
+	tree = reiser4_tree_by_inode(inode);
 	/*
 	 * reserve blocks for (in this order):
 	 *
@@ -556,10 +559,10 @@ int extent2tail(unix_file_info_t *uf_info)
 	inode = unix_file_info_to_inode(uf_info);
 	assert("nikita-3412", !IS_RDONLY(inode));
 	assert("vs-1649", uf_info->container != UF_CONTAINER_TAILS);
-	assert("", !inode_get_flag(inode, REISER4_PART_IN_CONV));
+	assert("", !reiser4_inode_get_flag(inode, REISER4_PART_IN_CONV));
 
 	offset = 0;
-	if (inode_get_flag(inode, REISER4_PART_MIXED)) {
+	if (reiser4_inode_get_flag(inode, REISER4_PART_MIXED)) {
 		/*
 		 * file is marked on disk as there was a conversion which did
 		 * not complete due to either crash or some error. Find which
@@ -576,7 +579,7 @@ int extent2tail(unix_file_info_t *uf_info)
 			return result;
 	}
 
-	inode_set_flag(inode, REISER4_PART_IN_CONV);
+	reiser4_inode_set_flag(inode, REISER4_PART_IN_CONV);
 
 	/* number of pages in the file */
 	num_pages =
@@ -594,7 +597,7 @@ int extent2tail(unix_file_info_t *uf_info)
 		if (result != 0)
 			break;
 		if (i == 0 && offset == 0) {
-			inode_set_flag(inode, REISER4_PART_MIXED);
+			reiser4_inode_set_flag(inode, REISER4_PART_MIXED);
 			reiser4_update_sd(inode);
 		}
 
@@ -618,12 +621,13 @@ int extent2tail(unix_file_info_t *uf_info)
 		set_key_offset(&from, start_byte);
 		set_key_offset(&to, start_byte + PAGE_CACHE_SIZE - 1);
 		/*
-		 * cut_tree_object() returns -E_REPEAT to allow atom
+		 * reiser4_cut_tree_object() returns -E_REPEAT to allow atom
 		 * commits during over-long truncates. But
 		 * extent->tail conversion should be performed in one
 		 * transaction.
 		 */
-		result = cut_tree(tree_by_inode(inode), &from, &to, inode, 0);
+		result = reiser4_cut_tree(reiser4_tree_by_inode(inode), &from,
+					  &to, inode, 0);
 
 		if (result) {
 			page_cache_release(page);
@@ -647,13 +651,14 @@ int extent2tail(unix_file_info_t *uf_info)
 			file.f_pos = start_byte;
 			file.private_data = NULL;
 			pos = start_byte;
-			result = write_tail(&file, (char __user *)kmap(page),
-					    count, &pos);
+			result = reiser4_write_tail(&file,
+						    (char __user *)kmap(page),
+						    count, &pos);
 			reiser4_free_file_fsdata(&file);
 			if (result <= 0) {
-				warning("", "write_tail failed");
+				warning("", "reiser4_write_tail failed");
 				page_cache_release(page);
-				inode_clr_flag(inode, REISER4_PART_IN_CONV);
+				reiser4_inode_clr_flag(inode, REISER4_PART_IN_CONV);
 				return result;
 			}
 			count -= result;
@@ -668,7 +673,7 @@ int extent2tail(unix_file_info_t *uf_info)
 		/* waiting for writeback completion with page lock held is
 		 * perfectly valid. */
 		wait_on_page_writeback(page);
-		drop_page(page);
+		reiser4_drop_page(page);
 		/* release reference taken by read_cache_page() above */
 		page_cache_release(page);
 
@@ -680,14 +685,15 @@ int extent2tail(unix_file_info_t *uf_info)
 		 * nobody is allowed to complete conversion but a process which
 		 * started it
 		 */
-		assert("", inode_get_flag(inode, REISER4_PART_MIXED));
+		assert("", reiser4_inode_get_flag(inode, REISER4_PART_MIXED));
 	}
 
-	inode_clr_flag(inode, REISER4_PART_IN_CONV);
+	reiser4_inode_clr_flag(inode, REISER4_PART_IN_CONV);
 
 	if (i == num_pages) {
 		/* file is converted to formatted items */
-		assert("vs-1698", inode_get_flag(inode, REISER4_PART_MIXED));
+		assert("vs-1698", reiser4_inode_get_flag(inode,
+							 REISER4_PART_MIXED));
 		assert("vs-1260",
 		       inode_has_no_jnodes(reiser4_inode_data(inode)));
 

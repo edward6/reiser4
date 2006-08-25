@@ -166,14 +166,14 @@ static inline void hint_clr_valid(hint_t * hint)
 int load_file_hint(struct file *, hint_t *);
 void save_file_hint(struct file *, const hint_t *);
 void hint_init_zero(hint_t *);
-void set_hint(hint_t *, const reiser4_key *, znode_lock_mode);
+void reiser4_set_hint(hint_t *, const reiser4_key *, znode_lock_mode);
 int hint_is_set(const hint_t *);
-void unset_hint(hint_t *);
+void reiser4_unset_hint(hint_t *);
 int hint_validate(hint_t *, const reiser4_key *, int check_key,
 		  znode_lock_mode);
 void hint_init_zero(hint_t *);
 
-int update_file_size(struct inode *, reiser4_key *, int update_sd);
+int reiser4_update_file_size(struct inode *, reiser4_key *, int update_sd);
 int cut_file_items(struct inode *, loff_t new_size, int update_sd,
 		   loff_t cur_size, int (*update_actor) (struct inode *,
 							 reiser4_key *, int));
@@ -194,8 +194,8 @@ static inline int ea_obtained(unix_file_info_t * uf_info)
 #endif
 
 /* declarations of functions implementing SYMLINK_FILE_PLUGIN_ID file plugin */
-int create_symlink(struct inode *symlink, struct inode *dir,
-		   reiser4_object_create_data *);
+int reiser4_create_symlink(struct inode *symlink, struct inode *dir,
+			   reiser4_object_create_data *);
 void destroy_inode_symlink(struct inode *);
 
 /* declarations of functions implementing CRC_FILE_PLUGIN_ID file plugin */

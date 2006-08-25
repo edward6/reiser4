@@ -290,7 +290,7 @@ jnode *jnode_by_page(struct page *pg)
 /* exported functions to allocate/free jnode objects outside this file */
 jnode *jalloc(void)
 {
-	jnode *jal = kmem_cache_alloc(_jnode_slab, get_gfp_mask());
+	jnode *jal = kmem_cache_alloc(_jnode_slab, reiser4_ctx_gfp_mask_get());
 	return jal;
 }
 
@@ -409,7 +409,7 @@ jnode *jfind(struct address_space * mapping, unsigned long index)
 	jnode *node;
 
 	assert("vs-1694", mapping->host != NULL);
-	tree = tree_by_inode(mapping->host);
+	tree = reiser4_tree_by_inode(mapping->host);
 
 	read_lock_tree(tree);
 	node = jfind_nolock(mapping, index);
@@ -521,7 +521,7 @@ static void unhash_unformatted_node_nolock(jnode * node)
 
 /* remove jnode from hash table and from inode's tree of jnodes. This is used in
    reiser4_invalidatepage and in kill_hook_extent -> truncate_inode_jnodes ->
-   uncapture_jnode */
+   reiser4_uncapture_jnode */
 void unhash_unformatted_jnode(jnode * node)
 {
 	assert("vs-1445", jnode_is_unformatted(node));
@@ -549,7 +549,7 @@ static jnode *find_get_jnode(reiser4_tree * tree,
 	if (unlikely(result == NULL))
 		return ERR_PTR(RETERR(-ENOMEM));
 
-	preload = radix_tree_preload(get_gfp_mask());
+	preload = radix_tree_preload(reiser4_ctx_gfp_mask_get());
 	if (preload != 0)
 		return ERR_PTR(preload);
 
@@ -602,7 +602,7 @@ static jnode *do_jget(reiser4_tree * tree, struct page *pg)
 	if (likely(result != NULL))
 		return jref(result);
 
-	tree = tree_by_page(pg);
+	tree = reiser4_tree_by_page(pg);
 
 	/* check hash-table first */
 	result = jfind(pg->mapping, pg->index);
@@ -636,7 +636,7 @@ jnode *jnode_of_page(struct page * pg)
 	assert("umka-176", pg != NULL);
 	assert("nikita-2394", PageLocked(pg));
 
-	result = do_jget(tree_by_page(pg), pg);
+	result = do_jget(reiser4_tree_by_page(pg), pg);
 
 	if (REISER4_DEBUG && !IS_ERR(result)) {
 		assert("nikita-3210", result == jprivate(pg));
@@ -831,7 +831,7 @@ static int jnode_start_read(jnode * node, struct page *page)
 		unlock_page(page);
 		return 0;
 	}
-	return page_io(page, node, READ, get_gfp_mask());
+	return reiser4_page_io(page, node, READ, reiser4_ctx_gfp_mask_get());
 }
 
 #if REISER4_DEBUG
@@ -874,7 +874,7 @@ int jload_gfp(jnode * node /* node to load */ ,
 	int result = 0;
 	int parsed;
 
-	assert("nikita-3010", schedulable());
+	assert("nikita-3010", reiser4_schedulable());
 
 	prefetchw(&node->pg);
 
@@ -948,7 +948,7 @@ int jstartio(jnode * node)
 {
 	struct page *page;
 
-	page = jnode_get_page_locked(node, get_gfp_mask());
+	page = jnode_get_page_locked(node, reiser4_ctx_gfp_mask_get());
 	if (IS_ERR(page))
 		return PTR_ERR(page);
 
@@ -1185,7 +1185,7 @@ static inline void remove_jnode(jnode * node, reiser4_tree * tree)
 static struct address_space *mapping_znode(const jnode * node)
 {
 	/* all znodes belong to fake inode */
-	return get_super_fake(jnode_get_tree(node)->super)->i_mapping;
+	return reiser4_get_super_fake(jnode_get_tree(node)->super)->i_mapping;
 }
 
 /* ->index() method for znodes */
@@ -1341,7 +1341,7 @@ static jnode *clone_formatted(jnode * node)
 	znode *clone;
 
 	assert("vs-1430", jnode_is_znode(node));
-	clone = zalloc(get_gfp_mask());
+	clone = zalloc(reiser4_ctx_gfp_mask_get());
 	if (clone == NULL)
 		return ERR_PTR(RETERR(-ENOMEM));
 	zinit(clone, NULL, current_tree);
@@ -1651,7 +1651,7 @@ static int jdelete(jnode * node /* jnode to finish with */ )
 		jnode_free(node, jtype);
 		/* @node is no longer valid pointer */
 		if (page != NULL)
-			drop_page(page);
+			reiser4_drop_page(page);
 	} else {
 		/* busy check failed: reference was acquired by concurrent
 		 * thread. */
@@ -1707,7 +1707,7 @@ static int jdrop_in_tree(jnode * node, reiser4_tree * tree)
 		write_unlock_tree(tree);
 		jnode_free(node, jtype);
 		if (page != NULL) {
-			drop_page(page);
+			reiser4_drop_page(page);
 		}
 	} else {
 		/* busy check failed: reference was acquired by concurrent
@@ -1732,7 +1732,7 @@ void jdrop(jnode * node)
    functionality (these j-nodes are not in any hash table) just for reading
    from and writing to disk. */
 
-jnode *alloc_io_head(const reiser4_block_nr * block)
+jnode *reiser4_alloc_io_head(const reiser4_block_nr * block)
 {
 	jnode *jal = jalloc();
 
@@ -1746,7 +1746,7 @@ jnode *alloc_io_head(const reiser4_block_nr * block)
 	return jal;
 }
 
-void drop_io_head(jnode * node)
+void reiser4_drop_io_head(jnode * node)
 {
 	assert("zam-648", jnode_get_type(node) == JNODE_IO_HEAD);
 

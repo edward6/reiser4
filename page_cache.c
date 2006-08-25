@@ -204,13 +204,13 @@ init_fake_inode(struct super_block *super, struct inode *fake,
 }
 
 /**
- * init_formatted_fake - iget inodes for formatted nodes and bitmaps
+ * reiser4_init_formatted_fake - iget inodes for formatted nodes and bitmaps
  * @super: super block to init fake inode for
  *
  * Initializes fake inode to which formatted nodes are bound in the page cache
  * and inode for bitmaps.
  */
-int init_formatted_fake(struct super_block *super)
+int reiser4_init_formatted_fake(struct super_block *super)
 {
 	struct inode *fake;
 	struct inode *bitmap;
@@ -248,13 +248,13 @@ int init_formatted_fake(struct super_block *super)
 }
 
 /**
- * done_formatted_fake - release inode used by formatted nodes and bitmaps
+ * reiser4_done_formatted_fake - release inode used by formatted nodes and bitmaps
  * @super: super block to init fake inode for
  *
  * Releases inodes which were used as address spaces of bitmap and formatted
  * nodes.
  */
-void done_formatted_fake(struct super_block *super)
+void reiser4_done_formatted_fake(struct super_block *super)
 {
 	reiser4_super_info_data *sinfo;
 
@@ -290,7 +290,7 @@ void reiser4_wait_page_writeback(struct page *page)
 }
 
 /* return tree @page is in */
-reiser4_tree *tree_by_page(const struct page *page /* page to query */ )
+reiser4_tree *reiser4_tree_by_page(const struct page *page /* page to query */ )
 {
 	assert("nikita-2461", page != NULL);
 	return &get_super_private(page->mapping->host->i_sb)->tree;
@@ -357,11 +357,12 @@ static int formatted_readpage(struct file *f UNUSED_ARG,
 			      struct page *page /* page to read */ )
 {
 	assert("nikita-2412", PagePrivate(page) && jprivate(page));
-	return page_io(page, jprivate(page), READ, get_gfp_mask());
+	return reiser4_page_io(page, jprivate(page), READ,
+			       reiser4_ctx_gfp_mask_get());
 }
 
 /**
- * page_io - submit single-page bio request
+ * reiser4_page_io - submit single-page bio request
  * @page: page to perform io for
  * @node: jnode of page
  * @rw: read or write
@@ -369,7 +370,7 @@ static int formatted_readpage(struct file *f UNUSED_ARG,
  *
  * Submits single page read or write.
  */
-int page_io(struct page *page, jnode *node, int rw, gfp_t gfp)
+int reiser4_page_io(struct page *page, jnode *node, int rw, gfp_t gfp)
 {
 	struct bio *bio;
 	int result;
@@ -431,7 +432,7 @@ static struct bio *page_bio(struct page *page, jnode * node, int rw, gfp_t gfp)
 		spin_unlock_jnode(node);
 
 		assert("nikita-2275", blocknr != (reiser4_block_nr) 0);
-		assert("nikita-2276", !blocknr_is_fake(&blocknr));
+		assert("nikita-2276", !reiser4_blocknr_is_fake(&blocknr));
 
 		bio->bi_bdev = super->s_bdev;
 		/* fill bio->bi_sector before calling bio_add_page(), because
@@ -455,7 +456,7 @@ static struct bio *page_bio(struct page *page, jnode * node, int rw, gfp_t gfp)
 }
 
 /* this function is internally called by jnode_make_dirty() */
-int set_page_dirty_internal(struct page *page)
+int reiser4_set_page_dirty_internal(struct page *page)
 {
 	struct address_space *mapping;
 
@@ -470,7 +471,7 @@ int set_page_dirty_internal(struct page *page)
 	}
 
 	/* znode must be dirty ? */
-	if (mapping->host == get_super_fake(mapping->host->i_sb))
+	if (mapping->host == reiser4_get_super_fake(mapping->host->i_sb))
 		assert("", JF_ISSET(jprivate(page), JNODE_DIRTY));
 	return 0;
 }
@@ -581,7 +582,7 @@ static struct address_space_operations formatted_fake_as_ops = {
 
 /* called just before page is released (no longer used by reiser4). Callers:
    jdelete() and extent2tail(). */
-void drop_page(struct page *page)
+void reiser4_drop_page(struct page *page)
 {
 	assert("nikita-2181", PageLocked(page));
 	clear_page_dirty_for_io(page);
@@ -620,7 +621,7 @@ static void invalidate_unformatted(jnode * node)
 		page_cache_release(page);
 	} else {
 		JF_SET(node, JNODE_HEARD_BANSHEE);
-		uncapture_jnode(node);
+		reiser4_uncapture_jnode(node);
 		unhash_unformatted_jnode(node);
 	}
 }
@@ -640,7 +641,7 @@ truncate_jnodes_range(struct inode *inode, pgoff_t from, pgoff_t count)
 	truncated_jnodes = 0;
 
 	info = reiser4_inode_data(inode);
-	tree = tree_by_inode(inode);
+	tree = reiser4_tree_by_inode(inode);
 
 	index = from;
 	end = from + count;

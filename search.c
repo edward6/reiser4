@@ -56,7 +56,7 @@ int cbk_cache_init(cbk_cache *cache /* cache to init */ )
 
 	cache->slot =
 		kmalloc(sizeof(cbk_cache_slot) * cache->nr_slots,
-			get_gfp_mask());
+			reiser4_ctx_gfp_mask_get());
 	if (cache->slot == NULL)
 		return RETERR(-ENOMEM);
 
@@ -295,7 +295,7 @@ lookup_result coord_by_key(reiser4_tree * tree	/* tree to perform search
 	init_lh(lh);
 	init_lh(&parent_lh);
 
-	assert("nikita-3023", schedulable());
+	assert("nikita-3023", reiser4_schedulable());
 
 	assert("nikita-353", tree != NULL);
 	assert("nikita-354", key != NULL);
@@ -322,15 +322,15 @@ lookup_result coord_by_key(reiser4_tree * tree	/* tree to perform search
 
 /* like coord_by_key(), but starts traversal from vroot of @object rather than
  * from tree root. */
-lookup_result
-object_lookup(struct inode * object,
-	      const reiser4_key * key,
-	      coord_t * coord,
-	      lock_handle * lh,
-	      znode_lock_mode lock_mode,
-	      lookup_bias bias,
-	      tree_level lock_level,
-	      tree_level stop_level, __u32 flags, ra_info_t * info)
+lookup_result reiser4_object_lookup(struct inode * object,
+				    const reiser4_key * key,
+				    coord_t * coord,
+				    lock_handle * lh,
+				    znode_lock_mode lock_mode,
+				    lookup_bias bias,
+				    tree_level lock_level,
+				    tree_level stop_level, __u32 flags,
+				    ra_info_t * info)
 {
 	cbk_handle handle;
 	lock_handle parent_lh;
@@ -339,7 +339,7 @@ object_lookup(struct inode * object,
 	init_lh(lh);
 	init_lh(&parent_lh);
 
-	assert("nikita-3023", schedulable());
+	assert("nikita-3023", reiser4_schedulable());
 
 	assert("nikita-354", key != NULL);
 	assert("nikita-355", coord != NULL);
@@ -350,7 +350,7 @@ object_lookup(struct inode * object,
 	assert("nikita-2104", lock_stack_isclean(get_current_lock_stack()));
 
 	cbk_pack(&handle,
-		 object != NULL ? tree_by_inode(object) : current_tree,
+		 object != NULL ? reiser4_tree_by_inode(object) : current_tree,
 		 key,
 		 coord,
 		 lh,
@@ -364,7 +364,8 @@ object_lookup(struct inode * object,
 	return result;
 }
 
-/* lookup by cbk_handle. Common part of coord_by_key() and object_lookup(). */
+/* lookup by cbk_handle. Common part of coord_by_key() and
+   reiser4_object_lookup(). */
 static lookup_result coord_by_handle(cbk_handle * handle)
 {
 	/*
@@ -388,19 +389,19 @@ static lookup_result coord_by_handle(cbk_handle * handle)
 
    Error code, or last actor return value is returned.
 
-   This is used by plugin/dir/hashe_dir.c:find_entry() to move through
+   This is used by plugin/dir/hashe_dir.c:reiser4_find_entry() to move through
    sequence of entries with identical keys and alikes.
 */
-int iterate_tree(reiser4_tree * tree /* tree to scan */ ,
-		 coord_t * coord /* coord to start from */ ,
-		 lock_handle * lh	/* lock handle to start with and to
-					 * update along the way */ ,
-		 tree_iterate_actor_t actor	/* function to call on each
-						 * item/unit */ ,
-		 void *arg /* argument to pass to @actor */ ,
-		 znode_lock_mode mode /* lock mode on scanned nodes */ ,
-		 int through_units_p	/* call @actor on each item or on each
-					 * unit */ )
+int reiser4_iterate_tree(reiser4_tree * tree /* tree to scan */ ,
+			 coord_t * coord /* coord to start from */ ,
+			 lock_handle * lh /* lock handle to start with and to
+					   * update along the way */ ,
+			 tree_iterate_actor_t actor /* function to call on each
+						     * item/unit */ ,
+			 void *arg /* argument to pass to @actor */ ,
+			 znode_lock_mode mode /* lock mode on scanned nodes */ ,
+			 int through_units_p /* call @actor on each item or on
+					      *	each unit */ )
 {
 	int result;
 
@@ -647,12 +648,12 @@ static lookup_result traverse_tree(cbk_handle * h /* search handle */ )
 	/* loop for restarts */
       restart:
 
-	assert("nikita-3024", schedulable());
+	assert("nikita-3024", reiser4_schedulable());
 
 	h->result = CBK_COORD_FOUND;
 	/* connect_znode() needs it */
-	h->ld_key = *min_key();
-	h->rd_key = *max_key();
+	h->ld_key = *reiser4_min_key();
+	h->rd_key = *reiser4_max_key();
 	h->flags |= CBK_DKSET;
 	h->error = NULL;
 
@@ -686,7 +687,7 @@ static lookup_result traverse_tree(cbk_handle * h /* search handle */ )
 			     IS_POW(iterations))) {
 			warning("nikita-1481", "Too many iterations: %i",
 				iterations);
-			print_key("key", h->key);
+			reiser4_print_key("key", h->key);
 			++iterations;
 		} else if (unlikely(iterations > REISER4_MAX_CBK_ITERATIONS)) {
 			h->error =
@@ -708,7 +709,7 @@ static lookup_result traverse_tree(cbk_handle * h /* search handle */ )
 			/* deadlock avoidance is normal case. */
 			if (h->result != -E_DEADLOCK)
 				++iterations;
-			preempt_point();
+			reiser4_preempt_point();
 			goto restart;
 		}
 	}
@@ -720,7 +721,7 @@ static lookup_result traverse_tree(cbk_handle * h /* search handle */ )
 			h->error, h->level, h->lock_level, h->stop_level,
 			lock_mode_name(h->lock_mode), bias_name(h->bias));
 		reiser4_print_address("block", &h->block);
-		print_key("key", h->key);
+		reiser4_print_key("key", h->key);
 		print_coord_content("coord", h->coord);
 	}
 	/* `unlikely' error case */
@@ -835,11 +836,12 @@ static level_lookup_result cbk_level_lookup(cbk_handle * h /* search handle */ )
 	reiser4_key key;
 	znode *active;
 
-	assert("nikita-3025", schedulable());
+	assert("nikita-3025", reiser4_schedulable());
 
 	/* acquire reference to @active node */
 	active =
-	    zget(h->tree, &h->block, h->parent_lh->node, h->level, get_gfp_mask());
+	    zget(h->tree, &h->block, h->parent_lh->node, h->level,
+		 reiser4_ctx_gfp_mask_get());
 
 	if (IS_ERR(active)) {
 		h->result = PTR_ERR(active);
@@ -957,8 +959,8 @@ static level_lookup_result cbk_level_lookup(cbk_handle * h /* search handle */ )
 	if (ldkeyset && !node_is_empty(active) &&
 	    !keyeq(leftmost_key_in_node(active, &key), &ldkey)) {
 		warning("vs-3533", "Keys are inconsistent. Fsck?");
-		print_key("inparent", &ldkey);
-		print_key("inchild", &key);
+		reiser4_print_key("inparent", &ldkey);
+		reiser4_print_key("inchild", &key);
 		h->result = RETERR(-EIO);
 		zrelse(active);
 		return LOOKUP_DONE;
@@ -1187,7 +1189,7 @@ static int cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 		 * are rechecked under dk lock below.
 		 */
 		if (znode_get_level(node) == level &&
-		    /* min_key < key < max_key */
+		    /* reiser4_min_key < key < reiser4_max_key */
 		    znode_contains_key_strict(node, key, isunique)) {
 			zref(node);
 			result = 0;
@@ -1495,7 +1497,7 @@ void print_coord_content(const char *prefix /* prefix to print */ ,
 		       item_body_by_coord(p), item_length_by_coord(p));
 	if (znode_is_loaded(p->node)) {
 		item_key_by_coord(p, &key);
-		print_key(prefix, &key);
+		reiser4_print_key(prefix, &key);
 	}
 }
 
@@ -1515,7 +1517,7 @@ char *sprint_address(const reiser4_block_nr *
 
 	if (block == NULL)
 		sprintf(address, "null");
-	else if (blocknr_is_fake(block))
+	else if (reiser4_blocknr_is_fake(block))
 		sprintf(address, "%llx", (unsigned long long)(*block));
 	else
 		sprintf(address, "%llu", (unsigned long long)(*block));

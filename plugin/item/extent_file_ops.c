@@ -167,8 +167,8 @@ static int append_hole(coord_t *coord, lock_handle *lh,
 		 * @hole_width blocks. Note that we do not worry about
 		 * overflowing - extent width is 64 bits
 		 */
-		set_extent(ext, HOLE_EXTENT_START,
-			   extent_get_width(ext) + hole_width);
+		reiser4_set_extent(ext, HOLE_EXTENT_START,
+				   extent_get_width(ext) + hole_width);
 		znode_make_dirty(coord->node);
 		return 0;
 	}
@@ -177,7 +177,7 @@ static int append_hole(coord_t *coord, lock_handle *lh,
 	assert("vs-713", (state_of_extent(ext) == ALLOCATED_EXTENT ||
 			  state_of_extent(ext) == UNALLOCATED_EXTENT));
 
-	set_extent(&new_ext, HOLE_EXTENT_START, hole_width);
+	reiser4_set_extent(&new_ext, HOLE_EXTENT_START, hole_width);
 	init_new_extent(&idata, &new_ext, 1);
 	return insert_into_item(coord, lh, &append_key, &idata, 0);
 }
@@ -271,8 +271,8 @@ static int append_last_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 		 * last extent unit of the file is unallocated one. Increase
 		 * its width by @count
 		 */
-		set_extent(ext, UNALLOCATED_EXTENT_START,
-			   extent_get_width(ext) + count);
+		reiser4_set_extent(ext, UNALLOCATED_EXTENT_START,
+				   extent_get_width(ext) + count);
 		znode_make_dirty(coord->node);
 
 		/* update coord extension */
@@ -288,7 +288,7 @@ static int append_last_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 		 * last extent unit of the file is either hole or allocated
 		 * one. Append one unallocated extent of width @count
 		 */
-		set_extent(&new_ext, UNALLOCATED_EXTENT_START, count);
+		reiser4_set_extent(&new_ext, UNALLOCATED_EXTENT_START, count);
 		init_new_extent(&idata, &new_ext, 1);
 		result = insert_into_item(coord, uf_coord->lh, key, &idata, 0);
 		uf_coord->valid = 0;
@@ -316,7 +316,7 @@ static int append_last_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 		spin_lock_jnode(node);
 		JF_SET(node, JNODE_CREATED);
 		jnode_set_block(node, &block);
- 		result = try_capture(node, ZNODE_WRITE_LOCK, 0);
+ 		result = reiser4_try_capture(node, ZNODE_WRITE_LOCK, 0);
 		BUG_ON(result != 0);
 		jnode_make_dirty_locked(node);
 		spin_unlock_jnode(node);
@@ -351,7 +351,7 @@ static int insert_first_hole(coord_t *coord, lock_handle *lh,
 	assert("vs-710", hole_width > 0);
 
 	/* compose body of hole extent and insert item into tree */
-	set_extent(&new_ext, HOLE_EXTENT_START, hole_width);
+	reiser4_set_extent(&new_ext, HOLE_EXTENT_START, hole_width);
 	init_new_extent(&idata, &new_ext, 1);
 	return insert_extent_by_coord(coord, &idata, &item_key, lh);
 }
@@ -395,9 +395,10 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 		 * file or performing tail conversion
 		 */
 		assert("", (uf_info->container == UF_CONTAINER_EMPTY ||
-			    (inode_get_flag(inode, REISER4_PART_MIXED) &&
-			     inode_get_flag(inode, REISER4_PART_IN_CONV))));
-
+			    (reiser4_inode_get_flag(inode,
+						    REISER4_PART_MIXED) &&
+			     reiser4_inode_get_flag(inode,
+						    REISER4_PART_IN_CONV))));
 		/* if file was empty - update its state */
 		if (result == 0 && uf_info->container == UF_CONTAINER_EMPTY)
 			uf_info->container = UF_CONTAINER_EXTENTS;
@@ -414,7 +415,7 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	 * prepare for tree modification: compose body of item and item data
 	 * structure needed for insertion
 	 */
-	set_extent(&new_ext, UNALLOCATED_EXTENT_START, count);
+	reiser4_set_extent(&new_ext, UNALLOCATED_EXTENT_START, count);
 	init_new_extent(&idata, &new_ext, 1);
 
 	/* insert extent item into the tree */
@@ -437,7 +438,7 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 		spin_lock_jnode(node);
 		JF_SET(node, JNODE_CREATED);
 		jnode_set_block(node, &block);
- 		result = try_capture(node, ZNODE_WRITE_LOCK, 0);
+ 		result = reiser4_try_capture(node, ZNODE_WRITE_LOCK, 0);
 		BUG_ON(result != 0);
 		jnode_make_dirty_locked(node);
 		spin_unlock_jnode(node);
@@ -485,7 +486,7 @@ static int plug_hole(uf_coord_t *uf_coord, const reiser4_key *key, int *how)
 
 	*how = 0;
 	if (width == 1) {
-		set_extent(ext, UNALLOCATED_EXTENT_START, 1);
+		reiser4_set_extent(ext, UNALLOCATED_EXTENT_START, 1);
 		znode_make_dirty(coord->node);
 		/* update uf_coord */
 		ON_DEBUG(ext_coord->extent = *ext);
@@ -518,13 +519,14 @@ static int plug_hole(uf_coord_t *uf_coord, const reiser4_key *key, int *how)
 			}
 		}
 		/* extent for replace */
-		set_extent(&rh.overwrite, UNALLOCATED_EXTENT_START, 1);
+		reiser4_set_extent(&rh.overwrite, UNALLOCATED_EXTENT_START, 1);
 		/* extent to be inserted */
-		set_extent(&rh.new_extents[0], HOLE_EXTENT_START, width - 1);
+		reiser4_set_extent(&rh.new_extents[0], HOLE_EXTENT_START,
+				   width - 1);
 		rh.nr_new_extents = 1;
 
-		/* have replace_extent to return with @coord and @uf_coord->lh
-		   set to unit which was replaced */
+		/* have reiser4_replace_extent to return with @coord and
+		   @uf_coord->lh set to unit which was replaced */
 		return_inserted_position = 0;
 		*how = 3;
 	} else if (pos_in_unit == width - 1) {
@@ -554,26 +556,29 @@ static int plug_hole(uf_coord_t *uf_coord, const reiser4_key *key, int *how)
 			}
 		}
 		/* extent for replace */
-		set_extent(&rh.overwrite, HOLE_EXTENT_START, width - 1);
+		reiser4_set_extent(&rh.overwrite, HOLE_EXTENT_START, width - 1);
 		/* extent to be inserted */
-		set_extent(&rh.new_extents[0], UNALLOCATED_EXTENT_START, 1);
+		reiser4_set_extent(&rh.new_extents[0], UNALLOCATED_EXTENT_START,
+				   1);
 		rh.nr_new_extents = 1;
 
-		/* have replace_extent to return with @coord and @uf_coord->lh
-		   set to unit which was inserted */
+		/* have reiser4_replace_extent to return with @coord and
+		   @uf_coord->lh set to unit which was inserted */
 		return_inserted_position = 1;
 		*how = 5;
 	} else {
 		/* extent for replace */
-		set_extent(&rh.overwrite, HOLE_EXTENT_START, pos_in_unit);
+		reiser4_set_extent(&rh.overwrite, HOLE_EXTENT_START,
+				   pos_in_unit);
 		/* extents to be inserted */
-		set_extent(&rh.new_extents[0], UNALLOCATED_EXTENT_START, 1);
-		set_extent(&rh.new_extents[1], HOLE_EXTENT_START,
-			   width - pos_in_unit - 1);
+		reiser4_set_extent(&rh.new_extents[0], UNALLOCATED_EXTENT_START,
+				   1);
+		reiser4_set_extent(&rh.new_extents[1], HOLE_EXTENT_START,
+				   width - pos_in_unit - 1);
 		rh.nr_new_extents = 2;
 
-		/* have replace_extent to return with @coord and @uf_coord->lh
-		   set to first of units which were inserted */
+		/* have reiser4_replace_extent to return with @coord and
+		   @uf_coord->lh set to first of units which were inserted */
 		return_inserted_position = 1;
 		*how = 6;
 	}
@@ -582,7 +587,7 @@ static int plug_hole(uf_coord_t *uf_coord, const reiser4_key *key, int *how)
 		       extent_get_width(&rh.overwrite) * current_blocksize);
 
 	uf_coord->valid = 0;
-	return replace_extent(&rh, return_inserted_position);
+	return reiser4_replace_extent(&rh, return_inserted_position);
 }
 
 /**
@@ -707,7 +712,7 @@ static int overwrite_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 		 * them dirty
 		 */
 		spin_lock_jnode(node);
-		result = try_capture(node, ZNODE_WRITE_LOCK, 0);
+		result = reiser4_try_capture(node, ZNODE_WRITE_LOCK, 0);
 		BUG_ON(result != 0);
 		jnode_make_dirty_locked(node);
 		spin_unlock_jnode(node);
@@ -733,14 +738,14 @@ static int overwrite_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 }
 
 /**
- * update_extent
+ * reiser4_update_extent
  * @file:
  * @jnodes:
  * @count:
  * @off:
  *
  */
-int update_extent(struct inode *inode, jnode *node, loff_t pos,
+int reiser4_update_extent(struct inode *inode, jnode *node, loff_t pos,
 		  int *plugged_hole)
 {
 	int result;
@@ -750,7 +755,7 @@ int update_extent(struct inode *inode, jnode *node, loff_t pos,
 	lock_handle lh;
 	reiser4_key key;
 
-	assert("", lock_counters()->d_refs == 0);
+	assert("", reiser4_lock_counters()->d_refs == 0);
 
 	key_by_inode_and_offset_common(inode, pos, &key);
 
@@ -759,7 +764,7 @@ int update_extent(struct inode *inode, jnode *node, loff_t pos,
 	result = find_file_item_nohint(coord, &lh, &key,
 				       ZNODE_WRITE_LOCK, inode);
 	if (IS_CBKERR(result)) {
-		assert("", lock_counters()->d_refs == 0);
+		assert("", reiser4_lock_counters()->d_refs == 0);
 		return result;
 	}
 
@@ -797,7 +802,7 @@ int update_extent(struct inode *inode, jnode *node, loff_t pos,
 	assert("", result == 1 || result < 0);
 	zrelse(loaded);
 	done_lh(&lh);
-	assert("", lock_counters()->d_refs == 0);
+	assert("", reiser4_lock_counters()->d_refs == 0);
 	return (result == 1) ? 0 : result;
 }
 
@@ -828,12 +833,12 @@ static int update_extents(struct file *file, jnode **jnodes, int count, loff_t p
 		pos = (loff_t)index_jnode(jnodes[0]) << PAGE_CACHE_SHIFT;
 	key_by_inode_and_offset_common(inode, pos, &key);
 
-	assert("", lock_counters()->d_refs == 0);
+	assert("", reiser4_lock_counters()->d_refs == 0);
 
 	do {
 		result = find_file_item(&hint, &key, ZNODE_WRITE_LOCK, inode);
 		if (IS_CBKERR(result)) {
-			assert("", lock_counters()->d_refs == 0);
+			assert("", reiser4_lock_counters()->d_refs == 0);
 			return result;
 		}
 
@@ -885,14 +890,14 @@ static int update_extents(struct file *file, jnode **jnodes, int count, loff_t p
 
 		/* seal and unlock znode */
 		if (hint.ext_coord.valid)
-			set_hint(&hint, &key, ZNODE_WRITE_LOCK);
+			reiser4_set_hint(&hint, &key, ZNODE_WRITE_LOCK);
 		else
-			unset_hint(&hint);
+			reiser4_unset_hint(&hint);
 
 	} while (count > 0);
 
 	save_file_hint(file, &hint);
-	assert("", lock_counters()->d_refs == 0);
+	assert("", reiser4_lock_counters()->d_refs == 0);
 	return result;
 }
 
@@ -923,7 +928,7 @@ static int write_extent_reserve_space(struct inode *inode)
 
 	 * 3. stat data update
 	 */
-	tree = tree_by_inode(inode);
+	tree = reiser4_tree_by_inode(inode);
 	count = estimate_one_insert_item(tree) +
 		WRITE_GRANULARITY * (1 + estimate_one_insert_into_item(tree)) +
 		estimate_one_insert_item(tree);
@@ -932,15 +937,15 @@ static int write_extent_reserve_space(struct inode *inode)
 }
 
 /**
- * write_extent - write method of extent item plugin
+ * reiser4_write_extent - write method of extent item plugin
  * @file: file to write to
  * @buf: address of user-space buffer
  * @write_amount: number of bytes to write
  * @off: position in file to write to
  *
  */
-ssize_t write_extent(struct file *file, const char __user *buf, size_t count,
-		     loff_t *pos)
+ssize_t reiser4_write_extent(struct file *file, const char __user *buf,
+			     size_t count, loff_t *pos)
 {
 	int have_to_update_extent;
 	int nr_pages;
@@ -974,7 +979,8 @@ ssize_t write_extent(struct file *file, const char __user *buf, size_t count,
 
 	/* get pages and jnodes */
 	for (i = 0; i < nr_pages; i ++) {
-		page = find_or_create_page(inode->i_mapping, index + i, get_gfp_mask());
+		page = find_or_create_page(inode->i_mapping, index + i,
+					   reiser4_ctx_gfp_mask_get());
 		if (page == NULL) {
 			while(i --) {
 				unlock_page(jnode_page(jnodes[i]));
@@ -1054,7 +1060,7 @@ ssize_t write_extent(struct file *file, const char __user *buf, size_t count,
 			break;
 		}
 		flush_dcache_page(page);
-		set_page_dirty_internal(page);
+		reiser4_set_page_dirty_internal(page);
 		unlock_page(page);
 		mark_page_accessed(page);
 		SetPageUptodate(page);
@@ -1074,7 +1080,8 @@ ssize_t write_extent(struct file *file, const char __user *buf, size_t count,
 	} else {
 		for (i = 0; i < nr_pages; i ++) {
 			spin_lock_jnode(jnodes[i]);
-			result = try_capture(jnodes[i], ZNODE_WRITE_LOCK, 0);
+			result = reiser4_try_capture(jnodes[i],
+						     ZNODE_WRITE_LOCK, 0);
 			BUG_ON(result != 0);
 			jnode_make_dirty_locked(jnodes[i]);
 			spin_unlock_jnode(jnodes[i]);
@@ -1171,13 +1178,13 @@ int do_readpage_extent(reiser4_extent * ext, reiser4_block_nr pos,
 	}
 
 	BUG_ON(j == 0);
-	page_io(page, j, READ, get_gfp_mask());
+	reiser4_page_io(page, j, READ, reiser4_ctx_gfp_mask_get());
 	jput(j);
 	return 0;
 }
 
 /* Implements plugin->u.item.s.file.read operation for extent items. */
-int read_extent(struct file *file, flow_t *flow, hint_t *hint)
+int reiser4_read_extent(struct file *file, flow_t *flow, hint_t *hint)
 {
 	int result;
 	struct page *page;
@@ -1226,11 +1233,11 @@ int read_extent(struct file *file, flow_t *flow, hint_t *hint)
 	/* we start having twig node read locked. However, we do not want to
 	   keep that lock all the time readahead works. So, set a sel and
 	   release twig node. */
-	set_hint(hint, &flow->key, ZNODE_READ_LOCK);
+	reiser4_set_hint(hint, &flow->key, ZNODE_READ_LOCK);
 	/* &hint->lh is done-ed */
 
 	do {
-		txn_restart_current();
+		reiser4_txn_restart_current();
 		page = read_mapping_page(mapping, cur_page, file);
 		if (IS_ERR(page))
 			return PTR_ERR(page);
@@ -1251,7 +1258,7 @@ int read_extent(struct file *file, flow_t *flow, hint_t *hint)
 		if (mapping_writably_mapped(mapping))
 			flush_dcache_page(page);
 
-		assert("nikita-3034", schedulable());
+		assert("nikita-3034", reiser4_schedulable());
 
 		/* number of bytes which are to be read from the page */
 		if (count > flow->length)
@@ -1298,7 +1305,7 @@ int read_extent(struct file *file, flow_t *flow, hint_t *hint)
    At the beginning: coord->node is read locked, zloaded, page is
    locked, coord is set to existing unit inside of extent item (it is not necessary that coord matches to page->index)
 */
-int readpage_extent(void *vp, struct page *page)
+int reiser4_readpage_extent(void *vp, struct page *page)
 {
 	uf_coord_t *uf_coord = vp;
 	ON_DEBUG(coord_t * coord = &uf_coord->coord);
@@ -1368,9 +1375,9 @@ reiser4_key *append_key_extent(const coord_t * coord, reiser4_key * key)
 {
 	item_key_by_coord(coord, key);
 	set_key_offset(key,
-		       get_key_offset(key) + extent_size(coord,
-							 nr_units_extent
-							 (coord)));
+		       get_key_offset(key) + reiser4_extent_size(coord,
+								 nr_units_extent
+								 (coord)));
 
 	assert("vs-610", get_key_offset(key)
 	       && (get_key_offset(key) & (current_blocksize - 1)) == 0);

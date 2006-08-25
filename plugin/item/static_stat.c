@@ -85,7 +85,7 @@ int init_inode_static_sd(struct inode *inode /* object being processed */ ,
 	state = reiser4_inode_data(inode);
 	mask = le16_to_cpu(get_unaligned(&sd_base->extmask));
 	bigmask = mask;
-	inode_set_flag(inode, REISER4_SDLEN_KNOWN);
+	reiser4_inode_set_flag(inode, REISER4_SDLEN_KNOWN);
 
 	move_on(&len, &sd, sizeof *sd_base);
 	for (bit = 0, chunk = 0;
@@ -274,7 +274,7 @@ static int present_lw_sd(struct inode *inode /* object being processed */ ,
 		if ((inode->i_mode & S_IFMT) == (S_IFREG | S_IFIFO)) {
 			inode->i_mode &= ~S_IFIFO;
 			warning("", "partially converted file is encountered");
-			inode_set_flag(inode, REISER4_PART_MIXED);
+			reiser4_inode_set_flag(inode, REISER4_PART_MIXED);
 		}
 		move_on(len, area, sizeof *sd_lw);
 		return 0;
@@ -300,7 +300,8 @@ static int save_lw_sd(struct inode *inode /* object being processed */ ,
 
 	sd = (reiser4_light_weight_stat *) * area;
 
-	delta = (inode_get_flag(inode, REISER4_PART_MIXED) ? S_IFIFO : 0);
+	delta = (reiser4_inode_get_flag(inode,
+					REISER4_PART_MIXED) ? S_IFIFO : 0);
 	put_unaligned(cpu_to_le16(inode->i_mode | delta), &sd->mode);
 	put_unaligned(cpu_to_le32(inode->i_nlink), &sd->nlink);
 	put_unaligned(cpu_to_le64((__u64) inode->i_size), &sd->size);
@@ -346,7 +347,7 @@ static int absent_unix_sd(struct inode *inode /* object being processed */ )
 	inode_set_bytes(inode, inode->i_size);
 	/* mark inode as lightweight, so that caller (lookup_common) will
 	   complete initialisation by copying [ug]id from a parent. */
-	inode_set_flag(inode, REISER4_LIGHT_WEIGHT);
+	reiser4_inode_set_flag(inode, REISER4_LIGHT_WEIGHT);
 	return 0;
 }
 
@@ -434,17 +435,18 @@ static int
 symlink_target_to_inode(struct inode *inode, const char *target, int len)
 {
 	assert("vs-845", inode->i_private == NULL);
-	assert("vs-846", !inode_get_flag(inode, REISER4_GENERIC_PTR_USED));
-
+	assert("vs-846", !reiser4_inode_get_flag(inode,
+						 REISER4_GENERIC_PTR_USED));
 	/* FIXME-VS: this is prone to deadlock. Not more than other similar
 	   places, though */
-	inode->i_private = kmalloc((size_t) len + 1, get_gfp_mask());
+	inode->i_private = kmalloc((size_t) len + 1,
+				   reiser4_ctx_gfp_mask_get());
 	if (!inode->i_private)
 		return RETERR(-ENOMEM);
 
 	memcpy((char *)(inode->i_private), target, (size_t) len);
 	((char *)(inode->i_private))[len] = 0;
-	inode_set_flag(inode, REISER4_GENERIC_PTR_USED);
+	reiser4_inode_set_flag(inode, REISER4_GENERIC_PTR_USED);
 	return 0;
 }
 
@@ -495,7 +497,7 @@ static int save_symlink_sd(struct inode *inode, char **area)
 
 	result = 0;
 	sd = (reiser4_symlink_stat *) * area;
-	if (!inode_get_flag(inode, REISER4_GENERIC_PTR_USED)) {
+	if (!reiser4_inode_get_flag(inode, REISER4_GENERIC_PTR_USED)) {
 		const char *target;
 
 		target = (const char *)(inode->i_private);
@@ -611,7 +613,7 @@ static int present_plugin_sd(struct inode *inode /* object being processed */ ,
 				(unsigned long long)get_inode_oid(inode));
 			return RETERR(-EINVAL);
 		}
-		plugin = plugin_by_disk_id(tree_by_inode(inode),
+		plugin = plugin_by_disk_id(reiser4_tree_by_inode(inode),
 					   type, &slot->id);
 		if (plugin == NULL)
 			return unknown_plugin(le16_to_cpu(get_unaligned(&slot->id)), inode);
@@ -896,15 +898,15 @@ static int extract_crypto_stat (struct inode * inode,
 	crypto_stat_t * info;
 	assert("edward-11", !inode_crypto_stat(inode));
 	assert("edward-1413",
-	       !inode_get_flag(inode, REISER4_CRYPTO_STAT_LOADED));
+	       !reiser4_inode_get_flag(inode, REISER4_CRYPTO_STAT_LOADED));
 	/* create and attach a crypto-stat without secret key loaded */
-	info = alloc_crypto_stat(inode);
+	info = reiser4_alloc_crypto_stat(inode);
 	if (IS_ERR(info))
 		return PTR_ERR(info);
 	info->keysize = le16_to_cpu(get_unaligned(&sd->keysize));
 	memcpy(info->keyid, sd->keyid, inode_digest_plugin(inode)->fipsize);
-	attach_crypto_stat(inode, info);
-	inode_set_flag(inode, REISER4_CRYPTO_STAT_LOADED);
+	reiser4_attach_crypto_stat(inode, info);
+	reiser4_inode_set_flag(inode, REISER4_CRYPTO_STAT_LOADED);
 	return 0;
 }
 
@@ -958,13 +960,13 @@ static int save_crypto_sd(struct inode *inode, char **area)
 	assert("edward-1415", info->keysize != 0);
 	assert("edward-76", reiser4_inode_data(inode) != NULL);
 
-	if (!inode_get_flag(inode, REISER4_CRYPTO_STAT_LOADED)) {
+	if (!reiser4_inode_get_flag(inode, REISER4_CRYPTO_STAT_LOADED)) {
 		/* file is just created */
 		sd = (reiser4_crypto_stat *) *area;
 		/* copy everything but private key to the disk stat-data */
 		put_unaligned(cpu_to_le16(info->keysize), &sd->keysize);
 		memcpy(sd->keyid, info->keyid, (size_t) dplug->fipsize);
-		inode_set_flag(inode, REISER4_CRYPTO_STAT_LOADED);
+		reiser4_inode_set_flag(inode, REISER4_CRYPTO_STAT_LOADED);
 	}
 	*area += (sizeof(*sd) + dplug->fipsize);
 	return result;

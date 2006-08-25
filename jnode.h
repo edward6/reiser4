@@ -397,8 +397,8 @@ static inline const reiser4_block_nr *jnode_get_io_block(jnode * node)
 }
 
 /* Jnode flush interface. */
-extern reiser4_blocknr_hint *pos_hint(flush_pos_t * pos);
-extern flush_queue_t *pos_fq(flush_pos_t * pos);
+extern reiser4_blocknr_hint *reiser4_pos_hint(flush_pos_t * pos);
+extern flush_queue_t *reiser4_pos_fq(flush_pos_t * pos);
 
 /* FIXME-VS: these are used in plugin/item/extent.c */
 
@@ -503,7 +503,7 @@ extern int jload_gfp(jnode *, gfp_t, int do_kmap) NONNULL;
 
 static inline int jload(jnode *node)
 {
-	return jload_gfp(node, get_gfp_mask(), 1);
+	return jload_gfp(node, reiser4_ctx_gfp_mask_get(), 1);
 }
 
 extern int jinit_new(jnode *, gfp_t) NONNULL;
@@ -514,8 +514,8 @@ extern int jwait_io(jnode *, int rw) NONNULL;
 
 void jload_prefetch(jnode *);
 
-extern jnode *alloc_io_head(const reiser4_block_nr * block) NONNULL;
-extern void drop_io_head(jnode * node) NONNULL;
+extern jnode *reiser4_alloc_io_head(const reiser4_block_nr * block) NONNULL;
+extern void reiser4_drop_io_head(jnode * node) NONNULL;
 
 static inline reiser4_tree *jnode_get_tree(const jnode * node)
 {
@@ -657,7 +657,7 @@ static inline void jput(jnode * node)
 {
 	assert("jmacd-509", node != NULL);
 	assert("jmacd-510", atomic_read(&node->x_count) > 0);
-	assert("zam-926", schedulable());
+	assert("zam-926", reiser4_schedulable());
 	LOCK_CNT_DEC(x_refs);
 
 	rcu_read_lock();
@@ -668,7 +668,7 @@ static inline void jput(jnode * node)
 		jput_final(node);
 	} else
 		rcu_read_unlock();
-	assert("nikita-3473", schedulable());
+	assert("nikita-3473", reiser4_schedulable());
 }
 
 extern void jrelse(jnode * node);

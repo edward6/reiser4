@@ -43,11 +43,11 @@ int reiser4_status_init(reiser4_block_nr block)
 	get_super_private(sb)->status_page = NULL;
 	get_super_private(sb)->status_bio = NULL;
 
-	page = alloc_pages(get_gfp_mask(), 0);
+	page = alloc_pages(reiser4_ctx_gfp_mask_get(), 0);
 	if (!page)
 		return -ENOMEM;
 
-	bio = bio_alloc(get_gfp_mask(), 1);
+	bio = bio_alloc(reiser4_ctx_gfp_mask_get(), 1);
 	if (bio != NULL) {
 		bio->bi_sector = block * (sb->s_blocksize >> 9);
 		bio->bi_bdev = sb->s_bdev;
@@ -63,7 +63,7 @@ int reiser4_status_init(reiser4_block_nr block)
 	}
 	lock_page(page);
 	submit_bio(READ, bio);
-	blk_run_address_space(get_super_fake(sb)->i_mapping);
+	blk_run_address_space(reiser4_get_super_fake(sb)->i_mapping);
 	wait_on_page_locked(page);
 	if (!PageUptodate(page)) {
 		warning("green-2007",
@@ -158,7 +158,7 @@ int reiser4_status_write(__u64 status, __u64 extended_status, char *message)
 	lock_page(get_super_private(sb)->status_page);	// Safe as nobody should touch our page.
 	/* We can block now, but we have no other choice anyway */
 	submit_bio(WRITE, bio);
-	blk_run_address_space(get_super_fake(sb)->i_mapping);
+	blk_run_address_space(reiser4_get_super_fake(sb)->i_mapping);
 	return 0;		// We do not wait for io to finish.
 }
 

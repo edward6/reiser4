@@ -170,7 +170,7 @@ int safe_link_add(struct inode *inode, reiser4_safe_link_t link)
 		length += sizeof(sl.size);
 		put_unaligned(cpu_to_le64(inode->i_size), &sl.size);
 	}
-	tree = tree_by_inode(inode);
+	tree = reiser4_tree_by_inode(inode);
 	build_link_key(tree, get_inode_oid(inode), link, &key);
 
 	result = store_black_box(tree, &key, &sl, length);
@@ -211,8 +211,8 @@ static void safe_link_iter_begin(reiser4_tree * tree, safe_link_context * ctx)
 	ctx->tree = tree;
 	reiser4_key_init(&ctx->key);
 	set_key_locality(&ctx->key, safe_link_locality(tree));
-	set_key_objectid(&ctx->key, get_key_objectid(max_key()));
-	set_key_offset(&ctx->key, get_key_offset(max_key()));
+	set_key_objectid(&ctx->key, get_key_objectid(reiser4_max_key()));
+	set_key_offset(&ctx->key, get_key_offset(reiser4_max_key()));
 }
 
 /*
@@ -272,17 +272,17 @@ static int process_safelink(struct super_block *super, reiser4_safe_link_t link,
 		assert("nikita-3428", fplug != NULL);
 		assert("", oid == get_inode_oid(inode));
 		if (fplug->safelink != NULL) {
-			/* txn_restart_current is not necessary because
+			/* reiser4_txn_restart_current is not necessary because
 			 * mounting is signle thread. However, without it
 			 * deadlock detection code will complain (see
 			 * nikita-3361). */
-			txn_restart_current();
+			reiser4_txn_restart_current();
 			result = fplug->safelink(inode, link, size);
 		} else {
 			warning("nikita-3430",
 				"Cannot handle safelink for %lli",
 				(unsigned long long)oid);
-			print_key("key", sdkey);
+			reiser4_print_key("key", sdkey);
 			result = 0;
 		}
 		if (result != 0) {
@@ -293,18 +293,18 @@ static int process_safelink(struct super_block *super, reiser4_safe_link_t link,
 		reiser4_iget_complete(inode);
 		iput(inode);
 		if (result == 0) {
-			result = safe_link_grab(get_tree(super), BA_CAN_COMMIT);
+			result = safe_link_grab(reiser4_get_tree(super), BA_CAN_COMMIT);
 			if (result == 0)
 				result =
-				    safe_link_del(get_tree(super), oid, link);
-			safe_link_release(get_tree(super));
+				    safe_link_del(reiser4_get_tree(super), oid, link);
+			safe_link_release(reiser4_get_tree(super));
 			/*
 			 * restart transaction: if there was large number of
 			 * safe-links, their processing may fail to fit into
 			 * single transaction.
 			 */
 			if (result == 0)
-				txn_restart_current();
+				reiser4_txn_restart_current();
 		}
 	} else
 		result = PTR_ERR(inode);

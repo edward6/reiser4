@@ -30,7 +30,7 @@ static void tap_check(const tap_t * tap);
 #endif
 
 /** load node tap is pointing to, if not loaded already */
-int tap_load(tap_t * tap)
+int reiser4_tap_load(tap_t * tap)
 {
 	tap_check(tap);
 	if (tap->loaded == 0) {
@@ -47,7 +47,7 @@ int tap_load(tap_t * tap)
 }
 
 /** release node tap is pointing to. Dual to tap_load() */
-void tap_relse(tap_t * tap)
+void reiser4_tap_relse(tap_t * tap)
 {
 	tap_check(tap);
 	if (tap->loaded > 0) {
@@ -63,29 +63,29 @@ void tap_relse(tap_t * tap)
  * init tap to consist of @coord and @lh. Locks on nodes will be acquired with
  * @mode
  */
-void
-tap_init(tap_t * tap, coord_t * coord, lock_handle * lh, znode_lock_mode mode)
+void reiser4_tap_init(tap_t * tap, coord_t * coord, lock_handle * lh,
+		      znode_lock_mode mode)
 {
 	tap->coord = coord;
 	tap->lh = lh;
 	tap->mode = mode;
 	tap->loaded = 0;
 	INIT_LIST_HEAD(&tap->linkage);
-	init_ra_info(&tap->ra_info);
+	reiser4_init_ra_info(&tap->ra_info);
 }
 
 /** add @tap to the per-thread list of all taps */
-void tap_monitor(tap_t * tap)
+void reiser4_tap_monitor(tap_t * tap)
 {
 	assert("nikita-2623", tap != NULL);
 	tap_check(tap);
-	list_add(&tap->linkage, taps_list());
+	list_add(&tap->linkage, reiser4_taps_list());
 	tap_check(tap);
 }
 
 /* duplicate @src into @dst. Copy lock handle. @dst is not initially
  * loaded. */
-void tap_copy(tap_t * dst, tap_t * src)
+void reiser4_tap_copy(tap_t * dst, tap_t * src)
 {
 	assert("nikita-3193", src != NULL);
 	assert("nikita-3194", dst != NULL);
@@ -100,7 +100,7 @@ void tap_copy(tap_t * dst, tap_t * src)
 }
 
 /** finish with @tap */
-void tap_done(tap_t * tap)
+void reiser4_tap_done(tap_t * tap)
 {
 	assert("nikita-2565", tap != NULL);
 	tap_check(tap);
@@ -116,7 +116,7 @@ void tap_done(tap_t * tap)
  * move @tap to the new node, locked with @target. Load @target, if @tap was
  * already loaded.
  */
-int tap_move(tap_t * tap, lock_handle * target)
+int reiser4_tap_move(tap_t * tap, lock_handle * target)
 {
 	int result = 0;
 
@@ -161,7 +161,7 @@ static int tap_to(tap_t * tap, znode * target)
 		result = longterm_lock_znode(&here, target,
 					     tap->mode, ZNODE_LOCK_HIPRI);
 		if (result == 0) {
-			result = tap_move(tap, &here);
+			result = reiser4_tap_move(tap, &here);
 			done_lh(&here);
 		}
 	}
@@ -186,7 +186,7 @@ int tap_to_coord(tap_t * tap, coord_t * target)
 }
 
 /** return list of all taps */
-struct list_head *taps_list(void)
+struct list_head *reiser4_taps_list(void)
 {
 	return &get_current_context()->taps;
 }
@@ -234,7 +234,7 @@ int go_dir_el(tap_t * tap, sideof dir, int units_p)
 			    get_dir_neighbor(&dup, coord->node, (int)tap->mode,
 					     GN_CAN_USE_UPPER_LEVELS);
 			if (result == 0) {
-				result = tap_move(tap, &dup);
+				result = reiser4_tap_move(tap, &dup);
 				if (result == 0)
 					coord_init(tap->coord, dup.node);
 				done_lh(&dup);
@@ -280,7 +280,7 @@ static int rewind_to(tap_t * tap, go_actor_t actor, int shift)
 	assert("nikita-2562", tap->coord->node == tap->lh->node);
 
 	tap_check(tap);
-	result = tap_load(tap);
+	result = reiser4_tap_load(tap);
 	if (result != 0)
 		return result;
 
@@ -290,7 +290,7 @@ static int rewind_to(tap_t * tap, go_actor_t actor, int shift)
 		if (result != 0)
 			break;
 	}
-	tap_relse(tap);
+	reiser4_tap_relse(tap);
 	tap_check(tap);
 	return result;
 }

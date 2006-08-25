@@ -81,7 +81,7 @@ static blocknr_set_entry *bse_alloc(void)
 	blocknr_set_entry *e;
 
 	if ((e = (blocknr_set_entry *) kmalloc(sizeof(blocknr_set_entry),
-					       get_gfp_mask())) == NULL)
+					   reiser4_ctx_gfp_mask_get())) == NULL)
 		return NULL;
 
 	bse_init(e);

@@ -61,7 +61,7 @@ I feel uneasy about this pool.  It adds to code complexity, I understand why it 
        //   COP_UPDATE    --- update delimiting key in least
        //                     common ancestor of two
 
-       op = post_carry( &lowest_level, operation, node, 0 );
+       op = reiser4_post_carry( &lowest_level, operation, node, 0 );
        if( IS_ERR( op ) || ( op == NULL ) ) {
            handle error
        } else {
@@ -80,7 +80,7 @@ I feel uneasy about this pool.  It adds to code complexity, I understand why it 
 
        ....
 
-       // note, that last argument to post_carry() is non-null
+       // note, that last argument to reiser4_post_carry() is non-null
        // here, because @op is to be applied to the parent of @node, rather
        // than to the @node itself as in the previous case.
 
@@ -117,8 +117,8 @@ I feel uneasy about this pool.  It adds to code complexity, I understand why it 
     2. whole balancing logic is implemented here, in particular, insertion
     logic is coded in make_space().
 
-    3. special cases like insertion (add_tree_root()) or deletion
-    (kill_tree_root()) of tree root and morphing of paste into insert
+    3. special cases like insertion (reiser4_add_tree_root()) or deletion
+    (reiser4_kill_tree_root()) of tree root and morphing of paste into insert
     (insert_paste()) have to be handled.
 
     4. there is non-trivial interdependency between allocation of new nodes
@@ -189,9 +189,11 @@ static int carry_level_invariant(carry_level * level, carry_queue_state state);
    For usage, see comment at the top of fs/reiser4/carry.c
 
 */
-int carry(carry_level * doing /* set of carry operations to be performed */ ,
-	  carry_level * done	/* set of nodes, already performed at the
-				 * previous level. NULL in most cases */ )
+int reiser4_carry(carry_level * doing /* set of carry operations to be
+				       * performed */ ,
+		  carry_level * done  /* set of nodes, already performed
+				       *  at the previous level.
+				       * NULL in most cases */)
 {
 	int result = 0;
 	/* queue of new requests */
@@ -265,7 +267,7 @@ int carry(carry_level * doing /* set of carry operations to be performed */ ,
 		init_carry_level(todo, doing->pool);
 
 		/* give other threads chance to run */
-		preempt_point();
+		reiser4_preempt_point();
 	}
 	done_carry_level(done);
 
@@ -356,7 +358,7 @@ static int carry_on_level(carry_level * doing	/* queue of carry operations to
 		for_all_nodes(doing, scan, tmp_scan) {
 			znode *node;
 
-			node = carry_real(scan);
+			node = reiser4_carry_real(scan);
 			assert("nikita-2547", node != NULL);
 			if (node_is_empty(node)) {
 				result =
@@ -384,14 +386,14 @@ static int carry_on_level(carry_level * doing	/* queue of carry operations to
    caller to guarantee proper ordering of node queue.
 
 */
-carry_op *post_carry(carry_level * level	/* queue where new operation is to
-						 * be posted at */ ,
-		     carry_opcode op /* opcode of operation */ ,
-		     znode * node	/* node on which this operation
-					 * will operate */ ,
-		     int apply_to_parent_p	/* whether operation will operate
-						 * directly on @node or on it
-						 * parent. */ )
+carry_op * reiser4_post_carry(carry_level * level /* queue where new operation
+						   * is to be posted at */ ,
+			      carry_opcode op /* opcode of operation */ ,
+			      znode * node	/* node on which this operation
+						 * will operate */ ,
+			      int apply_to_parent_p /* whether operation will
+						     * operate directly on @node
+						     * or on it parent. */)
 {
 	carry_op *result;
 	carry_node *child;
@@ -402,7 +404,7 @@ carry_op *post_carry(carry_level * level	/* queue where new operation is to
 	result = add_op(level, POOLO_LAST, NULL);
 	if (IS_ERR(result))
 		return result;
-	child = add_carry(level, POOLO_LAST, NULL);
+	child = reiser4_add_carry(level, POOLO_LAST, NULL);
 	if (IS_ERR(child)) {
 		reiser4_pool_free(&level->pool->op_pool, &result->header);
 		return (carry_op *) child;
@@ -437,7 +439,7 @@ carry_pool *init_carry_pool(int size)
 	carry_pool *pool;
 
 	assert("", size >= sizeof(carry_pool) + 3 * sizeof(carry_level));
-	pool = kmalloc(size, get_gfp_mask());
+	pool = kmalloc(size, reiser4_ctx_gfp_mask_get());
 	if (pool == NULL)
 		return ERR_PTR(RETERR(-ENOMEM));
 
@@ -465,15 +467,17 @@ void done_carry_pool(carry_pool * pool /* pool to destroy */ )
    automatically. To control ordering use @order and @reference parameters.
 
 */
-carry_node *add_carry_skip(carry_level * level	/* &carry_level to add node
-						 * to */ ,
-			   pool_ordering order	/* where to insert: at the
-						 * beginning of @level,
-						 * before @reference, after
-						 * @reference, at the end
-						 * of @level */ ,
-			   carry_node * reference	/* reference node for
-							 * insertion */ )
+carry_node *reiser4_add_carry_skip(carry_level * level	/* &carry_level to add
+							 * node to */ ,
+				   pool_ordering order	/* where to insert:
+							 * at the beginning of
+							 * @level,
+							 * before @reference,
+							 * after @reference,
+							 * at the end of @level
+							 */ ,
+				   carry_node * reference/* reference node for
+							  * insertion */)
 {
 	ON_DEBUG(carry_node * orig_ref = reference);
 
@@ -496,11 +500,12 @@ carry_node *add_carry_skip(carry_level * level	/* &carry_level to add node
 	}
 	assert("nikita-2209",
 	       ergo(orig_ref != NULL,
-		    carry_real(reference) == carry_real(orig_ref)));
-	return add_carry(level, order, reference);
+		    reiser4_carry_real(reference) ==
+		    reiser4_carry_real(orig_ref)));
+	return reiser4_add_carry(level, order, reference);
 }
 
-carry_node *add_carry(carry_level * level	/* &carry_level to add node
+carry_node *reiser4_add_carry(carry_level * level	/* &carry_level to add node
 						 * to */ ,
 		      pool_ordering order	/* where to insert: at the
 						 * beginning of @level, before
@@ -512,8 +517,9 @@ carry_node *add_carry(carry_level * level	/* &carry_level to add node
 	carry_node *result;
 
 	result =
-	    (carry_node *) add_obj(&level->pool->node_pool, &level->nodes,
-				   order, &reference->header);
+	    (carry_node *) reiser4_add_obj(&level->pool->node_pool,
+					   &level->nodes,
+					   order, &reference->header);
 	if (!IS_ERR(result) && (result != NULL))
 		++level->nodes_num;
 	return result;
@@ -536,8 +542,8 @@ static carry_op *add_op(carry_level * level /* &carry_level to add node to */ ,
 	carry_op *result;
 
 	result =
-	    (carry_op *) add_obj(&level->pool->op_pool, &level->ops, order,
-				 &reference->header);
+	    (carry_op *) reiser4_add_obj(&level->pool->op_pool, &level->ops,
+					 order, &reference->header);
 	if (!IS_ERR(result) && (result != NULL))
 		++level->ops_num;
 	return result;
@@ -562,16 +568,16 @@ static carry_node *find_begetting_brother(carry_node * node	/* node to start sea
 	assert("nikita-1614", node != NULL);
 	assert("nikita-1615", kin != NULL);
 	assert("nikita-1616", LOCK_CNT_GTZ(rw_locked_tree));
-	assert("nikita-1619", ergo(carry_real(node) != NULL,
-				   ZF_ISSET(carry_real(node), JNODE_ORPHAN)));
-
+	assert("nikita-1619", ergo(reiser4_carry_real(node) != NULL,
+				   ZF_ISSET(reiser4_carry_real(node),
+					    JNODE_ORPHAN)));
 	for (scan = node;;
 	     scan = list_entry(scan->header.level_linkage.prev, carry_node,
 			       header.level_linkage)) {
 		assert("nikita-1617", &kin->nodes != &scan->header.level_linkage);
 		if ((scan->node != node->node) &&
 		    !ZF_ISSET(scan->node, JNODE_ORPHAN)) {
-			assert("nikita-1618", carry_real(scan) != NULL);
+			assert("nikita-1618", reiser4_carry_real(scan) != NULL);
 			break;
 		}
 	}
@@ -605,13 +611,13 @@ carry_node *find_carry_node(carry_level * level, const znode * node)
 	assert("nikita-2203", node != NULL);
 
 	for_all_nodes(level, scan, tmp_scan) {
-		if (carry_real(scan) == node)
+		if (reiser4_carry_real(scan) == node)
 			return scan;
 	}
 	return NULL;
 }
 
-znode *carry_real(const carry_node * node)
+znode *reiser4_carry_real(const carry_node * node)
 {
 	assert("nikita-3061", node != NULL);
 
@@ -650,12 +656,12 @@ static carry_node *add_carry_atplace(carry_level * doing, carry_level * todo,
 	reference = insert_carry_node(doing, todo, node);
 	assert("nikita-2997", reference != NULL);
 
-	return add_carry(todo, POOLO_BEFORE, reference);
+	return reiser4_add_carry(todo, POOLO_BEFORE, reference);
 }
 
-/* like post_carry(), but designed to be called from node plugin methods.
-   This function is different from post_carry() in that it finds proper place
-   to insert node in the queue. */
+/* like reiser4_post_carry(), but designed to be called from node plugin methods.
+   This function is different from reiser4_post_carry() in that it finds proper
+   place to insert node in the queue. */
 carry_op *node_post_carry(carry_plugin_info * info	/* carry parameters
 							 * passed down to node
 							 * plugin */ ,
@@ -673,7 +679,8 @@ carry_op *node_post_carry(carry_plugin_info * info	/* carry parameters
 	assert("nikita-2208", info->todo != NULL);
 
 	if (info->doing == NULL)
-		return post_carry(info->todo, op, node, apply_to_parent_p);
+		return reiser4_post_carry(info->todo, op, node,
+					  apply_to_parent_p);
 
 	result = add_op(info->todo, POOLO_LAST, NULL);
 	if (IS_ERR(result))
@@ -791,8 +798,8 @@ static void unlock_carry_level(carry_level * level /* level to unlock */ ,
 		spot = NULL;
 		/* update delimiting keys */
 		for_all_nodes(level, node, tmp_node) {
-			if (carry_real(node) != spot) {
-				spot = carry_real(node);
+			if (reiser4_carry_real(node) != spot) {
+				spot = reiser4_carry_real(node);
 				sync_dkeys(spot);
 			}
 		}
@@ -805,9 +812,10 @@ static void unlock_carry_level(carry_level * level /* level to unlock */ ,
 	for_all_nodes_back(level, node, tmp_node) {
 		/* all allocated nodes should be already linked to their
 		   parents at this moment. */
-		assert("nikita-1631", ergo(!failure, !ZF_ISSET(carry_real(node),
-							       JNODE_ORPHAN)));
-		ON_DEBUG(check_dkeys(carry_real(node)));
+		assert("nikita-1631",
+		       ergo(!failure, !ZF_ISSET(reiser4_carry_real(node),
+						JNODE_ORPHAN)));
+		ON_DEBUG(check_dkeys(reiser4_carry_real(node)));
 		unlock_carry_node(level, node, failure);
 	}
 	level->new_root = NULL;
@@ -848,7 +856,7 @@ static void done_carry_level(carry_level * level /* level to finish */ )
 int lock_carry_node_tail(carry_node * node /* node to complete locking of */ )
 {
 	assert("nikita-1052", node != NULL);
-	assert("nikita-1187", carry_real(node) != NULL);
+	assert("nikita-1187", reiser4_carry_real(node) != NULL);
 	assert("nikita-1188", !node->unlock);
 
 	node->unlock = 1;
@@ -860,7 +868,7 @@ int lock_carry_node_tail(carry_node * node /* node to complete locking of */ )
 
 	   Corresponding zrelse() is in unlock_carry_node()
 	 */
-	return zload(carry_real(node));
+	return zload(reiser4_carry_real(node));
 }
 
 /* lock carry node
@@ -996,7 +1004,7 @@ unlock_carry_node(carry_level * level,
 
 	assert("nikita-884", node != NULL);
 
-	real_node = carry_real(node);
+	real_node = reiser4_carry_real(node);
 	/* pair to zload() in lock_carry_node_tail() */
 	zrelse(real_node);
 	if (node->unlock && (real_node != NULL)) {
@@ -1079,7 +1087,7 @@ static void fatal_carry_error(carry_level * doing UNUSED_ARG	/* carry level
 
    This function itself only manages changes in carry structures and delegates
    all hard work (allocation of znode for new root, changes of parent and
-   sibling pointers to the add_tree_root().
+   sibling pointers to the reiser4_add_tree_root().
 
    Locking: old tree root is locked by carry at this point. Fake znode is also
    locked.
@@ -1105,7 +1113,7 @@ static int add_new_root(carry_level * level	/* carry level in context of which
 	   tree root right now.
 	 */
 	if (level->new_root == NULL)
-		level->new_root = add_tree_root(node->node, fake);
+		level->new_root = reiser4_add_tree_root(node->node, fake);
 	if (!IS_ERR(level->new_root)) {
 		assert("nikita-1210", znode_is_root(level->new_root));
 		node->deallocate = 1;
@@ -1127,7 +1135,7 @@ static int add_new_root(carry_level * level	/* carry level in context of which
    Allocate new znode, add it into carry queue and post into @todo queue
    request to add pointer to new node into its parent.
 
-   This is carry related routing that calls new_node() to allocate new
+   This is carry related routing that calls reiser4_new_node() to allocate new
    node.
 */
 carry_node *add_new_znode(znode * brother	/* existing left neighbor of new
@@ -1160,14 +1168,15 @@ carry_node *add_new_znode(znode * brother	/* existing left neighbor of new
 
 	 */
 
-	fresh = add_carry_skip(doing, ref ? POOLO_AFTER : POOLO_LAST, ref);
+	fresh =	reiser4_add_carry_skip(doing,
+				       ref ? POOLO_AFTER : POOLO_LAST, ref);
 	if (IS_ERR(fresh))
 		return fresh;
 
 	fresh->deallocate = 1;
 	fresh->free = 1;
 
-	new_znode = new_node(brother, znode_get_level(brother));
+	new_znode = reiser4_new_node(brother, znode_get_level(brother));
 	if (IS_ERR(new_znode))
 		/* @fresh will be deallocated automatically by error
 		   handling code in the caller. */
@@ -1179,14 +1188,15 @@ carry_node *add_new_znode(znode * brother	/* existing left neighbor of new
 	ZF_SET(new_znode, JNODE_ORPHAN);
 	fresh->node = new_znode;
 
-	while (ZF_ISSET(carry_real(ref), JNODE_ORPHAN)) {
+	while (ZF_ISSET(reiser4_carry_real(ref), JNODE_ORPHAN)) {
 		ref = carry_node_prev(ref);
 		assert("nikita-1606", !carry_node_end(doing, ref));
 	}
 
 	info.todo = todo;
 	info.doing = doing;
-	add_pointer = node_post_carry(&info, COP_INSERT, carry_real(ref), 1);
+	add_pointer = node_post_carry(&info, COP_INSERT,
+				      reiser4_carry_real(ref), 1);
 	if (IS_ERR(add_pointer)) {
 		/* no need to deallocate @new_znode here: it will be
 		   deallocated during carry error handling. */
@@ -1237,8 +1247,8 @@ static int carry_level_invariant(carry_level * level, carry_queue_state state)
 				right = node->node;
 				left = carry_node_prev(node)->node;
 			} else {
-				right = carry_real(node);
-				left = carry_real(carry_node_prev(node));
+				right = reiser4_carry_real(node);
+				left = reiser4_carry_real(carry_node_prev(node));
 			}
 			if (right == NULL || left == NULL)
 				continue;
@@ -1318,7 +1328,8 @@ static void print_op(const char *prefix /* prefix to print */ ,
 	case COP_PASTE:
 		print_coord("\tcoord",
 			    op->u.insert.d ? op->u.insert.d->coord : NULL, 0);
-		print_key("\tkey", op->u.insert.d ? op->u.insert.d->key : NULL);
+		reiser4_print_key("\tkey",
+				  op->u.insert.d ? op->u.insert.d->key : NULL);
 		print_carry("\tchild", op->u.insert.child);
 		break;
 	case COP_DELETE:

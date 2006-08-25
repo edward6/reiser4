@@ -81,7 +81,7 @@ static inline int alloc_ts(tfm_stream_t ** stm)
 	assert("edward-931", stm);
 	assert("edward-932", *stm == NULL);
 
-	*stm = kmalloc(sizeof **stm, get_gfp_mask());
+	*stm = kmalloc(sizeof **stm, reiser4_ctx_gfp_mask_get());
 	if (*stm == NULL)
 		return -ENOMEM;
 	memset(*stm, 0, sizeof **stm);
@@ -123,7 +123,7 @@ typedef enum {
 	CRC_APPEND_ITEM = 1,
 	CRC_OVERWRITE_ITEM = 2,
 	CRC_CUT_ITEM = 3
-} crc_write_mode_t;
+} cryptcompress_write_mode_t;
 
 typedef enum {
 	PCL_UNKNOWN = 0,	/* invalid option */
@@ -235,7 +235,7 @@ alloc_tfm_stream(tfm_cluster_t * tc, size_t size, tfm_stream_id id)
 	assert("edward-939", tc != NULL);
 	assert("edward-940", !tfm_stream(tc, id));
 
-	tc->tun[id] = kmalloc(sizeof(tfm_stream_t), get_gfp_mask());
+	tc->tun[id] = kmalloc(sizeof(tfm_stream_t), reiser4_ctx_gfp_mask_get());
 	if (!tc->tun[id])
 		return -ENOMEM;
 	memset(tfm_stream(tc, id), 0, sizeof(tfm_stream_t));
@@ -404,7 +404,8 @@ static inline int alloc_cluster_pgset(reiser4_cluster_t * clust, int nrpages)
 	assert("edward-950", nrpages != 0 && nrpages <= MAX_CLUSTER_NRPAGES);
 
 	clust->pages =
-		kmalloc(sizeof(*clust->pages) * nrpages, get_gfp_mask());
+		kmalloc(sizeof(*clust->pages) * nrpages,
+			reiser4_ctx_gfp_mask_get());
 	if (!clust->pages)
 		return RETERR(-ENOMEM);
 	reset_cluster_pgset(clust, nrpages);
@@ -465,7 +466,7 @@ static inline int compression_is_on (cryptcompress_info_t * info)
 cryptcompress_info_t *cryptcompress_inode_data(const struct inode *);
 int equal_to_rdk(znode *, const reiser4_key *);
 int goto_right_neighbor(coord_t *, lock_handle *);
-int crc_inode_ok(struct inode *inode);
+int cryptcompress_inode_ok(struct inode *inode);
 int coord_is_unprepped_ctail(const coord_t * coord);
 extern int ctail_read_disk_cluster (reiser4_cluster_t *, struct inode *,
 				    znode_lock_mode mode);
@@ -473,7 +474,8 @@ extern int do_readpage_ctail(struct inode *, reiser4_cluster_t *,
 			     struct page * page, znode_lock_mode mode);
 extern int ctail_insert_unprepped_cluster(reiser4_cluster_t * clust,
 					  struct inode * inode);
-extern int readpages_crc(struct file*, struct address_space*, struct list_head*, unsigned);
+extern int readpages_cryptcompress(struct file*, struct address_space*,
+				   struct list_head*, unsigned);
 int bind_cryptcompress(struct inode *child, struct inode *parent);
 void destroy_inode_cryptcompress(struct inode * inode);
 int grab_cluster_pages(struct inode *inode, reiser4_cluster_t * clust);
@@ -483,9 +485,9 @@ crypto_stat_t * inode_crypto_stat (struct inode * inode);
 void inherit_crypto_stat_common(struct inode * parent, struct inode * object,
 				int (*can_inherit)(struct inode * child,
 						   struct inode * parent));
-void attach_crypto_stat(struct inode * inode, crypto_stat_t * info);
+void reiser4_attach_crypto_stat(struct inode * inode, crypto_stat_t * info);
 void change_crypto_stat(struct inode * inode, crypto_stat_t * new);
-crypto_stat_t * alloc_crypto_stat (struct inode * inode);
+crypto_stat_t * reiser4_alloc_crypto_stat (struct inode * inode);
 
 static inline reiser4_tfma_t *
 info_get_tfma (crypto_stat_t * info, reiser4_tfm id)

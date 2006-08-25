@@ -402,16 +402,17 @@ extern void copy_load_count(load_count * new, load_count * old);	/* Copy the con
 
 #if REISER4_DEBUG
 #define STORE_COUNTERS						\
-	lock_counters_info __entry_counters = *lock_counters()
-#define CHECK_COUNTERS						\
-ON_DEBUG_CONTEXT(						\
-({								\
-	__entry_counters.x_refs = lock_counters() -> x_refs;	\
-	__entry_counters.t_refs = lock_counters() -> t_refs;	\
-	__entry_counters.d_refs = lock_counters() -> d_refs;	\
-	assert("nikita-2159",					\
-	       !memcmp(&__entry_counters, lock_counters(),	\
-		       sizeof __entry_counters));		\
+	reiser4_lock_counters_info __entry_counters =		\
+		*reiser4_lock_counters()
+#define CHECK_COUNTERS						        \
+ON_DEBUG_CONTEXT(						        \
+({							        	\
+	__entry_counters.x_refs = reiser4_lock_counters() -> x_refs;	\
+	__entry_counters.t_refs = reiser4_lock_counters() -> t_refs;	\
+	__entry_counters.d_refs = reiser4_lock_counters() -> d_refs;	\
+	assert("nikita-2159",					        \
+	       !memcmp(&__entry_counters, reiser4_lock_counters(),	\
+		       sizeof __entry_counters));		        \
 }) )
 
 #else

@@ -124,10 +124,10 @@ utmost_child_real_block_extent(const coord_t * coord, sideof side,
    any case, the code below asserts this case for unallocated extents.  Unallocated
    extents are thus optimized because we can skip to the endpoint when scanning.
 
-   It returns control to scan_extent, handles these terminating conditions, e.g., by
-   loading the next twig.
+   It returns control to reiser4_scan_extent, handles these terminating conditions,
+   e.g., by loading the next twig.
 */
-int scan_extent(flush_scan * scan)
+int reiser4_scan_extent(flush_scan * scan)
 {
 	coord_t coord;
 	jnode *neighbor;
@@ -146,7 +146,7 @@ int scan_extent(flush_scan * scan)
 
 	coord_dup(&coord, &scan->parent_coord);
 
-	assert("jmacd-1404", !scan_finished(scan));
+	assert("jmacd-1404", !reiser4_scan_finished(scan));
 	assert("jmacd-1405", jnode_get_level(scan->node) == LEAF_LEVEL);
 	assert("jmacd-1406", jnode_is_unformatted(scan->node));
 
@@ -174,7 +174,7 @@ int scan_extent(flush_scan * scan)
 	   (scan_max) and the number of nodes that would be passed if the scan goes the
 	   entire way (scan_dist).  Incr is an integer reflecting the incremental
 	   direction of scan_index. */
-	if (scanning_left(scan)) {
+	if (reiser4_scanning_left(scan)) {
 		scan_max = unit_index;
 		scan_dist = scan_index - unit_index;
 		incr = -1;
@@ -195,8 +195,8 @@ int scan_extent(flush_scan * scan)
 				goto stop_same_parent;
 
 			if (scan->node != neighbor
-			    && !scan_goto(scan, neighbor)) {
-				/* @neighbor was jput() by scan_goto(). */
+			    && !reiser4_scan_goto(scan, neighbor)) {
+				/* @neighbor was jput() by reiser4_scan_goto */
 				goto stop_same_parent;
 			}
 
@@ -221,7 +221,8 @@ int scan_extent(flush_scan * scan)
 			goto exit;
 		}
 
-		assert("zam-1043", blocknr_is_fake(jnode_get_block(neighbor)));
+		assert("zam-1043",
+		       reiser4_blocknr_is_fake(jnode_get_block(neighbor)));
 
 		ret = scan_set_current(scan, neighbor, scan_dist, &coord);
 		if (ret != 0) {
@@ -235,7 +236,8 @@ int scan_extent(flush_scan * scan)
 
 		scan_index =
 		    extent_unit_index(&coord) +
-		    (scanning_left(scan) ? extent_unit_width(&coord) - 1 : 0);
+		    (reiser4_scanning_left(scan) ?
+		     extent_unit_width(&coord) - 1 : 0);
 		goto repeat;
 	}
 
@@ -245,7 +247,8 @@ int scan_extent(flush_scan * scan)
 		/* If we are scanning left and we stop in the middle of an allocated
 		   extent, we know the preceder immediately.. */
 		/* middle of extent is (scan_index - unit_index) != 0. */
-		if (scanning_left(scan) && (scan_index - unit_index) != 0) {
+		if (reiser4_scanning_left(scan) &&
+		    (scan_index - unit_index) != 0) {
 			/* FIXME(B): Someone should step-through and verify that this preceder
 			   calculation is indeed correct. */
 			/* @unit_start is starting block (number) of extent
@@ -363,7 +366,7 @@ static int split_allocated_extent(coord_t *coord, reiser4_block_nr pos_in_unit)
 	assert("vs-1410", state_of_extent(ext) == ALLOCATED_EXTENT);
 	assert("vs-1411", extent_get_width(ext) > pos_in_unit);
 
-	h = kmalloc(sizeof(*h), get_gfp_mask());
+	h = kmalloc(sizeof(*h), reiser4_ctx_gfp_mask_get());
 	if (h == NULL)
 		return RETERR(-ENOMEM);
 	h->coord = coord;
@@ -373,17 +376,19 @@ static int split_allocated_extent(coord_t *coord, reiser4_block_nr pos_in_unit)
 	set_key_offset(h->pkey,
 		       (get_key_offset(h->pkey) +
 			pos_in_unit * current_blocksize));
-	set_extent(&h->overwrite, extent_get_start(ext), pos_in_unit);
-	set_extent(&h->new_extents[0], extent_get_start(ext) + pos_in_unit,
-		   extent_get_width(ext) - pos_in_unit);
+	reiser4_set_extent(&h->overwrite, extent_get_start(ext),
+			   pos_in_unit);
+	reiser4_set_extent(&h->new_extents[0],
+			   extent_get_start(ext) + pos_in_unit,
+			   extent_get_width(ext) - pos_in_unit);
 	h->nr_new_extents = 1;
 	h->flags = COPI_DONT_SHIFT_LEFT;
 	h->paste_key = h->key;
 
 	/* reserve space for extent unit paste, @grabbed is reserved before */
 	grabbed = reserve_replace();
-	result = replace_extent(h, 0 /* leave @coord set to overwritten
-					extent */);
+	result = reiser4_replace_extent(h, 0 /* leave @coord set to overwritten
+						extent */);
 	/* restore reserved */
 	free_replace_reserved(grabbed);
 	kfree(h);
@@ -480,7 +485,7 @@ static int conv_extent(coord_t *coord, reiser4_extent *replace)
 		return 0;
 	}
 
-	h = kmalloc(sizeof(*h), get_gfp_mask());
+	h = kmalloc(sizeof(*h), reiser4_ctx_gfp_mask_get());
 	if (h == NULL)
 		return RETERR(-ENOMEM);
 	h->coord = coord;
@@ -492,17 +497,19 @@ static int conv_extent(coord_t *coord, reiser4_extent *replace)
 	h->overwrite = *replace;
 
 	/* replace @ext with @replace and padding extent */
-	set_extent(&h->new_extents[0],
-		   (state == ALLOCATED_EXTENT) ? (start + new_width) : UNALLOCATED_EXTENT_START,
-		   width - new_width);
+	reiser4_set_extent(&h->new_extents[0],
+			   (state == ALLOCATED_EXTENT) ?
+			   (start + new_width) :
+			   UNALLOCATED_EXTENT_START,
+			   width - new_width);
 	h->nr_new_extents = 1;
 	h->flags = COPI_DONT_SHIFT_LEFT;
 	h->paste_key = h->key;
 
 	/* reserve space for extent unit paste, @grabbed is reserved before */
 	grabbed = reserve_replace();
-	result = replace_extent(h, 0 /* leave @coord set to overwritten
-					extent */);
+	result = reiser4_replace_extent(h, 0 /* leave @coord set to overwritten
+						extent */);
 
 	/* restore reserved */
 	free_replace_reserved(grabbed);
@@ -610,7 +617,7 @@ static void mark_jnodes_overwrite(flush_pos_t *flush_pos, oid_t oid,
 
 	tree = current_tree;
 
-	atom = atom_locked_by_fq(pos_fq(flush_pos));
+	atom = atom_locked_by_fq(reiser4_pos_fq(flush_pos));
 	assert("vs-1478", atom);
 
 	for (i = flush_pos->pos_in_unit; i < width; i++, index++) {
@@ -654,7 +661,7 @@ static int allocated_extent_slum_size(flush_pos_t *flush_pos, oid_t oid,
 	txn_atom *atom;
 	int nr;
 
-	atom = atom_locked_by_fq(pos_fq(flush_pos));
+	atom = atom_locked_by_fq(reiser4_pos_fq(flush_pos));
 	assert("vs-1468", atom);
 
 	nr = 0;
@@ -701,7 +708,7 @@ static int allocated_extent_slum_size(flush_pos_t *flush_pos, oid_t oid,
  * within the extent. Slum gets to relocate set if flush_pos->leaf_relocate is
  * set to 1 and to overwrite set otherwise
  */
-int alloc_extent(flush_pos_t *flush_pos)
+int reiser4_alloc_extent(flush_pos_t *flush_pos)
 {
 	coord_t *coord;
 	reiser4_extent *ext;
@@ -778,11 +785,13 @@ int alloc_extent(flush_pos_t *flush_pos)
 		 */
 		if (coord->unit_pos &&
 		    (state_of_extent(ext - 1) == ALLOCATED_EXTENT))
-			pos_hint(flush_pos)->blk = extent_get_start(ext - 1) +
+			reiser4_pos_hint(flush_pos)->blk =
+				extent_get_start(ext - 1) +
 				extent_get_width(ext - 1);
 
 		/* allocate new block numbers for protected nodes */
-		extent_allocate_blocks(pos_hint(flush_pos), protected,
+		extent_allocate_blocks(reiser4_pos_hint(flush_pos),
+				       protected,
 				       &first_allocated, &allocated,
 				       block_stage);
 
@@ -798,7 +807,7 @@ int alloc_extent(flush_pos_t *flush_pos)
 		assign_real_blocknrs(flush_pos, oid, index, allocated, first_allocated);
 
 		/* prepare extent which will replace current one */
-		set_extent(&replace_ext, first_allocated, allocated);
+		reiser4_set_extent(&replace_ext, first_allocated, allocated);
 
 		/* adjust extent item */
 		result = conv_extent(coord, &replace_ext);
@@ -936,16 +945,18 @@ squeeze_result squalloc_extent(znode *left, const coord_t *coord,
 		 */
 		if (coord->unit_pos &&
 		    (state_of_extent(ext - 1) == ALLOCATED_EXTENT))
-			pos_hint(flush_pos)->blk = extent_get_start(ext - 1) +
+			reiser4_pos_hint(flush_pos)->blk =
+				extent_get_start(ext - 1) +
 				extent_get_width(ext - 1);
 
 		/* allocate new block numbers for protected nodes */
-		extent_allocate_blocks(pos_hint(flush_pos), protected,
+		extent_allocate_blocks(reiser4_pos_hint(flush_pos),
+				       protected,
 				       &first_allocated, &allocated,
 				       block_stage);
 
 		/* prepare extent which will be copied to left */
-		set_extent(&copy_extent, first_allocated, allocated);
+		reiser4_set_extent(&copy_extent, first_allocated, allocated);
 
 		result = put_unit_to_end(left, &key, &copy_extent);
 		if (result == -E_NODE_FULL) {
@@ -985,7 +996,7 @@ squeeze_result squalloc_extent(znode *left, const coord_t *coord,
 		 * overwrite: try to copy unit as it is to left neighbor and
 		 * make all first not flushprepped nodes overwrite nodes
 		 */
-		set_extent(&copy_extent, start, width);
+		reiser4_set_extent(&copy_extent, start, width);
 		result = put_unit_to_end(left, &key, &copy_extent);
 		if (result == -E_NODE_FULL)
 			return SQUEEZE_TARGET_FULL;

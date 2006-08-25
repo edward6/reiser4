@@ -15,7 +15,7 @@
 reiser4_key *max_key_inside_tail(const coord_t *coord, reiser4_key *key)
 {
 	item_key_by_coord(coord, key);
-	set_key_offset(key, get_key_offset(max_key()));
+	set_key_offset(key, get_key_offset(reiser4_max_key()));
 	return key;
 }
 
@@ -139,7 +139,7 @@ paste_tail(coord_t *coord, reiser4_item_data *data,
 	if (data->data) {
 		assert("vs-554", data->user == 0 || data->user == 1);
 		if (data->user) {
-			assert("nikita-3035", schedulable());
+			assert("nikita-3035", reiser4_schedulable());
 			/* copy from user space */
 			if (__copy_from_user(item + coord->unit_pos,
 					     (const char __user *)data->data,
@@ -320,9 +320,9 @@ static int do_readpage_tail(uf_coord_t *uf_coord, struct page *page)
 	inode = page->mapping->host;
 	coord_dup(&coord, &uf_coord->coord);
 
-	tap_init(&tap, &coord, &lh, ZNODE_READ_LOCK);
+	reiser4_tap_init(&tap, &coord, &lh, ZNODE_READ_LOCK);
 
-	if ((result = tap_load(&tap)))
+	if ((result = reiser4_tap_load(&tap)))
 		goto out_tap_done;
 
 	/* lookup until page is filled up. */
@@ -401,9 +401,9 @@ static int do_readpage_tail(uf_coord_t *uf_coord, struct page *page)
  out_unlock_page:
 	unlock_page(page);
  out_tap_relse:
-	tap_relse(&tap);
+	reiser4_tap_relse(&tap);
  out_tap_done:
-	tap_done(&tap);
+	reiser4_tap_done(&tap);
 	return result;
 }
 
@@ -453,7 +453,7 @@ static int overwrite_tail(flow_t *flow, coord_t *coord)
 	assert("vs-946", flow->data);
 	assert("vs-947", coord_is_existing_unit(coord));
 	assert("vs-948", znode_is_write_locked(coord->node));
-	assert("nikita-3036", schedulable());
+	assert("nikita-3036", reiser4_schedulable());
 
 	count = item_length_by_coord(coord) - coord->unit_pos;
 	if (count > flow->length)
@@ -500,7 +500,7 @@ static ssize_t insert_first_tail(struct inode *inode, flow_t *flow,
 		 */
 		if (DQUOT_ALLOC_SPACE_NODIRTY(inode, flow->length))
 			return RETERR(-EDQUOT);
-		result = insert_flow(coord, lh, flow);
+		result = reiser4_insert_flow(coord, lh, flow);
 		if (flow->length)
 			DQUOT_FREE_SPACE_NODIRTY(inode, flow->length);
 
@@ -511,9 +511,10 @@ static ssize_t insert_first_tail(struct inode *inode, flow_t *flow,
 		 * file or performing tail conversion
 		 */
 		assert("", (uf_info->container == UF_CONTAINER_EMPTY ||
-			    (inode_get_flag(inode, REISER4_PART_MIXED) &&
-			     inode_get_flag(inode, REISER4_PART_IN_CONV))));
-
+			    (reiser4_inode_get_flag(inode,
+						    REISER4_PART_MIXED) &&
+			     reiser4_inode_get_flag(inode,
+						    REISER4_PART_IN_CONV))));
 		/* if file was empty - update its state */
 		if (result == 0 && uf_info->container == UF_CONTAINER_EMPTY)
 			uf_info->container = UF_CONTAINER_TAILS;
@@ -525,7 +526,7 @@ static ssize_t insert_first_tail(struct inode *inode, flow_t *flow,
 		return RETERR(-EDQUOT);
 
 	to_write = flow->length;
-	result = insert_flow(coord, lh, flow);
+	result = reiser4_insert_flow(coord, lh, flow);
 	if (flow->length)
 		DQUOT_FREE_SPACE_NODIRTY(inode, flow->length);
 	return (to_write - flow->length) ? (to_write - flow->length) : result;
@@ -558,7 +559,7 @@ static ssize_t append_tail(struct inode *inode,
 		 */
 		if (DQUOT_ALLOC_SPACE_NODIRTY(inode, flow->length))
 			return RETERR(-EDQUOT);
-		result = insert_flow(coord, lh, flow);
+		result = reiser4_insert_flow(coord, lh, flow);
 		if (flow->length)
 			DQUOT_FREE_SPACE_NODIRTY(inode, flow->length);
 		return result;
@@ -569,7 +570,7 @@ static ssize_t append_tail(struct inode *inode,
 		return RETERR(-EDQUOT);
 
 	to_write = flow->length;
-	result = insert_flow(coord, lh, flow);
+	result = reiser4_insert_flow(coord, lh, flow);
 	if (flow->length)
 		DQUOT_FREE_SPACE_NODIRTY(inode, flow->length);
 	return (to_write - flow->length) ? (to_write - flow->length) : result;
@@ -599,7 +600,7 @@ static int write_extent_reserve_space(struct inode *inode)
 	 *
 	 * 3. stat data update
 	 */
-	tree = tree_by_inode(inode);
+	tree = reiser4_tree_by_inode(inode);
 	count = estimate_one_insert_item(tree) +
 		estimate_insert_flow(tree->height) +
 		estimate_one_insert_item(tree);
@@ -629,7 +630,7 @@ static loff_t faultin_user_pages(const char __user *buf, size_t count)
 }
 
 /**
- * write_extent - write method of tail item plugin
+ * reiser4_write_extent - write method of tail item plugin
  * @file: file to write to
  * @buf: address of user-space buffer
  * @count: number of bytes to write
@@ -637,8 +638,8 @@ static loff_t faultin_user_pages(const char __user *buf, size_t count)
  *
  * Returns number of written bytes or error code.
  */
-ssize_t write_tail(struct file *file, const char __user *buf, size_t count,
-		   loff_t *pos)
+ssize_t reiser4_write_tail(struct file *file, const char __user *buf,
+			   size_t count, loff_t *pos)
 {
 	struct inode *inode;
 	struct hint hint;
@@ -692,9 +693,9 @@ ssize_t write_tail(struct file *file, const char __user *buf, size_t count,
 	/* seal and unlock znode */
 	hint.ext_coord.valid = 0;
 	if (hint.ext_coord.valid)
-		set_hint(&hint, &flow.key, ZNODE_WRITE_LOCK);
+		reiser4_set_hint(&hint, &flow.key, ZNODE_WRITE_LOCK);
 	else
-		unset_hint(&hint);
+		reiser4_unset_hint(&hint);
 
 	save_file_hint(file, &hint);
 	return result;
@@ -718,7 +719,7 @@ coord_matches_key_tail(const coord_t * coord, const reiser4_key * key)
 #endif
 
 /* plugin->u.item.s.file.read */
-int read_tail(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
+int reiser4_read_tail(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
 {
 	unsigned count;
 	int item_length;
@@ -734,7 +735,7 @@ int read_tail(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
 	assert("vs-1117", znode_is_rlocked(coord->node));
 	assert("vs-1118", znode_is_loaded(coord->node));
 
-	assert("nikita-3037", schedulable());
+	assert("nikita-3037", reiser4_schedulable());
 	assert("vs-1357", coord_matches_key_tail(coord, &f->key));
 
 	/* calculate number of bytes to read off the item */

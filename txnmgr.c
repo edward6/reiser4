@@ -40,7 +40,7 @@ year old --- define all technical terms used.
 
 /* Thoughts on the external transaction interface:
 
-   In the current code, a TRANSCRASH handle is created implicitly by init_context() (which
+   In the current code, a TRANSCRASH handle is created implicitly by reiser4_init_context() (which
    creates state that lasts for the duration of a system call and is called at the start
    of ReiserFS methods implementing VFS operations), and closed by reiser4_exit_context(),
    occupying the scope of a single system call.  We wish to give certain applications an
@@ -178,7 +178,8 @@ year old --- define all technical terms used.
  *     Steps (2) and (3) take place under long term lock on the twig node.
  *
  *     When file is accessed through mmap(2) page is always created during
- *     page fault. After this (in reiser4_readpage()->readpage_extent()):
+ *     page fault.
+ *     After this (in reiser4_readpage()->reiser4_readpage_extent()):
  *
  *         1. if access is made to non-hole page new jnode is created, (if
  *         necessary)
@@ -262,7 +263,7 @@ static int capture_fuse_wait(txn_handle *, txn_atom *, txn_atom *, txn_capture);
 
 static void capture_fuse_into(txn_atom * small, txn_atom * large);
 
-void invalidate_list(struct list_head *);
+void reiser4_invalidate_list(struct list_head *);
 
 /* GENERIC STRUCTURES */
 
@@ -329,7 +330,7 @@ void done_txnmgr_static(void)
  *
  * This is called on mount. Makes necessary initializations.
  */
-void init_txnmgr(txn_mgr *mgr)
+void reiser4_init_txnmgr(txn_mgr *mgr)
 {
 	assert("umka-169", mgr != NULL);
 
@@ -341,12 +342,12 @@ void init_txnmgr(txn_mgr *mgr)
 }
 
 /**
- * done_txnmgr - stop transaction manager
+ * reiser4_done_txnmgr - stop transaction manager
  * @mgr: pointer to transaction manager embedded in reiser4 super block
  *
  * This is called on umount. Does sanity checks.
  */
-void done_txnmgr(txn_mgr *mgr)
+void reiser4_done_txnmgr(txn_mgr *mgr)
 {
 	assert("umka-170", mgr != NULL);
 	assert("umka-1701", list_empty_careful(&mgr->atoms_list));
@@ -361,7 +362,7 @@ static void txnh_init(txn_handle * txnh, txn_mode mode)
 
 	txnh->mode = mode;
 	txnh->atom = NULL;
-	set_gfp_mask();
+	reiser4_ctx_gfp_mask_set();
 	txnh->flags = 0;
 	spin_lock_init(&txnh->hlock);
 	INIT_LIST_HEAD(&txnh->txnh_link);
@@ -443,7 +444,7 @@ static int atom_isclean(txn_atom * atom)
    trans_in_ctx, which means that transaction handles are stack-allocated.  Eventually
    this will be extended to allow transaction handles to span several contexts. */
 /* Audited by: umka (2002.06.13) */
-void txn_begin(reiser4_context * context)
+void reiser4_txn_begin(reiser4_context * context)
 {
 	assert("jmacd-544", context->trans == NULL);
 
@@ -458,13 +459,13 @@ void txn_begin(reiser4_context * context)
 }
 
 /* Finish a transaction handle context. */
-int txn_end(reiser4_context * context)
+int reiser4_txn_end(reiser4_context * context)
 {
 	long ret = 0;
 	txn_handle *txnh;
 
 	assert("umka-283", context != NULL);
-	assert("nikita-3012", schedulable());
+	assert("nikita-3012", reiser4_schedulable());
 	assert("vs-24", context == get_current_context());
 	assert("nikita-2967", lock_stack_isclean(get_current_lock_stack()));
 
@@ -478,16 +479,16 @@ int txn_end(reiser4_context * context)
 	return ret;
 }
 
-void txn_restart(reiser4_context * context)
+void reiser4_txn_restart(reiser4_context * context)
 {
-	txn_end(context);
-	preempt_point();
-	txn_begin(context);
+	reiser4_txn_end(context);
+	reiser4_preempt_point();
+	reiser4_txn_begin(context);
 }
 
-void txn_restart_current(void)
+void reiser4_txn_restart_current(void)
 {
-	txn_restart(get_current_context());
+	reiser4_txn_restart(get_current_context());
 }
 
 /* TXN_ATOM */
@@ -699,7 +700,8 @@ static int atom_begin_and_assign_to_txnh(txn_atom ** atom_alloc, txn_handle * tx
 	}
 
 	if (*atom_alloc == NULL) {
-		(*atom_alloc) = kmem_cache_alloc(_atom_slab, get_gfp_mask());
+		(*atom_alloc) = kmem_cache_alloc(_atom_slab,
+						 reiser4_ctx_gfp_mask_get());
 
 		if (*atom_alloc == NULL)
 			return RETERR(-ENOMEM);
@@ -714,7 +716,7 @@ static int atom_begin_and_assign_to_txnh(txn_atom ** atom_alloc, txn_handle * tx
 	/* Check whether new atom still needed */
 	if (txnh->atom != NULL) {
 		/* NOTE-NIKITA probably it is rather better to free
-		 * atom_alloc here than thread it up to try_capture(). */
+		 * atom_alloc here than thread it up to reiser4_try_capture() */
 
 		spin_unlock_txnh(txnh);
 		spin_unlock_txnmgr(mgr);
@@ -940,8 +942,8 @@ static int submit_wb_list(void)
 	dispatch_wb_list(fq->atom, fq);
 	spin_unlock_atom(fq->atom);
 
-	ret = write_fq(fq, NULL, 1);
-	fq_put(fq);
+	ret = reiser4_write_fq(fq, NULL, 1);
+	reiser4_fq_put(fq);
 
 	return ret;
 }
@@ -1016,13 +1018,13 @@ static int commit_current_atom(long *nr_submitted, txn_atom ** atom)
 		/* if atom's dirty list contains one znode which is
 		   HEARD_BANSHEE and is locked we have to allow lock owner to
 		   continue and uncapture that znode */
-		preempt_point();
+		reiser4_preempt_point();
 
 		*atom = get_current_atom_locked();
 		if (flushiters > TOOMANYFLUSHES && IS_POW(flushiters)) {
 			warning("nikita-3176",
 				"Flushing like mad: %i", flushiters);
-			info_atom("atom", *atom);
+			reiser4_info_atom("atom", *atom);
 			DEBUGON(flushiters > (1 << 20));
 		}
 	}
@@ -1043,7 +1045,7 @@ static int commit_current_atom(long *nr_submitted, txn_atom ** atom)
 	/* Up to this point we have been flushing and after flush is called we
 	   return -E_REPEAT.  Now we can commit.  We cannot return -E_REPEAT
 	   at this point, commit should be successful. */
-	atom_set_stage(*atom, ASTAGE_PRE_COMMIT);
+	reiser4_atom_set_stage(*atom, ASTAGE_PRE_COMMIT);
 	ON_DEBUG(((*atom)->committer = current));
 	spin_unlock_atom(*atom);
 
@@ -1063,19 +1065,19 @@ static int commit_current_atom(long *nr_submitted, txn_atom ** atom)
 
 	/* The atom->ovrwr_nodes list is processed under commit semaphore held
 	   because of bitmap nodes which are captured by special way in
-	   bitmap_pre_commit_hook(), that way does not include
+	   reiser4_pre_commit_hook_bitmap(), that way does not include
 	   capture_fuse_wait() as a capturing of other nodes does -- the commit
 	   semaphore is used for transaction isolation instead. */
-	invalidate_list(ATOM_OVRWR_LIST(*atom));
+	reiser4_invalidate_list(ATOM_OVRWR_LIST(*atom));
 	up(&sbinfo->tmgr.commit_semaphore);
 
-	invalidate_list(ATOM_CLEAN_LIST(*atom));
-	invalidate_list(ATOM_WB_LIST(*atom));
+	reiser4_invalidate_list(ATOM_CLEAN_LIST(*atom));
+	reiser4_invalidate_list(ATOM_WB_LIST(*atom));
 	assert("zam-927", list_empty(&(*atom)->inodes));
 
 	spin_lock_atom(*atom);
  done:
-	atom_set_stage(*atom, ASTAGE_DONE);
+	reiser4_atom_set_stage(*atom, ASTAGE_DONE);
 	ON_DEBUG((*atom)->committer = NULL);
 
 	/* Atom's state changes, so wake up everybody waiting for this
@@ -1127,7 +1129,7 @@ int force_commit_atom(txn_handle *txnh)
 	spin_unlock_atom(atom);
 
 	/* commit is here */
-	txn_restart_current();
+	reiser4_txn_restart_current();
 	return 0;
 }
 
@@ -1144,9 +1146,9 @@ int txnmgr_force_commit_all(struct super_block *super, int commit_all_atoms)
 	reiser4_context *ctx = get_current_context();
 
 	assert("nikita-2965", lock_stack_isclean(get_current_lock_stack()));
-	assert("nikita-3058", commit_check_locks());
+	assert("nikita-3058", reiser4_commit_check_locks());
 
-	txn_restart_current();
+	reiser4_txn_restart_current();
 
 	mgr = &get_super_private(super)->tmgr;
 
@@ -1176,7 +1178,7 @@ int txnmgr_force_commit_all(struct super_block *super, int commit_all_atoms)
 						return ret;
 				} else
 					/* wait atom commit */
-					atom_wait_event(atom);
+					reiser4_atom_wait_event(atom);
 
 				goto again;
 			}
@@ -1273,7 +1275,7 @@ int commit_some_atoms(txn_mgr * mgr)
 	   has to rescan atoms */
 	mgr->daemon->rescan = 1;
 	spin_unlock(&mgr->daemon->guard);
-	txn_restart_current();
+	reiser4_txn_restart_current();
 	return 0;
 }
 
@@ -1404,7 +1406,7 @@ flush_some_atom(jnode * start, long *nr_submitted, const struct writeback_contro
 					 * makes a progress in flushing or
 					 * committing the atom
 					 */
-					atom_wait_event(atom);
+					reiser4_atom_wait_event(atom);
 					goto repeat;
 				}
 				spin_unlock_atom(atom);
@@ -1436,7 +1438,7 @@ flush_some_atom(jnode * start, long *nr_submitted, const struct writeback_contro
 			    !(atom->flags & ATOM_CANCEL_FUSION)) {
 				ret = txn_try_to_fuse_small_atom(tmgr, atom);
 				if (ret == -E_REPEAT) {
-					preempt_point();
+					reiser4_preempt_point();
 					goto repeat;
 				}
 			}
@@ -1454,7 +1456,7 @@ flush_some_atom(jnode * start, long *nr_submitted, const struct writeback_contro
 		if (*nr_submitted == 0) {
 			/* let others who hampers flushing (hold longterm locks,
 			   for instance) to free the way for flush */
-			preempt_point();
+			reiser4_preempt_point();
 			goto repeat;
 		}
 		ret = 0;
@@ -1463,20 +1465,20 @@ flush_some_atom(jnode * start, long *nr_submitted, const struct writeback_contro
 	if (*nr_submitted > wbc->nr_to_write)
 		warning("", "asked for %ld, written %ld\n", wbc->nr_to_write, *nr_submitted);
 */
-	txn_restart(ctx);
+	reiser4_txn_restart(ctx);
 
 	return ret;
 }
 
 /* Remove processed nodes from atom's clean list (thereby remove them from transaction). */
-void invalidate_list(struct list_head *head)
+void reiser4_invalidate_list(struct list_head *head)
 {
 	while (!list_empty(head)) {
 		jnode *node;
 
 		node = list_entry(head->next, jnode, capture_link);
 		spin_lock_jnode(node);
-		uncapture_block(node);
+		reiser4_uncapture_block(node);
 		jput(node);
 	}
 }
@@ -1491,7 +1493,7 @@ static void init_wlinks(txn_wait_links * wlinks)
 }
 
 /* Add atom to the atom's waitfor list and wait for somebody to wake us up; */
-void atom_wait_event(txn_atom * atom)
+void reiser4_atom_wait_event(txn_atom * atom)
 {
 	txn_wait_links _wlinks;
 
@@ -1505,15 +1507,15 @@ void atom_wait_event(txn_atom * atom)
 	atomic_inc(&atom->refcount);
 	spin_unlock_atom(atom);
 
-	prepare_to_sleep(_wlinks._lock_stack);
-	go_to_sleep(_wlinks._lock_stack);
+	reiser4_prepare_to_sleep(_wlinks._lock_stack);
+	reiser4_go_to_sleep(_wlinks._lock_stack);
 
 	spin_lock_atom(atom);
 	list_del(&_wlinks._fwaitfor_link);
 	atom_dec_and_unlock(atom);
 }
 
-void atom_set_stage(txn_atom * atom, txn_stage stage)
+void reiser4_atom_set_stage(txn_atom * atom, txn_stage stage)
 {
 	assert("nikita-3535", atom != NULL);
 	assert_spin_locked(&(atom->alock));
@@ -1522,12 +1524,12 @@ void atom_set_stage(txn_atom * atom, txn_stage stage)
 	assert("nikita-3537", stage >= atom->stage);
 	if (atom->stage != stage) {
 		atom->stage = stage;
-		atom_send_event(atom);
+		reiser4_atom_send_event(atom);
 	}
 }
 
 /* wake all threads which wait for an event */
-void atom_send_event(txn_atom * atom)
+void reiser4_atom_send_event(txn_atom * atom)
 {
 	assert_spin_locked(&(atom->alock));
 	wakeup_atom_waitfor_list(atom);
@@ -1602,7 +1604,8 @@ static int try_commit_txnh(commit_data * cd)
 			 * increase monotonically), hence this check.
 			 */
 			if (cd->atom->stage < ASTAGE_CAPTURE_WAIT)
-				atom_set_stage(cd->atom, ASTAGE_CAPTURE_WAIT);
+				reiser4_atom_set_stage(cd->atom,
+						       ASTAGE_CAPTURE_WAIT);
 			cd->atom->flags |= ATOM_FORCE_COMMIT;
 		}
 		if (cd->txnh->flags & TXNH_DONT_COMMIT) {
@@ -1621,14 +1624,14 @@ static int try_commit_txnh(commit_data * cd)
 			cd->wake_ktxnmgrd_up =
 			    cd->atom->txnh_count == 1 &&
 			    cd->atom->nr_waiters == 0;
-			atom_send_event(cd->atom);
+			reiser4_atom_send_event(cd->atom);
 			result = 0;
 		} else if (!atom_can_be_committed(cd->atom)) {
 			if (should_wait_commit(cd->txnh)) {
 				/* sync(): wait for commit */
 				cd->atom->nr_waiters++;
 				cd->wait = 1;
-				atom_wait_event(cd->atom);
+				reiser4_atom_wait_event(cd->atom);
 				result = RETERR(-E_REPEAT);
 			} else {
 				result = 0;
@@ -1655,7 +1658,7 @@ static int try_commit_txnh(commit_data * cd)
 			/* We change   atom state  to   ASTAGE_CAPTURE_WAIT to
 			   prevent atom fusion and count  ourself as an active
 			   flusher */
-			atom_set_stage(cd->atom, ASTAGE_CAPTURE_WAIT);
+			reiser4_atom_set_stage(cd->atom, ASTAGE_CAPTURE_WAIT);
 			cd->atom->flags |= ATOM_FORCE_COMMIT;
 
 			result =
@@ -1694,7 +1697,7 @@ static int commit_txnh(txn_handle * txnh)
 	/* calls try_commit_txnh() until either atom commits, or error
 	 * happens */
 	while (try_commit_txnh(&cd) != 0)
-		preempt_point();
+		reiser4_preempt_point();
 
 	spin_lock_txnh(txnh);
 
@@ -1750,8 +1753,8 @@ static int commit_txnh(txn_handle * txnh)
    This function acquires and releases the handle's spinlock.  This function is called
    under the jnode lock and if the return value is 0, it returns with the jnode lock still
    held.  If the return is -E_REPEAT or some other error condition, the jnode lock is
-   released.  The external interface (try_capture) manages re-aquiring the jnode lock
-   in the failure case.
+   released.  The external interface (reiser4_try_capture) manages re-aquiring the jnode
+   lock in the failure case.
 */
 static int try_capture_block(
 	txn_handle * txnh, jnode * node, txn_capture mode,
@@ -1760,7 +1763,7 @@ static int try_capture_block(
 	txn_atom *block_atom;
 	txn_atom *txnh_atom;
 
-	/* Should not call capture for READ_NONCOM requests, handled in try_capture. */
+	/* Should not call capture for READ_NONCOM requests, handled in reiser4_try_capture. */
 	assert("jmacd-567", CAPTURE_TYPE(mode) != TXN_CAPTURE_READ_NONCOM);
 
 	/* FIXME-ZAM-HANS: FIXME_LATER_JMACD Should assert that atom->tree ==
@@ -1768,7 +1771,7 @@ static int try_capture_block(
 	assert("umka-194", txnh != NULL);
 	assert("umka-195", node != NULL);
 
-	/* The jnode is already locked!  Being called from try_capture(). */
+	/* The jnode is already locked!  Being called from reiser4_try_capture(). */
 	assert_spin_locked(&(node->guard));
 	block_atom = node->atom;
 
@@ -1931,8 +1934,8 @@ build_capture_mode(jnode * node, znode_lock_mode lock_mode, txn_capture flags)
             cannot be processed immediately as it was requested in flags,
 	    < 0 - other errors.
 */
-int try_capture(jnode *node, znode_lock_mode lock_mode,
-		txn_capture flags)
+int reiser4_try_capture(jnode *node, znode_lock_mode lock_mode,
+			txn_capture flags)
 {
 	txn_atom *atom_alloc = NULL;
 	txn_capture cap_mode;
@@ -2145,7 +2148,7 @@ int try_capture_page_to_invalidate(struct page *pg)
 	spin_lock_jnode(node);
 	unlock_page(pg);
 
-	ret = try_capture(node, ZNODE_WRITE_LOCK, 0);
+	ret = reiser4_try_capture(node, ZNODE_WRITE_LOCK, 0);
 	spin_unlock_jnode(node);
 	jput(node);
 	lock_page(pg);
@@ -2162,7 +2165,7 @@ move the loop to inside the function.
 
 VS-FIXME-HANS: can this code be at all streamlined?  In particular, can you lock and unlock the jnode fewer times?
   */
-void uncapture_page(struct page *pg)
+void reiser4_uncapture_page(struct page *pg)
 {
 	jnode *node;
 	txn_atom *atom;
@@ -2188,26 +2191,26 @@ void uncapture_page(struct page *pg)
 
 	/* We can remove jnode from transaction even if it is on flush queue
 	 * prepped list, we only need to be sure that flush queue is not being
-	 * written by write_fq().  write_fq() does not use atom spin lock for
-	 * protection of the prepped nodes list, instead write_fq() increments
-	 * atom's nr_running_queues counters for the time when prepped list is
-	 * not protected by spin lock.  Here we check this counter if we want
-	 * to remove jnode from flush queue and, if the counter is not zero,
-	 * wait all write_fq() for this atom to complete. This is not
-	 * significant overhead. */
+	 * written by reiser4_write_fq().  reiser4_write_fq() does not use atom
+	 * spin lock for protection of the prepped nodes list, instead
+	 * write_fq() increments atom's nr_running_queues counters for the time
+	 * when prepped list is not protected by spin lock.  Here we check this
+	 * counter if we want to remove jnode from flush queue and, if the
+	 * counter is not zero, wait all reiser4_write_fq() for this atom to
+	 * complete. This is not significant overhead. */
 	while (JF_ISSET(node, JNODE_FLUSH_QUEUED) && atom->nr_running_queues) {
 		spin_unlock_jnode(node);
 		/*
 		 * at this moment we want to wait for "atom event", viz. wait
 		 * until @node can be removed from flush queue. But
-		 * atom_wait_event() cannot be called with page locked, because
-		 * it deadlocks with jnode_extent_write(). Unlock page, after
-		 * making sure (through page_cache_get()) that it cannot be
-		 * released from memory.
+		 * reiser4_atom_wait_event() cannot be called with page locked,
+		 * because it deadlocks with jnode_extent_write(). Unlock page,
+		 * after making sure (through page_cache_get()) that it cannot
+		 * be released from memory.
 		 */
 		page_cache_get(pg);
 		unlock_page(pg);
-		atom_wait_event(atom);
+		reiser4_atom_wait_event(atom);
 		lock_page(pg);
 		/*
 		 * page may has been detached by ->writepage()->releasepage().
@@ -2222,14 +2225,14 @@ void uncapture_page(struct page *pg)
 			return;
 		}
 	}
-	uncapture_block(node);
+	reiser4_uncapture_block(node);
 	spin_unlock_atom(atom);
 	jput(node);
 }
 
 /* this is used in extent's kill hook to uncapture and unhash jnodes attached to
  * inode's tree of jnodes */
-void uncapture_jnode(jnode * node)
+void reiser4_uncapture_jnode(jnode * node)
 {
 	txn_atom *atom;
 
@@ -2243,7 +2246,7 @@ void uncapture_jnode(jnode * node)
 		return;
 	}
 
-	uncapture_block(node);
+	reiser4_uncapture_block(node);
 	spin_unlock_atom(atom);
 	jput(node);
 }
@@ -2263,7 +2266,7 @@ static void capture_assign_txnh_nolock(txn_atom *atom, txn_handle *txnh)
 
 	atomic_inc(&atom->refcount);
 	txnh->atom = atom;
-	set_gfp_mask();
+	reiser4_ctx_gfp_mask_set();
 	list_add_tail(&txnh->txnh_link, &atom->txnh_list);
 	atom->txnh_count += 1;
 }
@@ -2312,7 +2315,7 @@ static void do_jnode_make_dirty(jnode * node, txn_atom * atom)
 	if (!JF_ISSET(node, JNODE_CREATED) && !JF_ISSET(node, JNODE_RELOC)
 	    && !JF_ISSET(node, JNODE_OVRWR) && jnode_is_leaf(node)
 	    && !jnode_is_cluster_page(node)) {
-		assert("vs-1093", !blocknr_is_fake(&node->blocknr));
+		assert("vs-1093", !reiser4_blocknr_is_fake(&node->blocknr));
 		assert("vs-1506", *jnode_get_block(node) != 0);
 		grabbed2flush_reserved_nolock(atom, (__u64) 1);
 		JF_SET(node, JNODE_FLUSH_RESERVED);
@@ -2400,7 +2403,7 @@ void znode_make_dirty(znode * z)
 		spin_unlock_jnode(node);
 		/* reiser4 file write code calls set_page_dirty for
 		 * unformatted nodes, for formatted nodes we do it here. */
-		set_page_dirty_internal(page);
+		reiser4_set_page_dirty_internal(page);
 		page_cache_release(page);
 		/* bump version counter in znode */
 		z->version = znode_build_version(jnode_get_tree(node));
@@ -2413,7 +2416,7 @@ void znode_make_dirty(znode * z)
 	assert("jmacd-9777", node->atom != NULL);
 }
 
-int sync_atom(txn_atom * atom)
+int reiser4_sync_atom(txn_atom * atom)
 {
 	int result;
 	txn_handle *txnh;
@@ -2428,7 +2431,7 @@ int sync_atom(txn_atom * atom)
 			result = force_commit_atom(txnh);
 		} else if (atom->stage < ASTAGE_POST_COMMIT) {
 			/* wait atom commit */
-			atom_wait_event(atom);
+			reiser4_atom_wait_event(atom);
 			/* try once more */
 			result = RETERR(-E_REPEAT);
 		} else
@@ -2507,7 +2510,7 @@ count_jnode(txn_atom * atom, jnode * node, atom_list old_list,
 		count = 0;
 
 		/* flush queue list */
-		/*check_fq(atom); */
+		/* reiser4_check_fq(atom); */
 
 		/* dirty list */
 		count = 0;
@@ -2570,7 +2573,7 @@ void jnode_make_wander_nolock(jnode * node)
 	assert("nikita-2432", !JF_ISSET(node, JNODE_RELOC));
 	assert("nikita-3153", JF_ISSET(node, JNODE_DIRTY));
 	assert("zam-897", !JF_ISSET(node, JNODE_FLUSH_QUEUED));
-	assert("nikita-3367", !blocknr_is_fake(jnode_get_block(node)));
+	assert("nikita-3367", !reiser4_blocknr_is_fake(jnode_get_block(node)));
 
 	atom = node->atom;
 
@@ -2607,7 +2610,7 @@ static void jnode_make_reloc_nolock(flush_queue_t * fq, jnode * node)
 	assert("zam-917", !JF_ISSET(node, JNODE_RELOC));
 	assert("zam-918", !JF_ISSET(node, JNODE_OVRWR));
 	assert("zam-920", !JF_ISSET(node, JNODE_FLUSH_QUEUED));
-	assert("nikita-3367", !blocknr_is_fake(jnode_get_block(node)));
+	assert("nikita-3367", !reiser4_blocknr_is_fake(jnode_get_block(node)));
 	jnode_set_reloc(node);
 }
 
@@ -2640,14 +2643,14 @@ void unformatted_make_reloc(jnode *node, flush_queue_t *fq)
 	queue_jnode(fq, node);
 }
 
-int capture_super_block(struct super_block *s)
+int reiser4_capture_super_block(struct super_block *s)
 {
 	int result;
 	znode *uber;
 	lock_handle lh;
 
 	init_lh(&lh);
-	result = get_uber_znode(get_tree(s),
+	result = get_uber_znode(reiser4_get_tree(s),
 				ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI, &lh);
 	if (result)
 		return result;
@@ -2763,9 +2766,9 @@ static int capture_fuse_wait(txn_handle * txnh, txn_atom * atomf,
 	/* Go to sleep. */
 	spin_unlock_txnh(txnh);
 
-	ret = prepare_to_sleep(wlinks._lock_stack);
+	ret = reiser4_prepare_to_sleep(wlinks._lock_stack);
 	if (ret == 0) {
-		go_to_sleep(wlinks._lock_stack);
+		reiser4_go_to_sleep(wlinks._lock_stack);
 		ret = RETERR(-E_REPEAT);
 	}
 
@@ -2952,7 +2955,7 @@ static void capture_fuse_into(txn_atom * small, txn_atom * large)
 	small->nr_waiters = 0;
 
 	/* splice flush queues */
-	fuse_fq(large, small);
+	reiser4_fuse_fq(large, small);
 
 	/* update counter of jnode on every atom' list */
 	ON_DEBUG(large->dirty += small->dirty;
@@ -3013,11 +3016,11 @@ static void capture_fuse_into(txn_atom * small, txn_atom * large)
 
 	if (large->stage < small->stage) {
 		/* Large only needs to notify if it has changed state. */
-		atom_set_stage(large, small->stage);
+		reiser4_atom_set_stage(large, small->stage);
 		wakeup_atom_waiting_list(large);
 	}
 
-	atom_set_stage(small, ASTAGE_INVALID);
+	reiser4_atom_set_stage(small, ASTAGE_INVALID);
 
 	/* Notify any waiters--small needs to unload its wait lists.  Waiters
 	   actually remove themselves from the list before returning from the
@@ -3037,8 +3040,8 @@ static void capture_fuse_into(txn_atom * small, txn_atom * large)
 
    NOTE: this function does not release a (journal) reference to jnode
    due to locking optimizations, you should call jput() somewhere after
-   calling uncapture_block(). */
-void uncapture_block(jnode * node)
+   calling reiser4_uncapture_block(). */
+void reiser4_uncapture_block(jnode * node)
 {
 	txn_atom *atom;
 
@@ -3092,7 +3095,7 @@ void insert_into_atom_ovrwr_list(txn_atom * atom, jnode * node)
 
 #if REISER4_DEBUG
 
-void info_atom(const char *prefix, const txn_atom * atom)
+void reiser4_info_atom(const char *prefix, const txn_atom * atom)
 {
 	if (atom == NULL) {
 		printk("%s: no atom\n", prefix);

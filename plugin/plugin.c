@@ -235,22 +235,21 @@ int init_plugins(void)
 }
 
 /* true if plugin type id is valid */
-int is_type_id_valid(reiser4_plugin_type type_id /* plugin type id */ )
+int is_plugin_type_valid(reiser4_plugin_type type)
 {
-	/* "type_id" is unsigned, so no comparison with 0 is
+	/* "type" is unsigned, so no comparison with 0 is
 	   necessary */
-	return (type_id < REISER4_PLUGIN_TYPES);
+	return (type < REISER4_PLUGIN_TYPES);
 }
 
 /* true if plugin id is valid */
-int is_plugin_id_valid(reiser4_plugin_type type_id /* plugin type id */ ,
-		       reiser4_plugin_id id /* plugin id */ )
+int is_plugin_id_valid(reiser4_plugin_type type, reiser4_plugin_id id)
 {
-	assert("nikita-1653", is_type_id_valid(type_id));
-	return id < plugins[type_id].builtin_num;
+	assert("nikita-1653", is_plugin_type_valid(type));
+	return id < plugins[type].builtin_num;
 }
 
-/* return plugin by its @type_id and @id.
+/* return plugin by its @type and @id.
 
    Both arguments are checked for validness: this is supposed to be called
    from user-level.
@@ -260,22 +259,21 @@ user space, and passed to the filesystem by use of method files? Your
 comment really confused me on the first reading....
 
 */
-reiser4_plugin *plugin_by_unsafe_id(reiser4_plugin_type type_id	/* plugin
-								 * type id,
-								 * unchecked */ ,
+reiser4_plugin *plugin_by_unsafe_id(reiser4_plugin_type type /* plugin type
+								 * unchecked */,
 				    reiser4_plugin_id id	/* plugin id,
-								 * unchecked */ )
+								 * unchecked */)
 {
-	if (is_type_id_valid(type_id)) {
-		if (is_plugin_id_valid(type_id, id))
-			return plugin_at(&plugins[type_id], id);
+	if (is_plugin_type_valid(type)) {
+		if (is_plugin_id_valid(type, id))
+			return plugin_at(&plugins[type], id);
 		else
 			/* id out of bounds */
 			warning("nikita-2913",
-				"Invalid plugin id: [%i:%i]", type_id, id);
+				"Invalid plugin id: [%i:%i]", type, id);
 	} else
 		/* type_id out of bounds */
-		warning("nikita-2914", "Invalid type_id: %i", type_id);
+		warning("nikita-2914", "Invalid type_id: %i", type);
 	return NULL;
 }
 
@@ -297,11 +295,10 @@ int save_plugin_id(reiser4_plugin *plugin /* plugin to convert */ ,
 }
 
 /* list of all plugins of given type */
-struct list_head *get_plugin_list(reiser4_plugin_type type_id	/* plugin type
-								 * id */ )
+struct list_head *get_plugin_list(reiser4_plugin_type type)
 {
-	assert("nikita-1056", is_type_id_valid(type_id));
-	return &plugins[type_id].plugins_list;
+	assert("nikita-1056", is_plugin_type_valid(type));
+	return &plugins[type].plugins_list;
 }
 
 static void update_pset_mask(reiser4_inode * info, pset_member memb)
@@ -388,7 +385,7 @@ int force_plugin_pset(struct inode *self, pset_member memb, reiser4_plugin * plu
 		
 		update_pset_mask(info, memb);
 		if (oldmask != info->plugin_mask)
-			inode_clr_flag(self, REISER4_SDLEN_KNOWN);
+			reiser4_inode_clr_flag(self, REISER4_SDLEN_KNOWN);
 	}
 	return result;
 }
@@ -405,7 +402,7 @@ int force_plugin_hset(struct inode *self, pset_member memb, reiser4_plugin * plu
 		
 		update_hset_mask(info, memb);
 		if (mask != info->heir_mask)
-			inode_clr_flag(self, REISER4_SDLEN_KNOWN);
+			reiser4_inode_clr_flag(self, REISER4_SDLEN_KNOWN);
 	}
 	return result;
 }

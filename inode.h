@@ -269,13 +269,13 @@ static inline struct inode *unix_file_info_to_inode(const unix_file_info_t *
 extern ino_t oid_to_ino(oid_t oid) __attribute__ ((const));
 extern ino_t oid_to_uino(oid_t oid) __attribute__ ((const));
 
-extern reiser4_tree *tree_by_inode(const struct inode *inode);
+extern reiser4_tree *reiser4_tree_by_inode(const struct inode *inode);
 
 #if REISER4_DEBUG
-extern void inode_invariant(const struct inode *inode);
+extern void reiser4_inode_invariant(const struct inode *inode);
 extern int inode_has_no_jnodes(reiser4_inode *);
 #else
-#define inode_invariant(inode) noop
+#define reiser4_inode_invariant(inode) noop
 #endif
 
 static inline int spin_inode_is_locked(const struct inode *inode)
@@ -303,7 +303,7 @@ static inline void spin_lock_inode(struct inode *inode)
 	LOCK_CNT_INC(spin_locked_inode);
 	LOCK_CNT_INC(spin_locked);
 
-	inode_invariant(inode);
+	reiser4_inode_invariant(inode);
 }
 
 /**
@@ -319,7 +319,7 @@ static inline void spin_unlock_inode(struct inode *inode)
 	assert("nikita-1375", LOCK_CNT_GTZ(spin_locked_inode));
 	assert("nikita-1376", LOCK_CNT_GTZ(spin_locked));
 
-	inode_invariant(inode);
+	reiser4_inode_invariant(inode);
 
 	LOCK_CNT_DEC(spin_locked_inode);
 	LOCK_CNT_DEC(spin_locked);
@@ -338,18 +338,18 @@ extern int setup_inode_ops(struct inode *inode, reiser4_object_create_data *);
 extern struct inode *reiser4_iget(struct super_block *super,
 				  const reiser4_key * key, int silent);
 extern void reiser4_iget_complete(struct inode *inode);
-extern void inode_set_flag(struct inode *inode, reiser4_file_plugin_flags f);
-extern void inode_clr_flag(struct inode *inode, reiser4_file_plugin_flags f);
-extern int inode_get_flag(const struct inode *inode,
-			  reiser4_file_plugin_flags f);
-extern int complete_inode(struct inode *inode);
+extern void reiser4_inode_set_flag(struct inode *inode, reiser4_file_plugin_flags f);
+extern void reiser4_inode_clr_flag(struct inode *inode, reiser4_file_plugin_flags f);
+extern int reiser4_inode_get_flag(const struct inode *inode,
+				  reiser4_file_plugin_flags f);
+extern int reiser4_complete_inode(struct inode *inode);
 
 /*  has inode been initialized? */
 static inline int
 is_inode_loaded(const struct inode *inode /* inode queried */ )
 {
 	assert("nikita-1120", inode != NULL);
-	return inode_get_flag(inode, REISER4_LOADED);
+	return reiser4_inode_get_flag(inode, REISER4_LOADED);
 }
 
 extern file_plugin *inode_file_plugin(const struct inode *inode);
@@ -407,7 +407,7 @@ extern void inode_check_scale_nolock(struct inode * inode, __u64 old, __u64 new)
 	-- __i->field;						\
 })
 
-/* See comment before readdir_common() for description. */
+/* See comment before reiser4_readdir_common() for description. */
 static inline struct list_head *get_readdir_list(const struct inode *inode)
 {
 	return &reiser4_inode_data(inode)->lists.readdir_list;

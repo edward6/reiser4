@@ -388,8 +388,8 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 			/* screw up */
 			warning("nikita-587", "Key less than %i key in a node",
 				left);
-			print_key("key", key);
-			print_key("min", &bstop->key);
+			reiser4_print_key("key", key);
+			reiser4_print_key("min", &bstop->key);
 			print_coord_content("coord", coord);
 			return RETERR(-EIO);
 		} else {
@@ -403,7 +403,7 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 	if (unlikely(iplug == NULL)) {
 		warning("nikita-588", "Unknown plugin %i",
 			le16_to_cpu(get_unaligned(&bstop->plugin_id)));
-		print_key("key", key);
+		reiser4_print_key("key", key);
 		print_coord_content("coord", coord);
 		return RETERR(-EIO);
 	}
@@ -492,7 +492,7 @@ int check_node40(const znode * node /* node to check */ ,
 	if (flags & REISER4_NODE_DKEYS)
 		prev = *znode_get_ld_key((znode *) node);
 	else
-		prev = *min_key();
+		prev = *reiser4_min_key();
 
 	old_offset = 0;
 	coord_init_zero(&coord);
@@ -847,7 +847,7 @@ create_item_node40(coord_t *target, const reiser4_key *key,
 			   from userspace was valid and data bytes were
 			   available? How will we return -EFAULT of some kind
 			   without this check? */
-			assert("nikita-3038", schedulable());
+			assert("nikita-3038", reiser4_schedulable());
 			/* copy data from user space */
 			__copy_from_user(zdata(target->node) + offset,
 					 (const char __user *)data->data,
@@ -2064,7 +2064,7 @@ prepare_for_update(znode * left, znode * right, carry_plugin_info * info)
 		else
 			reference = op->node;
 		assert("nikita-2992", reference != NULL);
-		cn = add_carry(info->todo, POOLO_BEFORE, reference);
+		cn = reiser4_add_carry(info->todo, POOLO_BEFORE, reference);
 		if (IS_ERR(cn))
 			return PTR_ERR(cn);
 		cn->parent = 1;
@@ -2483,7 +2483,8 @@ void *shift_check_prepare(const znode * left, const znode * right)
 	    node40_num_of_items_internal(left) +
 	    node40_num_of_items_internal(right) - (mergeable ? 1 : 0);
 	data =
-		kmalloc(sizeof(struct shift_check) * nr_items, get_gfp_mask());
+		kmalloc(sizeof(struct shift_check) * nr_items,
+			reiser4_ctx_gfp_mask_get());
 	if (data != NULL) {
 		coord_t coord;
 		pos_in_node_t item_pos;
@@ -2507,8 +2508,8 @@ void *shift_check_prepare(const znode * left, const znode * right)
 				break;
 			case EXTENT_POINTER_ID:
 				data[i].u.bytes =
-				    extent_size(&coord,
-						coord_num_units(&coord));
+					reiser4_extent_size(&coord,
+						       coord_num_units(&coord));
 				break;
 			case COMPOUND_DIR_ID:
 				data[i].u.entries = coord_num_units(&coord);
@@ -2537,7 +2538,7 @@ void *shift_check_prepare(const znode * left, const znode * right)
 				break;
 			case EXTENT_POINTER_ID:
 				data[i - 1].u.bytes +=
-				    extent_size(&coord,
+				    reiser4_extent_size(&coord,
 						coord_num_units(&coord));
 				break;
 			case COMPOUND_DIR_ID:
@@ -2567,7 +2568,7 @@ void *shift_check_prepare(const znode * left, const znode * right)
 				break;
 			case EXTENT_POINTER_ID:
 				data[i].u.bytes =
-				    extent_size(&coord,
+				    reiser4_extent_size(&coord,
 						coord_num_units(&coord));
 				break;
 			case COMPOUND_DIR_ID:
@@ -2639,9 +2640,10 @@ void shift_check(void *vp, const znode * left, const znode * right)
 				break;
 			case EXTENT_POINTER_ID:
 				assert("vs-1593",
-				       data[i].u.bytes == extent_size(&coord,
-								      coord_num_units
-								      (&coord)));
+				       data[i].u.bytes ==
+				       reiser4_extent_size(&coord,
+							   coord_num_units
+							   (&coord)));
 				break;
 			case COMPOUND_DIR_ID:
 				assert("vs-1594",
@@ -2661,7 +2663,7 @@ void shift_check(void *vp, const znode * left, const znode * right)
 				break;
 			case EXTENT_POINTER_ID:
 				last_bytes =
-				    extent_size(&coord,
+				    reiser4_extent_size(&coord,
 						coord_num_units(&coord));
 				break;
 			case COMPOUND_DIR_ID:
@@ -2693,9 +2695,9 @@ void shift_check(void *vp, const znode * left, const znode * right)
 		case EXTENT_POINTER_ID:
 			assert("vs-1597",
 			       data[i - 1].u.bytes ==
-			       last_bytes + extent_size(&coord,
-							coord_num_units
-							(&coord)));
+			       last_bytes + reiser4_extent_size(&coord,
+								coord_num_units
+								(&coord)));
 			break;
 
 		case COMPOUND_DIR_ID:
@@ -2727,9 +2729,10 @@ void shift_check(void *vp, const znode * left, const znode * right)
 			break;
 		case EXTENT_POINTER_ID:
 			assert("vs-1601",
-			       data[i].u.bytes == extent_size(&coord,
-							      coord_num_units
-							      (&coord)));
+			       data[i].u.bytes ==
+			       reiser4_extent_size(&coord,
+						   coord_num_units
+						   (&coord)));
 			break;
 		case COMPOUND_DIR_ID:
 			assert("vs-1602",

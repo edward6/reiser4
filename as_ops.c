@@ -51,7 +51,7 @@
  * @page: page to be dirtied
  *
  * Operation of struct address_space_operations. This implementation is used by
- * unix and crc file plugins.
+ * unix and cryptcompress file plugins.
  *
  * This is called when reiser4 page gets dirtied outside of reiser4, for
  * example, when dirty bit is moved from pte to physical page.
@@ -66,11 +66,11 @@ int reiser4_set_page_dirty(struct page *page)
 	/* this page can be unformatted only */
 	assert("vs-1734", (page->mapping &&
 			   page->mapping->host &&
-			   get_super_fake(page->mapping->host->i_sb) !=
+			   reiser4_get_super_fake(page->mapping->host->i_sb) !=
 			   page->mapping->host
-			   && get_cc_fake(page->mapping->host->i_sb) !=
+			   && reiser4_get_cc_fake(page->mapping->host->i_sb) !=
 			   page->mapping->host
-			   && get_bitmap_fake(page->mapping->host->i_sb) !=
+			   && reiser4_get_bitmap_fake(page->mapping->host->i_sb) !=
 			   page->mapping->host));
 
 	if (!TestSetPageDirty(page)) {
@@ -133,9 +133,9 @@ void reiser4_invalidatepage(struct page *page, unsigned long offset)
 	 *
 	 * After many troubles with vmtruncate() based truncate (including
 	 * races with flush, tail conversion, etc.) it was re-written in the
-	 * top-to-bottom style: items are killed in cut_tree_object() and
-	 * pages belonging to extent are invalidated in kill_hook_extent(). So
-	 * probably now additional call to capture is not needed here.
+	 * top-to-bottom style: items are killed in reiser4_cut_tree_object()
+	 * and pages belonging to extent are invalidated in kill_hook_extent().
+	 * So probably now additional call to capture is not needed here.
 	 */
 
 	assert("nikita-3137", PageLocked(page));
@@ -149,11 +149,11 @@ void reiser4_invalidatepage(struct page *page, unsigned long offset)
 	 * during mount) it is simpler to let ->invalidatepage to be called on
 	 * them. Check for this, and do nothing.
 	 */
-	if (get_super_fake(inode->i_sb) == inode)
+	if (reiser4_get_super_fake(inode->i_sb) == inode)
 		return;
-	if (get_cc_fake(inode->i_sb) == inode)
+	if (reiser4_get_cc_fake(inode->i_sb) == inode)
 		return;
-	if (get_bitmap_fake(inode->i_sb) == inode)
+	if (reiser4_get_bitmap_fake(inode->i_sb) == inode)
 		return;
 	assert("vs-1426", PagePrivate(page));
 	assert("vs-1427",
@@ -162,7 +162,7 @@ void reiser4_invalidatepage(struct page *page, unsigned long offset)
 	assert("", ergo(inode_file_plugin(inode) !=
 			file_plugin_by_id(CRC_FILE_PLUGIN_ID), offset == 0));
 
-	ctx = init_context(inode->i_sb);
+	ctx = reiser4_init_context(inode->i_sb);
 	if (IS_ERR(ctx))
 		return;
 
@@ -174,7 +174,7 @@ void reiser4_invalidatepage(struct page *page, unsigned long offset)
 		jref(node);
 		JF_SET(node, JNODE_HEARD_BANSHEE);
 		page_clear_jnode(page, node);
-		uncapture_jnode(node);
+		reiser4_uncapture_jnode(node);
 		unhash_unformatted_jnode(node);
 		jput(node);
 		reiser4_exit_context(ctx);
@@ -193,7 +193,7 @@ void reiser4_invalidatepage(struct page *page, unsigned long offset)
 		JF_SET(node, JNODE_HEARD_BANSHEE);
 		/* page cannot be detached from jnode concurrently, because it
 		 * is locked */
-		uncapture_page(page);
+		reiser4_uncapture_page(page);
 
 		/* this detaches page from jnode, so that jdelete will not try
 		 * to lock page which is already locked */
@@ -230,7 +230,7 @@ int jnode_is_releasable(jnode * node /* node to check */ )
 	 * clean, not it atom yet, and still having fake block number. For
 	 * example, node just created in jinit_new().
 	 */
-	if (blocknr_is_fake(jnode_get_block(node)))
+	if (reiser4_blocknr_is_fake(jnode_get_block(node)))
 		return 0;
 
 	/*
@@ -278,7 +278,7 @@ int reiser4_releasepage(struct page *page, gfp_t gfp UNUSED_ARG)
 	assert("nikita-2257", PagePrivate(page));
 	assert("nikita-2259", PageLocked(page));
 	assert("nikita-2892", !PageWriteback(page));
-	assert("nikita-3019", schedulable());
+	assert("nikita-3019", reiser4_schedulable());
 
 	/* NOTE-NIKITA: this can be called in the context of reiser4 call. It
 	   is not clear what to do in this case. A lot of deadlocks seems be
@@ -320,7 +320,7 @@ int reiser4_releasepage(struct page *page, gfp_t gfp UNUSED_ARG)
 	} else {
 		spin_unlock(&(node->load));
 		spin_unlock_jnode(node);
-		assert("nikita-3020", schedulable());
+		assert("nikita-3020", reiser4_schedulable());
 		return 0;
 	}
 }

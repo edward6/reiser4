@@ -19,8 +19,9 @@
  *
  * In such situations "child" context acts like dummy: all activity is
  * actually performed in the top level context, and get_current_context()
- * always returns top level context. Of course, init_context()/done_context()
- * have to be properly nested any way.
+ * always returns top level context.
+ * Of course, reiser4_init_context()/reiser4_done_context() have to be properly
+ * nested any way.
  *
  * Note that there is an important difference between reiser4 uses
  * ->fs_context and the way other file systems use it. Other file systems
@@ -40,7 +41,8 @@
 #include <linux/writeback.h>	/* balance_dirty_pages() */
 #include <linux/hardirq.h>
 
-static void _init_context(reiser4_context * context, struct super_block *super)
+static void _reiser4_init_context(reiser4_context * context,
+				  struct super_block *super)
 {
 	memset(context, 0, sizeof(*context));
 
@@ -53,7 +55,7 @@ static void _init_context(reiser4_context * context, struct super_block *super)
 
 	init_lock_stack(&context->stack);
 
-	txn_begin(context);
+	reiser4_txn_begin(context);
 
 	/* initialize head of tap list */
 	INIT_LIST_HEAD(&context->taps);
@@ -68,8 +70,7 @@ static void _init_context(reiser4_context * context, struct super_block *super)
    This function should be called at the beginning of reiser4 part of
    syscall.
 */
-reiser4_context *init_context(struct super_block *super	/* super block we are going to
-							 * work with */ )
+reiser4_context * reiser4_init_context(struct super_block * super)
 {
 	reiser4_context *context;
 
@@ -88,7 +89,7 @@ reiser4_context *init_context(struct super_block *super	/* super block we are go
 	if (context == NULL)
 		return ERR_PTR(RETERR(-ENOMEM));
 
-	_init_context(context, super);
+	_reiser4_init_context(context, super);
 	return context;
 }
 
@@ -101,7 +102,7 @@ void init_stack_context(reiser4_context *context, struct super_block *super)
 	assert("nikita-3358", super->s_op == NULL || is_reiser4_super(super));
 	assert("vs-12", !is_in_reiser4_context());
 
-	_init_context(context, super);
+	_reiser4_init_context(context, super);
 	context->on_stack = 1;
 	return;
 }
@@ -164,7 +165,7 @@ static void balance_dirty_pages_at(reiser4_context *context)
    thread released all locks and closed transcrash etc.
 
 */
-static void done_context(reiser4_context * context /* context being released */ )
+static void reiser4_done_context(reiser4_context * context /* context being released */ )
 {
 	assert("nikita-860", context != NULL);
 	assert("nikita-859", context->magic == context_magic);
@@ -176,8 +177,8 @@ static void done_context(reiser4_context * context /* context being released */ 
 	if (context->nr_children == 0) {
 		assert("jmacd-673", context->trans == NULL);
 		assert("jmacd-1002", lock_stack_isclean(&context->stack));
-		assert("nikita-1936", no_counters_are_held());
-		assert("nikita-2626", list_empty_careful(taps_list()));
+		assert("nikita-1936", reiser4_no_counters_are_held());
+		assert("nikita-2626", list_empty_careful(reiser4_taps_list()));
 		assert("zam-1004", ergo(get_super_private(context->super),
 					get_super_private(context->super)->delete_sema_owner !=
 					current));
@@ -221,11 +222,11 @@ static void done_context(reiser4_context * context /* context being released */ 
  */
 void reiser4_exit_context(reiser4_context * context)
 {
-	assert("nikita-3021", schedulable());
+	assert("nikita-3021", reiser4_schedulable());
 
 	if (context->nr_children == 0) {
 		if (!context->nobalance) {
-			txn_restart(context);
+			reiser4_txn_restart(context);
 			balance_dirty_pages_at(context);
 		}
 
@@ -247,12 +248,12 @@ void reiser4_exit_context(reiser4_context * context)
 				spin_unlock_atom(atom);
 			}
 		}
-		txn_end(context);
+		reiser4_txn_end(context);
 	}
-	done_context(context);
+	reiser4_done_context(context);
 }
 
-void set_gfp_mask(void)
+void reiser4_ctx_gfp_mask_set(void)
 {
 	reiser4_context *ctx;
 

@@ -110,12 +110,12 @@ static void init_fq(flush_queue_t * fq)
 static kmem_cache_t *fq_slab;
 
 /**
- * init_fqs - create flush queue cache
+ * reiser4_init_fqs - create flush queue cache
  *
  * Initializes slab cache of flush queues. It is part of reiser4 module
  * initialization.
  */
-int init_fqs(void)
+int reiser4_init_fqs(void)
 {
 	fq_slab = kmem_cache_create("fq",
 				    sizeof(flush_queue_t),
@@ -126,11 +126,11 @@ int init_fqs(void)
 }
 
 /**
- * done_fqs - delete flush queue cache
+ * reiser4_done_fqs - delete flush queue cache
  *
  * This is called on reiser4 module unloading or system shutdown.
  */
-void done_fqs(void)
+void reiser4_done_fqs(void)
 {
 	destroy_reiser4_cache(&fq_slab);
 }
@@ -232,12 +232,12 @@ static int wait_io(flush_queue_t * fq, int *nr_io_errors)
 
 		spin_unlock_atom(fq->atom);
 
-		assert("nikita-3013", schedulable());
+		assert("nikita-3013", reiser4_schedulable());
 
 		super = reiser4_get_current_sb();
 
 		/* FIXME: this is instead of blk_run_queues() */
-		blk_run_address_space(get_super_fake(super)->i_mapping);
+		blk_run_address_space(reiser4_get_super_fake(super)->i_mapping);
 
 		if (!(super->s_flags & MS_RDONLY))
 			down(&fq->io_sem);
@@ -269,7 +269,7 @@ static int finish_fq(flush_queue_t * fq, int *nr_io_errors)
 	detach_fq(fq);
 	done_fq(fq);
 
-	atom_send_event(atom);
+	reiser4_atom_send_event(atom);
 
 	return 0;
 }
@@ -298,7 +298,7 @@ static int finish_all_fq(txn_atom * atom, int *nr_io_errors)
 				reiser4_handle_error();
 
 			if (ret) {
-				fq_put(fq);
+				reiser4_fq_put(fq);
 				return ret;
 			}
 
@@ -325,7 +325,7 @@ int current_atom_finish_all_fq(void)
 			ret = finish_all_fq(atom, &nr_io_errors);
 			if (ret != -EBUSY)
 				break;
-			atom_wait_event(atom);
+			reiser4_atom_wait_event(atom);
 		}
 	} while (ret == -E_REPEAT);
 
@@ -360,7 +360,7 @@ scan_fq_and_update_atom_ref(struct list_head *list, txn_atom *atom)
 }
 
 /* support for atom fusion operation */
-void fuse_fq(txn_atom *to, txn_atom *from)
+void reiser4_fuse_fq(txn_atom *to, txn_atom *from)
 {
 	flush_queue_t *fq;
 
@@ -497,7 +497,7 @@ static void release_prepped_list(flush_queue_t * fq)
 	}
 
 	if (--atom->nr_running_queues == 0)
-		atom_send_event(atom);
+		reiser4_atom_send_event(atom);
 
 	spin_unlock_atom(atom);
 }
@@ -507,7 +507,7 @@ static void release_prepped_list(flush_queue_t * fq)
    @fq: flush queue object which contains jnodes we can (and will) write.
    @return: number of submitted blocks (>=0) if success, otherwise -- an error
             code (<0). */
-int write_fq(flush_queue_t * fq, long *nr_submitted, int flags)
+int reiser4_write_fq(flush_queue_t * fq, long *nr_submitted, int flags)
 {
 	int ret;
 	txn_atom *atom;
@@ -519,7 +519,7 @@ int write_fq(flush_queue_t * fq, long *nr_submitted, int flags)
 		if (atom->nr_running_queues == 0
 		    || !(flags & WRITEOUT_SINGLE_STREAM))
 			break;
-		atom_wait_event(atom);
+		reiser4_atom_wait_event(atom);
 	}
 
 	atom->nr_running_queues++;
@@ -587,13 +587,13 @@ static int fq_by_atom_gfp(txn_atom *atom, flush_queue_t **new_fq, gfp_t gfp)
 	return RETERR(-E_REPEAT);
 }
 
-int fq_by_atom(txn_atom * atom, flush_queue_t ** new_fq)
+int reiser4_fq_by_atom(txn_atom * atom, flush_queue_t ** new_fq)
 {
-	return fq_by_atom_gfp(atom, new_fq, get_gfp_mask());
+	return fq_by_atom_gfp(atom, new_fq, reiser4_ctx_gfp_mask_get());
 }
 
-/* A wrapper around fq_by_atom for getting a flush queue object for current
- * atom, if success fq->atom remains locked. */
+/* A wrapper around reiser4_fq_by_atom for getting a flush queue
+   object for current atom, if success fq->atom remains locked. */
 flush_queue_t *get_fq_for_current_atom(void)
 {
 	flush_queue_t *fq = NULL;
@@ -602,7 +602,7 @@ flush_queue_t *get_fq_for_current_atom(void)
 
 	do {
 		atom = get_current_atom_locked();
-		ret = fq_by_atom(atom, &fq);
+		ret = reiser4_fq_by_atom(atom, &fq);
 	} while (ret == -E_REPEAT);
 
 	if (ret)
@@ -611,7 +611,7 @@ flush_queue_t *get_fq_for_current_atom(void)
 }
 
 /* Releasing flush queue object after exclusive use */
-void fq_put_nolock(flush_queue_t *fq)
+void reiser4_fq_put_nolock(flush_queue_t *fq)
 {
 	assert("zam-747", fq->atom != NULL);
 	assert("zam-902", list_empty_careful(ATOM_FQ_LIST(fq)));
@@ -620,7 +620,7 @@ void fq_put_nolock(flush_queue_t *fq)
 	ON_DEBUG(fq->owner = NULL);
 }
 
-void fq_put(flush_queue_t * fq)
+void reiser4_fq_put(flush_queue_t * fq)
 {
 	txn_atom *atom;
 
@@ -629,8 +629,8 @@ void fq_put(flush_queue_t * fq)
 
 	assert("zam-746", atom != NULL);
 
-	fq_put_nolock(fq);
-	atom_send_event(atom);
+	reiser4_fq_put_nolock(fq);
+	reiser4_atom_send_event(atom);
 
 	spin_unlock(&(fq->guard));
 	spin_unlock_atom(atom);
@@ -646,7 +646,7 @@ void init_atom_fq_parts(txn_atom *atom)
 
 #if REISER4_DEBUG
 
-void check_fq(const txn_atom *atom)
+void reiser4_check_fq(const txn_atom *atom)
 {
 	/* check number of nodes on all atom's flush queues */
 	flush_queue_t *fq;

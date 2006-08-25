@@ -116,8 +116,8 @@ extern int reiser4_write_logs(long *);
 extern int reiser4_journal_replay(struct super_block *);
 extern int reiser4_journal_recover_sb_data(struct super_block *);
 
-extern int init_journal_info(struct super_block *);
-extern void done_journal_info(struct super_block *);
+extern int reiser4_init_journal_info(struct super_block *);
+extern void reiser4_done_journal_info(struct super_block *);
 
 extern int write_jnode_list(struct list_head *, flush_queue_t *, long *, int);
 

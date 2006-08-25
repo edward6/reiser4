@@ -226,8 +226,8 @@ typedef enum { LESS_THAN = -1,	/* if first key is less than second */
 void reiser4_key_init(reiser4_key * key);
 
 /* minimal possible key in the tree. Return pointer to the static storage. */
-extern const reiser4_key *min_key(void);
-extern const reiser4_key *max_key(void);
+extern const reiser4_key *reiser4_min_key(void);
+extern const reiser4_key *reiser4_max_key(void);
 
 /* helper macro for keycmp() */
 #define KEY_DIFF(k1, k2, field)							\
@@ -365,9 +365,9 @@ static inline void prefetchkey(reiser4_key * key)
 #define KEY_BUF_LEN (80)
 
 #if REISER4_DEBUG
-extern void print_key(const char *prefix, const reiser4_key * key);
+extern void reiser4_print_key(const char *prefix, const reiser4_key * key);
 #else
-#define print_key(p,k) noop
+#define reiser4_print_key(p,k) noop
 #endif
 
 /* __FS_REISERFS_KEY_H__ */

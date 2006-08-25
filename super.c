@@ -29,8 +29,7 @@ reiser4_super_info_data *get_super_private_nocheck(const struct super_block *sup
 }
 
 /* Return reiser4 fstype: value that is returned in ->f_type field by statfs() */
-long statfs_type(const struct super_block *super UNUSED_ARG	/* super block
-								 * queried */ )
+long reiser4_statfs_type(const struct super_block *super UNUSED_ARG)
 {
 	assert("nikita-448", super != NULL);
 	assert("nikita-449", is_reiser4_super(super));
@@ -157,7 +156,7 @@ __u64 reiser4_grabbed_blocks(const struct super_block * super)
 	return get_super_private(super)->blocks_grabbed;
 }
 
-__u64 flush_reserved(const struct super_block * super)
+__u64 reiser4_flush_reserved(const struct super_block * super)
 {
 	assert("vpf-285", super != NULL);
 	assert("vpf-286", is_reiser4_super(super));
@@ -193,7 +192,8 @@ __u64 reiser4_clustered_blocks(const struct super_block * super)
 }
 
 /* space allocator used by this file system */
-reiser4_space_allocator *get_space_allocator(const struct super_block * super)
+reiser4_space_allocator * reiser4_get_space_allocator(const struct super_block
+						      *super)
 {
 	assert("nikita-1965", super != NULL);
 	assert("nikita-1966", is_reiser4_super(super));
@@ -201,7 +201,7 @@ reiser4_space_allocator *get_space_allocator(const struct super_block * super)
 }
 
 /* return fake inode used to bind formatted nodes in the page cache */
-struct inode *get_super_fake(const struct super_block *super	/* super block
+struct inode *reiser4_get_super_fake(const struct super_block *super	/* super block
 								   queried */ )
 {
 	assert("nikita-1757", super != NULL);
@@ -209,7 +209,7 @@ struct inode *get_super_fake(const struct super_block *super	/* super block
 }
 
 /* return fake inode used to bind copied on capture nodes in the page cache */
-struct inode *get_cc_fake(const struct super_block *super	/* super block
+struct inode *reiser4_get_cc_fake(const struct super_block *super	/* super block
 								   queried */ )
 {
 	assert("nikita-1757", super != NULL);
@@ -217,14 +217,14 @@ struct inode *get_cc_fake(const struct super_block *super	/* super block
 }
 
 /* return fake inode used to bind bitmaps and journlal heads */
-struct inode *get_bitmap_fake(const struct super_block *super)
+struct inode *reiser4_get_bitmap_fake(const struct super_block *super)
 {
 	assert("nikita-17571", super != NULL);
 	return get_super_private(super)->bitmap;
 }
 
 /* tree used by this file system */
-reiser4_tree *get_tree(const struct super_block * super	/* super block
+reiser4_tree *reiser4_get_tree(const struct super_block * super	/* super block
 							 * queried */ )
 {
 	assert("nikita-460", super != NULL);
@@ -286,7 +286,7 @@ reiser4_blocknr_is_sane_for(const struct super_block *super,
 	assert("nikita-2957", super != NULL);
 	assert("nikita-2958", blk != NULL);
 
-	if (blocknr_is_fake(blk))
+	if (reiser4_blocknr_is_fake(blk))
 		return 1;
 
 	sbinfo = get_super_private(super);

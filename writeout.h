@@ -6,7 +6,7 @@
 #define WRITEOUT_FOR_PAGE_RECLAIM  (0x2)
 #define WRITEOUT_BARRIER (0x4)
 
-extern int get_writeout_flags(void);
+extern int reiser4_get_writeout_flags(void);
 
 #endif				/* __FS_REISER4_WRITEOUT_H__ */
 

@@ -90,7 +90,7 @@
    When we irrevocably commit ourselves to decision to remove node from the
    tree, JNODE_HEARD_BANSHEE bit is set in zjnode.state of corresponding
    znode. This is done either in ->kill_hook() of internal item or in
-   kill_root() function when tree root is removed.
+   reiser4_kill_root() function when tree root is removed.
 
    At this moment znode still has:
 
@@ -108,9 +108,9 @@
    parent node due to its nonexistence or proper parent node locking and
    nobody uses parent pointers from children due to absence of them. Second we
    invalidate all pending lock requests which still are on znode's lock
-   request queue, this is done by invalidate_lock(). Another JNODE_IS_DYING
-   znode status bit is used to invalidate pending lock requests. Once it set
-   all requesters are forced to return -EINVAL from
+   request queue, this is done by reiser4_invalidate_lock(). Another
+   JNODE_IS_DYING znode status bit is used to invalidate pending lock requests.
+   Once it set all requesters are forced to return -EINVAL from
    longterm_lock_znode(). Future locking attempts are not possible because all
    ways to get references to that znode are removed already. Last, node is
    uncaptured from transaction.
@@ -188,7 +188,7 @@ blknrhashfn(z_hash_table * table, const reiser4_block_nr * b)
 }
 
 /* The hash table definition */
-#define KMALLOC(size) kmalloc((size), get_gfp_mask())
+#define KMALLOC(size) kmalloc((size), reiser4_ctx_gfp_mask_get())
 #define KFREE(ptr, size) kfree(ptr)
 TYPE_SAFE_HASH_DEFINE(z, znode, reiser4_block_nr, zjnode.key.z, zjnode.link.z,
 		      blknrhashfn, blknreq);
@@ -535,7 +535,7 @@ znode *zget(reiser4_tree * tree,
 		write_unlock_tree(tree);
 	}
 #if REISER4_DEBUG
-	if (!blocknr_is_fake(blocknr) && *blocknr != 0)
+	if (!reiser4_blocknr_is_fake(blocknr) && *blocknr != 0)
 		reiser4_check_block(blocknr, 1);
 #endif
 	/* Check for invalid tree level, return -EIO */
@@ -623,7 +623,7 @@ int zload_ra(znode * node /* znode to load */ , ra_info_t * info)
 	assert("nikita-1377", znode_invariant(node));
 	assert("jmacd-7771", !znode_above_root(node));
 	assert("nikita-2125", atomic_read(&ZJNODE(node)->x_count) > 0);
-	assert("nikita-3016", schedulable());
+	assert("nikita-3016", reiser4_schedulable());
 
 	if (info)
 		formatted_readahead(node, info);
@@ -695,7 +695,7 @@ reiser4_key *znode_set_rd_key(znode * node, const reiser4_key * key)
 	       znode_is_any_locked(node) ||
 	       znode_get_level(node) != LEAF_LEVEL ||
 	       keyge(key, &node->rd_key) ||
-	       keyeq(&node->rd_key, min_key()) ||
+	       keyeq(&node->rd_key, reiser4_min_key()) ||
 	       ZF_ISSET(node, JNODE_HEARD_BANSHEE));
 
 	node->rd_key = *key;
@@ -711,7 +711,8 @@ reiser4_key *znode_set_ld_key(znode * node, const reiser4_key * key)
 	assert_rw_write_locked(&(znode_get_tree(node)->dk_lock));
 	assert("nikita-3070", LOCK_CNT_GTZ(write_locked_dk));
 	assert("nikita-2943",
-	       znode_is_any_locked(node) || keyeq(&node->ld_key, min_key()));
+	       znode_is_any_locked(node) || keyeq(&node->ld_key,
+						  reiser4_min_key()));
 
 	node->ld_key = *key;
 	ON_DEBUG(node->ld_key_version = atomic_inc_return(&delim_key_version));

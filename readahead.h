@@ -20,7 +20,7 @@ typedef struct {
 } ra_info_t;
 
 void formatted_readahead(znode *, ra_info_t *);
-void init_ra_info(ra_info_t * rai);
+void reiser4_init_ra_info(ra_info_t * rai);
 
 struct reiser4_file_ra_state {
 	loff_t start;		/* Current window */

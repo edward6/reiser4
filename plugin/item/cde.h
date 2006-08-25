@@ -59,7 +59,7 @@ int kill_units_cde(coord_t * coord, pos_in_node_t from, pos_in_node_t to,
 		   struct carry_kill_data *, reiser4_key * smallest_removed,
 		   reiser4_key * new_first);
 void print_cde(const char *prefix, coord_t * coord);
-int check_cde(const coord_t * coord, const char **error);
+int reiser4_check_cde(const coord_t * coord, const char **error);
 
 /* plugin->u.item.s.dir.* */
 int extract_key_cde(const coord_t * coord, reiser4_key * key);

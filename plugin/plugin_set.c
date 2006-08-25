@@ -122,7 +122,7 @@ pshash(ps_hash_table * table, const unsigned long *a)
 }
 
 /* The hash table definition */
-#define KMALLOC(size) kmalloc((size), get_gfp_mask())
+#define KMALLOC(size) kmalloc((size), reiser4_ctx_gfp_mask_get())
 #define KFREE(ptr, size) kfree(ptr)
 TYPE_SAFE_HASH_DEFINE(ps, plugin_set, unsigned long, hashval, link, pshash,
 		      pseq);
@@ -187,7 +187,8 @@ static int plugin_set_field(plugin_set ** set, const unsigned long val,
 	twin = ps_hash_find(&ps_table, &replica.hashval);
 	if (unlikely(twin == NULL)) {
 		rcu_read_unlock();
-		psal = kmem_cache_alloc(plugin_set_slab, get_gfp_mask());
+		psal = kmem_cache_alloc(plugin_set_slab,
+					reiser4_ctx_gfp_mask_get());
 		if (psal == NULL)
 			return RETERR(-ENOMEM);
 		*psal = replica;

@@ -19,7 +19,7 @@
 
 /* TYPE DECLARATIONS */
 
-/* This enumeration describes the possible types of a capture request (try_capture).
+/* This enumeration describes the possible types of a capture request (reiser4_try_capture).
    A capture request dynamically assigns a block to the calling thread's transaction
    handle. */
 typedef enum {
@@ -53,11 +53,12 @@ typedef enum {
 	   indicate modification will occur. */
 	TXN_CAPTURE_WTYPES = (TXN_CAPTURE_READ_MODIFY | TXN_CAPTURE_WRITE),
 
-	/* An option to try_capture, NONBLOCKING indicates that the caller would
+	/* An option to reiser4_try_capture, NONBLOCKING indicates that the caller would
 	   prefer not to sleep waiting for an aging atom to commit. */
 	TXN_CAPTURE_NONBLOCKING = (1 << 4),
 
-	/* An option to try_capture to prevent atom fusion, just simple capturing is allowed */
+	/* An option to reiser4_try_capture to prevent atom fusion, just simple
+	   capturing is allowed */
 	TXN_CAPTURE_DONT_FUSE = (1 << 5)
 
 	/* This macro selects only the exclusive capture request types, stripping out any
@@ -304,7 +305,7 @@ struct txn_atom {
 	/* number of threads which do jnode_flush() over this atom */
 	int nr_flushers;
 	/* number of flush queues which are IN_USE and jnodes from fq->prepped
-	   are submitted to disk by the write_fq() routine. */
+	   are submitted to disk by the reiser4_write_fq() routine. */
 	int nr_running_queues;
 	/* A counter of grabbed unformatted nodes, see a description of the
 	 * reiser4 space reservation scheme at block_alloc.c */
@@ -393,16 +394,16 @@ struct txn_mgr {
 extern int init_txnmgr_static(void);
 extern void done_txnmgr_static(void);
 
-extern void init_txnmgr(txn_mgr *);
-extern void done_txnmgr(txn_mgr *);
+extern void reiser4_init_txnmgr(txn_mgr *);
+extern void reiser4_done_txnmgr(txn_mgr *);
 
-extern int txn_reserve(int reserved);
+extern int reiser4_txn_reserve(int reserved);
 
-extern void txn_begin(reiser4_context * context);
-extern int txn_end(reiser4_context * context);
+extern void reiser4_txn_begin(reiser4_context * context);
+extern int reiser4_txn_end(reiser4_context * context);
 
-extern void txn_restart(reiser4_context * context);
-extern void txn_restart_current(void);
+extern void reiser4_txn_restart(reiser4_context * context);
+extern void reiser4_txn_restart_current(void);
 
 extern int txnmgr_force_commit_all(struct super_block *, int);
 extern int current_atom_should_commit(void);
@@ -415,21 +416,21 @@ extern int flush_current_atom(int, long, long *, txn_atom **, jnode *);
 
 extern int flush_some_atom(jnode *, long *, const struct writeback_control *, int);
 
-extern void atom_set_stage(txn_atom * atom, txn_stage stage);
+extern void reiser4_atom_set_stage(txn_atom * atom, txn_stage stage);
 
 extern int same_slum_check(jnode * base, jnode * check, int alloc_check,
 			   int alloc_value);
 extern void atom_dec_and_unlock(txn_atom * atom);
 
-extern int try_capture(jnode * node, znode_lock_mode mode, txn_capture flags);
+extern int reiser4_try_capture(jnode * node, znode_lock_mode mode, txn_capture flags);
 extern int try_capture_page_to_invalidate(struct page *pg);
 
-extern void uncapture_page(struct page *pg);
-extern void uncapture_block(jnode *);
-extern void uncapture_jnode(jnode *);
+extern void reiser4_uncapture_page(struct page *pg);
+extern void reiser4_uncapture_block(jnode *);
+extern void reiser4_uncapture_jnode(jnode *);
 
-extern int capture_inode(struct inode *);
-extern int uncapture_inode(struct inode *);
+extern int reiser4_capture_inode(struct inode *);
+extern int reiser4_uncapture_inode(struct inode *);
 
 extern txn_atom *get_current_atom_locked_nocheck(void);
 
@@ -465,11 +466,11 @@ static inline txn_atom *get_current_atom_locked(void)
 
 extern txn_atom *jnode_get_atom(jnode *);
 
-extern void atom_wait_event(txn_atom *);
-extern void atom_send_event(txn_atom *);
+extern void reiser4_atom_wait_event(txn_atom *);
+extern void reiser4_atom_send_event(txn_atom *);
 
 extern void insert_into_atom_ovrwr_list(txn_atom * atom, jnode * node);
-extern int capture_super_block(struct super_block *s);
+extern int reiser4_capture_super_block(struct super_block *s);
 int capture_bulk(jnode **, int count);
 
 /* See the comment on the function blocknrset.c:blocknr_set_add for the
@@ -656,13 +657,13 @@ struct flush_queue {
 #endif
 };
 
-extern int fq_by_atom(txn_atom *, flush_queue_t **);
-extern void fq_put_nolock(flush_queue_t *);
-extern void fq_put(flush_queue_t *);
-extern void fuse_fq(txn_atom * to, txn_atom * from);
+extern int reiser4_fq_by_atom(txn_atom *, flush_queue_t **);
+extern void reiser4_fq_put_nolock(flush_queue_t *);
+extern void reiser4_fq_put(flush_queue_t *);
+extern void reiser4_fuse_fq(txn_atom * to, txn_atom * from);
 extern void queue_jnode(flush_queue_t *, jnode *);
 
-extern int write_fq(flush_queue_t *, long *, int);
+extern int reiser4_write_fq(flush_queue_t *, long *, int);
 extern int current_atom_finish_all_fq(void);
 extern void init_atom_fq_parts(txn_atom *);
 
@@ -671,7 +672,7 @@ extern reiser4_block_nr txnmgr_count_deleted_blocks(void);
 extern void znode_make_dirty(znode * node);
 extern void jnode_make_dirty_locked(jnode * node);
 
-extern int sync_atom(txn_atom * atom);
+extern int reiser4_sync_atom(txn_atom * atom);
 
 #if REISER4_DEBUG
 extern int atom_fq_parts_are_clean(txn_atom *);
@@ -682,12 +683,12 @@ extern flush_queue_t *get_fq_for_current_atom(void);
 
 void protected_jnodes_init(protected_jnodes * list);
 void protected_jnodes_done(protected_jnodes * list);
-void invalidate_list(struct list_head * head);
+void reiser4_invalidate_list(struct list_head * head);
 
 #if REISER4_DEBUG
-void info_atom(const char *prefix, const txn_atom * atom);
+void reiser4_info_atom(const char *prefix, const txn_atom * atom);
 #else
-#define info_atom(p,a) noop
+#define reiser4_info_atom(p,a) noop
 #endif
 
 # endif				/* __REISER4_TXNMGR_H__ */

@@ -23,7 +23,7 @@ int write_sd_by_inode_common(struct inode *inode /* object to save */ )
 
 	assert("nikita-730", inode != NULL);
 
-	if (inode_get_flag(inode, REISER4_NO_SD))
+	if (reiser4_inode_get_flag(inode, REISER4_NO_SD))
 		/* object doesn't have stat-data yet */
 		result = insert_new_sd(inode);
 	else
@@ -78,7 +78,7 @@ int set_plug_in_inode_common(struct inode *object /* inode to set plugin on */ ,
 		object->i_gid = current->fsgid;
 
 	/* this object doesn't have stat-data yet */
-	inode_set_flag(object, REISER4_NO_SD);
+	reiser4_inode_set_flag(object, REISER4_NO_SD);
 #if 0
 	/* this is now called after all inode plugins are initialized:
 	   do_create_vfs_child after adjust_to_parent */
@@ -86,7 +86,7 @@ int set_plug_in_inode_common(struct inode *object /* inode to set plugin on */ ,
 	setup_inode_ops(object, data);
 #endif
 	object->i_nlink = 0;
-	seal_init(&reiser4_inode_data(object)->sd_seal, NULL, NULL);
+	reiser4_seal_init(&reiser4_inode_data(object)->sd_seal, NULL, NULL);
 	mask = (1 << UNIX_STAT) | (1 << LIGHT_WEIGHT_STAT);
 	if (!reiser4_is_set(object->i_sb, REISER4_32_BIT_TIMES))
 		mask |= (1 << LARGE_TIMES_STAT);
@@ -165,15 +165,14 @@ int adjust_to_parent_cryptcompress(struct inode *object /* new object */ ,
 
 /* this is common implementation of create_object method of file plugin
  */
-int
-create_object_common(struct inode *object, struct inode *parent UNUSED_ARG,
-		     reiser4_object_create_data * data UNUSED_ARG)
+int reiser4_create_object_common(struct inode *object, struct inode *parent,
+				 reiser4_object_create_data * data)
 {
 	reiser4_block_nr reserve;
 	assert("nikita-744", object != NULL);
 	assert("nikita-745", parent != NULL);
 	assert("nikita-747", data != NULL);
-	assert("nikita-748", inode_get_flag(object, REISER4_NO_SD));
+	assert("nikita-748", reiser4_inode_get_flag(object, REISER4_NO_SD));
 
 	reserve = estimate_create_common(object);
 	if (reiser4_grab_space(reserve, BA_CAN_COMMIT))
@@ -184,14 +183,14 @@ create_object_common(struct inode *object, struct inode *parent UNUSED_ARG,
 static int common_object_delete_no_reserve(struct inode *inode);
 
 /**
- * delete_object_common - delete_object of file_plugin
+ * reiser4_delete_object_common - delete_object of file_plugin
  * @inode: inode to be deleted
  *
  * This is common implementation of delete_object method of file_plugin. It
  * applies to object its deletion consists of removing two items - stat data
  * and safe-link.
  */
-int delete_object_common(struct inode *inode)
+int reiser4_delete_object_common(struct inode *inode)
 {
 	int result;
 
@@ -201,12 +200,13 @@ int delete_object_common(struct inode *inode)
 	assert("nikita-3420", inode->i_size == 0 || S_ISLNK(inode->i_mode));
 	assert("nikita-3421", inode->i_nlink == 0);
 
-	if (!inode_get_flag(inode, REISER4_NO_SD)) {
+	if (!reiser4_inode_get_flag(inode, REISER4_NO_SD)) {
 		reiser4_block_nr reserve;
 
 		/* grab space which is needed to remove 2 items from the tree:
 		   stat data and safe-link */
-		reserve = 2 * estimate_one_item_removal(tree_by_inode(inode));
+		reserve = 2 *
+		  estimate_one_item_removal(reiser4_tree_by_inode(inode));
 		if (reiser4_grab_space_force(reserve,
 					     BA_RESERVED | BA_CAN_COMMIT))
 			return RETERR(-ENOSPC);
@@ -217,14 +217,14 @@ int delete_object_common(struct inode *inode)
 }
 
 /**
- * delete_directory_common - delete_object of file_plugin
+ * reiser4_delete_dir_common - delete_object of file_plugin
  * @inode: inode to be deleted
  *
  * This is common implementation of delete_object method of file_plugin for
  * typical directory. It calls done method of dir_plugin to remove "." and
  * removes stat data and safe-link.
  */
-int delete_directory_common(struct inode *inode)
+int reiser4_delete_dir_common(struct inode *inode)
 {
 	int result;
 	dir_plugin *dplug;
@@ -236,11 +236,11 @@ int delete_directory_common(struct inode *inode)
 	assert("vs-1101", dplug && dplug->done);
 
 	/* kill cursors which might be attached to inode */
-	kill_cursors(inode);
+	reiser4_kill_cursors(inode);
 
 	/* grab space enough for removing two items */
 	if (reiser4_grab_space
-	    (2 * estimate_one_item_removal(tree_by_inode(inode)),
+	    (2 * estimate_one_item_removal(reiser4_tree_by_inode(inode)),
 	     BA_RESERVED | BA_CAN_COMMIT))
 		return RETERR(-ENOSPC);
 
@@ -252,7 +252,7 @@ int delete_directory_common(struct inode *inode)
 
 /* this is common implementation of add_link method of file plugin
  */
-int add_link_common(struct inode *object, struct inode *parent UNUSED_ARG)
+int reiser4_add_link_common(struct inode *object, struct inode *parent)
 {
 	/*
 	 * increment ->i_nlink and update ->i_ctime
@@ -265,7 +265,7 @@ int add_link_common(struct inode *object, struct inode *parent UNUSED_ARG)
 
 /* this is common implementation of rem_link method of file plugin
  */
-int rem_link_common(struct inode *object, struct inode *parent UNUSED_ARG)
+int reiser4_rem_link_common(struct inode *object, struct inode *parent)
 {
 	assert("nikita-2021", object != NULL);
 	assert("nikita-2163", object->i_nlink > 0);
@@ -356,7 +356,7 @@ int can_rem_link_common_dir(const struct inode *inode)
 /* this is common implementation of detach method of file plugin for typical
    directory
 */
-int detach_common_dir(struct inode *child, struct inode *parent)
+int reiser4_detach_common_dir(struct inode *child, struct inode *parent)
 {
 	dir_plugin *dplug;
 
@@ -369,7 +369,7 @@ int detach_common_dir(struct inode *child, struct inode *parent)
 /* this is common implementation of bind method of file plugin for typical
    directory
 */
-int bind_common_dir(struct inode *child, struct inode *parent)
+int reiser4_bind_common_dir(struct inode *child, struct inode *parent)
 {
 	dir_plugin *dplug;
 
@@ -406,7 +406,7 @@ int safelink_common(struct inode *object, reiser4_safe_link_t link, __u64 value)
 */
 reiser4_block_nr estimate_create_common(const struct inode * object)
 {
-	return estimate_one_insert_item(tree_by_inode(object));
+	return estimate_one_insert_item(reiser4_tree_by_inode(object));
 }
 
 /* this is common implementation of estimate.create method of file plugin for
@@ -416,7 +416,7 @@ reiser4_block_nr estimate_create_common(const struct inode * object)
 */
 reiser4_block_nr estimate_create_common_dir(const struct inode * object)
 {
-	return 2 * estimate_one_insert_item(tree_by_inode(object));
+	return 2 * estimate_one_insert_item(reiser4_tree_by_inode(object));
 }
 
 /* this is common implementation of estimate.update method of file plugin
@@ -425,7 +425,7 @@ reiser4_block_nr estimate_create_common_dir(const struct inode * object)
 */
 reiser4_block_nr estimate_update_common(const struct inode * inode)
 {
-	return estimate_one_insert_into_item(tree_by_inode(inode));
+	return estimate_one_insert_into_item(reiser4_tree_by_inode(inode));
 }
 
 /* this is common implementation of estimate.unlink method of file plugin
@@ -510,7 +510,7 @@ static void key_warning(const reiser4_key * key /* key to print */ ,
 	if (code != -ENOMEM) {
 		warning("nikita-717", "Error for inode %llu (%i)",
 			(unsigned long long)get_key_objectid(key), code);
-		print_key("for key", key);
+		reiser4_print_key("for key", key);
 	}
 }
 
@@ -542,7 +542,7 @@ static void check_sd_coord(coord_t * coord, const reiser4_key * key)
 	    (znode_get_level(coord->node) != LEAF_LEVEL) ||
 	    !item_is_statdata(coord)) {
 		warning("nikita-1901", "Conspicuous seal");
-		print_key("key", key);
+		reiser4_print_key("key", key);
 		print_coord("coord", coord, 1);
 		impossible("nikita-2877", "no way");
 	}
@@ -568,7 +568,7 @@ static int insert_new_sd(struct inode *inode /* inode to create sd for */ )
 	oid_t oid;
 
 	assert("nikita-723", inode != NULL);
-	assert("nikita-3406", inode_get_flag(inode, REISER4_NO_SD));
+	assert("nikita-3406", reiser4_inode_get_flag(inode, REISER4_NO_SD));
 
 	ref = reiser4_inode_data(inode);
 	spin_lock_inode(inode);
@@ -589,7 +589,7 @@ static int insert_new_sd(struct inode *inode /* inode to create sd for */ )
 /* could be optimized for case where there is only one node format in
  * use in the filesystem, probably there are lots of such
  * places we could optimize for only one node layout.... -Hans */
-	if (data.length > tree_by_inode(inode)->nplug->max_item_size()) {
+	if (data.length > reiser4_tree_by_inode(inode)->nplug->max_item_size()){
 		/* This is silly check, but we don't know actual node where
 		   insertion will go into. */
 		return RETERR(-ENAMETOOLONG);
@@ -604,7 +604,7 @@ static int insert_new_sd(struct inode *inode /* inode to create sd for */ )
 	coord_init_zero(&coord);
 	init_lh(&lh);
 
-	result = insert_by_key(tree_by_inode(inode),
+	result = insert_by_key(reiser4_tree_by_inode(inode),
 			       build_sd_key(inode, &key), &data, &coord, &lh,
 			       /* stat data lives on a leaf level */
 			       LEAF_LEVEL, CBK_UNIQUE);
@@ -641,10 +641,10 @@ static int insert_new_sd(struct inode *inode /* inode to create sd for */ )
 			znode_make_dirty(coord.node);
 			if (result == 0) {
 				/* object has stat-data now */
-				inode_clr_flag(inode, REISER4_NO_SD);
-				inode_set_flag(inode, REISER4_SDLEN_KNOWN);
+				reiser4_inode_clr_flag(inode, REISER4_NO_SD);
+				reiser4_inode_set_flag(inode, REISER4_SDLEN_KNOWN);
 				/* initialise stat-data seal */
-				seal_init(&ref->sd_seal, &coord, &key);
+				reiser4_seal_init(&ref->sd_seal, &coord, &key);
 				ref->sd_coord = coord;
 				check_inode_seal(inode, &coord, &key);
 			} else if (result != -ENOMEM)
@@ -693,7 +693,7 @@ int lookup_sd(struct inode *inode /* inode to look sd for */ ,
 	 * it only covers _body_ of the file, and stat data don't belong
 	 * there.
 	 */
-	result = coord_by_key(tree_by_inode(inode),
+	result = coord_by_key(reiser4_tree_by_inode(inode),
 			      key,
 			      coord,
 			      lh,
@@ -725,12 +725,13 @@ locate_inode_sd(struct inode *inode,
 	spin_unlock_inode(inode);
 
 	build_sd_key(inode, key);
-	if (seal_is_set(&seal)) {
+	if (reiser4_seal_is_set(&seal)) {
 		/* first, try to use seal */
-		result = seal_validate(&seal,
-				       coord,
-				       key,
-				       lh, ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
+		result = reiser4_seal_validate(&seal,
+					       coord,
+					       key,
+					       lh, ZNODE_WRITE_LOCK,
+					       ZNODE_LOCK_LOPRI);
 		if (result == 0)
 			check_sd_coord(coord, key);
 	} else
@@ -855,12 +856,12 @@ update_sd_at(struct inode *inode, coord_t * coord, reiser4_key * key,
 
 	/* data.length is how much space to add to (or remove
 	   from if negative) sd */
-	if (!inode_get_flag(inode, REISER4_SDLEN_KNOWN)) {
+	if (!reiser4_inode_get_flag(inode, REISER4_SDLEN_KNOWN)) {
 		/* recalculate stat-data length */
 		data.length =
 		    data.iplug->s.sd.save_len(inode) -
 		    item_length_by_coord(coord);
-		inode_set_flag(inode, REISER4_SDLEN_KNOWN);
+		reiser4_inode_set_flag(inode, REISER4_SDLEN_KNOWN);
 	} else
 		data.length = 0;
 	spin_unlock_inode(inode);
@@ -879,15 +880,16 @@ update_sd_at(struct inode *inode, coord_t * coord, reiser4_key * key,
 		/* insertion code requires that insertion point (coord) was
 		 * between units. */
 		coord->between = AFTER_UNIT;
-		result = resize_item(coord,
-				     &data, key, lh, COPI_DONT_SHIFT_LEFT);
+		result = reiser4_resize_item(coord, &data, key, lh,
+					     COPI_DONT_SHIFT_LEFT);
 		if (result != 0) {
 			key_warning(key, inode, result);
 			zrelse(loaded);
 			return result;
 		}
 		if (loaded != coord->node) {
-			/* resize_item moved coord to another node. Zload it */
+		  /* reiser4_resize_item moved coord to another node.
+		     Zload it */
 			zrelse(loaded);
 			coord_clear_iplug(coord);
 			result = zload(coord->node);
@@ -911,7 +913,7 @@ update_sd_at(struct inode *inode, coord_t * coord, reiser4_key * key,
 	 * was changed and new extensions were pasted into item.
 	 */
 	coord->between = AT_UNIT;
-	seal_init(&state->sd_seal, coord, key);
+	reiser4_seal_init(&state->sd_seal, coord, key);
 	state->sd_coord = *coord;
 	spin_unlock_inode(inode);
 	check_inode_seal(inode, coord, key);
@@ -931,7 +933,7 @@ static int update_sd(struct inode *inode /* inode to update sd for */ )
 	assert("nikita-726", inode != NULL);
 
 	/* no stat-data, nothing to update?! */
-	assert("nikita-3482", !inode_get_flag(inode, REISER4_NO_SD));
+	assert("nikita-3482", !reiser4_inode_get_flag(inode, REISER4_NO_SD));
 
 	init_lh(&lh);
 
@@ -943,8 +945,8 @@ static int update_sd(struct inode *inode /* inode to update sd for */ )
 	return result;
 }
 
-/* helper for delete_object_common and delete_directory_common. Remove object
-   stat data. Space for that must be reserved by caller before
+/* helper for reiser4_delete_object_common and reiser4_delete_dir_common.
+   Remove object stat data. Space for that must be reserved by caller before
 */
 static int
 common_object_delete_no_reserve(struct inode *inode /* object to remove */ )
@@ -953,7 +955,7 @@ common_object_delete_no_reserve(struct inode *inode /* object to remove */ )
 
 	assert("nikita-1477", inode != NULL);
 
-	if (!inode_get_flag(inode, REISER4_NO_SD)) {
+	if (!reiser4_inode_get_flag(inode, REISER4_NO_SD)) {
 		reiser4_key sd_key;
 
 		DQUOT_FREE_INODE(inode);
@@ -961,14 +963,15 @@ common_object_delete_no_reserve(struct inode *inode /* object to remove */ )
 
 		build_sd_key(inode, &sd_key);
 		result =
-		    cut_tree(tree_by_inode(inode), &sd_key, &sd_key, NULL, 0);
+		    reiser4_cut_tree(reiser4_tree_by_inode(inode),
+				     &sd_key, &sd_key, NULL, 0);
 		if (result == 0) {
-			inode_set_flag(inode, REISER4_NO_SD);
+			reiser4_inode_set_flag(inode, REISER4_NO_SD);
 			result = oid_release(inode->i_sb, get_inode_oid(inode));
 			if (result == 0) {
 				oid_count_released();
 
-				result = safe_link_del(tree_by_inode(inode),
+				result = safe_link_del(reiser4_tree_by_inode(inode),
 						       get_inode_oid(inode),
 						       SAFE_UNLINK);
 			}
@@ -988,7 +991,7 @@ static int process_truncate(struct inode *inode, __u64 size)
 	struct dentry dentry;
 
 	assert("vs-21", is_in_reiser4_context());
-	ctx = init_context(inode->i_sb);
+	ctx = reiser4_init_context(inode->i_sb);
 	assert("vs-22", !IS_ERR(ctx));
 
 	attr.ia_size = size;

@@ -6,9 +6,9 @@
    even a reference) to znode. In stead, each znode contains a version number,
    increased on each znode modification. This version number is copied into a
    seal when seal is created. Later, one can "validate" seal by calling
-   seal_validate(). If znode is in cache and its version number is still the
-   same, seal is "pristine" and coord associated with it can be re-used
-   immediately.
+   reiser4_seal_validate(). If znode is in cache and its version number is
+   still the same, seal is "pristine" and coord associated with it can be
+   re-used immediately.
 
    If, on the other hand, znode is out of cache, or it is obviously different
    one from the znode seal was initially attached to (for example, it is on
@@ -48,10 +48,11 @@ static int seal_matches(const seal_t * seal, znode * node);
 
 /* initialise seal. This can be called several times on the same seal. @coord
    and @key can be NULL.  */
-void seal_init(seal_t * seal /* seal to initialise */ ,
-	       const coord_t * coord /* coord @seal will be attached to */ ,
-	       const reiser4_key * key UNUSED_ARG	/* key @seal will be
-							 * attached to */ )
+void reiser4_seal_init(seal_t * seal /* seal to initialise */ ,
+		       const coord_t * coord /* coord @seal will be
+					      *	attached to */ ,
+		       const reiser4_key * key UNUSED_ARG /* key @seal will be
+							   * attached to */ )
 {
 	assert("nikita-1886", seal != NULL);
 	memset(seal, 0, sizeof *seal);
@@ -74,22 +75,22 @@ void seal_init(seal_t * seal /* seal to initialise */ ,
 }
 
 /* finish with seal */
-void seal_done(seal_t * seal /* seal to clear */ )
+void reiser4_seal_done(seal_t * seal /* seal to clear */ )
 {
 	assert("nikita-1887", seal != NULL);
 	seal->version = 0;
 }
 
 /* true if seal was initialised */
-int seal_is_set(const seal_t * seal /* seal to query */ )
+int reiser4_seal_is_set(const seal_t * seal /* seal to query */ )
 {
 	assert("nikita-1890", seal != NULL);
 	return seal->version != 0;
 }
 
 #if REISER4_DEBUG
-/* helper function for seal_validate(). It checks that item at @coord has
- * expected key. This is to detect cases where node was modified but wasn't
+/* helper function for reiser4_seal_validate(). It checks that item at @coord
+ * has expected key. This is to detect cases where node was modified but wasn't
  * marked dirty. */
 static inline int check_seal_match(const coord_t * coord /* coord to check */ ,
 				   const reiser4_key * k /* expected key */ )
@@ -107,12 +108,12 @@ static inline int check_seal_match(const coord_t * coord /* coord to check */ ,
 }
 #endif
 
-/* this is used by seal_validate. It accepts return value of
+/* this is used by reiser4_seal_validate. It accepts return value of
  * longterm_lock_znode and returns 1 if it can be interpreted as seal
  * validation failure. For instance, when longterm_lock_znode returns -EINVAL,
- * seal_validate returns -E_REPEAT and caller will call tre search. We cannot
- * do this in longterm_lock_znode(), because sometimes we want to distinguish
- * between -EINVAL and -E_REPEAT. */
+ * reiser4_seal_validate returns -E_REPEAT and caller will call tre search.
+ * We cannot do this in longterm_lock_znode(), because sometimes we want to
+ * distinguish between -EINVAL and -E_REPEAT. */
 static int should_repeat(int return_code)
 {
 	return return_code == -EINVAL;
@@ -124,24 +125,24 @@ static int should_repeat(int return_code)
 
    If seal was burned, or broken irreparably, return -E_REPEAT.
 
-   NOTE-NIKITA currently seal_validate() returns -E_REPEAT if key we are
+   NOTE-NIKITA currently reiser4_seal_validate() returns -E_REPEAT if key we are
    looking for is in range of keys covered by the sealed node, but item wasn't
    found by node ->lookup() method. Alternative is to return -ENOENT in this
    case, but this would complicate callers logic.
 
 */
-int seal_validate(seal_t * seal /* seal to validate */ ,
-		  coord_t * coord /* coord to validate against */ ,
-		  const reiser4_key * key /* key to validate against */ ,
-		  lock_handle * lh /* resulting lock handle */ ,
-		  znode_lock_mode mode /* lock node */ ,
-		  znode_lock_request request /* locking priority */ )
+int reiser4_seal_validate(seal_t * seal /* seal to validate */,
+			  coord_t * coord /* coord to validate against */,
+			  const reiser4_key * key /* key to validate against */,
+			  lock_handle * lh /* resulting lock handle */,
+			  znode_lock_mode mode /* lock node */,
+			  znode_lock_request request /* locking priority */)
 {
 	znode *node;
 	int result;
 
 	assert("nikita-1889", seal != NULL);
-	assert("nikita-1881", seal_is_set(seal));
+	assert("nikita-1881", reiser4_seal_is_set(seal));
 	assert("nikita-1882", key != NULL);
 	assert("nikita-1883", coord != NULL);
 	assert("nikita-1884", lh != NULL);

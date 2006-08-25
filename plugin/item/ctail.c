@@ -517,7 +517,7 @@ int read_ctail(struct file *file UNUSED_ARG, flow_t * f, hint_t * hint)
 	/* read only whole ctails */
 	assert("edward-135", nr_units_ctail(coord) <= f->length);
 
-	assert("edward-136", schedulable());
+	assert("edward-136", reiser4_schedulable());
 	assert("edward-886", ctail_ok(coord));
 
 	if (f->data)
@@ -540,7 +540,7 @@ int ctail_read_disk_cluster(reiser4_cluster_t * clust, struct inode *inode,
 	assert("edward-1450", mode == ZNODE_READ_LOCK || ZNODE_WRITE_LOCK);
 	assert("edward-671", clust->hint != NULL);
 	assert("edward-140", clust->dstat == INVAL_DISK_CLUSTER);
-	assert("edward-672", crc_inode_ok(inode));
+	assert("edward-672", cryptcompress_inode_ok(inode));
 
 	/* set input stream */
 	result = grab_tfm_stream(inode, &clust->tc, INPUT_STREAM);
@@ -564,7 +564,7 @@ int ctail_read_disk_cluster(reiser4_cluster_t * clust, struct inode *inode,
 	result = grab_coa(&clust->tc, inode_compression_plugin(inode));
 	if (result)
 		return result;
-	result = inflate_cluster(clust, inode);
+	result = reiser4_inflate_cluster(clust, inode);
 	if (result)
 		return result;
 	tfm_cluster_set_uptodate(&clust->tc);
@@ -661,7 +661,7 @@ int readpage_ctail(void *vp, struct page *page)
 	assert("edward-118", page->mapping && page->mapping->host);
 	assert("edward-867", !tfm_cluster_is_uptodate(&clust->tc));
 
-	hint = kmalloc(sizeof(*hint), get_gfp_mask());
+	hint = kmalloc(sizeof(*hint), reiser4_ctx_gfp_mask_get());
 	if (hint == NULL)
 		return RETERR(-ENOMEM);
 	clust->hint = hint;
@@ -718,7 +718,7 @@ ctail_read_page_cluster(reiser4_cluster_t * clust, struct inode *inode)
 	}
 	tfm_cluster_clr_uptodate(&clust->tc);
       out:
-	release_cluster_pages(clust);
+	reiser4_release_cluster_pages(clust);
 	return result;
 }
 
@@ -752,7 +752,7 @@ int readpages_ctail(struct file *file, struct address_space *mapping,
 	pagevec_init(&lru_pvec, 0);
 	cluster_init_read(&clust, NULL);
 	clust.file = file;
-	hint = kmalloc(sizeof(*hint), get_gfp_mask());
+	hint = kmalloc(sizeof(*hint), reiser4_ctx_gfp_mask_get());
 	if (hint == NULL) {
 		warning("vs-28", "failed to allocate hint");
 		ret = RETERR(-ENOMEM);
@@ -776,7 +776,7 @@ int readpages_ctail(struct file *file, struct address_space *mapping,
 		page = list_to_page(pages);
 		list_del(&page->lru);
 		if (add_to_page_cache(page, mapping, page->index,
-				      get_gfp_mask())) {
+				      reiser4_ctx_gfp_mask_get())) {
 			page_cache_release(page);
 			continue;
 		}
@@ -869,8 +869,8 @@ insert_unprepped_ctail(reiser4_cluster_t * clust, struct inode *inode)
 }
 
 static int
-insert_crc_flow(coord_t * coord, lock_handle * lh, flow_t * f,
-		struct inode *inode)
+insert_cryptcompress_flow(coord_t * coord, lock_handle * lh, flow_t * f,
+			  struct inode *inode)
 {
 	int result;
 	carry_pool *pool;
@@ -897,8 +897,8 @@ insert_crc_flow(coord_t * coord, lock_handle * lh, flow_t * f,
 		coord->unit_pos = 0;
 		coord->between = AFTER_ITEM;
 	}
-	op = post_carry(lowest_level, COP_INSERT_FLOW, coord->node,
-			0 /* operate directly on coord -> node */ );
+	op = reiser4_post_carry(lowest_level, COP_INSERT_FLOW, coord->node,
+				0 /* operate directly on coord -> node */);
 	if (IS_ERR(op) || (op == NULL)) {
 		done_carry_pool(pool);
 		return RETERR(op ? PTR_ERR(op) : -EIO);
@@ -919,16 +919,16 @@ insert_crc_flow(coord_t * coord, lock_handle * lh, flow_t * f,
 	lowest_level->track_type = CARRY_TRACK_CHANGE;
 	lowest_level->tracked = lh;
 
-	result = carry(lowest_level, NULL);
+	result = reiser4_carry(lowest_level, NULL);
 	done_carry_pool(pool);
 
 	return result;
 }
 
 /* Implementation of CRC_APPEND_ITEM mode of ctail conversion */
-static int
-insert_crc_flow_in_place(coord_t * coord, lock_handle * lh, flow_t * f,
-			 struct inode *inode)
+static int insert_cryptcompress_flow_in_place(coord_t * coord,
+					      lock_handle * lh, flow_t * f,
+					      struct inode *inode)
 {
 	int ret;
 	coord_t pos;
@@ -946,7 +946,7 @@ insert_crc_flow_in_place(coord_t * coord, lock_handle * lh, flow_t * f,
 	init_lh(&lock);
 	copy_lh(&lock, lh);
 
-	ret = insert_crc_flow(&pos, &lock, f, inode);
+	ret = insert_cryptcompress_flow(&pos, &lock, f, inode);
 	done_lh(&lock);
 	assert("edward-1347", znode_is_write_locked(lh->node));
 	assert("edward-1228", !ret);
@@ -964,7 +964,7 @@ static int overwrite_ctail(coord_t * coord, flow_t * f)
 	assert("edward-272", coord_is_existing_unit(coord));
 	assert("edward-273", coord->unit_pos == 0);
 	assert("edward-274", znode_is_write_locked(coord->node));
-	assert("edward-275", schedulable());
+	assert("edward-275", reiser4_schedulable());
 	assert("edward-467", item_id_by_coord(coord) == CTAIL_ID);
 	assert("edward-1243", ctail_ok(coord));
 
@@ -1022,7 +1022,7 @@ ctail_insert_unprepped_cluster(reiser4_cluster_t * clust, struct inode *inode)
 	all_grabbed2free();
 
 	assert("edward-1251", !result);
-	assert("edward-1252", crc_inode_ok(inode));
+	assert("edward-1252", cryptcompress_inode_ok(inode));
 	assert("edward-1253", znode_is_write_locked(clust->hint->lh.node));
 	assert("edward-1254",
 	       reiser4_clustered_blocks(reiser4_get_current_sb()));
@@ -1032,7 +1032,7 @@ ctail_insert_unprepped_cluster(reiser4_cluster_t * clust, struct inode *inode)
 	return result;
 }
 
-static int do_convert_ctail(flush_pos_t * pos, crc_write_mode_t mode)
+static int do_convert_ctail(flush_pos_t * pos, cryptcompress_write_mode_t mode)
 {
 	int result = 0;
 	convert_item_info_t *info;
@@ -1050,8 +1050,10 @@ static int do_convert_ctail(flush_pos_t * pos, crc_write_mode_t mode)
 		assert("edward-1256",
 		       cluster_shift_ok(cluster_shift_by_coord(&pos->coord)));
 		result =
-		    insert_crc_flow_in_place(&pos->coord, &pos->lock,
-					     &info->flow, info->inode);
+		    insert_cryptcompress_flow_in_place(&pos->coord,
+						       &pos->lock,
+						       &info->flow,
+						       info->inode);
 		break;
 	case CRC_OVERWRITE_ITEM:
 		assert("edward-1230", info->flow.length != 0);
@@ -1084,7 +1086,7 @@ int scan_ctail(flush_scan * scan)
 	page = jnode_page(node);
 	inode = page->mapping->host;
 
-	if (!scanning_left(scan))
+	if (!reiser4_scanning_left(scan))
 		return result;
 	if (!ZF_ISSET(scan->parent_lock.node, JNODE_DIRTY))
 		znode_make_dirty(scan->parent_lock.node);
@@ -1148,7 +1150,7 @@ static int alloc_item_convert_data(convert_info_t * sq)
 	assert("edward-816", sq != NULL);
 	assert("edward-817", sq->itm == NULL);
 
-	sq->itm = kmalloc(sizeof(*sq->itm), get_gfp_mask());
+	sq->itm = kmalloc(sizeof(*sq->itm), reiser4_ctx_gfp_mask_get());
 	if (sq->itm == NULL)
 		return RETERR(-ENOMEM);
 	return 0;
@@ -1170,7 +1172,7 @@ static int alloc_convert_data(flush_pos_t * pos)
 	assert("edward-821", pos != NULL);
 	assert("edward-822", pos->sq == NULL);
 
-	pos->sq = kmalloc(sizeof(*pos->sq), get_gfp_mask());
+	pos->sq = kmalloc(sizeof(*pos->sq), reiser4_ctx_gfp_mask_get());
 	if (!pos->sq)
 		return RETERR(-ENOMEM);
 	memset(pos->sq, 0, sizeof(*pos->sq));
@@ -1224,7 +1226,7 @@ static int attach_convert_idata(flush_pos_t * pos, struct inode *inode)
 	assert("edward-248", pos != NULL);
 	assert("edward-249", pos->child != NULL);
 	assert("edward-251", inode != NULL);
-	assert("edward-682", crc_inode_ok(inode));
+	assert("edward-682", cryptcompress_inode_ok(inode));
 	assert("edward-252", fplug == file_plugin_by_id(CRC_FILE_PLUGIN_ID));
 	assert("edward-473",
 	       item_plugin_by_coord(&pos->coord) ==
@@ -1262,7 +1264,7 @@ static int attach_convert_idata(flush_pos_t * pos, struct inode *inode)
 	if (ret)
 		goto err;
 
-	deflate_cluster(clust, inode);
+	reiser4_deflate_cluster(clust, inode);
 	inc_item_convert_count(pos);
 
 	/* make flow by transformed stream */
@@ -1274,7 +1276,7 @@ static int attach_convert_idata(flush_pos_t * pos, struct inode *inode)
 			     WRITE_OP, &info->flow);
 	jput(pos->child);
 
-	assert("edward-683", crc_inode_ok(inode));
+	assert("edward-683", cryptcompress_inode_ok(inode));
 	return 0;
       err:
 	jput(pos->child);
@@ -1428,7 +1430,8 @@ static int next_item_dc_stat(flush_pos_t * pos)
 }
 
 static int
-assign_convert_mode(convert_item_info_t * idata, crc_write_mode_t * mode)
+assign_convert_mode(convert_item_info_t * idata,
+		    cryptcompress_write_mode_t * mode)
 {
 	int result = 0;
 
@@ -1470,7 +1473,7 @@ int convert_ctail(flush_pos_t * pos)
 {
 	int result;
 	int nr_items;
-	crc_write_mode_t mode = CRC_OVERWRITE_ITEM;
+	cryptcompress_write_mode_t mode = CRC_OVERWRITE_ITEM;
 
 	assert("edward-1020", pos != NULL);
 	assert("edward-1213", coord_num_items(&pos->coord) != 0);

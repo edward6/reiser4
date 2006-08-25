@@ -62,7 +62,8 @@ static internal_item_layout *internal_at(const coord_t * coord	/* coord of
 	return (internal_item_layout *) item_body_by_coord(coord);
 }
 
-void update_internal(const coord_t * coord, const reiser4_block_nr * blocknr)
+void reiser4_update_internal(const coord_t * coord,
+			     const reiser4_block_nr * blocknr)
 {
 	internal_item_layout *item = internal_at(coord);
 	assert("nikita-2959", reiser4_blocknr_is_sane(blocknr));
@@ -114,7 +115,7 @@ utmost_child_real_block_internal(const coord_t * coord, sideof side UNUSED_ARG,
 	*block = pointer_at(coord);
 	assert("nikita-2961", reiser4_blocknr_is_sane(block));
 
-	if (blocknr_is_fake(block)) {
+	if (reiser4_blocknr_is_fake(block)) {
 		*block = 0;
 	}
 
@@ -246,7 +247,7 @@ int create_hook_internal(const coord_t * item /* coord of item */ ,
 	 * item to little endian byte order.
 	 */
 	child_ptr = get_unaligned((__u64 *)item_body_by_coord(item));
-	update_internal(item, &child_ptr);
+	reiser4_update_internal(item, &child_ptr);
 
 	child = znode_at(item, item->node);
 	if (child != NULL && !IS_ERR(child)) {

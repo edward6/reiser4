@@ -74,7 +74,7 @@ reiser4_key *leftmost_key_in_node(const znode *node, reiser4_key *key)
 		coord_init_first_unit(&first_item, (znode *) node);
 		item_key_by_coord(&first_item, key);
 	} else
-		*key = *max_key();
+		*key = *reiser4_max_key();
 	return key;
 }
 

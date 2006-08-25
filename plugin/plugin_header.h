@@ -87,8 +87,8 @@ typedef struct reiser4_plugin_type_data {
 
 extern reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES];
 
-int is_type_id_valid(reiser4_plugin_type type_id);
-int is_plugin_id_valid(reiser4_plugin_type type_id, reiser4_plugin_id id);
+int is_plugin_type_valid(reiser4_plugin_type type);
+int is_plugin_id_valid(reiser4_plugin_type type, reiser4_plugin_id id);
 
 static inline reiser4_plugin *plugin_at(reiser4_plugin_type_data * ptype, int i)
 {
@@ -99,14 +99,12 @@ static inline reiser4_plugin *plugin_at(reiser4_plugin_type_data * ptype, int i)
 }
 
 /* return plugin by its @type_id and @id */
-static inline reiser4_plugin *plugin_by_id(reiser4_plugin_type type_id
-					   /* plugin type id */ ,
-					   reiser4_plugin_id id /* plugin id */
-					   )
+static inline reiser4_plugin *plugin_by_id(reiser4_plugin_type type,
+					   reiser4_plugin_id id)
 {
-	assert("nikita-1651", is_type_id_valid(type_id));
-	assert("nikita-1652", is_plugin_id_valid(type_id, id));
-	return plugin_at(&plugins[type_id], id);
+	assert("nikita-1651", is_plugin_type_valid(type));
+	assert("nikita-1652", is_plugin_id_valid(type, id));
+	return plugin_at(&plugins[type], id);
 }
 
 extern reiser4_plugin *plugin_by_unsafe_id(reiser4_plugin_type type_id,

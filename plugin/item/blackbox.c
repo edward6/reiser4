@@ -128,7 +128,7 @@ update_black_box(reiser4_tree * tree,
 
 int kill_black_box(reiser4_tree * tree, const reiser4_key * key)
 {
-	return cut_tree(tree, key, key, NULL, 1);
+	return reiser4_cut_tree(tree, key, key, NULL, 1);
 }
 
 /* Make Linus happy.

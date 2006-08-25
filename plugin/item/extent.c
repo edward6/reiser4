@@ -24,7 +24,7 @@ reiser4_item_data *init_new_extent(reiser4_item_data * data, void *ext_unit,
 }
 
 /* how many bytes are addressed by @nr first extents of the extent item */
-reiser4_block_nr extent_size(const coord_t * coord, pos_in_node_t nr)
+reiser4_block_nr reiser4_extent_size(const coord_t * coord, pos_in_node_t nr)
 {
 	pos_in_node_t i;
 	reiser4_block_nr blocks;
@@ -62,15 +62,15 @@ int extent_is_unallocated(const coord_t * item)
 }
 
 /* set extent's start and width */
-void
-set_extent(reiser4_extent * ext, reiser4_block_nr start, reiser4_block_nr width)
+void reiser4_set_extent(reiser4_extent * ext, reiser4_block_nr start,
+			reiser4_block_nr width)
 {
 	extent_set_start(ext, start);
 	extent_set_width(ext, width);
 }
 
 /**
- * replace_extent - replace extent and paste 1 or 2 after it
+ * reiser4_replace_extent - replace extent and paste 1 or 2 after it
  * @un_extent: coordinate of extent to be overwritten
  * @lh: need better comment
  * @key: need better comment
@@ -84,7 +84,8 @@ set_extent(reiser4_extent * ext, reiser4_block_nr start, reiser4_block_nr width)
  * first of newly inserted units, if it is 0 - @un_extent and @lh are returned
  * set to extent which was overwritten.
  */
-int replace_extent(struct replace_handle *h, int return_inserted_position)
+int reiser4_replace_extent(struct replace_handle *h,
+			   int return_inserted_position)
 {
 	int result;
 	znode *orig_znode;
@@ -103,8 +104,8 @@ int replace_extent(struct replace_handle *h, int return_inserted_position)
 	coord_dup(&h->coord_after, h->coord);
 	init_lh(&h->lh_after);
 	copy_lh(&h->lh_after, h->lh);
-	tap_init(&h->watch, &h->coord_after, &h->lh_after, ZNODE_WRITE_LOCK);
-	tap_monitor(&h->watch);
+	reiser4_tap_init(&h->watch, &h->coord_after, &h->lh_after, ZNODE_WRITE_LOCK);
+	reiser4_tap_monitor(&h->watch);
 
 	ON_DEBUG(h->orig_ext = *extent_by_coord(h->coord));
 	orig_znode = h->coord->node;
@@ -172,7 +173,7 @@ int replace_extent(struct replace_handle *h, int return_inserted_position)
 			}
 		}
 	}
-	tap_done(&h->watch);
+	reiser4_tap_done(&h->watch);
 
 	return result;
 }

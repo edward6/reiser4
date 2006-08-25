@@ -256,11 +256,11 @@ static inline void coord_set_between_clusters(coord_t * coord)
 #endif
 }
 
-int inflate_cluster(reiser4_cluster_t *, struct inode *);
+int reiser4_inflate_cluster(reiser4_cluster_t *, struct inode *);
 int find_disk_cluster(reiser4_cluster_t *, struct inode *, int read,
 		      znode_lock_mode mode);
 int flush_cluster_pages(reiser4_cluster_t *, jnode *, struct inode *);
-int deflate_cluster(reiser4_cluster_t *, struct inode *);
+int reiser4_deflate_cluster(reiser4_cluster_t *, struct inode *);
 void truncate_page_cluster(struct inode *inode, cloff_t start);
 void invalidate_hint_cluster(reiser4_cluster_t * clust);
 void put_hint_cluster(reiser4_cluster_t * clust, struct inode *inode,
@@ -272,7 +272,7 @@ int set_cluster_by_page(reiser4_cluster_t * clust, struct page * page,
 			int count);
 int prepare_page_cluster(struct inode *inode, reiser4_cluster_t * clust,
 			 int capture);
-void release_cluster_pages(reiser4_cluster_t *);
+void reiser4_release_cluster_pages(reiser4_cluster_t *);
 void put_cluster_handle(reiser4_cluster_t * clust);
 int grab_tfm_stream(struct inode *inode, tfm_cluster_t * tc, tfm_stream_id id);
 int tfm_cluster_is_uptodate(tfm_cluster_t * tc);
@@ -295,7 +295,7 @@ move_cluster_forward(reiser4_cluster_t * clust, struct inode *inode,
 	       used by find_cluster_item() even if seal/node versions
 	       will coincide */
 	    pg_to_clust(pgidx, inode) != clust->index + 1) {
-		unset_hint(clust->hint);
+		reiser4_unset_hint(clust->hint);
 		invalidate_hint_cluster(clust);
 	}
 	*progress = 1;
@@ -309,7 +309,7 @@ alloc_clust_pages(reiser4_cluster_t * clust, struct inode *inode)
 	assert("edward-792", inode != NULL);
 	clust->pages =
 		kmalloc(sizeof(*clust->pages) << inode_cluster_shift(inode),
-			get_gfp_mask());
+			reiser4_ctx_gfp_mask_get());
 	if (!clust->pages)
 		return -ENOMEM;
 	return 0;

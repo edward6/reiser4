@@ -452,7 +452,7 @@ static int check_write_congestion(void)
 	struct backing_dev_info *bdi;
 
 	sb = reiser4_get_current_sb();
-	bdi = get_super_fake(sb)->i_mapping->backing_dev_info;
+	bdi = reiser4_get_super_fake(sb)->i_mapping->backing_dev_info;
 	return bdi_write_congested(bdi);
 }
 
@@ -470,7 +470,7 @@ static int write_prepped_nodes(flush_pos_t * pos)
 	if (check_write_congestion())
 		return 0;
 
-	ret = write_fq(pos->fq, pos->nr_written,
+	ret = reiser4_write_fq(pos->fq, pos->nr_written,
 		       WRITEOUT_SINGLE_STREAM | WRITEOUT_FOR_PAGE_RECLAIM);
 	return ret;
 }
@@ -508,7 +508,7 @@ static int delete_empty_node(znode * node)
 	assert("zam-1020", node_is_empty(node));
 	assert("zam-1023", znode_is_wlocked(node));
 
-	return delete_node(node, &smallest_removed, NULL, 1);
+	return reiser4_delete_node(node, &smallest_removed, NULL, 1);
 }
 
 /* Prepare flush position for alloc_pos_and_ancestors() and squalloc() */
@@ -659,7 +659,7 @@ jnode_flush(jnode * node, long nr_to_write, long *nr_written,
 	jnode *leftmost_in_slum = NULL;
 
 	assert("jmacd-76619", lock_stack_isclean(get_current_lock_stack()));
-	assert("nikita-3022", schedulable());
+	assert("nikita-3022", reiser4_schedulable());
 
 	/* lock ordering: delete_sema and flush_sema are unordered */
 	assert("nikita-3185",
@@ -667,7 +667,8 @@ jnode_flush(jnode * node, long nr_to_write, long *nr_written,
 
 	/* allocate right_scan, left_scan and flush_pos */
 	right_scan =
-	    kmalloc(2 * sizeof(*right_scan) + sizeof(*flush_pos), get_gfp_mask());
+	    kmalloc(2 * sizeof(*right_scan) + sizeof(*flush_pos),
+		    reiser4_ctx_gfp_mask_get());
 	if (right_scan == NULL)
 		return RETERR(-ENOMEM);
 	left_scan = right_scan + 1;
@@ -684,7 +685,7 @@ jnode_flush(jnode * node, long nr_to_write, long *nr_written,
 	atomic_inc(&flush_cnt);
 #endif
 
-	enter_flush(sb);
+	reiser4_enter_flush(sb);
 
 	/* Initialize a flush position. */
 	pos_init(flush_pos);
@@ -875,7 +876,7 @@ jnode_flush(jnode * node, long nr_to_write, long *nr_written,
 
 	ON_DEBUG(atomic_dec(&flush_cnt));
 
-	leave_flush(sb);
+	reiser4_leave_flush(sb);
 
 	if (!reiser4_is_set(sb, REISER4_MTFLUSH))
 		up(&sbinfo->flush_sema);
@@ -990,7 +991,7 @@ flush_current_atom(int flags, long nr_to_write, long *nr_submitted,
 
 	nr_to_write = LONG_MAX;
 	while (1) {
-		ret = fq_by_atom(*atom, &fq);
+		ret = reiser4_fq_by_atom(*atom, &fq);
 		if (ret != -E_REPEAT)
 			break;
 		*atom = get_current_atom_locked();
@@ -1003,10 +1004,10 @@ flush_current_atom(int flags, long nr_to_write, long *nr_submitted,
 	/* parallel flushers limit */
 	if (sinfo->tmgr.atom_max_flushers != 0) {
 		while ((*atom)->nr_flushers >= sinfo->tmgr.atom_max_flushers) {
-			/* An atom_send_event() call is inside fq_put_nolock() which is
-			   called when flush is finished and nr_flushers is
-			   decremented. */
-			atom_wait_event(*atom);
+			/* An reiser4_atom_send_event() call is inside
+			   reiser4_fq_put_nolock() which is called when flush is
+			   finished and nr_flushers is decremented. */
+			reiser4_atom_wait_event(*atom);
 			*atom = get_current_atom_locked();
 		}
 	}
@@ -1022,8 +1023,8 @@ flush_current_atom(int flags, long nr_to_write, long *nr_submitted,
 	if (node == NULL) {
 		if (nr_queued == 0) {
 			(*atom)->nr_flushers--;
-			fq_put_nolock(fq);
-			atom_send_event(*atom);
+			reiser4_fq_put_nolock(fq);
+			reiser4_atom_send_event(*atom);
 			/* current atom remains locked */
 			writeout_mode_disable();
 			return 0;
@@ -1040,13 +1041,13 @@ flush_current_atom(int flags, long nr_to_write, long *nr_submitted,
 	}
 
 	ret =
-	    write_fq(fq, nr_submitted,
+	    reiser4_write_fq(fq, nr_submitted,
 		     WRITEOUT_SINGLE_STREAM | WRITEOUT_FOR_PAGE_RECLAIM);
 
 	*atom = get_current_atom_locked();
 	(*atom)->nr_flushers--;
-	fq_put_nolock(fq);
-	atom_send_event(*atom);
+	reiser4_fq_put_nolock(fq);
+	reiser4_atom_send_event(*atom);
 	spin_unlock_atom(*atom);
 
 	writeout_mode_disable();
@@ -1072,8 +1073,8 @@ reverse_relocate_if_close_enough(const reiser4_block_nr * pblk,
 	reiser4_block_nr dist;
 
 	assert("jmacd-7710", *pblk != 0 && *nblk != 0);
-	assert("jmacd-7711", !blocknr_is_fake(pblk));
-	assert("jmacd-7712", !blocknr_is_fake(nblk));
+	assert("jmacd-7711", !reiser4_blocknr_is_fake(pblk));
+	assert("jmacd-7712", !reiser4_blocknr_is_fake(nblk));
 
 	/* Distance is the absolute value. */
 	dist = (*pblk > *nblk) ? (*pblk - *nblk) : (*nblk - *pblk);
@@ -1135,7 +1136,7 @@ reverse_relocate_test(jnode * node, const coord_t * parent_coord,
 
 	nblk = *jnode_get_block(node);
 
-	if (blocknr_is_fake(&nblk))
+	if (reiser4_blocknr_is_fake(&nblk))
 		/* child is unallocated, mark parent dirty */
 		return 1;
 
@@ -1484,13 +1485,13 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
 		ON_DEBUG(vp = shift_check_prepare(left, coord.node));
 
 		/* stop_key is used to find what was copied and what to cut */
-		stop_key = *min_key();
+		stop_key = *reiser4_min_key();
 		ret = squalloc_extent(left, &coord, pos, &stop_key);
 		if (ret != SQUEEZE_CONTINUE) {
 			ON_DEBUG(kfree(vp));
 			break;
 		}
-		assert("vs-1465", !keyeq(&stop_key, min_key()));
+		assert("vs-1465", !keyeq(&stop_key, reiser4_min_key()));
 
 		/* Helper function to do the cutting. */
 		set_key_offset(&stop_key, get_key_offset(&stop_key) - 1);
@@ -2086,7 +2087,7 @@ static int handle_pos_on_twig(flush_pos_t * pos)
 
 	while (pos_valid(pos) && coord_is_existing_unit(&pos->coord)
 	       && item_is_extent(&pos->coord)) {
-		ret = alloc_extent(pos);
+		ret = reiser4_alloc_extent(pos);
 		if (ret) {
 			break;
 		}
@@ -2474,7 +2475,7 @@ static int squeeze_right_non_twig(znode * left, znode * right)
 		grabbed = get_current_context()->grabbed_blocks;
 		ret = reiser4_grab_space_force(tree->height, BA_RESERVED);
 		assert("nikita-3003", ret == 0);	/* reserved space is exhausted. Ask Hans. */
-		ret = carry(todo, NULL /* previous level */ );
+		ret = reiser4_carry(todo, NULL /* previous level */ );
 		grabbed2free_mark(grabbed);
 	} else {
 		/* Shifting impossible, we return appropriate result code */
@@ -2585,7 +2586,7 @@ static int shift_one_internal_unit(znode * left, znode * right)
 		ret = reiser4_grab_space_force(tree->height, BA_RESERVED);
 		assert("nikita-3003", ret == 0);	/* reserved space is exhausted. Ask Hans. */
 
-		ret = carry(todo, NULL /* previous level */ );
+		ret = reiser4_carry(todo, NULL /* previous level */ );
 		grabbed2free_mark(grabbed);
 	}
 
@@ -2640,8 +2641,8 @@ allocate_znode_loaded(znode * node,
 		reiser4_block_nr dist;
 		reiser4_block_nr nblk = *znode_get_block(node);
 
-		assert("jmacd-6172", !blocknr_is_fake(&nblk));
-		assert("jmacd-6173", !blocknr_is_fake(&pos->preceder.blk));
+		assert("jmacd-6172", !reiser4_blocknr_is_fake(&nblk));
+		assert("jmacd-6173", !reiser4_blocknr_is_fake(&pos->preceder.blk));
 		assert("jmacd-6174", pos->preceder.blk != 0);
 
 		if (pos->preceder.blk == nblk - 1) {
@@ -2694,7 +2695,7 @@ allocate_znode_loaded(znode * node,
 	check_preceder(pos->preceder.blk);
 	pos->alloc_cnt += 1;
 
-	assert("jmacd-4277", !blocknr_is_fake(&pos->preceder.blk));
+	assert("jmacd-4277", !reiser4_blocknr_is_fake(&pos->preceder.blk));
 
 	return 0;
 }
@@ -2739,7 +2740,7 @@ allocate_znode_update(znode * node, const coord_t * parent_coord,
 		return ret;
 
 	if (ZF_ISSET(node, JNODE_CREATED)) {
-		assert("zam-816", blocknr_is_fake(znode_get_block(node)));
+		assert("zam-816", reiser4_blocknr_is_fake(znode_get_block(node)));
 		pos->preceder.block_stage = BLOCK_UNALLOCATED;
 	} else {
 		pos->preceder.block_stage = BLOCK_GRABBED;
@@ -3057,7 +3058,7 @@ static void scan_done(flush_scan * scan)
 }
 
 /* Returns true if flush scanning is finished. */
-int scan_finished(flush_scan * scan)
+int reiser4_scan_finished(flush_scan * scan)
 {
 	return scan->stop || (scan->direction == RIGHT_SIDE &&
 			      scan->count >= scan->max_count);
@@ -3065,7 +3066,7 @@ int scan_finished(flush_scan * scan)
 
 /* Return true if the scan should continue to the @tonode.  True if the node meets the
    same_slum_check condition.  If not, deref the "left" node and stop the scan. */
-int scan_goto(flush_scan * scan, jnode * tonode)
+int reiser4_scan_goto(flush_scan * scan, jnode * tonode)
 {
 	int go = same_slum_check(scan->node, tonode, 1, 0);
 
@@ -3093,7 +3094,7 @@ scan_set_current(flush_scan * scan, jnode * node, unsigned add_count,
 	scan->node = node;
 	scan->count += add_count;
 
-	/* This next stmt is somewhat inefficient.  The scan_extent_coord code could
+	/* This next stmt is somewhat inefficient.  The reiser4_scan_extent() code could
 	   delay this update step until it finishes and update the parent_coord only once.
 	   It did that before, but there was a bug and this was the easiest way to make it
 	   correct. */
@@ -3107,7 +3108,7 @@ scan_set_current(flush_scan * scan, jnode * node, unsigned add_count,
 }
 
 /* Return true if scanning in the leftward direction. */
-int scanning_left(flush_scan * scan)
+int reiser4_scanning_left(flush_scan * scan)
 {
 	return scan->direction == LEFT_SIDE;
 }
@@ -3220,7 +3221,7 @@ static int scan_common(flush_scan * scan, flush_scan * other)
 	}
 	/* This loop expects to start at a formatted position and performs chaining of
 	   formatted regions */
-	while (!scan_finished(scan)) {
+	while (!reiser4_scan_finished(scan)) {
 
 		ret = scan_formatted(scan);
 		if (ret != 0) {
@@ -3257,7 +3258,7 @@ static int scan_unformatted(flush_scan * scan, flush_scan * other)
 		 * there is already lock held by this thread,
 		 * jnode_lock_parent_coord() should use try-lock.
 		 */
-		try = scanning_left(scan)
+		try = reiser4_scanning_left(scan)
 		    && !lock_stack_isclean(get_current_lock_stack());
 		/* Need the node locked to get the parent lock, We have to
 		   take write lock since there is at least one call path
@@ -3265,7 +3266,8 @@ static int scan_unformatted(flush_scan * scan, flush_scan * other)
 		ret =
 		    longterm_lock_znode(&lock, JZNODE(scan->node),
 					ZNODE_WRITE_LOCK,
-					scanning_left(scan) ? ZNODE_LOCK_LOPRI :
+					reiser4_scanning_left(scan) ?
+					ZNODE_LOCK_LOPRI :
 					ZNODE_LOCK_HIPRI);
 		if (ret != 0)
 			/* EINVAL or E_DEADLOCK here mean... try again!  At this point we've
@@ -3327,7 +3329,7 @@ static int scan_formatted(flush_scan * scan)
 	int ret;
 	znode *neighbor = NULL;
 
-	assert("jmacd-1401", !scan_finished(scan));
+	assert("jmacd-1401", !reiser4_scan_finished(scan));
 
 	do {
 		znode *node = JZNODE(scan->node);
@@ -3345,7 +3347,8 @@ static int scan_formatted(flush_scan * scan)
 		   left sibling while the tree lock is released, but the flush-scan count
 		   does not need to be precise.  Thus, we release the tree lock as soon as
 		   we get the neighboring node. */
-		neighbor = scanning_left(scan) ? node->left : node->right;
+		neighbor =
+			reiser4_scanning_left(scan) ? node->left : node->right;
 		if (neighbor != NULL) {
 			zref(neighbor);
 		}
@@ -3360,7 +3363,7 @@ static int scan_formatted(flush_scan * scan)
 
 		/* Check the condition for going left, break if it is not met.  This also
 		   releases (jputs) the neighbor if false. */
-		if (!scan_goto(scan, ZJNODE(neighbor))) {
+		if (!reiser4_scan_goto(scan, ZJNODE(neighbor))) {
 			break;
 		}
 
@@ -3370,13 +3373,13 @@ static int scan_formatted(flush_scan * scan)
 			return ret;
 		}
 
-	} while (!scan_finished(scan));
+	} while (!reiser4_scan_finished(scan));
 
 	/* If neighbor is NULL then we reached the end of a formatted region, or else the
 	   sibling is out of memory, now check for an extent to the left (as long as
 	   LEAF_LEVEL). */
 	if (neighbor != NULL || jnode_get_level(scan->node) != LEAF_LEVEL
-	    || scan_finished(scan)) {
+	    || reiser4_scan_finished(scan)) {
 		scan->stop = 1;
 		return 0;
 	}
@@ -3411,7 +3414,7 @@ static int scan_by_coord(flush_scan * scan)
 	/* set initial item id */
 	iplug = item_plugin_by_coord(&scan->parent_coord);
 
-	for (; !scan_finished(scan); scan_this_coord = 1) {
+	for (; !reiser4_scan_finished(scan); scan_this_coord = 1) {
 		if (scan_this_coord) {
 			/* Here we expect that unit is scannable. it would not be so due
 			 * to race with extent->tail conversion.  */
@@ -3426,7 +3429,7 @@ static int scan_by_coord(flush_scan * scan)
 			if (ret != 0)
 				goto exit;
 
-			if (scan_finished(scan)) {
+			if (reiser4_scan_finished(scan)) {
 				checkchild(scan);
 				break;
 			}
@@ -3507,7 +3510,7 @@ static int scan_by_coord(flush_scan * scan)
 		       || jnode_is_znode(child));
 
 		/* See if it is dirty, part of the same atom. */
-		if (!scan_goto(scan, child)) {
+		if (!reiser4_scan_goto(scan, child)) {
 			checkchild(scan);
 			break;
 		}
@@ -3530,7 +3533,8 @@ static int scan_by_coord(flush_scan * scan)
 		}
 	}
 
-	assert("jmacd-6233", scan_finished(scan) || jnode_is_znode(scan->node));
+	assert("jmacd-6233",
+	       reiser4_scan_finished(scan) || jnode_is_znode(scan->node));
       exit:
 	checkchild(scan);
       race:			/* skip the above check  */
@@ -3556,7 +3560,7 @@ static void pos_init(flush_pos_t * pos)
 	init_lh(&pos->lock);
 	init_load_count(&pos->load);
 
-	blocknr_hint_init(&pos->preceder);
+	reiser4_blocknr_hint_init(&pos->preceder);
 }
 
 /* The flush loop inside squalloc periodically checks pos_valid to
@@ -3580,7 +3584,7 @@ static int pos_valid(flush_pos_t * pos)
 static void pos_done(flush_pos_t * pos)
 {
 	pos_stop(pos);
-	blocknr_hint_done(&pos->preceder);
+	reiser4_blocknr_hint_done(&pos->preceder);
 	if (convert_data(pos))
 		free_convert_data(pos);
 }
@@ -3603,12 +3607,12 @@ static int pos_stop(flush_pos_t * pos)
 }
 
 /* Return the flush_position's block allocator hint. */
-reiser4_blocknr_hint *pos_hint(flush_pos_t * pos)
+reiser4_blocknr_hint *reiser4_pos_hint(flush_pos_t * pos)
 {
 	return &pos->preceder;
 }
 
-flush_queue_t *pos_fq(flush_pos_t * pos)
+flush_queue_t * reiser4_pos_fq(flush_pos_t * pos)
 {
 	return pos->fq;
 }

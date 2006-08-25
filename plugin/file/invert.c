@@ -431,8 +431,8 @@ int get_inv_entry(struct inode *invert_inode,	/* inode of invert's body */
 		init_coord(&coord);
 		init_lh(&lh);
 		result =
-		    lookup_sd_by_key(tree_by_inode(invert_inode),
-				     ZNODE_READ_LOCK, &coord, &lh, key);
+			lookup_sd_by_key(reiser4_tree_by_inode(invert_inode),
+					 ZNODE_READ_LOCK, &coord, &lh, key);
 		if (result == 0)
 			init_incore_sd_base(ientry, coord);
 

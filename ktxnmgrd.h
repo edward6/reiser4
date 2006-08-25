@@ -32,8 +32,8 @@ struct ktxnmgrd_context {
 	unsigned int rescan:1;
 };
 
-extern int init_ktxnmgrd(struct super_block *);
-extern void done_ktxnmgrd(struct super_block *);
+extern int reiser4_init_ktxnmgrd(struct super_block *);
+extern void reiser4_done_ktxnmgrd(struct super_block *);
 
 extern void ktxnmgrd_kick(txn_mgr * mgr);
 extern int is_current_ktxnmgrd(void);

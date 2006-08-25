@@ -13,25 +13,25 @@
  */
 
 /**
- * create_symlink - create_object of file plugin for SYMLINK_FILE_PLUGIN_ID
+ * reiser4_create_symlink - create_object of file plugin for SYMLINK_FILE_PLUGIN_ID
  * @symlink: inode of symlink object
  * @dir: inode of parent directory
  * @info:  parameters of new object
  *
  * Inserts stat data with symlink extension where into the tree.
  */
-int create_symlink(struct inode *symlink,
-		   struct inode *dir UNUSED_ARG,
-		   reiser4_object_create_data *data	/* info passed to us,
-							 * this is filled by
-							 * reiser4() syscall
-							 * in particular */ )
+int reiser4_create_symlink(struct inode *symlink,
+			   struct inode *dir UNUSED_ARG,
+			   reiser4_object_create_data *data /* info passed to us
+							     * this is filled by
+							     * reiser4() syscall
+							     * in particular */)
 {
 	int result;
 
 	assert("nikita-680", symlink != NULL);
 	assert("nikita-681", S_ISLNK(symlink->i_mode));
-	assert("nikita-685", inode_get_flag(symlink, REISER4_NO_SD));
+	assert("nikita-685", reiser4_inode_get_flag(symlink, REISER4_NO_SD));
 	assert("nikita-682", dir != NULL);
 	assert("nikita-684", data != NULL);
 	assert("nikita-686", data->id == SYMLINK_FILE_PLUGIN_ID);
@@ -56,7 +56,8 @@ int create_symlink(struct inode *symlink,
 		INODE_SET_FIELD(symlink, i_size, 0);
 	} else {
 		assert("vs-849", symlink->i_private
-		       && inode_get_flag(symlink, REISER4_GENERIC_PTR_USED));
+		       && reiser4_inode_get_flag(symlink,
+						 REISER4_GENERIC_PTR_USED));
 		assert("vs-850",
 		       !memcmp((char *)symlink->i_private, data->name,
 			       (size_t) symlink->i_size + 1));
@@ -73,20 +74,22 @@ void destroy_inode_symlink(struct inode *inode)
 	       inode_file_plugin(inode) ==
 	       file_plugin_by_id(SYMLINK_FILE_PLUGIN_ID));
 	assert("edward-800", !is_bad_inode(inode) && is_inode_loaded(inode));
-	assert("edward-801", inode_get_flag(inode, REISER4_GENERIC_PTR_USED));
+	assert("edward-801", reiser4_inode_get_flag(inode,
+						    REISER4_GENERIC_PTR_USED));
 	assert("vs-839", S_ISLNK(inode->i_mode));
 
 	kfree(inode->i_private);
 	inode->i_private = NULL;
-	inode_clr_flag(inode, REISER4_GENERIC_PTR_USED);
+	reiser4_inode_clr_flag(inode, REISER4_GENERIC_PTR_USED);
 }
 
-/* Local variables:
-   c-indentation-style: "K&R"
-   mode-name: "LC"
-   c-basic-offset: 8
-   tab-width: 8
-   fill-column: 120
-   scroll-step: 1
-   End:
+/*
+  Local variables:
+  c-indentation-style: "K&R"
+  mode-name: "LC"
+  c-basic-offset: 8
+  tab-width: 8
+  fill-column: 80
+  scroll-step: 1
+  End:
 */
