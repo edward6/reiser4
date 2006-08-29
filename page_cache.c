@@ -615,7 +615,7 @@ static void invalidate_unformatted(jnode * node)
 		page_cache_get(page);
 		spin_unlock_jnode(node);
 		/* FIXME: use truncate_complete_page instead */
-		from = (loff_t) page->index << PAGE_CACHE_SHIFT;
+		from = page_offset(page);
 		to = from + PAGE_CACHE_SIZE - 1;
 		truncate_inode_pages_range(page->mapping, from, to);
 		page_cache_release(page);

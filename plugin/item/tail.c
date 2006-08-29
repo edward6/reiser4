@@ -790,7 +790,13 @@ get_block_address_tail(const coord_t * coord, sector_t lblock, sector_t * block)
 {
 	assert("nikita-3252", znode_get_level(coord->node) == LEAF_LEVEL);
 
-	*block = *znode_get_block(coord->node);
+	if (reiser4_blocknr_is_fake(znode_get_block(coord->node)))
+		/* if node has'nt obtainet its block number yet, return 0.
+		 * Lets avoid upsetting users with some cosmic numbers beyond
+		 * the device capacity.*/
+		*block = 0;
+	else
+		*block = *znode_get_block(coord->node);
 	return 0;
 }
 

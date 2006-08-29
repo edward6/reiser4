@@ -2810,23 +2810,25 @@ ssize_t write_cryptcompress(struct file *file, const char __user *buf,
 	return result;
 }
 
-static void readpages_cryptcompress(struct address_space *mapping,
-				    struct list_head *pages,
-				    void *data)
+int readpages_cryptcompress(struct file *file, struct address_space *mapping,
+			    struct list_head *pages, unsigned nr_pages)
 {
-	file_plugin *fplug;
-	item_plugin *iplug;
+	reiser4_context * ctx;
+	int ret;
 
-	assert("edward-1112", mapping != NULL);
-	assert("edward-1113", mapping->host != NULL);
-
-	fplug = inode_file_plugin(mapping->host);
-	assert("edward-1114", fplug == file_plugin_by_id(CRC_FILE_PLUGIN_ID));
-	iplug = item_plugin_by_id(CTAIL_ID);
-
-	iplug->s.file.readpages(data, mapping, pages);
-
-	return;
+	ctx = reiser4_init_context(mapping->host->i_sb);
+	if (IS_ERR(ctx)) {
+		ret = PTR_ERR(ctx);
+		goto err;
+	}
+	/* crc files can be built of ctail items only */
+	ret = readpages_ctail(file, mapping, pages);
+	reiser4_exit_context(ctx);
+	if (ret) {
+err:
+		put_pages_list(pages);
+	}
+	return ret;
 }
 
 static reiser4_block_nr cryptcompress_estimate_read(struct inode *inode)
@@ -2854,7 +2856,6 @@ ssize_t read_cryptcompress(struct file * file, char __user *buf, size_t size,
 	ssize_t result;
 	struct inode *inode;
 	reiser4_context *ctx;
-	reiser4_file_fsdata *fsdata;
 	cryptcompress_info_t *info;
 	reiser4_block_nr needed;
 
@@ -2875,9 +2876,6 @@ ssize_t read_cryptcompress(struct file * file, char __user *buf, size_t size,
 		reiser4_exit_context(ctx);
 		return result;
 	}
-	fsdata = reiser4_get_file_fsdata(file);
-	fsdata->ra2.data = file;
-	fsdata->ra2.readpages = readpages_cryptcompress;
 
 	down_read(&info->lock);
 	LOCK_CNT_INC(inode_sem_r);

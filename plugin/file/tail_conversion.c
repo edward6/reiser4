@@ -159,10 +159,7 @@ static int replace(struct inode *inode, struct page **pages, unsigned nr_pages, 
 	assert("vs-596", pages[0]);
 
 	/* cut copied items */
-	result =
-	    cut_formatting_items(inode,
-				 (loff_t) pages[0]->index << PAGE_CACHE_SHIFT,
-				 count);
+	result = cut_formatting_items(inode, page_offset(pages[0]), count);
 	if (result)
 		return result;
 
@@ -544,11 +541,6 @@ static int reserve_extent2tail_iteration(struct inode *inode)
 	     inode_file_plugin(inode)->estimate.update(inode), BA_CAN_COMMIT);
 }
 
-static int filler(void *vp, struct page *page)
-{
-	return readpage_unix_file_nolock(vp, page);
-}
-
 /* for every page of file: read page, cut part of extent pointing to this page,
    put data of page tree by tail item */
 int extent2tail(unix_file_info_t *uf_info)
@@ -609,8 +601,8 @@ int extent2tail(unix_file_info_t *uf_info)
 			reiser4_update_sd(inode);
 		}
 
-		page = read_cache_page(inode->i_mapping,
-				       (unsigned)(i + start_page), filler, NULL);
+		page = read_mapping_page(inode->i_mapping,
+					 (unsigned)(i + start_page), NULL);
 		if (IS_ERR(page)) {
 			result = PTR_ERR(page);
 			break;

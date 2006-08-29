@@ -96,64 +96,6 @@ int reiser4_set_page_dirty(struct page *page)
 	return 0;
 }
 
-static int filler(void *vp, struct page *page)
-{
-	return page->mapping->a_ops->readpage(vp, page);
-}
-
-/**
- * reiser4_readpages - submit read for a set of pages
- * @file: file to read
- * @mapping: address space
- * @pages: list of pages to submit read for
- * @nr_pages: number of pages no the list
- *
- * Operation of struct address_space_operations. This implementation is used by
- * unix and cryptcompress file plugins.
- *
- * Calls read_cache_pages or readpages hook if it is set.
- */
-int
-reiser4_readpages(struct file *file, struct address_space *mapping,
-		  struct list_head *pages, unsigned nr_pages)
-{
-	reiser4_context *ctx;
-	reiser4_file_fsdata *fsdata;
-
-	ctx = reiser4_init_context(mapping->host->i_sb);
-	if (IS_ERR(ctx))
-		return PTR_ERR(ctx);
-
-	fsdata = reiser4_get_file_fsdata(file);
-	if (IS_ERR(fsdata)) {
-		reiser4_exit_context(ctx);
-		return PTR_ERR(fsdata);
-	}
-
-	if (fsdata->ra2.readpages)
-		fsdata->ra2.readpages(mapping, pages, fsdata->ra2.data);
-	else {
-		/*
-		 * filler (reiser4 readpage method) may involve tree search
-		 * which is not allowed when lock stack is not clean. If lock
-		 * stack is not clean - do nothing.
-		 */
-		if (lock_stack_isclean(get_current_lock_stack()))
-			read_cache_pages(mapping, pages, filler, file);
-		else {
-			while (!list_empty(pages)) {
-				struct page *victim;
-
-				victim = list_entry(pages->prev, struct page, lru);
-				list_del(&victim->lru);
-				page_cache_release(victim);
-			}
-		}
-	}
-	reiser4_exit_context(ctx);
-	return 0;
-}
-
 /* ->invalidatepage method for reiser4 */
 
 /*
@@ -348,6 +290,11 @@ int reiser4_releasepage(struct page *page, gfp_t gfp UNUSED_ARG)
 	assert("reiser4-5", page->mapping->host != NULL);
 
 	if (PageDirty(page))
+		return 0;
+
+	/* extra page reference is used by reiser4 to protect
+	 * jnode<->page link from this ->releasepage(). */
+	if (page_count(page) > 3)
 		return 0;
 
 	/* releasable() needs jnode lock, because it looks at the jnode fields

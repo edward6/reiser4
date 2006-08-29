@@ -464,6 +464,7 @@ extern int do_readpage_ctail(struct inode *, reiser4_cluster_t *,
 			     struct page * page);
 extern int ctail_insert_unprepped_cluster(reiser4_cluster_t * clust,
 					  struct inode * inode);
+extern int readpages_cryptcompress(struct file*, struct address_space*, struct list_head*, unsigned);
 int bind_cryptcompress(struct inode *child, struct inode *parent);
 void destroy_inode_cryptcompress(struct inode * inode);
 crypto_stat_t * inode_crypto_stat (struct inode * inode);

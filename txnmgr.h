@@ -503,12 +503,27 @@ static inline void spin_lock_atom(txn_atom *atom)
 {
 	/* check that spinlocks of lower priorities are not held */
 	assert("", (LOCK_CNT_NIL(spin_locked_txnh) &&
+		    LOCK_CNT_NIL(spin_locked_atom) &&
 		    LOCK_CNT_NIL(spin_locked_jnode) &&
 		    LOCK_CNT_NIL(spin_locked_zlock) &&
 		    LOCK_CNT_NIL(rw_locked_dk) &&
 		    LOCK_CNT_NIL(rw_locked_tree)));
 
 	spin_lock(&(atom->alock));
+
+	LOCK_CNT_INC(spin_locked_atom);
+	LOCK_CNT_INC(spin_locked);
+}
+
+static inline void spin_lock_atom_nested(txn_atom *atom)
+{
+	assert("", (LOCK_CNT_NIL(spin_locked_txnh) &&
+		    LOCK_CNT_NIL(spin_locked_jnode) &&
+		    LOCK_CNT_NIL(spin_locked_zlock) &&
+		    LOCK_CNT_NIL(rw_locked_dk) &&
+		    LOCK_CNT_NIL(rw_locked_tree)));
+
+	spin_lock_nested(&(atom->alock), SINGLE_DEPTH_NESTING);
 
 	LOCK_CNT_INC(spin_locked_atom);
 	LOCK_CNT_INC(spin_locked);

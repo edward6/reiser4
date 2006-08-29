@@ -562,7 +562,6 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				.read = reiser4_read_extent,
 				.readpage = reiser4_readpage_extent,
 				.get_block = get_block_address_extent,
-				.readpages = reiser4_readpages_extent,
 				.append_key = append_key_extent,
 				.init_coord_extension =
 				init_coord_extension_extent
@@ -615,8 +614,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				.write = reiser4_write_tail,
 				.read = reiser4_read_tail,
 				.readpage = readpage_tail,
-				.get_block = NULL,
-				.readpages = NULL,
+				.get_block = get_block_address_tail,
 				.append_key = append_key_tail,
 				.init_coord_extension =
 				init_coord_extension_tail
@@ -671,7 +669,6 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				.read = read_ctail,
 				.readpage = readpage_ctail,
 				.get_block = get_block_address_tail,
-				.readpages = readpages_ctail,
 				.append_key = append_key_ctail,
 				.init_coord_extension =
 				init_coord_extension_tail
