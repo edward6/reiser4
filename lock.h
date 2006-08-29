@@ -175,7 +175,7 @@ extern int longterm_lock_znode(lock_handle * handle,
 
 extern void longterm_unlock_znode(lock_handle * handle);
 
-extern int check_deadlock(void);
+extern int reiser4_check_deadlock(void);
 
 extern lock_stack *get_current_lock_stack(void);
 
@@ -203,8 +203,8 @@ static inline  void done_lh(lock_handle *lh)
 extern void move_lh(lock_handle * new, lock_handle * old);
 extern void copy_lh(lock_handle * new, lock_handle * old);
 
-extern int prepare_to_sleep(lock_stack * owner);
-extern void go_to_sleep(lock_stack * owner);
+extern int reiser4_prepare_to_sleep(lock_stack * owner);
+extern void reiser4_go_to_sleep(lock_stack * owner);
 extern void __reiser4_wake_up(lock_stack * owner);
 
 extern int lock_stack_isclean(lock_stack * owner);
@@ -212,7 +212,7 @@ extern int lock_stack_isclean(lock_stack * owner);
 /* zlock object state check macros: only used in assertions.  Both forms imply that the
    lock is held by the current thread. */
 extern int znode_is_write_locked(const znode *);
-extern void invalidate_lock(lock_handle *);
+extern void reiser4_invalidate_lock(lock_handle *);
 
 /* lock ordering is: first take zlock spin lock, then lock stack spin lock */
 #define spin_ordering_pred_stack(stack)			\

@@ -124,7 +124,7 @@ static void *reiser4_pool_alloc(reiser4_pool * pool	/* pool to allocate object
 	} else {
 		/* pool is empty. Extra allocations don't deserve dedicated
 		   slab to be served from, as they are expected to be rare. */
-		result = kmalloc(pool->obj_size, GFP_KERNEL);
+		result = kmalloc(pool->obj_size, reiser4_ctx_gfp_mask_get());
 		if (result != 0) {
 			reiser4_init_pool_obj(result);
 			list_add(&result->extra_linkage, &pool->extra);
@@ -181,16 +181,15 @@ void reiser4_pool_free(reiser4_pool * pool, reiser4_pool_header * h	/* pool to r
    (that is "right" node).
 
 */
-reiser4_pool_header *add_obj(reiser4_pool * pool	/* pool from which to
-							 * allocate new object */ ,
-			     struct list_head *list,	/* list where to add
-							 * object */
-			     pool_ordering order /* where to add */ ,
-			     reiser4_pool_header * reference	/* after (or
-								 * before) which
-								 * existing
-								 * object to
-								 * add */ )
+reiser4_pool_header *reiser4_add_obj(reiser4_pool * pool /* pool from which to
+							  * allocate new object
+							  */,
+				     struct list_head *list /* list where to add
+							     * object */,
+				     pool_ordering order /* where to add */,
+				     reiser4_pool_header * reference
+				     /* after (or before) which existing object
+					to add */)
 {
 	reiser4_pool_header *result;
 

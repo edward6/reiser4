@@ -217,7 +217,7 @@ int is_longname_key(const reiser4_key * key)
 
 	assert("nikita-2863", key != NULL);
 	if (get_key_type(key) != KEY_FILE_NAME_MINOR)
-		print_key("oops", key);
+		reiser4_print_key("oops", key);
 	assert("nikita-2864", get_key_type(key) == KEY_FILE_NAME_MINOR);
 
 	if (REISER4_LARGE_KEY)
@@ -262,7 +262,7 @@ static __u64 pack_string(const char *name /* string to encode */ ,
 
 /* opposite to pack_string(). Takes value produced by pack_string(), restores
  * string encoded in it and stores result in @buf */
-char *unpack_string(__u64 value, char *buf)
+char * reiser4_unpack_string(__u64 value, char *buf)
 {
 	do {
 		*buf = value >> (64 - 8);
@@ -283,11 +283,13 @@ char *extract_name_from_key(const reiser4_key * key, char *buf)
 
 	c = buf;
 	if (REISER4_LARGE_KEY) {
-		c = unpack_string(get_key_ordering(key) & ~fibration_mask, c);
-		c = unpack_string(get_key_fulloid(key), c);
+		c = reiser4_unpack_string(get_key_ordering(key) &
+					  ~fibration_mask, c);
+		c = reiser4_unpack_string(get_key_fulloid(key), c);
 	} else
-		c = unpack_string(get_key_fulloid(key) & ~fibration_mask, c);
-	unpack_string(get_key_offset(key), c);
+		c = reiser4_unpack_string(get_key_fulloid(key) &
+					  ~fibration_mask, c);
+	reiser4_unpack_string(get_key_offset(key), c);
 	return buf;
 }
 

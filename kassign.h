@@ -92,7 +92,7 @@ extern reiser4_key *build_sd_key(const struct inode *target,
 extern int is_longname_key(const reiser4_key * key);
 extern int is_longname(const char *name, int len);
 extern char *extract_name_from_key(const reiser4_key * key, char *buf);
-extern char *unpack_string(__u64 value, char *buf);
+extern char *reiser4_unpack_string(__u64 value, char *buf);
 extern void complete_entry_key(const struct inode *dir, const char *name,
 			       int len, reiser4_key *result);
 

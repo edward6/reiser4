@@ -221,15 +221,6 @@ struct reiser4_super_info_data {
 	/* parameters for the flush algorithm */
 	flush_params flush;
 
-#if REISER4_USE_EFLUSH
-	/* see emergency_flush.c for details */
-	spinlock_t eflush_guard;
-	/* number of emergency flushed nodes */
-	int eflushed;
-	/* hash table used by emergency flush. Protected by ->eflush_guard */
-	ef_hash_table efhash_table;
-	__u64 eflushed_unformatted;	/* number of eflushed unformatted nodes */
-#endif
 	/* pointers to jnodes for journal header and footer */
 	jnode *journal_header;
 	jnode *journal_footer;
@@ -302,9 +293,8 @@ struct reiser4_super_info_data {
 	spinlock_t all_guard;
 	/* list of all jnodes */
 	struct list_head all_jnodes;
-	/* number of unallocated extent pointers in the tree */
-	__u64 unalloc_extent_pointers;
 #endif
+	struct dentry *debugfs_root;
 };
 
 extern reiser4_super_info_data *get_super_private_nocheck(const struct
@@ -396,9 +386,9 @@ static inline void spin_unlock_reiser4_super(reiser4_super_info_data *sbinfo)
 	spin_unlock(&(sbinfo->guard));
 }
 
-extern __u64 flush_reserved(const struct super_block *);
+extern __u64 reiser4_flush_reserved(const struct super_block *);
 extern int reiser4_is_set(const struct super_block *super, reiser4_fs_flag f);
-extern long statfs_type(const struct super_block *super);
+extern long reiser4_statfs_type(const struct super_block *super);
 extern __u64 reiser4_block_count(const struct super_block *super);
 extern void reiser4_set_block_count(const struct super_block *super, __u64 nr);
 extern __u64 reiser4_data_blocks(const struct super_block *super);
@@ -417,14 +407,14 @@ extern __u64 reiser4_clustered_blocks(const struct super_block *);
 extern long reiser4_reserved_blocks(const struct super_block *super, uid_t uid,
 				    gid_t gid);
 
-extern reiser4_space_allocator *get_space_allocator(const struct super_block
-						    *super);
-extern reiser4_oid_allocator *get_oid_allocator(const struct super_block
-						*super);
-extern struct inode *get_super_fake(const struct super_block *super);
-extern struct inode *get_cc_fake(const struct super_block *super);
-extern struct inode *get_bitmap_fake(const struct super_block *super);
-extern reiser4_tree *get_tree(const struct super_block *super);
+extern reiser4_space_allocator *
+reiser4_get_space_allocator(const struct super_block *super);
+extern reiser4_oid_allocator *
+reiser4_get_oid_allocator(const struct super_block *super);
+extern struct inode *reiser4_get_super_fake(const struct super_block *super);
+extern struct inode *reiser4_get_cc_fake(const struct super_block *super);
+extern struct inode *reiser4_get_bitmap_fake(const struct super_block *super);
+extern reiser4_tree *reiser4_get_tree(const struct super_block *super);
 extern int is_reiser4_super(const struct super_block *super);
 
 extern int reiser4_blocknr_is_sane(const reiser4_block_nr * blk);
@@ -434,11 +424,11 @@ extern int reiser4_fill_super(struct super_block *s, void *data, int silent);
 extern int reiser4_done_super(struct super_block *s);
 
 /* step of fill super */
-extern int init_fs_info(struct super_block *);
-extern void done_fs_info(struct super_block *);
-extern int init_super_data(struct super_block *, char *opt_string);
-extern int init_read_super(struct super_block *, int silent);
-extern int init_root_inode(struct super_block *);
+extern int reiser4_init_fs_info(struct super_block *);
+extern void reiser4_done_fs_info(struct super_block *);
+extern int reiser4_init_super_data(struct super_block *, char *opt_string);
+extern int reiser4_init_read_super(struct super_block *, int silent);
+extern int reiser4_init_root_inode(struct super_block *);
 
 
 /* Maximal possible object id. */
@@ -455,18 +445,6 @@ long oids_used(const struct super_block *);
 
 #if REISER4_DEBUG
 void print_fs_info(const char *prefix, const struct super_block *);
-#endif
-
-#if REISER4_DEBUG
-
-void inc_unalloc_unfm_ptr(void);
-void dec_unalloc_unfm_ptrs(int nr);
-
-#else
-
-#define inc_unalloc_unfm_ptr() noop
-#define dec_unalloc_unfm_ptrs(nr) noop
-
 #endif
 
 extern void destroy_reiser4_cache(kmem_cache_t **);

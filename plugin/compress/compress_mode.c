@@ -47,11 +47,11 @@ static int turn_off_compression_on_zero(struct inode *inode, cloff_t index)
 /* Check on lattice (COL) of some sparseness factor,
    the family of adaptive compression modes which define
    the following behavior:
-   
+
    Compression is on: try to compress everything and turn
    it off, whenever cluster is incompressible.
-   
-   Compression is off: try to compress clusters of indexes 
+
+   Compression is off: try to compress clusters of indexes
    k * FACTOR (k = 0, 1, 2, ...) and turn it on, if some of
    them is compressible. */
 

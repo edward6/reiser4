@@ -269,7 +269,7 @@ static int can_rename(struct inode *old_dir, struct inode *old_inode,
 	return 0;
 }
 
-int find_entry(struct inode *, struct dentry *, lock_handle *,
+int reiser4_find_entry(struct inode *, struct dentry *, lock_handle *,
 	       znode_lock_mode, reiser4_dir_entry_desc *);
 int reiser4_update_dir(struct inode *);
 
@@ -284,10 +284,12 @@ int reiser4_update_dir(struct inode *);
    entry. This should be re-considered when more than one different
    directory plugin will be implemented.
 */
-int rename_common(struct inode *old_dir /* directory where @old is located */ ,
-		  struct dentry *old_name /* old name */ ,
-		  struct inode *new_dir /* directory where @new is located */ ,
-		  struct dentry *new_name /* new name */ )
+int reiser4_rename_common(struct inode *old_dir /* directory where @old
+						 * is located */ ,
+			  struct dentry *old_name /* old name */ ,
+			  struct inode *new_dir /* directory where @new
+						 * is located */ ,
+			  struct dentry *new_name /* new name */ )
 {
 	/* From `The Open Group Base Specifications Issue 6'
 
@@ -384,7 +386,7 @@ int rename_common(struct inode *old_dir /* directory where @old is located */ ,
 	struct dentry *dotdot_name;
 	reiser4_dentry_fsdata *dataonstack;
 
-	ctx = init_context(old_dir->i_sb);
+	ctx = reiser4_init_context(old_dir->i_sb);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 
@@ -464,8 +466,8 @@ int rename_common(struct inode *old_dir /* directory where @old is located */ ,
 	init_lh(new_lh);
 
 	/* find entry for @new_name */
-	result = find_entry(new_dir,
-			    new_name, new_lh, ZNODE_WRITE_LOCK, new_entry);
+	result = reiser4_find_entry(new_dir, new_name, new_lh, ZNODE_WRITE_LOCK,
+				    new_entry);
 
 	if (IS_CBKERR(result)) {
 		done_lh(new_lh);
@@ -475,7 +477,7 @@ int rename_common(struct inode *old_dir /* directory where @old is located */ ,
 		return result;
 	}
 
-	seal_done(&new_fsdata->dec.entry_seal);
+	reiser4_seal_done(&new_fsdata->dec.entry_seal);
 
 	/* add or replace name for @old_inode as @new_name */
 	if (new_inode != NULL) {
@@ -574,8 +576,9 @@ int rename_common(struct inode *old_dir /* directory where @old is located */ ,
 			dotdot_coord = &dataonstack->dec.entry_coord;
 			coord_clear_iplug(dotdot_coord);
 
-			result = find_entry(old_inode, dotdot_name, dotdot_lh,
-					    ZNODE_WRITE_LOCK, dotdot_entry);
+			result = reiser4_find_entry(old_inode, dotdot_name,
+						    dotdot_lh, ZNODE_WRITE_LOCK,
+						    dotdot_entry);
 			if (result == 0) {
 				/* replace_name() decreases i_nlink on
 				 * @old_dir */
@@ -609,10 +612,12 @@ int rename_common(struct inode *old_dir /* directory where @old is located */ ,
 }
 
 #if 0
-int rename_common(struct inode *old_dir /* directory where @old is located */ ,
-		  struct dentry *old_name /* old name */ ,
-		  struct inode *new_dir /* directory where @new is located */ ,
-		  struct dentry *new_name /* new name */ )
+int reiser4_rename_common(struct inode *old_dir /* directory where @old
+						 * is located */ ,
+			  struct dentry *old_name /* old name */ ,
+			  struct inode *new_dir /* directory where @new
+						 * is located */ ,
+			  struct dentry *new_name /* new name */ )
 {
 	/* From `The Open Group Base Specifications Issue 6'
 
@@ -705,7 +710,7 @@ int rename_common(struct inode *old_dir /* directory where @old is located */ ,
 	dir_plugin *dplug;
 	file_plugin *fplug;
 
-	ctx = init_context(old_dir->i_sb);
+	ctx = reiser4_init_context(old_dir->i_sb);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 
@@ -753,15 +758,15 @@ int rename_common(struct inode *old_dir /* directory where @old is located */ ,
 	init_lh(&new_lh);
 
 	/* find entry for @new_name */
-	result = find_entry(new_dir,
-			    new_name, &new_lh, ZNODE_WRITE_LOCK, &new_entry);
+	result = reiser4_find_entry(new_dir, new_name, &new_lh,
+				    ZNODE_WRITE_LOCK, &new_entry);
 
 	if (IS_CBKERR(result)) {
 		done_lh(&new_lh);
 		goto exit;
 	}
 
-	seal_done(&new_fsdata->dec.entry_seal);
+	reiser4_seal_done(&new_fsdata->dec.entry_seal);
 
 	/* add or replace name for @old_inode as @new_name */
 	if (new_inode != NULL) {
@@ -868,8 +873,11 @@ int rename_common(struct inode *old_dir /* directory where @old is located */ ,
 			dotdot_coord = &fsdata->dec.entry_coord;
 			coord_clear_iplug(dotdot_coord);
 
-			result = find_entry(old_inode, &dotdot_name, &dotdot_lh,
-					    ZNODE_WRITE_LOCK, &dotdot_entry);
+			result = reiser4_find_entry(old_inode,
+						    &dotdot_name,
+						    &dotdot_lh,
+						    ZNODE_WRITE_LOCK,
+						    &dotdot_entry);
 			if (result == 0) {
 				/* replace_name() decreases i_nlink on
 				 * @old_dir */

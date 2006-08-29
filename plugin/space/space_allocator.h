@@ -11,47 +11,47 @@
 															\
 static inline int sa_init_allocator (reiser4_space_allocator * al, struct super_block *s, void * opaque)		\
 {															\
-	return init_allocator_##allocator (al, s, opaque);								\
+	return reiser4_init_allocator_##allocator (al, s, opaque);	                                                \
 }															\
 															\
 static inline void sa_destroy_allocator (reiser4_space_allocator *al, struct super_block *s)				\
 {															\
-	destroy_allocator_##allocator (al, s);										\
+	reiser4_destroy_allocator_##allocator (al, s);									\
 }															\
 															\
 static inline int sa_alloc_blocks (reiser4_space_allocator *al, reiser4_blocknr_hint * hint, 				\
 				   int needed, reiser4_block_nr * start, reiser4_block_nr * len)			\
 {															\
-	return alloc_blocks_##allocator (al, hint, needed, start, len);							\
+	return reiser4_alloc_blocks_##allocator (al, hint, needed, start, len);						\
 }															\
 static inline void sa_dealloc_blocks (reiser4_space_allocator * al, reiser4_block_nr start, reiser4_block_nr len)	\
 {															\
-	dealloc_blocks_##allocator (al, start, len); 									\
+	reiser4_dealloc_blocks_##allocator (al, start, len);								\
 }															\
 															\
 static inline void sa_check_blocks (const reiser4_block_nr * start, const reiser4_block_nr * end, int desired) 		\
 {															\
-	check_blocks_##allocator (start, end, desired);								        \
+	reiser4_check_blocks_##allocator (start, end, desired);							        \
 }															\
 															\
 static inline void sa_pre_commit_hook (void)										\
 { 															\
-	pre_commit_hook_##allocator ();											\
+	reiser4_pre_commit_hook_##allocator ();										\
 }															\
 															\
 static inline void sa_post_commit_hook (void) 										\
 { 															\
-	post_commit_hook_##allocator ();										\
+	reiser4_post_commit_hook_##allocator ();									\
 }															\
 															\
 static inline void sa_post_write_back_hook (void) 									\
 { 															\
-	post_write_back_hook_##allocator();										\
+	reiser4_post_write_back_hook_##allocator();									\
 }															\
 															\
 static inline void sa_print_info(const char * prefix, reiser4_space_allocator * al)					\
 {															\
-	print_info_##allocator (prefix, al);                                                                            \
+	reiser4_print_info_##allocator (prefix, al);                                                                    \
 }
 
 DEF_SPACE_ALLOCATOR(bitmap)

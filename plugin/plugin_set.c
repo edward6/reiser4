@@ -121,7 +121,7 @@ pshash(ps_hash_table * table, const unsigned long *a)
 }
 
 /* The hash table definition */
-#define KMALLOC(size) kmalloc((size), GFP_KERNEL)
+#define KMALLOC(size) kmalloc((size), reiser4_ctx_gfp_mask_get())
 #define KFREE(ptr, size) kfree(ptr)
 TYPE_SAFE_HASH_DEFINE(ps, plugin_set, unsigned long, hashval, link, pshash,
 		      pseq);
@@ -186,7 +186,8 @@ static int plugin_set_field(plugin_set ** set, const unsigned long val,
 	twin = ps_hash_find(&ps_table, &replica.hashval);
 	if (unlikely(twin == NULL)) {
 		rcu_read_unlock();
-		psal = kmem_cache_alloc(plugin_set_slab, GFP_KERNEL);
+		psal = kmem_cache_alloc(plugin_set_slab,
+					reiser4_ctx_gfp_mask_get());
 		if (psal == NULL)
 			return RETERR(-ENOMEM);
 		*psal = replica;
@@ -273,14 +274,14 @@ static struct {
 #if REISER4_DEBUG
 static reiser4_plugin_type pset_member_to_type(pset_member memb)
 {
-	assert("nikita-3501", 0 <= memb && memb < PSET_LAST);
+	assert("nikita-3501", memb < PSET_LAST);
 	return pset_descr[memb].type;
 }
 #endif
 
 reiser4_plugin_type pset_member_to_type_unsafe(pset_member memb)
 {
-	if (0 <= memb && memb < PSET_LAST)
+	if (memb < PSET_LAST)
 		return pset_descr[memb].type;
 	else
 		return REISER4_PLUGIN_TYPES;
@@ -291,7 +292,7 @@ int pset_set(plugin_set ** set, pset_member memb, reiser4_plugin * plugin)
 	assert("nikita-3492", set != NULL);
 	assert("nikita-3493", *set != NULL);
 	assert("nikita-3494", plugin != NULL);
-	assert("nikita-3495", 0 <= memb && memb < PSET_LAST);
+	assert("nikita-3495", memb < PSET_LAST);
 	assert("nikita-3496", plugin->h.type_id == pset_member_to_type(memb));
 
 	return plugin_set_field(set,
@@ -301,7 +302,7 @@ int pset_set(plugin_set ** set, pset_member memb, reiser4_plugin * plugin)
 reiser4_plugin *pset_get(plugin_set * set, pset_member memb)
 {
 	assert("nikita-3497", set != NULL);
-	assert("nikita-3498", 0 <= memb && memb < PSET_LAST);
+	assert("nikita-3498", memb < PSET_LAST);
 
 	return *(reiser4_plugin **) (((char *)set) + pset_descr[memb].offset);
 }
@@ -322,7 +323,7 @@ DEFINE_PLUGIN_SET(file_plugin, file)
     DEFINE_PLUGIN_SET(item_plugin, sd)
     /* DEFINE_PLUGIN_SET(cipher_plugin, cipher) */
     /* DEFINE_PLUGIN_SET(digest_plugin, digest) */
-    DEFINE_PLUGIN_SET(compression_plugin, compression)
+    /* DEFINE_PLUGIN_SET(compression_plugin, compression) */
     /* DEFINE_PLUGIN_SET(compression_mode_plugin, compression_mode) */
     DEFINE_PLUGIN_SET(cluster_plugin, cluster)
     /* DEFINE_PLUGIN_SET(regular_plugin, regular_entry) */

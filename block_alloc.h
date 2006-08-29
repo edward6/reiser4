@@ -82,8 +82,8 @@ enum reiser4_ba_flags {
 
 typedef enum reiser4_ba_flags reiser4_ba_flags_t;
 
-extern void blocknr_hint_init(reiser4_blocknr_hint * hint);
-extern void blocknr_hint_done(reiser4_blocknr_hint * hint);
+extern void reiser4_blocknr_hint_init(reiser4_blocknr_hint * hint);
+extern void reiser4_blocknr_hint_done(reiser4_blocknr_hint * hint);
 extern void update_blocknr_hint_default(const struct super_block *,
 					const reiser4_block_nr *);
 extern void get_blocknr_hint_default(reiser4_block_nr *);
@@ -91,7 +91,7 @@ extern void get_blocknr_hint_default(reiser4_block_nr *);
 extern reiser4_block_nr reiser4_fs_reserved_space(struct super_block *super);
 
 int assign_fake_blocknr_formatted(reiser4_block_nr *);
-reiser4_block_nr fake_blocknr_unformatted(void);
+reiser4_block_nr fake_blocknr_unformatted(int);
 
 /* free -> grabbed -> fake_allocated -> used */
 
@@ -140,13 +140,13 @@ extern void reiser4_release_reserved(struct super_block *super);
 
 extern void flush_reserved2grabbed(txn_atom * atom, __u64 count);
 
-extern int blocknr_is_fake(const reiser4_block_nr * da);
+extern int reiser4_blocknr_is_fake(const reiser4_block_nr * da);
 
 extern void grabbed2cluster_reserved(int count);
 extern void cluster_reserved2grabbed(int count);
 extern void cluster_reserved2free(int count);
 
-extern int check_block_counters(const struct super_block *);
+extern int reiser4_check_block_counters(const struct super_block *);
 
 #if REISER4_DEBUG
 
@@ -158,9 +158,9 @@ extern void reiser4_check_block(const reiser4_block_nr *, int);
 
 #endif
 
-extern int pre_commit_hook(void);
-extern void post_commit_hook(void);
-extern void post_write_back_hook(void);
+extern int reiser4_pre_commit_hook(void);
+extern void reiser4_post_commit_hook(void);
+extern void reiser4_post_write_back_hook(void);
 
 #endif				/* __FS_REISER4_BLOCK_ALLOC_H__ */
 

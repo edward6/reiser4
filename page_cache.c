@@ -184,7 +184,7 @@
 #include <linux/writeback.h>
 #include <linux/blkdev.h>
 
-static struct bio *page_bio(struct page *, jnode *, int rw, unsigned int gfp);
+static struct bio *page_bio(struct page *, jnode *, int rw, gfp_t gfp);
 
 static struct address_space_operations formatted_fake_as_ops;
 
@@ -204,13 +204,13 @@ init_fake_inode(struct super_block *super, struct inode *fake,
 }
 
 /**
- * init_formatted_fake - iget inodes for formatted nodes and bitmaps
+ * reiser4_init_formatted_fake - iget inodes for formatted nodes and bitmaps
  * @super: super block to init fake inode for
  *
  * Initializes fake inode to which formatted nodes are bound in the page cache
  * and inode for bitmaps.
  */
-int init_formatted_fake(struct super_block *super)
+int reiser4_init_formatted_fake(struct super_block *super)
 {
 	struct inode *fake;
 	struct inode *bitmap;
@@ -248,13 +248,13 @@ int init_formatted_fake(struct super_block *super)
 }
 
 /**
- * done_formatted_fake - release inode used by formatted nodes and bitmaps
+ * reiser4_done_formatted_fake - release inode used by formatted nodes and bitmaps
  * @super: super block to init fake inode for
  *
  * Releases inodes which were used as address spaces of bitmap and formatted
  * nodes.
  */
-void done_formatted_fake(struct super_block *super)
+void reiser4_done_formatted_fake(struct super_block *super)
 {
 	reiser4_super_info_data *sinfo;
 
@@ -290,7 +290,7 @@ void reiser4_wait_page_writeback(struct page *page)
 }
 
 /* return tree @page is in */
-reiser4_tree *tree_by_page(const struct page *page /* page to query */ )
+reiser4_tree *reiser4_tree_by_page(const struct page *page /* page to query */ )
 {
 	assert("nikita-2461", page != NULL);
 	return &get_super_private(page->mapping->host->i_sb)->tree;
@@ -353,16 +353,16 @@ end_bio_single_page_write(struct bio *bio, unsigned int bytes_done UNUSED_ARG,
 }
 
 /* ->readpage() method for formatted nodes */
-static int
-formatted_readpage(struct file *f UNUSED_ARG,
-		   struct page *page /* page to read */ )
+static int formatted_readpage(struct file *f UNUSED_ARG,
+			      struct page *page /* page to read */ )
 {
 	assert("nikita-2412", PagePrivate(page) && jprivate(page));
-	return page_io(page, jprivate(page), READ, GFP_KERNEL);
+	return reiser4_page_io(page, jprivate(page), READ,
+			       reiser4_ctx_gfp_mask_get());
 }
 
 /**
- * page_io - submit single-page bio request
+ * reiser4_page_io - submit single-page bio request
  * @page: page to perform io for
  * @node: jnode of page
  * @rw: read or write
@@ -370,7 +370,7 @@ formatted_readpage(struct file *f UNUSED_ARG,
  *
  * Submits single page read or write.
  */
-int page_io(struct page *page, jnode *node, int rw, int gfp)
+int reiser4_page_io(struct page *page, jnode *node, int rw, gfp_t gfp)
 {
 	struct bio *bio;
 	int result;
@@ -404,8 +404,7 @@ int page_io(struct page *page, jnode *node, int rw, int gfp)
 }
 
 /* helper function to construct bio for page */
-static struct bio *page_bio(struct page *page, jnode * node, int rw,
-			    unsigned int gfp)
+static struct bio *page_bio(struct page *page, jnode * node, int rw, gfp_t gfp)
 {
 	struct bio *bio;
 	assert("nikita-2092", page != NULL);
@@ -433,7 +432,7 @@ static struct bio *page_bio(struct page *page, jnode * node, int rw,
 		spin_unlock_jnode(node);
 
 		assert("nikita-2275", blocknr != (reiser4_block_nr) 0);
-		assert("nikita-2276", !blocknr_is_fake(&blocknr));
+		assert("nikita-2276", !reiser4_blocknr_is_fake(&blocknr));
 
 		bio->bi_bdev = super->s_bdev;
 		/* fill bio->bi_sector before calling bio_add_page(), because
@@ -457,7 +456,7 @@ static struct bio *page_bio(struct page *page, jnode * node, int rw,
 }
 
 /* this function is internally called by jnode_make_dirty() */
-int set_page_dirty_internal(struct page *page)
+int reiser4_set_page_dirty_internal(struct page *page)
 {
 	struct address_space *mapping;
 
@@ -466,27 +465,40 @@ int set_page_dirty_internal(struct page *page)
 
 	if (!TestSetPageDirty(page)) {
 		if (mapping_cap_account_dirty(mapping))
-			inc_page_state(nr_dirty);
+			inc_zone_page_state(page, NR_FILE_DIRTY);
 
 		__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 	}
 
 	/* znode must be dirty ? */
-	if (mapping->host == get_super_fake(mapping->host->i_sb))
+	if (mapping->host == reiser4_get_super_fake(mapping->host->i_sb))
 		assert("", JF_ISSET(jprivate(page), JNODE_DIRTY));
 	return 0;
 }
 
-static int can_hit_entd(reiser4_context * ctx, struct super_block *s)
+#if REISER4_DEBUG
+
+/**
+ * can_hit_entd
+ *
+ * This is used on
+ */
+static int can_hit_entd(reiser4_context *ctx, struct super_block *s)
 {
-	if (get_super_private(s)->entd.tsk == current)
-		return 0;
 	if (ctx == NULL || ((unsigned long)ctx->magic) != context_magic)
 		return 1;
 	if (ctx->super != s)
 		return 1;
-	return 0;
+	if (get_super_private(s)->entd.tsk == current)
+		return 0;
+	if (!lock_stack_isclean(&ctx->stack))
+		return 0;
+	if (ctx->trans->atom != NULL)
+		return 0;
+	return 1;
 }
+
+#endif
 
 /**
  * reiser4_writepage - writepage of struct address_space_operations
@@ -501,71 +513,15 @@ int reiser4_writepage(struct page *page,
 {
 	struct super_block *s;
 	reiser4_context *ctx;
-	reiser4_tree *tree;
-	txn_atom *atom;
-	jnode *node;
-	int result;
 
 	assert("vs-828", PageLocked(page));
 
 	s = page->mapping->host->i_sb;
 	ctx = get_current_context_check();
 
-#if REISER4_USE_ENTD
-	if (can_hit_entd(ctx, s) ||
-	    (ctx && lock_stack_isclean(get_current_lock_stack()) &&
-	     ctx->trans->atom == NULL && ctx->entd == 0)) {
-		/* Throttle memory allocations if we were not in reiser4 or if
-		   lock stack is clean and atom is not opened */
-		return write_page_by_ent(page, wbc);
-	}
-#endif				/* REISER4_USE_ENTD */
+	assert("", can_hit_entd(ctx, s));
 
-	BUG_ON(ctx == NULL);
-	BUG_ON(s != ctx->super);
-
-	tree = &get_super_private(s)->tree;
-	node = jnode_of_page(page);
-	if (!IS_ERR(node)) {
-		int phantom;
-
-		assert("nikita-2419", node != NULL);
-
-		spin_lock_jnode(node);
-		/*
-		 * page was dirty, but jnode is not. This is (only?)
-		 * possible if page was modified through mmap(). We
-		 * want to handle such jnodes specially.
-		 */
-		phantom = !JF_ISSET(node, JNODE_DIRTY);
-		atom = jnode_get_atom(node);
-		if (atom != NULL) {
-			if (!(atom->flags & ATOM_FORCE_COMMIT)) {
-				atom->flags |= ATOM_FORCE_COMMIT;
-				ktxnmgrd_kick(&get_super_private(s)->tmgr);
-			}
-			spin_unlock_atom(atom);
-		}
-		spin_unlock_jnode(node);
-
-		result = emergency_flush(page);
-		if (result == 0)
-			if (phantom && jnode_is_unformatted(node))
-				JF_SET(node, JNODE_KEEPME);
-		jput(node);
-	} else {
-		result = PTR_ERR(node);
-	}
-	if (result != 0) {
-		/*
-		 * shrink list doesn't move page to another mapping
-		 * list when clearing dirty flag. So it is enough to
-		 * just set dirty bit.
-		 */
-		set_page_dirty_internal(page);
-		unlock_page(page);
-	}
-	return result;
+	return write_page_by_ent(page, wbc);
 }
 
 /* ->set_page_dirty() method of formatted address_space */
@@ -626,7 +582,7 @@ static struct address_space_operations formatted_fake_as_ops = {
 
 /* called just before page is released (no longer used by reiser4). Callers:
    jdelete() and extent2tail(). */
-void drop_page(struct page *page)
+void reiser4_drop_page(struct page *page)
 {
 	assert("nikita-2181", PageLocked(page));
 	clear_page_dirty_for_io(page);
@@ -665,7 +621,7 @@ static void invalidate_unformatted(jnode * node)
 		page_cache_release(page);
 	} else {
 		JF_SET(node, JNODE_HEARD_BANSHEE);
-		uncapture_jnode(node);
+		reiser4_uncapture_jnode(node);
 		unhash_unformatted_jnode(node);
 	}
 }
@@ -685,7 +641,7 @@ truncate_jnodes_range(struct inode *inode, pgoff_t from, pgoff_t count)
 	truncated_jnodes = 0;
 
 	info = reiser4_inode_data(inode);
-	tree = tree_by_inode(inode);
+	tree = reiser4_tree_by_inode(inode);
 
 	index = from;
 	end = from + count;

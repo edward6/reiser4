@@ -39,7 +39,7 @@ static char *decode_inode(struct super_block *s, char *addr,
 
 	/* identifier of object plugin is stored in the first two bytes,
 	 * followed by... */
-	fplug = file_plugin_by_disk_id(get_tree(s), (d16 *) addr);
+	fplug = file_plugin_by_disk_id(reiser4_get_tree(s), (d16 *) addr);
 	if (fplug != NULL) {
 		addr += sizeof(d16);
 		obj->plugin = fplug;
@@ -74,7 +74,7 @@ static struct dentry *reiser4_decode_fh(struct super_block *super, __u32 *fh,
 	char *addr;
 	int with_parent;
 
-	ctx = init_context(super);
+	ctx = reiser4_init_context(super);
 	if (IS_ERR(ctx))
 		return (struct dentry *)ctx;
 
@@ -205,7 +205,7 @@ reiser4_encode_fh(struct dentry *dentry, __u32 *fh, int *lenp,
 		need += delta;
 	}
 
-	ctx = init_context(dentry->d_inode->i_sb);
+	ctx = reiser4_init_context(dentry->d_inode->i_sb);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 

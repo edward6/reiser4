@@ -37,9 +37,10 @@ static int add_child_ptr(znode * parent, znode * child);
 		warning( __VA_ARGS__ )
 
 /* allocate new node on the @level and immediately on the right of @brother. */
-znode *new_node(znode * brother /* existing left neighbor of new node */ ,
-		tree_level level	/* tree level at which new node is to
-					 * be allocated */ )
+znode * reiser4_new_node(znode * brother /* existing left neighbor
+					  *  of new node */,
+			 tree_level level /* tree level at which new node is to
+					   * be allocated */)
 {
 	znode *result;
 	int retcode;
@@ -52,7 +53,7 @@ znode *new_node(znode * brother /* existing left neighbor of new node */ ,
 	if (retcode == 0) {
 		result =
 		    zget(znode_get_tree(brother), &blocknr, NULL, level,
-			 GFP_KERNEL);
+			 reiser4_ctx_gfp_mask_get());
 		if (IS_ERR(result)) {
 			ewarning(PTR_ERR(result), "nikita-929",
 				 "Cannot allocate znode for carry: %li",
@@ -72,7 +73,7 @@ znode *new_node(znode * brother /* existing left neighbor of new node */ ,
 		result->nplug = znode_get_tree(brother)->nplug;
 		assert("nikita-933", result->nplug != NULL);
 
-		retcode = zinit_new(result, GFP_KERNEL);
+		retcode = zinit_new(result, reiser4_ctx_gfp_mask_get());
 		if (retcode == 0) {
 			ZF_SET(result, JNODE_CREATED);
 			zrelse(result);
@@ -99,7 +100,7 @@ znode *new_node(znode * brother /* existing left neighbor of new node */ ,
    This helper function is called by add_new_root().
 
 */
-znode *add_tree_root(znode * old_root /* existing tree root */ ,
+znode *reiser4_add_tree_root(znode * old_root /* existing tree root */ ,
 		     znode * fake /* "fake" znode */ )
 {
 	reiser4_tree *tree = znode_get_tree(old_root);
@@ -137,7 +138,7 @@ znode *add_tree_root(znode * old_root /* existing tree root */ ,
 		   flush can be going here.
 		 */
 		assert("nikita-1448", znode_is_root(old_root));
-		new_root = new_node(fake, tree->height + 1);
+		new_root = reiser4_new_node(fake, tree->height + 1);
 		if (!IS_ERR(new_root) && (result = zload(new_root)) == 0) {
 			lock_handle rlh;
 
@@ -176,8 +177,8 @@ znode *add_tree_root(znode * old_root /* existing tree root */ ,
 				       WITH_DATA(new_root,
 						 node_is_empty(new_root)));
 				write_lock_dk(tree);
-				znode_set_ld_key(new_root, min_key());
-				znode_set_rd_key(new_root, max_key());
+				znode_set_ld_key(new_root, reiser4_min_key());
+				znode_set_rd_key(new_root, reiser4_max_key());
 				write_unlock_dk(tree);
 				if (REISER4_DEBUG) {
 					ZF_CLR(old_root, JNODE_LEFT_CONNECTED);
@@ -262,13 +263,14 @@ static int add_child_ptr(znode * parent, znode * child)
 }
 
 /* actually remove tree root */
-static int kill_root(reiser4_tree * tree	/* tree from which root is being
-						 * removed */ ,
-		     znode * old_root /* root node that is being removed */ ,
-		     znode * new_root	/* new root---sole child of *
-					 * @old_root */ ,
-		     const reiser4_block_nr * new_root_blk	/* disk address of
-								 * @new_root */ )
+static int reiser4_kill_root(reiser4_tree * tree /* tree from which root is
+						  * being removed */,
+			     znode * old_root /* root node that is being
+					       * removed */ ,
+			     znode * new_root	/* new root---sole child of
+						 * @old_root */,
+		     const reiser4_block_nr * new_root_blk /* disk address of
+							    * @new_root */)
 {
 	znode *uber;
 	int result;
@@ -334,16 +336,17 @@ static int kill_root(reiser4_tree * tree	/* tree from which root is being
    at the entry.
 
    To remove tree root we need to take lock on special "fake" znode that
-   protects changes of tree height. See comments in add_tree_root() for more
-   on this.
+   protects changes of tree height. See comments in reiser4_add_tree_root() for
+   more on this.
 
    Also parent pointers have to be updated in
    old and new root. To simplify code, function is split into two parts: outer
-   kill_tree_root() collects all necessary arguments and calls kill_root()
-   to do the actual job.
+   reiser4_kill_tree_root() collects all necessary arguments and calls
+   reiser4_kill_root() to do the actual job.
 
 */
-int kill_tree_root(znode * old_root /* tree root that we are removing */ )
+int reiser4_kill_tree_root(znode * old_root /* tree root that we are
+					       removing*/)
 {
 	int result;
 	coord_t down_link;
@@ -362,8 +365,8 @@ int kill_tree_root(znode * old_root /* tree root that we are removing */ )
 	new_root = child_znode(&down_link, old_root, 0, 1);
 	if (!IS_ERR(new_root)) {
 		result =
-		    kill_root(tree, old_root, new_root,
-			      znode_get_block(new_root));
+			reiser4_kill_root(tree, old_root, new_root,
+					  znode_get_block(new_root));
 		zput(new_root);
 	} else
 		result = PTR_ERR(new_root);

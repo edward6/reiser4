@@ -442,7 +442,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.estimate = estimate_cde,
 			.item_data_by_flow = NULL,
 #if REISER4_DEBUG
-			.check = check_cde
+			.check = reiser4_check_cde
 #endif
 		},
 		.f = {
@@ -502,7 +502,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.utmost_child = utmost_child_internal,
 			.utmost_child_real_block =
 			utmost_child_real_block_internal,
-			.update = update_internal,
+			.update = reiser4_update_internal,
 			.scan = NULL,
 			.convert = NULL
 		},
@@ -544,7 +544,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.estimate = NULL,
 			.item_data_by_flow = NULL,
 #if REISER4_DEBUG
-			.check = check_extent
+			.check = reiser4_check_extent
 #endif
 		},
 		.f = {
@@ -552,18 +552,17 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.utmost_child_real_block =
 			utmost_child_real_block_extent,
 			.update = NULL,
-			.scan = scan_extent,
+			.scan = reiser4_scan_extent,
 			.convert = NULL,
 			.key_by_offset = key_by_offset_extent
 		},
 		.s = {
 			.file = {
-				.write = write_extent,
-				.read = read_extent,
-				.readpage = readpage_extent,
-				.capture = capture_extent,
+				.write = reiser4_write_extent,
+				.read = reiser4_read_extent,
+				.readpage = reiser4_readpage_extent,
 				.get_block = get_block_address_extent,
-				.readpages = readpages_extent,
+				.readpages = reiser4_readpages_extent,
 				.append_key = append_key_extent,
 				.init_coord_extension =
 				init_coord_extension_extent
@@ -613,10 +612,9 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		},
 		.s = {
 			.file = {
-				.write = write_tail,
-				.read = read_tail,
+				.write = reiser4_write_tail,
+				.read = reiser4_read_tail,
 				.readpage = readpage_tail,
-				.capture = NULL,
 				.get_block = NULL,
 				.readpages = NULL,
 				.append_key = append_key_tail,
@@ -672,7 +670,6 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				.write = NULL,
 				.read = read_ctail,
 				.readpage = readpage_ctail,
-				.capture = NULL,
 				.get_block = get_block_address_tail,
 				.readpages = readpages_ctail,
 				.append_key = append_key_ctail,

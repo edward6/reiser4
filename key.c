@@ -39,13 +39,13 @@ void reiser4_key_init(reiser4_key * key /* key to init */ )
 }
 
 /* minimal possible key in the tree. Return pointer to the static storage. */
-const reiser4_key *min_key(void)
+const reiser4_key *reiser4_min_key(void)
 {
 	return &MINIMAL_KEY;
 }
 
 /* maximum possible key in the tree. Return pointer to the static storage. */
-const reiser4_key *max_key(void)
+const reiser4_key *reiser4_max_key(void)
 {
 	return &MAXIMAL_KEY;
 }
@@ -71,7 +71,7 @@ static const char *type_name(unsigned int key_type /* key type */ )
 }
 
 /* debugging aid: print human readable information about key */
-void print_key(const char *prefix /* prefix to print */ ,
+void reiser4_print_key(const char *prefix /* prefix to print */ ,
 	       const reiser4_key * key /* key to print */ )
 {
 	/* turn bold on */
@@ -101,8 +101,8 @@ void print_key(const char *prefix /* prefix to print */ ,
 			char *c;
 
 			c = buf;
-			c = unpack_string(get_key_ordering(key), c);
-			unpack_string(get_key_fulloid(key), c);
+			c = reiser4_unpack_string(get_key_ordering(key), c);
+			reiser4_unpack_string(get_key_fulloid(key), c);
 			printk("[%s", buf);
 			if (is_longname_key(key))
 				/*
@@ -113,7 +113,7 @@ void print_key(const char *prefix /* prefix to print */ ,
 				/*
 				 * whole name is stored in the key.
 				 */
-				unpack_string(get_key_offset(key), buf);
+				reiser4_unpack_string(get_key_offset(key), buf);
 				printk("%s]\n", buf);
 			}
 		} else {

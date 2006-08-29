@@ -13,26 +13,26 @@
 /* implementation of vfs's llseek method of struct file_operations for
    typical directory can be found in readdir_common.c
 */
-loff_t llseek_common_dir(struct file *, loff_t, int origin);
+loff_t reiser4_llseek_dir_common(struct file *, loff_t, int origin);
 
 /* implementation of vfs's readdir method of struct file_operations for
    typical directory can be found in readdir_common.c
 */
-int readdir_common(struct file *, void *dirent, filldir_t);
+int reiser4_readdir_common(struct file *, void *dirent, filldir_t);
 
 /**
- * release_dir_common - release of struct file_operations
+ * reiser4_release_dir_common - release of struct file_operations
  * @inode: inode of released file
  * @file: file to release
  *
  * Implementation of release method of struct file_operations for typical
  * directory. All it does is freeing of reiser4 specific file data.
 */
-int release_dir_common(struct inode *inode, struct file *file)
+int reiser4_release_dir_common(struct inode *inode, struct file *file)
 {
 	reiser4_context *ctx;
 
-	ctx = init_context(inode->i_sb);
+	ctx = reiser4_init_context(inode->i_sb);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 	reiser4_free_file_fsdata(file);
@@ -43,12 +43,12 @@ int release_dir_common(struct inode *inode, struct file *file)
 /* this is common implementation of vfs's fsync method of struct
    file_operations
 */
-int sync_common(struct file *file, struct dentry *dentry, int datasync)
+int reiser4_sync_common(struct file *file, struct dentry *dentry, int datasync)
 {
 	reiser4_context *ctx;
 	int result;
 
-	ctx = init_context(dentry->d_inode->i_sb);
+	ctx = reiser4_init_context(dentry->d_inode->i_sb);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 	result = txnmgr_force_commit_all(dentry->d_inode->i_sb, 0);
@@ -72,7 +72,7 @@ sendfile_common(struct file *file, loff_t *ppos, size_t count,
 	reiser4_context *ctx;
 	ssize_t result;
 
-	ctx = init_context(file->f_dentry->d_inode->i_sb);
+	ctx = reiser4_init_context(file->f_dentry->d_inode->i_sb);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 	result = generic_file_sendfile(file, ppos, count, actor, target);
@@ -93,7 +93,7 @@ prepare_write_common(struct file *file, struct page *page, unsigned from,
 	reiser4_context *ctx;
 	int result;
 
-	ctx = init_context(page->mapping->host->i_sb);
+	ctx = reiser4_init_context(page->mapping->host->i_sb);
 	result = do_prepare_write(file, page, from, to);
 
 	/* don't commit transaction under inode semaphore */
@@ -163,5 +163,6 @@ do_prepare_write(struct file *file, struct page *page, unsigned from,
  * c-basic-offset: 8
  * tab-width: 8
  * fill-column: 79
+ * scroll-step: 1
  * End:
  */

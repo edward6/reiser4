@@ -17,7 +17,7 @@ static LIST_HEAD(cursor_cache);
 static unsigned long d_cursor_unused = 0;
 
 /* spinlock protecting manipulations with dir_cursor's hash table and lists */
-spinlock_t d_lock = SPIN_LOCK_UNLOCKED;
+DEFINE_SPINLOCK(d_lock);
 
 static reiser4_file_fsdata *create_fsdata(struct file *file);
 static int file_is_stateless(struct file *file);
@@ -32,7 +32,7 @@ static void kill_cursor(dir_cursor *);
  * Shrinks d_cursor_cache. Scan LRU list of unused cursors, freeing requested
  * number. Return number of still freeable cursors.
  */
-static int d_cursor_shrink(int nr, unsigned int mask)
+static int d_cursor_shrink(int nr, gfp_t mask)
 {
 	if (nr != 0) {
 		dir_cursor *scan;
@@ -55,12 +55,12 @@ static int d_cursor_shrink(int nr, unsigned int mask)
 }
 
 /**
- * init_d_cursor - create d_cursor cache
+ * reiser4_init_d_cursor - create d_cursor cache
  *
  * Initializes slab cache of d_cursors. It is part of reiser4 module
  * initialization.
  */
-int init_d_cursor(void)
+int reiser4_init_d_cursor(void)
 {
 	d_cursor_cache = kmem_cache_create("d_cursor", sizeof(dir_cursor), 0,
 					   SLAB_HWCACHE_ALIGN, NULL, NULL);
@@ -86,11 +86,11 @@ int init_d_cursor(void)
 }
 
 /**
- * done_d_cursor - delete d_cursor cache and d_cursor shrinker
+ * reiser4_done_d_cursor - delete d_cursor cache and d_cursor shrinker
  *
  * This is called on reiser4 module unloading or system shutdown.
  */
-void done_d_cursor(void)
+void reiser4_done_d_cursor(void)
 {
 	BUG_ON(d_cursor_shrinker == NULL);
 	remove_shrinker(d_cursor_shrinker);
@@ -117,7 +117,7 @@ static inline int d_cursor_eq(const d_cursor_key *k1, const d_cursor_key *k2)
  * define functions to manipulate reiser4 super block's hash table of
  * dir_cursors
  */
-#define KMALLOC(size) kmalloc((size), GFP_KERNEL)
+#define KMALLOC(size) kmalloc((size), reiser4_ctx_gfp_mask_get())
 #define KFREE(ptr, size) kfree(ptr)
 TYPE_SAFE_HASH_DEFINE(d_cursor,
 		      dir_cursor,
@@ -126,29 +126,29 @@ TYPE_SAFE_HASH_DEFINE(d_cursor,
 #undef KMALLOC
 
 /**
- * init_super_d_info - initialize per-super-block d_cursor resources
+ * reiser4_init_super_d_info - initialize per-super-block d_cursor resources
  * @super: super block to initialize
  *
  * Initializes per-super-block d_cursor's hash table and radix tree. It is part
  * of mount.
  */
-int init_super_d_info(struct super_block *super)
+int reiser4_init_super_d_info(struct super_block *super)
 {
 	d_cursor_info *p;
 
 	p = &get_super_private(super)->d_info;
 
-	INIT_RADIX_TREE(&p->tree, GFP_KERNEL);
+	INIT_RADIX_TREE(&p->tree, reiser4_ctx_gfp_mask_get());
 	return d_cursor_hash_init(&p->table, D_CURSOR_TABLE_SIZE);
 }
 
 /**
- * done_super_d_info - release per-super-block d_cursor resources
+ * reiser4_done_super_d_info - release per-super-block d_cursor resources
  * @super: super block being umounted
  *
  * It is called on umount. Kills all directory cursors attached to suoer block.
  */
-void done_super_d_info(struct super_block *super)
+void reiser4_done_super_d_info(struct super_block *super)
 {
 	d_cursor_info *d_info;
 	dir_cursor *cursor, *next;
@@ -327,7 +327,7 @@ static int insert_cursor(dir_cursor *cursor, struct file *file,
 	 * cursor. */
 	fsdata = create_fsdata(NULL);
 	if (fsdata != NULL) {
-		result = radix_tree_preload(GFP_KERNEL);
+		result = radix_tree_preload(reiser4_ctx_gfp_mask_get());
 		if (result == 0) {
 			d_cursor_info *info;
 			oid_t oid;
@@ -391,7 +391,7 @@ static void process_cursors(struct inode *inode, enum cursor_action act)
 	 *
 	 * without reiser4_context
 	 */
-	ctx = init_context(inode->i_sb);
+	ctx = reiser4_init_context(inode->i_sb);
 	if (IS_ERR(ctx)) {
 		warning("vs-23", "failed to init context");
 		return;
@@ -450,38 +450,38 @@ static void process_cursors(struct inode *inode, enum cursor_action act)
 }
 
 /**
- * dispose_cursors - removes cursors from inode's list
+ * reiser4_dispose_cursors - removes cursors from inode's list
  * @inode: inode to dispose cursors of
  *
  * For each of cursors corresponding to @inode - removes reiser4_file_fsdata
  * attached to cursor from inode's readdir list. This is called when inode is
  * removed from the memory by memory pressure.
  */
-void dispose_cursors(struct inode *inode)
+void reiser4_dispose_cursors(struct inode *inode)
 {
 	process_cursors(inode, CURSOR_DISPOSE);
 }
 
 /**
- * load_cursors - attach cursors to inode
+ * reiser4_load_cursors - attach cursors to inode
  * @inode: inode to load cursors to
  *
  * For each of cursors corresponding to @inode - attaches reiser4_file_fsdata
  * attached to cursor to inode's readdir list. This is done when inode is
  * loaded into memory.
  */
-void load_cursors(struct inode *inode)
+void reiser4_load_cursors(struct inode *inode)
 {
 	process_cursors(inode, CURSOR_LOAD);
 }
 
 /**
- * kill_cursors - kill all inode cursors
+ * reiser4_kill_cursors - kill all inode cursors
  * @inode: inode to kill cursors of
  *
  * Frees all cursors for this inode. This is called when inode is destroyed.
  */
-void kill_cursors(struct inode *inode)
+void reiser4_kill_cursors(struct inode *inode)
 {
 	process_cursors(inode, CURSOR_KILL);
 }
@@ -500,14 +500,14 @@ static int file_is_stateless(struct file *file)
 }
 
 /**
- * get_dir_fpos -
+ * reiser4_get_dir_fpos -
  * @dir:
  *
  * Calculates ->fpos from user-supplied cookie. Normally it is dir->f_pos, but
  * in the case of stateless directory operation (readdir-over-nfs), client id
  * was encoded in the high bits of cookie and should me masked off.
  */
-loff_t get_dir_fpos(struct file *dir)
+loff_t reiser4_get_dir_fpos(struct file *dir)
 {
 	if (file_is_stateless(dir))
 		return dir->f_pos & CID_MASK;
@@ -516,13 +516,13 @@ loff_t get_dir_fpos(struct file *dir)
 }
 
 /**
- * try_to_attach_fsdata - ???
+ * reiser4_attach_fsdata - try to attach fsdata
  * @file:
  * @inode:
  *
  * Finds or creates cursor for readdir-over-nfs.
  */
-int try_to_attach_fsdata(struct file *file, struct inode *inode)
+int reiser4_attach_fsdata(struct file *file, struct inode *inode)
 {
 	loff_t pos;
 	int result;
@@ -541,7 +541,8 @@ int try_to_attach_fsdata(struct file *file, struct inode *inode)
 		 * first call to readdir (or rewind to the beginning of
 		 * directory)
 		 */
-		cursor = kmem_cache_alloc(d_cursor_cache, GFP_KERNEL);
+		cursor = kmem_cache_alloc(d_cursor_cache,
+					  reiser4_ctx_gfp_mask_get());
 		if (cursor != NULL)
 			result = insert_cursor(cursor, file, inode);
 		else
@@ -577,12 +578,12 @@ int try_to_attach_fsdata(struct file *file, struct inode *inode)
 }
 
 /**
- * detach_fsdata - ???
+ * reiser4_detach_fsdata - ???
  * @file:
  *
  * detach fsdata, if necessary
  */
-void detach_fsdata(struct file *file)
+void reiser4_detach_fsdata(struct file *file)
 {
 	struct inode *inode;
 
@@ -599,12 +600,12 @@ void detach_fsdata(struct file *file)
 static kmem_cache_t *dentry_fsdata_cache;
 
 /**
- * init_dentry_fsdata - create cache of dentry_fsdata
+ * reiser4_init_dentry_fsdata - create cache of dentry_fsdata
  *
  * Initializes slab cache of structures attached to denty->d_fsdata. It is
  * part of reiser4 module initialization.
  */
-int init_dentry_fsdata(void)
+int reiser4_init_dentry_fsdata(void)
 {
 	dentry_fsdata_cache = kmem_cache_create("dentry_fsdata",
 						sizeof(reiser4_dentry_fsdata),
@@ -618,11 +619,11 @@ int init_dentry_fsdata(void)
 }
 
 /**
- * done_dentry_fsdata - delete cache of dentry_fsdata
+ * reiser4_done_dentry_fsdata - delete cache of dentry_fsdata
  *
  * This is called on reiser4 module unloading or system shutdown.
  */
-void done_dentry_fsdata(void)
+void reiser4_done_dentry_fsdata(void)
 {
 	destroy_reiser4_cache(&dentry_fsdata_cache);
 }
@@ -640,7 +641,7 @@ reiser4_dentry_fsdata *reiser4_get_dentry_fsdata(struct dentry *dentry)
 
 	if (dentry->d_fsdata == NULL) {
 		dentry->d_fsdata = kmem_cache_alloc(dentry_fsdata_cache,
-						    GFP_KERNEL);
+						    reiser4_ctx_gfp_mask_get());
 		if (dentry->d_fsdata == NULL)
 			return ERR_PTR(RETERR(-ENOMEM));
 		memset(dentry->d_fsdata, 0, sizeof(reiser4_dentry_fsdata));
@@ -667,12 +668,12 @@ void reiser4_free_dentry_fsdata(struct dentry *dentry)
 static kmem_cache_t *file_fsdata_cache;
 
 /**
- * init_file_fsdata - create cache of reiser4_file_fsdata
+ * reiser4_init_file_fsdata - create cache of reiser4_file_fsdata
  *
  * Initializes slab cache of structures attached to file->private_data. It is
  * part of reiser4 module initialization.
  */
-int init_file_fsdata(void)
+int reiser4_init_file_fsdata(void)
 {
 	file_fsdata_cache = kmem_cache_create("file_fsdata",
 					      sizeof(reiser4_file_fsdata),
@@ -685,11 +686,11 @@ int init_file_fsdata(void)
 }
 
 /**
- * done_file_fsdata - delete cache of reiser4_file_fsdata
+ * reiser4_done_file_fsdata - delete cache of reiser4_file_fsdata
  *
  * This is called on reiser4 module unloading or system shutdown.
  */
-void done_file_fsdata(void)
+void reiser4_done_file_fsdata(void)
 {
 	destroy_reiser4_cache(&file_fsdata_cache);
 }
@@ -704,7 +705,8 @@ static reiser4_file_fsdata *create_fsdata(struct file *file)
 {
 	reiser4_file_fsdata *fsdata;
 
-	fsdata = kmem_cache_alloc(file_fsdata_cache, GFP_KERNEL);
+	fsdata = kmem_cache_alloc(file_fsdata_cache,
+				  reiser4_ctx_gfp_mask_get());
 	if (fsdata != NULL) {
 		memset(fsdata, 0, sizeof *fsdata);
 		fsdata->ra1.max_window_size = VM_MAX_READAHEAD * 1024;

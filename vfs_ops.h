@@ -37,7 +37,7 @@ extern void reiser4_throttle_write(struct inode *);
 extern int jnode_is_releasable(jnode *);
 
 #define CAPTURE_APAGE_BURST (1024l)
-void writeout(struct super_block *, struct writeback_control *);
+void reiser4_writeout(struct super_block *, struct writeback_control *);
 
 
 extern void reiser4_handle_error(void);

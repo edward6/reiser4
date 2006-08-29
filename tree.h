@@ -160,10 +160,10 @@ struct reiser4_tree {
 	} carry;
 };
 
-extern int init_tree(reiser4_tree * tree,
-		     const reiser4_block_nr * root_block, tree_level height,
-		     node_plugin * default_plugin);
-extern void done_tree(reiser4_tree * tree);
+extern int reiser4_init_tree(reiser4_tree * tree,
+			     const reiser4_block_nr * root_block,
+			     tree_level height, node_plugin * default_plugin);
+extern void reiser4_done_tree(reiser4_tree * tree);
 
 /* cbk flags: options for coord_by_key() */
 typedef enum {
@@ -205,9 +205,10 @@ typedef enum {
 
 typedef int (*tree_iterate_actor_t) (reiser4_tree * tree, coord_t * coord,
 				     lock_handle * lh, void *arg);
-extern int iterate_tree(reiser4_tree * tree, coord_t * coord, lock_handle * lh,
-			tree_iterate_actor_t actor, void *arg,
-			znode_lock_mode mode, int through_units_p);
+extern int reiser4_iterate_tree(reiser4_tree * tree, coord_t * coord,
+				lock_handle * lh,
+				tree_iterate_actor_t actor, void *arg,
+				znode_lock_mode mode, int through_units_p);
 extern int get_uber_znode(reiser4_tree * tree, znode_lock_mode mode,
 			  znode_lock_request pri, lock_handle * lh);
 
@@ -292,15 +293,15 @@ lookup_result coord_by_key(reiser4_tree * tree, const reiser4_key * key,
 			   tree_level lock_level, tree_level stop_level,
 			   __u32 flags, ra_info_t *);
 
-lookup_result object_lookup(struct inode *object,
-			    const reiser4_key * key,
-			    coord_t * coord,
-			    lock_handle * lh,
-			    znode_lock_mode lock_mode,
-			    lookup_bias bias,
-			    tree_level lock_level,
-			    tree_level stop_level,
-			    __u32 flags, ra_info_t * info);
+lookup_result reiser4_object_lookup(struct inode *object,
+				    const reiser4_key * key,
+				    coord_t * coord,
+				    lock_handle * lh,
+				    znode_lock_mode lock_mode,
+				    lookup_bias bias,
+				    tree_level lock_level,
+				    tree_level stop_level,
+				    __u32 flags, ra_info_t * info);
 
 insert_result insert_by_key(reiser4_tree * tree, const reiser4_key * key,
 			    reiser4_item_data * data, coord_t * coord,
@@ -321,11 +322,11 @@ int kill_node_content(coord_t * from, coord_t * to,
 		      znode * locked_left_neighbor, struct inode *inode,
 		      int truncate);
 
-int resize_item(coord_t * coord, reiser4_item_data * data,
-		reiser4_key * key, lock_handle * lh, cop_insert_flag);
+int reiser4_resize_item(coord_t * coord, reiser4_item_data * data,
+			reiser4_key * key, lock_handle * lh, cop_insert_flag);
 int insert_into_item(coord_t * coord, lock_handle * lh, const reiser4_key * key,
 		     reiser4_item_data * data, unsigned);
-int insert_flow(coord_t * coord, lock_handle * lh, flow_t * f);
+int reiser4_insert_flow(coord_t * coord, lock_handle * lh, flow_t * f);
 int find_new_child_ptr(znode * parent, znode * child, znode * left,
 		       coord_t * result);
 
@@ -337,13 +338,13 @@ void fake_kill_hook_tail(struct inode *, loff_t start, loff_t end, int);
 extern int cut_tree_worker_common(tap_t *, const reiser4_key *,
 				  const reiser4_key *, reiser4_key *,
 				  struct inode *, int, int *);
-extern int cut_tree_object(reiser4_tree *, const reiser4_key *,
-			   const reiser4_key *, reiser4_key *, struct inode *,
-			   int, int *);
-extern int cut_tree(reiser4_tree * tree, const reiser4_key * from,
-		    const reiser4_key * to, struct inode *, int);
+extern int reiser4_cut_tree_object(reiser4_tree *, const reiser4_key *,
+				   const reiser4_key *, reiser4_key *,
+				   struct inode *, int, int *);
+extern int reiser4_cut_tree(reiser4_tree * tree, const reiser4_key * from,
+			    const reiser4_key * to, struct inode *, int);
 
-extern int delete_node(znode * node, reiser4_key *, struct inode *, int);
+extern int reiser4_delete_node(znode *, reiser4_key *, struct inode *, int);
 extern int check_tree_pointer(const coord_t * pointer, const znode * child);
 extern int find_new_child_ptr(znode * parent, znode * child UNUSED_ARG,
 			      znode * left, coord_t * result);

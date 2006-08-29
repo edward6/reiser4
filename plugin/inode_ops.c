@@ -18,7 +18,7 @@ static int create_vfs_object(struct inode *parent, struct dentry *dentry,
 		      reiser4_object_create_data *data);
 
 /**
- * create_common - create of inode operations
+ * reiser4_create_common - create of inode operations
  * @parent: inode of parent directory
  * @dentry: dentry of new object to create
  * @mode: the permissions to use
@@ -28,8 +28,8 @@ static int create_vfs_object(struct inode *parent, struct dentry *dentry,
  * inode_operations.
  * Creates regular file using file plugin from parent directory plugin set.
  */
-int create_common(struct inode *parent, struct dentry *dentry,
-		  int mode, struct nameidata *nameidata)
+int reiser4_create_common(struct inode *parent, struct dentry *dentry,
+			  int mode, struct nameidata *nameidata)
 {
 	reiser4_object_create_data data;
 
@@ -39,11 +39,11 @@ int create_common(struct inode *parent, struct dentry *dentry,
 	return create_vfs_object(parent, dentry, &data);
 }
 
-int lookup_name(struct inode *dir, struct dentry *, reiser4_key *);
+int reiser4_lookup_name(struct inode *dir, struct dentry *, reiser4_key *);
 void check_light_weight(struct inode *inode, struct inode *parent);
 
 /**
- * lookup_common - lookup of inode operations
+ * reiser4_lookup_common - lookup of inode operations
  * @parent: inode of directory to lookup into
  * @dentry: name to look for
  * @nameidata:
@@ -51,8 +51,9 @@ void check_light_weight(struct inode *inode, struct inode *parent);
  * This is common implementation of vfs's lookup method of struct
  * inode_operations.
  */
-struct dentry *lookup_common(struct inode *parent, struct dentry *dentry,
-			     struct nameidata *nameidata)
+struct dentry *reiser4_lookup_common(struct inode *parent,
+				     struct dentry *dentry,
+				     struct nameidata *nameidata)
 {
 	reiser4_context *ctx;
 	int result;
@@ -60,14 +61,14 @@ struct dentry *lookup_common(struct inode *parent, struct dentry *dentry,
 	struct inode *inode;
 	reiser4_dir_entry_desc entry;
 
-	ctx = init_context(parent->i_sb);
+	ctx = reiser4_init_context(parent->i_sb);
 	if (IS_ERR(ctx))
 		return (struct dentry *)ctx;
 
 	/* set up operations on dentry. */
 	dentry->d_op = &get_super_private(parent->i_sb)->ops.dentry;
 
-	result = lookup_name(parent, dentry, &entry.key);
+	result = reiser4_lookup_name(parent, dentry, &entry.key);
 	if (result) {
 		context_set_commit_async(ctx);
 		reiser4_exit_context(ctx);
@@ -104,7 +105,7 @@ static reiser4_block_nr common_estimate_link(struct inode *parent,
 int reiser4_update_dir(struct inode *);
 
 /**
- * link_common - link of inode operations
+ * reiser4_link_common - link of inode operations
  * @existing: dentry of object which is to get new name
  * @parent: directory where new name is to be created
  * @newname: new name
@@ -112,8 +113,8 @@ int reiser4_update_dir(struct inode *);
  * This is common implementation of vfs's link method of struct
  * inode_operations.
  */
-int link_common(struct dentry *existing, struct inode *parent,
-		struct dentry *newname)
+int reiser4_link_common(struct dentry *existing, struct inode *parent,
+			struct dentry *newname)
 {
 	reiser4_context *ctx;
 	int result;
@@ -123,7 +124,7 @@ int link_common(struct dentry *existing, struct inode *parent,
 	reiser4_object_create_data data;
 	reiser4_block_nr reserve;
 
-	ctx = init_context(parent->i_sb);
+	ctx = reiser4_init_context(parent->i_sb);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 
@@ -135,7 +136,7 @@ int link_common(struct dentry *existing, struct inode *parent,
 	assert("nikita-1434", object != NULL);
 
 	/* check for race with create_object() */
-	if (inode_get_flag(object, REISER4_IMMUTABLE)) {
+	if (reiser4_inode_get_flag(object, REISER4_IMMUTABLE)) {
 		context_set_commit_async(ctx);
 		reiser4_exit_context(ctx);
 		return RETERR(-E_REPEAT);
@@ -171,7 +172,7 @@ int link_common(struct dentry *existing, struct inode *parent,
 	 * reiser4_unlink() viz. creation of safe-link.
 	 */
 	if (unlikely(object->i_nlink == 0)) {
-		result = safe_link_del(tree_by_inode(object),
+		result = safe_link_del(reiser4_tree_by_inode(object),
 				       get_inode_oid(object), SAFE_UNLINK);
 		if (result != 0) {
 			context_set_commit_async(ctx);
@@ -218,21 +219,21 @@ int link_common(struct dentry *existing, struct inode *parent,
 static int unlink_check_and_grab(struct inode *parent, struct dentry *victim);
 
 /**
- * unlink_common - unlink of inode operations
+ * reiser4_unlink_common - unlink of inode operations
  * @parent: inode of directory to remove name from
  * @victim: name to be removed
  *
  * This is common implementation of vfs's unlink method of struct
  * inode_operations.
  */
-int unlink_common(struct inode *parent, struct dentry *victim)
+int reiser4_unlink_common(struct inode *parent, struct dentry *victim)
 {
 	reiser4_context *ctx;
 	int result;
 	struct inode *object;
 	file_plugin *fplug;
 
-	ctx = init_context(parent->i_sb);
+	ctx = reiser4_init_context(parent->i_sb);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 
@@ -313,7 +314,7 @@ int unlink_common(struct inode *parent, struct dentry *victim)
 }
 
 /**
- * symlink_common - symlink of inode operations
+ * reiser4_symlink_common - symlink of inode operations
  * @parent: inode of parent directory
  * @dentry: dentry of object to be created
  * @linkname: string symlink is to contain
@@ -322,8 +323,8 @@ int unlink_common(struct inode *parent, struct dentry *victim)
  * inode_operations.
  * Creates object using file plugin SYMLINK_FILE_PLUGIN_ID.
  */
-int symlink_common(struct inode *parent, struct dentry *dentry,
-		   const char *linkname)
+int reiser4_symlink_common(struct inode *parent, struct dentry *dentry,
+			   const char *linkname)
 {
 	reiser4_object_create_data data;
 
@@ -335,7 +336,7 @@ int symlink_common(struct inode *parent, struct dentry *dentry,
 }
 
 /**
- * mkdir_common - mkdir of inode operations
+ * reiser4_mkdir_common - mkdir of inode operations
  * @parent: inode of parent directory
  * @dentry: dentry of object to be created
  * @mode: the permissions to use
@@ -344,7 +345,7 @@ int symlink_common(struct inode *parent, struct dentry *dentry,
  * inode_operations.
  * Creates object using file plugin DIRECTORY_FILE_PLUGIN_ID.
  */
-int mkdir_common(struct inode *parent, struct dentry *dentry, int mode)
+int reiser4_mkdir_common(struct inode *parent, struct dentry *dentry, int mode)
 {
 	reiser4_object_create_data data;
 
@@ -355,7 +356,7 @@ int mkdir_common(struct inode *parent, struct dentry *dentry, int mode)
 }
 
 /**
- * mknod_common - mknod of inode operations
+ * reiser4_mknod_common - mknod of inode operations
  * @parent: inode of parent directory
  * @dentry: dentry of object to be created
  * @mode: the permissions to use and file type
@@ -365,8 +366,8 @@ int mkdir_common(struct inode *parent, struct dentry *dentry, int mode)
  * inode_operations.
  * Creates object using file plugin SPECIAL_FILE_PLUGIN_ID.
  */
-int mknod_common(struct inode *parent, struct dentry *dentry,
-		 int mode, dev_t rdev)
+int reiser4_mknod_common(struct inode *parent, struct dentry *dentry,
+			 int mode, dev_t rdev)
 {
 	reiser4_object_create_data data;
 
@@ -383,35 +384,36 @@ int mknod_common(struct inode *parent, struct dentry *dentry,
  */
 
 /**
- * follow_link_common - follow_link of inode operations
+ * reiser4_follow_link_common - follow_link of inode operations
  * @dentry: dentry of symlink
  * @data:
  *
  * This is common implementation of vfs's followlink method of struct
  * inode_operations.
- * Assumes that inode's generic_ip points to the content of symbolic link.
+ * Assumes that inode's i_private points to the content of symbolic link.
  */
-void *follow_link_common(struct dentry *dentry, struct nameidata *nd)
+void *reiser4_follow_link_common(struct dentry *dentry, struct nameidata *nd)
 {
 	assert("vs-851", S_ISLNK(dentry->d_inode->i_mode));
 
-	if (!dentry->d_inode->u.generic_ip
-	    || !inode_get_flag(dentry->d_inode, REISER4_GENERIC_PTR_USED))
+	if (!dentry->d_inode->i_private
+	    || !reiser4_inode_get_flag(dentry->d_inode,
+				       REISER4_GENERIC_PTR_USED))
 		return ERR_PTR(RETERR(-EINVAL));
-	nd_set_link(nd, dentry->d_inode->u.generic_ip);
+	nd_set_link(nd, dentry->d_inode->i_private);
 	return NULL;
 }
 
 /**
- * permission_common - permission of inode operations
+ * reiser4_permission_common - permission of inode operations
  * @inode: inode to check permissions for
  * @mask: mode bits to check permissions for
  * @nameidata:
  *
  * Uses generic function to check for rwx permissions.
  */
-int permission_common(struct inode *inode, int mask,
-		      struct nameidata *nameidata)
+int reiser4_permission_common(struct inode *inode, int mask,
+			      struct nameidata *nameidata)
 {
 	return generic_permission(inode, mask, NULL);
 }
@@ -421,7 +423,7 @@ static int setattr_reserve(reiser4_tree *);
 /* this is common implementation of vfs's setattr method of struct
    inode_operations
 */
-int setattr_common(struct dentry *dentry, struct iattr *attr)
+int reiser4_setattr_common(struct dentry *dentry, struct iattr *attr)
 {
 	reiser4_context *ctx;
 	struct inode *inode;
@@ -432,7 +434,7 @@ int setattr_common(struct dentry *dentry, struct iattr *attr)
 	if (result)
 		return result;
 
-	ctx = init_context(inode->i_sb);
+	ctx = reiser4_init_context(inode->i_sb);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 
@@ -441,14 +443,13 @@ int setattr_common(struct dentry *dentry, struct iattr *attr)
 	/*
 	 * grab disk space and call standard inode_setattr().
 	 */
-	result = setattr_reserve(tree_by_inode(inode));
+	result = setattr_reserve(reiser4_tree_by_inode(inode));
 	if (!result) {
 		if ((attr->ia_valid & ATTR_UID && attr->ia_uid != inode->i_uid)
 		    || (attr->ia_valid & ATTR_GID
 			&& attr->ia_gid != inode->i_gid)) {
 			result = DQUOT_TRANSFER(inode, attr) ? -EDQUOT : 0;
 			if (result) {
-				all_grabbed2free();
 				context_set_commit_async(ctx);
 				reiser4_exit_context(ctx);
 				return result;
@@ -459,7 +460,6 @@ int setattr_common(struct dentry *dentry, struct iattr *attr)
 			reiser4_update_sd(inode);
 	}
 
-	all_grabbed2free();
 	context_set_commit_async(ctx);
 	reiser4_exit_context(ctx);
 	return result;
@@ -468,9 +468,8 @@ int setattr_common(struct dentry *dentry, struct iattr *attr)
 /* this is common implementation of vfs's getattr method of struct
    inode_operations
 */
-int
-getattr_common(struct vfsmount *mnt UNUSED_ARG, struct dentry *dentry,
-	       struct kstat *stat)
+int reiser4_getattr_common(struct vfsmount *mnt UNUSED_ARG,
+			   struct dentry *dentry, struct kstat *stat)
 {
 	struct inode *obj;
 
@@ -666,19 +665,19 @@ static int do_create_vfs_child(reiser4_object_create_data * data,	/* parameters 
 	   crash. This all only matters if it's possible to access file
 	   without name, for example, by inode number
 	 */
-	inode_set_flag(object, REISER4_IMMUTABLE);
+	reiser4_inode_set_flag(object, REISER4_IMMUTABLE);
 
 	/* create empty object, this includes allocation of new objectid. For
 	   directories this implies creation of dot and dotdot  */
-	assert("nikita-2265", inode_get_flag(object, REISER4_NO_SD));
+	assert("nikita-2265", reiser4_inode_get_flag(object, REISER4_NO_SD));
 
 	/* mark inode as `loaded'. From this point onward
 	   reiser4_delete_inode() will try to remove its stat-data. */
-	inode_set_flag(object, REISER4_LOADED);
+	reiser4_inode_set_flag(object, REISER4_LOADED);
 
 	result = obj_plug->create_object(object, parent, data);
 	if (result != 0) {
-		inode_clr_flag(object, REISER4_IMMUTABLE);
+		reiser4_inode_clr_flag(object, REISER4_IMMUTABLE);
 		if (result != -ENAMETOOLONG && result != -ENOMEM)
 			warning("nikita-2219",
 				"Failed to create sd for %llu",
@@ -691,7 +690,8 @@ static int do_create_vfs_child(reiser4_object_create_data * data,	/* parameters 
 	if (obj_dir != NULL)
 		result = obj_dir->init(object, parent, data);
 	if (result == 0) {
-		assert("nikita-434", !inode_get_flag(object, REISER4_NO_SD));
+		assert("nikita-434", !reiser4_inode_get_flag(object,
+							     REISER4_NO_SD));
 		/* insert inode into VFS hash table */
 		insert_inode_hash(object);
 		/* create entry */
@@ -735,7 +735,7 @@ static int do_create_vfs_child(reiser4_object_create_data * data,	/* parameters 
 	}
 
 	/* file has name now, clear immutable flag */
-	inode_clr_flag(object, REISER4_IMMUTABLE);
+	reiser4_inode_clr_flag(object, REISER4_IMMUTABLE);
 
 	/* on error, iput() will call ->delete_inode(). We should keep track
 	   of the existence of stat-data for this inode and avoid attempt to
@@ -756,7 +756,7 @@ create_vfs_object(struct inode *parent,
 	int result;
 	struct inode *child;
 
-	ctx = init_context(parent->i_sb);
+	ctx = reiser4_init_context(parent->i_sb);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 	context_set_commit_async(ctx);
@@ -804,7 +804,7 @@ static reiser4_block_nr common_estimate_link(struct inode *parent,	/* parent dir
 	/* update_dir(parent) */
 	res += inode_file_plugin(parent)->estimate.update(parent);
 	/* safe-link */
-	res += estimate_one_item_removal(tree_by_inode(object));
+	res += estimate_one_item_removal(reiser4_tree_by_inode(object));
 
 	return res;
 }
@@ -836,12 +836,12 @@ static reiser4_block_nr estimate_unlink(struct inode *parent,	/* parent director
 	/* fplug->unlink */
 	res += fplug->estimate.unlink(object, parent);
 	/* safe-link */
-	res += estimate_one_insert_item(tree_by_inode(object));
+	res += estimate_one_insert_item(reiser4_tree_by_inode(object));
 
 	return res;
 }
 
-/* helper for unlink_common. Estimate and grab space for unlink. */
+/* helper for reiser4_unlink_common. Estimate and grab space for unlink. */
 static int unlink_check_and_grab(struct inode *parent, struct dentry *victim)
 {
 	file_plugin *fplug;
@@ -853,10 +853,10 @@ static int unlink_check_and_grab(struct inode *parent, struct dentry *victim)
 	fplug = inode_file_plugin(child);
 
 	/* check for race with create_object() */
-	if (inode_get_flag(child, REISER4_IMMUTABLE))
+	if (reiser4_inode_get_flag(child, REISER4_IMMUTABLE))
 		return RETERR(-E_REPEAT);
 	/* object being deleted should have stat data */
-	assert("vs-949", !inode_get_flag(child, REISER4_NO_SD));
+	assert("vs-949", !reiser4_inode_get_flag(child, REISER4_NO_SD));
 
 	/* ask object plugin */
 	if (fplug->can_rem_link != NULL && !fplug->can_rem_link(child))
@@ -869,7 +869,7 @@ static int unlink_check_and_grab(struct inode *parent, struct dentry *victim)
 	return reiser4_grab_reserved(child->i_sb, result, BA_CAN_COMMIT);
 }
 
-/* helper for setattr_common */
+/* helper for reiser4_setattr_common */
 static int setattr_reserve(reiser4_tree * tree)
 {
 	assert("vs-1096", is_grab_enabled(get_current_context()));

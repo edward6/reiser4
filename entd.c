@@ -37,13 +37,13 @@ static int entd(void *arg);
 	         "ent:%s%s", super->s_id, (state))
 
 /**
- * init_entd - initialize entd context and start kernel daemon
+ * reiser4_init_entd - initialize entd context and start kernel daemon
  * @super: super block to start ent thread for
  *
  * Creates entd contexts, starts kernel thread and waits until it
  * initializes.
  */
-int init_entd(struct super_block *super)
+int reiser4_init_entd(struct super_block *super)
 {
 	entd_context *ctx;
 
@@ -85,31 +85,6 @@ static struct wbq *__get_wbq(entd_context * ent)
 	list_del_init(&wbq->link);
 	return wbq;
 }
-
-#if 0
-
-struct wbq * get_wbq(struct super_block * super)
-{
-	struct wbq *result;
-	entd_context * ent = get_entd_context(super);
-
-	spin_lock(&ent->guard);
-	result = __get_wbq(ent);
-	spin_unlock(&ent->guard);
-
-	return result;
-}
-
-void put_wbq(struct super_block *super, struct wbq * rq)
-{
-	entd_context * ent = get_entd_context(super);
-
-	spin_lock(&ent->guard);
-	__put_wbq(ent, rq);
-	spin_unlock(&ent->guard);
-}
-
-#endif  /*  0  */
 
 static void wakeup_all_wbq(entd_context * ent)
 {
@@ -201,13 +176,13 @@ static int entd(void *arg)
 }
 
 /**
- * done_entd - stop entd kernel thread
+ * reiser4_done_entd - stop entd kernel thread
  * @super: super block to stop ent thread for
  *
  * It is called on umount. Sends stop signal to entd and wait until it handles
  * it.
  */
-void done_entd(struct super_block *super)
+void reiser4_done_entd(struct super_block *super)
 {
 	entd_context *ent;
 
@@ -220,7 +195,7 @@ void done_entd(struct super_block *super)
 
 /* called at the beginning of jnode_flush to register flusher thread with ent
  * daemon */
-void enter_flush(struct super_block *super)
+void reiser4_enter_flush(struct super_block *super)
 {
 	entd_context *ent;
 
@@ -238,7 +213,7 @@ void enter_flush(struct super_block *super)
 }
 
 /* called at the end of jnode_flush */
-void leave_flush(struct super_block *super)
+void reiser4_leave_flush(struct super_block *super)
 {
 	entd_context *ent;
 	int wake_up_ent;
@@ -268,6 +243,7 @@ static void entd_flush(struct super_block *super, struct wbq *rq)
 
 	init_stack_context(&ctx, super);
 	ctx.entd = 1;
+	ctx.gfp_mask = GFP_NOFS;
 
 	rq->wbc->range_start = rq->page->index << PAGE_CACHE_SHIFT;
 	rq->wbc->range_end = (rq->page->index + ENTD_CAPTURE_APAGE_BURST) << PAGE_CACHE_SHIFT;
@@ -280,7 +256,7 @@ static void entd_flush(struct super_block *super, struct wbq *rq)
 		generic_sync_sb_inodes(super, rq->wbc);
 	}
 	rq->wbc->nr_to_write = ENTD_CAPTURE_APAGE_BURST;
-	writeout(super, rq->wbc);
+	reiser4_writeout(super, rq->wbc);
 
 	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx);
@@ -313,7 +289,7 @@ int write_page_by_ent(struct page *page, struct writeback_control *wbc)
 	 * page. Re-dirty page before unlocking so that if ent thread fails to
 	 * write it - it will remain dirty
 	 */
-	set_page_dirty_internal(page);
+	reiser4_set_page_dirty_internal(page);
 
 	/*
 	 * pin inode in memory, unlock page, entd_flush will iput. We can not

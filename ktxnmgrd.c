@@ -114,13 +114,13 @@ static int ktxnmgrd(void *arg)
 #undef set_comm
 
 /**
- * init_ktxnmgrd - initialize ktxnmgrd context and start kernel daemon
+ * reiser4_init_ktxnmgrd - initialize ktxnmgrd context and start kernel daemon
  * @super: pointer to super block
  *
  * Allocates and initializes ktxnmgrd_context, attaches it to transaction
  * manager. Starts kernel txnmgr daemon. This is called on mount.
  */
-int init_ktxnmgrd(struct super_block *super)
+int reiser4_init_ktxnmgrd(struct super_block *super)
 {
 	txn_mgr *mgr;
 	ktxnmgrd_context *ctx;
@@ -129,7 +129,7 @@ int init_ktxnmgrd(struct super_block *super)
 
 	assert("zam-1014", mgr->daemon == NULL);
 
-	ctx = kmalloc(sizeof(ktxnmgrd_context), GFP_KERNEL);
+	ctx = kmalloc(sizeof(ktxnmgrd_context), reiser4_ctx_gfp_mask_get());
 	if (ctx == NULL)
 		return RETERR(-ENOMEM);
 
@@ -186,12 +186,12 @@ static int scan_mgr(struct super_block *super)
 }
 
 /**
- * done_ktxnmgrd - stop kernel thread and frees ktxnmgrd context
+ * reiser4_done_ktxnmgrd - stop kernel thread and frees ktxnmgrd context
  * @mgr:
  *
  * This is called on umount. Stops ktxnmgrd and free t
  */
-void done_ktxnmgrd(struct super_block *super)
+void reiser4_done_ktxnmgrd(struct super_block *super)
 {
 	txn_mgr *mgr;
 

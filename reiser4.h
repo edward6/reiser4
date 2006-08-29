@@ -6,12 +6,11 @@
 #if !defined( __REISER4_H__ )
 #define __REISER4_H__
 
-#include <linux/config.h>
 #include <asm/param.h>		/* for HZ */
 #include <linux/errno.h>
 #include <linux/types.h>
 #include <linux/fs.h>
-#include <asm/hardirq.h>
+#include <linux/hardirq.h>
 #include <linux/sched.h>
 
 /*
@@ -42,16 +41,6 @@
 #define REISER4_AES (1)
 #else
 #define REISER4_AES (0)
-#endif
-
-#if defined(CONFIG_REISER4_COPY_ON_CAPTURE)
-/*
- * Turns on copy-on-capture (COC) optimization. See
- * http://www.namesys.com/v4/v4.html#cp_on_capture
- */
-#define REISER4_COPY_ON_CAPTURE (1)
-#else
-#define REISER4_COPY_ON_CAPTURE (0)
 #endif
 
 /*
@@ -114,9 +103,6 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
  * set this to 0 if you don't want to use wait-for-flush in ->writepage().
  */
 #define REISER4_USE_ENTD (1)
-
-/* Using of emergency flush is an option. */
-#define REISER4_USE_EFLUSH (1)
 
 /* key allocation is Plan-A */
 #define REISER4_PLANA_KEY_ALLOCATION (1)

@@ -82,8 +82,8 @@ typedef struct reiser4_dentry_fsdata {
 				 * treatment in readdir. */
 } reiser4_dentry_fsdata;
 
-extern int init_dentry_fsdata(void);
-extern void done_dentry_fsdata(void);
+extern int reiser4_init_dentry_fsdata(void);
+extern void reiser4_done_dentry_fsdata(void);
 extern reiser4_dentry_fsdata *reiser4_get_dentry_fsdata(struct dentry *);
 extern void reiser4_free_dentry_fsdata(struct dentry *dentry);
 
@@ -123,7 +123,7 @@ typedef struct reiser4_file_fsdata {
 		/* this is called by reiser4_readpages if set */
 		void (*readpages) (struct address_space *,
 				   struct list_head * pages, void *data);
-		/* reiser4_readpaextended coord. It is set by read_extent before
+		/* This is set by reiser4_read_extent before
 		   calling page_cache_readahead */
 		void *data;
 	} ra2;
@@ -131,8 +131,8 @@ typedef struct reiser4_file_fsdata {
 
 } reiser4_file_fsdata;
 
-extern int init_file_fsdata(void);
-extern void done_file_fsdata(void);
+extern int reiser4_init_file_fsdata(void);
+extern void reiser4_done_file_fsdata(void);
 extern reiser4_file_fsdata *reiser4_get_file_fsdata(struct file *);
 extern void reiser4_free_file_fsdata(struct file *);
 
@@ -174,23 +174,24 @@ struct dir_cursor {
 	struct list_head alist;
 };
 
-extern int init_d_cursor(void);
-extern void done_d_cursor(void);
+extern int reiser4_init_d_cursor(void);
+extern void reiser4_done_d_cursor(void);
 
-extern int init_super_d_info(struct super_block *);
-extern void done_super_d_info(struct super_block *);
+extern int reiser4_init_super_d_info(struct super_block *);
+extern void reiser4_done_super_d_info(struct super_block *);
 
-extern loff_t get_dir_fpos(struct file *);
-extern int try_to_attach_fsdata(struct file *, struct inode *);
-extern void detach_fsdata(struct file *);
+extern loff_t reiser4_get_dir_fpos(struct file *);
+extern int reiser4_attach_fsdata(struct file *, struct inode *);
+extern void reiser4_detach_fsdata(struct file *);
 
 
 /* these are needed for "stateless" readdir. See plugin/file_ops_readdir.c for
    more details */
-void dispose_cursors(struct inode *inode);
-void load_cursors(struct inode *inode);
-void kill_cursors(struct inode *inode);
-void adjust_dir_file(struct inode *dir, const struct dentry *de, int offset, int adj);
+void reiser4_dispose_cursors(struct inode *inode);
+void reiser4_load_cursors(struct inode *inode);
+void reiser4_kill_cursors(struct inode *inode);
+void reiser4_adjust_dir_file(struct inode *dir, const struct dentry *de,
+			     int offset, int adj);
 
 /*
  * this structure is embedded to reise4_super_info_data. It maintains d_cursors

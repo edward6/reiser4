@@ -90,7 +90,7 @@
    When we irrevocably commit ourselves to decision to remove node from the
    tree, JNODE_HEARD_BANSHEE bit is set in zjnode.state of corresponding
    znode. This is done either in ->kill_hook() of internal item or in
-   kill_root() function when tree root is removed.
+   reiser4_kill_root() function when tree root is removed.
 
    At this moment znode still has:
 
@@ -108,9 +108,9 @@
    parent node due to its nonexistence or proper parent node locking and
    nobody uses parent pointers from children due to absence of them. Second we
    invalidate all pending lock requests which still are on znode's lock
-   request queue, this is done by invalidate_lock(). Another JNODE_IS_DYING
-   znode status bit is used to invalidate pending lock requests. Once it set
-   all requesters are forced to return -EINVAL from
+   request queue, this is done by reiser4_invalidate_lock(). Another
+   JNODE_IS_DYING znode status bit is used to invalidate pending lock requests.
+   Once it set all requesters are forced to return -EINVAL from
    longterm_lock_znode(). Future locking attempts are not possible because all
    ways to get references to that znode are removed already. Last, node is
    uncaptured from transaction.
@@ -253,7 +253,6 @@ void zfree(znode * node /* znode to free */ )
 	assert("nikita-2302", list_empty_careful(&node->lock.requestors));
 	assert("nikita-2663", (list_empty_careful(&ZJNODE(node)->capture_link) &&
 			       NODE_LIST(ZJNODE(node)) == NOT_CAPTURED));
-	assert("nikita-2773", !JF_ISSET(ZJNODE(node), JNODE_EFLUSH));
 	assert("nikita-3220", list_empty(&ZJNODE(node)->jnodes));
 	assert("nikita-3293", !znode_is_right_connected(node));
 	assert("nikita-3294", !znode_is_left_connected(node));
@@ -307,7 +306,7 @@ void znodes_tree_done(reiser4_tree * tree /* tree to finish with znodes of */ )
 /* ZNODE STRUCTURES */
 
 /* allocate fresh znode */
-znode *zalloc(unsigned int gfp_flag /* allocation flag */ )
+znode *zalloc(gfp_t gfp_flag /* allocation flag */ )
 {
 	znode *node;
 
@@ -464,7 +463,7 @@ static z_hash_table *znode_get_htable(const znode * node)
 */
 znode *zget(reiser4_tree * tree,
 	    const reiser4_block_nr * const blocknr,
-	    znode * parent, tree_level level, int gfp_flag)
+	    znode * parent, tree_level level, gfp_t gfp_flag)
 {
 	znode *result;
 	__u32 hashi;
@@ -536,7 +535,7 @@ znode *zget(reiser4_tree * tree,
 		write_unlock_tree(tree);
 	}
 #if REISER4_DEBUG
-	if (!blocknr_is_fake(blocknr) && *blocknr != 0)
+	if (!reiser4_blocknr_is_fake(blocknr) && *blocknr != 0)
 		reiser4_check_block(blocknr, 1);
 #endif
 	/* Check for invalid tree level, return -EIO */
@@ -624,7 +623,7 @@ int zload_ra(znode * node /* znode to load */ , ra_info_t * info)
 	assert("nikita-1377", znode_invariant(node));
 	assert("jmacd-7771", !znode_above_root(node));
 	assert("nikita-2125", atomic_read(&ZJNODE(node)->x_count) > 0);
-	assert("nikita-3016", schedulable());
+	assert("nikita-3016", reiser4_schedulable());
 
 	if (info)
 		formatted_readahead(node, info);
@@ -641,7 +640,7 @@ int zload(znode * node)
 }
 
 /* call node plugin to initialise newly allocated node. */
-int zinit_new(znode * node /* znode to initialise */ , int gfp_flags)
+int zinit_new(znode * node /* znode to initialise */ , gfp_t gfp_flags)
 {
 	return jinit_new(ZJNODE(node), gfp_flags);
 }
@@ -696,7 +695,7 @@ reiser4_key *znode_set_rd_key(znode * node, const reiser4_key * key)
 	       znode_is_any_locked(node) ||
 	       znode_get_level(node) != LEAF_LEVEL ||
 	       keyge(key, &node->rd_key) ||
-	       keyeq(&node->rd_key, min_key()) ||
+	       keyeq(&node->rd_key, reiser4_min_key()) ||
 	       ZF_ISSET(node, JNODE_HEARD_BANSHEE));
 
 	node->rd_key = *key;
@@ -712,7 +711,8 @@ reiser4_key *znode_set_ld_key(znode * node, const reiser4_key * key)
 	assert_rw_write_locked(&(znode_get_tree(node)->dk_lock));
 	assert("nikita-3070", LOCK_CNT_GTZ(write_locked_dk));
 	assert("nikita-2943",
-	       znode_is_any_locked(node) || keyeq(&node->ld_key, min_key()));
+	       znode_is_any_locked(node) || keyeq(&node->ld_key,
+						  reiser4_min_key()));
 
 	node->ld_key = *key;
 	ON_DEBUG(node->ld_key_version = atomic_inc_return(&delim_key_version));

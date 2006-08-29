@@ -41,7 +41,7 @@ typedef enum {
 	REISER4_IMMUTABLE = 2,
 	/* inode was read from storage */
 	REISER4_LOADED = 3,
-	/* this bit is set for symlinks. inode->u.generic_ip points to target
+	/* this bit is set for symlinks. inode->i_private points to target
 	   name of symlink. */
 	REISER4_GENERIC_PTR_USED = 4,
 	/* set if size of stat-data item for this inode is known. If this is
@@ -57,9 +57,9 @@ typedef enum {
 	 * kill-hook of tail items. It is never cleared once set. This bit is
 	 * modified and inspected under i_mutex. */
 	REISER4_HAS_MMAP = 8,
-	/* file was partially converted. It's body consists of a mix of tail
-	 * and extent items. */
-	REISER4_PART_CONV = 9,
+
+	REISER4_PART_MIXED = 9,
+	REISER4_PART_IN_CONV = 10
 } reiser4_file_plugin_flags;
 
 /* state associated with each inode.
@@ -130,9 +130,6 @@ struct reiser4_inode {
 		/* fields specific to cryptcompress plugin */
 		cryptcompress_info_t cryptcompress_info;
 	} file_plugin_data;
-	struct rw_semaphore coc_sem;	/* filemap_nopage takes it for read, copy_on_capture - for write. Under this it
-					   tries to unmap page for which it is called. This prevents process from using page which
-					   was copied on capture */
 
 	/* tree of jnodes. Phantom jnodes (ones not attched to any atom) are
 	   tagged in that tree by EFLUSH_TAG_ANONYMOUS */
@@ -255,13 +252,13 @@ static inline struct inode *unix_file_info_to_inode(const unix_file_info_t *
 extern ino_t oid_to_ino(oid_t oid) __attribute__ ((const));
 extern ino_t oid_to_uino(oid_t oid) __attribute__ ((const));
 
-extern reiser4_tree *tree_by_inode(const struct inode *inode);
+extern reiser4_tree *reiser4_tree_by_inode(const struct inode *inode);
 
 #if REISER4_DEBUG
-extern void inode_invariant(const struct inode *inode);
+extern void reiser4_inode_invariant(const struct inode *inode);
 extern int inode_has_no_jnodes(reiser4_inode *);
 #else
-#define inode_invariant(inode) noop
+#define reiser4_inode_invariant(inode) noop
 #endif
 
 static inline int spin_inode_is_locked(const struct inode *inode)
@@ -289,7 +286,7 @@ static inline void spin_lock_inode(struct inode *inode)
 	LOCK_CNT_INC(spin_locked_inode);
 	LOCK_CNT_INC(spin_locked);
 
-	inode_invariant(inode);
+	reiser4_inode_invariant(inode);
 }
 
 /**
@@ -305,7 +302,7 @@ static inline void spin_unlock_inode(struct inode *inode)
 	assert("nikita-1375", LOCK_CNT_GTZ(spin_locked_inode));
 	assert("nikita-1376", LOCK_CNT_GTZ(spin_locked));
 
-	inode_invariant(inode);
+	reiser4_inode_invariant(inode);
 
 	LOCK_CNT_DEC(spin_locked_inode);
 	LOCK_CNT_DEC(spin_locked);
@@ -325,17 +322,17 @@ extern int setup_inode_ops(struct inode *inode, reiser4_object_create_data *);
 extern struct inode *reiser4_iget(struct super_block *super,
 				  const reiser4_key * key, int silent);
 extern void reiser4_iget_complete(struct inode *inode);
-extern void inode_set_flag(struct inode *inode, reiser4_file_plugin_flags f);
-extern void inode_clr_flag(struct inode *inode, reiser4_file_plugin_flags f);
-extern int inode_get_flag(const struct inode *inode,
-			  reiser4_file_plugin_flags f);
+extern void reiser4_inode_set_flag(struct inode *inode, reiser4_file_plugin_flags f);
+extern void reiser4_inode_clr_flag(struct inode *inode, reiser4_file_plugin_flags f);
+extern int reiser4_inode_get_flag(const struct inode *inode,
+				  reiser4_file_plugin_flags f);
 
 /*  has inode been initialized? */
 static inline int
 is_inode_loaded(const struct inode *inode /* inode queried */ )
 {
 	assert("nikita-1120", inode != NULL);
-	return inode_get_flag(inode, REISER4_LOADED);
+	return reiser4_inode_get_flag(inode, REISER4_LOADED);
 }
 
 extern file_plugin *inode_file_plugin(const struct inode *inode);
@@ -393,7 +390,7 @@ extern void inode_check_scale_nolock(struct inode * inode, __u64 old, __u64 new)
 	-- __i->field;						\
 })
 
-/* See comment before readdir_common() for description. */
+/* See comment before reiser4_readdir_common() for description. */
 static inline struct list_head *get_readdir_list(const struct inode *inode)
 {
 	return &reiser4_inode_data(inode)->lists.readdir_list;

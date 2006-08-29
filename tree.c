@@ -47,7 +47,7 @@
  * ->max_key_inside() can be larger that any key actually located in the item,
  * intervals
  *
- * [ min_key( item ), ->max_key_inside( item ) ]
+ * [ reiser4_min_key( item ), ->max_key_inside( item ) ]
  *
  * are still disjoint for all items within the _same_ node.
  *
@@ -280,7 +280,7 @@ static insert_result insert_with_carry_by_coord(coord_t * coord,	/* coord where 
 	lowest_level = (carry_level *) (pool + 1);
 	init_carry_level(lowest_level, pool);
 
-	op = post_carry(lowest_level, cop, coord->node, 0);
+	op = reiser4_post_carry(lowest_level, cop, coord->node, 0);
 	if (IS_ERR(op) || (op == NULL)) {
 		done_carry_pool(pool);
 		return RETERR(op ? PTR_ERR(op) : -EIO);
@@ -301,7 +301,7 @@ static insert_result insert_with_carry_by_coord(coord_t * coord,	/* coord where 
 		lowest_level->tracked = lh;
 	}
 
-	result = carry(lowest_level, NULL);
+	result = reiser4_carry(lowest_level, NULL);
 	done_carry_pool(pool);
 
 	return result;
@@ -340,7 +340,7 @@ static int paste_with_carry(coord_t * coord,	/* coord of paste */
 	lowest_level = (carry_level *) (pool + 1);
 	init_carry_level(lowest_level, pool);
 
-	op = post_carry(lowest_level, COP_PASTE, coord->node, 0);
+	op = reiser4_post_carry(lowest_level, COP_PASTE, coord->node, 0);
 	if (IS_ERR(op) || (op == NULL)) {
 		done_carry_pool(pool);
 		return RETERR(op ? PTR_ERR(op) : -EIO);
@@ -359,7 +359,7 @@ static int paste_with_carry(coord_t * coord,	/* coord of paste */
 		lowest_level->tracked = lh;
 	}
 
-	result = carry(lowest_level, NULL);
+	result = reiser4_carry(lowest_level, NULL);
 	done_carry_pool(pool);
 
 	return result;
@@ -536,12 +536,12 @@ int insert_into_item(coord_t * coord /* coord of pasting */ ,
 }
 
 /* this either appends or truncates item @coord */
-int resize_item(coord_t * coord /* coord of item being resized */ ,
-		reiser4_item_data * data /* parameters of resize */ ,
-		reiser4_key * key /* key of new unit */ ,
-		lock_handle * lh	/* lock handle of node
-					 * being modified */ ,
-		cop_insert_flag flags /* carry flags */ )
+int reiser4_resize_item(coord_t * coord /* coord of item being resized */ ,
+			reiser4_item_data * data /* parameters of resize */ ,
+			reiser4_key * key /* key of new unit */ ,
+			lock_handle * lh	/* lock handle of node
+						 * being modified */ ,
+			cop_insert_flag flags /* carry flags */ )
 {
 	int result;
 	znode *node;
@@ -567,7 +567,7 @@ int resize_item(coord_t * coord /* coord of item being resized */ ,
 }
 
 /* insert flow @f */
-int insert_flow(coord_t * coord, lock_handle * lh, flow_t * f)
+int reiser4_insert_flow(coord_t * coord, lock_handle * lh, flow_t * f)
 {
 	int result;
 	carry_pool *pool;
@@ -583,7 +583,7 @@ int insert_flow(coord_t * coord, lock_handle * lh, flow_t * f)
 	lowest_level = (carry_level *) (pool + 1);
 	init_carry_level(lowest_level, pool);
 
-	op = post_carry(lowest_level, COP_INSERT_FLOW, coord->node,
+	op = reiser4_post_carry(lowest_level, COP_INSERT_FLOW, coord->node,
 			0 /* operate directly on coord -> node */ );
 	if (IS_ERR(op) || (op == NULL)) {
 		done_carry_pool(pool);
@@ -609,7 +609,7 @@ int insert_flow(coord_t * coord, lock_handle * lh, flow_t * f)
 	lowest_level->track_type = CARRY_TRACK_CHANGE;
 	lowest_level->tracked = lh;
 
-	result = carry(lowest_level, NULL);
+	result = reiser4_carry(lowest_level, NULL);
 	done_carry_pool(pool);
 
 	return result;
@@ -654,7 +654,8 @@ znode *child_znode(const coord_t * parent_coord	/* coord of pointer to
 		else
 			child =
 			    zget(tree, &addr, parent,
-				 znode_get_level(parent) - 1, GFP_KERNEL);
+				 znode_get_level(parent) - 1,
+				 reiser4_ctx_gfp_mask_get());
 		if ((child != NULL) && !IS_ERR(child) && setup_dkeys_p)
 			set_child_delimiting_keys(parent, parent_coord, child);
 	} else {
@@ -671,14 +672,7 @@ static void uncapture_znode(znode * node)
 
 	assert("zam-1001", ZF_ISSET(node, JNODE_HEARD_BANSHEE));
 
-	/* Get e-flush block allocation back before deallocating node's
-	 * block number. */
-	spin_lock_znode(node);
-	if (ZF_ISSET(node, JNODE_EFLUSH))
-		eflush_del(ZJNODE(node), 0);
-	spin_unlock_znode(node);
-
-	if (!blocknr_is_fake(znode_get_block(node))) {
+	if (!reiser4_blocknr_is_fake(znode_get_block(node))) {
 		int ret;
 
 		/* An already allocated block goes right to the atom's delete set. */
@@ -714,21 +708,21 @@ static void uncapture_znode(znode * node)
 	 * uncapture page from transaction. There is a possibility of a race
 	 * with ->releasepage(): reiser4_releasepage() detaches page from this
 	 * jnode and we have nothing to uncapture. To avoid this, get
-	 * reference of node->pg under jnode spin lock. uncapture_page() will
-	 * deal with released page itself.
+	 * reference of node->pg under jnode spin lock. reiser4_uncapture_page()
+	 * will deal with released page itself.
 	 */
 	spin_lock_znode(node);
 	page = znode_page(node);
 	if (likely(page != NULL)) {
 		/*
-		 * uncapture_page() can only be called when we are sure that
-		 * znode is pinned in memory, which we are, because
+		 * reiser4_uncapture_page() can only be called when we are sure
+		 * that znode is pinned in memory, which we are, because
 		 * forget_znode() is only called from longterm_unlock_znode().
 		 */
 		page_cache_get(page);
 		spin_unlock_znode(node);
 		lock_page(page);
-		uncapture_page(page);
+		reiser4_uncapture_page(page);
 		unlock_page(page);
 		page_cache_release(page);
 	} else {
@@ -744,11 +738,11 @@ static void uncapture_znode(znode * node)
 				break;
 
 			spin_unlock_znode(node);
-			atom_wait_event(atom);
+			reiser4_atom_wait_event(atom);
 			spin_lock_znode(node);
 		}
 
-		uncapture_block(ZJNODE(node));
+		reiser4_uncapture_block(ZJNODE(node));
 		spin_unlock_atom(atom);
 		zput(node);
 	}
@@ -792,7 +786,7 @@ void forget_znode(lock_handle * handle)
 	 * invalidation does not allow other threads to waste cpu time is a busy
 	 * loop, trying to lock dying object.  The exception is in the flush
 	 * code when we take node directly from atom's capture list.*/
-	invalidate_lock(handle);
+	reiser4_invalidate_lock(handle);
 	uncapture_znode(node);
 }
 
@@ -1249,7 +1243,7 @@ prepare_twig_kill(carry_kill_data * kdata, znode * locked_left_neighbor)
 
 /* this is used to remove part of node content between coordinates @from and @to. Units to which @from and @to are set
    are to be cut completely */
-/* for try_to_merge_with_left, delete_copied, delete_node */
+/* for try_to_merge_with_left, delete_copied, reiser4_delete_node */
 int cut_node_content(coord_t * from, coord_t * to, const reiser4_key * from_key,	/* first key to be removed */
 		     const reiser4_key * to_key,	/* last key to be removed */
 		     reiser4_key *
@@ -1271,7 +1265,7 @@ int cut_node_content(coord_t * from, coord_t * to, const reiser4_key * from_key,
 	lowest_level = (carry_level *) (pool + 1);
 	init_carry_level(lowest_level, pool);
 
-	op = post_carry(lowest_level, COP_CUT, from->node, 0);
+	op = reiser4_post_carry(lowest_level, COP_CUT, from->node, 0);
 	assert("vs-1509", op != 0);
 	if (IS_ERR(op)) {
 		done_carry_pool(pool);
@@ -1288,7 +1282,7 @@ int cut_node_content(coord_t * from, coord_t * to, const reiser4_key * from_key,
 	op->u.cut_or_kill.is_cut = 1;
 	op->u.cut_or_kill.u.cut = cut_data;
 
-	result = carry(lowest_level, NULL);
+	result = reiser4_carry(lowest_level, NULL);
 	done_carry_pool(pool);
 
 	return result;
@@ -1371,7 +1365,7 @@ int kill_node_content(coord_t * from,	/* coord of the first unit/item that will 
 		}
 	}
 
-	op = post_carry(lowest_level, COP_CUT, from->node, 0);
+	op = reiser4_post_carry(lowest_level, COP_CUT, from->node, 0);
 	if (IS_ERR(op) || (op == NULL)) {
 		done_children(kdata);
 		done_carry_pool(pool);
@@ -1381,7 +1375,7 @@ int kill_node_content(coord_t * from,	/* coord of the first unit/item that will 
 	op->u.cut_or_kill.is_cut = 0;
 	op->u.cut_or_kill.u.kill = kdata;
 
-	result = carry(lowest_level, NULL);
+	result = reiser4_carry(lowest_level, NULL);
 
 	done_children(kdata);
 	done_carry_pool(pool);
@@ -1391,7 +1385,7 @@ int kill_node_content(coord_t * from,	/* coord of the first unit/item that will 
 void
 fake_kill_hook_tail(struct inode *inode, loff_t start, loff_t end, int truncate)
 {
-	if (inode_get_flag(inode, REISER4_HAS_MMAP)) {
+	if (reiser4_inode_get_flag(inode, REISER4_HAS_MMAP)) {
 		pgoff_t start_pg, end_pg;
 
 		start_pg = start >> PAGE_CACHE_SHIFT;
@@ -1432,8 +1426,8 @@ fake_kill_hook_tail(struct inode *inode, loff_t start, loff_t end, int truncate)
  * cut_worker() iteration.  This is needed for proper accounting of
  * "i_blocks" and "i_bytes" fields of the @object.
  */
-int delete_node(znode * node, reiser4_key * smallest_removed,
-		struct inode *object, int truncate)
+int reiser4_delete_node(znode * node, reiser4_key * smallest_removed,
+			struct inode *object, int truncate)
 {
 	lock_handle parent_lock;
 	coord_t cut_from;
@@ -1552,8 +1546,8 @@ static int can_delete(const reiser4_key *key, znode *node)
  * @progress: return true if a progress in file items deletions was made,
  *            @smallest_removed value is actual in that case.
  *
- * @return: 0 if success, error code otherwise, -E_REPEAT means that long cut_tree
- * operation was interrupted for allowing atom commit .
+ * @return: 0 if success, error code otherwise, -E_REPEAT means that long
+ * reiser4_cut_tree operation was interrupted for allowing atom commit.
  */
 int
 cut_tree_worker_common(tap_t * tap, const reiser4_key * from_key,
@@ -1587,10 +1581,10 @@ cut_tree_worker_common(tap_t * tap, const reiser4_key * from_key,
 		/* Check can we delete the node as a whole. */
 		if (*progress && znode_get_level(node) == LEAF_LEVEL &&
 		    can_delete(from_key, node)) {
-			result = delete_node(node, smallest_removed, object,
-					     truncate);
+			result = reiser4_delete_node(node, smallest_removed,
+						     object, truncate);
 		} else {
-			result = tap_load(tap);
+			result = reiser4_tap_load(tap);
 			if (result)
 				return result;
 
@@ -1644,13 +1638,13 @@ cut_tree_worker_common(tap_t * tap, const reiser4_key * from_key,
 			}
 
 			/* cut data from one node */
-			// *smallest_removed = *min_key();
+			// *smallest_removed = *reiser4_min_key();
 			result =
 			    kill_node_content(&left_coord, tap->coord, from_key,
 					      to_key, smallest_removed,
 					      next_node_lock.node, object,
 					      truncate);
-			tap_relse(tap);
+			reiser4_tap_relse(tap);
 		}
 		if (result)
 			break;
@@ -1666,13 +1660,13 @@ cut_tree_worker_common(tap_t * tap, const reiser4_key * from_key,
 		if (next_node_lock.node == NULL)
 			break;
 
-		result = tap_move(tap, &next_node_lock);
+		result = reiser4_tap_move(tap, &next_node_lock);
 		done_lh(&next_node_lock);
 		if (result)
 			break;
 
-		/* Break long cut_tree operation (deletion of a large file) if
-		 * atom requires commit. */
+		/* Break long reiser4_cut_tree operation (deletion of a large
+		   file) if atom requires commit. */
 		if (*progress > CUT_TREE_MIN_ITERATIONS
 		    && current_atom_should_commit()) {
 			result = -E_REPEAT;
@@ -1680,7 +1674,7 @@ cut_tree_worker_common(tap_t * tap, const reiser4_key * from_key,
 		}
 	}
 	done_lh(&next_node_lock);
-	// assert("vs-301", !keyeq(&smallest_removed, min_key()));
+	// assert("vs-301", !keyeq(&smallest_removed, reiser4_min_key()));
 	return result;
 }
 
@@ -1727,10 +1721,10 @@ cut_tree_worker_common(tap_t * tap, const reiser4_key * from_key,
  * operation was interrupted for allowing atom commit .
  */
 
-int
-cut_tree_object(reiser4_tree * tree, const reiser4_key * from_key,
-		const reiser4_key * to_key, reiser4_key * smallest_removed_p,
-		struct inode *object, int truncate, int *progress)
+int reiser4_cut_tree_object(reiser4_tree * tree, const reiser4_key * from_key,
+			    const reiser4_key * to_key,
+			    reiser4_key * smallest_removed_p,
+			    struct inode *object, int truncate, int *progress)
 {
 	lock_handle lock;
 	int result;
@@ -1754,10 +1748,11 @@ cut_tree_object(reiser4_tree * tree, const reiser4_key * from_key,
 
 	do {
 		/* Find rightmost item to cut away from the tree. */
-		result = object_lookup(object, to_key, &right_coord, &lock,
-				       ZNODE_WRITE_LOCK, FIND_MAX_NOT_MORE_THAN,
-				       TWIG_LEVEL, LEAF_LEVEL, CBK_UNIQUE,
-				       NULL /*ra_info */ );
+		result = reiser4_object_lookup(object, to_key, &right_coord,
+					       &lock, ZNODE_WRITE_LOCK,
+					       FIND_MAX_NOT_MORE_THAN,
+					       TWIG_LEVEL, LEAF_LEVEL,
+					       CBK_UNIQUE, NULL /*ra_info */);
 		if (result != CBK_COORD_FOUND)
 			break;
 		if (object == NULL
@@ -1766,13 +1761,13 @@ cut_tree_object(reiser4_tree * tree, const reiser4_key * from_key,
 		else
 			cut_tree_worker =
 			    inode_file_plugin(object)->cut_tree_worker;
-		tap_init(&tap, &right_coord, &lock, ZNODE_WRITE_LOCK);
+		reiser4_tap_init(&tap, &right_coord, &lock, ZNODE_WRITE_LOCK);
 		result =
 		    cut_tree_worker(&tap, from_key, to_key, smallest_removed_p,
 				    object, truncate, progress);
-		tap_done(&tap);
+		reiser4_tap_done(&tap);
 
-		preempt_point();
+		reiser4_preempt_point();
 
 	} while (0);
 
@@ -1798,27 +1793,25 @@ cut_tree_object(reiser4_tree * tree, const reiser4_key * from_key,
 	return result;
 }
 
-/* repeat cut_tree_object until everything is deleted. unlike cut_file_items, it
- * does not end current transaction if -E_REPEAT is returned by
- * cut_tree_object. */
-int
-cut_tree(reiser4_tree * tree, const reiser4_key * from, const reiser4_key * to,
-	 struct inode *inode, int truncate)
+/* repeat reiser4_cut_tree_object until everything is deleted.
+ * unlike cut_file_items, it does not end current transaction if -E_REPEAT
+ * is returned by cut_tree_object. */
+int reiser4_cut_tree(reiser4_tree * tree, const reiser4_key * from,
+		     const reiser4_key * to, struct inode *inode, int truncate)
 {
 	int result;
 	int progress;
 
 	do {
-		result =
-		    cut_tree_object(tree, from, to, NULL, inode, truncate,
-				    &progress);
+		result = reiser4_cut_tree_object(tree, from, to, NULL,
+						 inode, truncate, &progress);
 	} while (result == -E_REPEAT);
 
 	return result;
 }
 
 /* finishing reiser4 initialization */
-int init_tree(reiser4_tree * tree	/* pointer to structure being
+int reiser4_init_tree(reiser4_tree * tree	/* pointer to structure being
 					 * initialized */ ,
 	      const reiser4_block_nr * root_block	/* address of a root block
 							 * on a disk */ ,
@@ -1846,7 +1839,8 @@ int init_tree(reiser4_tree * tree	/* pointer to structure being
 	if (result == 0)
 		result = jnodes_tree_init(tree);
 	if (result == 0) {
-		tree->uber = zget(tree, &UBER_TREE_ADDR, NULL, 0, GFP_KERNEL);
+		tree->uber = zget(tree, &UBER_TREE_ADDR, NULL, 0,
+				  reiser4_ctx_gfp_mask_get());
 		if (IS_ERR(tree->uber)) {
 			result = PTR_ERR(tree->uber);
 			tree->uber = NULL;
@@ -1856,7 +1850,7 @@ int init_tree(reiser4_tree * tree	/* pointer to structure being
 }
 
 /* release resources associated with @tree */
-void done_tree(reiser4_tree * tree /* tree to release */ )
+void reiser4_done_tree(reiser4_tree * tree /* tree to release */ )
 {
 	if (tree == NULL)
 		return;

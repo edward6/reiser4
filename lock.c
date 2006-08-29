@@ -205,17 +205,17 @@
 
 /* Znode lock and capturing intertwining. */
 /* In current implementation we capture formatted nodes before locking
-   them. Take a look on longterm lock znode, try_capture() request precedes
-   locking requests.  The longterm_lock_znode function unconditionally captures
-   znode before even checking of locking conditions.
+   them. Take a look on longterm lock znode, reiser4_try_capture() request
+   precedes locking requests.  The longterm_lock_znode function unconditionally
+   captures znode before even checking of locking conditions.
 
    Another variant is to capture znode after locking it.  It was not tested, but
    at least one deadlock condition is supposed to be there.  One thread has
-   locked a znode (Node-1) and calls try_capture() for it.  Try_capture() sleeps
-   because znode's atom has CAPTURE_WAIT state.  Second thread is a flushing
-   thread, its current atom is the atom Node-1 belongs to. Second thread wants
-   to lock Node-1 and sleeps because Node-1 is locked by the first thread.  The
-   described situation is a deadlock. */
+   locked a znode (Node-1) and calls reiser4_try_capture() for it.
+   reiser4_try_capture() sleeps because znode's atom has CAPTURE_WAIT state.
+   Second thread is a flushing thread, its current atom is the atom Node-1
+   belongs to. Second thread wants to lock Node-1 and sleeps because Node-1
+   is locked by the first thread.  The described situation is a deadlock. */
 
 #include "debug.h"
 #include "txnmgr.h"
@@ -276,6 +276,7 @@ link_object(lock_handle * handle, lock_stack * owner, znode * node)
 	/* add lock handle to the end of lock_stack's list of locks */
 	list_add_tail(&handle->locks_link, &owner->locks);
 	ON_DEBUG(owner->nr_locks++);
+	reiser4_ctx_gfp_mask_set();
 
 	/* add lock handle to the head of znode's list of owners */
 	list_add(&handle->owners_link, &node->lock.owners);
@@ -294,6 +295,7 @@ static inline void unlink_object(lock_handle * handle)
 	/* remove lock handle from lock_stack's list of locks */
 	list_del(&handle->locks_link);
 	ON_DEBUG(handle->owner->nr_locks--);
+	reiser4_ctx_gfp_mask_set();
 	assert("reiser4-6",
 	       ergo(list_empty_careful(&handle->owner->locks),
 		    handle->owner->nr_locks == 0));
@@ -613,7 +615,7 @@ void longterm_unlock_znode(lock_handle * handle)
 	 */
 
 	/* was this lock of hi or lo priority */
-	hipri = oldowner->curpri ? -1 : 0;
+	hipri = oldowner->curpri ? 1 : 0;
 	/* number of readers */
 	readers = node->lock.nr_readers;
 	/* +1 if write lock, -1 if read lock */
@@ -626,8 +628,8 @@ void longterm_unlock_znode(lock_handle * handle)
 	assert("zam-101", znode_is_locked(node));
 
 	/* Adjust a number of high priority owners of this lock */
-	node->lock.nr_hipri_owners += hipri;
-	assert("nikita-1836", node->lock.nr_hipri_owners >= 0);
+	assert("nikita-1836", node->lock.nr_hipri_owners >= hipri);
+	node->lock.nr_hipri_owners -= hipri;
 
 	/* Handle znode deallocation on last write-lock release. */
 	if (znode_is_wlocked_once(node)) {
@@ -715,7 +717,7 @@ static int longterm_lock_tryfast(lock_stack * owner)
 	node = owner->request.node;
 	lock = &node->lock;
 
-	assert("nikita-3340", schedulable());
+	assert("nikita-3340", reiser4_schedulable());
 	assert("nikita-3341", request_is_deadlock_safe(node,
 						       ZNODE_READ_LOCK,
 						       ZNODE_LOCK_LOPRI));
@@ -725,9 +727,7 @@ static int longterm_lock_tryfast(lock_stack * owner)
 
 	if (likely(result != -EINVAL)) {
 		spin_lock_znode(node);
-		result =
-		    try_capture(ZJNODE(node), ZNODE_READ_LOCK, 0,
-				1 /* can copy on capture */ );
+		result = reiser4_try_capture(ZJNODE(node), ZNODE_READ_LOCK, 0);
 		spin_unlock_znode(node);
 		spin_lock_zlock(lock);
 		if (unlikely(result != 0)) {
@@ -771,7 +771,7 @@ int longterm_lock_znode(
 	/* Check that the lock handle is initialized and isn't already being
 	 * used. */
 	assert("jmacd-808", handle->owner == NULL);
-	assert("nikita-3026", schedulable());
+	assert("nikita-3026", reiser4_schedulable());
 	assert("nikita-3219", request_is_deadlock_safe(node, mode, request));
 	assert("zam-1056", atomic_read(&ZJNODE(node)->x_count) > 0);
 	/* long term locks are not allowed in the VM contexts (->writepage(),
@@ -855,7 +855,7 @@ int longterm_lock_znode(
 		 * 1. read of aligned word is atomic with respect to writes to
 		 * this word
 		 *
-		 * 2. false negatives are handled in try_capture().
+		 * 2. false negatives are handled in reiser4_try_capture().
 		 *
 		 * 3. false positives are impossible.
 		 *
@@ -883,8 +883,8 @@ int longterm_lock_znode(
 		 *
 		 * Suppose node->atom == NULL, that is, node was un-captured
 		 * between T1, and T3. But un-capturing of formatted node is
-		 * always preceded by the call to invalidate_lock(), which
-		 * marks znode as JNODE_IS_DYING under zlock spin
+		 * always preceded by the call to reiser4_invalidate_lock(),
+		 * which marks znode as JNODE_IS_DYING under zlock spin
 		 * lock. Contradiction, because can_lock_object() above checks
 		 * for JNODE_IS_DYING. Hence, node->atom != NULL at T3.
 		 *
@@ -907,15 +907,13 @@ int longterm_lock_znode(
 			/*
 			 * unlock zlock spin lock here. It is possible for
 			 * longterm_unlock_znode() to sneak in here, but there
-			 * is no harm: invalidate_lock() will mark znode as
-			 * JNODE_IS_DYING and this will be noted by
+			 * is no harm: reiser4_invalidate_lock() will mark znode
+			 * as JNODE_IS_DYING and this will be noted by
 			 * can_lock_object() below.
 			 */
 			spin_unlock_zlock(lock);
 			spin_lock_znode(node);
-			ret =
-			    try_capture(ZJNODE(node), mode, cap_flags,
-					1 /* can copy on capture */ );
+			ret = reiser4_try_capture(ZJNODE(node), mode, cap_flags);
 			spin_unlock_znode(node);
 			spin_lock_zlock(lock);
 			if (unlikely(ret != 0)) {
@@ -945,7 +943,7 @@ int longterm_lock_znode(
 		/* By having semaphore initialization here we cannot lose
 		   wakeup signal even if it comes after `nr_signaled' field
 		   check. */
-		ret = prepare_to_sleep(owner);
+		ret = reiser4_prepare_to_sleep(owner);
 		if (unlikely(ret != 0)) {
 			break;
 		}
@@ -970,7 +968,7 @@ int longterm_lock_znode(
 		   a znode ... */
 		spin_unlock_zlock(lock);
 		/* ... and sleep */
-		go_to_sleep(owner);
+		reiser4_go_to_sleep(owner);
 		if (owner->request.mode == ZNODE_NO_LOCK)
 			goto request_is_done;
 		spin_lock_zlock(lock);
@@ -991,10 +989,10 @@ int longterm_lock_znode(
 
 /* lock object invalidation means changing of lock object state to `INVALID'
    and waiting for all other processes to cancel theirs lock requests. */
-void invalidate_lock(lock_handle * handle	/* path to lock
-						 * owner and lock
-						 * object is being
-						 * invalidated. */ )
+void reiser4_invalidate_lock(lock_handle * handle	/* path to lock
+							 * owner and lock
+							 * object is being
+							 * invalidated. */ )
 {
 	znode *node = handle->node;
 	lock_stack *owner = handle->owner;
@@ -1095,7 +1093,7 @@ void copy_lh(lock_handle * new, lock_handle * old)
 }
 
 /* after getting -E_DEADLOCK we unlock znodes until this function returns false */
-int check_deadlock(void)
+int reiser4_check_deadlock(void)
 {
 	lock_stack *owner = get_current_lock_stack();
 	return atomic_read(&owner->nr_signaled) != 0;
@@ -1103,7 +1101,7 @@ int check_deadlock(void)
 
 /* Before going to sleep we re-check "release lock" requests which might come from threads with hi-pri lock
    priorities. */
-int prepare_to_sleep(lock_stack * owner)
+int reiser4_prepare_to_sleep(lock_stack * owner)
 {
 	assert("nikita-1847", owner == get_current_lock_stack());
 	/* NOTE(Zam): We cannot reset the lock semaphore here because it may
@@ -1146,10 +1144,10 @@ void __reiser4_wake_up(lock_stack * owner)
 }
 
 /* Puts a thread to sleep */
-void go_to_sleep(lock_stack * owner)
+void reiser4_go_to_sleep(lock_stack * owner)
 {
 	/* Well, we might sleep here, so holding of any spinlocks is no-no */
-	assert("nikita-3027", schedulable());
+	assert("nikita-3027", reiser4_schedulable());
 	/* return down_interruptible(&owner->sema); */
 	down(&owner->sema);
 }

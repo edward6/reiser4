@@ -112,7 +112,7 @@ typedef enum {
 	CRC_APPEND_ITEM = 1,
 	CRC_OVERWRITE_ITEM = 2,
 	CRC_CUT_ITEM = 3
-} crc_write_mode_t;
+} cryptcompress_write_mode_t;
 
 typedef enum {
 	PCL_UNKNOWN = 0,	/* invalid option */
@@ -458,8 +458,7 @@ int goto_right_neighbor(coord_t *, lock_handle *);
 int load_file_hint(struct file *, hint_t *);
 void save_file_hint(struct file *, const hint_t *);
 void hint_init_zero(hint_t *);
-int crc_inode_ok(struct inode *inode);
-int jnode_of_cluster(const jnode * node, struct page * page);
+int cryptcompress_inode_ok(struct inode *inode);
 extern int ctail_read_disk_cluster (reiser4_cluster_t *, struct inode *, int);
 extern int do_readpage_ctail(struct inode *, reiser4_cluster_t *,
 			     struct page * page);
@@ -471,10 +470,9 @@ crypto_stat_t * inode_crypto_stat (struct inode * inode);
 void inherit_crypto_stat_common(struct inode * parent, struct inode * object,
 				int (*can_inherit)(struct inode * child,
 						   struct inode * parent));
-void attach_crypto_stat(struct inode * inode, crypto_stat_t * info);
-void detach_crypto_stat(struct inode * inode);
+void reiser4_attach_crypto_stat(struct inode * inode, crypto_stat_t * info);
 void change_crypto_stat(struct inode * inode, crypto_stat_t * new);
-crypto_stat_t * alloc_crypto_stat (struct inode * inode);
+crypto_stat_t * reiser4_alloc_crypto_stat (struct inode * inode);
 
 
 static inline reiser4_tfma_t *

@@ -236,19 +236,19 @@ void free_convert_data(flush_pos_t * pos);
 /* used in extent.c */
 int scan_set_current(flush_scan * scan, jnode * node, unsigned add_size,
 		     const coord_t * parent);
-int scan_finished(flush_scan * scan);
-int scanning_left(flush_scan * scan);
-int scan_goto(flush_scan * scan, jnode * tonode);
+int reiser4_scan_finished(flush_scan * scan);
+int reiser4_scanning_left(flush_scan * scan);
+int reiser4_scan_goto(flush_scan * scan, jnode * tonode);
 txn_atom *atom_locked_by_fq(flush_queue_t * fq);
-int alloc_extent(flush_pos_t *flush_pos);
+int reiser4_alloc_extent(flush_pos_t *flush_pos);
 squeeze_result squalloc_extent(znode *left, const coord_t *, flush_pos_t *,
 			       reiser4_key *stop_key);
-extern int init_fqs(void);
-extern void done_fqs(void);
+extern int reiser4_init_fqs(void);
+extern void reiser4_done_fqs(void);
 
 #if REISER4_DEBUG
 
-extern void check_fq(const txn_atom *atom);
+extern void reiser4_check_fq(const txn_atom *atom);
 extern atomic_t flush_cnt;
 
 #define check_preceder(blk) \

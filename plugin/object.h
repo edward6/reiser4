@@ -9,31 +9,33 @@
 #include "../type_safe_hash.h"
 
 /* common implementations of inode operations */
-int create_common(struct inode *parent, struct dentry *dentry,
-		  int mode, struct nameidata *);
-struct dentry *lookup_common(struct inode *parent, struct dentry *dentry,
-			     struct nameidata *nameidata);
-int link_common(struct dentry *existing, struct inode *parent,
-		struct dentry *newname);
-int unlink_common(struct inode *parent, struct dentry *victim);
-int mkdir_common(struct inode *parent, struct dentry *dentry, int mode);
-int symlink_common(struct inode *parent, struct dentry *dentry,
+int reiser4_create_common(struct inode *parent, struct dentry *dentry,
+			  int mode, struct nameidata *);
+struct dentry * reiser4_lookup_common(struct inode *parent,
+				      struct dentry *dentry,
+				      struct nameidata *nameidata);
+int reiser4_link_common(struct dentry *existing, struct inode *parent,
+			struct dentry *newname);
+int reiser4_unlink_common(struct inode *parent, struct dentry *victim);
+int reiser4_mkdir_common(struct inode *parent, struct dentry *dentry, int mode);
+int reiser4_symlink_common(struct inode *parent, struct dentry *dentry,
 		   const char *linkname);
-int mknod_common(struct inode *parent, struct dentry *dentry,
+int reiser4_mknod_common(struct inode *parent, struct dentry *dentry,
 		 int mode, dev_t rdev);
-int rename_common(struct inode *old_dir, struct dentry *old_name,
-		  struct inode *new_dir, struct dentry *new_name);
-void *follow_link_common(struct dentry *, struct nameidata *data);
-int permission_common(struct inode *, int mask,	/* mode bits to check permissions for */
-		      struct nameidata *nameidata);
-int setattr_common(struct dentry *, struct iattr *);
-int getattr_common(struct vfsmount *mnt, struct dentry *, struct kstat *);
+int reiser4_rename_common(struct inode *old_dir, struct dentry *old_name,
+			  struct inode *new_dir, struct dentry *new_name);
+void *reiser4_follow_link_common(struct dentry *, struct nameidata *data);
+int reiser4_permission_common(struct inode *, int mask,
+			      struct nameidata *nameidata);
+int reiser4_setattr_common(struct dentry *, struct iattr *);
+int reiser4_getattr_common(struct vfsmount *mnt, struct dentry *,
+			   struct kstat *);
 
 /* common implementations of file operations */
-loff_t llseek_common_dir(struct file *, loff_t off, int origin);
-int readdir_common(struct file *, void *dirent, filldir_t);
-int release_dir_common(struct inode *, struct file *);
-int sync_common(struct file *, struct dentry *, int datasync);
+loff_t reiser4_llseek_dir_common(struct file *, loff_t off, int origin);
+int reiser4_readdir_common(struct file *, void *dirent, filldir_t);
+int reiser4_release_dir_common(struct inode *, struct file *);
+int reiser4_sync_common(struct file *, struct dentry *, int datasync);
 
 /* common implementations of address space operations */
 int prepare_write_common(struct file *, struct page *, unsigned from,
@@ -50,20 +52,20 @@ int adjust_to_parent_common_dir(struct inode *object, struct inode *parent,
 				struct inode *root);
 int adjust_to_parent_cryptcompress(struct inode *object, struct inode *parent,
 				   struct inode *root);
-int create_object_common(struct inode *object, struct inode *parent,
-			 reiser4_object_create_data *);
-int delete_object_common(struct inode *);
-int delete_directory_common(struct inode *);
-int add_link_common(struct inode *object, struct inode *parent);
-int rem_link_common(struct inode *object, struct inode *parent);
+int reiser4_create_object_common(struct inode *object, struct inode *parent,
+				 reiser4_object_create_data *);
+int reiser4_delete_object_common(struct inode *);
+int reiser4_delete_dir_common(struct inode *);
+int reiser4_add_link_common(struct inode *object, struct inode *parent);
+int reiser4_rem_link_common(struct inode *object, struct inode *parent);
 int rem_link_common_dir(struct inode *object, struct inode *parent);
 int owns_item_common(const struct inode *, const coord_t *);
 int owns_item_common_dir(const struct inode *, const coord_t *);
 int can_add_link_common(const struct inode *);
 int can_rem_link_common_dir(const struct inode *);
-int detach_common_dir(struct inode *child, struct inode *parent);
+int reiser4_detach_common_dir(struct inode *child, struct inode *parent);
 int open_cryptcompress(struct inode * inode, struct file * file);
-int bind_common_dir(struct inode *child, struct inode *parent);
+int reiser4_bind_common_dir(struct inode *child, struct inode *parent);
 int safelink_common(struct inode *, reiser4_safe_link_t, __u64 value);
 reiser4_block_nr estimate_create_common(const struct inode *);
 reiser4_block_nr estimate_create_common_dir(const struct inode *);
@@ -84,15 +86,15 @@ int is_name_acceptable_common(const struct inode *, const char *name, int len);
 void build_entry_key_common(const struct inode *,
 			    const struct qstr *qname, reiser4_key *);
 int build_readdir_key_common(struct file *dir, reiser4_key *);
-int add_entry_common(struct inode *object, struct dentry *where,
+int reiser4_add_entry_common(struct inode *object, struct dentry *where,
 		     reiser4_object_create_data *, reiser4_dir_entry_desc *);
-int rem_entry_common(struct inode *object, struct dentry *where,
+int reiser4_rem_entry_common(struct inode *object, struct dentry *where,
 		     reiser4_dir_entry_desc *);
-int init_common(struct inode *object, struct inode *parent,
-		reiser4_object_create_data *);
-int done_common(struct inode *);
-int attach_common(struct inode *child, struct inode *parent);
-int detach_common(struct inode *object, struct inode *parent);
+int reiser4_dir_init_common(struct inode *object, struct inode *parent,
+			    reiser4_object_create_data *);
+int reiser4_dir_done_common(struct inode *);
+int reiser4_attach_common(struct inode *child, struct inode *parent);
+int reiser4_detach_common(struct inode *object, struct inode *parent);
 reiser4_block_nr estimate_add_entry_common(const struct inode *);
 reiser4_block_nr estimate_rem_entry_common(const struct inode *);
 reiser4_block_nr dir_estimate_unlink_common(const struct inode *,

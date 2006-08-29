@@ -56,7 +56,7 @@ typedef struct {
 	   For items that occupy exactly one key (like stat-data)
 	   this method should return this key. For items that can
 	   grow indefinitely (extent, directory item) this should
-	   return max_key().
+	   return reiser4_max_key().
 
 	   For example extent with the key
 
@@ -91,8 +91,8 @@ typedef struct {
 	   item */
 	int (*init) (coord_t * target, coord_t * from,
 		     reiser4_item_data * data);
-	/* method called (e.g., by resize_item()) to place new data into
-	   item when it grows */
+	/* method called (e.g., by reiser4_resize_item()) to place new data
+	   into item when it grows */
 	int (*paste) (coord_t *, reiser4_item_data *, carry_plugin_info *);
 	/* return true if paste into @coord is allowed to skip
 	   carry. That is, if such paste would require any changes
@@ -231,24 +231,23 @@ typedef struct {
 
 /* operations specific to items regular (unix) file metadata are built of */
 typedef struct {
-	int (*write) (struct inode *, flow_t *, hint_t *, int grabbed,
-		      write_mode_t);
+	int (*write) (struct file *, const char __user *, size_t, loff_t *pos);
 	int (*read) (struct file *, flow_t *, hint_t *);
 	int (*readpage) (void *, struct page *);
-	int (*capture) (reiser4_key *, uf_coord_t *, struct page *,
-			write_mode_t);
 	int (*get_block) (const coord_t *, sector_t, sector_t *);
 	void (*readpages) (void *, struct address_space *,
 			   struct list_head * pages);
-	/* key of first byte which is not addressed by the item @coord is set to
-	   For example extent with the key
-
-	   (LOCALITY,4,OBJID,STARTING-OFFSET), and length BLK blocks,
-
-	   ->append_key is
-
-	   (LOCALITY,4,OBJID,STARTING-OFFSET + BLK * block_size) */
-	/* FIXME: could be uf_coord also */
+	/*
+	 * key of first byte which is not addressed by the item @coord is set
+	 * to.
+	 * For example, for extent item with the key
+	 *
+	 * (LOCALITY,4,OBJID,STARTING-OFFSET), and length BLK blocks,
+	 *
+	 * ->append_key is
+	 *
+	 * (LOCALITY,4,OBJID,STARTING-OFFSET + BLK * block_size)
+	 */
 	reiser4_key *(*append_key) (const coord_t *, reiser4_key *);
 
 	void (*init_coord_extension) (uf_coord_t *, loff_t);

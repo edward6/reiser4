@@ -9,9 +9,9 @@
 
 #include "forward.h"
 
-znode *new_node(znode * brother, tree_level level);
-znode *add_tree_root(znode * old_root, znode * fake);
-int kill_tree_root(znode * old_root);
+znode *reiser4_new_node(znode * brother, tree_level level);
+znode *reiser4_add_tree_root(znode * old_root, znode * fake);
+int reiser4_kill_tree_root(znode * old_root);
 void build_child_ptr_data(znode * child, reiser4_item_data * data);
 
 /* __REISER4_TREE_MOD_H__ */

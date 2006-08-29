@@ -14,10 +14,8 @@
    This is for use by other debugging macros, not by users. */
 #define DCALL(lev, fun, reperr, label, format, ...)			\
 ({									\
-/*	reiser4_print_prefix(lev, reperr, label,*/			\
-/*	__FUNCTION__, __FILE__, __LINE__);*/				\
-	fun(lev "%sreiser4[%.16s(%i)]: %s (%s:%i)[%s]:\n" format "\n" ,	\
-	    lev, current->comm, current->pid, __FUNCTION__,		\
+	fun(lev "reiser4[%.16s(%i)]: %s (%s:%i)[%s]:\n" format "\n" ,	\
+	    current->comm, current->pid, __FUNCTION__,			\
 	    __FILE__, __LINE__, label, ## __VA_ARGS__);			\
 })
 
@@ -72,7 +70,7 @@
 
 #define ON_DEBUG( exp ) exp
 
-extern int schedulable(void);
+extern int reiser4_schedulable(void);
 extern void call_on_each_assert(void);
 
 #else
@@ -82,7 +80,7 @@ extern void call_on_each_assert(void);
 #define assert( label, cond ) noop
 #define check_me( label, expr )	( ( void ) ( expr ) )
 #define ON_DEBUG( exp )
-#define schedulable() might_sleep()
+#define reiser4_schedulable() might_sleep()
 
 /* REISER4_DEBUG */
 #endif
@@ -90,7 +88,7 @@ extern void call_on_each_assert(void);
 #if REISER4_DEBUG
 /* per-thread information about lock acquired by this thread. Used by lock
  * ordering checking in spin_macros.h */
-typedef struct lock_counters_info {
+typedef struct reiser4_lock_counters_info {
 	int rw_locked_tree;
 	int read_locked_tree;
 	int write_locked_tree;
@@ -123,33 +121,38 @@ typedef struct lock_counters_info {
 	int d_refs;
 	int x_refs;
 	int t_refs;
-} lock_counters_info;
+} reiser4_lock_counters_info;
 
-extern lock_counters_info *lock_counters(void);
+extern reiser4_lock_counters_info *reiser4_lock_counters(void);
 #define IN_CONTEXT(a, b) (is_in_reiser4_context() ? (a) : (b))
 
 /* increment lock-counter @counter, if present */
-#define LOCK_CNT_INC(counter) IN_CONTEXT(++(lock_counters()->counter), 0)
+#define LOCK_CNT_INC(counter)					\
+	IN_CONTEXT(++(reiser4_lock_counters()->counter), 0)
 
 /* decrement lock-counter @counter, if present */
-#define LOCK_CNT_DEC(counter) IN_CONTEXT(--(lock_counters()->counter), 0)
+#define LOCK_CNT_DEC(counter)					\
+	IN_CONTEXT(--(reiser4_lock_counters()->counter), 0)
 
 /* check that lock-counter is zero. This is for use in assertions */
-#define LOCK_CNT_NIL(counter) IN_CONTEXT(lock_counters()->counter == 0, 1)
+#define LOCK_CNT_NIL(counter)					\
+	IN_CONTEXT(reiser4_lock_counters()->counter == 0, 1)
 
 /* check that lock-counter is greater than zero. This is for use in
  * assertions */
-#define LOCK_CNT_GTZ(counter) IN_CONTEXT(lock_counters()->counter > 0, 1)
-#define LOCK_CNT_LT(counter,n) IN_CONTEXT(lock_counters()->counter < n, 1)
+#define LOCK_CNT_GTZ(counter)					\
+	IN_CONTEXT(reiser4_lock_counters()->counter > 0, 1)
+#define LOCK_CNT_LT(counter,n)					\
+	IN_CONTEXT(reiser4_lock_counters()->counter < n, 1)
 
 #else				/* REISER4_DEBUG */
 
 /* no-op versions on the above */
 
-typedef struct lock_counters_info {
-} lock_counters_info;
+typedef struct reiser4_lock_counters_info {
+} reiser4_lock_counters_info;
 
-#define lock_counters() ((lock_counters_info *)NULL)
+#define reiser4_lock_counters() ((reiser4_lock_counters_info *)NULL)
 #define LOCK_CNT_INC(counter) noop
 #define LOCK_CNT_DEC(counter) noop
 #define LOCK_CNT_NIL(counter) (1)
@@ -224,16 +227,16 @@ extern void reiser4_print_prefix(const char *level, int reperr, const char *mid,
 				 const char *function,
 				 const char *file, int lineno);
 
-extern int preempt_point(void);
+extern int reiser4_preempt_point(void);
 extern void reiser4_print_stats(void);
 
 
 #if REISER4_DEBUG
-extern int no_counters_are_held(void);
-extern int commit_check_locks(void);
+extern int reiser4_no_counters_are_held(void);
+extern int reiser4_commit_check_locks(void);
 #else
-#define no_counters_are_held() (1)
-#define commit_check_locks() (1)
+#define reiser4_no_counters_are_held() (1)
+#define reiser4_commit_check_locks() (1)
 #endif
 
 /* true if @i is power-of-two. Useful for rate-limited warnings, etc. */
@@ -249,16 +252,16 @@ extern int commit_check_locks(void);
 
 #if KERNEL_DEBUGGER
 
-extern void debugtrap(void);
+extern void reiser4_debugtrap(void);
 
 /*
  * Check condition @cond and drop into kernel debugger (kgdb) if it's true. If
  * kgdb is not compiled in, do nothing.
  */
-#define DEBUGON(cond)				\
-({						\
-	if (unlikely(cond))			\
-		debugtrap();			\
+#define DEBUGON(cond)					\
+({	               					\
+	if (unlikely(cond))				\
+		reiser4_debugtrap();			\
 })
 #else
 #define DEBUGON(cond) noop
@@ -287,9 +290,9 @@ extern void debugtrap(void);
  *
  * RETERR() macro fills a backtrace in reiser4_context. This back-trace is
  * printed in error and warning messages. Moreover, it's possible to put a
- * conditional breakpoint in return_err (low-level function called by RETERR()
- * to do the actual work) to break into debugger immediately when particular
- * error happens.
+ * conditional breakpoint in reiser4_return_err (low-level function called
+ * by RETERR() to do the actual work) to break into debugger immediately
+ * when particular error happens.
  *
  */
 
@@ -304,18 +307,18 @@ typedef struct err_site {
 	int line;		/* source file line, filled by __LINE__ */
 } err_site;
 
-extern void return_err(int code, const char *file, int line);
+extern void reiser4_return_err(int code, const char *file, int line);
 
 /*
  * fill &get_current_context()->err_site with error information.
  */
-#define RETERR(code) 				\
-({						\
-	typeof(code) __code;			\
-						\
-	__code = (code);			\
-	return_err(__code, __FILE__, __LINE__);	\
-	__code;					\
+#define RETERR(code)					\
+({						        \
+	typeof(code) __code;				\
+							\
+	__code = (code);				\
+	reiser4_return_err(__code, __FILE__, __LINE__);	\
+	__code;						\
 })
 
 #else

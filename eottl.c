@@ -267,7 +267,7 @@ add_empty_leaf(coord_t *insert_coord, lock_handle *lh,
 
 	assert("vs-49827", znode_contains_key_lock(insert_coord->node, key));
 	tree = znode_get_tree(insert_coord->node);
-	node = new_node(insert_coord->node, LEAF_LEVEL);
+	node = reiser4_new_node(insert_coord->node, LEAF_LEVEL);
 	if (IS_ERR(node))
 		return PTR_ERR(node);
 
@@ -295,7 +295,7 @@ add_empty_leaf(coord_t *insert_coord, lock_handle *lh,
 	item = (reiser4_item_data *) (todo + 3);
 	cdata = (carry_insert_data *) (item + 1);
 
-	op = post_carry(todo, COP_INSERT, insert_coord->node, 0);
+	op = reiser4_post_carry(todo, COP_INSERT, insert_coord->node, 0);
 	if (!IS_ERR(op)) {
 		cdata->coord = insert_coord;
 		cdata->key = key;
@@ -309,7 +309,7 @@ add_empty_leaf(coord_t *insert_coord, lock_handle *lh,
 		todo->track_type = CARRY_TRACK_CHANGE;
 		todo->tracked = lh;
 
-		result = carry(todo, NULL);
+		result = reiser4_carry(todo, NULL);
 		if (result == 0) {
 			/*
 			 * pin node in memory. This is necessary for
@@ -348,8 +348,7 @@ add_empty_leaf(coord_t *insert_coord, lock_handle *lh,
 					write_unlock_tree(tree);
 					result =
 					    connect_znode(insert_coord, node);
-					if (result == 0)
-						ON_DEBUG(check_dkeys(node));
+					ON_DEBUG(if (result == 0) check_dkeys(node););
 
 					done_lh(lh);
 					move_lh(lh, &local_lh);

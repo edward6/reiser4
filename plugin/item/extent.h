@@ -67,6 +67,7 @@ static inline void
 extent_set_width(reiser4_extent * ext, reiser4_block_nr width)
 {
 	cassert(sizeof(ext->width) == 8);
+	assert("", width > 0);
 	put_unaligned(cpu_to_le64(width), &ext->width);
 	assert("nikita-2511",
 	       ergo(extent_get_start(ext) > 1,
@@ -127,14 +128,15 @@ int utmost_child_extent(const coord_t * coord, sideof side, jnode ** child);
 int utmost_child_real_block_extent(const coord_t * coord, sideof side,
 				   reiser4_block_nr * block);
 void item_stat_extent(const coord_t * coord, void *vp);
-int check_extent(const coord_t * coord, const char **error);
+int reiser4_check_extent(const coord_t * coord, const char **error);
 
 /* plugin->u.item.s.file.* */
-int write_extent(struct inode *, flow_t *, hint_t *, int grabbed, write_mode_t);
-int read_extent(struct file *, flow_t *, hint_t *);
-int readpage_extent(void *, struct page *);
-void readpages_extent(void *, struct address_space *, struct list_head *pages);
-int capture_extent(reiser4_key *, uf_coord_t *, struct page *, write_mode_t);
+ssize_t reiser4_write_extent(struct file *, const char __user *,
+			     size_t, loff_t *);
+int reiser4_read_extent(struct file *, flow_t *, hint_t *);
+int reiser4_readpage_extent(void *, struct page *);
+void reiser4_readpages_extent(void *, struct address_space *,
+			      struct list_head *pages);
 reiser4_key *append_key_extent(const coord_t *, reiser4_key *);
 void init_coord_extension_extent(uf_coord_t *, loff_t offset);
 int get_block_address_extent(const coord_t *, sector_t block,
@@ -151,22 +153,24 @@ __u64 extent_unit_index(const coord_t * item);	/* Block offset of this unit. */
 __u64 extent_unit_width(const coord_t * item);	/* Number of blocks in this unit. */
 
 /* plugin->u.item.f. */
-int scan_extent(flush_scan * scan);
+int reiser4_scan_extent(flush_scan * scan);
 extern int key_by_offset_extent(struct inode *, loff_t, reiser4_key *);
 
 reiser4_item_data *init_new_extent(reiser4_item_data * data, void *ext_unit,
 				   int nr_extents);
-reiser4_block_nr extent_size(const coord_t * coord, pos_in_node_t nr);
+reiser4_block_nr reiser4_extent_size(const coord_t * coord, pos_in_node_t nr);
 extent_state state_of_extent(reiser4_extent * ext);
-void set_extent(reiser4_extent * ext, reiser4_block_nr start,
-		reiser4_block_nr width);
+void reiser4_set_extent(reiser4_extent *, reiser4_block_nr start,
+			reiser4_block_nr width);
+int reiser4_update_extent(struct inode *, jnode *, loff_t pos,
+			  int *plugged_hole);
 
 #include "../../coord.h"
 #include "../../lock.h"
 #include "../../tap.h"
 
 struct replace_handle {
-	/* these are to be set before calling replace_extent */
+	/* these are to be set before calling reiser4_replace_extent */
 	coord_t *coord;
 	lock_handle *lh;
 	reiser4_key key;
@@ -176,7 +180,7 @@ struct replace_handle {
 	int nr_new_extents;
 	unsigned flags;
 
-	/* these are used by replace_extent */
+	/* these are used by reiser4_replace_extent */
 	reiser4_item_data item;
 	coord_t coord_after;
 	lock_handle lh_after;
@@ -189,7 +193,7 @@ struct replace_handle {
 };
 
 /* this structure is kmalloced before calling make_extent to avoid excessive
-   stack consumption on plug_hole->replace_extent */
+   stack consumption on plug_hole->reiser4_replace_extent */
 struct make_extent_handle {
 	uf_coord_t *uf_coord;
 	reiser4_block_nr blocknr;
@@ -202,7 +206,8 @@ struct make_extent_handle {
 	} u;
 };
 
-int replace_extent(struct replace_handle *, int return_inserted_position);
+int reiser4_replace_extent(struct replace_handle *,
+			   int return_inserted_position);
 lock_handle *znode_lh(znode *);
 
 /* the reiser4 repacker support */

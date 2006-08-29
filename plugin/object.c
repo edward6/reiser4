@@ -93,16 +93,18 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.linkage = {NULL, NULL},
 		},
 		.inode_ops = {
-			.permission = permission_common,
+			.permission = reiser4_permission_common,
 			.setattr = setattr_unix_file,
-			.getattr = getattr_common
+			.getattr = reiser4_getattr_common
 		},
 		.file_ops = {
 			.llseek = generic_file_llseek,
 			.read = read_unix_file,
-			.write = write_unix_file,
+			.write = do_sync_write,
+			.aio_write = generic_file_aio_write,
 			.ioctl = ioctl_unix_file,
 			.mmap = mmap_unix_file,
+			.open = open_unix_file,
 			.release = release_unix_file,
 			.fsync = sync_unix_file,
 			.sendfile = sendfile_unix_file
@@ -116,6 +118,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.readpages = reiser4_readpages,
 			.prepare_write = prepare_write_unix_file,
 			.commit_write =	commit_write_unix_file,
+			.batch_write = batch_write_unix_file,
 			.bmap = bmap_unix_file,
 			.invalidatepage = reiser4_invalidatepage,
 			.releasepage = reiser4_releasepage
@@ -125,10 +128,10 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.key_by_inode = key_by_inode_and_offset_common,
 		.set_plug_in_inode = set_plug_in_inode_common,
 		.adjust_to_parent = adjust_to_parent_common,
-		.create_object = create_object_common,	/* this is not inode_operations's create */
+		.create_object = reiser4_create_object_common,
 		.delete_object = delete_object_unix_file,
-		.add_link = add_link_common,
-		.rem_link = rem_link_common,
+		.add_link = reiser4_add_link_common,
+		.rem_link = reiser4_rem_link_common,
 		.owns_item = owns_item_unix_file,
 		.can_add_link = can_add_link_common,
 		.detach = dummyop,
@@ -158,24 +161,24 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.desc = "directory",
 			.linkage = {NULL, NULL}
 		},
-		.inode_ops = {NULL,},
-		.file_ops = {NULL,},
-		.as_ops = {NULL,},
+		.inode_ops = {.create = NULL},
+		.file_ops = {.owner = NULL},
+		.as_ops = {.writepage = NULL},
 
 		.write_sd_by_inode = write_sd_by_inode_common,
 		.flow_by_inode = bugop,
 		.key_by_inode = bugop,
 		.set_plug_in_inode = set_plug_in_inode_common,
 		.adjust_to_parent = adjust_to_parent_common_dir,
-		.create_object = create_object_common,
-		.delete_object = delete_directory_common,
-		.add_link = add_link_common,
+		.create_object = reiser4_create_object_common,
+		.delete_object = reiser4_delete_dir_common,
+		.add_link = reiser4_add_link_common,
 		.rem_link = rem_link_common_dir,
 		.owns_item = owns_item_common_dir,
 		.can_add_link = can_add_link_common,
 		.can_rem_link = can_rem_link_common_dir,
-		.detach = detach_common_dir,
-		.bind = bind_common_dir,
+		.detach = reiser4_detach_common_dir,
+		.bind = reiser4_bind_common_dir,
 		.safelink = safelink_common,
 		.estimate = {
 			.create = estimate_create_common_dir,
@@ -203,22 +206,22 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		},
 		.inode_ops = {
 			.readlink = generic_readlink,
-			.follow_link = follow_link_common,
-			.permission = permission_common,
-			.setattr = setattr_common,
-			.getattr = getattr_common
+			.follow_link = reiser4_follow_link_common,
+			.permission = reiser4_permission_common,
+			.setattr = reiser4_setattr_common,
+			.getattr = reiser4_getattr_common
 		},
 		/* inode->i_fop of symlink is initialized by NULL in setup_inode_ops */
-		.file_ops = {NULL,},
-		.as_ops = {NULL,},
+		.file_ops = {.owner = NULL},
+		.as_ops = {.writepage = NULL},
 
 		.write_sd_by_inode = write_sd_by_inode_common,
 		.set_plug_in_inode = set_plug_in_inode_common,
 		.adjust_to_parent = adjust_to_parent_common,
-		.create_object = create_symlink,
-		.delete_object = delete_object_common,
-		.add_link = add_link_common,
-		.rem_link = rem_link_common,
+		.create_object = reiser4_create_symlink,
+		.delete_object = reiser4_delete_object_common,
+		.add_link = reiser4_add_link_common,
+		.rem_link = reiser4_rem_link_common,
 		.can_add_link = can_add_link_common,
 		.detach = dummyop,
 		.bind = dummyop,
@@ -250,22 +253,22 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.linkage = {NULL, NULL}
 		},
 		.inode_ops = {
-			.permission = permission_common,
-			.setattr = setattr_common,
-			.getattr = getattr_common
+			.permission = reiser4_permission_common,
+			.setattr = reiser4_setattr_common,
+			.getattr = reiser4_getattr_common
 		},
 		/* file_ops of special files (sockets, block, char, fifo) are
 		   initialized by init_special_inode. */
-		.file_ops = {NULL,},
-		.as_ops = {NULL,},
+		.file_ops = {.owner = NULL},
+		.as_ops = {.writepage = NULL},
 
 		.write_sd_by_inode = write_sd_by_inode_common,
 		.set_plug_in_inode = set_plug_in_inode_common,
 		.adjust_to_parent = adjust_to_parent_common,
-		.create_object = create_object_common,
-		.delete_object = delete_object_common,
-		.add_link = add_link_common,
-		.rem_link = rem_link_common,
+		.create_object = reiser4_create_object_common,
+		.delete_object = reiser4_delete_object_common,
+		.add_link = reiser4_add_link_common,
+		.rem_link = reiser4_rem_link_common,
 		.owns_item = owns_item_common,
 		.can_add_link = can_add_link_common,
 		.detach = dummyop,
@@ -296,17 +299,18 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.linkage = {NULL, NULL}
 		},
 		.inode_ops = {
-			.permission = permission_common,
+			.permission = reiser4_permission_common,
 			.setattr = setattr_cryptcompress,
-			.getattr = getattr_common
+			.getattr = reiser4_getattr_common
 		},
 		.file_ops = {
 			.llseek = generic_file_llseek,
 			.read = read_cryptcompress,
 			.write = write_cryptcompress,
+			.aio_read = generic_file_aio_read,
 			.mmap = mmap_cryptcompress,
 			.release = release_cryptcompress,
-			.fsync = sync_common,
+			.fsync = reiser4_sync_common,
 			.sendfile = sendfile_cryptcompress
 		},
 		.as_ops = {
@@ -328,8 +332,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.create_object = create_cryptcompress,
 		.open_object = open_cryptcompress,
 		.delete_object = delete_cryptcompress,
-		.add_link = add_link_common,
-		.rem_link = rem_link_common,
+		.add_link = reiser4_add_link_common,
+		.rem_link = reiser4_rem_link_common,
 		.owns_item = owns_item_common,
 		.can_add_link = can_add_link_common,
 		.detach = dummyop,
@@ -379,25 +383,25 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 			.linkage = {NULL, NULL}
 		},
 		.inode_ops = {
-			.create = create_common,
-			.lookup = lookup_common,
-			.link = link_common,
-			.unlink = unlink_common,
-			.symlink = symlink_common,
-			.mkdir = mkdir_common,
-			.rmdir = unlink_common,
-			.mknod = mknod_common,
-			.rename = rename_common,
-			.permission = permission_common,
-			.setattr = setattr_common,
-			.getattr = getattr_common
+			.create = reiser4_create_common,
+			.lookup = reiser4_lookup_common,
+			.link = reiser4_link_common,
+			.unlink = reiser4_unlink_common,
+			.symlink = reiser4_symlink_common,
+			.mkdir = reiser4_mkdir_common,
+			.rmdir = reiser4_unlink_common,
+			.mknod = reiser4_mknod_common,
+			.rename = reiser4_rename_common,
+			.permission = reiser4_permission_common,
+			.setattr = reiser4_setattr_common,
+			.getattr = reiser4_getattr_common
 		},
 		.file_ops = {
-			.llseek = llseek_common_dir,
+			.llseek = reiser4_llseek_dir_common,
 			.read = generic_read_dir,
-			.readdir = readdir_common,
-			.release = release_dir_common,
-			.fsync = sync_common
+			.readdir = reiser4_readdir_common,
+			.release = reiser4_release_dir_common,
+			.fsync = reiser4_sync_common
 		},
 		.as_ops = {
 			.writepage = bugop,
@@ -415,12 +419,12 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 		.is_name_acceptable = is_name_acceptable_common,
 		.build_entry_key = build_entry_key_hashed,
 		.build_readdir_key = build_readdir_key_common,
-		.add_entry = add_entry_common,
-		.rem_entry = rem_entry_common,
-		.init = init_common,
-		.done = done_common,
-		.attach = attach_common,
-		.detach = detach_common,
+		.add_entry = reiser4_add_entry_common,
+		.rem_entry = reiser4_rem_entry_common,
+		.init = reiser4_dir_init_common,
+		.done = reiser4_dir_done_common,
+		.attach = reiser4_attach_common,
+		.detach = reiser4_detach_common,
 		.estimate = {
 			.add_entry = estimate_add_entry_common,
 			.rem_entry = estimate_rem_entry_common,
@@ -439,25 +443,25 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 			.linkage = {NULL, NULL}
 		},
 		.inode_ops = {
-			.create = create_common,
-			.lookup = lookup_common,
-			.link = link_common,
-			.unlink = unlink_common,
-			.symlink = symlink_common,
-			.mkdir = mkdir_common,
-			.rmdir = unlink_common,
-			.mknod = mknod_common,
-			.rename = rename_common,
-			.permission = permission_common,
-			.setattr = setattr_common,
-			.getattr = getattr_common
+			.create = reiser4_create_common,
+			.lookup = reiser4_lookup_common,
+			.link = reiser4_link_common,
+			.unlink = reiser4_unlink_common,
+			.symlink = reiser4_symlink_common,
+			.mkdir = reiser4_mkdir_common,
+			.rmdir = reiser4_unlink_common,
+			.mknod = reiser4_mknod_common,
+			.rename = reiser4_rename_common,
+			.permission = reiser4_permission_common,
+			.setattr = reiser4_setattr_common,
+			.getattr = reiser4_getattr_common
 		},
 		.file_ops = {
-			.llseek = llseek_common_dir,
+			.llseek = reiser4_llseek_dir_common,
 			.read =	generic_read_dir,
-			.readdir = readdir_common,
-			.release = release_dir_common,
-			.fsync = sync_common
+			.readdir = reiser4_readdir_common,
+			.release = reiser4_release_dir_common,
+			.fsync = reiser4_sync_common
 		},
 		.as_ops = {
 			.writepage = bugop,
@@ -475,12 +479,12 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 		.is_name_acceptable = is_name_acceptable_common,
 		.build_entry_key = build_entry_key_seekable,
 		.build_readdir_key = build_readdir_key_common,
-		.add_entry = add_entry_common,
-		.rem_entry = rem_entry_common,
-		.init = init_common,
-		.done = done_common,
-		.attach = attach_common,
-		.detach = detach_common,
+		.add_entry = reiser4_add_entry_common,
+		.rem_entry = reiser4_rem_entry_common,
+		.init = reiser4_dir_init_common,
+		.done = reiser4_dir_done_common,
+		.attach = reiser4_attach_common,
+		.detach = reiser4_detach_common,
 		.estimate = {
 			.add_entry = estimate_add_entry_common,
 			.rem_entry = estimate_rem_entry_common,

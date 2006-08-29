@@ -6,7 +6,6 @@
 #include "../plugin.h"
 #include "minilzo.h"
 
-#include <linux/config.h>
 #include <linux/zlib.h>
 #include <linux/types.h>
 #include <linux/hardirq.h>

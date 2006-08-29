@@ -12,7 +12,7 @@
 reiser4_key *max_key_inside_extent(const coord_t * coord, reiser4_key * key)
 {
 	item_key_by_coord(coord, key);
-	set_key_offset(key, get_key_offset(max_key()));
+	set_key_offset(key, get_key_offset(reiser4_max_key()));
 	return key;
 }
 
@@ -56,7 +56,8 @@ int mergeable_extent(const coord_t * p1, const coord_t * p2)
 	    get_key_ordering(&key1) != get_key_ordering(&key2) ||
 	    get_key_type(&key1) != get_key_type(&key2))
 		return 0;
-	if (get_key_offset(&key1) + extent_size(p1, nr_units_extent(p1)) !=
+	if (get_key_offset(&key1) +
+	    reiser4_extent_size(p1, nr_units_extent(p1)) !=
 	    get_key_offset(&key2))
 		return 0;
 	return 1;
@@ -447,7 +448,7 @@ kill_hook_extent(const coord_t * coord, pos_in_node_t from, pos_in_node_t count,
 	ext = extent_item(coord) + from;
 	offset =
 	    (get_key_offset(min_item_key) +
-	     extent_size(coord, from)) >> PAGE_CACHE_SHIFT;
+	     reiser4_extent_size(coord, from)) >> PAGE_CACHE_SHIFT;
 
 	assert("vs-1551", from_off >= offset);
 	assert("vs-1552", from_off - offset <= extent_get_width(ext));
@@ -571,10 +572,12 @@ kill_units_extent(coord_t * coord, pos_in_node_t from, pos_in_node_t to,
 	if (result == ITEM_TAIL_KILLED) {
 		assert("vs-1553",
 		       get_key_offset(pfrom_key) >=
-		       get_key_offset(&item_key) + extent_size(coord, from));
+		       get_key_offset(&item_key) +
+		       reiser4_extent_size(coord, from));
 		off =
-		    get_key_offset(pfrom_key) - (get_key_offset(&item_key) +
-						 extent_size(coord, from));
+		    get_key_offset(pfrom_key) -
+			(get_key_offset(&item_key) +
+			 reiser4_extent_size(coord, from));
 		if (off) {
 			/* unit @from is to be cut partially. Its width decreases */
 			ext = extent_item(coord) + from;
@@ -594,9 +597,11 @@ kill_units_extent(coord_t * coord, pos_in_node_t from, pos_in_node_t to,
 							 1)) == 0);
 		assert("",
 		       get_key_offset(pto_key) + 1 >
-		       get_key_offset(&item_key) + extent_size(coord, to));
+		       get_key_offset(&item_key) +
+		       reiser4_extent_size(coord, to));
 		max_to_offset =
-		    get_key_offset(&item_key) + extent_size(coord, to + 1) - 1;
+		    get_key_offset(&item_key) +
+			reiser4_extent_size(coord, to + 1) - 1;
 		assert("", get_key_offset(pto_key) <= max_to_offset);
 
 		rest =
@@ -709,10 +714,10 @@ cut_units_extent(coord_t * coord, pos_in_node_t from, pos_in_node_t to,
 
 	assert("vs-1553",
 	       get_key_offset(pfrom_key) >=
-	       get_key_offset(&item_key) + extent_size(coord, from));
+	       get_key_offset(&item_key) + reiser4_extent_size(coord, from));
 	off =
 	    get_key_offset(pfrom_key) - (get_key_offset(&item_key) +
-					 extent_size(coord, from));
+					 reiser4_extent_size(coord, from));
 	if (off) {
 		/* tail of unit @from is to be cut partially. Its width decreases */
 		assert("vs-1582", new_first == NULL);
@@ -723,10 +728,12 @@ cut_units_extent(coord_t * coord, pos_in_node_t from, pos_in_node_t to,
 
 	assert("vs-1554",
 	       get_key_offset(pto_key) <=
-	       get_key_offset(&item_key) + extent_size(coord, to + 1) - 1);
+	       get_key_offset(&item_key) +
+	       reiser4_extent_size(coord, to + 1) - 1);
 	off =
-	    (get_key_offset(&item_key) + extent_size(coord, to + 1) - 1) -
-	    get_key_offset(pto_key);
+		(get_key_offset(&item_key) +
+		 reiser4_extent_size(coord, to + 1) - 1) -
+		get_key_offset(pto_key);
 	if (off) {
 		/* @to_key is smaller than max key of unit @to. Unit @to will not be removed. It gets start increased
 		   and width decreased. */
@@ -752,7 +759,7 @@ reiser4_key *unit_key_extent(const coord_t * coord, reiser4_key * key)
 	item_key_by_coord(coord, key);
 	set_key_offset(key,
 		       (get_key_offset(key) +
-			extent_size(coord, coord->unit_pos)));
+			reiser4_extent_size(coord, coord->unit_pos)));
 
 	return key;
 }
@@ -765,7 +772,7 @@ reiser4_key *max_unit_key_extent(const coord_t * coord, reiser4_key * key)
 	item_key_by_coord(coord, key);
 	set_key_offset(key,
 		       (get_key_offset(key) +
-			extent_size(coord, coord->unit_pos + 1) - 1));
+			reiser4_extent_size(coord, coord->unit_pos + 1) - 1));
 	return key;
 }
 
@@ -779,8 +786,8 @@ reiser4_key *max_unit_key_extent(const coord_t * coord, reiser4_key * key)
    possible check of the consistency of the item that the inventor can
    construct
 */
-int check_extent(const coord_t * coord /* coord of item to check */ ,
-		 const char **error /* where to store error message */ )
+int reiser4_check_extent(const coord_t * coord /* coord of item to check */,
+			 const char **error /* where to store error message */)
 {
 	reiser4_extent *ext, *first;
 	unsigned i, j;

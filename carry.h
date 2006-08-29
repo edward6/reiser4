@@ -312,8 +312,8 @@ struct carry_level {
 	int nodes_num;
 	/* new root created on this level, if any */
 	znode *new_root;
-	/* This is set by caller (insert_by_key(), resize_item(), etc.) when
-	   they want ->tracked to automagically wander to the node where
+	/* This is set by caller (insert_by_key(), rreiser4_esize_item(), etc.)
+	   when they want ->tracked to automagically wander to the node where
 	   insertion point moved after insert or paste.
 	 */
 	carry_track_type track_type;
@@ -329,12 +329,12 @@ struct carry_plugin_info {
 	carry_level *todo;
 };
 
-int carry(carry_level * doing, carry_level * done);
+int reiser4_carry(carry_level * doing, carry_level * done);
 
-carry_node *add_carry(carry_level * level, pool_ordering order,
-		      carry_node * reference);
-carry_node *add_carry_skip(carry_level * level, pool_ordering order,
-			   carry_node * reference);
+carry_node *reiser4_add_carry(carry_level * level, pool_ordering order,
+			      carry_node * reference);
+carry_node *reiser4_add_carry_skip(carry_level * level, pool_ordering order,
+				   carry_node * reference);
 
 extern carry_node *insert_carry_node(carry_level * doing,
 				     carry_level * todo, const znode * node);
@@ -344,8 +344,8 @@ extern void done_carry_pool(carry_pool * pool);
 
 extern void init_carry_level(carry_level * level, carry_pool * pool);
 
-extern carry_op *post_carry(carry_level * level, carry_opcode op, znode * node,
-			    int apply_to_parent);
+extern carry_op *reiser4_post_carry(carry_level * level, carry_opcode op,
+				    znode * node, int apply_to_parent);
 extern carry_op *node_post_carry(carry_plugin_info * info, carry_opcode op,
 				 znode * node, int apply_to_parent_p);
 
@@ -354,7 +354,7 @@ carry_node *add_new_znode(znode * brother, carry_node * reference,
 
 carry_node *find_carry_node(carry_level * level, const znode * node);
 
-extern znode *carry_real(const carry_node * node);
+extern znode *reiser4_carry_real(const carry_node * node);
 
 /* helper macros to iterate over carry queues */
 

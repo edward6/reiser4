@@ -175,8 +175,8 @@ int rem_entry_de(struct inode *dir /* directory of item */ ,
 
 int max_name_len_de(const struct inode *dir)
 {
-	return tree_by_inode(dir)->nplug->max_item_size() -
-	    sizeof(directory_entry_format) - 2;
+	return reiser4_tree_by_inode(dir)->nplug->max_item_size() -
+		sizeof(directory_entry_format) - 2;
 }
 
 /* Make Linus happy.

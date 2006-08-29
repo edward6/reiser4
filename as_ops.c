@@ -25,7 +25,6 @@
 #include "super.h"
 #include "reiser4.h"
 #include "entd.h"
-#include "emergency_flush.h"
 
 #include <linux/profile.h>
 #include <linux/types.h>
@@ -52,7 +51,7 @@
  * @page: page to be dirtied
  *
  * Operation of struct address_space_operations. This implementation is used by
- * unix and crc file plugins.
+ * unix and cryptcompress file plugins.
  *
  * This is called when reiser4 page gets dirtied outside of reiser4, for
  * example, when dirty bit is moved from pte to physical page.
@@ -67,11 +66,11 @@ int reiser4_set_page_dirty(struct page *page)
 	/* this page can be unformatted only */
 	assert("vs-1734", (page->mapping &&
 			   page->mapping->host &&
-			   get_super_fake(page->mapping->host->i_sb) !=
+			   reiser4_get_super_fake(page->mapping->host->i_sb) !=
 			   page->mapping->host
-			   && get_cc_fake(page->mapping->host->i_sb) !=
+			   && reiser4_get_cc_fake(page->mapping->host->i_sb) !=
 			   page->mapping->host
-			   && get_bitmap_fake(page->mapping->host->i_sb) !=
+			   && reiser4_get_bitmap_fake(page->mapping->host->i_sb) !=
 			   page->mapping->host));
 
 	if (!TestSetPageDirty(page)) {
@@ -84,7 +83,8 @@ int reiser4_set_page_dirty(struct page *page)
 			if (page->mapping) {
 				assert("vs-1652", page->mapping == mapping);
 				if (mapping_cap_account_dirty(mapping))
-					inc_page_state(nr_dirty);
+					inc_zone_page_state(page,
+							NR_FILE_DIRTY);
 				radix_tree_tag_set(&mapping->page_tree,
 						   page->index,
 						   PAGECACHE_TAG_REISER4_MOVED);
@@ -109,7 +109,7 @@ static int filler(void *vp, struct page *page)
  * @nr_pages: number of pages no the list
  *
  * Operation of struct address_space_operations. This implementation is used by
- * unix and crc file plugins.
+ * unix and cryptcompress file plugins.
  *
  * Calls read_cache_pages or readpages hook if it is set.
  */
@@ -120,7 +120,7 @@ reiser4_readpages(struct file *file, struct address_space *mapping,
 	reiser4_context *ctx;
 	reiser4_file_fsdata *fsdata;
 
-	ctx = init_context(mapping->host->i_sb);
+	ctx = reiser4_init_context(mapping->host->i_sb);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 
@@ -191,9 +191,9 @@ void reiser4_invalidatepage(struct page *page, unsigned long offset)
 	 *
 	 * After many troubles with vmtruncate() based truncate (including
 	 * races with flush, tail conversion, etc.) it was re-written in the
-	 * top-to-bottom style: items are killed in cut_tree_object() and
-	 * pages belonging to extent are invalidated in kill_hook_extent(). So
-	 * probably now additional call to capture is not needed here.
+	 * top-to-bottom style: items are killed in reiser4_cut_tree_object()
+	 * and pages belonging to extent are invalidated in kill_hook_extent().
+	 * So probably now additional call to capture is not needed here.
 	 */
 
 	assert("nikita-3137", PageLocked(page));
@@ -207,11 +207,11 @@ void reiser4_invalidatepage(struct page *page, unsigned long offset)
 	 * during mount) it is simpler to let ->invalidatepage to be called on
 	 * them. Check for this, and do nothing.
 	 */
-	if (get_super_fake(inode->i_sb) == inode)
+	if (reiser4_get_super_fake(inode->i_sb) == inode)
 		return;
-	if (get_cc_fake(inode->i_sb) == inode)
+	if (reiser4_get_cc_fake(inode->i_sb) == inode)
 		return;
-	if (get_bitmap_fake(inode->i_sb) == inode)
+	if (reiser4_get_bitmap_fake(inode->i_sb) == inode)
 		return;
 	assert("vs-1426", PagePrivate(page));
 	assert("vs-1427",
@@ -220,7 +220,7 @@ void reiser4_invalidatepage(struct page *page, unsigned long offset)
 	assert("", ergo(inode_file_plugin(inode) !=
 			file_plugin_by_id(CRC_FILE_PLUGIN_ID), offset == 0));
 
-	ctx = init_context(inode->i_sb);
+	ctx = reiser4_init_context(inode->i_sb);
 	if (IS_ERR(ctx))
 		return;
 
@@ -232,7 +232,7 @@ void reiser4_invalidatepage(struct page *page, unsigned long offset)
 		jref(node);
 		JF_SET(node, JNODE_HEARD_BANSHEE);
 		page_clear_jnode(page, node);
-		uncapture_jnode(node);
+		reiser4_uncapture_jnode(node);
 		unhash_unformatted_jnode(node);
 		jput(node);
 		reiser4_exit_context(ctx);
@@ -247,12 +247,11 @@ void reiser4_invalidatepage(struct page *page, unsigned long offset)
 
 	if (offset == 0) {
 		/* remove jnode from transaction and detach it from page. */
-		assert("vs-1435", !JF_ISSET(node, JNODE_CC));
 		jref(node);
 		JF_SET(node, JNODE_HEARD_BANSHEE);
 		/* page cannot be detached from jnode concurrently, because it
 		 * is locked */
-		uncapture_page(page);
+		reiser4_uncapture_page(page);
 
 		/* this detaches page from jnode, so that jdelete will not try
 		 * to lock page which is already locked */
@@ -283,51 +282,41 @@ int jnode_is_releasable(jnode * node /* node to check */ )
 
 	assert("vs-1214", !jnode_is_loaded(node));
 
-	/* this jnode is just a copy. Its page cannot be released, because
-	 * otherwise next jload() would load obsolete data from disk
-	 * (up-to-date version may still be in memory). */
-	if (is_cced(node)) {
+	/*
+	 * can only release page if real block number is assigned to it. Simple
+	 * check for ->atom wouldn't do, because it is possible for node to be
+	 * clean, not it atom yet, and still having fake block number. For
+	 * example, node just created in jinit_new().
+	 */
+	if (reiser4_blocknr_is_fake(jnode_get_block(node)))
 		return 0;
-	}
 
-	/* emergency flushed page can be released. This is what emergency
-	 * flush is all about after all. */
-	if (JF_ISSET(node, JNODE_EFLUSH)) {
-		return 1;	/* yeah! */
-	}
+	/*
+	 * pages prepared for write can not be released anyway, so avoid
+	 * detaching jnode from the page
+	 */
+	if (JF_ISSET(node, JNODE_WRITE_PREPARED))
+		return 0;
 
-	/* can only release page if real block number is assigned to
-	   it. Simple check for ->atom wouldn't do, because it is possible for
-	   node to be clean, not it atom yet, and still having fake block
-	   number. For example, node just created in jinit_new(). */
-	if (blocknr_is_fake(jnode_get_block(node))) {
+	/*
+	 * dirty jnode cannot be released. It can however be submitted to disk
+	 * as part of early flushing, but only after getting flush-prepped.
+	 */
+	if (JF_ISSET(node, JNODE_DIRTY))
 		return 0;
-	}
-	/* dirty jnode cannot be released. It can however be submitted to disk
-	 * as part of early flushing, but only after getting flush-prepped. */
-	if (JF_ISSET(node, JNODE_DIRTY)) {
-		return 0;
-	}
+
 	/* overwrite set is only written by log writer. */
-	if (JF_ISSET(node, JNODE_OVRWR)) {
+	if (JF_ISSET(node, JNODE_OVRWR))
 		return 0;
-	}
+
 	/* jnode is already under writeback */
-	if (JF_ISSET(node, JNODE_WRITEBACK)) {
+	if (JF_ISSET(node, JNODE_WRITEBACK))
 		return 0;
-	}
-#if 0
-	/* page was modified through mmap, but its jnode is not yet
-	 * captured. Don't discard modified data. */
-	if (jnode_is_unformatted(node) && JF_ISSET(node, JNODE_KEEPME)) {
-		return 0;
-	}
-#endif
-	BUG_ON(JF_ISSET(node, JNODE_KEEPME));
+
 	/* don't flush bitmaps or journal records */
-	if (!jnode_is_znode(node) && !jnode_is_unformatted(node)) {
+	if (!jnode_is_znode(node) && !jnode_is_unformatted(node))
 		return 0;
-	}
+
 	return 1;
 }
 
@@ -347,7 +336,7 @@ int reiser4_releasepage(struct page *page, gfp_t gfp UNUSED_ARG)
 	assert("nikita-2257", PagePrivate(page));
 	assert("nikita-2259", PageLocked(page));
 	assert("nikita-2892", !PageWriteback(page));
-	assert("nikita-3019", schedulable());
+	assert("nikita-3019", reiser4_schedulable());
 
 	/* NOTE-NIKITA: this can be called in the context of reiser4 call. It
 	   is not clear what to do in this case. A lot of deadlocks seems be
@@ -384,7 +373,7 @@ int reiser4_releasepage(struct page *page, gfp_t gfp UNUSED_ARG)
 	} else {
 		spin_unlock(&(node->load));
 		spin_unlock_jnode(node);
-		assert("nikita-3020", schedulable());
+		assert("nikita-3020", reiser4_schedulable());
 		return 0;
 	}
 }

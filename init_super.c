@@ -14,11 +14,12 @@
  * Allocates and initialize reiser4_super_info_data, attaches it to
  * super->s_fs_info, initializes structures maintaining d_cursor-s.
  */
-int init_fs_info(struct super_block *super)
+int reiser4_init_fs_info(struct super_block *super)
 {
 	reiser4_super_info_data *sbinfo;
 
-	sbinfo = kmalloc(sizeof(reiser4_super_info_data), GFP_KERNEL);
+	sbinfo = kmalloc(sizeof(reiser4_super_info_data),
+			 reiser4_ctx_gfp_mask_get());
 	if (!sbinfo)
 		return RETERR(-ENOMEM);
 
@@ -32,33 +33,31 @@ int init_fs_info(struct super_block *super)
 	sema_init(&sbinfo->delete_sema, 1);
 	sema_init(&sbinfo->flush_sema, 1);
 	spin_lock_init(&(sbinfo->guard));
-#if REISER4_USE_EFLUSH
-	spin_lock_init(&(sbinfo->eflush_guard));
-#endif
+
 	/*  initialize per-super-block d_cursor resources */
-	init_super_d_info(super);
+	reiser4_init_super_d_info(super);
 
 	return 0;
 }
 
 /**
- * done_fs_info - free reiser4 specific super block
+ * reiser4_done_fs_info - free reiser4 specific super block
  * @super: super block of filesystem
  *
  * Performs some sanity checks, releases structures maintaining d_cursor-s,
  * frees reiser4_super_info_data.
  */
-void done_fs_info(struct super_block *super)
+void reiser4_done_fs_info(struct super_block *super)
 {
 	assert("zam-990", super->s_fs_info != NULL);
 
 	/* release per-super-block d_cursor resources */
-	done_super_d_info(super);
+	reiser4_done_super_d_info(super);
 
 	/* make sure that there are not jnodes already */
 	assert("", list_empty(&get_super_private(super)->all_jnodes));
 	assert("", get_current_context()->trans->atom == NULL);
-	check_block_counters(super);
+	reiser4_check_block_counters(super);
 	kfree(super->s_fs_info);
 	super->s_fs_info = NULL;
 }
@@ -295,14 +294,14 @@ static int parse_options(char *opt_string, opt_desc_t *opts, int nr_opts)
 #define MAX_NR_OPTIONS (30)
 
 /**
- * init_super_data - initialize reiser4 private super block
+ * reiser4_init_super_data - initialize reiser4 private super block
  * @super: super block to initialize
  * @opt_string: list of reiser4 mount options
  *
  * Sets various reiser4 parameters to default values. Parses mount options and
  * overwrites default settings.
  */
-int init_super_data(struct super_block *super, char *opt_string)
+int reiser4_init_super_data(struct super_block *super, char *opt_string)
 {
 	int result;
 	opt_desc_t *opts, *p;
@@ -346,7 +345,8 @@ int init_super_data(struct super_block *super, char *opt_string)
 	sbinfo->ra_params.flags = 0;
 
 	/* allocate memory for structure describing reiser4 mount options */
-	opts = kmalloc(sizeof(opt_desc_t) * MAX_NR_OPTIONS, GFP_KERNEL);
+	opts = kmalloc(sizeof(opt_desc_t) * MAX_NR_OPTIONS,
+		       reiser4_ctx_gfp_mask_get());
 	if (opts == NULL)
 		return RETERR(-ENOMEM);
 
@@ -520,14 +520,14 @@ do {						\
 }
 
 /**
- * init_read_super - read reiser4 master super block
+ * reiser4_init_read_super - read reiser4 master super block
  * @super: super block to fill
  * @silent: if 0 - print warnings
  *
  * Reads reiser4 master super block either from predefined location or from
  * location specified by altsuper mount option, initializes disk format plugin.
  */
-int init_read_super(struct super_block *super, int silent)
+int reiser4_init_read_super(struct super_block *super, int silent)
 {
 	struct buffer_head *super_bh;
 	struct reiser4_master_sb *master_sb;
@@ -676,13 +676,13 @@ static reiser4_plugin *get_default_plugin(pset_member memb)
 }
 
 /**
- * init_root_inode - obtain inode of root directory
+ * reiser4_init_root_inode - obtain inode of root directory
  * @super: super block of filesystem
  *
  * Obtains inode of root directory (reading it from disk), initializes plugin
  * set it was not initialized.
  */
-int init_root_inode(struct super_block *super)
+int reiser4_init_root_inode(struct super_block *super)
 {
 	reiser4_super_info_data *sbinfo = get_super_private(super);
 	struct inode *inode;

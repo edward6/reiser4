@@ -60,7 +60,7 @@ struct reiser4_context {
 	 * ->i_mutex */
 	unsigned int nobalance:1;
 
-	/* this bit is used on done_context to decide whether context is
+	/* this bit is used on reiser4_done_context to decide whether context is
 	   kmalloc-ed and has to be kfree-ed */
 	unsigned int on_stack:1;
 
@@ -77,7 +77,7 @@ struct reiser4_context {
 #if REISER4_DEBUG
 	/* debugging information about reiser4 locks held by the current
 	 * thread */
-	lock_counters_info locks;
+	reiser4_lock_counters_info locks;
 	struct task_struct *task;	/* so we can easily find owner of the stack */
 
 	/*
@@ -93,6 +93,7 @@ struct reiser4_context {
 	err_site err;
 #endif
 	void *vp;
+	gfp_t gfp_mask;
 };
 
 extern reiser4_context *get_context_by_lock_stack(lock_stack *);
@@ -106,7 +107,7 @@ extern void print_contexts(void);
 #define current_blocksize reiser4_get_current_sb()->s_blocksize
 #define current_blocksize_bits reiser4_get_current_sb()->s_blocksize_bits
 
-extern reiser4_context *init_context(struct super_block *);
+extern reiser4_context *reiser4_init_context(struct super_block *);
 extern void init_stack_context(reiser4_context *, struct super_block *);
 extern void reiser4_exit_context(reiser4_context *);
 
@@ -144,6 +145,16 @@ static inline reiser4_context *get_current_context(void)
 {
 	return get_context(current);
 }
+
+static inline gfp_t reiser4_ctx_gfp_mask_get(void)
+{
+	reiser4_context *ctx;
+
+	ctx = get_current_context_check();
+	return (ctx == NULL) ? GFP_KERNEL : ctx->gfp_mask;
+}
+
+void reiser4_ctx_gfp_mask_set(void);
 
 /*
  * true if current thread is in the write-out mode. Thread enters write-out

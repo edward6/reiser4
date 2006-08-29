@@ -22,7 +22,8 @@ struct tree_access_pointer {
 	lock_handle *lh;
 	/* mode of lock acquired by this tap */
 	znode_lock_mode mode;
-	/* incremented by tap_load(). Decremented by tap_relse(). */
+	/* incremented by reiser4_tap_load().
+	   Decremented by reiser4_tap_relse(). */
 	int loaded;
 	/* list of taps */
 	struct list_head linkage;
@@ -32,14 +33,14 @@ struct tree_access_pointer {
 
 typedef int (*go_actor_t) (tap_t * tap);
 
-extern int tap_load(tap_t * tap);
-extern void tap_relse(tap_t * tap);
-extern void tap_init(tap_t * tap, coord_t * coord, lock_handle * lh,
+extern int reiser4_tap_load(tap_t * tap);
+extern void reiser4_tap_relse(tap_t * tap);
+extern void reiser4_tap_init(tap_t * tap, coord_t * coord, lock_handle * lh,
 		     znode_lock_mode mode);
-extern void tap_monitor(tap_t * tap);
-extern void tap_copy(tap_t * dst, tap_t * src);
-extern void tap_done(tap_t * tap);
-extern int tap_move(tap_t * tap, lock_handle * target);
+extern void reiser4_tap_monitor(tap_t * tap);
+extern void reiser4_tap_copy(tap_t * dst, tap_t * src);
+extern void reiser4_tap_done(tap_t * tap);
+extern int reiser4_tap_move(tap_t * tap, lock_handle * target);
 extern int tap_to_coord(tap_t * tap, coord_t * target);
 
 extern int go_dir_el(tap_t * tap, sideof dir, int units_p);
@@ -48,11 +49,11 @@ extern int go_prev_unit(tap_t * tap);
 extern int rewind_right(tap_t * tap, int shift);
 extern int rewind_left(tap_t * tap, int shift);
 
-extern struct list_head *taps_list(void);
+extern struct list_head *reiser4_taps_list(void);
 
-#define for_all_taps(tap)						\
-	for (tap = list_entry(taps_list()->next, tap_t, linkage);	\
-	     taps_list() != &tap->linkage;				\
+#define for_all_taps(tap)						       \
+	for (tap = list_entry(reiser4_taps_list()->next, tap_t, linkage);      \
+	     reiser4_taps_list() != &tap->linkage;			       \
 	     tap = list_entry(tap->linkage.next, tap_t, linkage))
 
 /* __REISER4_TAP_H__ */

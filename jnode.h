@@ -12,7 +12,7 @@
 #include "key.h"
 #include "debug.h"
 #include "dformat.h"
-#include "emergency_flush.h"
+#include "context.h"
 
 #include "plugin/plugin.h"
 
@@ -228,8 +228,6 @@ typedef enum {
 
 	/* THIS PLACE IS INTENTIONALLY LEFT BLANK */
 
-	JNODE_EFLUSH = 11,
-
 	/* jnode is queued for flushing. */
 	JNODE_FLUSH_QUEUED = 12,
 
@@ -254,23 +252,15 @@ typedef enum {
 	/* delimiting keys are already set for this znode. */
 	JNODE_DKSET = 20,
 
-	/* cheap and effective protection of jnode from emergency flush. This
-	 * bit can only be set by thread that holds long term lock on jnode
-	 * parent node (twig node, where extent unit lives). */
-	JNODE_EPROTECTED = 21,
+	/* when this bit is set page and jnode can not be disconnected */
+	JNODE_WRITE_PREPARED = 21,
+
 	JNODE_CLUSTER_PAGE = 22,
 	/* Jnode is marked for repacking, that means the reiser4 flush and the
 	 * block allocator should process this node special way  */
 	JNODE_REPACK = 23,
 	/* node should be converted by flush in squalloc phase */
 	JNODE_CONVERTIBLE = 24,
-
-	JNODE_SCANNED = 25,
-	JNODE_JLOADED_BY_GET_OVERWRITE_SET = 26,
-	/* capture copy jnode */
-	JNODE_CC = 27,
-	/* this jnode is copy of coced original */
-	JNODE_CCED = 28,
 	/*
 	 * When jnode is dirtied for the first time in given transaction,
 	 * do_jnode_make_dirty() checks whether this jnode can possible became
@@ -287,16 +277,7 @@ typedef enum {
 	 *     (3) extent is allocated
 	 *
 	 */
-	JNODE_FLUSH_RESERVED = 29,
-	/* if page was dirtied through mmap, we don't want to lose data, even
-	 * though page and jnode may be clean. Mark jnode with JNODE_KEEPME so
-	 * that ->releasepage() can tell. This is used only for
-	 * unformatted */
-	JNODE_KEEPME = 30,
-#if REISER4_DEBUG
-	/* uneflushed */
-	JNODE_UNEFLUSHED = 31
-#endif
+	JNODE_FLUSH_RESERVED = 29
 } reiser4_jnode_state;
 
 /* Macros for accessing the jnode state. */
@@ -368,12 +349,8 @@ extern jnode *jfind(struct address_space *, unsigned long index) NONNULL;
 extern jnode *jnode_by_page(struct page *pg) NONNULL;
 extern jnode *jnode_of_page(struct page *pg) NONNULL;
 void jnode_attach_page(jnode * node, struct page *pg);
-jnode *find_get_jnode(reiser4_tree * tree,
-		      struct address_space *mapping, oid_t oid,
-		      unsigned long index);
 
 void unhash_unformatted_jnode(jnode *);
-struct page *jnode_get_page_locked(jnode *, int gfp_flags);
 extern jnode *page_next_jnode(jnode * node) NONNULL;
 extern void jnode_init(jnode * node, reiser4_tree * tree, jnode_type) NONNULL;
 extern void jnode_make_dirty(jnode * node) NONNULL;
@@ -382,21 +359,32 @@ extern void jnode_make_wander_nolock(jnode * node) NONNULL;
 extern void jnode_make_wander(jnode *) NONNULL;
 extern void znode_make_reloc(znode *, flush_queue_t *) NONNULL;
 extern void unformatted_make_reloc(jnode *, flush_queue_t *) NONNULL;
-
-extern void jnode_set_block(jnode * node,
-			    const reiser4_block_nr * blocknr) NONNULL;
-/*extern struct page *jnode_lock_page(jnode *) NONNULL;*/
 extern struct address_space *jnode_get_mapping(const jnode * node) NONNULL;
 
-/* block number of node */
-static inline const reiser4_block_nr *jnode_get_block(const jnode *
-						      node /* jnode to query */
-						      )
+/**
+ * jnode_get_block
+ * @node: jnode to query
+ *
+ */
+static inline const reiser4_block_nr *jnode_get_block(const jnode *node)
 {
 	assert("nikita-528", node != NULL);
 
 	return &node->blocknr;
 }
+
+/**
+ * jnode_set_block
+ * @node: jnode to update
+ * @blocknr: new block nr
+ */
+static inline void jnode_set_block(jnode *node, const reiser4_block_nr *blocknr)
+{
+	assert("nikita-2020", node != NULL);
+	assert("umka-055", blocknr != NULL);
+	node->blocknr = *blocknr;
+}
+
 
 /* block number for IO. Usually this is the same as jnode_get_block(), unless
  * jnode was emergency flushed---then block number chosen by eflush is
@@ -406,25 +394,18 @@ static inline const reiser4_block_nr *jnode_get_io_block(jnode * node)
 	assert("nikita-2768", node != NULL);
 	assert_spin_locked(&(node->guard));
 
-	if (unlikely(JF_ISSET(node, JNODE_EFLUSH)))
-		return eflush_get(node);
-	else
-		return jnode_get_block(node);
+	return jnode_get_block(node);
 }
 
 /* Jnode flush interface. */
-extern reiser4_blocknr_hint *pos_hint(flush_pos_t * pos);
-extern flush_queue_t *pos_fq(flush_pos_t * pos);
+extern reiser4_blocknr_hint *reiser4_pos_hint(flush_pos_t * pos);
+extern flush_queue_t *reiser4_pos_fq(flush_pos_t * pos);
 
 /* FIXME-VS: these are used in plugin/item/extent.c */
 
 /* does extent_get_block have to be called */
 #define jnode_mapped(node)     JF_ISSET (node, JNODE_MAPPED)
 #define jnode_set_mapped(node) JF_SET (node, JNODE_MAPPED)
-/* pointer to this block was just created (either by appending or by plugging a
-   hole), or zinit_new was called */
-#define jnode_created(node)        JF_ISSET (node, JNODE_CREATED)
-#define jnode_set_created(node)    JF_SET (node, JNODE_CREATED)
 
 /* the node should be converted during flush squalloc phase */
 #define jnode_convertible(node)        JF_ISSET (node, JNODE_CONVERTIBLE)
@@ -519,23 +500,23 @@ static inline void jnode_set_reloc(jnode * node)
 
 /* jload/jwrite/junload give a bread/bwrite/brelse functionality for jnodes */
 
-extern int jload_gfp(jnode * node, int gfp, int do_kmap) NONNULL;
+extern int jload_gfp(jnode *, gfp_t, int do_kmap) NONNULL;
 
-static inline int jload(jnode * node)
+static inline int jload(jnode *node)
 {
-	return jload_gfp(node, GFP_KERNEL, 1);
+	return jload_gfp(node, reiser4_ctx_gfp_mask_get(), 1);
 }
 
-extern int jinit_new(jnode * node, int gfp_flags) NONNULL;
-extern int jstartio(jnode * node) NONNULL;
+extern int jinit_new(jnode *, gfp_t) NONNULL;
+extern int jstartio(jnode *) NONNULL;
 
-extern void jdrop(jnode * node) NONNULL;
-extern int jwait_io(jnode * node, int rw) NONNULL;
+extern void jdrop(jnode *) NONNULL;
+extern int jwait_io(jnode *, int rw) NONNULL;
 
 void jload_prefetch(jnode *);
 
-extern jnode *alloc_io_head(const reiser4_block_nr * block) NONNULL;
-extern void drop_io_head(jnode * node) NONNULL;
+extern jnode *reiser4_alloc_io_head(const reiser4_block_nr * block) NONNULL;
+extern void reiser4_drop_io_head(jnode * node) NONNULL;
 
 static inline reiser4_tree *jnode_get_tree(const jnode * node)
 {
@@ -677,7 +658,7 @@ static inline void jput(jnode * node)
 {
 	assert("jmacd-509", node != NULL);
 	assert("jmacd-510", atomic_read(&node->x_count) > 0);
-	assert("zam-926", schedulable());
+	assert("zam-926", reiser4_schedulable());
 	LOCK_CNT_DEC(x_refs);
 
 	rcu_read_lock();
@@ -688,7 +669,7 @@ static inline void jput(jnode * node)
 		jput_final(node);
 	} else
 		rcu_read_unlock();
-	assert("nikita-3473", schedulable());
+	assert("nikita-3473", reiser4_schedulable());
 }
 
 extern void jrelse(jnode * node);

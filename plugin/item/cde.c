@@ -426,9 +426,9 @@ reiser4_key *max_key_inside_cde(const coord_t * coord /* coord of item */ ,
 	assert("nikita-1342", coord != NULL);
 
 	item_key_by_coord(coord, result);
-	set_key_ordering(result, get_key_ordering(max_key()));
-	set_key_fulloid(result, get_key_fulloid(max_key()));
-	set_key_offset(result, get_key_offset(max_key()));
+	set_key_ordering(result, get_key_ordering(reiser4_max_key()));
+	set_key_fulloid(result, get_key_fulloid(reiser4_max_key()));
+	set_key_offset(result, get_key_offset(reiser4_max_key()));
 	return result;
 }
 
@@ -459,8 +459,8 @@ int can_contain_key_cde(const coord_t * coord /* coord of item */ ,
    possible check of the consistency of the item that the inventor can
    construct
 */
-int check_cde(const coord_t * coord /* coord of item to check */ ,
-	      const char **error /* where to store error message */ )
+int reiser4_check_cde(const coord_t * coord /* coord of item to check */,
+		      const char **error /* where to store error message */)
 {
 	int i;
 	int result;
@@ -938,7 +938,8 @@ int add_entry_cde(struct inode *dir /* directory object */ ,
 	if (result)
 		result = insert_by_coord(coord, &data, &dir_entry->key, lh, 0);
 	else
-		result = resize_item(coord, &data, &dir_entry->key, lh, 0);
+		result = reiser4_resize_item(coord, &data, &dir_entry->key,
+					     lh, 0);
 	return result;
 }
 
@@ -991,9 +992,9 @@ int rem_entry_cde(struct inode *dir /* directory of item */ ,
 int max_name_len_cde(const struct inode *dir /* directory */ )
 {
 	return
-	    tree_by_inode(dir)->nplug->max_item_size() -
-	    sizeof(directory_entry_format) - sizeof(cde_item_format) -
-	    sizeof(cde_unit_header) - 2;
+		reiser4_tree_by_inode(dir)->nplug->max_item_size() -
+		sizeof(directory_entry_format) - sizeof(cde_item_format) -
+		sizeof(cde_unit_header) - 2;
 }
 
 /* Make Linus happy.

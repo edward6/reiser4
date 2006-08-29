@@ -7,9 +7,9 @@
 
 #include "../inode.h"
 
-int find_entry(struct inode *dir, struct dentry *name,
+int reiser4_find_entry(struct inode *dir, struct dentry *name,
 	       lock_handle *, znode_lock_mode, reiser4_dir_entry_desc *);
-int lookup_name(struct inode *parent, struct dentry *dentry, reiser4_key * key);
+int reiser4_lookup_name(struct inode *parent, struct dentry *dentry, reiser4_key * key);
 void check_light_weight(struct inode *inode, struct inode *parent);
 
 /* this is common implementation of get_parent method of dir plugin
@@ -35,7 +35,7 @@ struct dentry *get_parent_common(struct inode *child)
 	dotdot.d_name.len = 2;
 	dotdot.d_op = &get_super_private(s)->ops.dentry;
 
-	result = lookup_name(child, &dotdot, &key);
+	result = reiser4_lookup_name(child, &dotdot, &key);
 	if (result != 0)
 		return ERR_PTR(result);
 
@@ -88,7 +88,7 @@ int is_name_acceptable_common(const struct inode *inode,	/* directory to check *
 
 /* this is common implementation of build_readdir_key method of dir
    plugin
-   see readdir_common for more details
+   see reiser4_readdir_common for more details
 */
 int build_readdir_key_common(struct file *dir /* directory being read */ ,
 			     reiser4_key * result /* where to store key */ )
@@ -112,19 +112,19 @@ int build_readdir_key_common(struct file *dir /* directory being read */ ,
 
 }
 
-void adjust_dir_file(struct inode *, const struct dentry *, int offset,
-		     int adj);
+void reiser4_adjust_dir_file(struct inode *, const struct dentry *, int offset,
+			     int adj);
 
 /* this is common implementation of add_entry method of dir plugin
 */
-int add_entry_common(struct inode *object,	/* directory to add new name
-						 * in */
-		     struct dentry *where,	/* new name */
-		     reiser4_object_create_data * data UNUSED_ARG,	/* parameters
-									 * of new
-									 * object */
-		     reiser4_dir_entry_desc * entry	/* parameters of new
-							 * directory entry */ )
+int reiser4_add_entry_common(struct inode *object, /* directory to add new name
+						    * in */
+			     struct dentry *where,	/* new name */
+			     reiser4_object_create_data * data, /* parameters of
+								*  new object */
+			     reiser4_dir_entry_desc * entry /* parameters of
+							     * new directory
+							     * entry */)
 {
 	int result;
 	coord_t *coord;
@@ -148,20 +148,22 @@ int add_entry_common(struct inode *object,	/* directory to add new name
 	coord_clear_iplug(coord);
 
 	/* check for this entry in a directory. This is plugin method. */
-	result = find_entry(object, where, &lh, ZNODE_WRITE_LOCK, entry);
+	result = reiser4_find_entry(object, where, &lh, ZNODE_WRITE_LOCK,
+				    entry);
 	if (likely(result == -ENOENT)) {
 		/* add new entry. Just pass control to the directory
 		   item plugin. */
 		assert("nikita-1709", inode_dir_item_plugin(object));
 		assert("nikita-2230", coord->node == lh.node);
-		seal_done(&fsdata->dec.entry_seal);
+		reiser4_seal_done(&fsdata->dec.entry_seal);
 		result =
 		    inode_dir_item_plugin(object)->s.dir.add_entry(object,
 								   coord, &lh,
 								   where,
 								   entry);
 		if (result == 0) {
-			adjust_dir_file(object, where, fsdata->dec.pos + 1, +1);
+			reiser4_adjust_dir_file(object, where,
+						fsdata->dec.pos + 1, +1);
 			INODE_INC_FIELD(object, i_size);
 		}
 	} else if (result == 0) {
@@ -215,16 +217,16 @@ rem_entry(struct inode *dir, struct dentry *dentry,
 }
 
 /**
- * rem_entry_common - remove entry from a directory
+ * reiser4_rem_entry_common - remove entry from a directory
  * @dir: directory to remove entry from
  * @where: name that is being removed
  * @entry: description of entry being removed
  *
  * This is common implementation of rem_entry method of dir plugin.
  */
-int rem_entry_common(struct inode *dir,
-		     struct dentry *dentry,
-		     reiser4_dir_entry_desc *entry)
+int reiser4_rem_entry_common(struct inode *dir,
+			     struct dentry *dentry,
+			     reiser4_dir_entry_desc *entry)
 {
 	int result;
 	coord_t *coord;
@@ -243,7 +245,7 @@ int rem_entry_common(struct inode *dir,
 	init_lh(&lh);
 
 	/* check for this entry in a directory. This is plugin method. */
-	result = find_entry(dir, dentry, &lh, ZNODE_WRITE_LOCK, entry);
+	result = reiser4_find_entry(dir, dentry, &lh, ZNODE_WRITE_LOCK, entry);
 	fsdata = reiser4_get_dentry_fsdata(dentry);
 	if (IS_ERR(fsdata)) {
 		done_lh(&lh);
@@ -261,8 +263,8 @@ int rem_entry_common(struct inode *dir,
 		/* remove entry. Just pass control to the directory item
 		   plugin. */
 		assert("vs-542", inode_dir_item_plugin(dir));
-		seal_done(&fsdata->dec.entry_seal);
-		adjust_dir_file(dir, dentry, fsdata->dec.pos, -1);
+		reiser4_seal_done(&fsdata->dec.entry_seal);
+		reiser4_adjust_dir_file(dir, dentry, fsdata->dec.pos, -1);
 		result =
 		    WITH_COORD(coord,
 			       rem_entry(dir, dentry, entry, coord, &lh));
@@ -293,14 +295,14 @@ static int create_dot_dotdot(struct inode *object, struct inode *parent);
 /* this is common implementation of init method of dir plugin
    create "." and ".." entries
 */
-int init_common(struct inode *object,	/* new directory */
-		struct inode *parent,	/* parent directory */
-		reiser4_object_create_data * data UNUSED_ARG	/* info passed
-								 * to us, this
-								 * is filled by
-								 * reiser4()
-								 * syscall in
-								 * particular */ )
+int reiser4_dir_init_common(struct inode *object,	/* new directory */
+			    struct inode *parent,	/* parent directory */
+			    reiser4_object_create_data * data /* info passed
+							       * to us, this
+							       * is filled by
+							       * reiser4()
+							       * syscall in
+							       * particular */)
 {
 	reiser4_block_nr reserve;
 
@@ -321,7 +323,7 @@ int init_common(struct inode *object,	/* new directory */
 /* this is common implementation of done method of dir plugin
    remove "." entry
 */
-int done_common(struct inode *object /* object being deleted */ )
+int reiser4_dir_done_common(struct inode *object /* object being deleted */ )
 {
 	int result;
 	reiser4_block_nr reserve;
@@ -330,14 +332,14 @@ int done_common(struct inode *object /* object being deleted */ )
 
 	assert("nikita-1449", object != NULL);
 
-	if (inode_get_flag(object, REISER4_NO_SD))
+	if (reiser4_inode_get_flag(object, REISER4_NO_SD))
 		return 0;
 
 	/* of course, this can be rewritten to sweep everything in one
-	   cut_tree(). */
+	   reiser4_cut_tree(). */
 	memset(&entry, 0, sizeof entry);
 
-	/* FIXME: this done method is called from delete_directory_common which
+	/* FIXME: this done method is called from reiser4_delete_dir_common which
 	 * reserved space already */
 	reserve = inode_dir_plugin(object)->estimate.rem_entry(object);
 	if (reiser4_grab_space(reserve, BA_CAN_COMMIT | BA_RESERVED))
@@ -347,7 +349,7 @@ int done_common(struct inode *object /* object being deleted */ )
 	entry.obj = goodby_dots.d_inode = object;
 	goodby_dots.d_name.name = ".";
 	goodby_dots.d_name.len = 1;
-	result = rem_entry_common(object, &goodby_dots, &entry);
+	result = reiser4_rem_entry_common(object, &goodby_dots, &entry);
 	reiser4_free_dentry_fsdata(&goodby_dots);
 	if (unlikely(result != 0 && result != -ENOMEM && result != -ENOENT))
 		/* only worth a warning
@@ -362,8 +364,8 @@ int done_common(struct inode *object /* object being deleted */ )
 
 /* this is common implementation of attach method of dir plugin
 */
-int
-attach_common(struct inode *child UNUSED_ARG, struct inode *parent UNUSED_ARG)
+int reiser4_attach_common(struct inode *child UNUSED_ARG,
+			  struct inode *parent UNUSED_ARG)
 {
 	assert("nikita-2647", child != NULL);
 	assert("nikita-2648", parent != NULL);
@@ -374,14 +376,14 @@ attach_common(struct inode *child UNUSED_ARG, struct inode *parent UNUSED_ARG)
 /* this is common implementation of detach method of dir plugin
    remove "..", decrease nlink on parent
 */
-int detach_common(struct inode *object, struct inode *parent)
+int reiser4_detach_common(struct inode *object, struct inode *parent)
 {
 	int result;
 	struct dentry goodby_dots;
 	reiser4_dir_entry_desc entry;
 
 	assert("nikita-2885", object != NULL);
-	assert("nikita-2886", !inode_get_flag(object, REISER4_NO_SD));
+	assert("nikita-2886", !reiser4_inode_get_flag(object, REISER4_NO_SD));
 
 	memset(&entry, 0, sizeof entry);
 
@@ -392,12 +394,12 @@ int detach_common(struct inode *object, struct inode *parent)
 	entry.obj = goodby_dots.d_inode = parent;
 	goodby_dots.d_name.name = "..";
 	goodby_dots.d_name.len = 2;
-	result = rem_entry_common(object, &goodby_dots, &entry);
+	result = reiser4_rem_entry_common(object, &goodby_dots, &entry);
 	reiser4_free_dentry_fsdata(&goodby_dots);
 	if (result == 0) {
 		/* the dot should be the only entry remaining at this time... */
-		assert("nikita-3400", object->i_size == 1 &&
-		       (object->i_nlink >= 0 && object->i_nlink <= 2));
+		assert("nikita-3400",
+		       object->i_size == 1 && object->i_nlink <= 2);
 #if 0
 		/* and, together with the only name directory can have, they
 		 * provides for the last 2 remaining references. If we get
@@ -423,7 +425,7 @@ int detach_common(struct inode *object, struct inode *parent)
 */
 reiser4_block_nr estimate_add_entry_common(const struct inode * inode)
 {
-	return estimate_one_insert_into_item(tree_by_inode(inode));
+	return estimate_one_insert_into_item(reiser4_tree_by_inode(inode));
 }
 
 /* this is common implementation of estimate.rem_entry method of dir
@@ -431,7 +433,7 @@ reiser4_block_nr estimate_add_entry_common(const struct inode * inode)
 */
 reiser4_block_nr estimate_rem_entry_common(const struct inode * inode)
 {
-	return estimate_one_item_removal(tree_by_inode(inode));
+	return estimate_one_item_removal(reiser4_tree_by_inode(inode));
 }
 
 /* this is common implementation of estimate.unlink method of dir
@@ -458,18 +460,18 @@ dir_estimate_unlink_common(const struct inode * parent,
  */
 void check_light_weight(struct inode *inode, struct inode *parent)
 {
-	if (inode_get_flag(inode, REISER4_LIGHT_WEIGHT)) {
+	if (reiser4_inode_get_flag(inode, REISER4_LIGHT_WEIGHT)) {
 		inode->i_uid = parent->i_uid;
 		inode->i_gid = parent->i_gid;
 		/* clear light-weight flag. If inode would be read by any
 		   other name, [ug]id wouldn't change. */
-		inode_clr_flag(inode, REISER4_LIGHT_WEIGHT);
+		reiser4_inode_clr_flag(inode, REISER4_LIGHT_WEIGHT);
 	}
 }
 
 /* looks for name specified in @dentry in directory @parent and if name is
    found - key of object found entry points to is stored in @entry->key */
-int lookup_name(struct inode *parent,	/* inode of directory to lookup for
+int reiser4_lookup_name(struct inode *parent,	/* inode of directory to lookup for
 					 * name in */
 		struct dentry *dentry,	/* name to look for */
 		reiser4_key * key /* place to store key */ )
@@ -504,7 +506,8 @@ int lookup_name(struct inode *parent,	/* inode of directory to lookup for
 	init_lh(&lh);
 
 	/* find entry in a directory. This is plugin method. */
-	result = find_entry(parent, dentry, &lh, ZNODE_READ_LOCK, &entry);
+	result = reiser4_find_entry(parent, dentry, &lh, ZNODE_READ_LOCK,
+				    &entry);
 	if (result == 0) {
 		/* entry was found, extract object key from it. */
 		result =
@@ -517,7 +520,7 @@ int lookup_name(struct inode *parent,	/* inode of directory to lookup for
 
 }
 
-/* helper for init_common(): estimate number of blocks to reserve */
+/* helper for reiser4_dir_init_common(): estimate number of blocks to reserve */
 static reiser4_block_nr
 estimate_init(struct inode *parent, struct inode *object)
 {
@@ -538,10 +541,10 @@ estimate_init(struct inode *parent, struct inode *object)
 	return 0;
 }
 
-/* helper function for init_common(). Create "." and ".." */
-static int create_dot_dotdot(struct inode *object	/* object to create dot and
-							 * dotdot for */ ,
-			     struct inode *parent /* parent of @object */ )
+/* helper function for reiser4_dir_init_common(). Create "." and ".." */
+static int create_dot_dotdot(struct inode *object /* object to create dot and
+						   * dotdot for */ ,
+			     struct inode *parent /* parent of @object */)
 {
 	int result;
 	struct dentry dots_entry;
@@ -571,7 +574,7 @@ static int create_dot_dotdot(struct inode *object	/* object to create dot and
 	entry.obj = dots_entry.d_inode = object;
 	dots_entry.d_name.name = ".";
 	dots_entry.d_name.len = 1;
-	result = add_entry_common(object, &dots_entry, NULL, &entry);
+	result = reiser4_add_entry_common(object, &dots_entry, NULL, &entry);
 	reiser4_free_dentry_fsdata(&dots_entry);
 
 	if (result == 0) {
@@ -580,7 +583,7 @@ static int create_dot_dotdot(struct inode *object	/* object to create dot and
 			entry.obj = dots_entry.d_inode = parent;
 			dots_entry.d_name.name = "..";
 			dots_entry.d_name.len = 2;
-			result = add_entry_common(object,
+			result = reiser4_add_entry_common(object,
 						  &dots_entry, NULL, &entry);
 			reiser4_free_dentry_fsdata(&dots_entry);
 			/* if creation of ".." failed, iput() will delete
@@ -592,7 +595,7 @@ static int create_dot_dotdot(struct inode *object	/* object to create dot and
 					 * if we failed to bump i_nlink, try
 					 * to remove ".."
 					 */
-					detach_common(object, parent);
+					reiser4_detach_common(object, parent);
 			}
 		}
 	}
@@ -677,7 +680,8 @@ typedef struct entry_actor_args {
 	const struct inode *inode;
 } entry_actor_args;
 
-/* Function called by find_entry() to look for given name in the directory. */
+/* Function called by reiser4_find_entry() to look for given name
+   in the directory. */
 static int entry_actor(reiser4_tree * tree UNUSED_ARG /* tree being scanned */ ,
 		       coord_t * coord /* current coord */ ,
 		       lock_handle * lh /* current lock handle */ ,
@@ -735,18 +739,18 @@ static int entry_actor(reiser4_tree * tree UNUSED_ARG /* tree being scanned */ ,
 /* Look for given @name within directory @dir.
 
    This is called during lookup, creation and removal of directory
-   entries and on rename_common
+   entries and on reiser4_rename_common
 
    First calculate key that directory entry for @name would have. Search
    for this key in the tree. If such key is found, scan all items with
    the same key, checking name in each directory entry along the way.
 */
-int find_entry(struct inode *dir,	/* directory to scan */
-	       struct dentry *de,	/* name to search for */
-	       lock_handle * lh,	/* resulting lock handle */
-	       znode_lock_mode mode,	/* required lock mode */
-	       reiser4_dir_entry_desc * entry	/* parameters of found directory
-						 * entry */ )
+int reiser4_find_entry(struct inode *dir,	/* directory to scan */
+		       struct dentry *de,	/* name to search for */
+		       lock_handle * lh,	/* resulting lock handle */
+		       znode_lock_mode mode,	/* required lock mode */
+		       reiser4_dir_entry_desc * entry	/* parameters of found
+							   directory entry */)
 {
 	const struct qstr *name;
 	seal_t *seal;
@@ -779,10 +783,10 @@ int find_entry(struct inode *dir,	/* directory to scan */
 	/* compose key of directory entry for @name */
 	inode_dir_plugin(dir)->build_entry_key(dir, name, &entry->key);
 
-	if (seal_is_set(seal)) {
+	if (reiser4_seal_is_set(seal)) {
 		/* check seal */
-		result = seal_validate(seal, coord, &entry->key,
-				       lh, mode, ZNODE_LOCK_LOPRI);
+		result = reiser4_seal_validate(seal, coord, &entry->key,
+					       lh, mode, ZNODE_LOCK_LOPRI);
 		if (result == 0) {
 			/* key was found. Check that it is really item we are
 			   looking for. */
@@ -795,16 +799,16 @@ int find_entry(struct inode *dir,	/* directory to scan */
 	/*
 	 * find place in the tree where directory item should be located.
 	 */
-	result = object_lookup(dir, &entry->key, coord, lh, mode,
-			       FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, flags,
-			       NULL /*ra_info */ );
+	result = reiser4_object_lookup(dir, &entry->key, coord, lh, mode,
+				       FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL,
+				       flags, NULL /*ra_info */ );
 	if (result == CBK_COORD_FOUND) {
 		entry_actor_args arg;
 
 		/* fast path: no hash collisions */
 		result = check_entry(dir, coord, name);
 		if (result == 0) {
-			seal_init(seal, coord, &entry->key);
+			reiser4_seal_init(seal, coord, &entry->key);
 			dec->pos = 0;
 		} else if (result > 0) {
 			/* Iterate through all units with the same keys. */
@@ -821,8 +825,10 @@ int find_entry(struct inode *dir,	/* directory to scan */
 			coord_init_zero(&arg.last_coord);
 			init_lh(&arg.last_lh);
 
-			result = iterate_tree(tree_by_inode(dir), coord, lh,
-					      entry_actor, &arg, mode, 1);
+			result = reiser4_iterate_tree
+				(reiser4_tree_by_inode(dir),
+				 coord, lh,
+				 entry_actor, &arg, mode, 1);
 			/* if end of the tree or extent was reached during
 			   scanning. */
 			if (arg.not_found || (result == -E_NO_NEIGHBOR)) {
@@ -842,7 +848,7 @@ int find_entry(struct inode *dir,	/* directory to scan */
 
 			done_lh(&arg.last_lh);
 			if (result == 0)
-				seal_init(seal, coord, &entry->key);
+				reiser4_seal_init(seal, coord, &entry->key);
 
 			if (result == 0 || result == -ENOENT) {
 				assert("nikita-2580", arg.non_uniq > 0);
@@ -854,11 +860,13 @@ int find_entry(struct inode *dir,	/* directory to scan */
 	return result;
 }
 
-/* Local variables:
+/*
+   Local variables:
    c-indentation-style: "K&R"
    mode-name: "LC"
    c-basic-offset: 8
    tab-width: 8
    fill-column: 120
+   scroll-step: 1
    End:
 */

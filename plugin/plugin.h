@@ -886,7 +886,6 @@ typedef enum {
 int grab_plugin(struct inode *self, struct inode *ancestor, pset_member memb);
 int grab_plugin_from(struct inode *self, pset_member memb,
 		     reiser4_plugin * plug);
-int force_plugin(struct inode *self, pset_member memb, reiser4_plugin * plug);
 
 /* defined in fs/reiser4/plugin/object.c */
 extern file_plugin file_plugins[LAST_FILE_PLUGIN_ID];

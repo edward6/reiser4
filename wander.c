@@ -231,7 +231,7 @@ static inline int reiser4_use_write_barrier(struct super_block * s)
 static void disable_write_barrier(struct super_block * s)
 {
 	notice("zam-1055", "%s does not support write barriers,"
-	       " using synchronous write instead.\n", s->s_id);
+	       " using synchronous write instead.", s->s_id);
 	set_bit((int)REISER4_NO_WRITE_BARRIER, &get_super_private(s)->fs_flags);
 }
 
@@ -493,7 +493,7 @@ static void dealloc_tx_list(struct commit_handle *ch)
 				      BA_FORMATTED);
 
 		unpin_jnode_data(cur);
-		drop_io_head(cur);
+		reiser4_drop_io_head(cur);
 	}
 }
 
@@ -507,7 +507,7 @@ dealloc_wmap_actor(txn_atom * atom UNUSED_ARG,
 
 	assert("zam-499", b != NULL);
 	assert("zam-500", *b != 0);
-	assert("zam-501", !blocknr_is_fake(b));
+	assert("zam-501", !reiser4_blocknr_is_fake(b));
 
 	reiser4_dealloc_block(b, BLOCK_NOT_COUNTED, BA_FORMATTED);
 	return 0;
@@ -536,12 +536,11 @@ get_more_wandered_blocks(int count, reiser4_block_nr * start, int *len)
 	   ZAM-FIXME-HANS: yes, what happened to our discussion of using a fixed
 	   reserved allocation area so as to get the best qualities of fixed
 	   journals? */
-	blocknr_hint_init(&hint);
+	reiser4_blocknr_hint_init(&hint);
 	hint.block_stage = BLOCK_GRABBED;
 
 	ret = reiser4_alloc_blocks(&hint, start, &wide_len,
 				   BA_FORMATTED | BA_USE_DEFAULT_SEARCH_START);
-
 	*len = (int)wide_len;
 
 	return ret;
@@ -635,18 +634,18 @@ static int get_overwrite_set(struct commit_handle *ch)
 				spin_unlock_jnode(sj);
 
 				/* jload it as the rest of overwrite set */
-				jload_gfp(sj, GFP_KERNEL, 0);
+				jload_gfp(sj, reiser4_ctx_gfp_mask_get(), 0);
 
 				ch->overwrite_set_size++;
 			}
 			spin_lock_jnode(cur);
-			uncapture_block(cur);
+			reiser4_uncapture_block(cur);
 			jput(cur);
 
 		} else {
 			int ret;
 			ch->overwrite_set_size++;
-			ret = jload_gfp(cur, GFP_KERNEL, 0);
+			ret = jload_gfp(cur, reiser4_ctx_gfp_mask_get(), 0);
 			if (ret)
 				reiser4_panic("zam-783",
 					      "cannot load e-flushed jnode back (ret = %d)\n",
@@ -769,7 +768,6 @@ static int write_jnodes_to_disk_extent(
 			assert("nikita-3166",
 			       pg->mapping == jnode_get_mapping(cur));
 			assert("zam-912", !JF_ISSET(cur, JNODE_WRITEBACK));
-			assert("", !JF_ISSET(cur, JNODE_EFLUSH));
 #if REISER4_DEBUG
 			spin_lock(&cur->load);
 			assert("nikita-3165", !jnode_is_releasable(cur));
@@ -915,7 +913,7 @@ add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
 		do {
 			atom = get_current_atom_locked();
 			assert("zam-536",
-			       !blocknr_is_fake(jnode_get_block(cur)));
+			       !reiser4_blocknr_is_fake(jnode_get_block(cur)));
 			ret =
 			    blocknr_set_add_pair(atom, &atom->wandered_map,
 						 &new_bsep,
@@ -999,14 +997,19 @@ static int alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 	jnode *cur;
 	jnode *txhead;
 	int ret;
+	reiser4_context *ctx;
+	reiser4_super_info_data *sbinfo;
 
 	assert("zam-698", ch->tx_size > 0);
 	assert("zam-699", list_empty_careful(&ch->tx_list));
 
+	ctx = get_current_context();
+	sbinfo = get_super_private(ctx->super);
+
 	while (allocated < (unsigned)ch->tx_size) {
 		len = (ch->tx_size - allocated);
 
-		blocknr_hint_init(&hint);
+		reiser4_blocknr_hint_init(&hint);
 
 		hint.block_stage = BLOCK_GRABBED;
 
@@ -1018,8 +1021,7 @@ static int alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 		ret = reiser4_alloc_blocks(&hint, &first, &len,
 					   BA_FORMATTED | BA_RESERVED |
 					   BA_USE_DEFAULT_SEARCH_START);
-
-		blocknr_hint_done(&hint);
+		reiser4_blocknr_hint_done(&hint);
 
 		if (ret)
 			return ret;
@@ -1028,14 +1030,14 @@ static int alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 
 		/* create jnodes for all wander records */
 		while (len--) {
-			cur = alloc_io_head(&first);
+			cur = reiser4_alloc_io_head(&first);
 
 			if (cur == NULL) {
 				ret = RETERR(-ENOMEM);
 				goto free_not_assigned;
 			}
 
-			ret = jinit_new(cur, GFP_KERNEL);
+			ret = jinit_new(cur, reiser4_ctx_gfp_mask_get());
 
 			if (ret != 0) {
 				jfree(cur);
@@ -1124,10 +1126,7 @@ static int commit_tx(struct commit_handle *ch)
 			break;
 	} while (0);
 
-	/* Release all grabbed space if it was not fully used for
-	 * wandered blocks/records allocation. */
-	all_grabbed2free();
-	fq_put(fq);
+	reiser4_fq_put(fq);
 	if (ret)
 		return ret;
  repeat_wo_barrier:
@@ -1158,14 +1157,14 @@ static int write_tx_back(struct commit_handle * ch)
 	int ret;
 	int barrier;
 
-	post_commit_hook();
+	reiser4_post_commit_hook();
 	fq = get_fq_for_current_atom();
 	if (IS_ERR(fq))
 		return  PTR_ERR(fq);
 	spin_unlock_atom(fq->atom);
 	ret = write_jnode_list(
 		ch->overwrite_set, fq, NULL, WRITEOUT_FOR_PAGE_RECLAIM);
-	fq_put(fq);
+	reiser4_fq_put(fq);
 	if (ret)
 		return ret;
  repeat_wo_barrier:
@@ -1188,7 +1187,7 @@ static int write_tx_back(struct commit_handle * ch)
 	}
 	if (ret)
 		return ret;
-	post_write_back_hook();
+	reiser4_post_write_back_hook();
 	return 0;
 }
 
@@ -1208,7 +1207,7 @@ int reiser4_write_logs(long *nr_submitted)
 	writeout_mode_enable();
 
 	/* block allocator may add j-nodes to the clean_list */
-	ret = pre_commit_hook();
+	ret = reiser4_pre_commit_hook();
 	if (ret)
 		return ret;
 
@@ -1222,14 +1221,14 @@ int reiser4_write_logs(long *nr_submitted)
 	 * uncaptured after commit_semaphore is taken, because any atom that
 	 * captures these nodes is guaranteed to commit after current one.
 	 *
-	 * This can only be done after pre_commit_hook(), because it is where
+	 * This can only be done after reiser4_pre_commit_hook(), because it is where
 	 * early flushed jnodes with CREATED bit are transferred to the
 	 * overwrite list. */
-	invalidate_list(ATOM_CLEAN_LIST(atom));
+	reiser4_invalidate_list(ATOM_CLEAN_LIST(atom));
 	spin_lock_atom(atom);
 	/* There might be waiters for the relocate nodes which we have
 	 * released, wake them up. */
-	atom_send_event(atom);
+	reiser4_atom_send_event(atom);
 	spin_unlock_atom(atom);
 
 	if (REISER4_DEBUG) {
@@ -1272,11 +1271,11 @@ int reiser4_write_logs(long *nr_submitted)
 		goto up_and_ret;
 
 	spin_lock_atom(atom);
-	atom_set_stage(atom, ASTAGE_POST_COMMIT);
+	reiser4_atom_set_stage(atom, ASTAGE_POST_COMMIT);
 	spin_unlock_atom(atom);
 
 	ret = write_tx_back(&ch);
-	post_write_back_hook();
+	reiser4_post_write_back_hook();
 
       up_and_ret:
 	if (ret) {
@@ -1417,20 +1416,20 @@ static int replay_transaction(const struct super_block *s,
 			goto free_ow_set;
 		}
 
-		log = alloc_io_head(&log_rec_block);
+		log = reiser4_alloc_io_head(&log_rec_block);
 		if (log == NULL)
 			return RETERR(-ENOMEM);
 
 		ret = jload(log);
 		if (ret < 0) {
-			drop_io_head(log);
+			reiser4_drop_io_head(log);
 			return ret;
 		}
 
 		ret = check_wander_record(log);
 		if (ret) {
 			jrelse(log);
-			drop_io_head(log);
+			reiser4_drop_io_head(log);
 			return ret;
 		}
 
@@ -1448,26 +1447,26 @@ static int replay_transaction(const struct super_block *s,
 			if (block == 0)
 				break;
 
-			node = alloc_io_head(&block);
+			node = reiser4_alloc_io_head(&block);
 			if (node == NULL) {
 				ret = RETERR(-ENOMEM);
 				/*
 				 * FIXME-VS:???
 				 */
 				jrelse(log);
-				drop_io_head(log);
+				reiser4_drop_io_head(log);
 				goto free_ow_set;
 			}
 
 			ret = jload(node);
 
 			if (ret < 0) {
-				drop_io_head(node);
+				reiser4_drop_io_head(node);
 				/*
 				 * FIXME-VS:???
 				 */
 				jrelse(log);
-				drop_io_head(log);
+				reiser4_drop_io_head(log);
 				goto free_ow_set;
 			}
 
@@ -1483,7 +1482,7 @@ static int replay_transaction(const struct super_block *s,
 		}
 
 		jrelse(log);
-		drop_io_head(log);
+		reiser4_drop_io_head(log);
 
 		--nr_wander_records;
 	}
@@ -1513,7 +1512,7 @@ static int replay_transaction(const struct super_block *s,
 		jnode *cur = list_entry(ch.overwrite_set->next, jnode, capture_link);
 		list_del_init(&cur->capture_link);
 		jrelse(cur);
-		drop_io_head(cur);
+		reiser4_drop_io_head(cur);
 	}
 
 	list_del_init(&tx_head->capture_link);
@@ -1563,20 +1562,20 @@ static int replay_oldest_transaction(struct super_block *s)
 
 	/* searching for oldest not flushed transaction */
 	while (1) {
-		tx_head = alloc_io_head(&prev_tx);
+		tx_head = reiser4_alloc_io_head(&prev_tx);
 		if (!tx_head)
 			return RETERR(-ENOMEM);
 
 		ret = jload(tx_head);
 		if (ret < 0) {
-			drop_io_head(tx_head);
+			reiser4_drop_io_head(tx_head);
 			return ret;
 		}
 
 		ret = check_tx_head(tx_head);
 		if (ret) {
 			jrelse(tx_head);
-			drop_io_head(tx_head);
+			reiser4_drop_io_head(tx_head);
 			return ret;
 		}
 
@@ -1588,7 +1587,7 @@ static int replay_oldest_transaction(struct super_block *s)
 			break;
 
 		jrelse(tx_head);
-		drop_io_head(tx_head);
+		reiser4_drop_io_head(tx_head);
 	}
 
 	total = le32_to_cpu(get_unaligned(&T->total));
@@ -1602,7 +1601,7 @@ static int replay_oldest_transaction(struct super_block *s)
 			       jnode_get_block(tx_head), total - 1);
 
 	unpin_jnode_data(tx_head);
-	drop_io_head(tx_head);
+	reiser4_drop_io_head(tx_head);
 
 	if (ret)
 		return ret;
@@ -1722,14 +1721,14 @@ load_journal_control_block(jnode ** node, const reiser4_block_nr * block)
 {
 	int ret;
 
-	*node = alloc_io_head(block);
+	*node = reiser4_alloc_io_head(block);
 	if (!(*node))
 		return RETERR(-ENOMEM);
 
 	ret = jload(*node);
 
 	if (ret) {
-		drop_io_head(*node);
+		reiser4_drop_io_head(*node);
 		*node = NULL;
 		return ret;
 	}
@@ -1745,13 +1744,13 @@ static void unload_journal_control_block(jnode ** node)
 {
 	if (*node) {
 		unpin_jnode_data(*node);
-		drop_io_head(*node);
+		reiser4_drop_io_head(*node);
 		*node = NULL;
 	}
 }
 
 /* release journal control blocks */
-void done_journal_info(struct super_block *s)
+void reiser4_done_journal_info(struct super_block *s)
 {
 	reiser4_super_info_data *sbinfo = get_super_private(s);
 
@@ -1763,7 +1762,7 @@ void done_journal_info(struct super_block *s)
 }
 
 /* load journal control blocks */
-int init_journal_info(struct super_block *s)
+int reiser4_init_journal_info(struct super_block *s)
 {
 	reiser4_super_info_data *sbinfo = get_super_private(s);
 	journal_location *loc;
