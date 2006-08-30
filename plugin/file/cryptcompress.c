@@ -1981,9 +1981,8 @@ write_hole(struct inode *inode, reiser4_cluster_t * clust, loff_t file_off,
   NOTE-EDWARD: Callers should handle the case when disk cluster
   is incomplete (-EIO)
 */
-int
-find_disk_cluster(reiser4_cluster_t * clust,
-		  struct inode *inode, int read, znode_lock_mode mode)
+int find_disk_cluster(reiser4_cluster_t * clust,
+		      struct inode *inode, int read, znode_lock_mode mode)
 {
 	flow_t f;
 	hint_t *hint;
@@ -2832,12 +2831,16 @@ int readpages_cryptcompress(struct file *file, struct address_space *mapping,
 
 	ctx = reiser4_init_context(mapping->host->i_sb);
 	if (IS_ERR(ctx)) {
-		reiser4_readpages_cleanup(pages);
-		return PTR_ERR(ctx);
+		ret = PTR_ERR(ctx);
+		goto err;
 	}
 	/* crc files can be built of ctail items only */
 	ret = readpages_ctail(file, mapping, pages);
 	reiser4_exit_context(ctx);
+	if (ret) {
+err:
+		put_pages_list(pages);
+	}
 	return ret;
 }
 
@@ -2884,6 +2887,7 @@ ssize_t read_cryptcompress(struct file * file, char __user *buf, size_t size,
 		reiser4_exit_context(ctx);
 		return result;
 	}
+
 	down_read(&info->lock);
 	LOCK_CNT_INC(inode_sem_r);
 

@@ -57,7 +57,6 @@ typedef enum {
 	 * kill-hook of tail items. It is never cleared once set. This bit is
 	 * modified and inspected under i_mutex. */
 	REISER4_HAS_MMAP = 8,
-
 	REISER4_PART_MIXED = 9,
 	REISER4_PART_IN_CONV = 10,
 	/* This flag indicates that file plugin conversion is in progress */

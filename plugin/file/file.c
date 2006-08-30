@@ -23,6 +23,7 @@
 #include <linux/uio.h>
 #include <linux/syscalls.h>
 
+
 static int unpack(struct file *file, struct inode *inode, int forever);
 static void drop_access(unix_file_info_t *);
 
@@ -292,7 +293,7 @@ void hint_init_zero(hint_t * hint)
 
 static int find_file_state(struct inode *inode, unix_file_info_t *uf_info)
 {
-	int result = 0;
+	int result;
 	reiser4_key key;
 	coord_t coord;
 	lock_handle lh;
@@ -305,12 +306,13 @@ static int find_file_state(struct inode *inode, unix_file_info_t *uf_info)
 		result = find_file_item_nohint(&coord, &lh, &key,
 					       ZNODE_READ_LOCK, inode);
 		set_file_state(uf_info, result, znode_get_level(coord.node));
-		assert("vs-1074",
-			ergo(result == 0, uf_info->container != UF_CONTAINER_UNKNOWN));
 		done_lh(&lh);
-		if (!IS_CBKERR(result))
+		if (!cbk_errored(result))
 			result = 0;
-	}
+	} else
+		result = 0;
+	assert("vs-1074",
+	       ergo(result == 0, uf_info->container != UF_CONTAINER_UNKNOWN));
 	reiser4_txn_restart_current();
 	return result;
 }
@@ -646,7 +648,7 @@ static int truncate_file_body(struct inode *inode, loff_t new_size)
  * stored on exiting from previous read or write. That information includes
  * seal of znode and coord within that znode where previous read or write
  * stopped. This function copies that information to @hint if it was stored or
- * initializes @hint by 0s  otherwise.
+ * initializes @hint by 0s otherwise.
  */
 int load_file_hint(struct file *file, hint_t *hint)
 {
@@ -678,26 +680,6 @@ int load_file_hint(struct file *file, hint_t *hint)
 	}
 	hint_init_zero(hint);
 	return 0;
-}
-
-static void free_file_hint (hint_t *hint)
-{
-	done_lh(&hint->lh);
-	kfree(hint);
-}
-
-static hint_t *get_file_hint_by_file(struct file *file)
-{
-	hint_t *hint;
-	int ret;
-
-	hint = kmalloc(sizeof(*hint), reiser4_ctx_gfp_mask_get());
-	if (unlikely(hint == NULL))
-		return ERR_PTR(RETERR(-ENOMEM));
-	ret = load_file_hint(file, hint);
-	if (unlikely(ret != 0))
-		return ERR_PTR(ret);
-	return hint;
 }
 
 /**
@@ -1637,8 +1619,6 @@ int readpage_unix_file(struct file *file, struct page *page)
 	assert("vs-976", !PageUptodate(page));
 	assert("vs-1061", page->mapping && page->mapping->host);
 
-	printk(KERN_DEBUG "REISER4 : debug : readpage_uf called\n");
-
 	if (page->mapping->host->i_size <= page_offset(page)) {
 		/* page is out of file already */
 		unlock_page(page);
@@ -1652,11 +1632,19 @@ int readpage_unix_file(struct file *file, struct page *page)
 		return PTR_ERR(ctx);
 	}
 
-	hint = get_file_hint_by_file(file);
-	if (unlikely(IS_ERR(hint))) {
+	hint = kmalloc(sizeof(*hint), reiser4_ctx_gfp_mask_get());
+	if (hint == NULL) {
 		unlock_page(page);
 		reiser4_exit_context(ctx);
-		return PTR_ERR(hint);
+		return RETERR(-ENOMEM);
+	}
+
+	result = load_file_hint(file, hint);
+	if (result) {
+		kfree(hint);
+		unlock_page(page);
+		reiser4_exit_context(ctx);
+		return result;
 	}
 	lh = &hint->lh;
 
@@ -1739,6 +1727,7 @@ int readpage_unix_file(struct file *file, struct page *page)
 	assert("vs-9791", ergo(result != 0, !PageLocked(page)));
 
 	zrelse(coord->node);
+	done_lh(lh);
 
 	save_file_hint(file, hint);
 
@@ -1751,7 +1740,8 @@ int readpage_unix_file(struct file *file, struct page *page)
 out_unlock:
 		unlock_page(page);
 	}
-	free_file_hint(hint);
+	done_lh(&hint->lh);
+	kfree(hint);
 	reiser4_txn_restart(ctx);
 	reiser4_exit_context(ctx);
 	return result;
@@ -1808,6 +1798,12 @@ static int uf_readpages_filler(void * data, struct page * page)
 	ret = zload(rc->coord.node);
 	if (ret)
 		goto err;
+	if (!coord_is_existing_item(&rc->coord) ||
+	    !item_is_extent(&rc->coord)) {
+		zrelse(rc->coord.node);
+		ret = RETERR(-EIO);
+		goto err;
+	}
 	ext = extent_by_coord(&rc->coord);
 	ext_index = extent_unit_index(&rc->coord);
 	if (page->index < ext_index || page->index >= ext_index + extent_get_width(ext))
@@ -1820,44 +1816,28 @@ static int uf_readpages_filler(void * data, struct page * page)
 		/* we can be here after a CBK call only in case of corruption
 		 * of the tree or the tree lookup algorithm bug. */
 		if (unlikely(cbk_done)) {
-                        ret = RETERR(-EIO);
-                        goto err;
-                }
+			ret = RETERR(-EIO);
+			goto err;
+		}
 		goto repeat;
 	}
-	ret = do_readpage_extent(ext, page->index - ext_index, page);
+	ret = reiser4_do_readpage_extent(ext, page->index - ext_index, page);
 	zrelse(rc->coord.node);
 	if (ret) {
-	err:
+err:
 		unlock_page(page);
 	}
 	jput(node);
 	return ret;
 }
 
-/* A readpages cleanup helper
- * FIXME to be moved to the VFS layer */
-void reiser4_readpages_cleanup(struct list_head *pages)
-{
-	while (!list_empty(pages)) {
-		struct page *victim;
-
-		victim = list_entry(pages->prev, struct page, lru);
-		list_del(&victim->lru);
-		page_cache_release(victim);
-	}	
-}
-
-/* A callback function for readpages_unix_file/read_cache_pages.
- * It assumes that the file is build of extents.
- *
- * @data -- a pointer to reiser4_readpages_context object,
- *            to save the twig lock and the coord between
- *            read_cache_page iterations.
- * @page -- page to start read.
+/**
+ * readpages_unix_file - called by the readahead code, starts reading for each
+ * page of given list of pages
  */
-int readpages_unix_file(struct file *file, struct address_space *mapping,
-			struct list_head *pages, unsigned nr_pages)
+int readpages_unix_file(
+	struct file *file, struct address_space *mapping,
+	struct list_head *pages, unsigned nr_pages)
 {
 	reiser4_context *ctx;
 	struct uf_readpages_context rc;
@@ -1865,9 +1845,9 @@ int readpages_unix_file(struct file *file, struct address_space *mapping,
 
 	ctx = reiser4_init_context(mapping->host->i_sb);
 	if (IS_ERR(ctx)) {
-		reiser4_readpages_cleanup(pages);
+		put_pages_list(pages);
 		return PTR_ERR(ctx);
-        }
+	}
 	init_lh(&rc.lh);
 	ret = read_cache_pages(mapping, pages,  uf_readpages_filler, &rc);
 	done_lh(&rc.lh);
@@ -1890,10 +1870,10 @@ static reiser4_block_nr unix_file_estimate_read(struct inode *inode,
 }
 
 /* this is called with nonexclusive access obtained, file's container can not change */
-static size_t read_file(hint_t * hint, struct file *file,	/* file to read from to */
-			char __user *buf,	/* address of user-space buffer */
-			size_t count,	/* number of bytes to read */
-			loff_t * off)
+static ssize_t read_file(hint_t *hint, struct file *file,	/* file to read from to */
+			 char __user *buf,	/* address of user-space buffer */
+			 size_t count,	/* number of bytes to read */
+			 loff_t *off)
 {
 	int result;
 	struct inode *inode;
@@ -1927,14 +1907,18 @@ static size_t read_file(hint_t * hint, struct file *file,	/* file to read from t
 			/* error happened */
 			break;
 
-		if (coord->between != AT_UNIT)
+		if (coord->between != AT_UNIT) {
 			/* there were no items corresponding to given offset */
+			done_lh(hint->ext_coord.lh);
 			break;
+		}
 
 		loaded = coord->node;
 		result = zload(loaded);
-		if (unlikely(result))
+		if (unlikely(result)) {
+			done_lh(hint->ext_coord.lh);
 			break;
+		}
 
 		if (hint->ext_coord.valid == 0)
 			validate_extended_coord(&hint->ext_coord,
@@ -1983,53 +1967,39 @@ ssize_t read_unix_file(struct file *file, char __user *buf, size_t read_amount,
 	ctx = reiser4_init_context(inode->i_sb);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
-
 	uf_info = unix_file_inode_data(inode);
-
 	if (uf_info->container == UF_CONTAINER_UNKNOWN) {
 		get_exclusive_access(uf_info);
 		result = find_file_state(inode, uf_info);
 		if (unlikely(result != 0))
 			goto out;
-		// FIXME: downgrade_access(uf_info);
 	} else
 		get_nonexclusive_access(uf_info);
-
 	result = reiser4_grab_space_force(unix_file_estimate_read(inode, read_amount),
 					  BA_CAN_COMMIT);
 	if (unlikely(result != 0))
 		goto out;
-
-	if (uf_info->container == UF_CONTAINER_TAILS ||
-	    reiser4_inode_get_flag(inode, REISER4_PART_IN_CONV) != 0 ||
-	    reiser4_inode_get_flag(inode, REISER4_PART_MIXED))
-	{
+	if (uf_info->container == UF_CONTAINER_EXTENTS){
+		result = do_sync_read(file, buf, read_amount, off);
+	} else if (uf_info->container == UF_CONTAINER_TAILS ||
+		   reiser4_inode_get_flag(inode, REISER4_PART_IN_CONV) ||
+		   reiser4_inode_get_flag(inode, REISER4_PART_MIXED)) {
 		result = read_unix_file_container_tails(file, buf, read_amount, off);
-	} else if (uf_info->container == UF_CONTAINER_EXTENTS){
-		struct iovec iov = { .iov_base = buf, .iov_len = read_amount };
-		struct kiocb kiocb;
-
-		init_sync_kiocb(&kiocb, file);
-		kiocb.ki_pos = *off;
-		kiocb.ki_left = read_amount;
-
-		result = generic_file_aio_read(&kiocb, &iov, 1, kiocb.ki_pos);
-		*off = kiocb.ki_pos;
 	} else {
 		assert("zam-1085", uf_info->container == UF_CONTAINER_EMPTY);
 		result = 0;
 	}
- out:
-	drop_access(uf_info);
-	context_set_commit_async(ctx);
-	reiser4_exit_context(ctx);
-	return result;
+out:
+       drop_access(uf_info);
+       context_set_commit_async(ctx);
+       reiser4_exit_context(ctx);
+       return result;
 }
 
 static ssize_t read_unix_file_container_tails(
 	struct file *file, char __user *buf, size_t read_amount, loff_t *off)
 {
-	int result = 0;
+	int result;
 	struct inode *inode;
 	hint_t *hint;
 	unix_file_info_t *uf_info;
@@ -2041,32 +2011,35 @@ static ssize_t read_unix_file_container_tails(
 	inode = file->f_dentry->d_inode;
 	assert("vs-972", !reiser4_inode_get_flag(inode, REISER4_NO_SD));
 
-	hint = get_file_hint_by_file(file);
-	if (unlikely(IS_ERR(hint)))
-		return PTR_ERR(hint);
+	hint = kmalloc(sizeof(*hint), reiser4_ctx_gfp_mask_get());
+	if (hint == NULL)
+		return RETERR(-ENOMEM);
+
+	result = load_file_hint(file, hint);
+	if (result) {
+		kfree(hint);
+		return result;
+	}
 
 	left = read_amount;
 	count = 0;
 	uf_info = unix_file_inode_data(inode);
 	while (left > 0) {
+		reiser4_txn_restart_current();
 		size = i_size_read(inode);
-		if (*off >= size) {
+		if (*off >= size)
 			/* position to read from is past the end of file */
 			break;
-		}
 		if (*off + left > size)
 			left = size - *off;
-
 		/* faultin user page */
-		if (fault_in_pages_writeable(buf, left > PAGE_CACHE_SIZE ? PAGE_CACHE_SIZE : left)) {
-			result = RETERR(-EFAULT);
-			break;
-		}
+		result = fault_in_pages_writeable(buf, left > PAGE_CACHE_SIZE ? PAGE_CACHE_SIZE : left);
+		if (result)
+			return RETERR(-EFAULT);
 
 		read = read_file(hint, file, buf,
 				 left > PAGE_CACHE_SIZE ? PAGE_CACHE_SIZE : left,
 				 off);
-
 		if (read < 0) {
 			result = read;
 			break;
@@ -2079,8 +2052,9 @@ static ssize_t read_unix_file_container_tails(
 		/* total number of read bytes */
 		count += read;
 	}
+	done_lh(&hint->lh);
 	save_file_hint(file, hint);
-	free_file_hint(hint);
+	kfree(hint);
 	if (count)
 		file_accessed(file);
 	/* return number of read bytes or error code if nothing is read */
@@ -2580,9 +2554,7 @@ owns_item_unix_file(const struct inode *inode /* object to check against */ ,
 		return 0;
 	if (!plugin_of_group(item_plugin_by_coord(coord),
 			     UNIX_FILE_METADATA_ITEM_TYPE))
-	{
 		return 0;
-	}
 	assert("vs-547",
 	       item_id_by_coord(coord) == EXTENT_POINTER_ID ||
 	       item_id_by_coord(coord) == FORMATTING_ID);

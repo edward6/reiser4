@@ -6,7 +6,6 @@
 #if !defined( __REISER4_H__ )
 #define __REISER4_H__
 
-#include <linux/config.h>
 #include <asm/param.h>		/* for HZ */
 #include <linux/errno.h>
 #include <linux/types.h>

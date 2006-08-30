@@ -13,6 +13,7 @@
 #include "debug.h"
 #include "dformat.h"
 #include "page_cache.h"
+#include "context.h"
 
 #include "plugin/plugin.h"
 
@@ -384,6 +385,7 @@ static inline void jnode_set_block(jnode *node, const reiser4_block_nr *blocknr)
 	assert("umka-055", blocknr != NULL);
 	node->blocknr = *blocknr;
 }
+
 
 /* block number for IO. Usually this is the same as jnode_get_block(), unless
  * jnode was emergency flushed---then block number chosen by eflush is

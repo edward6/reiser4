@@ -171,13 +171,11 @@ int hint_is_set(const hint_t *);
 void reiser4_unset_hint(hint_t *);
 int hint_validate(hint_t *, const reiser4_key *, int check_key,
 		  znode_lock_mode);
-void hint_init_zero(hint_t *);
 
 int reiser4_update_file_size(struct inode *, reiser4_key *, int update_sd);
 int cut_file_items(struct inode *, loff_t new_size, int update_sd,
 		   loff_t cur_size, int (*update_actor) (struct inode *,
 							 reiser4_key *, int));
-
 #if REISER4_DEBUG
 
 /* return 1 is exclusive access is obtained, 0 - otherwise */
@@ -230,7 +228,6 @@ int prot_release_cryptcompress(struct inode *, struct file *);
 extern int readpage_cryptcompress(struct file *, struct page *);
 extern int writepages_cryptcompress(struct address_space *,
 				     struct writeback_control *);
-
 /* file plugin operations */
 int flow_by_inode_cryptcompress(struct inode *, const char __user *buf,
 				int user, loff_t, loff_t, rw_op, flow_t *);

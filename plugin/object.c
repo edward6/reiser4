@@ -108,6 +108,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.llseek = generic_file_llseek,
 			.read = read_unix_file,
 			.write = do_sync_write,
+			.aio_read = generic_file_aio_read,
 			.aio_write = generic_file_aio_write,
 			.ioctl = ioctl_unix_file,
 			.mmap = mmap_unix_file,

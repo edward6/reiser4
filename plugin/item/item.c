@@ -605,7 +605,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				.write = reiser4_write_tail,
 				.read = reiser4_read_tail,
 				.readpage = readpage_tail,
-				.get_block = NULL,
+				.get_block = get_block_address_tail,
 				.append_key = append_key_tail,
 				.init_coord_extension =
 				init_coord_extension_tail

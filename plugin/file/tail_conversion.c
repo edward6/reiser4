@@ -220,7 +220,7 @@ static int reserve_tail2extent_iteration(struct inode *inode)
 }
 
 /* clear stat data's flag indicating that conversion is being converted */
-int complete_conversion(struct inode *inode)
+static int complete_conversion(struct inode *inode)
 {
 	int result;
 

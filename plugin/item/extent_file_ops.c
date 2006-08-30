@@ -356,6 +356,7 @@ static int insert_first_hole(coord_t *coord, lock_handle *lh,
 	return insert_extent_by_coord(coord, &idata, &item_key, lh);
 }
 
+
 /**
  * insert_first_extent - insert first file item
  * @inode: inode of file
@@ -1108,8 +1109,8 @@ static inline void zero_page(struct page *page)
 	unlock_page(page);
 }
 
-int do_readpage_extent(reiser4_extent * ext, reiser4_block_nr pos,
-		       struct page *page)
+int reiser4_do_readpage_extent(reiser4_extent * ext, reiser4_block_nr pos,
+			       struct page *page)
 {
 	jnode *j;
 	struct address_space *mapping;
@@ -1324,8 +1325,9 @@ int reiser4_readpage_extent(void *vp, struct page *page)
 	       get_key_objectid(item_key_by_coord(coord, &key)));
 	check_uf_coord(uf_coord, NULL);
 
-	return do_readpage_extent(ext_by_ext_coord(uf_coord),
-				  uf_coord->extension.extent.pos_in_unit, page);
+	return reiser4_do_readpage_extent(
+		ext_by_ext_coord(uf_coord),
+		uf_coord->extension.extent.pos_in_unit, page);
 }
 
 /**

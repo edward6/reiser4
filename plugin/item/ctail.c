@@ -735,7 +735,7 @@ assert("edward-214", ergo(!list_empty(pages) && pages->next != pages->prev,   \
  * and start reads against them.
  */
 int readpages_ctail(struct file *file, struct address_space *mapping,
-		       struct list_head *pages)
+		    struct list_head *pages)
 {
 	int ret = 0;
 	hint_t *hint;

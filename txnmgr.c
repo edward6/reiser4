@@ -397,7 +397,7 @@ static void atom_init(txn_atom * atom)
 	INIT_LIST_HEAD(ATOM_OVRWR_LIST(atom));
 	INIT_LIST_HEAD(ATOM_WB_LIST(atom));
 	INIT_LIST_HEAD(&atom->inodes);
-	spin_lock_init(&atom->alock);
+	spin_lock_init(&(atom->alock));
 	/* list of transaction handles */
 	INIT_LIST_HEAD(&atom->txnh_list);
 	/* link to transaction manager's list of atoms */
@@ -732,10 +732,12 @@ static int atom_begin_and_assign_to_txnh(txn_atom ** atom_alloc, txn_handle * tx
 	assert("jmacd-17", atom_isclean(atom));
 
         /*
-	 * do not use spin_lock_atom because we have broken lock ordering here
-	 * which is ok, as long as @atom is new and inaccessible for others.
+	 * lock ordering is broken here. It is ok, as long as @atom is new
+	 * and inaccessible for others. We can't use spin_lock_atom or
+	 * spin_lock(&atom->alock) because they care about locking
+	 * dependencies. spin_trylock_lock doesn't.
 	 */
-	spin_lock(&(atom->alock));
+	check_me("", spin_trylock_atom(atom));
 
 	/* add atom to the end of transaction manager's list of atoms */
 	list_add_tail(&atom->atom_link, &mgr->atoms_list);
@@ -751,7 +753,7 @@ static int atom_begin_and_assign_to_txnh(txn_atom ** atom_alloc, txn_handle * tx
 	atom->super = reiser4_get_current_sb();
 	capture_assign_txnh_nolock(atom, txnh);
 
-	spin_unlock(&(atom->alock));
+	spin_unlock_atom(atom);
 	spin_unlock_txnh(txnh);
 
 	return -E_REPEAT;
@@ -2112,11 +2114,11 @@ static void fuse_not_fused_lock_owners(txn_handle * txnh, znode * node)
 		atomic_inc(&atomf->refcount);
 		spin_unlock_txnh(ctx->trans);
 		if (atomf > atomh) {
-			spin_lock_atom(atomf);
+			spin_lock_atom_nested(atomf);
 		} else {
 			spin_unlock_atom(atomh);
 			spin_lock_atom(atomf);
-			spin_lock_atom(atomh);
+			spin_lock_atom_nested(atomh);
 		}
 		if (atomh == atomf || !atom_isopen(atomh) || !atom_isopen(atomf)) {
 			release_two_atoms(atomf, atomh);
@@ -2794,10 +2796,10 @@ static void lock_two_atoms(txn_atom * one, txn_atom * two)
 	/* lock the atom with lesser address first */
 	if (one < two) {
 		spin_lock_atom(one);
-		spin_lock_atom(two);
+		spin_lock_atom_nested(two);
 	} else {
 		spin_lock_atom(two);
-		spin_lock_atom(one);
+		spin_lock_atom_nested(one);
 	}
 }
 

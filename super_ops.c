@@ -94,7 +94,7 @@ static struct inode *reiser4_alloc_inode(struct super_block *super)
 	reiser4_inode_object *obj;
 
 	assert("nikita-1696", super != NULL);
-	obj = kmem_cache_alloc(inode_cache, SLAB_KERNEL);
+	obj = kmem_cache_alloc(inode_cache, reiser4_ctx_gfp_mask_get());
 	if (obj != NULL) {
 		reiser4_inode *info;
 
@@ -597,11 +597,8 @@ static struct file_system_type reiser4_fs_type = {
 
 void destroy_reiser4_cache(kmem_cache_t **cachep)
 {
-	int result;
-
 	BUG_ON(*cachep == NULL);
-	result = kmem_cache_destroy(*cachep);
-	BUG_ON(result != 0);
+	kmem_cache_destroy(*cachep);
 	*cachep = NULL;
 }
 

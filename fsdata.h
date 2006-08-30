@@ -178,7 +178,8 @@ extern void reiser4_detach_fsdata(struct file *);
 void reiser4_dispose_cursors(struct inode *inode);
 void reiser4_load_cursors(struct inode *inode);
 void reiser4_kill_cursors(struct inode *inode);
-void reiser4_adjust_dir_file(struct inode *dir, const struct dentry *de, int offset, int adj);
+void reiser4_adjust_dir_file(struct inode *dir, const struct dentry *de,
+			     int offset, int adj);
 
 /*
  * this structure is embedded to reise4_super_info_data. It maintains d_cursors
