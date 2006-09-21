@@ -27,13 +27,11 @@
    & tx record. */
 #define RELEASE_RESERVED 4
 
-/* Every disk format change increments this number.  */
-#define FORMAT40_VERSION 1
+/* Format version number */
+#define FORMAT40_VERSION 0
 
-/* If format is not compatible RW mount is forbidden.  */
-#define FORMAT40_COMPARTIBLE_WITH 1
-
-/* Not updated backup flag. */
+/* This flag indicates that backup should be updated
+   (the update is performed by fsck) */
 #define FORMAT40_UPDATE_BACKUP (1 << 31)
 
 /* functions to access fields of format40_disk_super_block */
@@ -79,26 +77,17 @@ static __u64 get_format40_flags(const format40_disk_super_block * sb)
 
 static __u32 get_format40_version(const format40_disk_super_block * sb)
 {
-	return le32_to_cpu(get_unaligned(&sb->version)) & 
+	return le32_to_cpu(get_unaligned(&sb->version)) &
 		~FORMAT40_UPDATE_BACKUP;
 }
 
-static int is_format40_updated(const format40_disk_super_block * sb) {
-	return !(le32_to_cpu(get_unaligned(&sb->version)) & 
-		 FORMAT40_UPDATE_BACKUP);
+static int update_backup_version(const format40_disk_super_block * sb) {
+	return (le32_to_cpu(get_unaligned(&sb->version)) &
+		FORMAT40_UPDATE_BACKUP);
 }
 
-static __u32 get_format40_compatible_with(const format40_disk_super_block * sb)
-{
-	return le32_to_cpu(get_unaligned(&sb->compatible_with));
-}
-
-static int is_format40_compatible(const format40_disk_super_block * sb) {
-	return (get_format40_compatible_with(sb) <= FORMAT40_VERSION);
-}
-
-static int is_one_way_update(const format40_disk_super_block * sb) {
-	return (get_format40_version(sb) < FORMAT40_COMPARTIBLE_WITH);
+static int update_disk_version(const format40_disk_super_block * sb) {
+	return (get_format40_version(sb) < FORMAT40_VERSION);
 }
 
 static format40_super_info *get_sb_info(struct super_block *super)
@@ -319,38 +308,7 @@ static int try_init_format40(struct super_block *super,
 	/* allocate and make a copy of format40_disk_super_block */
 	sb_copy = copy_sb(super_bh);
 	brelse(super_bh);
-	
-	/* To be user-friendly, the new format should be compartible with the 
-	   old format. */
-	if (is_one_way_update(sb_copy)) {
-		if (reiser4_is_set(super, REISER4_FORCE_MOUNT)) {
-			/* Proceed. */
-			printk("Forced mounting %s. Mounting with disk format "
-			       "versions < than %d are not possible anymore.\n",
-			       super->s_id, FORMAT40_COMPARTIBLE_WITH);
-		} else {
-			printk("Reiser4 of the format version %u compatible "
-			       "with format versions since %u refuses to mount "
-			       "%s of the format version %u to not make the fs "
-			       "unusable with kernels being used before. To "
-			       "mount and proceed use force_mount option.\n",
-			       FORMAT40_VERSION, FORMAT40_COMPARTIBLE_WITH,
-			       super->s_id, get_format40_version(sb_copy));
-			return -EPERM;
-		}
-	}
-	
-	/* The current format must be compatible with the on-disk format. */
-	if (!(super->s_flags & MS_RDONLY) && !is_format40_compatible(sb_copy))
-	{
-		printk("Warning: Can't mount RW the reiser4 filesystem %s of "
-		       "the format %u, which is incompatible with this kernel "
-		       "format %u.\n", super->s_id, 
-		       get_format40_version(sb_copy), FORMAT40_VERSION);
-		
-		return -EROFS;
-	}
-	
+
 	if (IS_ERR(sb_copy))
 		return PTR_ERR(sb_copy);
 
@@ -399,10 +357,10 @@ static int try_init_format40(struct super_block *super,
 	sbinfo->version = get_format40_version(sb_copy);
 	kfree(sb_copy);
 
-	if (!is_format40_updated(sb_copy)) {
-		printk("WARNING: The reiser4 metadata backup is not updated. "
-		       "Please run 'fsck.reiser4 --fix' on %s.\n", super->s_id);
-	}
+	if (update_backup_version(sb_copy))
+		warning("reiser4", "metadata backup is not updated. "
+			"Please run 'fsck.reiser4 --fix' on %s.\n",
+			super->s_id);
 
 	sbinfo->fsuid = 0;
 	sbinfo->fs_flags |= (1 << REISER4_ADG);	/* hard links for directories
@@ -517,14 +475,10 @@ static void pack_format40_super(const struct super_block *s, char *data)
 	put_unaligned(cpu_to_le16(sbinfo->tree.height), 
 		      &super_data->tree_height);
 	
-	if (get_format40_version(super_data) < FORMAT40_VERSION) {
+	if (update_disk_version(super_data)) {
 		__u32 version = FORMAT40_VERSION | FORMAT40_UPDATE_BACKUP;
-		
-		put_unaligned(cpu_to_le32(version),
-			      &super_data->version);
-		
-		put_unaligned(cpu_to_le32(FORMAT40_COMPARTIBLE_WITH),
-			      &super_data->compatible_with);
+
+		put_unaligned(cpu_to_le32(version), &super_data->version);
 	}
 }
 

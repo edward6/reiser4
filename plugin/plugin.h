@@ -725,7 +725,7 @@ typedef enum {
 	COL_8_COMPRESSION_MODE_ID,
 	COL_16_COMPRESSION_MODE_ID,
 	COL_32_COMPRESSION_MODE_ID,
-	COZ_COMPRESSION_MODE_ID,
+	CONVX_COMPRESSION_MODE_ID,
 	FORCE_COMPRESSION_MODE_ID,
 	TEST_COMPRESSION_MODE_ID,
   	LAST_COMPRESSION_MODE_ID
@@ -870,6 +870,7 @@ for (plugin = list_entry(get_plugin_list(ptype)->next, reiser4_plugin, h.linkage
 extern int grab_plugin_pset(struct inode *self, struct inode *ancestor, pset_member memb);
 extern int force_plugin_pset(struct inode *self, pset_member memb, reiser4_plugin *plug);
 extern int force_plugin_hset(struct inode *self, pset_member memb, reiser4_plugin *plug);
+extern int finish_pset(struct inode *inode);
 
 /* defined in fs/reiser4/plugin/object.c */
 extern file_plugin file_plugins[LAST_FILE_PLUGIN_ID];

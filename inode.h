@@ -341,7 +341,6 @@ extern void reiser4_inode_set_flag(struct inode *inode, reiser4_file_plugin_flag
 extern void reiser4_inode_clr_flag(struct inode *inode, reiser4_file_plugin_flags f);
 extern int reiser4_inode_get_flag(const struct inode *inode,
 				  reiser4_file_plugin_flags f);
-extern int reiser4_complete_inode(struct inode *inode);
 
 /*  has inode been initialized? */
 static inline int

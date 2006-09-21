@@ -194,47 +194,8 @@ int setup_inode_ops(struct inode *inode /* inode to intialize */ ,
 	return 0;
 }
 
-int reiser4_complete_inode(struct inode *inode) {
-	reiser4_plugin *plug;
-	reiser4_inode *root;
-	reiser4_inode *info;
-	pset_member memb;
-	int result = 0;
-	
-	/* take missing plugins from file-system defaults */
-	root = reiser4_inode_data(inode->i_sb->s_root->d_inode);
-	info = reiser4_inode_data(inode);
-	
-	/* file and directory plugins are already initialized. */
-	for (memb = PSET_DIR + 1; memb < PSET_LAST; ++memb) {
-		/* Do not grab for unused fields. */
-		if (plugin_pset_unused(memb))
-			continue;
-
-		/* Do not grab if initialised already. */
-		if (pset_get(info->pset, memb) != NULL)
-			continue;
-		
-		/* Take plugin from the fs-default PSET, and do not change 
-		   the plugin_mask. */
-		plug = pset_get(root->pset, memb);
-		result = set_plugin(&info->pset, memb, plug);
-		if (result != 0)
-			break;
-	}
-	
-	if (result != 0) {
-		warning("nikita-3447",
-			"Cannot set up plugins for %lli",
-			(unsigned long long)
-			get_inode_oid(inode));
-	}
-	
-	return result;
-}
-
-/* initialize inode from disk data. Called with inode locked.
-    Return inode locked. */
+/* Initialize inode from disk data. Called with inode locked.
+   Return inode locked. */
 static int init_inode(struct inode *inode /* inode to intialise */ ,
 		      coord_t * coord /* coord of stat data */ )
 {
@@ -269,9 +230,7 @@ static int init_inode(struct inode *inode /* inode to intialise */ ,
 		result = setup_inode_ops(inode, NULL);
 		if (result == 0 && inode->i_sb->s_root &&
 		    inode->i_sb->s_root->d_inode)
-		{
-			result = reiser4_complete_inode(inode);
-		}
+			result = finish_pset(inode);
 	}
 	zrelse(coord->node);
 	return result;

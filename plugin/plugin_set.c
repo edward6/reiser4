@@ -291,8 +291,6 @@ static struct {
 reiser4_plugin_type SET##_member_to_type_unsafe(pset_member memb) {		\
 	if (memb > PSET_LAST)							\
 		return REISER4_PLUGIN_TYPES;					\
-	if (plugin_##SET##_unused(memb))					\
-		return REISER4_PLUGIN_TYPES;					\
 	return pset_descr[memb].type;						\
 }										\
 										\
@@ -304,9 +302,6 @@ int SET##_set_unsafe(plugin_set ** set, pset_member memb,			\
 	assert("nikita-3494", plugin != NULL);					\
 	assert("nikita-3495", 0 <= memb && memb < PSET_LAST);			\
 	assert("nikita-3496", plugin->h.type_id == pset_descr[memb].type);	\
-										\
-	if (plugin_##SET##_unused(memb))					\
-		return -EINVAL;							\
 										\
 	if (pset_descr[memb].groups)						\
 		if (!(pset_descr[memb].groups & plugin->h.groups))		\
@@ -320,9 +315,6 @@ reiser4_plugin *SET##_get(plugin_set * set, pset_member memb)			\
 {										\
 	assert("nikita-3497", set != NULL);					\
 	assert("nikita-3498", 0 <= memb && memb < PSET_LAST);			\
-										\
-	if (plugin_##SET##_unused(memb))					\
-		return NULL;							\
 										\
 	return *(reiser4_plugin **) (((char *)set) + pset_descr[memb].offset);	\
 }

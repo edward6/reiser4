@@ -89,7 +89,7 @@ compression_mode_plugin compression_mode_plugins[LAST_COMPRESSION_MODE_ID] = {
 			.id = NONE_COMPRESSION_MODE_ID,
 			.pops = NULL,
 			.label = "none",
-			.desc = "Don't compress",
+			.desc = "Compress nothing",
 			.linkage = {NULL, NULL}
 		},
 		.should_deflate = should_deflate_none,
@@ -105,13 +105,13 @@ compression_mode_plugin compression_mode_plugins[LAST_COMPRESSION_MODE_ID] = {
 	   whether the first complete
 	   logical cluster (of index #0) is compressible. If not, then items are
 	   converted to extents, and management is passed to unix file plugin */
-	[COZ_COMPRESSION_MODE_ID] = {
+	[CONVX_COMPRESSION_MODE_ID] = {
 		.h = {
 			.type_id = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
-			.id = COZ_COMPRESSION_MODE_ID,
+			.id = CONVX_COMPRESSION_MODE_ID,
 			.pops = NULL,
-			.label = "coz",
-			.desc = "Convert on zero",
+			.label = "convx",
+			.desc = "Convert to extent",
 			.linkage = {NULL, NULL}
 		},
 		.should_deflate = should_deflate_common,

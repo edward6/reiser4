@@ -451,9 +451,6 @@ do {						\
 	PUSH_BIT_OPT("atomic_write", REISER4_ATOMIC_WRITE);
 	/* disable use of write barriers in the reiser4 log writer. */
 	PUSH_BIT_OPT("no_write_barrier", REISER4_NO_WRITE_BARRIER);
-
-	/* disable use of write barriers in the reiser4 log writer. */
-	PUSH_BIT_OPT("force_mount", REISER4_FORCE_MOUNT);
 	
 	PUSH_OPT(
 	{
@@ -708,8 +705,6 @@ int reiser4_init_root_inode(struct super_block *super)
 
 		pset = reiser4_inode_data(inode)->pset;
 		for (memb = 0; memb < PSET_LAST; ++memb) {
-			if (plugin_pset_unused(memb))
-				continue;
 			
 			if (pset_get(pset, memb) != NULL)
 				continue;
@@ -725,7 +720,6 @@ int reiser4_init_root_inode(struct super_block *super)
 			if (REISER4_DEBUG) {
 				for (memb = 0; memb < PSET_LAST; ++memb)
 					assert("nikita-3500",
-					       plugin_pset_unused(memb) ||
 					       pset_get(pset, memb) != NULL);
 			}
 		} else

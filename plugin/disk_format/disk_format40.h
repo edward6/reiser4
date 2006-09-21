@@ -50,12 +50,13 @@ typedef struct format40_disk_super_block {
 	/* not used anymore */
 	/*  72 */ d64 flags;
 	/*  80 */ d32 version;
-	/* Format version is usefull for the current format 
-	   detection and the futher format update. */
-	/*  84 */ d32 compatible_with;
-	/* Disable mount for old kernels that have not compatible format 
-	   implemented, ie. those that may corrupt the current fs. */
-	/*  88 */ char not_used[424];
+	/* on-disk format version number
+	   initially assigned by mkfs in accordance with
+	   version number of reiser4progs and updated in
+	   mount time in accordance with version number
+	   of kernel. Is used by fsck to catch possible
+	   corruption */
+	/*  84 */ char not_used[428];
 } format40_disk_super_block;
 
 /* format 40 specific part of reiser4_super_info_data */

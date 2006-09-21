@@ -630,8 +630,7 @@ static int do_create_vfs_child(reiser4_object_create_data * data,	/* parameters 
 					    parent,
 					    object->i_sb->s_root->d_inode);
 	if (result == 0)
-		result = reiser4_complete_inode(object);
-	
+		result = finish_pset(object);
 	if (result != 0) {
 		warning("nikita-432", "Cannot inherit from %llx to %llx",
 			(unsigned long long)get_inode_oid(parent),

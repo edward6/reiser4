@@ -48,18 +48,6 @@ struct plugin_set {
 	ps_hash_link link;
 };
 
-/* If some PSET or HSET slot is illegal, e.g. we do not want it to be used in 
-   PSET and suggest the same HSET slot to be used instead, set the mask of them,
-   e.g. (1 << PSET_SD | 1 << PSET_DIR_ITEM).
-   
-   This automatically hides appropriate pseudo files.
-*/
-#define PSET_UNUSED 0
-#define HSET_UNUSED 0
-
-#define plugin_pset_unused(memb) ((1 << memb) & PSET_UNUSED)
-#define plugin_hset_unused(memb) ((1 << memb) & HSET_UNUSED)
-
 extern plugin_set *plugin_set_get_empty(void);
 extern void plugin_set_put(plugin_set * set);
 

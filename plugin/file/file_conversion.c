@@ -10,7 +10,7 @@
    usage. If first logical cluster (64K by default) of a file is incompressible,
    then we make a desicion, that the whole file is incompressible.
    The conversion can be enabled via installing a special compression mode
-   plugin (COZ_COMPRESSION_MODE_ID, see plugin/compress/compress_mode.c for
+   plugin (CONVX_COMPRESSION_MODE_ID, see plugin/compress/compress_mode.c for
    details).
 
 (**)
@@ -23,8 +23,8 @@
 #include "file.h"
 
 #define conversion_enabled(inode)                                      \
-	(inode_compression_mode_plugin(inode) ==		       \
-	 compression_mode_plugin_by_id(COZ_COMPRESSION_MODE_ID))
+	 (inode_compression_mode_plugin(inode) ==		       \
+	  compression_mode_plugin_by_id(CONVX_COMPRESSION_MODE_ID))
 
 
 /* Located sections (readers and writers of @pset->file) are not
@@ -196,7 +196,7 @@ static int disable_conversion(struct inode * inode)
 	assert("edward-1502", inode_file_plugin(inode) ==
 	       file_plugin_by_id(CRC_FILE_PLUGIN_ID));
 	assert("edward-1503", inode_compression_mode_plugin(inode) ==
-	       compression_mode_plugin_by_id (COZ_COMPRESSION_MODE_ID));
+	       compression_mode_plugin_by_id (CONVX_COMPRESSION_MODE_ID));
 
 	result = reiser4_grab_space_force(/* one for stat data update */
 					  estimate_update_common(inode),

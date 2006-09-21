@@ -363,7 +363,7 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 		.alloc = gzip1_alloc,
 		.free = gzip1_free,
 		.min_size_deflate = gzip1_min_size_deflate,
-		.checksum = NULL,
+		.checksum = reiser4_adler32,
 		.compress = gzip1_compress,
 		.decompress = gzip1_decompress
 	}

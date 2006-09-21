@@ -328,6 +328,8 @@ static void update_hset_mask(reiser4_inode * info, pset_member memb) {
 	info->heir_mask |= (1 << memb);
 }
 
+/* Grab specified pset member from parent,
+   or from fs-defaults (if no parent is given) */
 int grab_plugin_pset(struct inode *self, 
 		     struct inode *ancestor, 
 		     pset_member memb)
@@ -336,15 +338,10 @@ int grab_plugin_pset(struct inode *self,
 	reiser4_inode *info;
 	int result = 0;
 
-	/* Do not grab for unused fields. */
-	if (plugin_pset_unused(memb))
-		return 0;
-	
 	/* Do not grab if initialised already. */
 	info = reiser4_inode_data(self);
 	if (pset_get(info->pset, memb) != NULL)
 		return 0;
-	
 	if (ancestor) {
 		reiser4_inode *parent;
 		
@@ -352,15 +349,50 @@ int grab_plugin_pset(struct inode *self,
 		plug = hset_get(parent->hset, memb) ? :	
 			pset_get(parent->pset, memb);
 
-	} else {
-		/* Take the default one if no parent is given. */
-		plug = get_default_plugin(memb);
 	}
-	
+	else
+		plug = get_default_plugin(memb);
+
 	result = set_plugin(&info->pset, memb, plug);
 	if (result == 0) {
 		if (!ancestor || self->i_sb->s_root->d_inode != self)
 			update_pset_mask(info, memb);
+	}
+	return result;
+}
+
+/* Take missing pset members from root inode */
+int finish_pset(struct inode *inode)
+{
+	reiser4_plugin *plug;
+	reiser4_inode *root;
+	reiser4_inode *info;
+	pset_member memb;
+	int result = 0;
+
+	root = reiser4_inode_data(inode->i_sb->s_root->d_inode);
+	info = reiser4_inode_data(inode);
+
+	assert("edward-1455", root != NULL);
+	assert("edward-1456", info != NULL);
+
+	/* file and directory plugins are already initialized. */
+	for (memb = PSET_DIR + 1; memb < PSET_LAST; ++memb) {
+
+		/* Do not grab if initialised already. */
+		if (pset_get(info->pset, memb) != NULL)
+			continue;
+
+		plug = pset_get(root->pset, memb);
+		result = set_plugin(&info->pset, memb, plug);
+		if (result != 0)
+			break;
+	}
+	if (result != 0) {
+		warning("nikita-3447",
+			"Cannot set up plugins for %lli",
+			(unsigned long long)
+			get_inode_oid(inode));
 	}
 	return result;
 }
