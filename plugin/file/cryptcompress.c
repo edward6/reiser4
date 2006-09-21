@@ -2839,8 +2839,7 @@ int readpages_cryptcompress(struct file *file, struct address_space *mapping,
 	reiser4_exit_context(ctx);
 	if (ret) {
 err:
-		//put_pages_list(pages)
-;
+		put_pages_list(pages);
 	}
 	return ret;
 }

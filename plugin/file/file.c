@@ -1845,7 +1845,7 @@ int readpages_unix_file(
 
 	ctx = reiser4_init_context(mapping->host->i_sb);
 	if (IS_ERR(ctx)) {
-		//put_pages_list(pages);
+		put_pages_list(pages);
 		return PTR_ERR(ctx);
 	}
 	init_lh(&rc.lh);
