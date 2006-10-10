@@ -261,7 +261,6 @@ void reiser4_done_formatted_fake(struct super_block *super)
 	sinfo = get_super_private_nocheck(super);
 
 	if (sinfo->fake != NULL) {
-		assert("vs-1426", sinfo->fake->i_data.nrpages == 0);
 		iput(sinfo->fake);
 		sinfo->fake = NULL;
 	}
@@ -590,12 +589,7 @@ void reiser4_drop_page(struct page *page)
 #if defined(PG_skipped)
 	ClearPageSkipped(page);
 #endif
-	if (page->mapping != NULL) {
-		remove_from_page_cache(page);
-		unlock_page(page);
-		page_cache_release(page);
-	} else
-		unlock_page(page);
+	unlock_page(page);
 }
 
 /* this is called by truncate_jnodes_range which in its turn is always called
