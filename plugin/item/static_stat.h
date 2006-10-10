@@ -68,9 +68,9 @@ typedef enum {
 	LARGE_TIMES_STAT,
 	/* stat data has link name included */
 	SYMLINK_STAT,
-	/* if this is present, file is controlled by non-standard
-	   plugin (that is, plugin that cannot be deduced from file
-	   mode bits), for example, aggregation, interpolation etc. */
+	/* on-disk slots of non-standard plugins for main plugin table
+	   (@reiser4_inode->pset), that is, plugins that cannot be deduced
+	   from file mode bits), for example, aggregation, interpolation etc. */
 	PLUGIN_STAT,
 	/* this extension contains persistent inode flags. These flags are
 	   single bits: immutable, append, only, etc. Layout is in
@@ -82,10 +82,10 @@ typedef enum {
 	/* this extension contains size and public id of the secret key.
 	   Layout is in reiser4_crypto_stat */
 	CRYPTO_STAT,
-	/* if this is present, the file children will be created under the 
-	   non-standard plugins control (that is, plugin that cannot be 
-	   changed in plugin set, but needed for its children), for example, 
-	   hash, fibration, sd item, dir entry plugins, etc. */
+	/* on-disk slots of non-default plugins for inheritance, which
+	   are extracted to special plugin table (@reiser4_inode->hset).
+	   By default, children of the object will inherit plugins from
+	   its main plugin table (pset). */
 	HEIR_STAT,
 	LAST_SD_EXTENSION,
 	/*

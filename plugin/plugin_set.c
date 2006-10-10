@@ -1,24 +1,26 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
  * reiser4/README */
-/* NIKITA-FIXME-HANS: you didn't discuss this with me before coding it did you?  Remove plugin-sets from code by March 15th, 2004 */
-/* plugin-sets */
+/* This file contains Reiser4 plugin set operations */
 
-/*
- * Each inode comes with a whole set of plugins: file plugin, directory
- * plugin, hash plugin, tail policy plugin, security plugin, etc.
+/* plugin sets
  *
- * Storing them (pointers to them, that is) in inode is a waste of
- * space. Especially, given that on average file system plugins of vast
- * majority of files will belong to few sets (e.g., one set for regular files,
- * another set for standard directory, etc.)
+ * Each file in reiser4 is controlled by a whole set of plugins (file plugin,
+ * directory plugin, hash plugin, tail policy plugin, security plugin, etc.)
+ * assigned (inherited, deduced from mode bits, etc.) at creation time. This
+ * set of plugins (so called pset) is described by structure plugin_set (see
+ * plugin/plugin_set.h), which contains pointers to all required plugins.
  *
- * Plugin set (pset) is an object containing pointers to all plugins required
- * by inode. Inode only stores a pointer to pset. psets are "interned", that
- * is, different inodes with the same set of plugins point to the same
- * pset. This is archived by storing psets in global hash table. Races are
- * avoided by simple (and efficient so far) solution of never recycling psets,
- * even when last inode pointing to it is destroyed.
+ * Children can inherit some pset members from their parent, however sometimes
+ * it is useful to specify members different from parent ones. Since object's
+ * pset can not be easily changed without fatal consequences, we use for this
+ * purpose another special plugin table (so called hset, or heir set) described
+ * by the same structure.
  *
+ * Inode only stores a pointers to pset and hset. Different inodes with the
+ * same set of pset (hset) members point to the same pset (hset). This is
+ * archived by storing psets and hsets in global hash table. Races are avoided
+ * by simple (and efficient so far) solution of never recycling psets, even
+ * when last inode pointing to it is destroyed.
  */
 
 #include "../debug.h"
@@ -65,7 +67,7 @@ static inline int pseq(const unsigned long *a1, const unsigned long *a2)
 		sizeof set1->digest +
 		sizeof set1->compression +
 		sizeof set1->compression_mode +
-		sizeof set1->cluster + 
+		sizeof set1->cluster +
 		sizeof set1->create);
 
 	set1 = cast_to(a1);
@@ -287,40 +289,40 @@ static struct {
 	}
 };
 
-#define DEFINE_PSET_OPS(SET, TYPE)						\
-reiser4_plugin_type SET##_member_to_type_unsafe(pset_member memb) {		\
-	if (memb > PSET_LAST)							\
-		return REISER4_PLUGIN_TYPES;					\
-	return pset_descr[memb].type;						\
-}										\
-										\
-int SET##_set_unsafe(plugin_set ** set, pset_member memb,			\
-		     reiser4_plugin * plugin)					\
-{										\
-	assert("nikita-3492", set != NULL);					\
-	assert("nikita-3493", *set != NULL);					\
-	assert("nikita-3494", plugin != NULL);					\
-	assert("nikita-3495", 0 <= memb && memb < PSET_LAST);			\
-	assert("nikita-3496", plugin->h.type_id == pset_descr[memb].type);	\
-										\
-	if (pset_descr[memb].groups)						\
-		if (!(pset_descr[memb].groups & plugin->h.groups))		\
-			return -EINVAL;						\
-										\
-	return plugin_set_field(set,						\
-			(unsigned long)plugin, pset_descr[memb].offset);	\
-}										\
-										\
-reiser4_plugin *SET##_get(plugin_set * set, pset_member memb)			\
-{										\
-	assert("nikita-3497", set != NULL);					\
-	assert("nikita-3498", 0 <= memb && memb < PSET_LAST);			\
-										\
-	return *(reiser4_plugin **) (((char *)set) + pset_descr[memb].offset);	\
+#define DEFINE_PSET_OPS(PREFIX)						       \
+	reiser4_plugin_type PREFIX##_member_to_type_unsafe(pset_member memb)   \
+{								               \
+	if (memb > PSET_LAST)						       \
+		return REISER4_PLUGIN_TYPES;				       \
+	return pset_descr[memb].type;					       \
+}									       \
+									       \
+int PREFIX##_set_unsafe(plugin_set ** set, pset_member memb,		       \
+		     reiser4_plugin * plugin)				       \
+{									       \
+	assert("nikita-3492", set != NULL);				       \
+	assert("nikita-3493", *set != NULL);				       \
+	assert("nikita-3494", plugin != NULL);				       \
+	assert("nikita-3495", 0 <= memb && memb < PSET_LAST);		       \
+	assert("nikita-3496", plugin->h.type_id == pset_descr[memb].type);     \
+									       \
+	if (pset_descr[memb].groups)					       \
+		if (!(pset_descr[memb].groups & plugin->h.groups))	       \
+			return -EINVAL;					       \
+									       \
+	return plugin_set_field(set,					       \
+			(unsigned long)plugin, pset_descr[memb].offset);       \
+}									       \
+									       \
+reiser4_plugin *PREFIX##_get(plugin_set * set, pset_member memb)	       \
+{									       \
+	assert("nikita-3497", set != NULL);				       \
+	assert("nikita-3498", 0 <= memb && memb < PSET_LAST);		       \
+									       \
+	return *(reiser4_plugin **) (((char *)set) + pset_descr[memb].offset); \
 }
 
-DEFINE_PSET_OPS(pset, PSET);
-DEFINE_PSET_OPS(hset, HSET);
+DEFINE_PSET_OPS(aset);
 
 int set_plugin(plugin_set ** set, pset_member memb, reiser4_plugin * plugin) {
 	return plugin_set_field(set,
@@ -328,7 +330,7 @@ int set_plugin(plugin_set ** set, pset_member memb, reiser4_plugin * plugin) {
 }
 
 /**
- * init_plugin_set - create pset cache and hash table
+ * init_plugin_set - create plugin set cache and hash table
  *
  * Initializes slab cache of plugin_set-s and their hash table. It is part of
  * reiser4 module initialization.

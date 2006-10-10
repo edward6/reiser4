@@ -487,9 +487,6 @@ static inline int jnode_is_loaded(const jnode * node)
 	return atomic_read(&node->d_count) > 0;
 }
 
-extern void page_detach_jnode(struct page *page,
-			      struct address_space *mapping,
-			      unsigned long index) NONNULL;
 extern void page_clear_jnode(struct page *page, jnode * node) NONNULL;
 
 static inline void jnode_set_reloc(jnode * node)

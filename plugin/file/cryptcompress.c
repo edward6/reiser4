@@ -371,7 +371,7 @@ static int host_allows_crypto_stat(struct inode * host)
 	file_plugin * fplug = inode_file_plugin(host);
 
 	switch (fplug->h.id) {
-	case CRC_FILE_PLUGIN_ID:
+	case CRYPTCOMPRESS_FILE_PLUGIN_ID:
 		ret = 1;
 		break;
 	default:
@@ -452,15 +452,15 @@ inode_set_compression(struct inode * object)
 static int inode_set_cluster(struct inode *object)
 {
 	assert("edward-696", object != NULL);
-	
-	/* Cluster size must be equal to the page size. */
+
+	/* Check size of logical cluster */
 	if (inode_cluster_plugin(object)->shift < PAGE_CACHE_SHIFT) {
 		warning("edward-1320", "Can not support '%s' "
 			"cluster: (less then page size)",
 			inode_cluster_plugin(object)->h.label);
 		return RETERR(-EINVAL);
 	}
-	
+
 	return 0;
 }
 
@@ -490,7 +490,7 @@ create_cryptcompress(struct inode *object, struct inode *parent,
 	assert("edward-24", parent != NULL);
 	assert("edward-30", data != NULL);
 	assert("edward-26", reiser4_inode_get_flag(object, REISER4_NO_SD));
-	assert("edward-27", data->id == CRC_FILE_PLUGIN_ID);
+	assert("edward-27", data->id == CRYPTCOMPRESS_FILE_PLUGIN_ID);
 
 	info = reiser4_inode_data(object);
 
@@ -511,7 +511,7 @@ create_cryptcompress(struct inode *object, struct inode *parent,
 	result = inode_set_cluster(object);
 	if (result)
 		goto error;
-	
+
 	/* save everything in disk stat-data */
 	result = write_sd_by_inode_common(object);
 	if (!result)
@@ -534,7 +534,7 @@ int open_object_cryptcompress(struct inode * inode, struct file * file)
 	assert("edward-1399", file->f_dentry->d_parent->d_inode != NULL);
 	assert("edward-698",
 	       inode_file_plugin(inode) ==
-	       file_plugin_by_id(CRC_FILE_PLUGIN_ID));
+	       file_plugin_by_id(CRYPTCOMPRESS_FILE_PLUGIN_ID));
 
 	if (!need_cipher(inode))
 		/* the file is not to be ciphered */
@@ -1566,7 +1566,7 @@ int jnode_of_cluster(const jnode * node, struct page * page)
 		    get_inode_oid(page->mapping->host) ==
 		    node->key.j.objectid));
 	if (inode_file_plugin(page->mapping->host) ==
-	    file_plugin_by_id(CRC_FILE_PLUGIN_ID)) {
+	    file_plugin_by_id(CRYPTCOMPRESS_FILE_PLUGIN_ID)) {
 #if REISER4_DEBUG
 		if (!jnode_is_cluster_page(node))
 			warning("edward-1345",
@@ -1852,7 +1852,7 @@ static void set_hint_cluster(struct inode *inode, hint_t * hint,
 	assert("edward-722", cryptcompress_inode_ok(inode));
 	assert("edward-723",
 	       inode_file_plugin(inode) ==
-	       file_plugin_by_id(CRC_FILE_PLUGIN_ID));
+	       file_plugin_by_id(CRYPTCOMPRESS_FILE_PLUGIN_ID));
 
 	inode_file_plugin(inode)->key_by_inode(inode,
 					       clust_to_off(index, inode),
@@ -2801,7 +2801,7 @@ ssize_t write_cryptcompress(struct file *file, const char __user *buf,
   		return result;
   	if (unlikely(count == 0))
   		return 0;
- 
+
   	down_write(&info->lock);
 
   	pos = *off;

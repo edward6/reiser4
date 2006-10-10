@@ -1,6 +1,7 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
-/* plugin-sets. see fs/reiser4/plugin/plugin_set.c for details */
+/* Reiser4 plugin set definition.
+   See fs/reiser4/plugin/plugin_set.c for details */
 
 #if !defined( __PLUGIN_SET_H__ )
 #define __PLUGIN_SET_H__
@@ -43,7 +44,8 @@ struct plugin_set {
 	compression_mode_plugin *compression_mode;
 	/* cluster plugin */
 	cluster_plugin *cluster;
-	/* plugin regular children should be created with */
+	/* this specifies file plugin of regular children.
+	   only meaningful for directories */
 	file_plugin *create;
 	ps_hash_link link;
 };
@@ -54,17 +56,12 @@ extern void plugin_set_put(plugin_set * set);
 extern int init_plugin_set(void);
 extern void done_plugin_set(void);
 
-extern reiser4_plugin *pset_get(plugin_set * set, pset_member memb);
-extern reiser4_plugin *hset_get(plugin_set * set, pset_member memb);
+extern reiser4_plugin *aset_get(plugin_set * set, pset_member memb);
 extern int set_plugin(plugin_set ** set, pset_member memb,
 		      reiser4_plugin * plugin);
-extern int pset_set_unsafe(plugin_set ** set, pset_member memb,
+extern int aset_set_unsafe(plugin_set ** set, pset_member memb,
 			   reiser4_plugin * plugin);
-extern int hset_set_unsafe(plugin_set ** set, pset_member memb,
-			   reiser4_plugin * plugin);
-
-extern reiser4_plugin_type pset_member_to_type_unsafe(pset_member memb);
-extern reiser4_plugin_type hset_member_to_type_unsafe(pset_member memb);
+extern reiser4_plugin_type aset_member_to_type_unsafe(pset_member memb);
 
 /* __PLUGIN_SET_H__ */
 #endif

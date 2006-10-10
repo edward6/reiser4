@@ -101,16 +101,16 @@ compression_mode_plugin compression_mode_plugins[LAST_COMPRESSION_MODE_ID] = {
 	SUPPORT_COL_COMPRESSION_MODE(8, "col8"),
 	SUPPORT_COL_COMPRESSION_MODE(16, "col16"),
 	SUPPORT_COL_COMPRESSION_MODE(32, "col32"),
-	/* This compression mode enables file conversion, i.e. ->write() checks
-	   whether the first complete
-	   logical cluster (of index #0) is compressible. If not, then items are
-	   converted to extents, and management is passed to unix file plugin */
+	/* In this mode items will be converted to extents and management
+	   will be passed to (classic) unix file plugin as soon as ->write()
+	   detects that the first complete logical cluster (of index #0) is
+	   incompressible. */
 	[CONVX_COMPRESSION_MODE_ID] = {
 		.h = {
 			.type_id = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
 			.id = CONVX_COMPRESSION_MODE_ID,
 			.pops = NULL,
-			.label = "convx",
+			.label = "conv",
 			.desc = "Convert to extent",
 			.linkage = {NULL, NULL}
 		},

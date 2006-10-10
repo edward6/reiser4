@@ -27,8 +27,8 @@
    & tx record. */
 #define RELEASE_RESERVED 4
 
-/* Format version number */
-#define FORMAT40_VERSION 0
+/* The greatest supported format40 version number */
+#define FORMAT40_VERSION PLUGIN_LIBRARY_VERSION
 
 /* This flag indicates that backup should be updated
    (the update is performed by fsck) */
@@ -81,13 +81,20 @@ static __u32 get_format40_version(const format40_disk_super_block * sb)
 		~FORMAT40_UPDATE_BACKUP;
 }
 
-static int update_backup_version(const format40_disk_super_block * sb) {
+static int update_backup_version(const format40_disk_super_block * sb)
+{
 	return (le32_to_cpu(get_unaligned(&sb->version)) &
 		FORMAT40_UPDATE_BACKUP);
 }
 
-static int update_disk_version(const format40_disk_super_block * sb) {
+static int update_disk_version(const format40_disk_super_block * sb)
+{
 	return (get_format40_version(sb) < FORMAT40_VERSION);
+}
+
+static int incomplete_compatibility(const format40_disk_super_block * sb)
+{
+	return (get_format40_version(sb) > FORMAT40_VERSION);
 }
 
 static format40_super_info *get_sb_info(struct super_block *super)
@@ -267,9 +274,9 @@ static int try_init_format40(struct super_block *super,
 		return PTR_ERR(super_bh);
 	brelse(super_bh);
 	*stage = FIND_A_SUPER;
-	
+
 	/* ok, we are sure that filesystem format is a format40 format */
-	
+
 	/* map jnodes for journal control blocks (header, footer) to disk  */
 	result = reiser4_init_journal_info(super);
 	if (result)
@@ -286,15 +293,12 @@ static int try_init_format40(struct super_block *super,
 	*stage = INIT_STATUS;
 
 	result = reiser4_status_query(NULL, NULL);
-	if (result == REISER4_STATUS_MOUNT_WARN) {
-		printk("Warning, mounting %s filesystem with errors\n",
+	if (result == REISER4_STATUS_MOUNT_WARN)
+		notice("vpf-1363", "Warning: mounting %s with errors.",
 		       super->s_id);
-	}
-	if (result == REISER4_STATUS_MOUNT_RO) {
-		printk("Warning, mounting %s filesystem with fatal errors, "
-		       "forcing read-only mount\n", super->s_id);
-	}
-
+	if (result == REISER4_STATUS_MOUNT_RO)
+		notice("vpf-1364", "Warning: mounting %s with fatal errors,"
+		       " forcing read-only mount.", super->s_id);
 	result = reiser4_journal_replay(super);
 	if (result)
 		return result;
@@ -311,8 +315,15 @@ static int try_init_format40(struct super_block *super,
 
 	if (IS_ERR(sb_copy))
 		return PTR_ERR(sb_copy);
-
-	/* make sure that key format of kernel and filesyste match */
+	printk("reiser4: %s: found disk format 4.0.%u.\n",
+	       super->s_id,
+	       get_format40_version(sb_copy));
+	if (incomplete_compatibility(sb_copy))
+		printk("reiser4: Warning: The last completely supported "
+		       "version of disk format40 is %u. Some objects of "
+		       "the semantic tree can be unaccessible.\n",
+		       FORMAT40_VERSION);
+	/* make sure that key format of kernel and filesystem match */
 	result = check_key_format(sb_copy);
 	if (result) {
 		kfree(sb_copy);
@@ -358,9 +369,9 @@ static int try_init_format40(struct super_block *super,
 	kfree(sb_copy);
 
 	if (update_backup_version(sb_copy))
-		warning("reiser4", "metadata backup is not updated. "
-			"Please run 'fsck.reiser4 --fix' on %s.\n",
-			super->s_id);
+		printk("reiser4: Warning: metadata backup is not updated. "
+		       "Please run 'fsck.reiser4 --fix' on %s.\n",
+		       super->s_id);
 
 	sbinfo->fsuid = 0;
 	sbinfo->fs_flags |= (1 << REISER4_ADG);	/* hard links for directories
@@ -455,26 +466,26 @@ static void pack_format40_super(const struct super_block *s, char *data)
 {
 	format40_disk_super_block *super_data =
 	    (format40_disk_super_block *) data;
-	
+
 	reiser4_super_info_data *sbinfo = get_super_private(s);
-	
+
 	assert("zam-591", data != NULL);
-	
+
 	put_unaligned(cpu_to_le64(reiser4_free_committed_blocks(s)),
 		      &super_data->free_blocks);
-	
-	put_unaligned(cpu_to_le64(sbinfo->tree.root_block), 
+
+	put_unaligned(cpu_to_le64(sbinfo->tree.root_block),
 		      &super_data->root_block);
-	
-	put_unaligned(cpu_to_le64(oid_next(s)), 
+
+	put_unaligned(cpu_to_le64(oid_next(s)),
 		      &super_data->oid);
-	
-	put_unaligned(cpu_to_le64(oids_used(s)), 
+
+	put_unaligned(cpu_to_le64(oids_used(s)),
 		      &super_data->file_count);
-	
-	put_unaligned(cpu_to_le16(sbinfo->tree.height), 
+
+	put_unaligned(cpu_to_le16(sbinfo->tree.height),
 		      &super_data->tree_height);
-	
+
 	if (update_disk_version(super_data)) {
 		__u32 version = FORMAT40_VERSION | FORMAT40_UPDATE_BACKUP;
 
@@ -580,7 +591,7 @@ int check_open_format40(const struct inode *object)
 	/* Check the locality. */
 	oid = reiser4_inode_data(object)->locality_id;
 	if (oid > max) {
-		warning("vpf-1360", "The object with the locality %llu "
+		warning("vpf-1361", "The object with the locality %llu "
 			"greater then the max used oid %llu found.",
 			(unsigned long long)oid, (unsigned long long)max);
 
@@ -591,7 +602,7 @@ int check_open_format40(const struct inode *object)
 }
 
 /* plugin->u.format.version_update.
-   Perform all version update operations from the on-disk 
+   Perform all version update operations from the on-disk
    format40_disk_super_block.version on disk to FORMAT40_VERSION.
  */
 int version_update_format40(struct super_block *super) {
@@ -599,35 +610,35 @@ int version_update_format40(struct super_block *super) {
 	lock_handle lh;
 	txn_atom *atom;
 	int ret;
-	
+
 	/* Nothing to do if RO mount or the on-disk version is not less. */
 	if (super->s_flags & MS_RDONLY)
  		return 0;
-	
+
 	if (get_super_private(super)->version >= FORMAT40_VERSION)
 		return 0;
-	
-	printk("WARNING: Reiser4 updates the format. The reiser4 metadata "
+
+	printk("reiser4: Updating disk format to 4.0.%u. The reiser4 metadata "
 	       "backup is left unchanged. Please run 'fsck.reiser4 --fix' "
-	       "on %s to update it too.\n", super->s_id);
-	
+	       "on %s to update it too.\n", FORMAT40_VERSION, super->s_id);
+
 	/* Mark the uber znode dirty to call log_super on write_logs. */
 	init_lh(&lh);
-	ret = get_uber_znode(reiser4_get_tree(super), ZNODE_WRITE_LOCK, 
+	ret = get_uber_znode(reiser4_get_tree(super), ZNODE_WRITE_LOCK,
 			     ZNODE_LOCK_HIPRI, &lh);
 	if (ret != 0)
 		return ret;
-	
+
 	znode_make_dirty(lh.node);
 	done_lh(&lh);
-	
+
 	/* Update the backup blocks. */
-	
+
 	/* Force write_logs immediately. */
 	trans = get_current_context()->trans;
 	atom = get_current_atom_locked();
 	assert("vpf-1906", atom != NULL);
-	
+
 	spin_lock_txnh(trans);
 	return force_commit_atom(trans);
 }

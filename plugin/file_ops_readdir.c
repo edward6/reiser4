@@ -7,8 +7,8 @@
  * @inode directory. */
 static int is_valid_dir_coord(struct inode *inode, coord_t * coord)
 {
-	return plugin_of_group(item_plugin_by_coord(coord), 
-			       DIR_ENTRY_ITEM_TYPE) && 
+	return plugin_of_group(item_plugin_by_coord(coord),
+			       DIR_ENTRY_ITEM_TYPE) &&
 	       inode_file_plugin(inode)->owns_item(inode, coord);
 }
 

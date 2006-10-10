@@ -68,16 +68,16 @@ static int _dummyop(void)
 
 #define dummyop ((void *)_dummyop)
 
-static int change_file(struct inode *inode, 
-		       reiser4_plugin * plugin, 
+static int change_file(struct inode *inode,
+		       reiser4_plugin * plugin,
 		       pset_member memb)
 {
 	/* cannot change object plugin of already existing object */
 	if (memb == PSET_FILE)
 		return RETERR(-EINVAL);
-	
+
 	/* Change PSET_CREATE */
-	return pset_set_unsafe(&reiser4_inode_data(inode)->pset, memb, plugin);
+	return aset_set_unsafe(&reiser4_inode_data(inode)->pset, memb, plugin);
 }
 
 static reiser4_plugin_ops file_plugin_ops = {
@@ -300,10 +300,10 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.done = wire_done_common
 		}
 	},
-	[CRC_FILE_PLUGIN_ID] = {
+	[CRYPTCOMPRESS_FILE_PLUGIN_ID] = {
 		.h = {
 			.type_id = REISER4_FILE_PLUGIN_TYPE,
-			.id = CRC_FILE_PLUGIN_ID,
+			.id = CRYPTCOMPRESS_FILE_PLUGIN_ID,
 			.groups = (1 << REISER4_REGULAR_FILE),
 			.pops = &file_plugin_ops,
 			.label = "cryptcompress",
@@ -369,8 +369,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 	}
 };
 
-static int change_dir(struct inode *inode, 
-		      reiser4_plugin * plugin, 
+static int change_dir(struct inode *inode,
+		      reiser4_plugin * plugin,
 		      pset_member memb)
 {
 	/* cannot change dir plugin of already existing object */

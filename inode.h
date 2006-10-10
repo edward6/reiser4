@@ -100,9 +100,11 @@ typedef __u32 oid_hi_t;
 struct reiser4_inode {
 	/* spin lock protecting fields of this structure. */
 	spinlock_t guard;
-	/* object plugins */
+	/* main plugin set that control the file
+	   (see comments in plugin/plugin_set.c) */
 	plugin_set *pset;
-	/* plugins set for inheritance */
+	/* plugin set for inheritance
+	   (see comments in plugin/plugin_set.c) */
 	plugin_set *hset;
 	/* high 32 bits of object id */
 	oid_hi_t oid_hi;
@@ -141,11 +143,13 @@ struct reiser4_inode {
  	 * write_unix_file uses get_user_pages which is to be used under
  	 * mm->mmap_sem and because it is required to take mm->mmap_sem before
  	 * inode->i_mutex, so inode->i_mutex would have to be up()-ed before
- 	 * calling to get_user_pages which is unacceptable. */
+ 	 * calling to get_user_pages which is unacceptable.
+	 */
  	struct semaphore mutex_write;
 
 	/* this semaphore is to serialize readers and writers of @pset->file
-	 * when file plugin conversion is enabled */
+	 * when file plugin conversion is enabled
+	 */
  	struct rw_semaphore conv_sem;
 
 	/* tree of jnodes. Phantom jnodes (ones not attched to any atom) are

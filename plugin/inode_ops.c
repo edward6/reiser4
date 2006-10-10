@@ -37,8 +37,8 @@ int reiser4_create_common(struct inode *parent, struct dentry *dentry,
 	data.mode = S_IFREG | mode;
 	fplug = child_create_plugin(parent) ? : inode_create_plugin(parent);
 	if (!plugin_of_group(fplug, REISER4_REGULAR_FILE)) {
-		warning("vpf-1900", "The file being created with the plugin "
-			"'%s' is not a regular file plugin.", fplug->h.label);
+		warning("vpf-1900", "'%s' is not a regular file plugin.",
+			fplug->h.label);
 		return RETERR(-EIO);
 	}
 	data.id = fplug->h.id;
@@ -601,7 +601,7 @@ static int do_create_vfs_child(reiser4_object_create_data * data,	/* parameters 
 	memset(&entry, 0, sizeof entry);
 	entry.obj = object;
 
-	set_plugin(&reiser4_inode_data(object)->pset, PSET_FILE, 
+	set_plugin(&reiser4_inode_data(object)->pset, PSET_FILE,
 		   file_plugin_to_plugin(obj_plug));
 	result = obj_plug->set_plug_in_inode(object, parent, data);
 	if (result) {

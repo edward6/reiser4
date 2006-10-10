@@ -150,6 +150,12 @@ typedef struct reiser4_object_on_wire reiser4_object_on_wire;
  * them, and which are only invoked by other plugins.
  */
 
+/* This should be incremented with each new contributed
+   pair (plugin type, plugin id).
+   NOTE: Make sure there is a release of reiser4progs
+   with the corresponding version number */
+#define PLUGIN_LIBRARY_VERSION 0
+
  /* enumeration of fields within plugin_set */
 typedef enum {
 	PSET_FILE,
@@ -182,7 +188,7 @@ typedef enum {
 	   sockets  */
 	SPECIAL_FILE_PLUGIN_ID,
 	/* regular cryptcompress file */
-	CRC_FILE_PLUGIN_ID,
+	CRYPTCOMPRESS_FILE_PLUGIN_ID,
 	/* number of file plugins. Used as size of arrays to hold
 	   file plugins. */
 	LAST_FILE_PLUGIN_ID
@@ -676,7 +682,7 @@ struct reiser4_plugin_ops {
 	int alignment;
 	/* install itself into given inode. This can return error
 	   (e.g., you cannot change hash of non-empty directory). */
-	int (*change) (struct inode * inode, reiser4_plugin * plugin, 
+	int (*change) (struct inode * inode, reiser4_plugin * plugin,
 		       pset_member memb);
 	/* install itself into given inode. This can return error
 	   (e.g., you cannot change hash of non-empty directory). */
@@ -869,7 +875,6 @@ for (plugin = list_entry(get_plugin_list(ptype)->next, reiser4_plugin, h.linkage
 
 extern int grab_plugin_pset(struct inode *self, struct inode *ancestor, pset_member memb);
 extern int force_plugin_pset(struct inode *self, pset_member memb, reiser4_plugin *plug);
-extern int force_plugin_hset(struct inode *self, pset_member memb, reiser4_plugin *plug);
 extern int finish_pset(struct inode *inode);
 
 /* defined in fs/reiser4/plugin/object.c */

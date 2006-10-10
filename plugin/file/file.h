@@ -1,8 +1,9 @@
 /* Copyright 2001, 2002, 2003, 2004 by Hans Reiser, licensing governed by
  * reiser4/README */
 
-/* this file contains declarations of methods implementing file plugins
-   (UNIX_FILE_PLUGIN_ID, SYMLINK_FILE_PLUGIN_ID and CRC_FILE_PLUGIN_ID) */
+/* this file contains declarations of methods implementing
+   file plugins (UNIX_FILE_PLUGIN_ID, CRYPTCOMPRESS_FILE_PLUGIN_ID
+   and SYMLINK_FILE_PLUGIN_ID) */
 
 #if !defined( __REISER4_FILE_H__ )
 #define __REISER4_FILE_H__
@@ -16,7 +17,7 @@ int setattr_unix_file(struct dentry *, struct iattr *);
 ssize_t read_unix_file(struct file *, char __user *buf, size_t read_amount,
 		       loff_t *off);
 ssize_t write_unix_file(struct file *, const char __user *buf, size_t write_amount,
-			loff_t *off);
+			loff_t * off);
 int ioctl_unix_file(struct inode *, struct file *, unsigned int cmd,
 		    unsigned long arg);
 int mmap_unix_file(struct file *, struct vm_area_struct *);
@@ -37,9 +38,6 @@ int commit_write_unix_file(struct file *, struct page *, unsigned from,
 long batch_write_unix_file(struct file *, struct write_descriptor *,
 			   size_t *written);
 sector_t bmap_unix_file(struct address_space *, sector_t lblock);
-
-/* a readpages cleanup helper */
-extern void reiser4_readpages_cleanup(struct list_head *pages);
 
 /* file plugin operations */
 int flow_by_inode_unix_file(struct inode *, const char __user *buf,
@@ -169,8 +167,6 @@ void hint_init_zero(hint_t *);
 void reiser4_set_hint(hint_t *, const reiser4_key *, znode_lock_mode);
 int hint_is_set(const hint_t *);
 void reiser4_unset_hint(hint_t *);
-int hint_validate(hint_t *, const reiser4_key *, int check_key,
-		  znode_lock_mode);
 
 int reiser4_update_file_size(struct inode *, reiser4_key *, int update_sd);
 int cut_file_items(struct inode *, loff_t new_size, int update_sd,
@@ -196,7 +192,8 @@ int reiser4_create_symlink(struct inode *symlink, struct inode *dir,
 			   reiser4_object_create_data *);
 void destroy_inode_symlink(struct inode *);
 
-/* declarations of functions implementing CRC_FILE_PLUGIN_ID file plugin */
+/* declarations of functions implementing CRYPTCOMPRESS_FILE_PLUGIN_ID
+   file plugin */
 
 /* inode operations */
 int setattr_cryptcompress(struct dentry *, struct iattr *);

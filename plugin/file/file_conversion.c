@@ -36,7 +36,7 @@
 */
 #define should_protect(inode)						\
 	(inode_file_plugin(inode) ==					\
-	 file_plugin_by_id(CRC_FILE_PLUGIN_ID) &&			\
+	 file_plugin_by_id(CRYPTCOMPRESS_FILE_PLUGIN_ID) &&		\
 	 conversion_enabled(inode))
 
 /* All protected methods have prefix "prot" in their names.
@@ -87,7 +87,7 @@
 })
 
 /* Macro for active protection.
-   active_expr contains readers and writers; after its 
+   active_expr contains readers and writers; after its
    evaluation conversion should be disabled */
 #define PROT_ACTIVE(type, method, args, active_expr)			\
 ({	                 						\
@@ -114,7 +114,7 @@
 	reiser4_exit_context(ctx);					\
 	_result;							\
 })
-	 
+
 /* Pass management to the unix file plugin */
 static int __cryptcompress2unixfile(struct file *file, struct inode * inode)
 {
@@ -123,7 +123,7 @@ static int __cryptcompress2unixfile(struct file *file, struct inode * inode)
 	unix_file_info_t * uf;
 	info = reiser4_inode_data(inode);
 
-	result = pset_set_unsafe(&info->pset, PSET_FILE, (reiser4_plugin *)
+	result = aset_set_unsafe(&info->pset, PSET_FILE, (reiser4_plugin *)
 				 file_plugin_by_id(UNIX_FILE_PLUGIN_ID));
 	if (result)
 		return result;
@@ -175,7 +175,7 @@ static int disabled_conversion_inode_ok(struct inode * inode)
 static int disable_conversion_no_update_sd(struct inode * inode)
 {
 	int result;
-	result = 
+	result =
 	       force_plugin_pset(inode,
 				 PSET_COMPRESSION_MODE,
 				 (reiser4_plugin *)compression_mode_plugin_by_id
@@ -187,43 +187,10 @@ static int disable_conversion_no_update_sd(struct inode * inode)
 
 /* Disable future attempts to check/convert. This function is called by
    conversion hooks. */
-#if 0
-static int disable_conversion(struct inode * inode)
-{
-	int result;
-
-	assert("edward-1501", schedulable());
-	assert("edward-1502", inode_file_plugin(inode) ==
-	       file_plugin_by_id(CRC_FILE_PLUGIN_ID));
-	assert("edward-1503", inode_compression_mode_plugin(inode) ==
-	       compression_mode_plugin_by_id (CONVX_COMPRESSION_MODE_ID));
-
-	result = reiser4_grab_space_force(/* one for stat data update */
-					  estimate_update_common(inode),
-					  BA_CAN_COMMIT);
-	if (result)
-		return result;
-	/* Assign a compression mode plugin which is able
-	   to handle incompressible data at flush time */
-	result = disable_conversion_no_update_sd(inode);
-	if (result)
-		return result;
-	result = reiser4_update_sd(inode);
-	if (!result)
-		grab_space_enable();
-	return result;
-}
-#endif
 static int disable_conversion(struct inode * inode)
 {
 	return disable_conversion_no_update_sd(inode);
 }
-
-#define thirty_persent(size) ((307 * size) >> 10)
-#define seventy_persent(size) ((720 * size) >> 10)
-/* evaluation of data compressibility */
-#define data_is_compressible(osize, isize)		\
-	(osize < (isize - thirty_persent(isize)))
 
 static int check_position(struct inode * inode,
 			  loff_t pos /* initial position in the file */,
@@ -284,6 +251,11 @@ int prepped_dclust_ok(hint_t * hint)
 		 dclust_get_extension_dsize(hint)));
 }
 #endif
+
+#define thirty_persent(size) ((307 * size) >> 10)
+/* evaluation of data compressibility */
+#define data_is_compressible(osize, isize)		\
+	(osize < (isize - thirty_persent(isize)))
 
 /* This is called only once per file life.
    Read first logical cluster (of index #0) and estimate its compressibility.
@@ -371,7 +343,7 @@ static int cut_disk_cluster(struct inode * inode, cloff_t idx)
 {
 	reiser4_key from, to;
 	assert("edward-1515", inode_file_plugin(inode) ==
-	       file_plugin_by_id(CRC_FILE_PLUGIN_ID));
+	       file_plugin_by_id(CRYPTCOMPRESS_FILE_PLUGIN_ID));
 	key_by_inode_cryptcompress(inode, clust_to_off(idx, inode), &from);
 	to = from;
 	set_key_offset(&to,

@@ -5,6 +5,8 @@
 
 /* cryptcompress object item. See ctail.c for description. */
 
+/* number of units and cluster_shift of ctail item
+   that represents unprepped disk cluster */
 #define UCTAIL_NR_UNITS 1
 #define UCTAIL_SHIFT 0xff
 
@@ -26,9 +28,9 @@ typedef enum {
 } dc_item_stat;
 
 typedef struct {
-	int shift; /* cpu value of cluster_shift field (see ctail_item_format
-		      above) for ctail items of prepped disk cluster, and
-		      UCTAIL_SHIFT for unprepped ones */
+	int shift; /* this contains cluster_shift extracted from
+		      ctail_item_format (above), or UCTAIL_SHIFT
+		      (the last one is for unprepped disk clusters) */
 	int dsize; /* size of a prepped disk cluster */
 } ctail_coord_extension_t;
 

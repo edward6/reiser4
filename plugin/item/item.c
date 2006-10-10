@@ -283,8 +283,8 @@ int item_is_ctail(const coord_t * item)
 	return item_id_by_coord(item) == CTAIL_ID;
 }
 
-static int change_item(struct inode *inode, 
-		       reiser4_plugin * plugin, 
+static int change_item(struct inode *inode,
+		       reiser4_plugin * plugin,
 		       pset_member memb)
 {
 	/* cannot change constituent item (sd, or dir_item) */

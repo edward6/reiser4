@@ -745,8 +745,6 @@ locate_inode_sd(struct inode *inode,
 }
 
 #if REISER4_DEBUG
-void edward_break_sd(void){;}
-
 static int all_but_offset_key_eq(const reiser4_key * k1, const reiser4_key * k2)
 {
 	return (get_key_locality(k1) == get_key_locality(k2) &&
@@ -768,16 +766,11 @@ static int check_sd_resize(struct inode * inode, coord_t * coord,
 	reiser4_key left_key;
 	reiser4_key key;
 
-	if (inode_file_plugin(inode) != file_plugin_by_id(CRC_FILE_PLUGIN_ID))
+	if (inode_file_plugin(inode) !=
+	    file_plugin_by_id(CRYPTCOMPRESS_FILE_PLUGIN_ID))
 		return 0;
 	if (!length)
 		return 0;
-
-	if (progress == 0 &&
-	    (coord->item_pos == coord->node->nr_items - 1) &&
-	    node_plugin_by_node(coord->node)->free_space(coord->node) < length)
-		edward_break_sd();
-
 	if (coord->item_pos != 0)
 		return 0;
 
@@ -792,8 +785,6 @@ static int check_sd_resize(struct inode * inode, coord_t * coord,
 		ret = 0;
 		goto exit;
 	}
-	if (ret)
-		edward_break_sd();
 	ret = zload(left_lock.node);
 	if (ret)
 		goto exit;
@@ -801,11 +792,9 @@ static int check_sd_resize(struct inode * inode, coord_t * coord,
 	item_key_by_coord(&left_coord, &left_key);
 	item_key_by_coord(coord, &key);
 
-	if (all_but_offset_key_eq(&key, &left_key)) {
+	if (all_but_offset_key_eq(&key, &left_key))
 		/* corruption occured */
 		ret = 1;
-		edward_break_sd();
-	}
 	zrelse(left_lock.node);
  exit:
 	done_lh(&left_lock);
@@ -841,18 +830,14 @@ update_sd_at(struct inode *inode, coord_t * coord, reiser4_key * key,
 	if (state->extmask & (1 << PLUGIN_STAT)) {
 		if (state->plugin_mask == 0)
 			inode_clr_extension(inode, PLUGIN_STAT);
-	} else {
-		if (state->plugin_mask != 0) 
-			inode_set_extension(inode, PLUGIN_STAT);
-	}
-	
+	} else if (state->plugin_mask != 0)
+		inode_set_extension(inode, PLUGIN_STAT);
+
 	if (state->extmask & (1 << HEIR_STAT)) {
 		if (state->heir_mask == 0)
 			inode_clr_extension(inode, HEIR_STAT);
-	} else {
-		if (state->heir_mask != 0) 
+	} else if (state->heir_mask != 0)
 			inode_set_extension(inode, HEIR_STAT);
-	}
 
 	/* data.length is how much space to add to (or remove
 	   from if negative) sd */

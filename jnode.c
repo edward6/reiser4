@@ -698,6 +698,7 @@ void page_clear_jnode(struct page *page, jnode * node)
 	page_cache_release(page);
 }
 
+#if 0
 /* it is only used in one place to handle error */
 void
 page_detach_jnode(struct page *page, struct address_space *mapping,
@@ -717,6 +718,7 @@ page_detach_jnode(struct page *page, struct address_space *mapping,
 	}
 	unlock_page(page);
 }
+#endif  /*  0  */
 
 /* return @node page locked.
 

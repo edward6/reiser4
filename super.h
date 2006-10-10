@@ -190,8 +190,8 @@ struct reiser4_super_info_data {
 	/* unique file-system identifier */
 	__u32 fsuid;
 
-	/* On-disk format version. If does not equal to the disk_format 
-	   plugin version, some format updates (e.g. enlarging plugin 
+	/* On-disk format version. If does not equal to the disk_format
+	   plugin version, some format updates (e.g. enlarging plugin
 	   set, etc) may have place on mount. */
 	int version;
 

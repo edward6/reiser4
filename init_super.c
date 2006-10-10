@@ -451,7 +451,7 @@ do {						\
 	PUSH_BIT_OPT("atomic_write", REISER4_ATOMIC_WRITE);
 	/* disable use of write barriers in the reiser4 log writer. */
 	PUSH_BIT_OPT("no_write_barrier", REISER4_NO_WRITE_BARRIER);
-	
+
 	PUSH_OPT(
 	{
 		/*
@@ -705,10 +705,10 @@ int reiser4_init_root_inode(struct super_block *super)
 
 		pset = reiser4_inode_data(inode)->pset;
 		for (memb = 0; memb < PSET_LAST; ++memb) {
-			
-			if (pset_get(pset, memb) != NULL)
+
+			if (aset_get(pset, memb) != NULL)
 				continue;
-			
+
 			result = grab_plugin_pset(inode, NULL, memb);
 			if (result != 0)
 				break;
@@ -720,27 +720,27 @@ int reiser4_init_root_inode(struct super_block *super)
 			if (REISER4_DEBUG) {
 				for (memb = 0; memb < PSET_LAST; ++memb)
 					assert("nikita-3500",
-					       pset_get(pset, memb) != NULL);
+					       aset_get(pset, memb) != NULL);
 			}
 		} else
 			warning("nikita-3448", "Cannot set plugins of root: %i",
 				result);
 		reiser4_iget_complete(inode);
-		
+
 		/* As the default pset kept in the root dir may has been changed
 		   (length is unknown), call update_sd. */
 		if (!reiser4_inode_get_flag(inode, REISER4_SDLEN_KNOWN)) {
 			result = reiser4_grab_space(
 				inode_file_plugin(inode)->estimate.update(inode),
 				BA_CAN_COMMIT);
-			
+
 			if (result == 0)
 				result = reiser4_update_sd(inode);
-			
+
 			all_grabbed2free();
 		}
 	}
-	
+
 	super->s_maxbytes = MAX_LFS_FILESIZE;
 	return result;
 }

@@ -26,6 +26,8 @@
 
 static int unpack(struct file *file, struct inode *inode, int forever);
 static void drop_access(unix_file_info_t *);
+static int hint_validate(hint_t * hint, const reiser4_key * key, int check_key,
+			 znode_lock_mode lock_mode);
 
 /* get unix file plugin specific portion of inode */
 unix_file_info_t *unix_file_inode_data(const struct inode *inode)
@@ -372,7 +374,7 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd,
 
 	assert("vs-1248",
 	       fplug == file_plugin_by_id(UNIX_FILE_PLUGIN_ID) ||
-	       fplug == file_plugin_by_id(CRC_FILE_PLUGIN_ID));
+	       fplug == file_plugin_by_id(CRYPTCOMPRESS_FILE_PLUGIN_ID));
 
 	fplug->key_by_inode(inode, new_size, &from_key);
 	to_key = from_key;
@@ -747,7 +749,7 @@ static int all_but_offset_key_eq(const reiser4_key * k1, const reiser4_key * k2)
 }
 #endif
 
-int
+static int
 hint_validate(hint_t * hint, const reiser4_key * key, int check_key,
 	      znode_lock_mode lock_mode)
 {

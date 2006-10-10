@@ -51,11 +51,12 @@ typedef struct format40_disk_super_block {
 	/*  72 */ d64 flags;
 	/*  80 */ d32 version;
 	/* on-disk format version number
-	   initially assigned by mkfs in accordance with
-	   version number of reiser4progs and updated in
-	   mount time in accordance with version number
-	   of kernel. Is used by fsck to catch possible
-	   corruption */
+	   initially assigned by mkfs as the greatest format40
+	   version number supported by reiser4progs and updated
+	   in mount time in accordance with the greatest format40
+	   version number supported by kernel.
+	   Is used by fsck to catch possible corruption and
+	   for various compatibility issues */
 	/*  84 */ char not_used[428];
 } format40_disk_super_block;
 

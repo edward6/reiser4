@@ -160,7 +160,8 @@ void reiser4_invalidatepage(struct page *page, unsigned long offset)
 	       page->mapping == jnode_get_mapping(jnode_by_page(page)));
 	assert("", jprivate(page) != NULL);
 	assert("", ergo(inode_file_plugin(inode) !=
-			file_plugin_by_id(CRC_FILE_PLUGIN_ID), offset == 0));
+			file_plugin_by_id(CRYPTCOMPRESS_FILE_PLUGIN_ID),
+			offset == 0));
 
 	ctx = reiser4_init_context(inode->i_sb);
 	if (IS_ERR(ctx))
