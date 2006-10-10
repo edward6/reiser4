@@ -137,7 +137,7 @@
    versions in the reiser4 in-memory super block.  They get modified only at
    atom commit time.  The atom's commit thread has an exclusive access to those
    "committed" fields because the log writer implementation supports only one
-   atom commit a time (there is a per-fs "commit" semaphore).  At
+   atom commit a time (there is a per-fs "commit" mutex).  At
    that time "committed" counters are modified using per-atom information
    collected during the transaction. These counters are stored on disk as a
    part of tx head block when atom is committed.
@@ -1216,7 +1216,7 @@ int reiser4_write_logs(long *nr_submitted)
 
 	/* relocate set is on the atom->clean_nodes list after
 	 * current_atom_complete_writes() finishes. It can be safely
-	 * uncaptured after commit_semaphore is taken, because any atom that
+	 * uncaptured after commit_mutex is locked, because any atom that
 	 * captures these nodes is guaranteed to commit after current one.
 	 *
 	 * This can only be done after reiser4_pre_commit_hook(), because it is where

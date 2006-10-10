@@ -398,7 +398,7 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd,
 					break;
 			}
 
-			/* the below does up(sbinfo->delete_sema). Do not get folled */
+			/* the below does up(sbinfo->delete_mutex). Do not get folled */
 			reiser4_release_reserved(inode->i_sb);
 
 			/* reiser4_cut_tree_object() was interrupted probably because
@@ -418,7 +418,7 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd,
 		break;
 	}
 
-	/* the below does up(sbinfo->delete_sema). Do not get folled */
+	/* the below does up(sbinfo->delete_mutex). Do not get folled */
 	reiser4_release_reserved(inode->i_sb);
 
 	return result;
@@ -481,7 +481,7 @@ static int shorten_file(struct inode *inode, loff_t new_size)
 	page = read_mapping_page(inode->i_mapping, index, NULL);
 	if (IS_ERR(page)) {
 		/*
-		 * the below does up(sbinfo->delete_sema). Do not get
+		 * the below does up(sbinfo->delete_mutex). Do not get
 		 * confused
 		 */
 		reiser4_release_reserved(inode->i_sb);
@@ -495,7 +495,7 @@ static int shorten_file(struct inode *inode, loff_t new_size)
 	if (!PageUptodate(page)) {
 		page_cache_release(page);
 		/*
-		 * the below does up(sbinfo->delete_sema). Do not get
+		 * the below does up(sbinfo->delete_mutex). Do not get
 		 * confused
 		 */
 		reiser4_release_reserved(inode->i_sb);
@@ -515,7 +515,7 @@ static int shorten_file(struct inode *inode, loff_t new_size)
 	if (result) {
 		page_cache_release(page);
 		/*
-		 * the below does up(sbinfo->delete_sema). Do not get
+		 * the below does up(sbinfo->delete_mutex). Do not get
 		 * confused
 		 */
 		reiser4_release_reserved(inode->i_sb);
@@ -530,7 +530,7 @@ static int shorten_file(struct inode *inode, loff_t new_size)
 	kunmap_atomic(kaddr, KM_USER0);
 	unlock_page(page);
 	page_cache_release(page);
-	/* the below does up(sbinfo->delete_sema). Do not get confused */
+	/* the below does up(sbinfo->delete_mutex). Do not get confused */
 	reiser4_release_reserved(inode->i_sb);
 	return 0;
 }

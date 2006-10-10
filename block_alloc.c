@@ -345,7 +345,7 @@ int reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags)
  * Solution is to reserve 5% of disk space for truncates and
  * unlinks. Specifically, normal space grabbing requests don't grab space from
  * reserved area. Only requests with BA_RESERVED bit in flags are allowed to
- * drain it. Per super block delete_sema semaphore is used to allow only one
+ * drain it. Per super block delete mutex is used to allow only one
  * thread at a time to grab from reserved area.
  *
  * Grabbing from reserved area should always be performed with BA_CAN_COMMIT
@@ -360,9 +360,9 @@ int reiser4_grab_reserved(struct super_block *super,
 
 	assert("nikita-3175", flags & BA_CAN_COMMIT);
 
-	/* Check the delete semaphore already taken by us, we assume that
+	/* Check the delete mutex already taken by us, we assume that
 	 * reading of machine word is atomic. */
-	if (sbinfo->delete_sema_owner == current) {
+	if (sbinfo->delete_mutex_owner == current) {
 		if (reiser4_grab_space
 		    (count, (flags | BA_RESERVED) & ~BA_CAN_COMMIT)) {
 			warning("zam-1003",
@@ -375,9 +375,9 @@ int reiser4_grab_reserved(struct super_block *super,
 	}
 
 	if (reiser4_grab_space(count, flags)) {
-		down(&sbinfo->delete_sema);
-		assert("nikita-2929", sbinfo->delete_sema_owner == NULL);
-		sbinfo->delete_sema_owner = current;
+		mutex_lock(&sbinfo->delete_mutex);
+		assert("nikita-2929", sbinfo->delete_mutex_owner == NULL);
+		sbinfo->delete_mutex_owner = current;
 
 		if (reiser4_grab_space(count, flags | BA_RESERVED)) {
 			warning("zam-833",
@@ -395,9 +395,9 @@ void reiser4_release_reserved(struct super_block *super)
 	reiser4_super_info_data *info;
 
 	info = get_super_private(super);
-	if (info->delete_sema_owner == current) {
-		info->delete_sema_owner = NULL;
-		up(&info->delete_sema);
+	if (info->delete_mutex_owner == current) {
+		info->delete_mutex_owner = NULL;
+		mutex_unlock(&info->delete_mutex);
 	}
 }
 

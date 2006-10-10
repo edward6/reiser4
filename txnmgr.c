@@ -338,7 +338,7 @@ void reiser4_init_txnmgr(txn_mgr *mgr)
 	mgr->id_count = 1;
 	INIT_LIST_HEAD(&mgr->atoms_list);
 	spin_lock_init(&mgr->tmgr_lock);
-	sema_init(&mgr->commit_semaphore, 1);
+	mutex_init(&mgr->commit_mutex);
 }
 
 /**
@@ -1004,9 +1004,8 @@ static int commit_current_atom(long *nr_submitted, txn_atom ** atom)
 	assert("zam-887", get_current_context()->trans->atom == *atom);
 	assert("jmacd-151", atom_isopen(*atom));
 
-	/* lock ordering: delete_sema and commit_sema are unordered */
 	assert("nikita-3184",
-	       get_current_super_private()->delete_sema_owner != current);
+	       get_current_super_private()->delete_mutex_owner != current);
 
 	for (flushiters = 0;; ++flushiters) {
 		ret =
@@ -1058,20 +1057,20 @@ static int commit_current_atom(long *nr_submitted, txn_atom ** atom)
 	assert("zam-906", list_empty(ATOM_WB_LIST(*atom)));
 
 	/* isolate critical code path which should be executed by only one
-	 * thread using tmgr semaphore */
-	down(&sbinfo->tmgr.commit_semaphore);
+	 * thread using tmgr mutex */
+	mutex_lock(&sbinfo->tmgr.commit_mutex);
 
 	ret = reiser4_write_logs(nr_submitted);
 	if (ret < 0)
 		reiser4_panic("zam-597", "write log failed (%ld)\n", ret);
 
-	/* The atom->ovrwr_nodes list is processed under commit semaphore held
+	/* The atom->ovrwr_nodes list is processed under commit mutex held
 	   because of bitmap nodes which are captured by special way in
 	   reiser4_pre_commit_hook_bitmap(), that way does not include
 	   capture_fuse_wait() as a capturing of other nodes does -- the commit
-	   semaphore is used for transaction isolation instead. */
+	   mutex is used for transaction isolation instead. */
 	reiser4_invalidate_list(ATOM_OVRWR_LIST(*atom));
-	up(&sbinfo->tmgr.commit_semaphore);
+	mutex_unlock(&sbinfo->tmgr.commit_mutex);
 
 	reiser4_invalidate_list(ATOM_CLEAN_LIST(*atom));
 	reiser4_invalidate_list(ATOM_WB_LIST(*atom));

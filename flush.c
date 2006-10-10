@@ -661,9 +661,8 @@ jnode_flush(jnode * node, long nr_to_write, long *nr_written,
 	assert("jmacd-76619", lock_stack_isclean(get_current_lock_stack()));
 	assert("nikita-3022", reiser4_schedulable());
 
-	/* lock ordering: delete_sema and flush_sema are unordered */
 	assert("nikita-3185",
-	       get_current_super_private()->delete_sema_owner != current);
+	       get_current_super_private()->delete_mutex_owner != current);
 
 	/* allocate right_scan, left_scan and flush_pos */
 	right_scan =
@@ -676,9 +675,6 @@ jnode_flush(jnode * node, long nr_to_write, long *nr_written,
 
 	sb = reiser4_get_current_sb();
 	sbinfo = get_super_private(sb);
-	if (!reiser4_is_set(sb, REISER4_MTFLUSH)) {
-		down(&sbinfo->flush_sema);
-	}
 
 	/* Flush-concurrency debug code */
 #if REISER4_DEBUG
@@ -877,9 +873,6 @@ jnode_flush(jnode * node, long nr_to_write, long *nr_written,
 	ON_DEBUG(atomic_dec(&flush_cnt));
 
 	reiser4_leave_flush(sb);
-
-	if (!reiser4_is_set(sb, REISER4_MTFLUSH))
-		up(&sbinfo->flush_sema);
 
 	return ret;
 }

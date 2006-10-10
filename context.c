@@ -180,7 +180,7 @@ static void reiser4_done_context(reiser4_context * context /* context being rele
 		assert("nikita-1936", reiser4_no_counters_are_held());
 		assert("nikita-2626", list_empty_careful(reiser4_taps_list()));
 		assert("zam-1004", ergo(get_super_private(context->super),
-					get_super_private(context->super)->delete_sema_owner !=
+					get_super_private(context->super)->delete_mutex_owner !=
 					current));
 
 		/* release all grabbed but as yet unused blocks */

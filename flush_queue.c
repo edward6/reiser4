@@ -102,7 +102,7 @@ static void init_fq(flush_queue_t * fq)
 
 	INIT_LIST_HEAD(ATOM_FQ_LIST(fq));
 
-	sema_init(&fq->io_sem, 0);
+	init_waitqueue_head(&fq->wait);
 	spin_lock_init(&fq->guard);
 }
 
@@ -240,7 +240,7 @@ static int wait_io(flush_queue_t * fq, int *nr_io_errors)
 		blk_run_address_space(reiser4_get_super_fake(super)->i_mapping);
 
 		if (!(super->s_flags & MS_RDONLY))
-			down(&fq->io_sem);
+			wait_event(fq->wait, atomic_read(&fq->nr_submitted) == 0);
 
 		/* Ask the caller to re-acquire the locks and call this
 		   function again. Note: this technique is commonly used in
@@ -441,9 +441,9 @@ end_io_handler(struct bio *bio, unsigned int bytes_done UNUSED_ARG,
 		atomic_add(nr_errors, &fq->nr_errors);
 
 		/* If all write requests registered in this "fq" are done we up
-		 * the semaphore. */
+		 * the waiter. */
 		if (atomic_sub_and_test(bio->bi_vcnt, &fq->nr_submitted))
-			up(&fq->io_sem);
+			wake_up(&fq->wait);
 	}
 
 	bio_put(bio);

@@ -44,8 +44,6 @@ typedef enum {
 	REISER4_BSD_GID = 2,
 	/* [mac]_time are 32 bit in inode */
 	REISER4_32_BIT_TIMES = 3,
-	/* allow concurrent flushes */
-	REISER4_MTFLUSH = 4,
 	/* load all bitmap blocks at mount time */
 	REISER4_DONT_LOAD_BITMAP = 5,
 	/* enforce atomicity during write(2) */
@@ -108,7 +106,7 @@ typedef struct object_ops {
 
     ->last_committed_tx
 
-   is protected by ->tmgr.commit_semaphore
+   is protected by ->tmgr.commit_mutex
 
    Invariants involving this data-type:
 
@@ -246,16 +244,13 @@ struct reiser4_super_info_data {
 	ra_params_t ra_params;
 
 	/*
-	 * A semaphore for serializing cut tree operation if out-of-free-space:
+	 * A mutex for serializing cut tree operation if out-of-free-space:
 	 * the only one cut_tree thread is allowed to grab space from reserved
 	 * area (it is 5% of disk space)
 	 */
-	struct semaphore delete_sema;
-	/* task owning ->delete_sema */
-	struct task_struct *delete_sema_owner;
-
-	/* serialize semaphore */
-	struct semaphore flush_sema;
+	struct mutex delete_mutex;
+	/* task owning ->delete_mutex */
+	struct task_struct *delete_mutex_owner;
 
 	/* Diskmap's blocknumber */
 	__u64 diskmap_block;

@@ -13,7 +13,7 @@
 
 #include <linux/types.h>
 #include <linux/fs.h>		/* for struct super_block  */
-#include <asm/semaphore.h>
+#include <linux/mutex.h>
 #include <asm/div64.h>
 
 /* Proposed (but discarded) optimization: dynamic loading/unloading of bitmap
@@ -71,7 +71,7 @@ typedef unsigned long ulong_t;
 /* Block allocation/deallocation are done through special bitmap objects which
    are allocated in an array at fs mount. */
 struct bitmap_node {
-	struct semaphore sema;	/* long term lock object */
+	struct mutex mutex;	/* long term lock object */
 
 	jnode *wjnode;		/* j-nodes for WORKING ... */
 	jnode *cjnode;		/* ... and COMMIT bitmap blocks */
@@ -701,7 +701,7 @@ init_bnode(struct bitmap_node *bnode,
 {
 	memset(bnode, 0, sizeof(struct bitmap_node));
 
-	sema_init(&bnode->sema, 1);
+	mutex_init(&bnode->mutex);
 	atomic_set(&bnode->loaded, 0);
 }
 
@@ -824,14 +824,14 @@ static int load_and_lock_bnode(struct bitmap_node *bnode)
 	if (atomic_read(&bnode->loaded)) {
 		/* bitmap is already loaded, nothing to do */
 		check_bnode_loaded(bnode);
-		down(&bnode->sema);
+		mutex_lock(&bnode->mutex);
 		assert("nikita-2827", atomic_read(&bnode->loaded));
 		return 0;
 	}
 
 	ret = prepare_bnode(bnode, &cjnode, &wjnode);
 	if (ret == 0) {
-		down(&bnode->sema);
+		mutex_lock(&bnode->mutex);
 
 		if (!atomic_read(&bnode->loaded)) {
 			assert("nikita-2822", cjnode != NULL);
@@ -848,13 +848,12 @@ static int load_and_lock_bnode(struct bitmap_node *bnode)
 				atomic_set(&bnode->loaded, 1);
 				/* working bitmap is initialized by on-disk
 				 * commit bitmap. This should be performed
-				 * under semaphore. */
+				 * under mutex. */
 				memcpy(bnode_working_data(bnode),
 				       bnode_commit_data(bnode),
 				       bmap_size(current_blocksize));
-			} else {
-				up(&bnode->sema);
-			}
+			} else
+				mutex_unlock(&bnode->mutex);
 		} else
 			/* race: someone already loaded bitmap while we were
 			 * busy initializing data. */
@@ -876,7 +875,7 @@ static int load_and_lock_bnode(struct bitmap_node *bnode)
 static void release_and_unlock_bnode(struct bitmap_node *bnode)
 {
 	check_bnode_loaded(bnode);
-	up(&bnode->sema);
+	mutex_unlock(&bnode->mutex);
 }
 
 /* This function does all block allocation work but only for one bitmap
@@ -1546,7 +1545,7 @@ int reiser4_destroy_allocator_bitmap(reiser4_space_allocator * allocator,
 	for (i = 0; i < bitmap_blocks_nr; i++) {
 		struct bitmap_node *bnode = data->bitmap + i;
 
-		down(&bnode->sema);
+		mutex_lock(&bnode->mutex);
 
 #if REISER4_DEBUG
 		if (atomic_read(&bnode->loaded)) {
@@ -1563,7 +1562,7 @@ int reiser4_destroy_allocator_bitmap(reiser4_space_allocator * allocator,
 		}
 #endif
 		done_bnode(bnode);
-		up(&bnode->sema);
+		mutex_unlock(&bnode->mutex);
 	}
 
 	vfree(data->bitmap);

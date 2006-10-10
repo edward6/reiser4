@@ -15,7 +15,7 @@
 #include <linux/types.h>
 #include <linux/spinlock.h>
 #include <asm/atomic.h>
-#include <asm/semaphore.h>
+#include <linux/wait.h>
 
 /* TYPE DECLARATIONS */
 
@@ -367,8 +367,8 @@ struct txn_mgr {
 	/* A counter used to assign atom->atom_id values. */
 	__u32 id_count;
 
-	/* a semaphore object for commit serialization */
-	struct semaphore commit_semaphore;
+	/* a mutex object for commit serialization */
+	struct mutex commit_mutex;
 
 	/* a list of all txnmrgs served by particular daemon. */
 	struct list_head linkage;
@@ -663,8 +663,8 @@ struct flush_queue {
 	atomic_t nr_errors;
 	/* An atom this flush queue is attached to */
 	txn_atom *atom;
-	/* A semaphore for waiting on i/o completion */
-	struct semaphore io_sem;
+	/* A wait queue head to wait on i/o completion */
+	wait_queue_head_t wait;
 #if REISER4_DEBUG
 	/* A thread which took this fq in exclusive use, NULL if fq is free,
 	 * used for debugging. */

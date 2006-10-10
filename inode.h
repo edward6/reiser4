@@ -163,7 +163,7 @@ struct reiser4_inode {
 	/* block number of virtual root for this object. See comment above
 	 * fs/reiser4/search.c:handle_vroot() */
 	reiser4_block_nr vroot;
-	struct semaphore loading;
+	struct mutex loading;
 };
 
 void loading_init_once(reiser4_inode *);

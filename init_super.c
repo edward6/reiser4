@@ -29,8 +29,7 @@ int reiser4_init_fs_info(struct super_block *super)
 	ON_DEBUG(INIT_LIST_HEAD(&sbinfo->all_jnodes));
 	ON_DEBUG(spin_lock_init(&sbinfo->all_guard));
 
-	sema_init(&sbinfo->delete_sema, 1);
-	sema_init(&sbinfo->flush_sema, 1);
+	mutex_init(&sbinfo->delete_mutex);
 	spin_lock_init(&(sbinfo->guard));
 
 	/*  initialize per-super-block d_cursor resources */
@@ -440,8 +439,6 @@ do {						\
 	PUSH_BIT_OPT("bsdgroups", REISER4_BSD_GID);
 	/* turn on 32 bit times */
 	PUSH_BIT_OPT("32bittimes", REISER4_32_BIT_TIMES);
-	/* turn off concurrent flushing */
-	PUSH_BIT_OPT("mtflush", REISER4_MTFLUSH);
 	/*
 	 * Don't load all bitmap blocks at mount time, it is useful for
 	 * machines with tiny RAM and large disks.
@@ -512,9 +509,6 @@ do {						\
 		warning("nikita-2497", "optimal_io_size is too small");
 		return RETERR(-EINVAL);
 	}
-
-	/* disable single-threaded flush as it leads to deadlock */
-	sbinfo->fs_flags |= (1 << REISER4_MTFLUSH);
 	return result;
 }
 

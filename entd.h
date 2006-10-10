@@ -22,7 +22,7 @@ struct wbq {
 	struct writeback_control *wbc;
 	struct page *page;
 	struct address_space *mapping;
-	struct semaphore sem;
+	struct completion completion;
 	jnode *node; /* set if ent thread captured requested page */
 	int written; /* set if ent thread wrote requested page */
 };

@@ -67,9 +67,10 @@ int reiser4_init_entd(struct super_block *super)
 	return 0;
 }
 
-static void __put_wbq(entd_context *ent, struct wbq *rq)
+static void put_wbq(struct wbq *rq)
 {
-	up(&rq->sem);
+	iput(rq->mapping->host);
+	complete(&rq->completion);
 }
 
 /* ent should be locked */
@@ -77,23 +78,13 @@ static struct wbq *__get_wbq(entd_context * ent)
 {
 	struct wbq *wbq;
 
-	if (list_empty_careful(&ent->todo_list))
+	if (list_empty(&ent->todo_list))
 		return NULL;
 
 	ent->nr_todo_reqs --;
 	wbq = list_entry(ent->todo_list.next, struct wbq, link);
 	list_del_init(&wbq->link);
 	return wbq;
-}
-
-static void wakeup_all_wbq(entd_context * ent)
-{
-	struct wbq *rq;
-
-	spin_lock(&ent->guard);
-	while ((rq = __get_wbq(ent)) != NULL)
-		__put_wbq(ent, rq);
-	spin_unlock(&ent->guard);
 }
 
 /* ent thread function */
@@ -117,9 +108,9 @@ static int entd(void *arg)
 
 		spin_lock(&ent->guard);
 		while (ent->nr_todo_reqs != 0) {
-			struct wbq *rq, *next;
+			struct wbq *rq;
 
-			assert("", list_empty_careful(&ent->done_list));
+			assert("", list_empty(&ent->done_list));
 
 			/* take request from the queue head */
 			rq = __get_wbq(ent);
@@ -130,21 +121,19 @@ static int entd(void *arg)
 			entd_set_comm("!");
 			entd_flush(super, rq);
 
-			iput(rq->mapping->host);
-			up(&(rq->sem));
+			put_wbq(rq);
 
 			/*
 			 * wakeup all requestors and iput their inodes
 			 */
 			spin_lock(&ent->guard);
-			list_for_each_entry_safe(rq, next, &ent->done_list, link) {
-				list_del_init(&(rq->link));
+			while (!list_empty(&ent->done_list)) {
+				rq = list_entry(ent->done_list.next, struct wbq, link);
+				list_del_init(&rq->link);
 				ent->nr_done_reqs --;
 				spin_unlock(&ent->guard);
-
 				assert("", rq->written == 1);
-				iput(rq->mapping->host);
-				up(&(rq->sem));
+				put_wbq(rq);
 				spin_lock(&ent->guard);
 			}
 		}
@@ -168,10 +157,7 @@ static int entd(void *arg)
 			finish_wait(&ent->wait, &__wait);
 		}
 	}
-	spin_lock(&ent->guard);
 	BUG_ON(ent->nr_todo_reqs != 0);
-	spin_unlock(&ent->guard);
-	wakeup_all_wbq(ent);
 	return 0;
 }
 
@@ -310,7 +296,7 @@ int write_page_by_ent(struct page *page, struct writeback_control *wbc)
 	rq.mapping = inode->i_mapping;
 	rq.node = NULL;
 	rq.written = 0;
-	sema_init(&rq.sem, 0);
+	init_completion(&rq.completion);
 
 	/* add request to entd's list of writepage requests */
 	spin_lock(&ent->guard);
@@ -322,14 +308,7 @@ int write_page_by_ent(struct page *page, struct writeback_control *wbc)
 	spin_unlock(&ent->guard);
 
 	/* wait until entd finishes */
-	down(&rq.sem);
-
-	/*
-	 * spin until entd thread which did up(&rq.sem) does not need rq
-	 * anymore
-	 */
-	spin_lock(&ent->guard);
-	spin_unlock(&ent->guard);
+	wait_for_completion(&rq.completion);
 
 	if (rq.written)
 		/* Eventually ENTD has written the page to disk. */

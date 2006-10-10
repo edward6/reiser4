@@ -932,19 +932,13 @@ int longterm_lock_znode(
 
 		/* This time, a return of (ret == 0) means we can lock, so we
 		   should break out of the loop. */
-		if (likely(ret != -E_REPEAT || non_blocking)) {
+		if (likely(ret != -E_REPEAT || non_blocking))
 			break;
-		}
 
 		/* Lock is unavailable, we have to wait. */
-
-		/* By having semaphore initialization here we cannot lose
-		   wakeup signal even if it comes after `nr_signaled' field
-		   check. */
 		ret = reiser4_prepare_to_sleep(owner);
-		if (unlikely(ret != 0)) {
+		if (unlikely(ret != 0))
 			break;
-		}
 
 		assert_spin_locked(&(node->lock.guard));
 		if (hipri) {
@@ -1023,7 +1017,7 @@ void init_lock_stack(lock_stack * owner	/* pointer to
 	INIT_LIST_HEAD(&owner->requestors_link);
 	spin_lock_init(&owner->sguard);
 	owner->curpri = 1;
-	sema_init(&owner->sema, 0);
+	init_waitqueue_head(&owner->wait);
 }
 
 /* Initializes lock object. */
@@ -1102,29 +1096,6 @@ int reiser4_check_deadlock(void)
 int reiser4_prepare_to_sleep(lock_stack * owner)
 {
 	assert("nikita-1847", owner == get_current_lock_stack());
-	/* NOTE(Zam): We cannot reset the lock semaphore here because it may
-	   clear wake-up signal. The initial design was to re-check all
-	   conditions under which we continue locking, release locks or sleep
-	   until conditions are changed. However, even lock.c does not follow
-	   that design.  So, wake-up signal which is stored in semaphore state
-	   could we loosen by semaphore reset.  The less complex scheme without
-	   resetting the semaphore is enough to not to loose wake-ups.
-
-	   if (0) {
-
-	   NOTE-NIKITA: I commented call to sema_init() out hoping
-	   that it is the reason or thread sleeping in
-	   down(&owner->sema) without any other thread running.
-
-	   Anyway, it is just an optimization: is semaphore is not
-	   reinitialised at this point, in the worst case
-	   longterm_lock_znode() would have to iterate its loop once
-	   more.
-	   spin_lock_stack(owner);
-	   sema_init(&owner->sema, 0);
-	   spin_unlock_stack(owner);
-	   }
-	 */
 
 	/* We return -E_DEADLOCK if one or more "give me the lock" messages are
 	 * counted in nr_signaled */
@@ -1138,7 +1109,8 @@ int reiser4_prepare_to_sleep(lock_stack * owner)
 /* Wakes up a single thread */
 void __reiser4_wake_up(lock_stack * owner)
 {
-	up(&owner->sema);
+	atomic_set(&owner->wakeup, 1);
+	wake_up(&owner->wait);
 }
 
 /* Puts a thread to sleep */
@@ -1146,8 +1118,9 @@ void reiser4_go_to_sleep(lock_stack * owner)
 {
 	/* Well, we might sleep here, so holding of any spinlocks is no-no */
 	assert("nikita-3027", reiser4_schedulable());
-	/* return down_interruptible(&owner->sema); */
-	down(&owner->sema);
+
+	wait_event(owner->wait, atomic_read(&owner->wakeup));
+	atomic_set(&owner->wakeup, 0);
 }
 
 int lock_stack_isclean(lock_stack * owner)

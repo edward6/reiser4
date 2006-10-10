@@ -18,7 +18,7 @@
 #include <linux/spinlock.h>
 #include <linux/pagemap.h>	/* for PAGE_CACHE_SIZE */
 #include <asm/atomic.h>
-#include <asm/semaphore.h>
+#include <linux/wait.h>
 
 /* Per-znode lock object */
 struct zlock {
@@ -131,33 +131,12 @@ struct lock_stack {
 	   locking.
 	 */
 	lock_request request;
-	/* It is a lock_stack's synchronization object for when process sleeps
-	   when requested lock not on this lock_stack but which it wishes to
-	   add to this lock_stack is not immediately available. It is used
-	   instead of wait_queue_t object due to locking problems (lost wake
-	   up). "lost wakeup" occurs when process is waken up before he actually
-	   becomes 'sleepy' (through sleep_on()). Using of semaphore object is
-	   simplest way to avoid that problem.
-
-	   A semaphore is used in the following way: only the process that is
-	   the owner of the lock_stack initializes it (to zero) and calls
-	   down(sema) on it. Usually this causes the process to sleep on the
-	   semaphore. Other processes may wake him up by calling up(sema). The
-	   advantage to a semaphore is that up() and down() calls are not
-	   required to preserve order. Unlike wait_queue it works when process
-	   is woken up before getting to sleep.
-
-	   NOTE-NIKITA: Transaction manager is going to have condition variables
-	   (&kcondvar_t) anyway, so this probably will be replaced with
-	   one in the future.
-
-	   After further discussion, Nikita has shown me that Zam's implementation is
-	   exactly a condition variable.  The znode's {zguard,requestors_list} represents
-	   condition variable and the lock_stack's {sguard,semaphore} guards entry and
-	   exit from the condition variable's wait queue.  But the existing code can't
-	   just be replaced with a more general abstraction, and I think its fine the way
-	   it is. */
-	struct semaphore sema;
+	/* the following two fields are the lock stack's
+	 * synchronization object to use with the standard linux/wait.h
+	 * interface. See reiser4_go_to_sleep and __reiser4_wake_up for
+	 * usage details. */
+	wait_queue_head_t wait;
+	atomic_t wakeup;
 #if REISER4_DEBUG
 	int nr_locks;		/* number of lock handles in the above list */
 #endif

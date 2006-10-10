@@ -353,35 +353,29 @@ static int reiser4_inode_find_actor(struct inode *inode	/* inode from hash table
 /* hook for kmem_cache_create */
 void loading_init_once(reiser4_inode * info)
 {
-	sema_init(&info->loading, 1);
+	mutex_init(&info->loading);
 }
 
 /* for reiser4_alloc_inode */
 void loading_alloc(reiser4_inode * info)
 {
-#if REISER4_DEBUG
-	assert("vs-1717", down_trylock(&info->loading) == 0);
-	up(&info->loading);
-#endif
+	assert("vs-1717", !mutex_is_locked(&info->loading));
 }
 
 /* for reiser4_destroy */
 void loading_destroy(reiser4_inode * info)
 {
-#if REISER4_DEBUG
-	assert("vs-1717", down_trylock(&info->loading) == 0);
-	up(&info->loading);
-#endif
+	assert("vs-1717a", !mutex_is_locked(&info->loading));
 }
 
-static void loading_down(reiser4_inode * info)
+static void loading_begin(reiser4_inode * info)
 {
-	down(&info->loading);
+	mutex_lock(&info->loading);
 }
 
-static void loading_up(reiser4_inode * info)
+static void loading_end(reiser4_inode * info)
 {
-	up(&info->loading);
+	mutex_unlock(&info->loading);
 }
 
 /**
@@ -430,7 +424,7 @@ struct inode *reiser4_iget(struct super_block *super, const reiser4_key *key,
 	   is the reiser4 repacker, see repacker-related functions in
 	   plugin/item/extent.c */
 	if (!is_inode_loaded(inode)) {
-		loading_down(info);
+		loading_begin(info);
 		if (!is_inode_loaded(inode)) {
 			/* locking: iget5_locked returns locked inode */
 			assert("nikita-1941", !is_inode_loaded(inode));
@@ -442,7 +436,7 @@ struct inode *reiser4_iget(struct super_block *super, const reiser4_key *key,
 			   read_inode() to read stat data from the disk */
 			result = read_inode(inode, key, silent);
 		} else
-			loading_up(info);
+			loading_end(info);
 	}
 
 	if (inode->i_state & I_NEW)
@@ -450,7 +444,7 @@ struct inode *reiser4_iget(struct super_block *super, const reiser4_key *key,
 
 	if (is_bad_inode(inode)) {
 		assert("vs-1717", result != 0);
-		loading_up(info);
+		loading_end(info);
 		iput(inode);
 		inode = ERR_PTR(result);
 	} else if (REISER4_DEBUG) {
@@ -479,7 +473,7 @@ void reiser4_iget_complete(struct inode *inode)
 
 	if (!is_inode_loaded(inode)) {
 		reiser4_inode_set_flag(inode, REISER4_LOADED);
-		loading_up(reiser4_inode_data(inode));
+		loading_end(reiser4_inode_data(inode));
 	}
 }
 
