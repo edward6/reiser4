@@ -76,6 +76,7 @@ int reiser4_init_d_cursor(void)
 	 */
 	d_cursor_shrinker = set_shrinker(DEFAULT_SEEKS << 3,
 					 d_cursor_shrink);
+	kmem_set_shrinker(d_cursor_cache, d_cursor_shrinker);
 	if (d_cursor_shrinker == NULL) {
 		destroy_reiser4_cache(&d_cursor_cache);
 		d_cursor_cache = NULL;

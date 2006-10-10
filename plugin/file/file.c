@@ -802,7 +802,7 @@ int find_or_create_extent(struct page *page)
 		result = reiser4_update_extent(inode, node, page_offset(page),
 					       &plugged_hole);
 		if (result) {
-			JF_CLR(node, JNODE_WRITE_PREPARED);
+ 			JF_CLR(node, JNODE_WRITE_PREPARED);
 			jput(node);
 			warning("", "reiser4_update_extent failed: %d", result);
 			return result;
@@ -1205,6 +1205,7 @@ capture_anonymous_pages(struct address_space *mapping, pgoff_t *index,
 		assert("vs-49", p == pvec.pages[i]);
 	}
 	write_unlock_irq(&mapping->tree_lock);
+
 
 	*index = pvec.pages[i - 1]->index + 1;
 
@@ -1665,8 +1666,12 @@ int readpage_unix_file(struct file *file, struct page *page)
 		 * readpage allows truncate to run concurrently. Page was
 		 * truncated while it was not locked
 		 */
-		result = RETERR(-EINVAL);
-		goto out_unlock;
+		done_lh(lh);
+		kfree(hint);
+		unlock_page(page);
+		reiser4_txn_restart(ctx);
+		reiser4_exit_context(ctx);
+		return -EINVAL;
 	}
 
 	if (result != CBK_COORD_FOUND || hint->ext_coord.coord.between != AT_UNIT) {
@@ -1674,7 +1679,12 @@ int readpage_unix_file(struct file *file, struct page *page)
 		    hint->ext_coord.coord.between != AT_UNIT)
 			/* file is truncated */
 			result = -EINVAL;
-		goto out_unlock;
+		done_lh(lh);
+		kfree(hint);
+		unlock_page(page);
+		reiser4_txn_restart(ctx);
+		reiser4_exit_context(ctx);
+		return result;
 	}
 
 	/*
@@ -1682,14 +1692,24 @@ int readpage_unix_file(struct file *file, struct page *page)
 	 * znode lock is held
 	 */
 	if (PageUptodate(page)) {
-		result = 0;
-		goto out_unlock;
+		done_lh(lh);
+		kfree(hint);
+		unlock_page(page);
+		reiser4_txn_restart(ctx);
+		reiser4_exit_context(ctx);
+		return 0;
 	}
 
 	coord = &hint->ext_coord.coord;
 	result = zload(coord->node);
-	if (result)
-		goto out_unlock;
+	if (result) {
+		done_lh(lh);
+		kfree(hint);
+		unlock_page(page);
+		reiser4_txn_restart(ctx);
+		reiser4_exit_context(ctx);
+		return result;
+	}
 
 	validate_extended_coord(&hint->ext_coord, page_offset(page));
 
@@ -1701,8 +1721,12 @@ int readpage_unix_file(struct file *file, struct page *page)
 			page->index, (unsigned long long)get_inode_oid(inode),
 			inode->i_size, result);
 		zrelse(coord->node);
-		result = RETERR(-EIO);
-		goto out_unlock;
+		done_lh(lh);
+		kfree(hint);
+		unlock_page(page);
+		reiser4_txn_restart(ctx);
+		reiser4_exit_context(ctx);
+		return RETERR(-EIO);
 	}
 
 	/*
@@ -1732,18 +1756,13 @@ int readpage_unix_file(struct file *file, struct page *page)
 	done_lh(lh);
 
 	save_file_hint(file, hint);
+	kfree(hint);
 
 	/*
 	 * FIXME: explain why it is needed. HINT: page allocation in write can
 	 * not be done when atom is not NULL because reiser4_writepage can not
 	 * kick entd and have to eflush
 	 */
-	if (0) {
-out_unlock:
-		unlock_page(page);
-	}
-	done_lh(&hint->lh);
-	kfree(hint);
 	reiser4_txn_restart(ctx);
 	reiser4_exit_context(ctx);
 	return result;
@@ -1782,6 +1801,7 @@ static int uf_readpages_filler(void * data, struct page * page)
 		goto err;
 	}
 	if (rc->lh.node == 0) {
+		/* no twig lock  - have to do tree search. */
 		reiser4_key key;
 	repeat:
 		unlock_page(page);
@@ -1810,13 +1830,12 @@ static int uf_readpages_filler(void * data, struct page * page)
 	ext_index = extent_unit_index(&rc->coord);
 	if (page->index < ext_index || page->index >= ext_index + extent_get_width(ext))
 	{
-		/* the page index doesn't belong to the extent unit which the
-		 * coord points to, -- release the lock and repeat with tree
-		 * search. */
+		/* the page index doesn't belong to the extent unit which the coord points to,
+		 *  -- release the lock and repeat with tree search. */
 		zrelse(rc->coord.node);
 		done_lh(&rc->lh);
-		/* we can be here after a CBK call only in case of corruption
-		 * of the tree or the tree lookup algorithm bug. */
+		/* we can be here after a CBK call only in case of corruption of the tree
+		 * or the tree lookup algorithm bug. */
 		if (unlikely(cbk_done)) {
 			ret = RETERR(-EIO);
 			goto err;
