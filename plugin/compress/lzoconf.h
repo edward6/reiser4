@@ -43,12 +43,6 @@
 #define LZO_VERSION_DATE        "Jul 12 2002"
 
 /* internal Autoconf configuration file - only used when building LZO */
-#if defined(LZO_HAVE_CONFIG_H)
-#  include <config.h>
-#endif
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 /***********************************************************************
 // LZO requires a conforming <limits.h>
@@ -64,52 +58,9 @@ extern "C" {
 // architecture defines
 ************************************************************************/
 
-#if !defined(__LZO_WIN) && !defined(__LZO_DOS) && !defined(__LZO_OS2)
-#  if defined(__WINDOWS__) || defined(_WINDOWS) || defined(_Windows)
-#    define __LZO_WIN
-#  elif defined(__WIN32__) || defined(_WIN32) || defined(WIN32)
-#    define __LZO_WIN
-#  elif defined(__NT__) || defined(__NT_DLL__) || defined(__WINDOWS_386__)
-#    define __LZO_WIN
-#  elif defined(__DOS__) || defined(__MSDOS__) || defined(MSDOS)
-#    define __LZO_DOS
-#  elif defined(__OS2__) || defined(__OS2V2__) || defined(OS2)
-#    define __LZO_OS2
-#  elif defined(__palmos__)
-#    define __LZO_PALMOS
-#  elif defined(__TOS__) || defined(__atarist__)
-#    define __LZO_TOS
-#  endif
-#endif
-
-#if (UINT_MAX < LZO_0xffffffffL)
-#  if defined(__LZO_WIN)
-#    define __LZO_WIN16
-#  elif defined(__LZO_DOS)
-#    define __LZO_DOS16
-#  elif defined(__LZO_PALMOS)
-#    define __LZO_PALMOS16
-#  elif defined(__LZO_TOS)
-#    define __LZO_TOS16
-#  elif defined(__C166__)
-#  else
-	/* porting hint: for pure 16-bit architectures try compiling
-	 * everything with -D__LZO_STRICT_16BIT */
-#    error "16-bit target not supported - contact me for porting hints"
-#  endif
-#endif
-
 #if !defined(__LZO_i386)
-#  if defined(__LZO_DOS) || defined(__LZO_WIN16)
+#  if defined(__i386__) || defined(__386__) || defined(_M_IX86)
 #    define __LZO_i386
-#  elif defined(__i386__) || defined(__386__) || defined(_M_IX86)
-#    define __LZO_i386
-#  endif
-#endif
-
-#if defined(__LZO_STRICT_16BIT)
-#  if (UINT_MAX < LZO_0xffffffffL)
-#    include <lzo16bit.h>
 #  endif
 #endif
 
@@ -174,36 +125,9 @@ extern "C" {
 // memory models
 ************************************************************************/
 
-/* Memory model for the public code segment. */
-#if !defined(__LZO_CMODEL)
-#  if defined(__LZO_DOS16) || defined(__LZO_WIN16)
-#    define __LZO_CMODEL        __far
-#  elif defined(__LZO_i386) && defined(__WATCOMC__)
-#    define __LZO_CMODEL        __near
-#  else
-#    define __LZO_CMODEL
-#  endif
-#endif
-
-/* Memory model for the public data segment. */
-#if !defined(__LZO_DMODEL)
-#  if defined(__LZO_DOS16) || defined(__LZO_WIN16)
-#    define __LZO_DMODEL        __far
-#  elif defined(__LZO_i386) && defined(__WATCOMC__)
-#    define __LZO_DMODEL        __near
-#  else
-#    define __LZO_DMODEL
-#  endif
-#endif
-
 /* Memory model that allows to access memory at offsets of lzo_uint. */
 #if !defined(__LZO_MMODEL)
 #  if (LZO_UINT_MAX <= UINT_MAX)
-#    define __LZO_MMODEL
-#  elif defined(__LZO_DOS16) || defined(__LZO_WIN16)
-#    define __LZO_MMODEL        __huge
-#    define LZO_999_UNSUPPORTED
-#  elif defined(__LZO_PALMOS16) || defined(__LZO_TOS16)
 #    define __LZO_MMODEL
 #  else
 #    error "__LZO_MMODEL"
@@ -228,134 +152,10 @@ extern "C" {
 #  define lzo_sizeof_dict_t     sizeof(lzo_bytep)
 #endif
 
-/***********************************************************************
-// calling conventions and function types
-************************************************************************/
+typedef int (*lzo_compress_t) (const lzo_byte * src, lzo_uint src_len,
+			       lzo_byte * dst, lzo_uintp dst_len,
+			       lzo_voidp wrkmem);
 
-/* linkage */
-#if !defined(__LZO_EXTERN_C)
-#  ifdef __cplusplus
-#    define __LZO_EXTERN_C      extern "C"
-#  else
-#    define __LZO_EXTERN_C      extern
-#  endif
-#endif
-
-/* calling convention */
-#if !defined(__LZO_CDECL)
-#  if defined(__LZO_DOS16) || defined(__LZO_WIN16)
-#    define __LZO_CDECL         __LZO_CMODEL __cdecl
-#  elif defined(__LZO_i386) && defined(_MSC_VER)
-#    define __LZO_CDECL         __LZO_CMODEL __cdecl
-#  elif defined(__LZO_i386) && defined(__WATCOMC__)
-#    define __LZO_CDECL         __LZO_CMODEL __cdecl
-#  else
-#    define __LZO_CDECL         __LZO_CMODEL
-#  endif
-#endif
-#if !defined(__LZO_ENTRY)
-#  define __LZO_ENTRY           __LZO_CDECL
-#endif
-
-/* C++ exception specification for extern "C" function types */
-#if !defined(__cplusplus)
-#  undef LZO_NOTHROW
-#  define LZO_NOTHROW
-#elif !defined(LZO_NOTHROW)
-#  define LZO_NOTHROW
-#endif
-
-	typedef int
-	 (__LZO_ENTRY * lzo_compress_t) (const lzo_byte * src, lzo_uint src_len,
-					 lzo_byte * dst, lzo_uintp dst_len,
-					 lzo_voidp wrkmem);
-
-	typedef int
-	 (__LZO_ENTRY * lzo_decompress_t) (const lzo_byte * src,
-					   lzo_uint src_len, lzo_byte * dst,
-					   lzo_uintp dst_len, lzo_voidp wrkmem);
-
-	typedef int
-	 (__LZO_ENTRY * lzo_optimize_t) (lzo_byte * src, lzo_uint src_len,
-					 lzo_byte * dst, lzo_uintp dst_len,
-					 lzo_voidp wrkmem);
-
-	typedef int
-	 (__LZO_ENTRY * lzo_compress_dict_t) (const lzo_byte * src,
-					      lzo_uint src_len, lzo_byte * dst,
-					      lzo_uintp dst_len,
-					      lzo_voidp wrkmem,
-					      const lzo_byte * dict,
-					      lzo_uint dict_len);
-
-	typedef int
-	 (__LZO_ENTRY * lzo_decompress_dict_t) (const lzo_byte * src,
-						lzo_uint src_len,
-						lzo_byte * dst,
-						lzo_uintp dst_len,
-						lzo_voidp wrkmem,
-						const lzo_byte * dict,
-						lzo_uint dict_len);
-
-/* assembler versions always use __cdecl */
-	typedef int
-	 (__LZO_CDECL * lzo_compress_asm_t) (const lzo_byte * src,
-					     lzo_uint src_len, lzo_byte * dst,
-					     lzo_uintp dst_len,
-					     lzo_voidp wrkmem);
-
-	typedef int
-	 (__LZO_CDECL * lzo_decompress_asm_t) (const lzo_byte * src,
-					       lzo_uint src_len, lzo_byte * dst,
-					       lzo_uintp dst_len,
-					       lzo_voidp wrkmem);
-
-/* a progress indicator callback function */
-	typedef void (__LZO_ENTRY * lzo_progress_callback_t) (lzo_uint,
-							      lzo_uint);
-
-/***********************************************************************
-// export information
-************************************************************************/
-
-/* DLL export information */
-#if !defined(__LZO_EXPORT1)
-#  define __LZO_EXPORT1
-#endif
-#if !defined(__LZO_EXPORT2)
-#  define __LZO_EXPORT2
-#endif
-
-/* exported calling convention for C functions */
-#if !defined(LZO_PUBLIC)
-#  define LZO_PUBLIC(_rettype) \
-                __LZO_EXPORT1 _rettype __LZO_EXPORT2 __LZO_ENTRY
-#endif
-#if !defined(LZO_EXTERN)
-#  define LZO_EXTERN(_rettype)          __LZO_EXTERN_C LZO_PUBLIC(_rettype)
-#endif
-#if !defined(LZO_PRIVATE)
-#  define LZO_PRIVATE(_rettype)         static _rettype __LZO_ENTRY
-#endif
-
-/* exported __cdecl calling convention for assembler functions */
-#if !defined(LZO_PUBLIC_CDECL)
-#  define LZO_PUBLIC_CDECL(_rettype) \
-                __LZO_EXPORT1 _rettype __LZO_EXPORT2 __LZO_CDECL
-#endif
-#if !defined(LZO_EXTERN_CDECL)
-#  define LZO_EXTERN_CDECL(_rettype)    __LZO_EXTERN_C LZO_PUBLIC_CDECL(_rettype)
-#endif
-
-/* exported global variables (LZO currently uses no static variables and
- * is fully thread safe) */
-#if !defined(LZO_PUBLIC_VAR)
-#  define LZO_PUBLIC_VAR(_type) \
-                __LZO_EXPORT1 _type __LZO_EXPORT2 __LZO_DMODEL
-#endif
-#if !defined(LZO_EXTERN_VAR)
-#  define LZO_EXTERN_VAR(_type)         extern LZO_PUBLIC_VAR(_type)
-#endif
 
 /***********************************************************************
 // error codes and prototypes
@@ -385,13 +185,12 @@ extern "C" {
     (int)sizeof(long),(int)sizeof(lzo_uint32),(int)sizeof(lzo_uint),\
     (int)lzo_sizeof_dict_t,(int)sizeof(char *),(int)sizeof(lzo_voidp),\
     (int)sizeof(lzo_compress_t))
-	 LZO_EXTERN(int) __lzo_init2(unsigned, int, int, int, int, int, int,
-				     int, int, int);
+	 extern int __lzo_init2(unsigned, int, int, int, int, int, int,
+				int, int, int);
 
 /* checksum functions */
-	 LZO_EXTERN(lzo_uint32)
-	 lzo_crc32(lzo_uint32 _c, const lzo_byte * _buf, lzo_uint _len);
-
+extern lzo_uint32 lzo_crc32(lzo_uint32 _c, const lzo_byte * _buf,
+			    lzo_uint _len);
 /* misc. */
 	typedef union {
 		lzo_bytep p;
@@ -414,7 +213,4 @@ extern "C" {
 /* deprecated - only for backward compatibility */
 #define LZO_ALIGN(_ptr,_size) LZO_PTR_ALIGN_UP(_ptr,_size)
 
-#ifdef __cplusplus
-}				/* extern "C" */
-#endif
 #endif				/* already included */
