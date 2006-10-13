@@ -192,11 +192,6 @@ typedef enum {
    code above and proceed without restarting if they are still satisfied.
 */
 
-/* A block number set consists of only the list head. */
-struct blocknr_set {
-	struct list_head entries;
-};
-
 /* An atomic transaction: this is the underlying system representation
    of a transaction, not the one seen by clients.
 
@@ -252,10 +247,10 @@ struct txn_atom {
 
 	/* The atom's delete set. It collects block numbers of the nodes
 	   which were deleted during the transaction. */
-	blocknr_set delete_set;
+	struct list_head delete_set;
 
 	/* The atom's wandered_block mapping. */
-	blocknr_set wandered_map;
+	struct list_head wandered_map;
 
 	/* The transaction's list of dirty captured nodes--per level.  Index
 	   by (level). dirty_nodes[0] is for znode-above-root */
@@ -475,15 +470,15 @@ int capture_bulk(jnode **, int count);
 
 /* See the comment on the function blocknrset.c:blocknr_set_add for the
    calling convention of these three routines. */
-extern void blocknr_set_init(blocknr_set * bset);
-extern void blocknr_set_destroy(blocknr_set * bset);
-extern void blocknr_set_merge(blocknr_set * from, blocknr_set * into);
+extern void blocknr_set_init(struct list_head * bset);
+extern void blocknr_set_destroy(struct list_head * bset);
+extern void blocknr_set_merge(struct list_head * from, struct list_head * into);
 extern int blocknr_set_add_extent(txn_atom * atom,
-				  blocknr_set * bset,
+				  struct list_head * bset,
 				  blocknr_set_entry ** new_bsep,
 				  const reiser4_block_nr * start,
 				  const reiser4_block_nr * len);
-extern int blocknr_set_add_pair(txn_atom * atom, blocknr_set * bset,
+extern int blocknr_set_add_pair(txn_atom * atom, struct list_head * bset,
 				blocknr_set_entry ** new_bsep,
 				const reiser4_block_nr * a,
 				const reiser4_block_nr * b);
@@ -491,7 +486,7 @@ extern int blocknr_set_add_pair(txn_atom * atom, blocknr_set * bset,
 typedef int (*blocknr_set_actor_f) (txn_atom *, const reiser4_block_nr *,
 				    const reiser4_block_nr *, void *);
 
-extern int blocknr_set_iterator(txn_atom * atom, blocknr_set * bset,
+extern int blocknr_set_iterator(txn_atom * atom, struct list_head * bset,
 				blocknr_set_actor_f actor, void *data,
 				int delete);
 

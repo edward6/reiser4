@@ -11,20 +11,20 @@
 
 extern digest_plugin digest_plugins[LAST_DIGEST_ID];
 
-static struct crypto_tfm * alloc_sha256 (void)
+static struct crypto_hash * alloc_sha256 (void)
 {
 #if REISER4_SHA256
-	return crypto_alloc_tfm ("sha256", 0);
+	return crypto_alloc_hash ("sha256", 0);
 #else
 	warning("edward-1418", "sha256 unsupported");
 	return ERR_PTR(-EINVAL);
 #endif
 }
 
-static void free_sha256 (struct crypto_tfm * tfm)
+static void free_sha256 (struct crypto_hash * tfm)
 {
 #if REISER4_SHA256
-	crypto_free_tfm(tfm);
+	crypto_free_hash(tfm);
 #endif
 	return;
 }

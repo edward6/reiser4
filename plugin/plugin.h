@@ -475,8 +475,8 @@ typedef struct hash_plugin {
 typedef struct cipher_plugin {
 	/* generic fields */
 	plugin_header h;
-	struct crypto_tfm * (*alloc) (void);
-	void (*free) (struct crypto_tfm * tfm);
+	struct crypto_blkcipher * (*alloc) (void);
+	void (*free) (struct crypto_blkcipher * tfm);
 	/* Offset translator. For each offset this returns (k * offset), where
 	   k (k >= 1) is an expansion factor of the cipher algorithm.
 	   For all symmetric algorithms k == 1. For asymmetric algorithms (which
@@ -502,8 +502,8 @@ typedef struct digest_plugin {
 	plugin_header h;
 	/* fingerprint size in bytes */
 	int fipsize;
-	struct crypto_tfm * (*alloc) (void);
-	void (*free) (struct crypto_tfm * tfm);
+	struct crypto_hash * (*alloc) (void);
+	void (*free) (struct crypto_hash * tfm);
 } digest_plugin;
 
 typedef struct compression_plugin {

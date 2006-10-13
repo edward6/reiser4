@@ -105,50 +105,47 @@ crypto_stat_t * reiser4_alloc_crypto_stat (struct inode * inode)
 		kfree(info);
 		return ERR_PTR(-ENOMEM);
 	}
+	info->host = inode;
 	return info;
 }
 
 #if 0
 /* allocate/free low-level info for cipher and digest
    transforms */
-static int
-alloc_crypto_tfms(plugin_set * pset, crypto_stat_t * info)
+static int alloc_crypto_tfms(crypto_stat_t * info)
 {
-	struct crypto_tfm * ret = NULL;
-	cipher_plugin * cplug = pset->cipher;
-	digest_plugin * dplug = pset->digest;
-
-	assert("edward-1363", info != NULL);
-	assert("edward-414", cplug != NULL);
-	assert("edward-415", dplug != NULL);
+	struct crypto_blkcipher * ctfm = NULL;
+	struct crypto_hash      * dtfm = NULL;
+	cipher_plugin * cplug = inode_cipher_plugin(info->host);
+	digest_plugin * dplug = inode_digest_plugin(info->host);
 
 	if (cplug->alloc) {
-		ret = cplug->alloc();
-		if (ret == NULL) {
+		ctfm = cplug->alloc();
+		if (IS_ERR(ctfm)) {
 			warning("edward-1364",
 				"Can not allocate info for %s\n",
 				cplug->h.desc);
-			return RETERR(-EINVAL);
+			return RETERR(PTR_ERR(ctfm));
 		}
 	}
-	info_set_tfm(info, CIPHER_TFM, ret);
+	info_set_cipher(info, ctfm);
 	if (dplug->alloc) {
-		ret = dplug->alloc();
-		if (ret == NULL) {
+		dtfm = dplug->alloc();
+		if (IS_ERR(dtfm)) {
 			warning("edward-1365",
 				"Can not allocate info for %s\n",
 				dplug->h.desc);
-			goto err;
+			goto unhappy_with_digest;
 		}
 	}
-	info_set_tfm(info, DIGEST_TFM, ret);
+	info_set_digest(info, dtfm);
 	return 0;
- err:
+ unhappy_with_digest:
 	if (cplug->free) {
-		cplug->free(info->tfma[CIPHER_TFM].tfm);
-		info_set_tfm(info, CIPHER_TFM, NULL);
+		cplug->free(ctfm);
+		info_set_cipher(info, NULL);
 	}
-	return RETERR(-EINVAL);
+	return RETERR(PTR_ERR(dtfm));
 }
 #endif
 
@@ -156,12 +153,14 @@ static void
 free_crypto_tfms(crypto_stat_t * info)
 {
 	assert("edward-1366", info != NULL);
-	if (!info_cipher_tfm(info))
+	if (!info_get_cipher(info)) {
+		assert("edward-1601", !info_get_digest(info));
 		return;
-	info_cipher_plugin(info)->free(info_cipher_tfm(info));
-	info_set_tfm(info, CIPHER_TFM, NULL);
-	info_digest_plugin(info)->free(info_digest_tfm(info));
-	info_set_tfm(info, DIGEST_TFM, NULL);
+	}
+	inode_cipher_plugin(info->host)->free(info_get_cipher(info));
+	info_set_cipher(info, NULL);
+	inode_digest_plugin(info->host)->free(info_get_digest(info));
+	info_set_digest(info, NULL);
 	return;
 }
 
@@ -173,23 +172,25 @@ static int create_keyid (crypto_stat_t * info, crypto_data_t * data)
 	size_t blk, pad;
 	__u8 * dmem;
 	__u8 * cmem;
-	struct crypto_tfm * dtfm;
-	struct crypto_tfm * ctfm;
+	struct hash_desc      ddesc;
+	struct blkcipher_desc cdesc;
 	struct scatterlist sg;
 
 	assert("edward-1422", 0);
 	assert("edward-1367", info != NULL);
 	assert("edward-1368", info->keyid != NULL);
 
-	dtfm = info_digest_tfm(info);
-	ctfm = info_cipher_tfm(info);
+	ddesc.tfm = info_get_digest(info);
+	ddesc.flags = 0;
+	cdesc.tfm = info_get_cipher(info);
+	cdesc.flags = 0;
 
-	dmem = kmalloc((size_t)crypto_tfm_alg_digestsize(dtfm),
+	dmem = kmalloc((size_t)crypto_hash_digestsize(ddesc.tfm),
 		       reiser4_ctx_gfp_mask_get());
 	if (!dmem)
 		goto exit1;
 
-	blk = crypto_tfm_alg_blocksize(ctfm);
+	blk = crypto_blkcipher_blocksize(cdesc.tfm);
 
 	pad = data->keyid_size % blk;
 	pad = (pad ? blk - pad : 0);
@@ -205,16 +206,20 @@ static int create_keyid (crypto_stat_t * info, crypto_data_t * data)
 	sg.offset = offset_in_page(cmem);
 	sg.length = data->keyid_size + pad;
 
-	ret = crypto_cipher_encrypt(ctfm, &sg, &sg, data->keyid_size + pad);
+	ret = crypto_blkcipher_encrypt(&cdesc, &sg, &sg,
+				       data->keyid_size + pad);
 	if (ret) {
 		warning("edward-1369",
-			"encryption failed flags=%x\n", ctfm->crt_flags);
+			"encryption failed flags=%x\n", cdesc.flags);
 		goto exit3;
 	}
-	crypto_digest_init (dtfm);
-	crypto_digest_update (dtfm, &sg, 1);
-	crypto_digest_final (dtfm, dmem);
-	memcpy(info->keyid, dmem, info_digest_plugin(info)->fipsize);
+	ret = crypto_hash_digest(&ddesc, &sg, sg.length, dmem);
+	if (ret) {
+		warning("edward-1602",
+			"digest failed flags=%x\n", ddesc.flags);
+		goto exit3;
+	}
+	memcpy(info->keyid, dmem, inode_digest_plugin(info->host)->fipsize);
  exit3:
 	kfree(cmem);
  exit2:
@@ -232,8 +237,9 @@ static void destroy_keyid(crypto_stat_t * info)
 	return;
 }
 
-static void free_crypto_stat (crypto_stat_t * info)
+static void __free_crypto_stat (struct inode * inode)
 {
+	crypto_stat_t * info = inode_crypto_stat(inode);
 	assert("edward-1372", info != NULL);
 
 	free_crypto_tfms(info);
@@ -268,10 +274,10 @@ static int inode_has_cipher_key(struct inode * inode)
 		crypto_stat_instantiated(inode_crypto_stat(inode));
 }
 
-static void inode_free_crypto_stat (struct inode * inode)
+static void free_crypto_stat (struct inode * inode)
 {
 	uninstantiate_crypto_stat(inode_crypto_stat(inode));
-	free_crypto_stat(inode_crypto_stat(inode));
+	__free_crypto_stat(inode);
 }
 
 static int need_cipher(struct inode * inode)
@@ -303,22 +309,17 @@ create_crypto_stat(struct inode * object,
 	info = reiser4_alloc_crypto_stat(object);
 	if (IS_ERR(info))
 		return info;
-	ret = alloc_crypto_tfms(reiser4_inode_data(object)->pset, info);
+	ret = alloc_crypto_tfms(info);
 	if (ret)
 		goto err;
-	/* Someone can change plugins of the host (for example if
-	   the host is a directory), so we keep the original ones
-	   in the crypto-stat. */
-	info_set_cipher_plugin(info, inode_cipher_plugin(object));
-	info_set_digest_plugin(info, inode_digest_plugin(object));
 	/* instantiating a key */
-	ret = crypto_cipher_setkey(info_cipher_tfm(info),
-				   data->key,
-				   data->keysize);
+	ret = crypto_blkcipher_setkey(info_get_cipher(info),
+				      data->key,
+				      data->keysize);
 	if (ret) {
 		warning("edward-1379",
 			"setkey failed flags=%x\n",
-			info_cipher_tfm(info)->crt_flags);
+			crypto_blkcipher_get_flags(info_get_cipher(info)));
 		goto err;
 	}
 	info->keysize = data->keysize;
@@ -328,7 +329,7 @@ create_crypto_stat(struct inode * object,
 	instantiate_crypto_stat(info);
 	return info;
  err:
-	free_crypto_stat(info);
+	__free_crypto_stat(object);
  	return ERR_PTR(ret);
 }
 #endif
@@ -349,7 +350,7 @@ static void unload_crypto_stat(struct inode * inode)
 	dec_keyload_count(inode_crypto_stat(inode));
 	if (info->keyload_count == 0)
 		/* final release */
-		inode_free_crypto_stat(inode);
+		free_crypto_stat(inode);
 }
 
 /* attach/detach an existing crypto-stat */
@@ -551,8 +552,8 @@ cipher_blocksize(struct inode * inode)
 {
 	assert("edward-758", need_cipher(inode));
 	assert("edward-1400", inode_crypto_stat(inode) != NULL);
-	return crypto_tfm_alg_blocksize
-		(info_cipher_tfm(inode_crypto_stat(inode)));
+	return crypto_blkcipher_blocksize
+		(info_get_cipher(inode_crypto_stat(inode)));
 }
 
 /* returns offset translated by scale factor of the crypto-algorithm */
@@ -1010,7 +1011,7 @@ int grab_tfm_stream(struct inode * inode, tfm_cluster_t * tc,
 	assert("edward-901", tc != NULL);
 	assert("edward-1027", inode_compression_plugin(inode) != NULL);
 
-	if (cluster_get_tfm_act(tc) == TFM_WRITE_ACT)
+	if (cluster_get_tfm_act(tc) == TFMA_WRITE)
 		size += deflate_overrun(inode, inode_cluster_size(inode));
 
 	if (!tfm_stream(tc, id) && id == INPUT_STREAM)
@@ -1036,7 +1037,7 @@ int reiser4_deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 
 	assert("edward-401", inode != NULL);
 	assert("edward-903", tfm_stream_is_set(tc, INPUT_STREAM));
-	assert("edward-1348", cluster_get_tfm_act(tc) == TFM_WRITE_ACT);
+	assert("edward-1348", cluster_get_tfm_act(tc) == TFMA_WRITE);
 	assert("edward-498", !tfm_cluster_is_uptodate(tc));
 
 	coplug = inode_compression_plugin(inode);
@@ -1106,12 +1107,13 @@ int reiser4_deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
  cipher:
 	if (need_cipher(inode)) {
 		cipher_plugin * ciplug;
-		struct crypto_tfm * tfm;
+		struct blkcipher_desc desc;
 		struct scatterlist src;
 		struct scatterlist dst;
 
 		ciplug = inode_cipher_plugin(inode);
-		tfm = info_cipher_tfm(inode_crypto_stat(inode));
+		desc.tfm = info_get_cipher(inode_crypto_stat(inode));
+		desc.flags = 0;
 		if (compressed)
 			alternate_streams(tc);
 		result = grab_tfm_stream(inode, tc, OUTPUT_STREAM);
@@ -1127,10 +1129,10 @@ int reiser4_deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 		dst.offset = offset_in_page(tfm_output_data(clust));
 		dst.length = tc->len;
 
-		result = crypto_cipher_encrypt(tfm, &dst, &src, tc->len);
+		result = crypto_blkcipher_encrypt(&desc, &dst, &src, tc->len);
 		if (result) {
 			warning("edward-1405",
-				"encryption failed flags=%x\n", tfm->crt_flags);
+				"encryption failed flags=%x\n", desc.flags);
 			return result;
 		}
 		encrypted = 1;
@@ -1153,7 +1155,7 @@ int reiser4_inflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 	assert("edward-905", inode != NULL);
 	assert("edward-1178", clust->dstat == PREP_DISK_CLUSTER);
 	assert("edward-906", tfm_stream_is_set(&clust->tc, INPUT_STREAM));
-	assert("edward-1349", tc->act == TFM_READ_ACT);
+	assert("edward-1349", tc->act == TFMA_READ);
 	assert("edward-907", !tfm_cluster_is_uptodate(tc));
 
 	/* Handle a checksum (if any) */
@@ -1166,12 +1168,13 @@ int reiser4_inflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 	}
 	if (need_cipher(inode)) {
 		cipher_plugin * ciplug;
-		struct crypto_tfm * tfm;
+		struct blkcipher_desc desc;
 		struct scatterlist src;
 		struct scatterlist dst;
 
 		ciplug = inode_cipher_plugin(inode);
-		tfm = info_cipher_tfm(inode_crypto_stat(inode));
+		desc.tfm = info_get_cipher(inode_crypto_stat(inode));
+		desc.flags = 0;
 		result = grab_tfm_stream(inode, tc, OUTPUT_STREAM);
 		if (result)
 			return result;
@@ -1185,9 +1188,12 @@ int reiser4_inflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 		dst.offset = offset_in_page(tfm_output_data(clust));
 		dst.length = tc->len;
 
-		result = crypto_cipher_decrypt(tfm, &dst, &src, tc->len);
-		if (result)
+		result = crypto_blkcipher_decrypt(&desc, &dst, &src, tc->len);
+		if (result) {
+			warning("edward-1600", "decrypt failed flags=%x\n",
+				desc.flags);
 			return result;
+		}
 		align_or_cut_overhead(inode, clust, READ_OP);
 		transformed = 1;
 	}
@@ -2471,7 +2477,7 @@ prepare_cluster(struct inode *inode,
 	reiser4_slide_t *win = clust->win;
 
 	reset_cluster_params(clust);
-	cluster_set_tfm_act(&clust->tc, TFM_READ_ACT);
+	cluster_set_tfm_act(&clust->tc, TFMA_READ);
 #if REISER4_DEBUG
 	clust->ctx = get_current_context();
 #endif

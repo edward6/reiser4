@@ -184,7 +184,7 @@ static inline void free_coa_set(tfm_cluster_t * tc)
 
 	assert("edward-810", tc != NULL);
 
-	for (j = 0; j < LAST_TFM; j++)
+	for (j = 0; j < TFMA_LAST; j++)
 		for (i = 0; i < LAST_COMPRESSION_ID; i++) {
 			if (!get_coa(tc, i, j))
 				continue;
@@ -489,64 +489,26 @@ void reiser4_attach_crypto_stat(struct inode * inode, crypto_stat_t * info);
 void change_crypto_stat(struct inode * inode, crypto_stat_t * new);
 crypto_stat_t * reiser4_alloc_crypto_stat (struct inode * inode);
 
-static inline reiser4_tfma_t *
-info_get_tfma (crypto_stat_t * info, reiser4_tfm id)
+static inline struct crypto_blkcipher * info_get_cipher(crypto_stat_t * info)
 {
-	return &info->tfma[id];
+	return info->cipher;
 }
 
-static inline struct crypto_tfm *
-info_get_tfm (crypto_stat_t * info, reiser4_tfm id)
+static inline void info_set_cipher(crypto_stat_t * info,
+				   struct crypto_blkcipher * tfm)
 {
-	return info_get_tfma(info, id)->tfm;
+	info->cipher = tfm;
 }
 
-static inline void
-info_set_tfm (crypto_stat_t * info, reiser4_tfm id, struct crypto_tfm * tfm)
+static inline struct crypto_hash * info_get_digest(crypto_stat_t * info)
 {
-	info_get_tfma(info, id)->tfm = tfm;
+	return info->digest;
 }
 
-static inline struct crypto_tfm *
-info_cipher_tfm (crypto_stat_t * info)
+static inline void info_set_digest(crypto_stat_t * info,
+				   struct crypto_hash * tfm)
 {
-	return info_get_tfm(info, CIPHER_TFM);
-}
-
-static inline struct crypto_tfm *
-info_digest_tfm (crypto_stat_t * info)
-{
-	return info_get_tfm(info, DIGEST_TFM);
-}
-
-static inline cipher_plugin *
-info_cipher_plugin (crypto_stat_t * info)
-{
-	return &info_get_tfma(info, CIPHER_TFM)->plug->cipher;
-}
-
-static inline digest_plugin *
-info_digest_plugin (crypto_stat_t * info)
-{
-	return &info_get_tfma(info, DIGEST_TFM)->plug->digest;
-}
-
-static inline void
-info_set_plugin(crypto_stat_t * info, reiser4_tfm id, reiser4_plugin * plugin)
-{
-	info_get_tfma(info, id)->plug = plugin;
-}
-
-static inline void
-info_set_cipher_plugin(crypto_stat_t * info, cipher_plugin * cplug)
-{
-	info_set_plugin(info, CIPHER_TFM, cipher_plugin_to_plugin(cplug));
-}
-
-static inline void
-info_set_digest_plugin(crypto_stat_t * info, digest_plugin * plug)
-{
-	info_set_plugin(info, DIGEST_TFM, digest_plugin_to_plugin(plug));
+	info->digest = tfm;
 }
 
 #endif				/* __FS_REISER4_CRYPTCOMPRESS_H__ */

@@ -71,7 +71,7 @@ static coa_t gzip1_alloc(tfm_action act)
 #if REISER4_ZLIB
 	int ret = 0;
 	switch (act) {
-	case TFM_WRITE_ACT:	/* compress */
+	case TFMA_WRITE:	/* compress */
 		coa = reiser4_vmalloc(zlib_deflate_workspacesize());
 		if (!coa) {
 			ret = -ENOMEM;
@@ -79,7 +79,7 @@ static coa_t gzip1_alloc(tfm_action act)
 		}
 		memset(coa, 0, zlib_deflate_workspacesize());
 		break;
-	case TFM_READ_ACT:	/* decompress */
+	case TFMA_READ:	/* decompress */
 		coa = reiser4_vmalloc(zlib_inflate_workspacesize());
 		if (!coa) {
 			ret = -ENOMEM;
@@ -106,10 +106,10 @@ static void gzip1_free(coa_t coa, tfm_action act)
 	assert("edward-769", coa != NULL);
 
 	switch (act) {
-	case TFM_WRITE_ACT:	/* compress */
+	case TFMA_WRITE:	/* compress */
 		vfree(coa);
 		break;
-	case TFM_READ_ACT:		/* decompress */
+	case TFMA_READ:		/* decompress */
 		vfree(coa);
 		break;
 	default:
@@ -247,14 +247,14 @@ static coa_t lzo1_alloc(tfm_action act)
 	coa_t coa = NULL;
 
 	switch (act) {
-	case TFM_WRITE_ACT:	/* compress */
+	case TFMA_WRITE:	/* compress */
 		coa = reiser4_vmalloc(LZO_HEAP_SIZE(LZO1X_1_MEM_COMPRESS));
 		if (!coa) {
 			ret = -ENOMEM;
 			break;
 		}
 		memset(coa, 0, LZO_HEAP_SIZE(LZO1X_1_MEM_COMPRESS));
-	case TFM_READ_ACT:		/* decompress */
+	case TFMA_READ:		/* decompress */
 		break;
 	default:
 		impossible("edward-877",
@@ -274,10 +274,10 @@ static void lzo1_free(coa_t coa, tfm_action act)
 	assert("edward-879", coa != NULL);
 
 	switch (act) {
-	case TFM_WRITE_ACT:	/* compress */
+	case TFMA_WRITE:	/* compress */
 		vfree(coa);
 		break;
-	case TFM_READ_ACT:		/* decompress */
+	case TFMA_READ:		/* decompress */
 		impossible("edward-1304",
 			   "trying to free non-allocated workspace");
 	default:

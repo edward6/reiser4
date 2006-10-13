@@ -8,21 +8,6 @@
 
 #include <linux/crypto.h>
 
-/* Transform actions involved in ciphering process and
-   supported by reiser4 via appropriate transform plugins */
-typedef enum {
-	CIPHER_TFM,       /* cipher transform */
-	DIGEST_TFM,       /* digest transform */
-	LAST_TFM
-} reiser4_tfm;
-
-/* This represents a transform action in reiser4 */
-typedef struct reiser4_tfma {
-	reiser4_plugin * plug;     /* transform plugin */
-	struct crypto_tfm * tfm;   /* low-level info, operated by
-				      linux crypto-api (see linux/crypto) */
-} reiser4_tfma_t;
-
 /* key info imported from user space */
 typedef struct crypto_data {
 	int keysize;    /* uninstantiated key size */
@@ -39,8 +24,12 @@ typedef struct crypto_data {
    1. importing a key from user space.
    2. reading inode from disk */
 typedef struct crypto_stat {
-	reiser4_tfma_t tfma[LAST_TFM];
-//      cipher_key_plugin * kplug; /* key manager */
+	struct inode * host;
+	struct crypto_hash      * digest;
+	struct crypto_blkcipher * cipher;
+#if 0
+	cipher_key_plugin * kplug; /* key manager */
+#endif
 	__u8 * keyid;              /* key fingerprint, created by digest plugin,
 				      using uninstantiated key and passphrase.
 				      supposed to be stored in disk stat-data */

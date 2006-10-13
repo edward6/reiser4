@@ -3,6 +3,7 @@ config REISER4_FS
 	depends on EXPERIMENTAL
 	select ZLIB_INFLATE
 	select ZLIB_DEFLATE
+	select CRYPTO
 	help
 	  Reiser4 is a filesystem that performs all filesystem operations
 	  as atomic transactions, which means that it either performs a

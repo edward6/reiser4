@@ -143,7 +143,7 @@ bse_put_pair(blocknr_set_entry * bse, const reiser4_block_nr * a,
    returned with the atom unlocked for the operation to be tried again.  If
    the operation succeeds, 0 is returned.  If new_bsep is non-NULL and not
    used during the call, it will be freed automatically. */
-static int blocknr_set_add(txn_atom *atom, blocknr_set *bset,
+static int blocknr_set_add(txn_atom *atom, struct list_head *bset,
 			   blocknr_set_entry **new_bsep, const reiser4_block_nr *a,
 			   const reiser4_block_nr *b)
 {
@@ -153,8 +153,8 @@ static int blocknr_set_add(txn_atom *atom, blocknr_set *bset,
 	assert("jmacd-5101", a != NULL);
 
 	entries_needed = (b == NULL) ? 1 : 2;
-	if (list_empty(&bset->entries) ||
-	    bse_avail(list_entry(bset->entries.next, blocknr_set_entry, link)) < entries_needed) {
+	if (list_empty(bset) ||
+	    bse_avail(list_entry(bset->next, blocknr_set_entry, link)) < entries_needed) {
 		/* See if a bse was previously allocated. */
 		if (*new_bsep == NULL) {
 			spin_unlock_atom(atom);
@@ -164,13 +164,13 @@ static int blocknr_set_add(txn_atom *atom, blocknr_set *bset,
 		}
 
 		/* Put it on the head of the list. */
-		list_add(&((*new_bsep)->link), &bset->entries);
+		list_add(&((*new_bsep)->link), bset);
 
 		*new_bsep = NULL;
 	}
 
 	/* Add the single or pair. */
-	bse = list_entry(bset->entries.next, blocknr_set_entry, link);
+	bse = list_entry(bset->next, blocknr_set_entry, link);
 	if (b == NULL) {
 		bse_put_single(bse, a);
 	} else {
@@ -194,7 +194,7 @@ static int blocknr_set_add(txn_atom *atom, blocknr_set *bset,
    properly freed. */
 int
 blocknr_set_add_extent(txn_atom * atom,
-		       blocknr_set * bset,
+		       struct list_head * bset,
 		       blocknr_set_entry ** new_bsep,
 		       const reiser4_block_nr * start,
 		       const reiser4_block_nr * len)
@@ -212,7 +212,7 @@ blocknr_set_add_extent(txn_atom * atom,
    properly freed. */
 int
 blocknr_set_add_pair(txn_atom * atom,
-		     blocknr_set * bset,
+		     struct list_head * bset,
 		     blocknr_set_entry ** new_bsep, const reiser4_block_nr * a,
 		     const reiser4_block_nr * b)
 {
@@ -221,18 +221,18 @@ blocknr_set_add_pair(txn_atom * atom,
 }
 
 /* Initialize a blocknr_set. */
-void blocknr_set_init(blocknr_set *bset)
+void blocknr_set_init(struct list_head *bset)
 {
-	INIT_LIST_HEAD(&bset->entries);
+	INIT_LIST_HEAD(bset);
 }
 
 /* Release the entries of a blocknr_set. */
-void blocknr_set_destroy(blocknr_set *bset)
+void blocknr_set_destroy(struct list_head *bset)
 {
 	blocknr_set_entry *bse;
 
-	while (!list_empty_careful(&bset->entries)) {
-		bse = list_entry(bset->entries.next, blocknr_set_entry, link);
+	while (!list_empty_careful(bset)) {
+		bse = list_entry(bset->next, blocknr_set_entry, link);
 		list_del_init(&bse->link);
 		bse_free(bse);
 	}
@@ -248,25 +248,23 @@ void blocknr_set_destroy(blocknr_set *bset)
    actual processing of this set. Testing this kind of stuff right here is
    also complicated by the fact that these sets are not sorted and going
    through whole set on each element addition is going to be CPU-heavy task */
-void blocknr_set_merge(blocknr_set * from, blocknr_set * into)
+void blocknr_set_merge(struct list_head * from, struct list_head * into)
 {
 	blocknr_set_entry *bse_into = NULL;
 
 	/* If @from is empty, no work to perform. */
-	if (list_empty_careful(&from->entries)) {
+	if (list_empty_careful(from))
 		return;
-	}
-
 	/* If @into is not empty, try merging partial-entries. */
-	if (!list_empty_careful(&into->entries)) {
+	if (!list_empty_careful(into)) {
 
 		/* Neither set is empty, pop the front to members and try to combine them. */
 		blocknr_set_entry *bse_from;
 		unsigned into_avail;
 
-		bse_into = list_entry(into->entries.next, blocknr_set_entry, link);
+		bse_into = list_entry(into->next, blocknr_set_entry, link);
 		list_del_init(&bse_into->link);
-		bse_from = list_entry(from->entries.next, blocknr_set_entry, link);
+		bse_from = list_entry(from->next, blocknr_set_entry, link);
 		list_del_init(&bse_from->link);
 
 		/* Combine singles. */
@@ -294,22 +292,21 @@ void blocknr_set_merge(blocknr_set * from, blocknr_set * into)
 			   it could have one slot avail and bse_from has one
 			   pair left).  Push it back onto the list.  bse_from
 			   becomes bse_into, which will be the new partial. */
-			list_add(&bse_into->link, &into->entries);
+			list_add(&bse_into->link, into);
 			bse_into = bse_from;
 		}
 	}
 
 	/* Splice lists together. */
-	list_splice_init(&from->entries, into->entries.prev);
+	list_splice_init(from, into->prev);
 
 	/* Add the partial entry back to the head of the list. */
-	if (bse_into != NULL) {
-		list_add(&bse_into->link, &into->entries);
-	}
+	if (bse_into != NULL)
+		list_add(&bse_into->link, into);
 }
 
 /* Iterate over all blocknr set elements. */
-int blocknr_set_iterator(txn_atom *atom, blocknr_set *bset,
+int blocknr_set_iterator(txn_atom *atom, struct list_head *bset,
 			 blocknr_set_actor_f actor, void *data, int delete)
 {
 
@@ -320,8 +317,8 @@ int blocknr_set_iterator(txn_atom *atom, blocknr_set *bset,
 	assert("zam-431", bset != 0);
 	assert("zam-432", actor != NULL);
 
-	entry = list_entry(bset->entries.next, blocknr_set_entry, link);
-	while (&bset->entries != &entry->link) {
+	entry = list_entry(bset->next, blocknr_set_entry, link);
+	while (bset != &entry->link) {
 		blocknr_set_entry *tmp = list_entry(entry->link.next, blocknr_set_entry, link);
 		unsigned int i;
 		int ret;

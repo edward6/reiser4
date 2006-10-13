@@ -202,13 +202,13 @@ cluster_init_act (reiser4_cluster_t * clust, tfm_action act, reiser4_slide_t * w
 static inline void
 cluster_init_read(reiser4_cluster_t * clust, reiser4_slide_t * window)
 {
-	cluster_init_act (clust, TFM_READ_ACT, window);
+	cluster_init_act (clust, TFMA_READ, window);
 }
 
 static inline void
 cluster_init_write(reiser4_cluster_t * clust, reiser4_slide_t * window)
 {
-	cluster_init_act (clust, TFM_WRITE_ACT, window);
+	cluster_init_act (clust, TFMA_WRITE, window);
 }
 
 static inline int dclust_get_extension_dsize(hint_t * hint)

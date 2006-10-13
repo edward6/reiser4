@@ -5,9 +5,9 @@
 #include <linux/string.h>
 
 typedef enum {
-	TFM_READ_ACT,
-	TFM_WRITE_ACT,
-	TFM_LAST_ACT
+	TFMA_READ,
+	TFMA_WRITE,
+	TFMA_LAST
 } tfm_action;
 
 /* builtin compression plugins */
@@ -20,7 +20,7 @@ typedef enum {
 
 typedef unsigned long cloff_t;
 typedef void *coa_t;
-typedef coa_t coa_set[LAST_COMPRESSION_ID][TFM_LAST_ACT];
+typedef coa_t coa_set[LAST_COMPRESSION_ID][TFMA_LAST];
 
 __u32 reiser4_adler32(char *data, __u32 len);
 

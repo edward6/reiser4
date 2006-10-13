@@ -49,18 +49,18 @@ static loff_t scale_common(struct inode *inode, size_t blocksize,
 	return src_off;
 }
 
-static void free_aes (struct crypto_tfm * tfm)
+static void free_aes (struct crypto_blkcipher * tfm)
 {
 #if REISER4_AES
-	crypto_free_tfm(tfm);
+	crypto_free_blkcipher(tfm);
 #endif
 	return;
 }
 
-static struct crypto_tfm * alloc_aes (void)
+static struct crypto_blkcipher * alloc_aes (void)
 {
 #if REISER4_AES
-	return crypto_alloc_tfm ("aes", 0);
+	return crypto_alloc_blkcipher("ecb(aes)", 0, CRYPTO_ALG_ASYNC);
 #else
 	warning("edward-1417", "aes unsupported");
 	return ERR_PTR(-EINVAL);

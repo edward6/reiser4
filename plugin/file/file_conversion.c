@@ -217,7 +217,7 @@ static void start_check_compressibility(struct inode * inode,
 {
 	assert("edward-1507", clust->index == 1);
 	assert("edward-1508", !tfm_cluster_is_uptodate(&clust->tc));
-	assert("edward-1509", cluster_get_tfm_act(&clust->tc) == TFM_READ_ACT);
+	assert("edward-1509", cluster_get_tfm_act(&clust->tc) == TFMA_READ);
 
 	hint_init_zero(hint);
 	clust->hint = hint;
@@ -287,7 +287,7 @@ static int read_check_compressibility(struct inode * inode,
 	}
 	tfm_cluster_clr_uptodate(&clust->tc);
 
-	cluster_set_tfm_act(&clust->tc, TFM_WRITE_ACT);
+	cluster_set_tfm_act(&clust->tc, TFMA_WRITE);
 
 	if (hint_is_valid(&tmp_hint) && !hint_is_unprepped_dclust(&tmp_hint)) {
 		/* lenght of compressed data is known, no need to compress */
