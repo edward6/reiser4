@@ -78,16 +78,22 @@ int reiser4_sync_file_common(struct file *file, loff_t start, loff_t end, int da
 	txn_atom *atom;
 	reiser4_block_nr reserve;
 	struct dentry *dentry = file->f_path.dentry;
+	struct inode *inode = file->f_mapping->host;
 
-	filemap_write_and_wait_range(file->f_mapping->host->i_mapping, start, end);
+	int err = filemap_write_and_wait_range(file->f_mapping->host->i_mapping, start, end);
+	if (err)
+		return err;
 
 	ctx = reiser4_init_context(dentry->d_inode->i_sb);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 
+	mutex_lock(&inode->i_mutex);
+
 	reserve = estimate_update_common(dentry->d_inode);
 	if (reiser4_grab_space(reserve, BA_CAN_COMMIT)) {
 		reiser4_exit_context(ctx);
+		mutex_unlock(&inode->i_mutex);
 		return RETERR(-ENOSPC);
 	}
 	write_sd_by_inode_common(dentry->d_inode);
@@ -96,6 +102,8 @@ int reiser4_sync_file_common(struct file *file, loff_t start, loff_t end, int da
 	spin_lock_txnh(ctx->trans);
 	force_commit_atom(ctx->trans);
 	reiser4_exit_context(ctx);
+	mutex_unlock(&inode->i_mutex);
+
 	return 0;
 }
 
