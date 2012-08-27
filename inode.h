@@ -382,6 +382,25 @@ extern void inode_check_scale_nolock(struct inode *inode, __u64 old, __u64 new);
 })
 
 /*
+ * Update field i_nlink in inode @i using library function @op.
+ */
+#define INODE_OPERATE_NLINK(i, op)			\
+({							\
+	struct inode *__i;				\
+	unsigned int __old;				\
+							\
+	__i = (i);					\
+	__old = __i->i_nlink;				\
+	op;						\
+	inode_check_scale(__i, __old, __i->i_nlink);	\
+})
+
+#define INODE_SET_NLINK(i, value)	INODE_OPERATE_NLINK(i, set_nlink(i, (value)))
+#define INODE_INC_NLINK(i)		INODE_OPERATE_NLINK(i, inc_nlink(i))
+#define INODE_DROP_NLINK(i)		INODE_OPERATE_NLINK(i, drop_nlink(i))
+#define INODE_CLEAR_NLINK(i)		INODE_OPERATE_NLINK(i, clear_nlink(i))
+
+/*
  * update field @field in inode @i to contain value @value.
  */
 #define INODE_SET_FIELD(i, field, value)		\
