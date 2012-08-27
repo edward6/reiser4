@@ -425,8 +425,11 @@ void *reiser4_follow_link_common(struct dentry *dentry, struct nameidata *nd)
  */
 int reiser4_permission_common(struct inode *inode, int mask)
 {
-        if (mask & MAY_NOT_BLOCK)
-	        return -ECHILD;
+	// generic_permission() says that it's rcu-aware...
+#if 0
+	if (mask & MAY_NOT_BLOCK)
+		return -ECHILD;
+#endif
 	return generic_permission(inode, mask);
 }
 
