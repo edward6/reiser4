@@ -258,8 +258,7 @@ int reiser4_add_link_common(struct inode *object, struct inode *parent)
 	 * increment ->i_nlink and update ->i_ctime
 	 */
 
-	inc_nlink(object);
-	inode_check_scale(object, object->i_nlink - 1, object->i_nlink);
+	INODE_INC_NLINK(object);
 	object->i_ctime = CURRENT_TIME;
 	return 0;
 }
@@ -275,8 +274,7 @@ int reiser4_rem_link_common(struct inode *object, struct inode *parent)
 	 * decrement ->i_nlink and update ->i_ctime
 	 */
 
-	drop_nlink(object);
-	inode_check_scale(object, object->i_nlink - 1, object->i_nlink);
+	INODE_DROP_NLINK(object);
 	object->i_ctime = CURRENT_TIME;
 	return 0;
 }
@@ -286,19 +284,17 @@ int reiser4_rem_link_common(struct inode *object, struct inode *parent)
 */
 int rem_link_common_dir(struct inode *object, struct inode *parent UNUSED_ARG)
 {
-	unsigned old_nlink;
-
 	assert("nikita-20211", object != NULL);
 	assert("nikita-21631", object->i_nlink > 0);
 
 	/*
 	 * decrement ->i_nlink and update ->i_ctime
 	 */
-	old_nlink = object->i_nlink;
-	drop_nlink(object);
-	if (object->i_nlink == 1)
-		drop_nlink(object);
-	inode_check_scale(object, old_nlink, object->i_nlink);
+	if(object->i_nlink == 2)
+		INODE_SET_NLINK(object, 0);
+
+	else
+		INODE_DROP_NLINK(object);
 	object->i_ctime = CURRENT_TIME;
 	return 0;
 }
