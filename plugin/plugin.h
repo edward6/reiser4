@@ -790,7 +790,7 @@ struct reiser4_object_create_data {
 	reiser4_file_id id;
 	/* mode of regular file, directory or special file */
 /* what happens if some other sort of perm plugin is in use? */
-	int mode;
+	umode_t mode;
 	/* rdev of special file */
 	dev_t rdev;
 	/* symlink target */

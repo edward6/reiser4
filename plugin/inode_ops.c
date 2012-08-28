@@ -28,7 +28,7 @@ static int create_vfs_object(struct inode *parent, struct dentry *dentry,
  * Creates regular file using file plugin from parent directory plugin set.
  */
 int reiser4_create_common(struct inode *parent, struct dentry *dentry,
-			  int mode, struct nameidata *nameidata)
+			  umode_t mode, struct nameidata *nameidata)
 {
 	reiser4_object_create_data data;
 	file_plugin *fplug;
@@ -356,7 +356,7 @@ int reiser4_symlink_common(struct inode *parent, struct dentry *dentry,
  * inode_operations.
  * Creates object using file plugin DIRECTORY_FILE_PLUGIN_ID.
  */
-int reiser4_mkdir_common(struct inode *parent, struct dentry *dentry, int mode)
+int reiser4_mkdir_common(struct inode *parent, struct dentry *dentry, umode_t mode)
 {
 	reiser4_object_create_data data;
 
@@ -378,7 +378,7 @@ int reiser4_mkdir_common(struct inode *parent, struct dentry *dentry, int mode)
  * Creates object using file plugin SPECIAL_FILE_PLUGIN_ID.
  */
 int reiser4_mknod_common(struct inode *parent, struct dentry *dentry,
-			 int mode, dev_t rdev)
+			 umode_t mode, dev_t rdev)
 {
 	reiser4_object_create_data data;
 

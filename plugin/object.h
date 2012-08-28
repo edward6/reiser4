@@ -10,18 +10,18 @@
 
 /* common implementations of inode operations */
 int reiser4_create_common(struct inode *parent, struct dentry *dentry,
-			  int mode, struct nameidata *);
+			  umode_t mode, struct nameidata *);
 struct dentry *reiser4_lookup_common(struct inode *parent,
 				      struct dentry *dentry,
 				      struct nameidata *nameidata);
 int reiser4_link_common(struct dentry *existing, struct inode *parent,
 			struct dentry *newname);
 int reiser4_unlink_common(struct inode *parent, struct dentry *victim);
-int reiser4_mkdir_common(struct inode *parent, struct dentry *dentry, int mode);
+int reiser4_mkdir_common(struct inode *parent, struct dentry *dentry, umode_t mode);
 int reiser4_symlink_common(struct inode *parent, struct dentry *dentry,
 		   const char *linkname);
 int reiser4_mknod_common(struct inode *parent, struct dentry *dentry,
-		 int mode, dev_t rdev);
+		 umode_t mode, dev_t rdev);
 int reiser4_rename_common(struct inode *old_dir, struct dentry *old_name,
 			  struct inode *new_dir, struct dentry *new_name);
 void *reiser4_follow_link_common(struct dentry *, struct nameidata *data);
