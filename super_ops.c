@@ -485,12 +485,12 @@ static int reiser4_sync_fs(struct super_block *super, int wait)
  *
  * Makes reiser4 mount options visible in /proc/mounts.
  */
-static int reiser4_show_options(struct seq_file *m, struct vfsmount *mnt)
+static int reiser4_show_options(struct seq_file *m, struct dentry *dentry)
 {
 	struct super_block *super;
 	reiser4_super_info_data *sbinfo;
 
-	super = mnt->mnt_sb;
+	super = dentry->d_sb;
 	sbinfo = get_super_private(super);
 
 	seq_printf(m, ",atom_max_size=0x%x", sbinfo->tmgr.atom_max_size);
