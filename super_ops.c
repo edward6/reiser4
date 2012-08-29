@@ -195,7 +195,7 @@ static void reiser4_dirty_inode(struct inode *inode, int flags)
  * @inode: inode to delete
  *
  * Calls file plugin's delete_object method to delete object items from
- * filesystem tree and calls end_writeback().
+ * filesystem tree and calls clear_inode().
  */
 static void reiser4_evict_inode(struct inode *inode)
 {
@@ -216,7 +216,7 @@ static void reiser4_evict_inode(struct inode *inode)
 
 	truncate_inode_pages(&inode->i_data, 0);
 	inode->i_blocks = 0;
-	end_writeback(inode);
+	clear_inode(inode);
 	reiser4_exit_context(ctx);
 }
 
