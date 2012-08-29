@@ -696,9 +696,8 @@ int reiser4_init_root_inode(struct super_block *super)
 	if (IS_ERR(inode))
 		return RETERR(PTR_ERR(inode));
 
-	super->s_root = d_alloc_root(inode);
+	super->s_root = d_make_root(inode);
 	if (!super->s_root) {
-		iput(inode);
 		return RETERR(-ENOMEM);
 	}
 
