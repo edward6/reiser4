@@ -593,8 +593,6 @@ static int do_create_vfs_child(reiser4_object_create_data * data,/* parameters
 	object = new_inode(parent->i_sb);
 	if (object == NULL)
 		return RETERR(-ENOMEM);
-	/* we'll update i_nlink below */
-	clear_nlink(object);
 	/* new_inode() initializes i_ino to "arbitrary" value. Reset it to 0,
 	 * to simplify error handling: if some error occurs before i_ino is
 	 * initialized with oid, i_ino should already be set to some
@@ -718,20 +716,14 @@ static int do_create_vfs_child(reiser4_object_create_data * data,/* parameters
 		/* create entry */
 		result = par_dir->add_entry(parent, dentry, data, &entry);
 		if (result == 0) {
-			result = reiser4_add_nlink(object, parent, 0);
 			/* If O_CREAT is set and the file did not previously
 			   exist, upon successful completion, open() shall
 			   mark for update the st_atime, st_ctime, and
 			   st_mtime fields of the file and the st_ctime and
 			   st_mtime fields of the parent directory. --SUS
 			 */
-			/* @object times are already updated by
-			   reiser4_add_nlink() */
-			if (result == 0)
-				reiser4_update_dir(parent);
-			if (result != 0)
-				/* cleanup failure to add nlink */
-				par_dir->rem_entry(parent, dentry, &entry);
+			object->i_ctime = CURRENT_TIME;
+			reiser4_update_dir(parent);
 		}
 		if (result != 0)
 			/* cleanup failure to add entry */
@@ -788,6 +780,8 @@ create_vfs_object(struct inode *parent,
 	result = do_create_vfs_child(data, &child);
 	if (unlikely(result != 0)) {
 		if (child != NULL) {
+			/* for unlinked inode accounting in iput() */
+			clear_nlink(child);
 			reiser4_make_bad_inode(child);
 			iput(child);
 		}

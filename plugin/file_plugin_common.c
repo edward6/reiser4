@@ -85,7 +85,6 @@ int set_plug_in_inode_common(struct inode *object /* inode to set plugin on */ ,
 	/* setup inode and file-operations for this inode */
 	setup_inode_ops(object, data);
 #endif
-	clear_nlink(object);
 	reiser4_seal_init(&reiser4_inode_data(object)->sd_seal, NULL, NULL);
 	mask = (1 << UNIX_STAT) | (1 << LIGHT_WEIGHT_STAT);
 	if (!reiser4_is_set(object->i_sb, REISER4_32_BIT_TIMES))
