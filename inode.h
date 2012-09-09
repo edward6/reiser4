@@ -382,25 +382,6 @@ extern void inode_check_scale_nolock(struct inode *inode, __u64 old, __u64 new);
 })
 
 /*
- * Update field i_nlink in inode @i using library function @op.
- */
-#define INODE_OPERATE_NLINK(i, op)			\
-({							\
-	struct inode *__i;				\
-	unsigned int __old;				\
-							\
-	__i = (i);					\
-	__old = __i->i_nlink;				\
-	op;						\
-	inode_check_scale(__i, __old, __i->i_nlink);	\
-})
-
-#define INODE_SET_NLINK(i, value)	INODE_OPERATE_NLINK(i, set_nlink(i, (value)))
-#define INODE_INC_NLINK(i)		INODE_OPERATE_NLINK(i, inc_nlink(i))
-#define INODE_DROP_NLINK(i)		INODE_OPERATE_NLINK(i, drop_nlink(i))
-#define INODE_CLEAR_NLINK(i)		INODE_OPERATE_NLINK(i, clear_nlink(i))
-
-/*
  * update field @field in inode @i to contain value @value.
  */
 #define INODE_SET_FIELD(i, field, value)		\
@@ -431,6 +412,48 @@ extern void inode_check_scale_nolock(struct inode *inode, __u64 old, __u64 new);
 	inode_check_scale(__i, __i->field, __i->field - 1);	\
 	-- __i->field;						\
 })
+
+/*
+ * Update field i_nlink in inode @i using library function @op.
+ */
+#define INODE_SET_NLINK(i, value)			\
+({							\
+	struct inode *__i;				\
+	typeof(value) __v;				\
+					        	\
+	__i = (i);					\
+	__v = (value);					\
+        inode_check_scale(__i, __i->i_nlink, __v);	\
+        set_nlink(__i, __v);				\
+})
+
+#define INODE_INC_NLINK(i)					\
+	({							\
+	struct inode *__i;					\
+								\
+	__i = (i);						\
+	inode_check_scale(__i, __i->i_nlink, __i->i_nlink + 1);	\
+	inc_nlink(__i);						\
+})
+
+#define INODE_DROP_NLINK(i)					\
+	({							\
+	struct inode *__i;					\
+								\
+	__i = (i);						\
+	inode_check_scale(__i, __i->i_nlink, __i->i_nlink - 1);	\
+	drop_nlink(__i);					\
+})
+
+#define INODE_CLEAR_NLINK(i)					\
+	({							\
+	struct inode *__i;					\
+								\
+	__i = (i);						\
+	inode_check_scale(__i, __i->i_nlink, 0);		\
+	clear_nlink(__i);					\
+})
+
 
 /* See comment before reiser4_readdir_common() for description. */
 static inline struct list_head *get_readdir_list(const struct inode *inode)
