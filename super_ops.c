@@ -148,7 +148,7 @@ static void reiser4_destroy_inode(struct inode *inode)
 	 * inode into slab with dangling ->list.{next,prev}. This is safe,
 	 * because they are re-initialized in the new_inode().
 	 */
-	assert("nikita-2895", list_empty(&inode->i_dentry));
+	assert("nikita-2895", hlist_empty(&inode->i_dentry));
 	assert("nikita-2896", hlist_unhashed(&inode->i_hash));
 	assert("nikita-2898", list_empty_careful(get_readdir_list(inode)));
 
