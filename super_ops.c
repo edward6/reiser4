@@ -260,40 +260,6 @@ static void reiser4_put_super(struct super_block *super)
 }
 
 /**
- * reiser4_write_super - write_super of super operations
- * @super: super block to write
- *
- * Captures znode associated with super block, comit all transactions.
- */
-static void reiser4_write_super(struct super_block *super)
-{
-	int ret;
-	reiser4_context *ctx;
-
-	assert("vs-1700", !rofs_super(super));
-
-	ctx = reiser4_init_context(super);
-	if (IS_ERR(ctx)) {
-		warning("vs-16", "failed to init context");
-		return;
-	}
-
-	ret = reiser4_capture_super_block(super);
-	if (ret != 0)
-		warning("vs-1701",
-			"reiser4_capture_super_block failed in write_super: %d",
-			ret);
-	ret = txnmgr_force_commit_all(super, 0);
-	if (ret != 0)
-		warning("jmacd-77113",
-			"txn_force failed in write_super: %d", ret);
-
-	super->s_dirt = 0;
-
-	reiser4_exit_context(ctx);
-}
-
-/**
  * reiser4_statfs - statfs of super operations
  * @super: super block of file system in queried
  * @stafs: buffer to fill with statistics
@@ -510,7 +476,6 @@ struct super_operations reiser4_super_operations = {
 	.dirty_inode = reiser4_dirty_inode,
 	.evict_inode = reiser4_evict_inode,
 	.put_super = reiser4_put_super,
-	.write_super = reiser4_write_super,
 	.sync_fs = reiser4_sync_fs,
 	.statfs = reiser4_statfs,
 	.writeback_inodes = reiser4_writeback_inodes,
