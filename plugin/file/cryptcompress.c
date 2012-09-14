@@ -1917,10 +1917,10 @@ static void checkout_page_cluster(struct cluster_handle * clust,
 		   checked in before truncating pages */
 		in_page = __mbp(tc->len, i);
 
-		data = kmap_atomic(clust->pages[i], KM_USER0);
+		data = kmap_atomic(clust->pages[i]);
 		memcpy(tfm_stream_data(tc, INPUT_STREAM) + pg_to_off(i),
 		       data, in_page);
-		kunmap_atomic(data, KM_USER0);
+		kunmap_atomic(data);
 
 		if (PageDirty(clust->pages[i]))
 			cancel_dirty_page(clust->pages[i], PAGE_CACHE_SIZE);

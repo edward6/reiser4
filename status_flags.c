@@ -67,18 +67,18 @@ int reiser4_status_init(reiser4_block_nr block)
 		return -EIO;
 	}
 
-	statuspage = (struct reiser4_status *)kmap_atomic(page, KM_USER0);
+	statuspage = (struct reiser4_status *)kmap_atomic(page);
 	if (memcmp
 	    (statuspage->magic, REISER4_STATUS_MAGIC,
 	     sizeof(REISER4_STATUS_MAGIC))) {
 		/* Magic does not match. */
-		kunmap_atomic((char *)statuspage, KM_USER0);
+		kunmap_atomic((char *)statuspage);
 		warning("green-2008", "Wrong magic in status block\n");
 		__free_pages(page, 0);
 		bio_put(bio);
 		return -EINVAL;
 	}
-	kunmap_atomic((char *)statuspage, KM_USER0);
+	kunmap_atomic((char *)statuspage);
 
 	get_super_private(sb)->status_page = page;
 	get_super_private(sb)->status_bio = bio;
@@ -98,7 +98,7 @@ int reiser4_status_query(u64 *status, u64 *extended)
 	        /* No status page? */
 		return REISER4_STATUS_MOUNT_UNKNOWN;
 	statuspage = (struct reiser4_status *)
-	    kmap_atomic(get_super_private(sb)->status_page, KM_USER0);
+	    kmap_atomic(get_super_private(sb)->status_page);
 	switch ((long)le64_to_cpu(get_unaligned(&statuspage->status))) {
 	/* FIXME: this cast is a hack for 32 bit arches to work. */
 	case REISER4_STATUS_OK:
@@ -122,7 +122,7 @@ int reiser4_status_query(u64 *status, u64 *extended)
 	if (extended)
 		*extended = le64_to_cpu(get_unaligned(&statuspage->extended_status));
 
-	kunmap_atomic((char *)statuspage, KM_USER0);
+	kunmap_atomic((char *)statuspage);
 	return retval;
 }
 
@@ -138,13 +138,13 @@ int reiser4_status_write(__u64 status, __u64 extended_status, char *message)
 	        /* No status page? */
 		return -1;
 	statuspage = (struct reiser4_status *)
-	    kmap_atomic(get_super_private(sb)->status_page, KM_USER0);
+	    kmap_atomic(get_super_private(sb)->status_page);
 
 	put_unaligned(cpu_to_le64(status), &statuspage->status);
 	put_unaligned(cpu_to_le64(extended_status), &statuspage->extended_status);
 	strncpy(statuspage->texterror, message, REISER4_TEXTERROR_LEN);
 
-	kunmap_atomic((char *)statuspage, KM_USER0);
+	kunmap_atomic((char *)statuspage);
 	bio->bi_bdev = sb->s_bdev;
 	bio->bi_io_vec[0].bv_page = get_super_private(sb)->status_page;
 	bio->bi_io_vec[0].bv_len = sb->s_blocksize;

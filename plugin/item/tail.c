@@ -333,7 +333,7 @@ static int do_readpage_tail(uf_coord_t *uf_coord, struct page *page)
 			count = PAGE_CACHE_SIZE - mapped;
 
 		/* attach @page to address space and get data address */
-		pagedata = kmap_atomic(page, KM_USER0);
+		pagedata = kmap_atomic(page);
 
 		/* copy tail item to page */
 		memcpy(pagedata + mapped,
@@ -344,7 +344,7 @@ static int do_readpage_tail(uf_coord_t *uf_coord, struct page *page)
 		flush_dcache_page(page);
 
 		/* dettach page from address space */
-		kunmap_atomic(pagedata, KM_USER0);
+		kunmap_atomic(pagedata);
 
 		/* Getting next tail item. */
 		if (mapped < PAGE_CACHE_SIZE) {

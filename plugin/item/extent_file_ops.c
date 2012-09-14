@@ -949,9 +949,9 @@ filemap_copy_from_user(struct page *page, unsigned long offset,
 	char *kaddr;
 	int left;
 
-	kaddr = kmap_atomic(page, KM_USER0);
+	kaddr = kmap_atomic(page);
 	left = __copy_from_user_inatomic_nocache(kaddr + offset, buf, bytes);
-	kunmap_atomic(kaddr, KM_USER0);
+	kunmap_atomic(kaddr);
 
 	if (left != 0) {
 		/* Do it the slow way */
@@ -1274,10 +1274,10 @@ int reiser4_read_extent(struct file *file, flow_t *flow, hint_t *hint)
 			return RETERR(-EFAULT);
 		}
 
-		kaddr = kmap_atomic(page, KM_USER0);
+		kaddr = kmap_atomic(page);
 		result = __copy_to_user_inatomic(flow->data,
 						 kaddr + page_off, page_cnt);
-		kunmap_atomic(kaddr, KM_USER0);
+		kunmap_atomic(kaddr);
 		if (result != 0) {
 			kaddr = kmap(page);
 			result = __copy_to_user(flow->data,

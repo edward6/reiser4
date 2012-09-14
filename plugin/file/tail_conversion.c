@@ -422,10 +422,10 @@ int tail2extent(struct unix_file_info *uf_info)
 					 */
 					done_lh(&lh);
 					done = 1;
-					p_data = kmap_atomic(page, KM_USER0);
+					p_data = kmap_atomic(page);
 					memset(p_data + page_off, 0,
 					       PAGE_CACHE_SIZE - page_off);
-					kunmap_atomic(p_data, KM_USER0);
+					kunmap_atomic(p_data);
 					break;
 				}
 
@@ -451,9 +451,9 @@ int tail2extent(struct unix_file_info *uf_info)
 				 * copy item (as much as will fit starting from
 				 * the beginning of the item) into the page
 				 */
-				p_data = kmap_atomic(page, KM_USER0);
+				p_data = kmap_atomic(page);
 				memcpy(p_data + page_off, item, count);
-				kunmap_atomic(p_data, KM_USER0);
+				kunmap_atomic(p_data);
 
 				page_off += count;
 				bytes += count;
