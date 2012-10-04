@@ -21,14 +21,14 @@ static int create_vfs_object(struct inode *parent, struct dentry *dentry,
  * @parent: inode of parent directory
  * @dentry: dentry of new object to create
  * @mode: the permissions to use
- * @nameidata:
+ * @exclusive:
  *
  * This is common implementation of vfs's create method of struct
  * inode_operations.
  * Creates regular file using file plugin from parent directory plugin set.
  */
 int reiser4_create_common(struct inode *parent, struct dentry *dentry,
-			  umode_t mode, struct nameidata *nameidata)
+			  umode_t mode, bool exclusive)
 {
 	reiser4_object_create_data data;
 	file_plugin *fplug;
@@ -52,14 +52,14 @@ void check_light_weight(struct inode *inode, struct inode *parent);
  * reiser4_lookup_common - lookup of inode operations
  * @parent: inode of directory to lookup into
  * @dentry: name to look for
- * @nameidata:
+ * @flags:
  *
  * This is common implementation of vfs's lookup method of struct
  * inode_operations.
  */
 struct dentry *reiser4_lookup_common(struct inode *parent,
 				     struct dentry *dentry,
-				     struct nameidata *nameidata)
+				     unsigned int flags)
 {
 	reiser4_context *ctx;
 	int result;
