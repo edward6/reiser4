@@ -121,7 +121,8 @@ static struct address_space_operations regular_file_a_ops = {
 	.write_end = reiser4_write_end_careful,
 	.bmap = reiser4_bmap_careful,
 	.invalidatepage = reiser4_invalidatepage,
-	.releasepage = reiser4_releasepage
+	.releasepage = reiser4_releasepage,
+	.migratepage = reiser4_migratepage
 };
 
 /* VFS methods for symlink files */
@@ -172,7 +173,8 @@ static struct address_space_operations directory_a_ops = {
 	.write_end = bugop,
 	.bmap = bugop,
 	.invalidatepage = bugop,
-	.releasepage = bugop
+	.releasepage = bugop,
+	.migratepage = bugop
 };
 
 /*

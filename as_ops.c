@@ -43,6 +43,7 @@
 #include <linux/backing-dev.h>
 #include <linux/quotaops.h>
 #include <linux/security.h>
+#include <linux/migrate.h>
 
 /* address space operations */
 
@@ -302,6 +303,14 @@ int reiser4_releasepage(struct page *page, gfp_t gfp UNUSED_ARG)
 		assert("nikita-3020", reiser4_schedulable());
 		return 0;
 	}
+}
+
+int reiser4_migratepage(struct address_space *mapping, struct page *newpage,
+			struct page *page, enum migrate_mode mode)
+{
+	/* TODO: implement movable mapping
+	 */
+	return -EIO;
 }
 
 int reiser4_readpage(struct file *file, struct page *page)
