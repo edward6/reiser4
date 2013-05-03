@@ -2269,7 +2269,7 @@ ssize_t write_unix_file(struct file *file,
 		 * tell VM how many pages were dirtied. Maybe number of pages
 		 * which were dirty already should not be counted
 		 */
-		reiser4_throttle_write(inode, size_in_pages(written));
+		reiser4_throttle_write(inode);
 		left -= written;
 		buf += written;
 		*pos += written;

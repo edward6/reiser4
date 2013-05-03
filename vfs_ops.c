@@ -202,14 +202,14 @@ void reiser4_writeout(struct super_block *sb, struct writeback_control *wbc)
 }
 
 /* tell VM how many pages were dirtied */
-void reiser4_throttle_write(struct inode *inode, int nrpages)
+void reiser4_throttle_write(struct inode *inode)
 {
 	reiser4_context *ctx;
 
 	ctx = get_current_context();
 	reiser4_txn_restart(ctx);
 	current->journal_info = NULL;
-	balance_dirty_pages_ratelimited_nr(inode->i_mapping, nrpages);
+	balance_dirty_pages_ratelimited(inode->i_mapping);
 	current->journal_info = ctx;
 }
 

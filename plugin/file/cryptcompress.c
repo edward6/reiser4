@@ -2036,7 +2036,7 @@ static int balance_dirty_page_cluster(struct cluster_handle * clust,
 	if (nr_dirtied == 0)
 		return 0;
 	mutex_unlock(&info->checkin_mutex);
-	reiser4_throttle_write(inode, nr_dirtied);
+	reiser4_throttle_write(inode);
 	mutex_lock(&info->checkin_mutex);
 	return 0;
 }
