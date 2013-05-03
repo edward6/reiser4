@@ -2022,8 +2022,7 @@ static int balance_dirty_page_cluster(struct cluster_handle * clust,
 
 	assert("edward-724", inode != NULL);
 	assert("edward-725", cryptcompress_inode_ok(inode));
-	assert("edward-1547",
-	       nr_dirtied != 0 && nr_dirtied <= cluster_nrpages(inode));
+	assert("edward-1547", nr_dirtied <= cluster_nrpages(inode));
 
 	/* set next window params */
 	move_update_window(inode, clust, off, to_file);
@@ -2034,6 +2033,8 @@ static int balance_dirty_page_cluster(struct cluster_handle * clust,
 	assert("edward-726", clust->hint->lh.owner == NULL);
 	info = cryptcompress_inode_data(inode);
 
+	if (nr_dirtied == 0)
+		return 0;
 	mutex_unlock(&info->checkin_mutex);
 	reiser4_throttle_write(inode, nr_dirtied);
 	mutex_lock(&info->checkin_mutex);
