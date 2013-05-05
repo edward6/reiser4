@@ -1,6 +1,5 @@
 config REISER4_FS
 	tristate "Reiser4 (EXPERIMENTAL)"
-	depends on EXPERIMENTAL
 	select ZLIB_INFLATE
 	select ZLIB_DEFLATE
 	select LZO_COMPRESS
