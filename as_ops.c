@@ -92,9 +92,10 @@ int reiser4_set_page_dirty(struct page *page)
  * @offset: starting offset for partial invalidation
  *
  */
-void reiser4_invalidatepage(struct page *page, unsigned long offset)
+void reiser4_invalidatepage(struct page *page, unsigned int offset, unsigned int length)
 {
 	int ret = 0;
+	int partial_page = (offset || length < PAGE_CACHE_SIZE);
 	reiser4_context *ctx;
 	struct inode *inode;
 	jnode *node;
@@ -168,7 +169,7 @@ void reiser4_invalidatepage(struct page *page, unsigned long offset)
 	if (ret != 0)
 		warning("nikita-3141", "Cannot capture: %i", ret);
 
-	if (offset == 0) {
+	if (!partial_page) {
 		/* remove jnode from transaction and detach it from page. */
 		jref(node);
 		JF_SET(node, JNODE_HEARD_BANSHEE);

@@ -22,7 +22,7 @@
 /* address space operations */
 int reiser4_writepage(struct page *, struct writeback_control *);
 int reiser4_set_page_dirty(struct page *);
-void reiser4_invalidatepage(struct page *, unsigned long offset);
+void reiser4_invalidatepage(struct page *, unsigned int offset, unsigned int length);
 int reiser4_releasepage(struct page *, gfp_t);
 
 #ifdef CONFIG_MIGRATION
