@@ -2318,7 +2318,7 @@ int release_unix_file(struct inode *inode, struct file *file)
 		uf_info = unix_file_inode_data(inode);
 
 		get_exclusive_access_careful(uf_info, inode);
-		if (file->f_dentry->d_count == 1 &&
+		if (file->f_dentry->d_lockref.count == 1 &&
 		    uf_info->container == UF_CONTAINER_EXTENTS &&
 		    !should_have_notail(uf_info, inode->i_size) &&
 		    !rofs_inode(inode)) {
