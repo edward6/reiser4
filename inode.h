@@ -290,7 +290,7 @@ static inline void spin_lock_inode(struct inode *inode)
 {
 	assert("", LOCK_CNT_NIL(spin_locked));
 	/* check lock ordering */
-	assert_spin_not_locked(&d_lock);
+	assert_spin_not_locked(&d_c_lock);
 
 	spin_lock(&reiser4_inode_data(inode)->guard);
 

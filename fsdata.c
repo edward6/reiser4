@@ -16,7 +16,7 @@ static LIST_HEAD(cursor_cache);
 static unsigned long d_cursor_unused = 0;
 
 /* spinlock protecting manipulations with dir_cursor's hash table and lists */
-DEFINE_SPINLOCK(d_lock);
+DEFINE_SPINLOCK(d_c_lock);
 
 static reiser4_file_fsdata *create_fsdata(struct file *file);
 static int file_is_stateless(struct file *file);
@@ -36,7 +36,7 @@ static int d_cursor_shrink(struct shrinker *shrink, struct shrink_control *sc)
 	if (sc->nr_to_scan != 0) {
 		dir_cursor *scan;
 
-		spin_lock(&d_lock);
+		spin_lock(&d_c_lock);
 		while (!list_empty(&cursor_cache)) {
 			scan = list_entry(cursor_cache.next, dir_cursor, alist);
 			assert("nikita-3567", scan->ref == 0);
@@ -45,7 +45,7 @@ static int d_cursor_shrink(struct shrinker *shrink, struct shrink_control *sc)
 			if (sc->nr_to_scan == 0)
 				break;
 		}
-		spin_unlock(&d_lock);
+		spin_unlock(&d_c_lock);
 	}
 	return d_cursor_unused;
 }
@@ -277,13 +277,13 @@ static void clean_fsdata(struct file *file)
 	if (fsdata != NULL) {
 		cursor = fsdata->cursor;
 		if (cursor != NULL) {
-			spin_lock(&d_lock);
+			spin_lock(&d_c_lock);
 			--cursor->ref;
 			if (cursor->ref == 0) {
 				list_add_tail(&cursor->alist, &cursor_cache);
 				++d_cursor_unused;
 			}
-			spin_unlock(&d_lock);
+			spin_unlock(&d_c_lock);
 			file->private_data = NULL;
 		}
 	}
@@ -350,12 +350,12 @@ static int insert_cursor(dir_cursor *cursor, struct file *file, loff_t *fpos,
 			file->private_data = fsdata;
 			fsdata->cursor = cursor;
 			spin_unlock_inode(inode);
-			spin_lock(&d_lock);
+			spin_lock(&d_c_lock);
 			/* insert cursor into hash table */
 			d_cursor_hash_insert(&info->table, cursor);
 			/* and chain it into radix-tree */
 			bind_cursor(cursor, (unsigned long)oid);
-			spin_unlock(&d_lock);
+			spin_unlock(&d_c_lock);
 			radix_tree_preload_end();
 			*fpos = ((__u64) cursor->key.cid) << CID_SHIFT;
 		}
@@ -398,7 +398,7 @@ static void process_cursors(struct inode *inode, enum cursor_action act)
 	oid = get_inode_oid(inode);
 	spin_lock_inode(inode);
 	head = get_readdir_list(inode);
-	spin_lock(&d_lock);
+	spin_lock(&d_c_lock);
 	/* find any cursor for this oid: reference to it is hanging of radix
 	 * tree */
 	start = lookup(info, (unsigned long)oid);
@@ -433,7 +433,7 @@ static void process_cursors(struct inode *inode, enum cursor_action act)
 			scan = next;
 		} while (scan != start);
 	}
-	spin_unlock(&d_lock);
+	spin_unlock(&d_c_lock);
 	/* check that we killed 'em all */
 	assert("nikita-3568",
 	       ergo(act == CURSOR_KILL,
@@ -550,7 +550,7 @@ int reiser4_attach_fsdata(struct file *file, loff_t *fpos, struct inode *inode)
 
 		key.cid = pos >> CID_SHIFT;
 		key.oid = get_inode_oid(inode);
-		spin_lock(&d_lock);
+		spin_lock(&d_c_lock);
 		cursor = d_cursor_hash_find(&d_info(inode)->table, &key);
 		if (cursor != NULL) {
 			/* cursor was found */
@@ -561,7 +561,7 @@ int reiser4_attach_fsdata(struct file *file, loff_t *fpos, struct inode *inode)
 			}
 			++cursor->ref;
 		}
-		spin_unlock(&d_lock);
+		spin_unlock(&d_c_lock);
 		if (cursor != NULL) {
 			spin_lock_inode(inode);
 			assert("nikita-3556", cursor->fsdata->back == NULL);
