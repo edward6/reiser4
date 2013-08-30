@@ -11,14 +11,14 @@
 /* file operations */
 
 /* implementation of vfs's llseek method of struct file_operations for
-   typical directory can be found in readdir_common.c
+   typical directory can be found in file_ops_readdir.c
 */
 loff_t reiser4_llseek_dir_common(struct file *, loff_t, int origin);
 
-/* implementation of vfs's readdir method of struct file_operations for
-   typical directory can be found in readdir_common.c
+/* implementation of vfs's iterate method of struct file_operations for
+   typical directory can be found in file_ops_readdir.c
 */
-int reiser4_readdir_common(struct file *, void *dirent, filldir_t);
+int reiser4_iterate_common(struct file *, struct dir_context *);
 
 /**
  * reiser4_release_dir_common - release of struct file_operations

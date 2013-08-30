@@ -212,7 +212,7 @@ static int set_pos(struct inode *inode, struct readdir_pos *pos, tap_t *tap)
 /*
  * "rewind" directory to @offset, i.e., set @pos and @tap correspondingly.
  */
-static int dir_rewind(struct file *dir, struct readdir_pos *pos, tap_t *tap)
+static int dir_rewind(struct file *dir, loff_t *fpos, struct readdir_pos *pos, tap_t *tap)
 {
 	__u64 destination;
 	__s64 shift;
@@ -225,7 +225,7 @@ static int dir_rewind(struct file *dir, struct readdir_pos *pos, tap_t *tap)
 	assert("nikita-2551", tap->coord != NULL);
 	assert("nikita-2552", tap->lh != NULL);
 
-	dirpos = reiser4_get_dir_fpos(dir);
+	dirpos = reiser4_get_dir_fpos(dir, *fpos);
 	shift = dirpos - pos->fpos;
 	/* this is logical directory entry within @dir which we are rewinding
 	 * to */
@@ -295,8 +295,7 @@ static int dir_rewind(struct file *dir, struct readdir_pos *pos, tap_t *tap)
  * unlocked.
  */
 static int
-feed_entry(struct file *f, struct readdir_pos *pos, tap_t *tap,
-	   filldir_t filldir, void *dirent)
+feed_entry(tap_t *tap, struct dir_context *context)
 {
 	item_plugin *iplug;
 	char *name;
@@ -351,20 +350,19 @@ feed_entry(struct file *f, struct readdir_pos *pos, tap_t *tap,
 	assert("nikita-3436", lock_stack_isclean(get_current_lock_stack()));
 
 	reiser4_txn_restart_current();
-	result = filldir(dirent, name, (int)strlen(name),
-			 /* offset of this entry */
-			 f->f_pos,
-			 /* inode number of object bounden by this entry */
-			 oid_to_uino(get_key_objectid(&sd_key)), file_type);
-	if (local_name != name_buf)
-		kfree(local_name);
-	if (result < 0)
+	if (!dir_emit(context, name, (int)strlen(name),
+		      /* inode number of object bounden by this entry */
+		      oid_to_uino(get_key_objectid(&sd_key)), file_type))
 		/* ->filldir() is satisfied. (no space in buffer, IOW) */
 		result = 1;
 	else
 		result = reiser4_seal_validate(&seal, coord, &entry_key,
 					       tap->lh, tap->mode,
 					       ZNODE_LOCK_HIPRI);
+
+	if (local_name != name_buf)
+		kfree(local_name);
+
 	return result;
 }
 
@@ -431,8 +429,11 @@ static void move_entry(struct readdir_pos *pos, coord_t *coord)
 
 /*
  * prepare for readdir.
+ *
+ * NOTE: @f->f_pos may be out-of-date (iterate() vs readdir()).
+ *       @fpos is effective position.
  */
-static int dir_readdir_init(struct file *f, tap_t *tap,
+static int dir_readdir_init(struct file *f, loff_t* fpos, tap_t *tap,
 			    struct readdir_pos **pos)
 {
 	struct inode *inode;
@@ -447,7 +448,7 @@ static int dir_readdir_init(struct file *f, tap_t *tap,
 		return RETERR(-ENOTDIR);
 
 	/* try to find detached readdir state */
-	result = reiser4_attach_fsdata(f, inode);
+	result = reiser4_attach_fsdata(f, fpos, inode);
 	if (result != 0)
 		return result;
 
@@ -466,12 +467,12 @@ static int dir_readdir_init(struct file *f, tap_t *tap,
 	spin_unlock_inode(inode);
 
 	/* move @tap to the current position */
-	return dir_rewind(f, *pos, tap);
+	return dir_rewind(f, fpos, *pos, tap);
 }
 
 /* this is implementation of vfs's llseek method of struct file_operations for
    typical directory
-   See comment before reiser4_readdir_common() for explanation.
+   See comment before reiser4_iterate_common() for explanation.
 */
 loff_t reiser4_llseek_dir_common(struct file *file, loff_t off, int origin)
 {
@@ -500,7 +501,7 @@ loff_t reiser4_llseek_dir_common(struct file *file, loff_t off, int origin)
 		init_lh(&lh);
 		reiser4_tap_init(&tap, &coord, &lh, ZNODE_READ_LOCK);
 
-		ff = dir_readdir_init(file, &tap, &pos);
+		ff = dir_readdir_init(file, &file->f_pos, &tap, &pos);
 		reiser4_detach_fsdata(file);
 		if (ff != 0)
 			result = (loff_t) ff;
@@ -556,10 +557,8 @@ loff_t reiser4_llseek_dir_common(struct file *file, loff_t off, int origin)
    entry all file descriptors for directory inode are scanned and their
    readdir_pos are updated accordingly (adjust_dir_pos()).
 */
-int reiser4_readdir_common(struct file *f /* directory file being read */,
-			   void *dirent /* opaque data passed to us by VFS */,
-			   filldir_t filld /* filler function passed to us
-					    * by VFS */)
+int reiser4_iterate_common(struct file *f /* directory file being read */,
+			   struct dir_context *context /* callback data passed to us by VFS */)
 {
 	reiser4_context *ctx;
 	int result;
@@ -587,7 +586,7 @@ int reiser4_readdir_common(struct file *f /* directory file being read */,
 	reiser4_readdir_readahead_init(inode, &tap);
 
 repeat:
-	result = dir_readdir_init(f, &tap, &pos);
+	result = dir_readdir_init(f, &context->pos, &tap, &pos);
 	if (result == 0) {
 		result = reiser4_tap_load(&tap);
 		/* scan entries one by one feeding them to @filld */
@@ -598,11 +597,11 @@ repeat:
 			assert("nikita-2572", coord_is_existing_unit(coord));
 			assert("nikita-3227", is_valid_dir_coord(inode, coord));
 
-			result = feed_entry(f, pos, &tap, filld, dirent);
+			result = feed_entry(&tap, context);
 			if (result > 0) {
 				break;
 			} else if (result == 0) {
-				++f->f_pos;
+				++context->pos;
 				result = go_next_unit(&tap);
 				if (result == -E_NO_NEIGHBOR ||
 				    result == -ENOENT) {
@@ -616,7 +615,7 @@ repeat:
 				}
 			} else if (result == -E_REPEAT) {
 				/* feed_entry() had to restart. */
-				++f->f_pos;
+				++context->pos;
 				reiser4_tap_relse(&tap);
 				goto repeat;
 			} else

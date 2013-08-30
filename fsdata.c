@@ -310,7 +310,7 @@ static void free_file_fsdata_nolock(struct file *);
  add detachable readdir
  * state to the @f
  */
-static int insert_cursor(dir_cursor *cursor, struct file *file,
+static int insert_cursor(dir_cursor *cursor, struct file *file, loff_t *fpos,
 			 struct inode *inode)
 {
 	int result;
@@ -357,7 +357,7 @@ static int insert_cursor(dir_cursor *cursor, struct file *file,
 			bind_cursor(cursor, (unsigned long)oid);
 			spin_unlock(&d_lock);
 			radix_tree_preload_end();
-			file->f_pos = ((__u64) cursor->key.cid) << CID_SHIFT;
+			*fpos = ((__u64) cursor->key.cid) << CID_SHIFT;
 		}
 	} else
 		result = RETERR(-ENOMEM);
@@ -497,27 +497,29 @@ static int file_is_stateless(struct file *file)
 /**
  * reiser4_get_dir_fpos -
  * @dir:
+ * @fpos: effective value of dir->f_pos
  *
  * Calculates ->fpos from user-supplied cookie. Normally it is dir->f_pos, but
  * in the case of stateless directory operation (readdir-over-nfs), client id
  * was encoded in the high bits of cookie and should me masked off.
  */
-loff_t reiser4_get_dir_fpos(struct file *dir)
+loff_t reiser4_get_dir_fpos(struct file *dir, loff_t fpos)
 {
 	if (file_is_stateless(dir))
-		return dir->f_pos & CID_MASK;
+		return fpos & CID_MASK;
 	else
-		return dir->f_pos;
+		return fpos;
 }
 
 /**
  * reiser4_attach_fsdata - try to attach fsdata
  * @file:
+ * @fpos: effective value of @file->f_pos
  * @inode:
  *
  * Finds or creates cursor for readdir-over-nfs.
  */
-int reiser4_attach_fsdata(struct file *file, struct inode *inode)
+int reiser4_attach_fsdata(struct file *file, loff_t *fpos, struct inode *inode)
 {
 	loff_t pos;
 	int result;
@@ -529,7 +531,7 @@ int reiser4_attach_fsdata(struct file *file, struct inode *inode)
 	if (!file_is_stateless(file))
 		return 0;
 
-	pos = file->f_pos;
+	pos = *fpos;
 	result = 0;
 	if (pos == 0) {
 		/*
@@ -539,7 +541,7 @@ int reiser4_attach_fsdata(struct file *file, struct inode *inode)
 		cursor = kmem_cache_alloc(d_cursor_cache,
 					  reiser4_ctx_gfp_mask_get());
 		if (cursor != NULL)
-			result = insert_cursor(cursor, file, inode);
+			result = insert_cursor(cursor, file, fpos, inode);
 		else
 			result = RETERR(-ENOMEM);
 	} else {

@@ -167,8 +167,8 @@ extern void reiser4_done_d_cursor(void);
 extern int reiser4_init_super_d_info(struct super_block *);
 extern void reiser4_done_super_d_info(struct super_block *);
 
-extern loff_t reiser4_get_dir_fpos(struct file *);
-extern int reiser4_attach_fsdata(struct file *, struct inode *);
+extern loff_t reiser4_get_dir_fpos(struct file *, loff_t);
+extern int reiser4_attach_fsdata(struct file *, loff_t *, struct inode *);
 extern void reiser4_detach_fsdata(struct file *);
 
 /* these are needed for "stateless" readdir. See plugin/file_ops_readdir.c for

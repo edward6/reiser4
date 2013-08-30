@@ -32,7 +32,7 @@ int reiser4_getattr_common(struct vfsmount *mnt, struct dentry *,
 
 /* common implementations of file operations */
 loff_t reiser4_llseek_dir_common(struct file *, loff_t off, int origin);
-int reiser4_readdir_common(struct file *, void *dirent, filldir_t);
+int reiser4_iterate_common(struct file *, struct dir_context *context);
 int reiser4_release_dir_common(struct inode *, struct file *);
 int reiser4_sync_common(struct file *, loff_t, loff_t, int datasync);
 

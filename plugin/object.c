@@ -188,7 +188,7 @@ static struct inode_operations directory_i_ops = {
 static struct file_operations directory_f_ops = {
 	.llseek = reiser4_llseek_dir_common,
 	.read = generic_read_dir,
-	.readdir = reiser4_readdir_common,
+	.iterate = reiser4_iterate_common,
 	.release = reiser4_release_dir_common,
 	.fsync = reiser4_sync_common
 };
