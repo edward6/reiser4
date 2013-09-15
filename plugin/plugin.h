@@ -201,16 +201,7 @@ typedef struct file_plugin {
 	/* generic fields */
 	plugin_header h;
 
-	/* VFS methods.
-	 * Must be invariant with respect to plugin conversion.
-	 * It can be achieved by using "common" methods, which
-	 * are the same for all plugins that take participation in
-	 * conversion, or by using "generic" or "careful" methods,
-	 * which provide automatic redirection to proper private
-	 * plugin methods ("careful" are the same as "generic",
-	 * but with protection of pset and other disk structures
-	 * from being rebuilt during conversion.
-	 */
+	/* VFS methods */
 	struct inode_operations * inode_ops;
 	struct file_operations * file_ops;
 	struct address_space_operations * as_ops;

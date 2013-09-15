@@ -65,12 +65,13 @@ struct reiser4_context {
 
 	/* count non-trivial jnode_set_dirty() calls */
 	unsigned long nr_marked_dirty;
-
-	/* reiser4_writeback_inodes calls (via generic_writeback_sb_inodes)
-	 * reiser4_writepages for each of dirty inodes. Reiser4_writepages
-	 * captures pages. When number of pages captured in one
-	 * reiser4_sync_inodes reaches some threshold - some atoms get
-	 * flushed */
+	/*
+	 * reiser4_writeback_inodes calls (via generic_writeback_sb_inodes)
+	 * reiser4_writepages_dispatch for each of dirty inodes.
+	 * Reiser4_writepages_dispatch captures pages. When number of pages
+	 * captured in one reiser4_writeback_inodes reaches some threshold -
+	 * some atoms get flushed
+	 */
 	int nr_captured;
 	int nr_children;	/* number of child contexts */
 	struct page *locked_page; /* page that should be unlocked in

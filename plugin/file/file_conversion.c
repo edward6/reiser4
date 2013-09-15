@@ -509,24 +509,15 @@ static inline void done_dispatch_context(struct dispatch_context * cont,
 		kfree(cont->pages);
 	}
 }
-/**
- * Here are wrappers with "protection", aka Reiser4 "careful" methods.
- * They are used by vfs (as methods of file_ops, inode_ops or as_ops),
- * which is not aware of plugin conversion performed by Reiser4.
- */
 
 /*
- * Wrappers with active protection for:
+ * ->write() VFS file operation
  *
- * ->write();
+ * performs "intelligent" conversion in the FILE interface.
+ * Write a file in 3 steps (2d and 3d steps are optional).
  */
-
-/*
- * ->write() file operation supplied to VFS.
- * Write a file in 3 steps (some of them can be optional).
- */
-ssize_t reiser4_write_careful(struct file *file, const char __user *buf,
-			      size_t count, loff_t *off)
+ssize_t reiser4_write_dispatch(struct file *file, const char __user *buf,
+			       size_t count, loff_t *off)
 {
 	int result;
 	reiser4_context *ctx;
@@ -593,7 +584,8 @@ ssize_t reiser4_write_careful(struct file *file, const char __user *buf,
 	return written_old + (written_new < 0 ? 0 : written_new);
 }
 
-/* Wrappers with passive protection for:
+/*
+ * Dispatchers with "passive" protection for:
  *
  * ->open();
  * ->read();
@@ -603,37 +595,37 @@ ssize_t reiser4_write_careful(struct file *file, const char __user *buf,
  * ->bmap().
  */
 
-int reiser4_open_careful(struct inode *inode, struct file *file)
+int reiser4_open_dispatch(struct inode *inode, struct file *file)
 {
 	return PROT_PASSIVE(int, open, (inode, file));
 }
 
-ssize_t reiser4_read_careful(struct file * file, char __user * buf,
-			     size_t size, loff_t * off)
+ssize_t reiser4_read_dispatch(struct file * file, char __user * buf,
+			      size_t size, loff_t * off)
 {
 	struct inode * inode = file->f_dentry->d_inode;
 	return PROT_PASSIVE(ssize_t, read, (file, buf, size, off));
 }
 
-long reiser4_ioctl_careful(struct file *filp, unsigned int cmd,
-			   unsigned long arg)
+long reiser4_ioctl_dispatch(struct file *filp, unsigned int cmd,
+			    unsigned long arg)
 {
 	struct inode * inode = filp->f_dentry->d_inode;
 	return PROT_PASSIVE(int, ioctl, (filp, cmd, arg));
 }
 
-int reiser4_mmap_careful(struct file *file, struct vm_area_struct *vma)
+int reiser4_mmap_dispatch(struct file *file, struct vm_area_struct *vma)
 {
 	struct inode *inode = file->f_dentry->d_inode;
 	return PROT_PASSIVE(int, mmap, (file, vma));
 }
 
-int reiser4_release_careful(struct inode *inode, struct file *file)
+int reiser4_release_dispatch(struct inode *inode, struct file *file)
 {
 	return PROT_PASSIVE(int, release, (inode, file));
 }
 
-sector_t reiser4_bmap_careful(struct address_space * mapping, sector_t lblock)
+sector_t reiser4_bmap_dispatch(struct address_space * mapping, sector_t lblock)
 {
 	struct inode *inode = mapping->host;
 	return PROT_PASSIVE(sector_t, bmap, (mapping, lblock));
@@ -645,13 +637,13 @@ sector_t reiser4_bmap_careful(struct address_space * mapping, sector_t lblock)
  * reiser4_write_end() can not cope with
  * short writes for now.
  */
-int reiser4_write_begin_careful(struct file *file,
-				struct address_space *mapping,
-				loff_t pos,
-				unsigned len,
-				unsigned flags,
-				struct page **pagep,
-				void **fsdata)
+int reiser4_write_begin_dispatch(struct file *file,
+				 struct address_space *mapping,
+				 loff_t pos,
+				 unsigned len,
+				 unsigned flags,
+				 struct page **pagep,
+				 void **fsdata)
 {
 	int ret = 0;
 	struct page *page;
@@ -681,7 +673,7 @@ int reiser4_write_begin_careful(struct file *file,
 	ret = PROT_PASSIVE(int, write_begin, (file, page, pos, len, fsdata));
 	if (unlikely(ret))
 		goto err1;
-	/* Success. Resorces will be released in write_end_careful */
+	/* Success. Resorces will be released in write_end_dispatch */
 	return 0;
  err1:
 	reiser4_exit_context(ctx);
@@ -691,13 +683,13 @@ int reiser4_write_begin_careful(struct file *file,
 	return ret;
 }
 
-int reiser4_write_end_careful(struct file *file,
-			      struct address_space *mapping,
-			      loff_t pos,
-			      unsigned len,
-			      unsigned copied,
-			      struct page *page,
-			      void *fsdata)
+int reiser4_write_end_dispatch(struct file *file,
+			       struct address_space *mapping,
+			       loff_t pos,
+			       unsigned len,
+			       unsigned copied,
+			       struct page *page,
+			       void *fsdata)
 {
 	int ret;
 	reiser4_context *ctx;
@@ -722,11 +714,9 @@ int reiser4_write_end_careful(struct file *file,
 }
 
 /*
- * Wrappers without protection for:
- *
- * ->setattr()
+ * Dispatchers without protection
  */
-int reiser4_setattr(struct dentry *dentry, struct iattr *attr)
+int reiser4_setattr_dispatch(struct dentry *dentry, struct iattr *attr)
 {
 	return inode_file_plugin(dentry->d_inode)->setattr(dentry, attr);
 }

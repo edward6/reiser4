@@ -22,52 +22,40 @@ struct dispatch_context {
 	dispatch_state state;
 };
 
-/**
- * Declarations of common/careful/generic methods.
- * Suppose ->foo() is a vs method (of f_ops, i_ops, or a_ops);
- * Then common reiser4 method for foo looks like reiser4_foo_common;
- * careful method looks like reiser4_foo_careful;
- * generic method looks like reiser4_foo.
- *
- * Common method is a simple instruction set eligible for more
- * then one plugin id.
- *
- * Generic method looks at the plugin installed in inode's
- * plugin set and calls its appropriate method.
- *
- * Careful method looks like generic method with protected pset
- * (see plugin/file/file_conversion.c for details).
+/*
+ * Declarations of methods provided for VFS.
  */
 
 /* inode operations */
-int reiser4_setattr(struct dentry *, struct iattr *);
+int reiser4_setattr_dispatch(struct dentry *, struct iattr *);
 
 /* file operations */
-ssize_t reiser4_read_careful(struct file *, char __user *buf,
-			     size_t count, loff_t *off);
-ssize_t reiser4_write_careful(struct file *, const char __user *buf,
-			      size_t count, loff_t * off);
-long reiser4_ioctl_careful(struct file *filp, unsigned int cmd,
-			   unsigned long arg);
-int reiser4_mmap_careful(struct file *, struct vm_area_struct *);
-int reiser4_open_careful(struct inode *inode, struct file *file);
-int reiser4_release_careful(struct inode *, struct file *);
+ssize_t reiser4_read_dispatch(struct file *, char __user *buf,
+			      size_t count, loff_t *off);
+ssize_t reiser4_write_dispatch(struct file *, const char __user *buf,
+			       size_t count, loff_t * off);
+long reiser4_ioctl_dispatch(struct file *filp, unsigned int cmd,
+			    unsigned long arg);
+int reiser4_mmap_dispatch(struct file *, struct vm_area_struct *);
+int reiser4_open_dispatch(struct inode *inode, struct file *file);
+int reiser4_release_dispatch(struct inode *, struct file *);
 int reiser4_sync_file_common(struct file *, loff_t, loff_t, int datasync);
 
 /* address space operations */
-int reiser4_readpage(struct file *, struct page *);
-int reiser4_readpages(struct file*, struct address_space*, struct list_head*,
-		      unsigned);
-int reiser4_writepages(struct address_space *, struct writeback_control *);
-int reiser4_write_begin_careful(struct file *file,
-				struct address_space *mapping,
-				loff_t pos, unsigned len, unsigned flags,
-				struct page **pagep, void **fsdata);
-int reiser4_write_end_careful(struct file *file,
-			      struct address_space *mapping,
-			      loff_t pos, unsigned len, unsigned copied,
-			      struct page *page, void *fsdata);
-sector_t reiser4_bmap_careful(struct address_space *, sector_t lblock);
+int reiser4_readpage_dispatch(struct file *, struct page *);
+int reiser4_readpages_dispatch(struct file *, struct address_space *,
+			       struct list_head *, unsigned);
+int reiser4_writepages_dispatch(struct address_space *,
+				struct writeback_control *);
+int reiser4_write_begin_dispatch(struct file *file,
+				 struct address_space *mapping,
+				 loff_t pos, unsigned len, unsigned flags,
+				 struct page **pagep, void **fsdata);
+int reiser4_write_end_dispatch(struct file *file,
+			       struct address_space *mapping,
+			       loff_t pos, unsigned len, unsigned copied,
+			       struct page *page, void *fsdata);
+sector_t reiser4_bmap_dispatch(struct address_space *, sector_t lblock);
 
 /*
  * Private methods of unix-file plugin

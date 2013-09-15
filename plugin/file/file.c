@@ -1150,7 +1150,7 @@ static int commit_file_atoms(struct inode *inode)
 		     * when we are called by
 		     * filemap_fdatawrite->
 		     *    do_writepages()->
-		     *       reiser4_writepages()
+		     *       reiser4_writepages_dispatch()
 		     *
 		     * inode->i_mapping->dirty_pages are spices into
 		     * ->io_pages, leaving ->dirty_pages dirty.

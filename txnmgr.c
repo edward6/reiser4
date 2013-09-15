@@ -179,7 +179,7 @@ year old --- define all technical terms used.
  *
  *     When file is accessed through mmap(2) page is always created during
  *     page fault.
- *     After this (in reiser4_readpage()->reiser4_readpage_extent()):
+ *     After this (in reiser4_readpage_dispatch()->reiser4_readpage_extent()):
  *
  *         1. if access is made to non-hole page new jnode is created, (if
  *         necessary)

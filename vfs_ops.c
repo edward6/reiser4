@@ -148,12 +148,12 @@ void reiser4_writeout(struct super_block *sb, struct writeback_control *wbc)
 	struct address_space *mapping;
 
 	/*
-	 * Performs early flushing, trying to free some memory. If there is
-	 * nothing to flush, commits some atoms.
+	 * Performs early flushing, trying to free some memory. If there
+	 * is nothing to flush, commits some atoms.
+	 *
+	 * Commit all atoms if reiser4_writepages_dispatch() is called
+	 * from sys_sync() or sys_fsync()
 	 */
-
-	/* Commit all atoms if reiser4_writepages() is called from sys_sync() or
-	   sys_fsync(). */
 	if (wbc->sync_mode != WB_SYNC_NONE) {
 		txnmgr_force_commit_all(sb, 0);
 		return;

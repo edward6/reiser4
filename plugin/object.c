@@ -53,13 +53,27 @@
 
 #include "../inode.h"
 
-static int _bugop(void)
+int _bugop(void)
 {
 	BUG_ON(1);
 	return 0;
 }
 
 #define bugop ((void *)_bugop)
+
+static int flow_by_inode_bugop(struct inode *inode, const char __user *buf,
+			       int user, loff_t size,
+			       loff_t off, rw_op op, flow_t *f)
+{
+	BUG_ON(1);
+	return 0;
+}
+
+static int key_by_inode_bugop(struct inode *inode, loff_t off, reiser4_key *key)
+{
+	BUG_ON(1);
+	return 0;
+}
 
 static int _dummyop(void)
 {
@@ -88,38 +102,53 @@ static struct inode_operations         null_i_ops = {.create = NULL};
 static struct file_operations          null_f_ops = {.owner = NULL};
 static struct address_space_operations null_a_ops = {.writepage = NULL};
 
-/* VFS methods for regular files */
+/*
+ * Reiser4 provides for VFS either dispatcher, or common (fop,
+ * iop, aop) method.
+ *
+ * Dispatchers (suffixed with "dispatch") pass management to
+ * proper plugin in accordance with plugin table (pset) located
+ * in the private part of inode.
+ *
+ * Common methods are NOT prefixed with "dispatch". They are
+ * the same for all plugins of FILE interface, and, hence, no
+ * dispatching is needed.
+ */
+
+/*
+ * VFS methods for regular files
+ */
 static struct inode_operations regular_file_i_ops = {
 	.permission = reiser4_permission_common,
-	.setattr = reiser4_setattr,
+	.setattr = reiser4_setattr_dispatch,
 	.getattr = reiser4_getattr_common
 };
 static struct file_operations regular_file_f_ops = {
 	.llseek = generic_file_llseek,
-	.read = reiser4_read_careful,
-	.write = reiser4_write_careful,
+	.read = reiser4_read_dispatch,
+	.write = reiser4_write_dispatch,
 	.aio_read = generic_file_aio_read,
-	.unlocked_ioctl = reiser4_ioctl_careful,
+	.unlocked_ioctl = reiser4_ioctl_dispatch,
 #ifdef CONFIG_COMPAT
-	.compat_ioctl = reiser4_ioctl_careful,
+	.compat_ioctl = reiser4_ioctl_dispatch,
 #endif
-	.mmap = reiser4_mmap_careful,
-	.open = reiser4_open_careful,
-	.release = reiser4_release_careful,
+	.mmap = reiser4_mmap_dispatch,
+	.open = reiser4_open_dispatch,
+	.release = reiser4_release_dispatch,
 	.fsync = reiser4_sync_file_common,
 	.splice_read = generic_file_splice_read,
 	.splice_write = generic_file_splice_write
 };
 static struct address_space_operations regular_file_a_ops = {
 	.writepage = reiser4_writepage,
-	.readpage = reiser4_readpage,
+	.readpage = reiser4_readpage_dispatch,
 	//.sync_page = block_sync_page,
-	.writepages = reiser4_writepages,
+	.writepages = reiser4_writepages_dispatch,
 	.set_page_dirty = reiser4_set_page_dirty,
-	.readpages = reiser4_readpages,
-	.write_begin = reiser4_write_begin_careful,
-	.write_end = reiser4_write_end_careful,
-	.bmap = reiser4_bmap_careful,
+	.readpages = reiser4_readpages_dispatch,
+	.write_begin = reiser4_write_begin_dispatch,
+	.write_end = reiser4_write_end_dispatch,
+	.bmap = reiser4_bmap_dispatch,
 	.invalidatepage = reiser4_invalidatepage,
 	.releasepage = reiser4_releasepage,
 	.migratepage = reiser4_migratepage
@@ -164,17 +193,7 @@ static struct file_operations directory_f_ops = {
 	.fsync = reiser4_sync_common
 };
 static struct address_space_operations directory_a_ops = {
-	.writepage = bugop,
-	//.sync_page = bugop,
 	.writepages = dummyop,
-	.set_page_dirty = bugop,
-	.readpages = bugop,
-	.write_begin = bugop,
-	.write_end = bugop,
-	.bmap = bugop,
-	.invalidatepage = bugop,
-	.releasepage = bugop,
-	.migratepage = bugop
 };
 
 /*
@@ -267,8 +286,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.as_ops = &null_a_ops,
 
 		.write_sd_by_inode = write_sd_by_inode_common,
-		.flow_by_inode = bugop,
-		.key_by_inode = bugop,
+		.flow_by_inode = flow_by_inode_bugop,
+		.key_by_inode = key_by_inode_bugop,
 		.set_plug_in_inode = set_plug_in_inode_common,
 		.adjust_to_parent = adjust_to_parent_common_dir,
 		.create_object = reiser4_create_object_common,

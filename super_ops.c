@@ -377,10 +377,12 @@ static int reiser4_statfs(struct dentry *dentry, struct kstatfs *statfs)
  * @wb:
  * @wbc:
  *
- * This method is called by background and non-backgound writeback. Reiser4's
- * implementation uses generic_writeback_sb_inodes to call reiser4_writepages
- * for each of dirty inodes. reiser4_writepages handles pages dirtied via shared
- * mapping - dirty pages get into atoms. Writeout is called to flush some atoms.
+ * This method is called by background and non-backgound writeback.
+ * Reiser4's implementation uses generic_writeback_sb_inodes to call
+ * reiser4_writepages_dispatch for each of dirty inodes.
+ * reiser4_writepages_dispatch handles pages dirtied via shared
+ * mapping - dirty pages get into atoms. Writeout is called to flush
+ * some atoms.
  */
 static long reiser4_writeback_inodes(struct super_block *super,
 				     struct bdi_writeback *wb,

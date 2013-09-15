@@ -69,8 +69,8 @@ int reiser4_sync_common(struct file *file, loff_t start,
  *
  * Situation is complicated by anonymous pages: i.e., extent-less pages
  * dirtied through mmap. Fortunately sys_fsync() first calls
- * filemap_fdatawrite() that will ultimately call reiser4_writepages(), insert
- * all missing extents and capture anonymous pages.
+ * filemap_fdatawrite() that will ultimately call reiser4_writepages_dispatch,
+ * insert all missing extents and capture anonymous pages.
  */
 int reiser4_sync_file_common(struct file *file, loff_t start, loff_t end, int datasync)
 {

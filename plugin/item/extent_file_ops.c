@@ -1301,14 +1301,18 @@ int reiser4_read_extent(struct file *file, flow_t *flow, hint_t *hint)
 }
 
 /*
-   plugin->s.file.readpage
-   reiser4_read->unix_file_read->page_cache_readahead->reiser4_readpage->unix_file_readpage->extent_readpage
-   or
-   filemap_fault->reiser4_readpage->readpage_unix_file->->readpage_extent
-
-   At the beginning: coord->node is read locked, zloaded, page is
-   locked, coord is set to existing unit inside of extent item (it is not necessary that coord matches to page->index)
-*/
+ * plugin->s.file.readpage
+ *
+ * reiser4_read->unix_file_read->page_cache_readahead->
+ * ->reiser4_readpage_dispatch->readpage_unix_file->readpage_extent
+ * or
+ * filemap_fault->reiser4_readpage_dispatch->readpage_unix_file->
+ * ->readpage_extent
+ *
+ * At the beginning: coord->node is read locked, zloaded, page is
+ * locked, coord is set to existing unit inside of extent item (it
+ * is not necessary that coord matches to page->index)
+ */
 int reiser4_readpage_extent(void *vp, struct page *page)
 {
 	uf_coord_t *uf_coord = vp;

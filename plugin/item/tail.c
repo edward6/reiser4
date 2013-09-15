@@ -404,13 +404,16 @@ static int do_readpage_tail(uf_coord_t *uf_coord, struct page *page)
 }
 
 /*
-   plugin->s.file.readpage
-   reiser4_read->unix_file_read->page_cache_readahead->reiser4_readpage->unix_file_readpage->readpage_tail
-   or
-   filemap_fault->reiser4_readpage->readpage_unix_file->->readpage_tail
-
-   At the beginning: coord->node is read locked, zloaded, page is locked, coord is set to existing unit inside of tail
-   item. */
+ * plugin->s.file.readpage
+ *
+ * reiser4_read_dispatch->read_unix_file->page_cache_readahead->
+ * ->reiser4_readpage_dispatch->readpage_unix_file->readpage_tail
+ * or
+ * filemap_fault->reiser4_readpage_dispatch->readpage_unix_file->readpage_tail
+ *
+ * At the beginning: coord->node is read locked, zloaded, page is locked,
+ * coord is set to existing unit inside of tail item.
+ */
 int readpage_tail(void *vp, struct page *page)
 {
 	uf_coord_t *uf_coord = vp;

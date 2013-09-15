@@ -24,8 +24,13 @@ int reiser4_writepage(struct page *, struct writeback_control *);
 int reiser4_set_page_dirty(struct page *);
 void reiser4_invalidatepage(struct page *, unsigned long offset);
 int reiser4_releasepage(struct page *, gfp_t);
+
+#ifdef CONFIG_MIGRATION
 int reiser4_migratepage(struct address_space *, struct page *,
 			struct page *, enum migrate_mode);
+#else
+#define reiser4_migratepage NULL
+#endif /* CONFIG_MIGRATION */
 
 extern int reiser4_update_sd(struct inode *);
 extern int reiser4_add_nlink(struct inode *, struct inode *, int);

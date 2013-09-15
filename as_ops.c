@@ -305,6 +305,7 @@ int reiser4_releasepage(struct page *page, gfp_t gfp UNUSED_ARG)
 	}
 }
 
+#ifdef CONFIG_MIGRATION
 int reiser4_migratepage(struct address_space *mapping, struct page *newpage,
 			struct page *page, enum migrate_mode mode)
 {
@@ -312,8 +313,9 @@ int reiser4_migratepage(struct address_space *mapping, struct page *newpage,
 	 */
 	return -EIO;
 }
+#endif /* CONFIG_MIGRATION */
 
-int reiser4_readpage(struct file *file, struct page *page)
+int reiser4_readpage_dispatch(struct file *file, struct page *page)
 {
 	assert("edward-1533", PageLocked(page));
 	assert("edward-1534", !PageUptodate(page));
@@ -322,15 +324,15 @@ int reiser4_readpage(struct file *file, struct page *page)
 	return inode_file_plugin(page->mapping->host)->readpage(file, page);
 }
 
-int reiser4_readpages(struct file *file, struct address_space *mapping,
-		      struct list_head *pages, unsigned nr_pages)
+int reiser4_readpages_dispatch(struct file *file, struct address_space *mapping,
+			       struct list_head *pages, unsigned nr_pages)
 {
 	return inode_file_plugin(mapping->host)->readpages(file, mapping,
 							   pages, nr_pages);
 }
 
-int reiser4_writepages(struct address_space *mapping,
-		       struct writeback_control *wbc)
+int reiser4_writepages_dispatch(struct address_space *mapping,
+				struct writeback_control *wbc)
 {
 	return inode_file_plugin(mapping->host)->writepages(mapping, wbc);
 }
