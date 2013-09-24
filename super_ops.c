@@ -764,6 +764,8 @@ static void __exit done_reiser4(void)
 module_init(init_reiser4);
 module_exit(done_reiser4);
 
+MODULE_ALIAS_FS("reiser4");
+
 MODULE_DESCRIPTION("Reiser4 filesystem");
 MODULE_AUTHOR("Hans Reiser <Reiser@Namesys.COM>");
 
