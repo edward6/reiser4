@@ -327,8 +327,8 @@ static int present_unix_sd(struct inode *inode /* object being processed */ ,
 
 		sd = (reiser4_unix_stat *) * area;
 
-		inode->i_uid = le32_to_cpu(get_unaligned(&sd->uid));
-		inode->i_gid = le32_to_cpu(get_unaligned(&sd->gid));
+		i_uid_write(inode, le32_to_cpu(get_unaligned(&sd->uid)));
+		i_gid_write(inode, le32_to_cpu(get_unaligned(&sd->gid)));
 		inode->i_atime.tv_sec = le32_to_cpu(get_unaligned(&sd->atime));
 		inode->i_mtime.tv_sec = le32_to_cpu(get_unaligned(&sd->mtime));
 		inode->i_ctime.tv_sec = le32_to_cpu(get_unaligned(&sd->ctime));
@@ -344,8 +344,8 @@ static int present_unix_sd(struct inode *inode /* object being processed */ ,
 
 static int absent_unix_sd(struct inode *inode /* object being processed */ )
 {
-	inode->i_uid = get_super_private(inode->i_sb)->default_uid;
-	inode->i_gid = get_super_private(inode->i_sb)->default_gid;
+	i_uid_write(inode, get_super_private(inode->i_sb)->default_uid);
+	i_gid_write(inode, get_super_private(inode->i_sb)->default_gid);
 	inode->i_atime = inode->i_mtime = inode->i_ctime = CURRENT_TIME;
 	inode_set_bytes(inode, inode->i_size);
 	/* mark inode as lightweight, so that caller (lookup_common) will
@@ -371,8 +371,8 @@ static int save_unix_sd(struct inode *inode /* object being processed */ ,
 	assert("nikita-644", *area != NULL);
 
 	sd = (reiser4_unix_stat *) * area;
-	put_unaligned(cpu_to_le32(inode->i_uid), &sd->uid);
-	put_unaligned(cpu_to_le32(inode->i_gid), &sd->gid);
+	put_unaligned(cpu_to_le32(i_uid_read(inode)), &sd->uid);
+	put_unaligned(cpu_to_le32(i_gid_read(inode)), &sd->gid);
 	put_unaligned(cpu_to_le32((__u32) inode->i_atime.tv_sec), &sd->atime);
 	put_unaligned(cpu_to_le32((__u32) inode->i_ctime.tv_sec), &sd->ctime);
 	put_unaligned(cpu_to_le32((__u32) inode->i_mtime.tv_sec), &sd->mtime);

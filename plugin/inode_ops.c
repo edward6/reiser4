@@ -462,9 +462,8 @@ int reiser4_setattr_common(struct dentry *dentry, struct iattr *attr)
 	 */
 	result = setattr_reserve(reiser4_tree_by_inode(inode));
 	if (!result) {
-		if ((attr->ia_valid & ATTR_UID && attr->ia_uid != inode->i_uid)
-		    || (attr->ia_valid & ATTR_GID
-			&& attr->ia_gid != inode->i_gid)) {
+		if (((attr->ia_valid & ATTR_UID) && !uid_eq(attr->ia_uid, inode->i_uid))
+		    || ((attr->ia_valid & ATTR_GID) && !gid_eq(attr->ia_gid, inode->i_gid))) {
 			result = dquot_transfer(inode, attr) ? -EDQUOT : 0;
 			if (result) {
 				context_set_commit_async(ctx);

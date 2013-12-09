@@ -138,13 +138,13 @@ struct reiser4_super_info_data {
 	 * default user id used for light-weight files without their own
 	 * stat-data.
 	 */
-	uid_t default_uid;
+	__u32 default_uid;
 
 	/*
 	 * default group id used for light-weight files without their own
 	 * stat-data.
 	 */
-	gid_t default_gid;
+	__u32 default_gid;
 
 	/* mkfs identifier generated at mkfs time. */
 	__u32 mkfs_id;

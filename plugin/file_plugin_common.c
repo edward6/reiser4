@@ -61,7 +61,7 @@ int set_plug_in_inode_common(struct inode *object /* inode to set plugin on */ ,
 
 	object->i_mode = data->mode;
 	/* this should be plugin decision */
-	object->i_uid = current->cred->fsuid;
+	object->i_uid = current_fsuid();
 	object->i_mtime = object->i_atime = object->i_ctime = CURRENT_TIME;
 
 	/* support for BSD style group-id assignment. See mount's manual page
@@ -75,7 +75,7 @@ int set_plug_in_inode_common(struct inode *object /* inode to set plugin on */ ,
 			/* sguid is inherited by sub-directories */
 			object->i_mode |= S_ISGID;
 	} else
-		object->i_gid = current->cred->fsgid;
+		object->i_gid = current_fsgid();
 
 	/* this object doesn't have stat-data yet */
 	reiser4_inode_set_flag(object, REISER4_NO_SD);
