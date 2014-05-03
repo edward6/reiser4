@@ -29,9 +29,9 @@ static inline void sa_dealloc_blocks (reiser4_space_allocator * al, reiser4_bloc
 	reiser4_dealloc_blocks_##allocator (al, start, len);								\
 }															\
 															\
-static inline void sa_check_blocks (const reiser4_block_nr * start, const reiser4_block_nr * end, int desired) 		\
+static inline int sa_check_blocks (const reiser4_block_nr * start, const reiser4_block_nr * end, int desired) 		\
 {															\
-	reiser4_check_blocks_##allocator (start, end, desired);							        \
+	return reiser4_check_blocks_##allocator (start, end, desired);							        \
 }															\
 															\
 static inline void sa_pre_commit_hook (void)										\

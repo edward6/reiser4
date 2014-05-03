@@ -534,10 +534,11 @@ znode *zget(reiser4_tree * tree,
 
 		write_unlock_tree(tree);
 	}
-#if REISER4_DEBUG
-	if (!reiser4_blocknr_is_fake(blocknr) && *blocknr != 0)
-		reiser4_check_block(blocknr, 1);
-#endif
+
+	assert("intelfx-6",
+	       ergo(!reiser4_blocknr_is_fake(blocknr) && *blocknr != 0,
+	            reiser4_check_block(blocknr, 1)));
+
 	/* Check for invalid tree level, return -EIO */
 	if (unlikely(znode_get_level(result) != level)) {
 		warning("jmacd-504",

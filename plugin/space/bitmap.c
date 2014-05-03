@@ -1222,28 +1222,12 @@ void reiser4_dealloc_blocks_bitmap(reiser4_space_allocator * allocator,
 	release_and_unlock_bnode(bnode);
 }
 
-/* plugin->u.space_allocator.check_blocks(). */
-void reiser4_check_blocks_bitmap(const reiser4_block_nr * start,
-				 const reiser4_block_nr * len, int desired)
+static int check_blocks_one_bitmap(bmap_nr_t bmap, bmap_off_t start_offset,
+                                    bmap_off_t end_offset, int desired)
 {
-#if REISER4_DEBUG
 	struct super_block *super = reiser4_get_current_sb();
-
-	bmap_nr_t bmap;
-	bmap_off_t start_offset;
-	bmap_off_t end_offset;
-
-	struct bitmap_node *bnode;
+	struct bitmap_node *bnode = get_bnode(super, bmap);
 	int ret;
-
-	assert("zam-622", len != NULL);
-	check_block_range(start, len);
-	parse_blocknr(start, &bmap, &start_offset);
-
-	end_offset = start_offset + *len;
-	assert("nikita-2214", end_offset <= bmap_bit_count(super->s_blocksize));
-
-	bnode = get_bnode(super, bmap);
 
 	assert("nikita-2215", bnode != NULL);
 
@@ -1253,19 +1237,62 @@ void reiser4_check_blocks_bitmap(const reiser4_block_nr * start,
 	assert("nikita-2216", jnode_is_loaded(bnode->wjnode));
 
 	if (desired) {
-		assert("zam-623",
-		       reiser4_find_next_zero_bit(bnode_working_data(bnode),
+		ret = reiser4_find_next_zero_bit(bnode_working_data(bnode),
 						  end_offset, start_offset)
-		       >= end_offset);
+		      >= end_offset;
 	} else {
-		assert("zam-624",
-		       reiser4_find_next_set_bit(bnode_working_data(bnode),
+		ret = reiser4_find_next_set_bit(bnode_working_data(bnode),
 						 end_offset, start_offset)
-		       >= end_offset);
+		      >= end_offset;
 	}
 
 	release_and_unlock_bnode(bnode);
-#endif
+
+	return ret;
+}
+
+/* plugin->u.space_allocator.check_blocks(). */
+int reiser4_check_blocks_bitmap(const reiser4_block_nr * start,
+				 const reiser4_block_nr * len, int desired)
+{
+	struct super_block *super = reiser4_get_current_sb();
+
+	reiser4_block_nr end;
+	bmap_nr_t bmap, end_bmap;
+	bmap_off_t offset, end_offset;
+	const bmap_off_t max_offset = bmap_bit_count(super->s_blocksize);
+
+	assert("intelfx-9", start != NULL);
+	assert("intelfx-10", ergo(len != NULL, *len > 0));
+
+	if (len != NULL) {
+		check_block_range(start, len);
+		end = *start + *len - 1;
+	} else {
+		/* on next line, end is used as temporary len for check_block_range() */
+		end = 1; check_block_range(start, &end);
+		end = *start;
+	}
+
+	parse_blocknr(start, &bmap, &offset);
+
+	if (end == *start) {
+		end_bmap = bmap;
+		end_offset = offset;
+	} else {
+		parse_blocknr(&end, &end_bmap, &end_offset);
+	}
+	++end_offset;
+
+	assert("intelfx-4", end_bmap >= bmap);
+	assert("intelfx-5", ergo(end_bmap == bmap, end_offset >= offset));
+
+	for (; bmap < end_bmap; bmap++, offset = 0) {
+		if (!check_blocks_one_bitmap(bmap, offset, max_offset, desired)) {
+			return 0;
+		}
+	}
+	return check_blocks_one_bitmap(bmap, offset, end_offset, desired);
 }
 
 /* conditional insertion of @node into atom's overwrite set  if it was not there */

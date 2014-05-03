@@ -962,25 +962,13 @@ static void used2free(reiser4_super_info_data * sbinfo, __u64 count)
 	spin_unlock_reiser4_super(sbinfo);
 }
 
-#if REISER4_DEBUG
-
 /* check "allocated" state of given block range */
-static void
+int
 reiser4_check_blocks(const reiser4_block_nr * start,
 		     const reiser4_block_nr * len, int desired)
 {
-	sa_check_blocks(start, len, desired);
+	return sa_check_blocks(start, len, desired);
 }
-
-/* check "allocated" state of given block */
-void reiser4_check_block(const reiser4_block_nr * block, int desired)
-{
-	const reiser4_block_nr one = 1;
-
-	reiser4_check_blocks(block, &one, desired);
-}
-
-#endif
 
 /* Blocks deallocation function may do an actual deallocation through space
    plugin allocation or store deleted block numbers in atom's delete_set data

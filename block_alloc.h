@@ -150,15 +150,15 @@ extern void cluster_reserved2free(int count);
 
 extern int reiser4_check_block_counters(const struct super_block *);
 
-#if REISER4_DEBUG
 
-extern void reiser4_check_block(const reiser4_block_nr *, int);
+extern int reiser4_check_blocks(const reiser4_block_nr *start,
+                                const reiser4_block_nr *len, int desired);
 
-#else
-
-#  define reiser4_check_block(beg, val)        noop
-
-#endif
+static inline int reiser4_check_block(const reiser4_block_nr *start,
+                                      int desired)
+{
+	return reiser4_check_blocks(start, NULL, desired);
+}
 
 extern int reiser4_pre_commit_hook(void);
 extern void reiser4_post_commit_hook(void);
