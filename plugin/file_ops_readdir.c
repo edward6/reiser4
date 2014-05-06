@@ -59,7 +59,8 @@ adjust_dir_pos(struct file *dir, struct readdir_pos *readdir_spot,
 		 * changes */
 		readdir_spot->entry_no += adj;
 		assert("nikita-2577",
-		       ergo(dir != NULL, reiser4_get_dir_fpos(dir) + adj >= 0));
+		       ergo(dir != NULL,
+			    reiser4_get_dir_fpos(dir, dir->f_pos) + adj >= 0));
 		if (de_id_cmp(&pos->dir_entry_key,
 			      &mod_point->dir_entry_key) == EQUAL_TO) {
 			assert("nikita-2575", mod_point->pos < pos->pos);
