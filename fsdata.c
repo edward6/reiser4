@@ -23,30 +23,27 @@ static int file_is_stateless(struct file *file);
 static void free_fsdata(reiser4_file_fsdata *fsdata);
 static void kill_cursor(dir_cursor *);
 
-/**
- * d_cursor_shrink - shrink callback for cache of dir_cursor-s
- * @nr: number of objects to free
- * @mask: GFP mask
- *
- * Shrinks d_cursor_cache. Scan LRU list of unused cursors, freeing requested
- * number. Return number of still freeable cursors.
- */
-static int d_cursor_shrink(struct shrinker *shrink, struct shrink_control *sc)
+static unsigned long d_cursor_shrink_scan(struct shrinker *shrink,
+					  struct shrink_control *sc)
 {
-	if (sc->nr_to_scan != 0) {
-		dir_cursor *scan;
+	dir_cursor *scan;
+	unsigned long freed = 0;
 
-		spin_lock(&d_c_lock);
-		while (!list_empty(&cursor_cache)) {
-			scan = list_entry(cursor_cache.next, dir_cursor, alist);
-			assert("nikita-3567", scan->ref == 0);
-			kill_cursor(scan);
-			--sc->nr_to_scan;
-			if (sc->nr_to_scan == 0)
-				break;
-		}
-		spin_unlock(&d_c_lock);
+	spin_lock(&d_c_lock);
+	while (!list_empty(&cursor_cache) && sc->nr_to_scan) {
+		scan = list_entry(cursor_cache.next, dir_cursor, alist);
+		assert("nikita-3567", scan->ref == 0);
+		kill_cursor(scan);
+		freed++;
+		sc->nr_to_scan--;
 	}
+	spin_unlock(&d_c_lock);
+	return freed;
+}
+
+static unsigned long d_cursor_shrink_count (struct shrinker *shrink,
+					    struct shrink_control *sc)
+{
 	return d_cursor_unused;
 }
 
@@ -58,8 +55,9 @@ static int d_cursor_shrink(struct shrinker *shrink, struct shrink_control *sc)
  * shrunk only if system is really tight on memory.
  */
 static struct shrinker d_cursor_shrinker = {
-	.shrink = d_cursor_shrink,
-	.seeks = DEFAULT_SEEKS << 3,
+	.count_objects = d_cursor_shrink_count,
+	.scan_objects = d_cursor_shrink_scan,
+	.seeks = DEFAULT_SEEKS << 3
 };
 
 /**
