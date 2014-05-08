@@ -431,6 +431,7 @@ static long reiser4_writeback_inodes(struct super_block *super,
 /* ->sync_fs() of super operations */
 static int reiser4_sync_fs(struct super_block *super, int wait)
 {
+	int ret;
 	reiser4_context *ctx;
 	struct bdi_writeback *wb;
 	struct wb_writeback_work work = {
@@ -451,13 +452,23 @@ static int reiser4_sync_fs(struct super_block *super, int wait)
 		warning("edward-1567", "failed to init context");
 		return PTR_ERR(ctx);
 	}
+	/*
+	 * Capture znode associated with super block
+	 */
+	ret = reiser4_capture_super_block(super);
+	if (ret != 0)
+		warning("vs-1701",
+			"reiser4_capture_super_block failed in write_super: %d",
+			ret);
+
 	wb = &reiser4_get_super_fake(super)->i_mapping->backing_dev_info->wb;
 	spin_lock(&wb->list_lock);
 	generic_writeback_sb_inodes(super, wb, &wbc, &work, true);
 	spin_unlock(&wb->list_lock);
 	wbc.nr_to_write = LONG_MAX;
 	/*
-	 * flush goes here
+	 * (flush goes here)
+	 * commit all transactions
 	 */
 	reiser4_writeout(super, &wbc);
 

@@ -405,7 +405,7 @@ typedef struct cbk_handle {
 	/* put here error message to be printed by caller */
 	const char *error;
 	/* result passed back to caller */
-	lookup_result result;
+	int result;
 	/* lock handles for active and parent */
 	lock_handle *parent_lh;
 	lock_handle *active_lh;

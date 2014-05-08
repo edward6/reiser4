@@ -1339,7 +1339,7 @@ static int carry_delete(carry_op * op /* operation to be performed */ ,
 	    node_num_items(parent) == 1)
 		result = reiser4_kill_tree_root(coord.node);
 
-	return result < 0 ? : 0;
+	return result < 0 ? result : 0;
 }
 
 /* implements COP_CUT opration
@@ -1369,7 +1369,7 @@ static int carry_cut(carry_op * op /* operation to be performed */ ,
 		result = nplug->cut_and_kill(op->u.cut_or_kill.u.kill, &info);
 
 	doing->restartable = 0;
-	return result < 0 ? : 0;
+	return result < 0 ? result : 0;
 }
 
 /* helper function for carry_paste(): returns true if @op can be continued as
