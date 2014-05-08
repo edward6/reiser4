@@ -2128,6 +2128,7 @@ ssize_t write_unix_file(struct file *file,
 		new_size = *pos + count;
 
 	while (left) {
+		int update_sd = 0;
 		if (left < to_write)
 			to_write = left;
 
@@ -2239,18 +2240,27 @@ ssize_t write_unix_file(struct file *file,
 		assert("edward-1555",
 		       ergo(uf_info->container == UF_CONTAINER_TAILS,
 			    write_op == reiser4_write_tail));
-		if (*pos + written > inode->i_size)
+		if (*pos + written > inode->i_size) {
 			INODE_SET_FIELD(inode, i_size, *pos + written);
-		file_update_time(file);
-		/* space for update_sd was reserved in write_op */
-		result = reiser4_update_sd(inode);
-		if (result) {
-			warning("edward-1574",
-				"Can not update stat-data: %i. FSCK?",
-				result);
-			drop_access(uf_info);
-			context_set_commit_async(ctx);
-			break;
+			update_sd = 1;
+		}
+		if (!IS_NOCMTIME(inode)) {
+			inode->i_ctime = inode->i_mtime = CURRENT_TIME;
+			update_sd = 1;
+		}
+		if (update_sd) {
+			/*
+			 * space for update_sd was reserved in write_op
+			 */
+			result = reiser4_update_sd(inode);
+			if (result) {
+				warning("edward-1574",
+					"Can not update stat-data: %i. FSCK?",
+					result);
+				drop_access(uf_info);
+				context_set_commit_async(ctx);
+				break;
+			}
 		}
 		drop_access(uf_info);
 		ea = NEITHER_OBTAINED;
@@ -2768,13 +2778,18 @@ int write_end_unix_file(struct file *file, struct page *page,
 		SetPageError(page);
 		goto exit;
 	}
-	if (pos + copied > inode->i_size)
+	if (pos + copied > inode->i_size) {
 		INODE_SET_FIELD(inode, i_size, pos + copied);
+		ret = reiser4_update_sd(inode);
+		if (unlikely(ret != 0))
+			warning("edward-1604",
+				"Can not update stat-data: %i. FSCK?",
+				ret);
+	}
  exit:
 	drop_exclusive_access(info);
 	return ret;
 }
-
 
 /*
  * Local variables:

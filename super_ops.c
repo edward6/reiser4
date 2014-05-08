@@ -168,16 +168,25 @@ static void reiser4_destroy_inode(struct inode *inode)
 static void reiser4_dirty_inode(struct inode *inode, int flags)
 {
 	int result;
+	reiser4_context *ctx;
 
 	if (!is_in_reiser4_context())
 		return;
-	assert("", !IS_RDONLY(inode));
-	assert("", (inode_file_plugin(inode)->estimate.update(inode) <=
-		    get_current_context()->grabbed_blocks));
+	assert("edward-1606", !IS_RDONLY(inode));
+	assert("edward-1607",
+	       (inode_file_plugin(inode)->estimate.update(inode) <=
+		get_current_context()->grabbed_blocks));
+
+	ctx = get_current_context();
+	if (ctx->locked_page)
+		unlock_page(ctx->locked_page);
 
 	result = reiser4_update_sd(inode);
+
+	if (ctx->locked_page)
+		lock_page(ctx->locked_page);
 	if (result)
-		warning("", "failed to dirty inode for %llu: %d",
+		warning("edward-1605", "failed to dirty inode for %llu: %d",
 			get_inode_oid(inode), result);
 }
 

@@ -1521,7 +1521,9 @@ static int update_sd_cryptcompress(struct inode *inode)
 					  BA_CAN_COMMIT);
 	if (result)
 		return result;
-	inode->i_ctime = inode->i_mtime = CURRENT_TIME;
+	if (!IS_NOCMTIME(inode))
+		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
+
 	result = reiser4_update_sd(inode);
 
 	if (unlikely(result != 0))
@@ -3755,7 +3757,9 @@ int write_begin_cryptcompress(struct file *file, struct page *page,
 	struct reiser4_slide *win;
 	struct cluster_handle *clust;
 	struct cryptcompress_info *info;
+	reiser4_context *ctx;
 
+	ctx = get_current_context();
 	inode = page->mapping->host;
 	info = cryptcompress_inode_data(inode);
 
@@ -3789,9 +3793,13 @@ int write_begin_cryptcompress(struct file *file, struct page *page,
 		ClearPageUptodate(page);
 		goto err0;
 	}
-	/* Success. All resources (including checkin_mutex)
-	   will be released in ->write_end() */
+	/*
+	 * Success. All resources (including checkin_mutex)
+	 * will be released in ->write_end()
+	 */
+	ctx->locked_page = page;
 	*fsdata = (void *)buf;
+
 	return 0;
  err0:
 	put_cluster_handle(clust);
@@ -3812,15 +3820,18 @@ int write_end_cryptcompress(struct file *file, struct page *page,
 	struct inode *inode;
 	struct cluster_handle *clust;
 	struct cryptcompress_info *info;
+	reiser4_context *ctx;
 
 	assert("edward-1566",
 	       lock_stack_isclean(get_current_lock_stack()));
+	ctx = get_current_context();
 	inode = page->mapping->host;
 	info = cryptcompress_inode_data(inode);
 	clust = (struct cluster_handle *)fsdata;
 	hint = clust->hint;
 
 	unlock_page(page);
+	ctx->locked_page = NULL;
 	set_cluster_pages_dirty(clust, inode);
 	ret = checkin_logical_cluster(clust, inode);
 	if (ret) {
@@ -3831,6 +3842,18 @@ int write_end_cryptcompress(struct file *file, struct page *page,
 	mutex_unlock(&info->checkin_mutex);
 
 	put_cluster_handle(clust);
+
+	if (pos + copied > inode->i_size) {
+		/*
+		 * i_size has been updated in
+		 * checkin_logical_cluster
+		 */
+		ret = reiser4_update_sd(inode);
+		if (unlikely(ret != 0))
+			warning("edward-1603",
+				"Can not update stat-data: %i. FSCK?",
+				ret);
+	}
 	kfree(fsdata);
 	return ret;
 }

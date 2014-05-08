@@ -73,6 +73,10 @@ struct reiser4_context {
 	 * flushed */
 	int nr_captured;
 	int nr_children;	/* number of child contexts */
+	struct page *locked_page; /* page that should be unlocked in
+				   * reiser4_dirty_inode() before taking
+				   * a longterm lock (to not violate
+				   * reiser4 lock ordering) */
 #if REISER4_DEBUG
 	/* debugging information about reiser4 locks held by the current
 	 * thread */

@@ -671,9 +671,11 @@ int reiser4_write_begin_careful(struct file *file,
 		ret = PTR_ERR(ctx);
 		goto err2;
 	}
-	ret = reiser4_grab_space_force(/* one for stat data update */
-					  estimate_update_common(inode),
-					  BA_CAN_COMMIT);
+	ret = reiser4_grab_space_force(/* for update_sd:
+					* one when updating file size and
+					* one when updating mtime/ctime */
+				       2 * estimate_update_common(inode),
+				       BA_CAN_COMMIT);
 	if (ret)
 		goto err1;
 	ret = PROT_PASSIVE(int, write_begin, (file, page, pos, len, fsdata));
@@ -713,9 +715,6 @@ int reiser4_write_end_careful(struct file *file,
 	ret = PROT_PASSIVE(int, write_end, (file, page, pos, copied, fsdata));
 	page_cache_release(page);
 
-	file_update_time(file);
-	/* space for update_sd was reserved in reiser4_write_begin */
-	ret = reiser4_update_sd(inode);
 	/* don't commit transaction under inode semaphore */
 	context_set_commit_async(ctx);
 	reiser4_exit_context(ctx);
