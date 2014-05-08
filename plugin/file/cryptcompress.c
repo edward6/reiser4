@@ -816,6 +816,8 @@ static int find_cluster_item(hint_t * hint,
 		/*
 		 * item has been found in the current node
 		 */
+		dclust_inc_extension_ncount(hint);
+
 		return CBK_COORD_FOUND;
 	}
  not_found:
