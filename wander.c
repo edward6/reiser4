@@ -736,7 +736,7 @@ static int write_jnodes_to_disk_extent(
 			return RETERR(-ENOMEM);
 
 		bio->bi_bdev = super->s_bdev;
-		bio->bi_sector = block * (super->s_blocksize >> 9);
+		bio->bi_iter.bi_sector = block * (super->s_blocksize >> 9);
 		for (nr_used = 0, i = 0; i < nr_blocks; i++) {
 			struct page *pg;
 
@@ -823,7 +823,7 @@ static int write_jnodes_to_disk_extent(
 		}
 		if (nr_used > 0) {
 			assert("nikita-3453",
-			       bio->bi_size == super->s_blocksize * nr_used);
+			       bio->bi_iter.bi_size == super->s_blocksize * nr_used);
 			assert("nikita-3454", bio->bi_vcnt == nr_used);
 
 			/* Check if we are allowed to write at all */

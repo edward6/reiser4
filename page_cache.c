@@ -438,10 +438,10 @@ static struct bio *page_bio(struct page *page, jnode * node, int rw, gfp_t gfp)
 		assert("nikita-2276", !reiser4_blocknr_is_fake(&blocknr));
 
 		bio->bi_bdev = super->s_bdev;
-		/* fill bio->bi_sector before calling bio_add_page(), because
+		/* fill bio->bi_iter.bi_sector before calling bio_add_page(), because
 		 * q->merge_bvec_fn may want to inspect it (see
 		 * drivers/md/linear.c:linear_mergeable_bvec() for example. */
-		bio->bi_sector = blocknr * (blksz >> 9);
+		bio->bi_iter.bi_sector = blocknr * (blksz >> 9);
 
 		if (!bio_add_page(bio, page, blksz, 0)) {
 			warning("nikita-3452",
