@@ -450,6 +450,7 @@ static int znode_check_flushprepped(znode * node)
 {
 	return jnode_check_flushprepped(ZJNODE(node));
 }
+static void update_znode_dkeys(znode * left, znode * right);
 
 /* Flush position functions */
 static void pos_init(flush_pos_t *pos);
@@ -1525,6 +1526,7 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t *pos)
 	int ret = SUBTREE_MOVED;
 	coord_t coord;		/* used to iterate over items */
 	reiser4_key stop_key;
+	reiser4_tree *tree;
 
 	assert("jmacd-2008", !node_is_empty(right));
 	coord_init_first_unit(&coord, right);
@@ -1552,6 +1554,18 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t *pos)
 
 		ON_DEBUG(shift_check(vp, left, coord.node));
 	}
+	/*
+	 * @left and @right nodes participated in the
+	 * implicit shift, determined by the pair of
+	 * functions:
+	 * . squalloc_extent() - append units to the @left
+	 * . squalloc_right_twig_cut() - cut the units from @right
+	 * so update their delimiting keys
+	 */
+	tree = znode_get_tree(left);
+	write_lock_dk(tree);
+	update_znode_dkeys(left, right);
+	write_unlock_dk(tree);
 
 	if (node_is_empty(coord.node))
 		ret = SQUEEZE_SOURCE_EMPTY;
