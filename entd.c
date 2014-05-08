@@ -240,6 +240,7 @@ static void entd_flush(struct super_block *super, struct wbq *rq)
 
 	if (rq->wbc->nr_to_write > 0) {
 		long result;
+		struct bdi_writeback *wb;
 		struct wb_writeback_work work = {
 			.sb		= super,
 			.sync_mode	= WB_SYNC_NONE,
@@ -257,11 +258,15 @@ static void entd_flush(struct super_block *super, struct wbq *rq)
 		 * (via igrab), so that shutdown_super() will wait
 		 * (on reiser4_put_super) for entd completion.
 		 */
+		wb = &rq->mapping->backing_dev_info->wb;
+
+		spin_lock(&wb->list_lock);
 		result = generic_writeback_sb_inodes(super,
-				             &rq->mapping->backing_dev_info->wb,
+				             wb,
 					     rq->wbc,
 					     &work,
 					     true);
+		spin_unlock(&wb->list_lock);
 	}
 	rq->wbc->nr_to_write = ENTD_CAPTURE_APAGE_BURST;
 
