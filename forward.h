@@ -224,7 +224,9 @@ typedef enum {
 	COPI_GO_RIGHT = (1 << 6),
 	/* try to step back into original node if insertion into new node
 	   fails after shifting data there. */
-	COPI_STEP_BACK = (1 << 7)
+	COPI_STEP_BACK = (1 << 7),
+	/* use all possible space in the node */
+	COPI_SWEEP = (1 << 8)
 } cop_insert_flag;
 
 typedef enum {

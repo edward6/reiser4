@@ -703,8 +703,11 @@ static void free_reserved4cluster(struct inode *inode,
 	ch->reserved = 0;
 }
 
-/* The core search procedure of the cryptcompress plugin.
-   If returned value is not cbk_errored, then current znode is locked */
+/*
+ * The core search procedure of the cryptcompress plugin.
+ * If returned value is not cbk_errored, then current position
+ * is locked.
+ */
 static int find_cluster_item(hint_t * hint,
 			     const reiser4_key * key, /* key of the item we are
 							 looking for */
@@ -713,7 +716,6 @@ static int find_cluster_item(hint_t * hint,
 {
 	int result;
 	reiser4_key ikey;
-	int went_right = 0;
 	coord_t *coord = &hint->ext_coord.coord;
 	coord_t orig = *coord;
 
@@ -730,58 +732,110 @@ static int find_cluster_item(hint_t * hint,
 		hint_set_valid(hint);
 	}
 	assert("edward-709", znode_is_any_locked(coord->node));
-
-	/* In-place lookup is going here, it means we just need to
-	   check if next item of the @coord match to the @keyhint) */
-
+	/*
+	 * Hint is valid, so we perform in-place lookup.
+	 * It means we just need to check if the next item in
+	 * the tree (relative to the current position @coord)
+	 * has key @key.
+	 *
+	 * Valid hint means in particular, that node is not
+	 * empty and at least one its item has been processed
+	 */
 	if (equal_to_rdk(coord->node, key)) {
-		result = goto_right_neighbor(coord, &hint->lh);
-		if (result == -E_NO_NEIGHBOR) {
-			assert("edward-1217", 0);
-			return RETERR(-EIO);
-		}
-		if (result)
+		/*
+		 * Look for the item in the right neighbor
+		 */
+		lock_handle lh_right;
+
+		init_lh(&lh_right);
+		result = reiser4_get_right_neighbor(&lh_right, coord->node,
+				    znode_is_wlocked(coord->node) ?
+				    ZNODE_WRITE_LOCK : ZNODE_READ_LOCK,
+				    GN_CAN_USE_UPPER_LEVELS);
+		if (result) {
+			done_lh(&lh_right);
+			reiser4_unset_hint(hint);
+			if (result == -E_NO_NEIGHBOR)
+				return RETERR(-EIO);
 			return result;
-		assert("edward-1218", equal_to_ldk(coord->node, key));
-		went_right = 1;
+		}
+		assert("edward-1218",
+		       equal_to_ldk(lh_right.node, key));
+		result = zload(lh_right.node);
+		if (result) {
+			done_lh(&lh_right);
+			reiser4_unset_hint(hint);
+			return result;
+		}
+		coord_init_first_unit_nocheck(coord, lh_right.node);
+
+		if (!coord_is_existing_item(coord)) {
+			zrelse(lh_right.node);
+			done_lh(&lh_right);
+			goto traverse_tree;
+		}
+		item_key_by_coord(coord, &ikey);
+		zrelse(coord->node);
+		if (unlikely(!keyeq(key, &ikey))) {
+			warning("edward-1608",
+				"Expected item not found. Fsck?");
+			done_lh(&lh_right);
+			goto not_found;
+		}
+		/*
+		 * item has been found in the right neighbor;
+		 * move lock to the right
+		 */
+		done_lh(&hint->lh);
+		move_lh(&hint->lh, &lh_right);
+
+		dclust_inc_extension_ncount(hint);
+
+		return CBK_COORD_FOUND;
 	} else {
+		/*
+		 *  Look for the item in the current node
+		 */
 		coord->item_pos++;
 		coord->unit_pos = 0;
 		coord->between = AT_UNIT;
-	}
-	result = zload(coord->node);
-	if (result)
-		return result;
-	assert("edward-1219", !node_is_empty(coord->node));
 
-	if (!coord_is_existing_item(coord)) {
+		result = zload(coord->node);
+		if (result) {
+			done_lh(&hint->lh);
+			return result;
+		}
+		if (!coord_is_existing_item(coord)) {
+			zrelse(coord->node);
+			goto not_found;
+		}
+		item_key_by_coord(coord, &ikey);
 		zrelse(coord->node);
-		goto not_found;
+		if (!keyeq(key, &ikey))
+			goto not_found;
+		/*
+		 * item has been found in the current node
+		 */
+		return CBK_COORD_FOUND;
 	}
-	item_key_by_coord(coord, &ikey);
-	zrelse(coord->node);
-	if (!keyeq(key, &ikey))
-		goto not_found;
-	/* Ok, item is found, update node counts */
-	if (went_right)
-		dclust_inc_extension_ncount(hint);
-	return CBK_COORD_FOUND;
-
  not_found:
-	assert("edward-1220", coord->item_pos > 0);
-	//coord->item_pos--;
-	/* roll back */
+	/*
+	 * The tree doesn't contain an item with @key;
+	 * roll back the coord
+	 */
 	*coord = orig;
 	ON_DEBUG(coord_update_v(coord));
 	return CBK_COORD_NOTFOUND;
 
  traverse_tree:
-	assert("edward-713", hint->lh.owner == NULL);
-	assert("edward-714", reiser4_schedulable());
 
 	reiser4_unset_hint(hint);
 	dclust_init_extension(hint);
 	coord_init_zero(coord);
+
+	assert("edward-713", hint->lh.owner == NULL);
+	assert("edward-714", reiser4_schedulable());
+
 	result = coord_by_key(current_tree, key, coord, &hint->lh,
 			      lock_mode, bias, LEAF_LEVEL, LEAF_LEVEL,
 			      CBK_UNIQUE | flags, ra_info);

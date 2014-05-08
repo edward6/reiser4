@@ -943,7 +943,7 @@ static int enough_space_for_whole_flow(carry_op * op)
 #define MIN_FLOW_FRACTION 1
 static int enough_space_for_min_flow_fraction(carry_op * op)
 {
-	assert("vs-902", coord_is_after_rightmost(flow_insert_point(op)));
+	//assert("vs-902", coord_is_after_rightmost(flow_insert_point(op)));
 
 	return what_can_fit_into_node(op) >= MIN_FLOW_FRACTION;
 }
@@ -1096,6 +1096,10 @@ make_space_for_flow_insertion(carry_op * op, carry_level * doing,
 		/* whole flow fits into insert point node */
 		return 0;
 	}
+	if ((flags & COPI_SWEEP) &&
+	    enough_space_for_min_flow_fraction(op))
+		/* use the rest of space in the current node */
+		return 0;
 
 	if (!(flags & COPI_DONT_SHIFT_LEFT)
 	    && (make_space_by_shift_left(op, doing, todo) == 0)) {

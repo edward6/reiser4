@@ -932,7 +932,10 @@ insert_cryptcompress_flow(coord_t * coord, lock_handle * lh, flow_t * f,
 	data->length = 0;
 	data->data = NULL;
 
-	op->u.insert_flow.flags = COPI_DONT_SHIFT_LEFT | COPI_DONT_SHIFT_RIGHT;
+	op->u.insert_flow.flags =
+		COPI_SWEEP |
+		COPI_DONT_SHIFT_LEFT |
+		COPI_DONT_SHIFT_RIGHT;
 	op->u.insert_flow.insert_point = coord;
 	op->u.insert_flow.flow = f;
 	op->u.insert_flow.data = data;
