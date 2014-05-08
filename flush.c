@@ -360,7 +360,7 @@
 
    Otherwise, there are two contexts in which we make a decision to relocate:
 
-   1. The REVERSE PARENT-FIRST context: Implemented in reverse_relocate_test().
+   1. The REVERSE PARENT-FIRST context: Implemented in reverse_allocate
    During the initial stages of flush, after scan-right completes, we want to
    ask the question: should we relocate this leaf node and thus dirty the parent
    node. Then if the node is a leftmost child its parent is its own parent-first
@@ -421,19 +421,13 @@ static int squeeze_right_non_twig(znode * left, znode * right);
 static int shift_one_internal_unit(znode * left, znode * right);
 
 /* Flush reverse parent-first relocation routines. */
-static int reverse_relocate_if_close_enough(const reiser4_block_nr * pblk,
-					    const reiser4_block_nr * nblk);
-static int reverse_relocate_test(jnode * node, const coord_t *parent_coord,
-				 flush_pos_t *pos);
-static int reverse_relocate_check_dirty_parent(jnode * node,
-					       const coord_t *parent_coord,
-					       flush_pos_t *pos);
+static int reverse_allocate_parent(jnode * node,
+				   const coord_t *parent_coord,
+				   flush_pos_t *pos);
 
 /* Flush allocate write-queueing functions: */
 static int allocate_znode(znode * node, const coord_t *parent_coord,
 			  flush_pos_t *pos);
-static int allocate_znode_update(znode * node, const coord_t *parent_coord,
-				 flush_pos_t *pos);
 static int lock_parent_and_allocate_znode(znode *, flush_pos_t *);
 
 /* Flush helper functions: */
@@ -471,8 +465,7 @@ assert("nikita-3435",							\
 /* This flush_cnt variable is used to track the number of concurrent flush
    operations, useful for debugging. It is initialized in txnmgr.c out of
    laziness (because flush has no static initializer function...) */
-ON_DEBUG(atomic_t flush_cnt;
-    )
+ON_DEBUG(atomic_t flush_cnt;)
 
 /* check fs backing device for write congestion */
 static int check_write_congestion(void)
@@ -596,12 +589,18 @@ done:
 	return ret;
 }
 
+static txmod_plugin *get_txmod_plugin(void)
+{
+	struct super_block *sb = reiser4_get_current_sb();
+	return txmod_plugin_by_id(get_super_private(sb)->txmod);
+}
+
 /* TODO LIST (no particular order): */
 /* I have labelled most of the legitimate FIXME comments in this file with
    letters to indicate which issue they relate to. There are a few miscellaneous
    FIXMEs with specific names mentioned instead that need to be
    inspected/resolved. */
-/* B. There is an issue described in reverse_relocate_test having to do with an
+/* B. There is an issue described in reverse_allocate having to do with an
    imprecise is_preceder? check having to do with partially-dirty extents. The
    code that sets preceder hints and computes the preceder is basically
    untested. Careful testing needs to be done that preceder calculations are
@@ -791,7 +790,7 @@ jnode_flush(jnode * node, long nr_to_write, long *nr_written,
 	   info is set.
 
 	   This seems lazy, but it makes the initial calls to
-	   reverse_relocate_test (which ask "is it the pos->point the leftmost
+	   reverse_allocate (which ask "is it the pos->point the leftmost
 	   child of its parent") much easier because we know the first child
 	   already.  Nothing is broken by this, but the reasoning is subtle.
 	   Holding an extra reference on a jnode during flush can cause us to
@@ -1107,108 +1106,30 @@ flush_current_atom(int flags, long nr_to_write, long *nr_submitted,
 	return ret;
 }
 
-/* REVERSE PARENT-FIRST RELOCATION POLICIES */
-
-/* This implements the is-it-close-enough-to-its-preceder? test for relocation
-   in the reverse parent-first relocate context. Here all we know is the
-   preceder and the block number. Since we are going in reverse, the preceder
-   may still be relocated as well, so we can't ask the block allocator "is there
-   a closer block available to relocate?" here. In the _forward_ parent-first
-   relocate context (not here) we actually call the block allocator to try and
-   find a closer location. */
-static int
-reverse_relocate_if_close_enough(const reiser4_block_nr * pblk,
-				 const reiser4_block_nr * nblk)
-{
-	reiser4_block_nr dist;
-
-	assert("jmacd-7710", *pblk != 0 && *nblk != 0);
-	assert("jmacd-7711", !reiser4_blocknr_is_fake(pblk));
-	assert("jmacd-7712", !reiser4_blocknr_is_fake(nblk));
-
-	/* Distance is the absolute value. */
-	dist = (*pblk > *nblk) ? (*pblk - *nblk) : (*nblk - *pblk);
-
-	/* If the block is less than FLUSH_RELOCATE_DISTANCE blocks away from
-	   its preceder block, do not relocate. */
-	if (dist <= get_current_super_private()->flush.relocate_distance)
-		return 0;
-
-	return 1;
-}
-
-/* This function is a predicate that tests for relocation. Always called in the
-   reverse-parent-first context, when we are asking whether the current node
-   should be relocated in order to expand the flush by dirtying the parent level
-   (and thus proceeding to flush that level). When traversing in the forward
-   parent-first direction (not here), relocation decisions are handled in two
-   places: allocate_znode() and extent_needs_allocation(). */
-static int
-reverse_relocate_test(jnode * node, const coord_t *parent_coord,
-		      flush_pos_t *pos)
-{
-	reiser4_block_nr pblk = 0;
-	reiser4_block_nr nblk = 0;
-
-	assert("jmacd-8989", !jnode_is_root(node));
-
-	/*
-	 * This function is called only from the
-	 * reverse_relocate_check_dirty_parent() and only if the parent
-	 * node is clean. This implies that the parent has the real (i.e., not
-	 * fake) block number, and, so does the child, because otherwise the
-	 * parent would be dirty.
-	 */
-
-	/* New nodes are treated as if they are being relocated. */
-	if (JF_ISSET(node, JNODE_CREATED) ||
-	    (pos->leaf_relocate && jnode_get_level(node) == LEAF_LEVEL))
-		return 1;
-
-	/* Find the preceder. FIXME(B): When the child is an unformatted,
-	   previously existing node, the coord may be leftmost even though the
-	   child is not the parent-first preceder of the parent. If the first
-	   dirty node appears somewhere in the middle of the first extent unit,
-	   this preceder calculation is wrong.
-	   Needs more logic in here. */
-	if (coord_is_leftmost_unit(parent_coord)) {
-		pblk = *znode_get_block(parent_coord->node);
-	} else {
-		pblk = pos->preceder.blk;
-	}
-	check_preceder(pblk);
-
-	/* If (pblk == 0) then the preceder isn't allocated or isn't known:
-	   relocate. */
-	if (pblk == 0)
-		return 1;
-
-	nblk = *jnode_get_block(node);
-
-	if (reiser4_blocknr_is_fake(&nblk))
-		/* child is unallocated, mark parent dirty */
-		return 1;
-
-	return reverse_relocate_if_close_enough(&pblk, &nblk);
-}
-
-/* This function calls reverse_relocate_test to make a reverse-parent-first
-   relocation decision and then, if yes, it marks the parent dirty. */
-static int
-reverse_relocate_check_dirty_parent(jnode * node, const coord_t *parent_coord,
-				    flush_pos_t *pos)
+/**
+ * This function calls txmod->reverse_alloc_formatted() to make a
+ * reverse-parent-first relocation decision and then, if yes, it marks
+ * the parent dirty.
+ */
+static int reverse_allocate_parent(jnode * node,
+				   const coord_t *parent_coord,
+				   flush_pos_t *pos)
 {
 	int ret;
 
 	if (!JF_ISSET(ZJNODE(parent_coord->node), JNODE_DIRTY)) {
+		txmod_plugin *txmod_plug = get_txmod_plugin();
 
-		ret = reverse_relocate_test(node, parent_coord, pos);
+		if (!txmod_plug->reverse_alloc_formatted)
+			return 0;
+		ret = txmod_plug->reverse_alloc_formatted(node,
+							  parent_coord, pos);
 		if (ret < 0)
 			return ret;
-
-		/* FIXME-ZAM
-		  if parent is already relocated - we do not want to grab space,
-		  right? */
+		/*
+		 * FIXME-ZAM: if parent is already relocated -
+		 * we do not want to grab space, right?
+		 */
 		if (ret == 1) {
 			int grabbed;
 
@@ -1224,7 +1145,6 @@ reverse_relocate_check_dirty_parent(jnode * node, const coord_t *parent_coord,
 			grabbed2free_mark(grabbed);
 		}
 	}
-
 	return 0;
 }
 
@@ -1277,9 +1197,7 @@ static int alloc_pos_and_ancestors(flush_pos_t *pos)
 		/* The parent may not be dirty, in which case we should decide
 		   whether to relocate the child now. If decision is made to
 		   relocate the child, the parent is marked dirty. */
-		ret =
-		    reverse_relocate_check_dirty_parent(pos->child, &pos->coord,
-							pos);
+		ret = reverse_allocate_parent(pos->child, &pos->coord, pos);
 		if (ret)
 			goto exit;
 
@@ -1310,11 +1228,9 @@ static int alloc_pos_and_ancestors(flush_pos_t *pos)
 			if (ret)
 				goto exit;
 
-			ret =
-			    reverse_relocate_check_dirty_parent(ZJNODE
-								(pos->lock.
-								 node), &pcoord,
-								pos);
+			ret = reverse_allocate_parent(ZJNODE(pos->lock.node),
+						      &pcoord,
+						      pos);
 			if (ret)
 				goto exit;
 
@@ -1376,9 +1292,8 @@ static int alloc_one_ancestor(const coord_t *coord, flush_pos_t *pos)
 			goto exit;
 		}
 
-		ret =
-		    reverse_relocate_check_dirty_parent(ZJNODE(coord->node),
-							&acoord, pos);
+		ret = reverse_allocate_parent(ZJNODE(coord->node),
+					      &acoord, pos);
 		if (ret != 0)
 			goto exit;
 
@@ -1430,7 +1345,7 @@ static int set_preceder(const coord_t *coord_in, flush_pos_t *pos)
 	init_load_count(&left_load);
 
 	/* FIXME(B): Same FIXME as in "Find the preceder" in
-	   reverse_relocate_test. coord_is_leftmost_unit is not the right test
+	   reverse_allocate. coord_is_leftmost_unit is not the right test
 	   if the unformatted child is in the middle of the first extent unit.*/
 	if (!coord_is_leftmost_unit(&coord)) {
 		coord_prev_unit(&coord);
@@ -1527,6 +1442,7 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t *pos)
 	coord_t coord;		/* used to iterate over items */
 	reiser4_key stop_key;
 	reiser4_tree *tree;
+	txmod_plugin *txmod_plug = get_txmod_plugin();
 
 	assert("jmacd-2008", !node_is_empty(right));
 	coord_init_first_unit(&coord, right);
@@ -1540,7 +1456,9 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t *pos)
 
 		/* stop_key is used to find what was copied and what to cut */
 		stop_key = *reiser4_min_key();
-		ret = squalloc_extent(left, &coord, pos, &stop_key);
+		ret = txmod_plug->squeeze_alloc_unformatted(left,
+							    &coord, pos,
+							    &stop_key);
 		if (ret != SQUEEZE_CONTINUE) {
 			ON_DEBUG(kfree(vp));
 			break;
@@ -2132,6 +2050,7 @@ static int squalloc_extent_should_stop(flush_pos_t *pos)
 static int handle_pos_on_twig(flush_pos_t *pos)
 {
 	int ret;
+	txmod_plugin *txmod_plug = get_txmod_plugin();
 
 	assert("zam-844", pos->state == POS_ON_EPOINT);
 	assert("zam-843", item_is_extent(&pos->coord));
@@ -2151,7 +2070,7 @@ static int handle_pos_on_twig(flush_pos_t *pos)
 
 	while (pos_valid(pos) && coord_is_existing_unit(&pos->coord)
 	       && item_is_extent(&pos->coord)) {
-		ret = reiser4_alloc_extent(pos);
+		ret = txmod_plug->forward_alloc_unformatted(pos);
 		if (ret)
 			break;
 		coord_next_unit(&pos->coord);
@@ -2255,9 +2174,7 @@ became_dirty:
 
 		/* check clean twig for possible relocation */
 		if (!znode_check_flushprepped(right_lock.node)) {
-			ret =
-			    reverse_relocate_check_dirty_parent(child,
-								&at_right, pos);
+			ret = reverse_allocate_parent(child, &at_right, pos);
 			if (ret)
 				goto out;
 			if (JF_ISSET(ZJNODE(right_lock.node), JNODE_DIRTY))
@@ -2534,7 +2451,8 @@ static int squeeze_right_non_twig(znode * left, znode * right)
 		/* update delimiting keys of nodes which participated in
 		   shift. FIXME: it would be better to have this in shift
 		   node's operation. But it can not be done there. Nobody
-		   remembers why, though */
+		   remembers why, though
+		*/
 		tree = znode_get_tree(left);
 		write_lock_dk(tree);
 		update_znode_dkeys(left, right);
@@ -2675,250 +2593,20 @@ static int shift_one_internal_unit(znode * left, znode * right)
 	return moved ? SUBTREE_MOVED : SQUEEZE_TARGET_FULL;
 }
 
-/* Make the final relocate/wander decision during forward parent-first squalloc
-   for a znode. For unformatted nodes this is done in
-   plugin/item/extent.c:extent_needs_allocation(). */
-static int
-allocate_znode_loaded(znode * node,
-		      const coord_t *parent_coord, flush_pos_t *pos)
+static int allocate_znode(znode * node,
+			  const coord_t *parent_coord, flush_pos_t *pos)
 {
-	int ret;
-	reiser4_super_info_data *sbinfo = get_current_super_private();
-	/* FIXME(D): We have the node write-locked and should have checked for !
-	   allocated() somewhere before reaching this point, but there can be a
-	   race, so this assertion is bogus. */
-	assert("jmacd-7987", !jnode_check_flushprepped(ZJNODE(node)));
-	assert("jmacd-7988", znode_is_write_locked(node));
-	assert("jmacd-7989", coord_is_invalid(parent_coord)
-	       || znode_is_write_locked(parent_coord->node));
-
-	if (ZF_ISSET(node, JNODE_REPACK) || ZF_ISSET(node, JNODE_CREATED) ||
-	    znode_is_root(node) ||
-	    /* We have enough nodes to relocate no matter what. */
-	    (pos->leaf_relocate != 0 && znode_get_level(node) == LEAF_LEVEL)) {
-		/* No need to decide with new nodes, they are treated the same
-		   as relocate. If the root node is dirty, relocate. */
-		if (pos->preceder.blk == 0) {
-			/* preceder is unknown and we have decided to relocate
-			   node -- using of default value for search start is
-			   better than search from block #0. */
-			get_blocknr_hint_default(&pos->preceder.blk);
-			check_preceder(pos->preceder.blk);
-		}
-
-		goto best_reloc;
-
-	} else if (pos->preceder.blk == 0) {
-		/* If we don't know the preceder, leave it where it is. */
-		jnode_make_wander(ZJNODE(node));
-	} else {
-		/* Make a decision based on block distance. */
-		reiser4_block_nr dist;
-		reiser4_block_nr nblk = *znode_get_block(node);
-
-		assert("jmacd-6172", !reiser4_blocknr_is_fake(&nblk));
-		assert("jmacd-6173", !reiser4_blocknr_is_fake(&pos->preceder.blk));
-		assert("jmacd-6174", pos->preceder.blk != 0);
-
-		if (pos->preceder.blk == nblk - 1) {
-			/* Ideal. */
-			jnode_make_wander(ZJNODE(node));
-		} else {
-
-			dist =
-			    (nblk <
-			     pos->preceder.blk) ? (pos->preceder.blk -
-						   nblk) : (nblk -
-							    pos->preceder.blk);
-
-			/* See if we can find a closer block
-			   (forward direction only). */
-			pos->preceder.max_dist =
-			    min((reiser4_block_nr) sbinfo->flush.
-				relocate_distance, dist);
-			pos->preceder.level = znode_get_level(node);
-
-			ret = allocate_znode_update(node, parent_coord, pos);
-
-			pos->preceder.max_dist = 0;
-
-			if (ret && (ret != -ENOSPC))
-				return ret;
-
-			if (ret == 0) {
-				/* Got a better allocation. */
-				znode_make_reloc(node, pos->fq);
-			} else if (dist < sbinfo->flush.relocate_distance) {
-				/* The present allocation is good enough. */
-				jnode_make_wander(ZJNODE(node));
-			} else {
-				/* Otherwise, try to relocate to the best
-				   position. */
-best_reloc:
-				ret =
-				    allocate_znode_update(node, parent_coord,
-							  pos);
-				if (ret != 0)
-					return ret;
-
-				/* set JNODE_RELOC bit _after_ node gets
-				   allocated */
-				znode_make_reloc(node, pos->fq);
-			}
-		}
-	}
-
-	/* This is the new preceder. */
-	pos->preceder.blk = *znode_get_block(node);
-	check_preceder(pos->preceder.blk);
-	pos->alloc_cnt += 1;
-
-	assert("jmacd-4277", !reiser4_blocknr_is_fake(&pos->preceder.blk));
-
-	return 0;
-}
-
-static int
-allocate_znode(znode * node, const coord_t *parent_coord, flush_pos_t *pos)
-{
+	txmod_plugin *plug = get_txmod_plugin();
 	/*
 	 * perform znode allocation with znode pinned in memory to avoid races
 	 * with asynchronous emergency flush (which plays with
 	 * JNODE_FLUSH_RESERVED bit).
 	 */
-	return WITH_DATA(node, allocate_znode_loaded(node, parent_coord, pos));
+	return WITH_DATA(node, plug->forward_alloc_formatted(node,
+							     parent_coord,
+							     pos));
 }
 
-/* A subroutine of allocate_znode, this is called first to see if there is a
-   close position to relocate to. It may return ENOSPC if there is no close
-   position. If there is no close position it may not relocate. This takes care
-   of updating the parent node with the relocated block address. */
-static int
-allocate_znode_update(znode * node, const coord_t *parent_coord,
-		      flush_pos_t *pos)
-{
-	int ret;
-	reiser4_block_nr blk;
-	lock_handle uber_lock;
-	int flush_reserved_used = 0;
-	int grabbed;
-	reiser4_context *ctx;
-	reiser4_super_info_data *sbinfo;
-
-	init_lh(&uber_lock);
-
-	ctx = get_current_context();
-	sbinfo = get_super_private(ctx->super);
-
-	grabbed = ctx->grabbed_blocks;
-
-	/* discard e-flush allocation */
-	ret = zload(node);
-	if (ret)
-		return ret;
-
-	if (ZF_ISSET(node, JNODE_CREATED)) {
-		assert("zam-816", reiser4_blocknr_is_fake(znode_get_block(node)));
-		pos->preceder.block_stage = BLOCK_UNALLOCATED;
-	} else {
-		pos->preceder.block_stage = BLOCK_GRABBED;
-
-		/* The disk space for relocating the @node is already reserved
-		 * in "flush reserved" counter if @node is leaf, otherwise we
-		 * grab space using BA_RESERVED (means grab space from whole
-		 * disk not from only 95%). */
-		if (znode_get_level(node) == LEAF_LEVEL) {
-			/*
-			 * earlier (during do_jnode_make_dirty()) we decided
-			 * that @node can possibly go into overwrite set and
-			 * reserved block for its wandering location.
-			 */
-			txn_atom *atom = get_current_atom_locked();
-			assert("nikita-3449",
-			       ZF_ISSET(node, JNODE_FLUSH_RESERVED));
-			flush_reserved2grabbed(atom, (__u64) 1);
-			spin_unlock_atom(atom);
-			/*
-			 * we are trying to move node into relocate
-			 * set. Allocation of relocated position "uses"
-			 * reserved block.
-			 */
-			ZF_CLR(node, JNODE_FLUSH_RESERVED);
-			flush_reserved_used = 1;
-		} else {
-			ret = reiser4_grab_space_force((__u64) 1, BA_RESERVED);
-			if (ret != 0)
-				goto exit;
-		}
-	}
-
-	/* We may do not use 5% of reserved disk space here and flush will not
-	   pack tightly. */
-	ret = reiser4_alloc_block(&pos->preceder, &blk,
-				  BA_FORMATTED | BA_PERMANENT);
-	if (ret)
-		goto exit;
-
-	if (!ZF_ISSET(node, JNODE_CREATED) &&
-	    (ret =
-	     reiser4_dealloc_block(znode_get_block(node), 0,
-				   BA_DEFER | BA_FORMATTED)))
-		goto exit;
-
-	if (likely(!znode_is_root(node))) {
-		item_plugin *iplug;
-
-		iplug = item_plugin_by_coord(parent_coord);
-		assert("nikita-2954", iplug->f.update != NULL);
-		iplug->f.update(parent_coord, &blk);
-
-		znode_make_dirty(parent_coord->node);
-
-	} else {
-		reiser4_tree *tree = znode_get_tree(node);
-		znode *uber;
-
-		/* We take a longterm lock on the fake node in order to change
-		   the root block number.  This may cause atom fusion. */
-		ret = get_uber_znode(tree, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI,
-				     &uber_lock);
-		/* The fake node cannot be deleted, and we must have priority
-		   here, and may not be confused with ENOSPC. */
-		assert("jmacd-74412",
-		       ret != -EINVAL && ret != -E_DEADLOCK && ret != -ENOSPC);
-
-		if (ret)
-			goto exit;
-
-		uber = uber_lock.node;
-
-		write_lock_tree(tree);
-		tree->root_block = blk;
-		write_unlock_tree(tree);
-
-		znode_make_dirty(uber);
-	}
-
-	ret = znode_rehash(node, &blk);
-exit:
-	if (ret) {
-		/* Get flush reserved block back if something fails, because
-		 * callers assume that on error block wasn't relocated and its
-		 * flush reserved block wasn't used. */
-		if (flush_reserved_used) {
-			/*
-			 * ok, we failed to move node into relocate
-			 * set. Restore status quo.
-			 */
-			grabbed2flush_reserved((__u64) 1);
-			ZF_SET(node, JNODE_FLUSH_RESERVED);
-		}
-	}
-	zrelse(node);
-	done_lh(&uber_lock);
-	grabbed2free_mark(grabbed);
-	return ret;
-}
 
 /* JNODE INTERFACE */
 

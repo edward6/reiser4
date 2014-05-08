@@ -52,6 +52,7 @@ reiser4-y := \
 		   plugin/node/node.o \
 		   plugin/object.o \
 		   plugin/cluster.o \
+		   plugin/txmod.o \
 		   plugin/inode_ops.o \
 		   plugin/inode_ops_rename.o \
 		   plugin/file_ops.o \

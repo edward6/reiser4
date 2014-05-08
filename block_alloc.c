@@ -723,6 +723,29 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 	return ret;
 }
 
+/**
+ * ask block allocator for some unformatted blocks
+ */
+void allocate_blocks_unformatted(reiser4_blocknr_hint *preceder,
+				 reiser4_block_nr wanted_count,
+				 reiser4_block_nr *first_allocated,
+				 reiser4_block_nr *allocated,
+				 block_stage_t block_stage)
+{
+	*allocated = wanted_count;
+	preceder->max_dist = 0;	/* scan whole disk, if needed */
+
+	/* that number of blocks (wanted_count) is either in UNALLOCATED or in GRABBED */
+	preceder->block_stage = block_stage;
+
+	/* FIXME: we do not handle errors here now */
+	check_me("vs-420",
+		 reiser4_alloc_blocks(preceder, first_allocated, allocated,
+				      BA_PERMANENT) == 0);
+	/* update flush_pos's preceder to last allocated block number */
+	preceder->blk = *first_allocated + *allocated - 1;
+}
+
 /* used -> fake_allocated -> grabbed -> free */
 
 /* adjust sb block counters when @count unallocated blocks get unmapped from

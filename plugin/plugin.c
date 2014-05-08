@@ -546,6 +546,15 @@ struct reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.builtin = cluster_plugins,
 		.plugins_list = {NULL, NULL},
 		.size = sizeof(cluster_plugin)
+	},
+	[REISER4_TXMOD_PLUGIN_TYPE] = {
+		.type_id = REISER4_TXMOD_PLUGIN_TYPE,
+		.label = "txmod",
+		.desc = "Defines transaction model",
+		.builtin_num = sizeof_array(txmod_plugins),
+		.builtin = txmod_plugins,
+		.plugins_list = {NULL, NULL},
+		.size = sizeof(txmod_plugin)
 	}
 };
 

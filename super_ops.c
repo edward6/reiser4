@@ -565,6 +565,8 @@ static int fill_super(struct super_block *super, void *data, int silent)
 					   sbinfo->debugfs_root,
 					   &sbinfo->tmgr.id_count);
 	}
+	printk("reiser4: %s: using %s.\n", super->s_id,
+	       txmod_plugin_by_id(sbinfo->txmod)->h.desc);
 	return 0;
 
  failed_update_format_version:

@@ -496,6 +496,48 @@ typedef struct formatting_plugin {
 	int (*have_tail) (const struct inode *inode, loff_t size);
 } formatting_plugin;
 
+/**
+ * Plugins of this interface implement different transaction models.
+ * Transaction model is a high-level block allocator, which assigns block
+ * numbers to dirty nodes, and, thereby, decides, how individual dirty
+ * nodes of an atom will be committed.
+  */
+typedef struct txmod_plugin {
+	/* generic fields */
+	plugin_header h;
+	/**
+	 * allocate blocks in the FORWARD PARENT-FIRST context
+	 * for formatted nodes
+	 */
+	int (*forward_alloc_formatted)(znode *node, const coord_t *parent_coord,
+			       flush_pos_t *pos); //was allocate_znode_loaded
+	/**
+	 * allocate blocks in the REVERSE PARENT-FIRST context
+	 * for formatted nodes
+	 */
+	int (*reverse_alloc_formatted)(jnode * node,
+				       const coord_t *parent_coord,
+				       flush_pos_t *pos); // was reverse_relocate_test
+	/**
+	 * allocate blocks in the FORWARD PARENT-FIRST context
+	 * for unformatted nodes.
+	 *
+	 * This is called by handle_pos_on_twig to proceed extent unit
+	 * flush_pos->coord is set to. It is to prepare for flushing
+	 * sequence of not flushprepped nodes (slum). It supposes that
+	 * slum starts at flush_pos->pos_in_unit position within the extent
+	 */
+	int (*forward_alloc_unformatted)(flush_pos_t *flush_pos); //was reiser4_alloc_extent
+	/**
+	 * allocale blocks for unformatted nodes in squeeze_right_twig().
+ 	 * @coord is set to extent unit
+	 */
+	squeeze_result (*squeeze_alloc_unformatted)(znode *left,
+				const coord_t *coord,
+				flush_pos_t *flush_pos,
+				reiser4_key *stop_key); // was_squalloc_extent
+} txmod_plugin;
+
 typedef struct hash_plugin {
 	/* generic fields */
 	plugin_header h;
@@ -689,6 +731,8 @@ union reiser4_plugin {
 	compression_mode_plugin compression_mode;
 	/* cluster plugin, used by object plugin */
 	cluster_plugin clust;
+	/* transaction mode plugin */
+	txmod_plugin txmod;
 	/* place-holder for new plugin types that can be registered
 	   dynamically, and used by other dynamically loaded plugins.  */
 	void *generic;
@@ -774,14 +818,22 @@ typedef enum {
 	LAST_CLUSTER_ID
 } reiser4_cluster_id;
 
-/* builtin tail-plugins */
-
+/* builtin tail packing policies */
 typedef enum {
 	NEVER_TAILS_FORMATTING_ID,
 	ALWAYS_TAILS_FORMATTING_ID,
 	SMALL_FILE_FORMATTING_ID,
 	LAST_TAIL_FORMATTING_ID
 } reiser4_formatting_id;
+
+/* builtin transaction models */
+typedef enum {
+	HYBRID_TXMOD_ID,
+	JOURNAL_TXMOD_ID,
+	WA_TXMOD_ID,
+	LAST_TXMOD_ID
+} reiser4_txmod_id;
+
 
 /* data type used to pack parameters that we pass to vfs object creation
    function create_object() */
@@ -869,6 +921,7 @@ PLUGIN_BY_ID(jnode_plugin, REISER4_JNODE_PLUGIN_TYPE, jnode);
 PLUGIN_BY_ID(compression_mode_plugin, REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
 	     compression_mode);
 PLUGIN_BY_ID(cluster_plugin, REISER4_CLUSTER_PLUGIN_TYPE, clust);
+PLUGIN_BY_ID(txmod_plugin, REISER4_TXMOD_PLUGIN_TYPE, txmod);
 
 extern int save_plugin_id(reiser4_plugin * plugin, d16 * area);
 
@@ -896,6 +949,8 @@ extern sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION];
 extern hash_plugin hash_plugins[LAST_HASH_ID];
 /* defined in fs/reiser4/plugin/fibration.c */
 extern fibration_plugin fibration_plugins[LAST_FIBRATION_ID];
+/* defined in fs/reiser4/plugin/txmod.c */
+extern txmod_plugin txmod_plugins[LAST_TXMOD_ID];
 /* defined in fs/reiser4/plugin/crypt.c */
 extern cipher_plugin cipher_plugins[LAST_CIPHER_ID];
 /* defined in fs/reiser4/plugin/digest.c */

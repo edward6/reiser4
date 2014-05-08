@@ -82,6 +82,12 @@ typedef enum {
 	 * onerror=remount-ro
 	 */
 	OPT_ONEOF,
+
+	/*
+	 * option take one of txmod plugin labels.
+	 * Example is "txmod=journal" or "txmod=wa"
+	 */
+	OPT_TXMOD,
 } opt_type_t;
 
 #if 0
@@ -90,6 +96,8 @@ struct opt_bitmask_bit {
 	int bit_nr;
 };
 #endif
+
+#define MAX_ONEOF_LIST 10
 
 /* description of option parseable by parse_option() */
 struct opt_desc {
@@ -120,8 +128,11 @@ struct opt_desc {
 		} f;
 		struct {
 			int *result;
-			const char *list[10];
+			const char *list[MAX_ONEOF_LIST];
 		} oneof;
+		struct {
+			reiser4_txmod_id *result;
+		} txmod;
 		struct {
 			void *addr;
 			int nr_bits;
@@ -201,6 +212,30 @@ static int parse_option(char *opt_string, struct opt_desc *opt)
 					result = 0;
 					err_msg = NULL;
 					*opt->u.oneof.result = i;
+					break;
+				}
+				i++;
+			}
+			break;
+		}
+		break;
+	case OPT_TXMOD:
+		{
+			reiser4_txmod_id i = 0;
+
+			if (val_start == NULL) {
+				err_msg = "Value is missing";
+				result = RETERR(-EINVAL);
+				break;
+			}
+			err_msg = "Wrong option value";
+			result = RETERR(-EINVAL);
+			while (i < LAST_TXMOD_ID) {
+				if (!strcmp(txmod_plugins[i].h.label,
+					    val_start)) {
+					result = 0;
+					err_msg = NULL;
+					*opt->u.txmod.result = i;
 					break;
 				}
 				i++;
@@ -497,6 +532,22 @@ int reiser4_init_super_data(struct super_block *super, char *opt_string)
 					"panic", "remount-ro", NULL
 				},
 			}
+		}
+	}
+	);
+
+	/*
+	 * What trancaction model (journal, cow, etc)
+	 * is used to commit transactions
+	 */
+	PUSH_OPT(p, opts,
+	{
+		.name = "txmod",
+		.type = OPT_TXMOD,
+		.u = {
+			.txmod = {
+				 .result = &sbinfo->txmod
+			 }
 		}
 	}
 	);

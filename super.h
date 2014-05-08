@@ -131,6 +131,9 @@ struct reiser4_super_info_data {
 	/* space manager plugin */
 	reiser4_space_allocator space_allocator;
 
+	/* transaction model */
+	reiser4_txmod_id txmod;
+
 	/* reiser4 internal tree */
 	reiser4_tree tree;
 

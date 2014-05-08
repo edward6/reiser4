@@ -28,6 +28,7 @@ typedef enum {
 	REISER4_COMPRESSION_PLUGIN_TYPE,      /* compression methods */
 	REISER4_COMPRESSION_MODE_PLUGIN_TYPE, /* dispatching policies */
 	REISER4_CLUSTER_PLUGIN_TYPE,          /* manage logical clusters */
+	REISER4_TXMOD_PLUGIN_TYPE,            /* transaction models */
 	REISER4_PLUGIN_TYPES
 } reiser4_plugin_type;
 
