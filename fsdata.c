@@ -704,7 +704,6 @@ static reiser4_file_fsdata *create_fsdata(struct file *file)
 				  reiser4_ctx_gfp_mask_get());
 	if (fsdata != NULL) {
 		memset(fsdata, 0, sizeof *fsdata);
-		fsdata->ra1.max_window_size = VM_MAX_READAHEAD * 1024;
 		fsdata->back = file;
 		INIT_LIST_HEAD(&fsdata->dir.linkage);
 	}

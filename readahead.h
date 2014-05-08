@@ -26,16 +26,6 @@ typedef struct {
 void formatted_readahead(znode * , ra_info_t *);
 void reiser4_init_ra_info(ra_info_t *rai);
 
-struct reiser4_file_ra_state {
-	loff_t start;		/* Current window */
-	loff_t size;
-	loff_t next_size;	/* Next window size */
-	loff_t ahead_start;	/* Ahead window */
-	loff_t ahead_size;
-	loff_t max_window_size;	/* Maximum readahead window */
-	loff_t slow_start;	/* enlarging r/a size algorithm. */
-};
-
 extern void reiser4_readdir_readahead_init(struct inode *dir, tap_t *tap);
 
 /* __READAHEAD_H__ */

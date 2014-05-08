@@ -117,8 +117,6 @@ typedef struct reiser4_file_fsdata {
 	struct {
 		hint_t hint;
 	} reg;
-	struct reiser4_file_ra_state ra1;
-
 } reiser4_file_fsdata;
 
 extern int reiser4_init_file_fsdata(void);
