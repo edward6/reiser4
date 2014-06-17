@@ -485,6 +485,25 @@ extern int blocknr_set_iterator(txn_atom * atom, struct list_head * bset,
 				blocknr_set_actor_f actor, void *data,
 				int delete);
 
+/* This is the block list interface (see blocknrlist.c) */
+extern void blocknr_list_init(struct list_head *blist);
+extern void blocknr_list_destroy(struct list_head *blist);
+extern void blocknr_list_merge(struct list_head *from, struct list_head *to);
+extern void blocknr_list_sort_and_join(struct list_head *blist);
+/**
+ * The @atom should be locked.
+ */
+extern int blocknr_list_add_extent(txn_atom *atom,
+                                   struct list_head *blist,
+                                   blocknr_list_entry **new_entry,
+                                   const reiser4_block_nr *start,
+                                   const reiser4_block_nr *len);
+extern int blocknr_list_iterator(txn_atom *atom,
+                                 struct list_head *blist,
+                                 blocknr_set_actor_f actor,
+                                 void *data,
+                                 int delete);
+
 /* flush code takes care about how to fuse flush queues */
 extern void flush_init_atom(txn_atom * atom);
 extern void flush_fuse_queues(txn_atom * large, txn_atom * small);
