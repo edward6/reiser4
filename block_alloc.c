@@ -1150,7 +1150,7 @@ void reiser4_post_write_back_hook(void)
 {
 	assert("zam-504", get_current_super_private() != NULL);
 
-	sa_post_commit_hook();
+	sa_post_write_back_hook();
 }
 
 /*
