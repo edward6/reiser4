@@ -9,9 +9,12 @@
 #include "dformat.h"
 #include "txnmgr.h"
 #include "context.h"
+#include "super.h"
 
 #include <linux/slab.h>
 #include <linux/list_sort.h>
+
+static struct kmem_cache *blocknr_list_slab = NULL;
 
 /**
  * Represents an extent range [@start; @end).
@@ -36,8 +39,8 @@ static blocknr_list_entry *blocknr_list_entry_alloc(void)
 {
 	blocknr_list_entry *entry;
 
-	entry = (blocknr_list_entry *)kmalloc(sizeof(blocknr_list_entry),
-	                                      reiser4_ctx_gfp_mask_get());
+	entry = (blocknr_list_entry *)kmem_cache_alloc(blocknr_list_slab,
+	                                               reiser4_ctx_gfp_mask_get());
 	if (entry == NULL) {
 		return NULL;
 	}
@@ -51,7 +54,7 @@ static void blocknr_list_entry_free(blocknr_list_entry *entry)
 {
 	assert("intelfx-12", entry != NULL);
 
-	kfree(entry);
+	kmem_cache_free(blocknr_list_slab, entry);
 }
 
 /**
@@ -140,6 +143,28 @@ static int blocknr_list_entry_compare(void* priv UNUSED_ARG,
 	}
 
 	return 0;
+}
+
+int blocknr_list_init_static(void)
+{
+	assert("intelfx-54", blocknr_list_slab == NULL);
+
+	blocknr_list_slab = kmem_cache_create("blocknr_list_entry",
+	                                      sizeof(blocknr_list_entry),
+	                                      0,
+	                                      SLAB_HWCACHE_ALIGN |
+	                                      SLAB_RECLAIM_ACCOUNT,
+	                                      NULL);
+	if (blocknr_list_slab == NULL) {
+		return RETERR(-ENOMEM);
+	}
+
+	return 0;
+}
+
+void blocknr_list_done_static(void)
+{
+	destroy_reiser4_cache(&blocknr_list_slab);
 }
 
 void blocknr_list_init(struct list_head* blist)

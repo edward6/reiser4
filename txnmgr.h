@@ -486,6 +486,8 @@ extern int blocknr_set_iterator(txn_atom * atom, struct list_head * bset,
 				int delete);
 
 /* This is the block list interface (see blocknrlist.c) */
+extern int blocknr_list_init_static(void);
+extern void blocknr_list_done_static(void);
 extern void blocknr_list_init(struct list_head *blist);
 extern void blocknr_list_destroy(struct list_head *blist);
 extern void blocknr_list_merge(struct list_head *from, struct list_head *to);
