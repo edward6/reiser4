@@ -1252,7 +1252,6 @@ int reiser4_write_logs(long *nr_submitted)
 	reiser4_post_commit_hook();
 
 	ret = write_tx_back(&ch);
-	reiser4_post_write_back_hook();
 
       up_and_ret:
 	if (ret) {
@@ -1264,6 +1263,8 @@ int reiser4_write_logs(long *nr_submitted)
 	/* free blocks of flushed transaction */
 	dealloc_tx_list(&ch);
 	dealloc_wmap(&ch);
+
+	reiser4_post_write_back_hook();
 
 	put_overwrite_set(&ch);
 

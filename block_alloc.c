@@ -9,6 +9,7 @@ reiser4/README */
 #include "block_alloc.h"
 #include "tree.h"
 #include "super.h"
+#include "discard.h"
 
 #include <linux/types.h>	/* for __u??  */
 #include <linux/fs.h>		/* for struct super_block  */
@@ -992,6 +993,7 @@ reiser4_dealloc_blocks(const reiser4_block_nr * start,
 	int ret;
 	reiser4_context *ctx;
 	reiser4_super_info_data *sbinfo;
+	void *new_entry = NULL;
 
 	ctx = get_current_context();
 	sbinfo = get_super_private(ctx->super);
@@ -1006,18 +1008,15 @@ reiser4_dealloc_blocks(const reiser4_block_nr * start,
 		spin_unlock_reiser4_super(sbinfo);
 	}
 
-	if (flags & BA_DEFER) {
-		blocknr_set_entry *bsep = NULL;
-
-		/* storing deleted block numbers in a blocknr set
-		   datastructure for further actual deletion */
+	if ((flags & BA_DEFER) ||
+	    reiser4_is_set(reiser4_get_current_sb(), REISER4_DISCARD)) {
+		/* store deleted block numbers in the atom's deferred delete set
+		   for further actual deletion */
 		do {
 			atom = get_current_atom_locked();
 			assert("zam-430", atom != NULL);
 
-			ret =
-			    blocknr_set_add_extent(atom, &atom->delete_set,
-						   &bsep, start, len);
+			ret = atom_dset_deferred_add_extent(atom, &new_entry, start, len);
 
 			if (ret == -ENOMEM)
 				return ret;
@@ -1120,15 +1119,13 @@ apply_dset(txn_atom * atom UNUSED_ARG, const reiser4_block_nr * a,
 
 void reiser4_post_commit_hook(void)
 {
+#ifdef REISER4_DEBUG
 	txn_atom *atom;
 
 	atom = get_current_atom_locked();
 	assert("zam-452", atom->stage == ASTAGE_POST_COMMIT);
 	spin_unlock_atom(atom);
-
-	/* do the block deallocation which was deferred
-	   until commit is done */
-	blocknr_set_iterator(atom, &atom->delete_set, apply_dset, NULL, 1);
+#endif
 
 	assert("zam-504", get_current_super_private() != NULL);
 	sa_post_commit_hook();
@@ -1136,8 +1133,29 @@ void reiser4_post_commit_hook(void)
 
 void reiser4_post_write_back_hook(void)
 {
-	assert("zam-504", get_current_super_private() != NULL);
+	struct list_head discarded_set;
+	txn_atom *atom;
+	int ret;
 
+	/* process and issue discard requests */
+	blocknr_list_init (&discarded_set);
+	do {
+		atom = get_current_atom_locked();
+		ret = discard_atom(atom, &discarded_set);
+	} while (ret == -E_REPEAT);
+
+	if (ret) {
+		warning("intelfx-8", "discard atom failed (%d)", ret);
+	}
+
+	atom = get_current_atom_locked();
+	discard_atom_post(atom, &discarded_set);
+
+	/* do the block deallocation which was deferred
+	   until commit is done */
+	atom_dset_deferred_apply(atom, apply_dset, NULL, 1);
+
+	assert("zam-504", get_current_super_private() != NULL);
 	sa_post_write_back_hook();
 }
 

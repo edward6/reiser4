@@ -233,6 +233,7 @@ year old --- define all technical terms used.
 #include "vfs_ops.h"
 #include "inode.h"
 #include "flush.h"
+#include "discard.h"
 
 #include <asm/atomic.h>
 #include <linux/types.h>
@@ -404,8 +405,9 @@ static void atom_init(txn_atom * atom)
 	INIT_LIST_HEAD(&atom->atom_link);
 	INIT_LIST_HEAD(&atom->fwaitfor_list);
 	INIT_LIST_HEAD(&atom->fwaiting_list);
-	blocknr_set_init(&atom->delete_set);
 	blocknr_set_init(&atom->wandered_map);
+
+	atom_dset_init(atom);
 
 	init_atom_fq_parts(atom);
 }
@@ -798,8 +800,9 @@ static void atom_free(txn_atom * atom)
 	       (atom->stage == ASTAGE_INVALID || atom->stage == ASTAGE_DONE));
 	atom->stage = ASTAGE_FREE;
 
-	blocknr_set_destroy(&atom->delete_set);
 	blocknr_set_destroy(&atom->wandered_map);
+
+	atom_dset_destroy(atom);
 
 	assert("jmacd-16", atom_isclean(atom));
 
@@ -2938,8 +2941,10 @@ static void capture_fuse_into(txn_atom * small, txn_atom * large)
 	large->flags |= small->flags;
 
 	/* Merge blocknr sets. */
-	blocknr_set_merge(&small->delete_set, &large->delete_set);
 	blocknr_set_merge(&small->wandered_map, &large->wandered_map);
+
+	/* Merge delete sets. */
+	atom_dset_merge(small, large);
 
 	/* Merge allocated/deleted file counts */
 	large->nr_objects_deleted += small->nr_objects_deleted;
@@ -3064,14 +3069,87 @@ reiser4_block_nr txnmgr_count_deleted_blocks(void)
 	list_for_each_entry(atom, &tmgr->atoms_list, atom_link) {
 		spin_lock_atom(atom);
 		if (atom_isopen(atom))
-			blocknr_set_iterator(
-				atom, &atom->delete_set,
-				count_deleted_blocks_actor, &result, 0);
+			atom_dset_deferred_apply(atom, count_deleted_blocks_actor, &result, 0);
 		spin_unlock_atom(atom);
 	}
 	spin_unlock_txnmgr(tmgr);
 
 	return result;
+}
+
+void atom_dset_init(txn_atom *atom)
+{
+	if (reiser4_is_set(reiser4_get_current_sb(), REISER4_DISCARD)) {
+		blocknr_list_init(&atom->discard.delete_set);
+	} else {
+		blocknr_set_init(&atom->nodiscard.delete_set);
+	}
+}
+
+void atom_dset_destroy(txn_atom *atom)
+{
+	if (reiser4_is_set(reiser4_get_current_sb(), REISER4_DISCARD)) {
+		blocknr_list_destroy(&atom->discard.delete_set);
+	} else {
+		blocknr_set_destroy(&atom->nodiscard.delete_set);
+	}
+}
+
+void atom_dset_merge(txn_atom *from, txn_atom *to)
+{
+	if (reiser4_is_set(reiser4_get_current_sb(), REISER4_DISCARD)) {
+		blocknr_list_merge(&from->discard.delete_set, &to->discard.delete_set);
+	} else {
+		blocknr_set_merge(&from->nodiscard.delete_set, &to->nodiscard.delete_set);
+	}
+}
+
+int atom_dset_deferred_apply(txn_atom* atom,
+                             blocknr_set_actor_f actor,
+                             void *data,
+                             int delete)
+{
+	int ret;
+
+	if (reiser4_is_set(reiser4_get_current_sb(), REISER4_DISCARD)) {
+		ret = blocknr_list_iterator(atom,
+		                            &atom->discard.delete_set,
+		                            actor,
+		                            data,
+		                            delete);
+	} else {
+		ret = blocknr_set_iterator(atom,
+		                           &atom->nodiscard.delete_set,
+		                           actor,
+		                           data,
+		                           delete);
+	}
+
+	return ret;
+}
+
+extern int atom_dset_deferred_add_extent(txn_atom *atom,
+                                         void **new_entry,
+                                         const reiser4_block_nr *start,
+                                         const reiser4_block_nr *len)
+{
+	int ret;
+
+	if (reiser4_is_set(reiser4_get_current_sb(), REISER4_DISCARD)) {
+		ret = blocknr_list_add_extent(atom,
+		                              &atom->discard.delete_set,
+		                              (blocknr_list_entry**)new_entry,
+		                              start,
+		                              len);
+	} else {
+		ret = blocknr_set_add_extent(atom,
+		                             &atom->nodiscard.delete_set,
+		                             (blocknr_set_entry**)new_entry,
+		                             start,
+		                             len);
+	}
+
+	return ret;
 }
 
 /*

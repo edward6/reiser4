@@ -1458,8 +1458,7 @@ int reiser4_pre_commit_hook_bitmap(void)
 		}
 	}
 
-	blocknr_set_iterator(atom, &atom->delete_set, apply_dset_to_commit_bmap,
-			     &blocks_freed, 0);
+	atom_dset_deferred_apply(atom, apply_dset_to_commit_bmap, &blocks_freed, 0);
 
 	blocks_freed -= atom->nr_blocks_allocated;
 
