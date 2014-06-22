@@ -465,6 +465,8 @@ int capture_bulk(jnode **, int count);
 
 /* See the comment on the function blocknrset.c:blocknr_set_add for the
    calling convention of these three routines. */
+extern int blocknr_set_init_static(void);
+extern void blocknr_set_done_static(void);
 extern void blocknr_set_init(struct list_head * bset);
 extern void blocknr_set_destroy(struct list_head * bset);
 extern void blocknr_set_merge(struct list_head * from, struct list_head * into);

@@ -678,6 +678,10 @@ static int __init init_reiser4(void)
 	if ((result = reiser4_init_d_cursor()) != 0)
 		goto failed_init_d_cursor;
 
+	/* initialize cache of blocknr set entries */
+	if ((result = blocknr_set_init_static()) != 0)
+		goto failed_init_blocknr_set;
+
 	/* initialize cache of blocknr list entries */
 	if ((result = blocknr_list_init_static()) != 0)
 		goto failed_init_blocknr_list;
@@ -689,6 +693,8 @@ static int __init init_reiser4(void)
 
 	blocknr_list_done_static();
  failed_init_blocknr_list:
+	blocknr_set_done_static();
+ failed_init_blocknr_set:
 	reiser4_done_d_cursor();
  failed_init_d_cursor:
 	reiser4_done_file_fsdata();
@@ -725,6 +731,7 @@ static void __exit done_reiser4(void)
 	result = unregister_filesystem(&reiser4_fs_type);
 	BUG_ON(result != 0);
 	blocknr_list_done_static();
+	blocknr_set_done_static();
 	reiser4_done_d_cursor();
 	reiser4_done_file_fsdata();
 	reiser4_done_dentry_fsdata();

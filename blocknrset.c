@@ -8,6 +8,7 @@ reiser4/README */
 #include "dformat.h"
 #include "txnmgr.h"
 #include "context.h"
+#include "super.h"
 
 #include <linux/slab.h>
 
@@ -41,6 +42,8 @@ reiser4/README */
 	2 * sizeof(unsigned) -			\
 	sizeof(struct list_head)) /		\
 	sizeof(reiser4_block_nr))
+
+static struct kmem_cache *blocknr_set_slab = NULL;
 
 /* An entry of the blocknr_set */
 struct blocknr_set_entry {
@@ -82,8 +85,8 @@ static blocknr_set_entry *bse_alloc(void)
 {
 	blocknr_set_entry *e;
 
-	if ((e = (blocknr_set_entry *) kmalloc(sizeof(blocknr_set_entry),
-					   reiser4_ctx_gfp_mask_get())) == NULL)
+	if ((e = (blocknr_set_entry *) kmem_cache_alloc(blocknr_set_slab,
+							reiser4_ctx_gfp_mask_get())) == NULL)
 		return NULL;
 
 	bse_init(e);
@@ -95,7 +98,7 @@ static blocknr_set_entry *bse_alloc(void)
 /* Audited by: green(2002.06.11) */
 static void bse_free(blocknr_set_entry * bse)
 {
-	kfree(bse);
+	kmem_cache_free(blocknr_set_slab, bse);
 }
 
 /* Add a block number to a blocknr_set_entry */
@@ -223,6 +226,31 @@ blocknr_set_add_pair(txn_atom * atom,
 {
 	assert("jmacd-5103", a != NULL && b != NULL);
 	return blocknr_set_add(atom, bset, new_bsep, a, b);
+}
+
+/* Initialize slab cache of blocknr_set_entry objects. */
+int blocknr_set_init_static(void)
+{
+	assert("intelfx-55", blocknr_set_slab == NULL);
+
+	blocknr_set_slab = kmem_cache_create("blocknr_set_entry",
+					     sizeof(blocknr_set_entry),
+					     0,
+					     SLAB_HWCACHE_ALIGN |
+					     SLAB_RECLAIM_ACCOUNT,
+					     NULL);
+
+	if (blocknr_set_slab == NULL) {
+		return RETERR(-ENOMEM);
+	}
+
+	return 0;
+}
+
+/* Destroy slab cache of blocknr_set_entry objects. */
+void blocknr_set_done_static(void)
+{
+	destroy_reiser4_cache(&blocknr_set_slab);
 }
 
 /* Initialize a blocknr_set. */
