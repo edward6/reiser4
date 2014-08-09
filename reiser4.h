@@ -54,7 +54,7 @@
  * option
  */
 
-extern const char *REISER4_SUPER_MAGIC_STRING;
+#define REISER4_SUPER_MAGIC_STRING "ReIsEr4"
 extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 					 * beginning of device */
 
