@@ -572,10 +572,10 @@ int reiser4_rename_common(struct inode *old_dir /* directory where @old
 			   dotdot entry. */
 			coord_t *dotdot_coord;
 
-			memset(dataonstack, 0, sizeof(*dataonstack));
-			memset(dotdot_entry, 0, sizeof(*dotdot_entry));
+			memset(dataonstack, 0, sizeof dataonstack);
+			memset(dotdot_entry, 0, sizeof dotdot_entry);
 			dotdot_entry->obj = old_dir;
-			memset(dotdot_name, 0, sizeof(*dotdot_name));
+			memset(dotdot_name, 0, sizeof dotdot_name);
 			dotdot_name->d_name.name = "..";
 			dotdot_name->d_name.len = 2;
 			/*
