@@ -1008,8 +1008,7 @@ reiser4_dealloc_blocks(const reiser4_block_nr * start,
 		spin_unlock_reiser4_super(sbinfo);
 	}
 
-	if ((flags & BA_DEFER) ||
-	    reiser4_is_set(reiser4_get_current_sb(), REISER4_DISCARD)) {
+	if (flags & BA_DEFER) {
 		/*
 		 * These blocks will be later deallocated by apply_dset().
 		 * It is equivalent to a non-deferred deallocation with target
