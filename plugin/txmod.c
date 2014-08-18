@@ -287,8 +287,7 @@ static int forward_relocate_unformatted(flush_pos_t *flush_pos,
 		 * on relocating - free nodes which are going to be
 		 * relocated
 		 */
-		reiser4_dealloc_blocks(&start, &allocated,
-				       BLOCK_ALLOCATED, BA_DEFER);
+		reiser4_dealloc_blocks(&start, &allocated, 0, BA_DEFER);
 
 	/* assign new block numbers to protected nodes */
 	assign_real_blocknrs(flush_pos, oid, index, allocated, first_allocated);
@@ -386,16 +385,13 @@ static squeeze_result squeeze_relocate_unformatted(znode *left,
 	result = put_unit_to_end(left, key, &copy_extent);
 
 	if (result == -E_NODE_FULL) {
-		int target_block_stage;
 		/*
 		 * free blocks which were just allocated
 		 */
-		target_block_stage =
-			(state ==
-			 ALLOCATED_EXTENT) ? BLOCK_FLUSH_RESERVED :
-			BLOCK_UNALLOCATED;
 		reiser4_dealloc_blocks(&first_allocated, &allocated,
-				       target_block_stage,
+				       (state == ALLOCATED_EXTENT)
+				       ? BLOCK_FLUSH_RESERVED
+				       : BLOCK_UNALLOCATED,
 				       BA_PERMANENT);
 		/*
 		 * rewind the preceder
@@ -408,8 +404,7 @@ static squeeze_result squeeze_relocate_unformatted(znode *left,
 		/*
 		 * free nodes which were relocated
 		 */
-		reiser4_dealloc_blocks(&start, &allocated,
-				       BLOCK_ALLOCATED, BA_DEFER);
+		reiser4_dealloc_blocks(&start, &allocated, 0, BA_DEFER);
 	}
 	/*
 	 * assign new block numbers to protected nodes
