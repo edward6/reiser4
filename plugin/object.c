@@ -127,7 +127,7 @@ static struct file_operations regular_file_f_ops = {
 	.llseek = generic_file_llseek,
 	.read = reiser4_read_dispatch,
 	.write = reiser4_write_dispatch,
-	.aio_read = generic_file_aio_read,
+	.read_iter = generic_file_read_iter,
 	.unlocked_ioctl = reiser4_ioctl_dispatch,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl = reiser4_ioctl_dispatch,
@@ -137,7 +137,6 @@ static struct file_operations regular_file_f_ops = {
 	.release = reiser4_release_dispatch,
 	.fsync = reiser4_sync_file_common,
 	.splice_read = generic_file_splice_read,
-	.splice_write = generic_file_splice_write
 };
 static struct address_space_operations regular_file_a_ops = {
 	.writepage = reiser4_writepage,

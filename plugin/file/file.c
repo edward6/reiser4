@@ -1752,7 +1752,7 @@ ssize_t read_unix_file(struct file *file, char __user *buf,
 	switch (uf_info->container) {
 	case UF_CONTAINER_EXTENTS:
 		if (!reiser4_inode_get_flag(inode, REISER4_PART_MIXED)) {
-			result = do_sync_read(file, buf, read_amount, off);
+			result = new_sync_read(file, buf, read_amount, off);
 			break;
 		}
 	case UF_CONTAINER_TAILS:

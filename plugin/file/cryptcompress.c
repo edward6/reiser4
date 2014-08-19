@@ -2964,7 +2964,7 @@ ssize_t read_cryptcompress(struct file * file, char __user *buf, size_t size,
 		reiser4_exit_context(ctx);
 		return result;
 	}
-	result = do_sync_read(file, buf, size, off);
+	result = new_sync_read(file, buf, size, off);
 
 	context_set_commit_async(ctx);
 	reiser4_exit_context(ctx);
