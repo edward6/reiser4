@@ -445,6 +445,12 @@ static int reiser4_sync_fs(struct super_block *super, int wait)
 	return 0;
 }
 
+static int reiser4_remount(struct super_block *s, int *mount_flags, char *arg)
+{
+	sync_filesystem(s);
+	return 0;
+}
+
 /**
  * reiser4_show_options - show_options of super operations
  * @m: file where to write information
@@ -479,6 +485,7 @@ struct super_operations reiser4_super_operations = {
 	.put_super = reiser4_put_super,
 	.sync_fs = reiser4_sync_fs,
 	.statfs = reiser4_statfs,
+	.remount_fs = reiser4_remount,
 	.writeback_inodes = reiser4_writeback_inodes,
 	.show_options = reiser4_show_options
 };

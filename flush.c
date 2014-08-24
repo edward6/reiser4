@@ -1037,6 +1037,8 @@ flush_current_atom(int flags, long nr_to_write, long *nr_submitted,
 	assert_spin_locked(&((*atom)->alock));
 	assert("zam-892", get_current_context()->trans->atom == *atom);
 
+	BUG_ON(rofs_super(get_current_context()->super));
+
 	nr_to_write = LONG_MAX;
 	while (1) {
 		ret = reiser4_fq_by_atom(*atom, &fq);
