@@ -482,8 +482,8 @@ static void dealloc_tx_list(struct commit_handle *ch)
 		jnode *cur = list_entry(ch->tx_list.next, jnode, capture_link);
 		list_del(&cur->capture_link);
 		ON_DEBUG(INIT_LIST_HEAD(&cur->capture_link));
-		reiser4_dealloc_block(jnode_get_block(cur), BLOCK_NOT_COUNTED,
-				      BA_FORMATTED);
+		reiser4_dealloc_block(jnode_get_block(cur), 0,
+				      BA_DEFER | BA_FORMATTED);
 
 		unpin_jnode_data(cur);
 		reiser4_drop_io_head(cur);
@@ -502,7 +502,7 @@ dealloc_wmap_actor(txn_atom * atom UNUSED_ARG,
 	assert("zam-500", *b != 0);
 	assert("zam-501", !reiser4_blocknr_is_fake(b));
 
-	reiser4_dealloc_block(b, BLOCK_NOT_COUNTED, BA_FORMATTED);
+	reiser4_dealloc_block(b, 0, BA_DEFER | BA_FORMATTED);
 	return 0;
 }
 
