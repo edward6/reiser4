@@ -1017,35 +1017,31 @@ int shrink_item_node40(coord_t * coord, int delta)
 	return 0;
 }
 
-/* this is used by cut_node40 and kill_node40. It analyses input parameters and calculates cut mode. There are 2 types
-   of cut. First is when a unit is removed from the middle of an item.  In this case this function returns 1. All the
-   rest fits into second case: 0 or 1 of items getting tail cut, 0 or more items removed completely and 0 or 1 item
-   getting head cut. Function returns 0 in this case */
-static int
-parse_cut(struct cut40_info *cinfo, const struct cut_kill_params *params)
+/*
+ * Evaluate cut mode, if key range has been specified.
+ *
+ * This is for the case when units are not minimal objects
+ * addressed by keys.
+ *
+ * This doesn't work when range contains objects with
+ * non-unique keys (e.g. directory items).
+ */
+static int parse_cut_by_key_range(struct cut40_info *cinfo,
+				  const struct cut_kill_params *params)
 {
-	reiser4_key left_key, right_key;
 	reiser4_key min_from_key, max_to_key;
-	const reiser4_key *from_key, *to_key;
-
-	init_cinfo(cinfo);
-
-	/* calculate minimal key stored in first item of items to be cut (params->from) */
+	const reiser4_key *from_key = params->from_key;
+	const reiser4_key *to_key = params->to_key;
+	/*
+	 * calculate minimal key stored in first item
+	 * of items to be cut (params->from)
+	 */
 	item_key_by_coord(params->from, &min_from_key);
-	/* and max key stored in last item of items to be cut (params->to) */
+	/*
+	 * calculate maximal key stored in last item
+	 * of items to be cut (params->to)
+	 */
 	max_item_key_by_coord(params->to, &max_to_key);
-
-	/* if cut key range is not defined in input parameters - define it using cut coord range */
-	if (params->from_key == NULL) {
-		assert("vs-1513", params->to_key == NULL);
-		unit_key_by_coord(params->from, &left_key);
-		from_key = &left_key;
-		max_unit_key_by_coord(params->to, &right_key);
-		to_key = &right_key;
-	} else {
-		from_key = params->from_key;
-		to_key = params->to_key;
-	}
 
 	if (params->from->item_pos == params->to->item_pos) {
 		if (keylt(&min_from_key, from_key)
@@ -1069,7 +1065,7 @@ parse_cut(struct cut40_info *cinfo, const struct cut_kill_params *params)
 	} else {
 		cinfo->first_removed = params->from->item_pos + 1;
 		cinfo->removed_count =
-		    params->to->item_pos - params->from->item_pos - 1;
+			params->to->item_pos - params->from->item_pos - 1;
 
 		if (keygt(from_key, &min_from_key)) {
 			/* first item is not cut completely */
@@ -1089,8 +1085,108 @@ parse_cut(struct cut40_info *cinfo, const struct cut_kill_params *params)
 		if (cinfo->removed_count)
 			cinfo->mode |= CMODE_WHOLE;
 	}
-
 	return 0;
+}
+
+/*
+ * Evaluate cut mode, if the key range hasn't been specified.
+ * In this case the range can include objects with non-unique
+ * keys (e.g. directory entries).
+ *
+ * This doesn't work when units are not the minimal objects
+ * addressed by keys (e.g. bytes in file's body stored in
+ * unformatted nodes).
+ */
+static int parse_cut_by_coord_range(struct cut40_info *cinfo,
+				    const struct cut_kill_params *params)
+{
+	coord_t *from = params->from;
+	coord_t *to = params->to;
+
+	if (from->item_pos == to->item_pos) {
+		/*
+		 * cut is performed on only one item
+		 */
+		if (from->unit_pos > 0 &&
+		    to->unit_pos < coord_last_unit_pos(to))
+			/*
+			 * cut from the middle of item
+			 */
+			return 1;
+		if (from->unit_pos > 0) {
+			/*
+			 * tail of item is to be cut
+			 */
+			cinfo->tail_removed = params->from->item_pos;
+			cinfo->mode |= CMODE_TAIL;
+		} else if (to->unit_pos < coord_last_unit_pos(to)) {
+			/*
+			 * head of item is to be cut
+			 */
+			cinfo->head_removed = params->from->item_pos;
+			cinfo->mode |= CMODE_HEAD;
+		} else {
+			/*
+			 * item is removed completely
+			 */
+			assert("edward-1631",
+			       from->unit_pos == 0 &&
+			       to->unit_pos == coord_last_unit_pos(to));
+
+			cinfo->first_removed = params->from->item_pos;
+			cinfo->removed_count = 1;
+			cinfo->mode |= CMODE_WHOLE;
+		}
+	} else {
+		cinfo->first_removed = from->item_pos + 1;
+		cinfo->removed_count =
+			to->item_pos - from->item_pos - 1;
+
+		if (from->unit_pos > 0) {
+			/*
+			 * first item is not cut completely
+			 */
+			cinfo->tail_removed = from->item_pos;
+			cinfo->mode |= CMODE_TAIL;
+		} else {
+			cinfo->first_removed--;
+			cinfo->removed_count++;
+		}
+		if (to->unit_pos < coord_last_unit_pos(to)) {
+			/*
+			 * last item is not cut completely
+			 */
+			cinfo->head_removed = to->item_pos;
+			cinfo->mode |= CMODE_HEAD;
+		} else {
+			cinfo->removed_count++;
+		}
+		if (cinfo->removed_count)
+			cinfo->mode |= CMODE_WHOLE;
+	}
+	return 0;
+}
+
+/*
+ * this is used by cut_node40 and kill_node40. It analyses input parameters
+ * and calculates cut mode. There are 2 types of cut. First is when a unit is
+ * removed from the middle of an item.  In this case this function returns 1.
+ * All the rest fits into second case: 0 or 1 of items getting tail cut, 0 or
+ * more items removed completely and 0 or 1 item getting head cut. Function
+ * returns 0 in this case
+ */
+static int parse_cut(struct cut40_info *cinfo,
+		     const struct cut_kill_params *params)
+{
+	init_cinfo(cinfo);
+	if (params->from_key == NULL) {
+		/*
+		 * cut key range is not defined in input parameters
+		 */
+		assert("vs-1513", params->to_key == NULL);
+		return parse_cut_by_coord_range(cinfo, params);
+	} else
+		return parse_cut_by_key_range(cinfo, params);
 }
 
 static void
