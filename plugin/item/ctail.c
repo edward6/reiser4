@@ -693,7 +693,15 @@ int do_readpage_ctail(struct inode * inode, struct cluster_handle * clust,
 
 	switch (clust->dstat) {
 	case UNPR_DISK_CLUSTER:
-		BUG_ON(1);
+		/*
+		 * Page is not uptodate and item cluster is unprepped:
+		 * this must not ever happen.
+		 */
+		warning("edward-1632",
+			"Bad item cluster %lu (Inode %llu). Fsck?",
+			clust->index,
+			(unsigned long long)get_inode_oid(inode));
+		return RETERR(-EIO);
 	case TRNC_DISK_CLUSTER:
 		/*
 		 * Race with truncate!
