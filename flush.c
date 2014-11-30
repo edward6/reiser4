@@ -1535,7 +1535,7 @@ out:
 static void item_convert_invariant(flush_pos_t *pos)
 {
 	assert("edward-1225", coord_is_existing_item(&pos->coord));
-	if (chaining_data_present(pos)) {
+	if (convert_data_attached(pos)) {
 		item_plugin *iplug = item_convert_plug(pos);
 
 		assert("edward-1000",
@@ -1550,15 +1550,32 @@ static void item_convert_invariant(flush_pos_t *pos)
 
 #endif
 
-/* Scan node items starting from the first one and apply for each
-   item its flush ->convert() method (if any). This method may
-   resize/kill the item so the tree will be changed.
-*/
+/*
+ * Scan all node's items and apply for each one
+ * its ->convert() method. This method may:
+ * . resize the item;
+ * . kill the item;
+ * . insert a group of items/nodes on the right,
+ *   which possess the following properties:
+ *   . all new nodes are dirty and not convertible;
+ *   . for all new items ->convert() method is a noop.
+ *
+ * NOTE: this function makes the tree unbalanced!
+ * This intended to be used by flush squalloc() in a
+ * combination with squeeze procedure.
+ *
+ * GLOSSARY
+ *
+ * Chained nodes and items.
+ *   Two neighboring nodes @left and @right are chained,
+ *   iff the last item of @left and the first item of @right
+ *   belong to the same item cluster. In this case those
+ *   items are called chained.
+ */
 static int convert_node(flush_pos_t *pos, znode * node)
 {
 	int ret = 0;
 	item_plugin *iplug;
-
 	assert("edward-304", pos != NULL);
 	assert("edward-305", pos->child == NULL);
 	assert("edward-475", znode_convertible(node));
@@ -1587,34 +1604,68 @@ static int convert_node(flush_pos_t *pos, znode * node)
 		assert("edward-307", pos->child == NULL);
 
 		if (coord_next_item(&pos->coord)) {
-			/* node is over */
+			/*
+			 * node is over
+			 */
+			if (convert_data_attached(pos))
+				/*
+				 * the last item was convertible and
+				 * there still is an unprocesssed flow
+				 */
+				if (next_node_is_chained(pos)) {
+					/*
+					 * next node contains items of
+					 * the same disk cluster,
+					 * so finish with this node
+					 */
+					update_chaining_state(pos, 0/* move
+								       to next
+								       node */);
+					break;
+				}
+				else {
+					/*
+					 * perform one more iteration
+					 * for the same item and the
+					 * rest of flow
+					 */
+					update_chaining_state(pos, 1/* this
+								       node */);
+				}
+			else
+				/*
+				 * the last item wasn't convertible, or
+				 * convert date was detached in the last
+				 * iteration,
+				 * go to next node
+				 */
+				break;
+		} else {
+			/*
+			 * Node is not over, item position got decremented.
+			 */
+			if (convert_data_attached(pos)) {
+				/*
+				 * disk cluster should be increased, so roll
+				 * one item position back and perform the
+				 * iteration with the previous item and the
+				 * rest of attached data
+				 */
+				if (iplug != item_plugin_by_coord(&pos->coord))
+					set_item_convert_count(pos, 0);
 
-			if (!chaining_data_present(pos))
-				/* finished this node */
-				break;
-			if (should_chain_next_node(pos)) {
-				/* go to next node */
-				move_chaining_data(pos, 0/* to next node */);
-				break;
+				ret = coord_prev_item(&pos->coord);
+				assert("edward-1003", !ret);
+
+				update_chaining_state(pos, 1/* this node */);
 			}
-			/* repeat this node */
-			move_chaining_data(pos, 1/* this node */);
-			continue;
-		}
-		/* Node is not over.
-		   Check if there is attached convert data.
-		   If so roll one item position back and repeat
-		   on this node
-		 */
-		if (chaining_data_present(pos)) {
-
-			if (iplug != item_plugin_by_coord(&pos->coord))
-				set_item_convert_count(pos, 0);
-
-			ret = coord_prev_item(&pos->coord);
-			assert("edward-1003", !ret);
-
-			move_chaining_data(pos, 1/* this node */);
+			else
+				/*
+				 * previous item was't convertible, or
+				 * convert date was detached in the last
+				 * iteration, go to next item
+				 */
+				;
 		}
 	}
 	JF_CLR(ZJNODE(node), JNODE_CONVERTIBLE);
@@ -1863,8 +1914,10 @@ out:
 	return ret;
 }
 
-/* Process nodes on leaf level until unformatted node or rightmost node in the
- * slum reached.  */
+/*
+ * Process nodes on leaf level until unformatted node or
+ * rightmost node in the slum reached
+ */
 static int handle_pos_on_formatted(flush_pos_t *pos)
 {
 	int ret;
@@ -1874,32 +1927,33 @@ static int handle_pos_on_formatted(flush_pos_t *pos)
 	init_lh(&right_lock);
 	init_load_count(&right_load);
 
-	if (should_convert_node(pos, pos->lock.node)) {
+	if (znode_convertible(pos->lock.node)) {
 		ret = convert_node(pos, pos->lock.node);
 		if (ret)
 			return ret;
 	}
-
 	while (1) {
 		int expected;
-		expected = should_convert_next_node(pos);
+		expected = should_convert_right_neighbor(pos);
 		ret = neighbor_in_slum(pos->lock.node, &right_lock, RIGHT_SIDE,
 				       ZNODE_WRITE_LOCK, !expected, expected);
 		if (ret) {
 			if (expected)
 				warning("edward-1495",
-				"Expected neighbor not found (ret = %d). Fsck?",
+		        "Right neighbor is expected but not found (%d). Fsck?",
 					ret);
 			break;
 		}
-
-		/* we don't prep(allocate) nodes for flushing twice. This can be
+		/*
+		 * we don't prep(allocate) nodes for flushing twice. This can be
 		 * suboptimal, or it can be optimal. For now we choose to live
 		 * with the risk that it will be suboptimal because it would be
-		 * quite complex to code it to be smarter. */
+		 * quite complex to code it to be smarter.
+		 */
 		if (znode_check_flushprepped(right_lock.node)
 		    && !znode_convertible(right_lock.node)) {
-			assert("edward-1005", !should_convert_next_node(pos));
+			assert("edward-1005",
+			       !should_convert_right_neighbor(pos));
 			pos_stop(pos);
 			break;
 		}
@@ -1907,59 +1961,67 @@ static int handle_pos_on_formatted(flush_pos_t *pos)
 		ret = incr_load_count_znode(&right_load, right_lock.node);
 		if (ret)
 			break;
-		if (should_convert_node(pos, right_lock.node)) {
+		if (znode_convertible(right_lock.node)) {
 			ret = convert_node(pos, right_lock.node);
 			if (ret)
 				break;
-			if (node_is_empty(right_lock.node)) {
-				/* node became empty after converting, repeat */
+			if (unlikely(node_is_empty(right_lock.node))) {
+				/*
+				 * node became empty after convertion,
+				 * skip this
+				 */
 				done_load_count(&right_load);
 				done_lh(&right_lock);
 				continue;
 			}
 		}
-
-		/* squeeze _before_ going upward. */
-		ret =
-		    squeeze_right_neighbor(pos, pos->lock.node,
-					   right_lock.node);
+		/*
+		 * Current node and its right neighbor are converted.
+		 * Squeeze them _before_ going upward.
+		 */
+		ret = squeeze_right_neighbor(pos, pos->lock.node,
+					     right_lock.node);
 		if (ret < 0)
 			break;
 
+		if (node_is_empty(right_lock.node)) {
+			/*
+                         * right node was squeezed completely,
+                         * skip this
+                         */
+                        done_load_count(&right_load);
+                        done_lh(&right_lock);
+                        continue;
+                }
 		if (znode_check_flushprepped(right_lock.node)) {
-			if (should_convert_next_node(pos)) {
-				/* in spite of flushprepped status of the node,
-				   its right slum neighbor should be converted*/
+			if (should_convert_right_neighbor(pos)) {
+				/*
+				 * in spite of flushprepped status of the node,
+				 * its right slum neighbor should be converted
+				 */
 				assert("edward-953", convert_data(pos));
 				assert("edward-954", item_convert_data(pos));
 
-				if (node_is_empty(right_lock.node)) {
-					done_load_count(&right_load);
-					done_lh(&right_lock);
-				} else
-					move_flush_pos(pos, &right_lock,
-						       &right_load, NULL);
+				move_flush_pos(pos, &right_lock, &right_load, NULL);
 				continue;
+			} else {
+				pos_stop(pos);
+				break;
 			}
-			pos_stop(pos);
-			break;
 		}
-
-		if (node_is_empty(right_lock.node)) {
-			/* repeat if right node was squeezed completely */
-			done_load_count(&right_load);
-			done_lh(&right_lock);
-			continue;
-		}
-
-		/* parent(right_lock.node) has to be processed before
-		 * (right_lock.node) due to "parent-first" allocation order. */
-		ret =
-		    check_parents_and_squalloc_upper_levels(pos, pos->lock.node,
-							    right_lock.node);
+		/*
+		 * parent(right_lock.node) has to be processed before
+		 * (right_lock.node) due to "parent-first" allocation
+		 * order
+		 */
+		ret = check_parents_and_squalloc_upper_levels(pos,
+							      pos->lock.node,
+							      right_lock.node);
 		if (ret)
 			break;
-		/* (re)allocate _after_ going upward */
+		/*
+		 * (re)allocate _after_ going upward
+		 */
 		ret = lock_parent_and_allocate_znode(right_lock.node, pos);
 		if (ret)
 			break;
@@ -1967,8 +2029,9 @@ static int handle_pos_on_formatted(flush_pos_t *pos)
 			set_item_convert_count(pos, 0);
 			break;
 		}
-
-		/* advance the flush position to the right neighbor */
+		/*
+		 * advance the flush position to the right neighbor
+		 */
 		move_flush_pos(pos, &right_lock, &right_load, NULL);
 
 		ret = rapid_flush(pos);
@@ -1978,9 +2041,10 @@ static int handle_pos_on_formatted(flush_pos_t *pos)
 	check_convert_info(pos);
 	done_load_count(&right_load);
 	done_lh(&right_lock);
-
-	/* This function indicates via pos whether to stop or go to twig or
-	 * continue on current level. */
+	/*
+	 * This function indicates via pos whether to stop or go to twig or
+	 * continue on current level
+	 */
 	return ret;
 
 }

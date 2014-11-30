@@ -136,10 +136,11 @@ static inline void free_ts_data(struct tfm_stream * stm)
 
 /* Write modes for item conversion in flush convert phase */
 typedef enum {
-	CRC_APPEND_ITEM = 1,
-	CRC_OVERWRITE_ITEM = 2,
-	CRC_CUT_ITEM = 3
-} cryptcompress_write_mode_t;
+	CTAIL_INVAL_CONVERT_MODE = 0,
+	CTAIL_APPEND_ITEM = 1,
+	CTAIL_OVERWRITE_ITEM = 2,
+	CTAIL_CUT_ITEM = 3
+} ctail_convert_mode_t;
 
 typedef enum {
 	LC_INVAL  = 0,   /* invalid value */

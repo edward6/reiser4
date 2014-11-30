@@ -62,8 +62,9 @@ struct flush_scan {
 };
 
 struct convert_item_info {
-	dc_item_stat d_cur;	/* disk cluster state of the current item */
-	dc_item_stat d_next;	/* disk cluster state of the next slum item */
+	dc_item_stat d_cur;	/* per-cluster status of the current item */
+	dc_item_stat d_next;    /* per-cluster status of the first item on
+				                         the right neighbor */
 	int cluster_shift;      /* disk cluster shift */
 	flow_t flow;            /* disk cluster data */
 };
@@ -166,51 +167,36 @@ static inline struct tfm_stream *tfm_stream_sq(flush_pos_t *pos,
 	return get_tfm_stream(tfm_cluster_sq(pos), id);
 }
 
-static inline int chaining_data_present(flush_pos_t *pos)
+static inline int convert_data_attached(flush_pos_t *pos)
 {
-	return convert_data(pos) && item_convert_data(pos);
+	return convert_data(pos) != NULL && item_convert_data(pos) != NULL;
 }
+
+#define should_convert_right_neighbor(pos) convert_data_attached(pos)
 
 /* Returns true if next node contains next item of the disk cluster
    so item convert data should be moved to the right slum neighbor.
 */
-static inline int should_chain_next_node(flush_pos_t *pos)
+static inline int next_node_is_chained(flush_pos_t *pos)
 {
-	int result = 0;
-
-	assert("edward-1007", chaining_data_present(pos));
-
-	switch (item_convert_data(pos)->d_next) {
-	case DC_CHAINED_ITEM:
-		result = 1;
-		break;
-	case DC_AFTER_CLUSTER:
-		break;
-	default:
-		impossible("edward-1009", "bad state of next slum item");
-	}
-	return result;
+	return convert_data_attached(pos) &&
+		item_convert_data(pos)->d_next == DC_CHAINED_ITEM;
 }
 
-/* update item state in a disk cluster to assign conversion mode */
-static inline void
-move_chaining_data(flush_pos_t *pos, int this_node/* where is next item */)
+/*
+ * Update "twin state" (d_cur, d_next) to assign a proper
+ * conversion mode in the next iteration of convert_node()
+ */
+static inline void update_chaining_state(flush_pos_t *pos,
+					 int this_node /* where to proceed */)
 {
 
-	assert("edward-1010", chaining_data_present(pos));
+	assert("edward-1010", convert_data_attached(pos));
 
-	if (this_node == 0) {
-		/* next item is on the right neighbor */
-		assert("edward-1011",
-		       item_convert_data(pos)->d_cur == DC_FIRST_ITEM ||
-		       item_convert_data(pos)->d_cur == DC_CHAINED_ITEM);
-		assert("edward-1012",
-		       item_convert_data(pos)->d_next == DC_CHAINED_ITEM);
-
-		item_convert_data(pos)->d_cur = DC_CHAINED_ITEM;
-		item_convert_data(pos)->d_next = DC_INVALID_STATE;
-	} else {
-		/* next item is on the same node */
+	if (this_node) {
+		/*
+		 * we want to perform one more iteration with the same item
+		 */
 		assert("edward-1013",
 		       item_convert_data(pos)->d_cur == DC_FIRST_ITEM ||
 		       item_convert_data(pos)->d_cur == DC_CHAINED_ITEM);
@@ -221,17 +207,19 @@ move_chaining_data(flush_pos_t *pos, int this_node/* where is next item */)
 		item_convert_data(pos)->d_cur = DC_AFTER_CLUSTER;
 		item_convert_data(pos)->d_next = DC_INVALID_STATE;
 	}
-}
+	else {
+		/*
+		 * we want to proceed on right neighbor, which is chained
+		 */
+		assert("edward-1011",
+		       item_convert_data(pos)->d_cur == DC_FIRST_ITEM ||
+		       item_convert_data(pos)->d_cur == DC_CHAINED_ITEM);
+		assert("edward-1012",
+		       item_convert_data(pos)->d_next == DC_CHAINED_ITEM);
 
-static inline int should_convert_node(flush_pos_t *pos, znode * node)
-{
-	return znode_convertible(node);
-}
-
-/* true if there is attached convert item info */
-static inline int should_convert_next_node(flush_pos_t *pos)
-{
-	return convert_data(pos) && item_convert_data(pos);
+		item_convert_data(pos)->d_cur = DC_CHAINED_ITEM;
+		item_convert_data(pos)->d_next = DC_INVALID_STATE;
+	}
 }
 
 #define SQUALLOC_THRESHOLD 256
@@ -246,7 +234,7 @@ static inline int should_terminate_squalloc(flush_pos_t *pos)
 #if 1
 #define check_convert_info(pos)						\
 do {							        	\
-	if (unlikely(should_convert_next_node(pos))) {			\
+	if (unlikely(should_convert_right_neighbor(pos))) {		\
 		warning("edward-1006", "unprocessed chained data");	\
 		printk("d_cur = %d, d_next = %d, flow.len = %llu\n",	\
 		       item_convert_data(pos)->d_cur,			\
