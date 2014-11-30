@@ -123,7 +123,7 @@ int discard_atom(txn_atom *atom, struct list_head *processed_set)
 	}
 
 	assert("intelfx-28", atom != NULL);
-	assert("intelfx-59", processed_entries != NULL);
+	assert("intelfx-59", processed_set != NULL);
 
 	if (list_empty(&atom->discard.delete_set)) {
 		/* Nothing left to discard. */
@@ -156,7 +156,7 @@ int discard_atom(txn_atom *atom, struct list_head *processed_set)
 void discard_atom_post(txn_atom *atom, struct list_head *processed_set)
 {
 	assert("intelfx-60", atom != NULL);
-	assert("intelfx-61", processed_entries != NULL);
+	assert("intelfx-61", processed_set != NULL);
 
 	if (!reiser4_is_set(reiser4_get_current_sb(), REISER4_DISCARD)) {
 		spin_unlock_atom(atom);
