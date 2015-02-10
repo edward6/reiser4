@@ -1,6 +1,7 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
  * reiser4/README */
 
+
 /* definitions of common constants used by reiser4 */
 
 #if !defined( __REISER4_H__ )

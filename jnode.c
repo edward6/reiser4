@@ -839,16 +839,12 @@ static int jnode_start_read(jnode * node, struct page *page)
 static void check_jload(jnode * node, struct page *page)
 {
 	if (jnode_is_znode(node)) {
-		node40_header *nh;
-		znode *z;
+		znode *z = JZNODE(node);
 
-		z = JZNODE(node);
 		if (znode_is_any_locked(z)) {
-			nh = (node40_header *) kmap(page);
-			/* this only works for node40-only file systems. For
-			 * debugging. */
 			assert("nikita-3253",
-			       z->nr_items == le16_to_cpu(get_unaligned(&nh->nr_items)));
+			       z->nr_items ==
+			       node_plugin_by_node(z)->num_of_items(z));
 			kunmap(page);
 		}
 		assert("nikita-3565", znode_invariant(z));
@@ -1331,6 +1327,7 @@ static int init_znode(jnode * node)
 
 	z = JZNODE(node);
 	/* call node plugin to do actual initialization */
+	z->nr_items = 0;
 	return z->nplug->init(z);
 }
 

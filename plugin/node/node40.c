@@ -34,7 +34,7 @@
 */
 /* NIKITA-FIXME-HANS: I told you guys not less than 10 times to not call it r4fs.  Change to "ReIs". */
 /* magic number that is stored in ->magic field of node header */
-static const __u32 REISER4_NODE_MAGIC = 0x52344653;	/* (*(__u32 *)"R4FS"); */
+static const __u32 REISER4_NODE40_MAGIC = 0x52344653;	/* (*(__u32 *)"R4FS"); */
 
 static int prepare_for_update(znode * left, znode * right,
 			      carry_plugin_info * info);
@@ -656,9 +656,7 @@ int check_node40(const znode * node /* node to check */ ,
 	return 0;
 }
 
-/* plugin->u.node.parse
-   look for description of this method in plugin/node/node.h */
-int parse_node40(znode * node /* node to parse */ )
+int parse_node40_common(znode *node, const __u32 magic)
 {
 	node40_header *header;
 	int result;
@@ -670,10 +668,10 @@ int parse_node40(znode * node /* node to parse */ )
 	if (unlikely(((__u8) znode_get_level(node)) != level))
 		warning("nikita-494", "Wrong level found in node: %i != %i",
 			znode_get_level(node), level);
-	else if (unlikely(nh40_get_magic(header) != REISER4_NODE_MAGIC))
+	else if (unlikely(nh40_get_magic(header) != magic))
 		warning("nikita-495",
 			"Wrong magic in tree node: want %x, got %x",
-			REISER4_NODE_MAGIC, nh40_get_magic(header));
+			magic, nh40_get_magic(header));
 	else {
 		node->nr_items = node40_num_of_items_internal(node);
 		result = 0;
@@ -681,45 +679,74 @@ int parse_node40(znode * node /* node to parse */ )
 	return RETERR(result);
 }
 
-/* plugin->u.node.init
-   look for description of this method in plugin/node/node.h */
-int init_node40(znode * node /* node to initialise */ )
+/*
+ * plugin->u.node.parse
+ * look for description of this method in plugin/node/node.h
+ */
+int parse_node40(znode *node /* node to parse */)
 {
-	node40_header *header;
+	return parse_node40_common(node, REISER4_NODE40_MAGIC);
+}
+
+/*
+ * common part of ->init_node() for all nodes,
+ * which contain node40_header at the beginning
+ */
+int init_node40_common(znode *node, node_plugin *nplug,
+		       size_t node_header_size, const __u32 magic)
+{
+	node40_header *header40;
 
 	assert("nikita-570", node != NULL);
 	assert("nikita-572", zdata(node) != NULL);
 
-	header = node40_node_header(node);
-	memset(header, 0, sizeof(node40_header));
-	nh40_set_free_space(header, znode_size(node) - sizeof(node40_header));
-	nh40_set_free_space_start(header, sizeof(node40_header));
-	/* sane hypothesis: 0 in CPU format is 0 in disk format */
-	/* items: 0 */
-	save_plugin_id(node_plugin_to_plugin(node->nplug),
-		       &header->common_header.plugin_id);
-	nh40_set_level(header, znode_get_level(node));
-	nh40_set_magic(header, REISER4_NODE_MAGIC);
-	node->nr_items = 0;
-	nh40_set_mkfs_id(header, reiser4_mkfs_id(reiser4_get_current_sb()));
+	header40 = node40_node_header(node);
+	memset(header40, 0, sizeof(node40_header));
 
-	/* flags: 0 */
+	nh40_set_free_space(header40, znode_size(node) - node_header_size);
+	nh40_set_free_space_start(header40, node_header_size);
+	/*
+	 * sane hypothesis: 0 in CPU format is 0 in disk format
+	 */
+	save_plugin_id(node_plugin_to_plugin(nplug),
+		       &header40->common_header.plugin_id);
+	nh40_set_level(header40, znode_get_level(node));
+	nh40_set_magic(header40, magic);
+	nh40_set_mkfs_id(header40, reiser4_mkfs_id(reiser4_get_current_sb()));
+	/*
+	 * nr_items: 0
+	 * flags: 0
+	 */
 	return 0;
 }
 
-#ifdef GUESS_EXISTS
-int guess_node40(const znode * node /* node to guess plugin of */ )
+/*
+ * plugin->u.node.init
+ * look for description of this method in plugin/node/node.h
+ */
+int init_node40(znode *node /* node to initialise */)
 {
-	node40_header *nethack;
+	return init_node40_common(node, node_plugin_by_id(NODE40_ID),
+				  sizeof(node40_header), REISER4_NODE40_MAGIC);
+}
+
+#ifdef GUESS_EXISTS
+int guess_node40_common(const znode *node, reiser4_node_id id,
+			const __u32 magic)
+{
+	node40_header *header;
 
 	assert("nikita-1058", node != NULL);
-	nethack = node40_node_header(node);
-	return
-	    (nh40_get_magic(nethack) == REISER4_NODE_MAGIC) &&
-	    (plugin_by_disk_id(znode_get_tree(node),
-			       REISER4_NODE_PLUGIN_TYPE,
-			       &nethack->common_header.plugin_id)->h.id ==
-	     NODE40_ID);
+	header = node40_node_header(node);
+	return (nh40_get_magic(header) == magic) &&
+		(id == plugin_by_disk_id(znode_get_tree(node),
+				       REISER4_NODE_PLUGIN_TYPE,
+				       &header->common_header.plugin_id)->h.id);
+}
+
+int guess_node40(const znode *node /* node to guess plugin of */)
+{
+	return guess_node40_common(node, NODE40_ID, REISER4_NODE40_MAGIC);
 }
 #endif
 
@@ -1867,7 +1894,7 @@ copy_units(coord_t * target, coord_t * source, unsigned from, unsigned count,
 /* copy part of @shift->real_stop.node starting either from its beginning or
    from its end and ending at @shift->real_stop to either the end or the
    beginning of @shift->target */
-static void copy(struct shift_params *shift)
+static void copy(struct shift_params *shift, size_t node_header_size)
 {
 	node40_header *nh;
 	coord_t from;
@@ -1994,10 +2021,10 @@ static void copy(struct shift_params *shift)
 		coord_set_item_pos(&to, 0);
 
 		/* prepare space for new items */
-		memmove(zdata(to.node) + sizeof(node40_header) +
+		memmove(zdata(to.node) + node_header_size +
 			shift->shift_bytes,
-			zdata(to.node) + sizeof(node40_header),
-			free_space_start - sizeof(node40_header));
+			zdata(to.node) + node_header_size,
+			free_space_start - node_header_size);
 		/* update item headers of moved items */
 		to_ih = node40_ih_at(to.node, 0);
 		/* first item gets @merging_bytes longer. free space appears
@@ -2061,11 +2088,11 @@ static void copy(struct shift_params *shift)
 				ih40_set_offset(to_ih,
 						ih40_get_offset(from_ih) -
 						old_offset +
-						sizeof(node40_header) +
+						node_header_size +
 						shift->part_bytes);
 			/* copy item bodies */
 			coord_add_item_pos(&from, -(int)(shift->entire - 1));
-			memcpy(zdata(to.node) + sizeof(node40_header) +
+			memcpy(zdata(to.node) + node_header_size +
 			       shift->part_bytes, item_by_coord_node40(&from),
 			       shift->entire_bytes);
 			coord_dec_item_pos(&from);
@@ -2080,7 +2107,7 @@ static void copy(struct shift_params *shift)
 
 			/* copy item header of partially copied item */
 			memcpy(to_ih, from_ih, sizeof(item_header40));
-			ih40_set_offset(to_ih, sizeof(node40_header));
+			ih40_set_offset(to_ih, node_header_size);
 			if (item_plugin_by_coord(&to)->b.init)
 				item_plugin_by_coord(&to)->b.init(&to, &from,
 								  NULL);
@@ -2846,11 +2873,19 @@ void shift_check(void *vp, const znode * left, const znode * right)
 
 #endif
 
-/* plugin->u.node.shift
-   look for description of this method in plugin/node/node.h */
-int shift_node40(coord_t * from, znode * to, shift_direction pend, int delete_child,	/* if @from->node becomes empty - it will be
-											   deleted from the tree if this is set to 1 */
-		 int including_stop_coord, carry_plugin_info * info)
+/*
+ * common part of ->shift() for all nodes,
+ * which contain node40_header at the beginning and
+ * the table of item headers at the end
+ */
+int shift_node40_common(coord_t *from, znode *to,
+			shift_direction pend,
+			int delete_child, /* if @from->node becomes empty,
+					   * it will be deleted from the
+					   * tree if this is set to 1 */
+			int including_stop_coord,
+			carry_plugin_info *info,
+			size_t node_header_size)
 {
 	struct shift_params shift;
 	int result;
@@ -2919,7 +2954,7 @@ int shift_node40(coord_t * from, znode * to, shift_direction pend, int delete_ch
 		return 0;
 	}
 
-	copy(&shift);
+	copy(&shift, node_header_size);
 
 	/* result value of this is important. It is used by adjust_coord below */
 	result = delete_copied(&shift);
@@ -2965,6 +3000,23 @@ int shift_node40(coord_t * from, znode * to, shift_direction pend, int delete_ch
 	}
 	assert("nikita-2080", coord_check(from));
 	return result ? result : (int)shift.shift_bytes;
+}
+
+/*
+ * plugin->u.node.shift
+ * look for description of this method in plugin/node/node.h
+ */
+int shift_node40(coord_t *from, znode *to,
+		 shift_direction pend,
+		 int delete_child, /* if @from->node becomes empty,
+				    * it will be deleted from the
+				    * tree if this is set to 1 */
+		 int including_stop_coord,
+		 carry_plugin_info *info)
+{
+	return shift_node40_common(from, to, pend, delete_child,
+				   including_stop_coord, info,
+				   sizeof(node40_header));
 }
 
 /* plugin->u.node.fast_insert()

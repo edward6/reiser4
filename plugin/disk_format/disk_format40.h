@@ -57,7 +57,9 @@ typedef struct format40_disk_super_block {
 	   version number supported by kernel.
 	   Is used by fsck to catch possible corruption and
 	   for various compatibility issues */
-	/*  84 */ char not_used[428];
+	/*  84 */ d32 node_pid;
+	/* node plugin id */
+	/*  88 */ char not_used[424];
 } format40_disk_super_block;
 
 /* format 40 specific part of reiser4_super_info_data */

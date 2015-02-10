@@ -236,9 +236,9 @@ typedef struct node_plugin {
 } node_plugin;
 
 typedef enum {
-	/* standard unified node layout used for both leaf and internal
-	   nodes */
-	NODE40_ID,
+	NODE40_ID, /* standard unified node layout used for both,
+		      leaf and internal nodes */
+	NODE41_ID, /* unified node layout with a reference counter */
 	LAST_NODE_ID
 } reiser4_node_id;
 

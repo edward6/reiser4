@@ -20,7 +20,7 @@
 #include "item/cde.h"
 #include "item/item.h"
 #include "node/node.h"
-#include "node/node40.h"
+#include "node/node41.h"
 #include "security/perm.h"
 #include "fibration.h"
 

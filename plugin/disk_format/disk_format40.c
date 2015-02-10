@@ -70,6 +70,11 @@ static __u32 get_format40_mkfs_id(const format40_disk_super_block * sb)
 	return le32_to_cpu(get_unaligned(&sb->mkfs_id));
 }
 
+static __u32 get_format40_node_plugin_id(const format40_disk_super_block * sb)
+{
+	return le32_to_cpu(get_unaligned(&sb->node_pid));
+}
+
 static __u64 get_format40_flags(const format40_disk_super_block * sb)
 {
 	return le64_to_cpu(get_unaligned(&sb->flags));
@@ -342,7 +347,7 @@ static int try_init_format40(struct super_block *super,
 	/* get things necessary to init reiser4_tree */
 	root_block = get_format40_root_block(sb_copy);
 	height = get_format40_tree_height(sb_copy);
-	nplug = node_plugin_by_id(NODE40_ID);
+	nplug = node_plugin_by_id(get_format40_node_plugin_id(sb_copy));
 
 	/* initialize reiser4_super_info_data */
 	sbinfo = get_super_private(super);

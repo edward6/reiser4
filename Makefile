@@ -69,6 +69,7 @@ reiser4-y := \
 		   plugin/dir/hashed_dir.o \
 		   plugin/dir/seekable_dir.o \
 		   plugin/node/node40.o \
+		   plugin/node/node41.o \
            \
 		   plugin/crypto/cipher.o \
 		   plugin/crypto/digest.o \
