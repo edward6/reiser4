@@ -489,7 +489,7 @@ void reiser4_kill_cursors(struct inode *inode)
  */
 static int file_is_stateless(struct file *file)
 {
-	return reiser4_get_dentry_fsdata(file->f_dentry)->stateless;
+	return reiser4_get_dentry_fsdata(file->f_path.dentry)->stateless;
 }
 
 /**

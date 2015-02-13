@@ -96,7 +96,7 @@ int build_readdir_key_common(struct file *dir /* directory being read */ ,
 
 	assert("nikita-1361", dir != NULL);
 	assert("nikita-1362", result != NULL);
-	assert("nikita-1363", dir->f_dentry != NULL);
+	assert("nikita-1363", dir->f_path.dentry != NULL);
 	inode = file_inode(dir);
 	assert("nikita-1373", inode != NULL);
 
