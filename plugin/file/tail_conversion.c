@@ -670,7 +670,7 @@ int extent2tail(struct file * file, struct unix_file_info *uf_info)
 			assert("edward-1537",
 			       file != NULL && file->f_dentry != NULL);
 			assert("edward-1538",
-			       file->f_dentry->d_inode == inode);
+			       file_inode(file) == inode);
 
 			result = reiser4_write_tail_noreserve(file, inode,
 						 (char __user *)kmap(page),

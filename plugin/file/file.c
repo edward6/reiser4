@@ -663,12 +663,12 @@ int load_file_hint(struct file *file, hint_t *hint)
 		if (IS_ERR(fsdata))
 			return PTR_ERR(fsdata);
 
-		spin_lock_inode(file->f_dentry->d_inode);
+		spin_lock_inode(file_inode(file));
 		if (reiser4_seal_is_set(&fsdata->reg.hint.seal)) {
 			memcpy(hint, &fsdata->reg.hint, sizeof(*hint));
 			init_lh(&hint->lh);
 			hint->ext_coord.lh = &hint->lh;
-			spin_unlock_inode(file->f_dentry->d_inode);
+			spin_unlock_inode(file_inode(file));
 			/*
 			 * force re-validation of the coord on the first
 			 * iteration of the read/write loop.
@@ -680,7 +680,7 @@ int load_file_hint(struct file *file, hint_t *hint)
 			return 0;
 		}
 		memset(&fsdata->reg.hint, 0, sizeof(hint_t));
-		spin_unlock_inode(file->f_dentry->d_inode);
+		spin_unlock_inode(file_inode(file));
 	}
 	hint_init_zero(hint);
 	return 0;
@@ -707,9 +707,9 @@ void save_file_hint(struct file *file, const hint_t *hint)
 	assert("nikita-19891",
 	       coords_equal(&hint->seal.coord1, &hint->ext_coord.coord));
 	assert("vs-30", hint->lh.owner == NULL);
-	spin_lock_inode(file->f_dentry->d_inode);
+	spin_lock_inode(file_inode(file));
 	fsdata->reg.hint = *hint;
-	spin_unlock_inode(file->f_dentry->d_inode);
+	spin_unlock_inode(file_inode(file));
 	return;
 }
 
@@ -1656,7 +1656,7 @@ static ssize_t do_read_compound_file(hint_t *hint, struct file *file,
 	coord_t *coord;
 	znode *loaded;
 
-	inode = file->f_dentry->d_inode;
+	inode = file_inode(file);
 
 	/* build flow */
 	assert("vs-1250",
@@ -1726,7 +1726,7 @@ ssize_t read_unix_file(struct file *file, char __user *buf,
 	if (unlikely(read_amount == 0))
 		return 0;
 
-	inode = file->f_dentry->d_inode;
+	inode = file_inode(file);
 	assert("vs-972", !reiser4_inode_get_flag(inode, REISER4_NO_SD));
 
 	ctx = reiser4_init_context(inode->i_sb);
@@ -1795,7 +1795,7 @@ static ssize_t read_compound_file(struct file *file, char __user *buf,
 	size_t was_read = 0;
 	loff_t i_size;
 
-	inode = file->f_dentry->d_inode;
+	inode = file_inode(file);
 	assert("vs-972", !reiser4_inode_get_flag(inode, REISER4_NO_SD));
 
 	i_size = i_size_read(inode);
@@ -1887,7 +1887,7 @@ int mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 	struct unix_file_info *uf_info;
 	reiser4_block_nr needed;
 
-	inode = file->f_dentry->d_inode;
+	inode = file_inode(file);
 	ctx = reiser4_init_context(inode->i_sb);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
@@ -2096,7 +2096,7 @@ ssize_t write_unix_file(struct file *file,
 	loff_t new_size;
 
 	ctx = get_current_context();
-	inode = file->f_dentry->d_inode;
+	inode = file_inode(file);
 
 	assert("vs-947", !reiser4_inode_get_flag(inode, REISER4_NO_SD));
 	assert("vs-9471", (!reiser4_inode_get_flag(inode, REISER4_PART_MIXED)));
@@ -2731,7 +2731,7 @@ int write_begin_unix_file(struct file *file, struct page *page,
 	struct inode * inode;
 	struct unix_file_info *info;
 
-	inode = file->f_dentry->d_inode;
+	inode = file_inode(file);
 	info = unix_file_inode_data(inode);
 
 	ret = reiser4_grab_space_force(estimate_one_insert_into_item
@@ -2740,7 +2740,7 @@ int write_begin_unix_file(struct file *file, struct page *page,
 	if (ret)
 		return ret;
 	get_exclusive_access(info);
-	ret = find_file_state(file->f_dentry->d_inode, info);
+	ret = find_file_state(file_inode(file), info);
 	if (unlikely(ret != 0)) {
 		drop_exclusive_access(info);
 		return ret;
@@ -2769,7 +2769,7 @@ int write_end_unix_file(struct file *file, struct page *page,
 	struct inode *inode;
 	struct unix_file_info *info;
 
-	inode = file->f_dentry->d_inode;
+	inode = file_inode(file);
 	info = unix_file_inode_data(inode);
 
 	unlock_page(page);

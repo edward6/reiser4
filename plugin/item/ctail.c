@@ -811,7 +811,7 @@ static int ctail_readpages_filler(void * data, struct page * page)
 {
 	int ret = 0;
 	struct cluster_handle * clust = data;
-	struct inode * inode = clust->file->f_dentry->d_inode;
+	struct inode * inode = file_inode(clust->file);
 
 	assert("edward-1525", page->mapping == inode->i_mapping);
 
@@ -849,7 +849,7 @@ int readpages_ctail(struct file *file, struct address_space *mapping,
 	struct cluster_handle clust;
 	struct inode *inode = mapping->host;
 
-	assert("edward-1521", inode == file->f_dentry->d_inode);
+	assert("edward-1521", inode == file_inode(file));
 
 	cluster_init_read(&clust, NULL);
 	clust.file = file;

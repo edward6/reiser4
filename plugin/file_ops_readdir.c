@@ -136,7 +136,7 @@ static int dir_go_to(struct file *dir, struct readdir_pos *pos, tap_t *tap)
 
 	assert("nikita-2554", pos != NULL);
 
-	inode = dir->f_dentry->d_inode;
+	inode = file_inode(dir);
 	result = inode_dir_plugin(inode)->build_readdir_key(dir, &key);
 	if (result != 0)
 		return result;
@@ -232,7 +232,7 @@ static int dir_rewind(struct file *dir, loff_t *fpos, struct readdir_pos *pos, t
 	 * to */
 	destination = pos->entry_no + shift;
 
-	inode = dir->f_dentry->d_inode;
+	inode = file_inode(dir);
 	if (dirpos < 0)
 		return RETERR(-EINVAL);
 	else if (destination == 0ll || dirpos == 0) {
@@ -442,7 +442,7 @@ static int dir_readdir_init(struct file *f, loff_t* fpos, tap_t *tap,
 	int result;
 
 	assert("nikita-1359", f != NULL);
-	inode = f->f_dentry->d_inode;
+	inode = file_inode(f);
 	assert("nikita-1360", inode != NULL);
 
 	if (!S_ISDIR(inode->i_mode))
@@ -481,7 +481,7 @@ loff_t reiser4_llseek_dir_common(struct file *file, loff_t off, int origin)
 	loff_t result;
 	struct inode *inode;
 
-	inode = file->f_dentry->d_inode;
+	inode = file_inode(file);
 
 	ctx = reiser4_init_context(inode->i_sb);
 	if (IS_ERR(ctx))
@@ -570,7 +570,7 @@ int reiser4_iterate_common(struct file *f /* directory file being read */,
 	struct readdir_pos *pos;
 
 	assert("nikita-1359", f != NULL);
-	inode = f->f_dentry->d_inode;
+	inode = file_inode(f);
 	assert("nikita-1360", inode != NULL);
 
 	if (!S_ISDIR(inode->i_mode))

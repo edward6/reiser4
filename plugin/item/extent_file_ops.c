@@ -1224,7 +1224,7 @@ int reiser4_read_extent(struct file *file, flow_t *flow, hint_t *hint)
 	assert("vs-1120", znode_is_loaded(coord->node));
 	assert("vs-1256", coord_matches_key_extent(coord, &flow->key));
 
-	mapping = file->f_dentry->d_inode->i_mapping;
+	mapping = file_inode(file)->i_mapping;
 	ext_coord = &uf_coord->extension.extent;
 
 	file_off = get_key_offset(&flow->key);

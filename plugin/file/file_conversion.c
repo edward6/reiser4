@@ -524,7 +524,7 @@ ssize_t reiser4_write_dispatch(struct file *file, const char __user *buf,
 	ssize_t written_old = 0; /* bytes written with initial plugin */
 	ssize_t written_new = 0; /* bytes written with new plugin */
 	struct dispatch_context cont;
-	struct inode * inode = file->f_dentry->d_inode;
+	struct inode * inode = file_inode(file);
 
 	ctx = reiser4_init_context(inode->i_sb);
 	if (IS_ERR(ctx))
@@ -603,20 +603,20 @@ int reiser4_open_dispatch(struct inode *inode, struct file *file)
 ssize_t reiser4_read_dispatch(struct file * file, char __user * buf,
 			      size_t size, loff_t * off)
 {
-	struct inode * inode = file->f_dentry->d_inode;
+	struct inode * inode = file_inode(file);
 	return PROT_PASSIVE(ssize_t, read, (file, buf, size, off));
 }
 
 long reiser4_ioctl_dispatch(struct file *filp, unsigned int cmd,
 			    unsigned long arg)
 {
-	struct inode * inode = filp->f_dentry->d_inode;
+	struct inode * inode = file_inode(filp);
 	return PROT_PASSIVE(int, ioctl, (filp, cmd, arg));
 }
 
 int reiser4_mmap_dispatch(struct file *file, struct vm_area_struct *vma)
 {
-	struct inode *inode = file->f_dentry->d_inode;
+	struct inode *inode = file_inode(file);
 	return PROT_PASSIVE(int, mmap, (file, vma));
 }
 
@@ -649,7 +649,7 @@ int reiser4_write_begin_dispatch(struct file *file,
 	struct page *page;
 	pgoff_t index;
 	reiser4_context *ctx;
-	struct inode * inode = file->f_dentry->d_inode;
+	struct inode * inode = file_inode(file);
 
 	index = pos >> PAGE_CACHE_SHIFT;
 	page = grab_cache_page_write_begin(mapping, index,
@@ -658,7 +658,7 @@ int reiser4_write_begin_dispatch(struct file *file,
 	if (!page)
 		return -ENOMEM;
 
-	ctx = reiser4_init_context(file->f_dentry->d_inode->i_sb);
+	ctx = reiser4_init_context(file_inode(file)->i_sb);
 	if (IS_ERR(ctx)) {
 		ret = PTR_ERR(ctx);
 		goto err2;

@@ -1263,7 +1263,7 @@ int readpage_cryptcompress(struct file *file, struct page *page)
 	}
 	assert("edward-113",
 	       ergo(file != NULL,
-		    page->mapping == file->f_dentry->d_inode->i_mapping));
+		    page->mapping == file_inode(file)->i_mapping));
 
 	if (PageUptodate(page)) {
 		warning("edward-1338", "page is already uptodate\n");
@@ -2869,7 +2869,7 @@ ssize_t write_cryptcompress(struct file *file, const char __user *buf,
 
   	assert("edward-1449", cont->state == DISPATCH_INVAL_STATE);
 
-	inode = file->f_dentry->d_inode;
+	inode = file_inode(file);
 	assert("edward-196", cryptcompress_inode_ok(inode));
 
 	info = cryptcompress_inode_data(inode);
@@ -2949,7 +2949,7 @@ ssize_t read_cryptcompress(struct file * file, char __user *buf, size_t size,
 	struct cryptcompress_info *info;
 	reiser4_block_nr needed;
 
-	inode = file->f_dentry->d_inode;
+	inode = file_inode(file);
 	assert("edward-1194", !reiser4_inode_get_flag(inode, REISER4_NO_SD));
 
 	ctx = reiser4_init_context(inode->i_sb);
@@ -3692,7 +3692,7 @@ int mmap_cryptcompress(struct file *file, struct vm_area_struct *vma)
 	struct inode *inode;
 	reiser4_context *ctx;
 
-	inode = file->f_dentry->d_inode;
+	inode = file_inode(file);
 	ctx = reiser4_init_context(inode->i_sb);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);

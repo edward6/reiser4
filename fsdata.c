@@ -585,7 +585,7 @@ void reiser4_detach_fsdata(struct file *file)
 	if (!file_is_stateless(file))
 		return;
 
-	inode = file->f_dentry->d_inode;
+	inode = file_inode(file);
 	spin_lock_inode(inode);
 	clean_fsdata(file);
 	spin_unlock_inode(inode);
@@ -741,7 +741,7 @@ reiser4_file_fsdata *reiser4_get_file_fsdata(struct file *file)
 		if (fsdata == NULL)
 			return ERR_PTR(RETERR(-ENOMEM));
 
-		inode = file->f_dentry->d_inode;
+		inode = file_inode(file);
 		spin_lock_inode(inode);
 		if (file->private_data == NULL) {
 			file->private_data = fsdata;
@@ -767,7 +767,7 @@ static void free_file_fsdata_nolock(struct file *file)
 {
 	reiser4_file_fsdata *fsdata;
 
-	assert("", spin_inode_is_locked(file->f_dentry->d_inode));
+	assert("", spin_inode_is_locked(file_inode(file)));
 	fsdata = file->private_data;
 	if (fsdata != NULL) {
 		list_del_init(&fsdata->dir.linkage);
@@ -785,9 +785,9 @@ static void free_file_fsdata_nolock(struct file *file)
  */
 void reiser4_free_file_fsdata(struct file *file)
 {
-	spin_lock_inode(file->f_dentry->d_inode);
+	spin_lock_inode(file_inode(file));
 	free_file_fsdata_nolock(file);
-	spin_unlock_inode(file->f_dentry->d_inode);
+	spin_unlock_inode(file_inode(file));
 }
 
 /*
