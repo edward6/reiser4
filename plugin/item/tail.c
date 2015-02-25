@@ -6,7 +6,6 @@
 #include "../../carry.h"
 #include "../../vfs_ops.h"
 
-#include <linux/quotaops.h>
 #include <asm/uaccess.h>
 #include <linux/swap.h>
 #include <linux/writeback.h>
@@ -494,14 +493,12 @@ static ssize_t insert_first_tail(struct inode *inode, flow_t *flow,
 		set_key_offset(&flow->key, 0);
 		/*
 		 * holes in files built of tails are stored just like if there
-		 * were real data which are all zeros. Therefore we have to
-		 * allocate quota here as well
+		 * were real data which are all zeros.
 		 */
-		if (dquot_alloc_space_nodirty(inode, flow->length))
-			return RETERR(-EDQUOT);
+		inode_add_bytes(inode, flow->length);
 		result = reiser4_insert_flow(coord, lh, flow);
 		if (flow->length)
-			dquot_free_space_nodirty(inode, flow->length);
+			inode_sub_bytes(inode, flow->length);
 
 		uf_info = unix_file_inode_data(inode);
 
@@ -520,14 +517,12 @@ static ssize_t insert_first_tail(struct inode *inode, flow_t *flow,
 		return result;
 	}
 
-	/* check quota before appending data */
-	if (dquot_alloc_space_nodirty(inode, flow->length))
-		return RETERR(-EDQUOT);
+	inode_add_bytes(inode, flow->length);
 
 	to_write = flow->length;
 	result = reiser4_insert_flow(coord, lh, flow);
 	if (flow->length)
-		dquot_free_space_nodirty(inode, flow->length);
+		inode_sub_bytes(inode, flow->length);
 	return (to_write - flow->length) ? (to_write - flow->length) : result;
 }
 
@@ -553,25 +548,21 @@ static ssize_t append_tail(struct inode *inode,
 		set_key_offset(&flow->key, get_key_offset(&append_key));
 		/*
 		 * holes in files built of tails are stored just like if there
-		 * were real data which are all zeros. Therefore we have to
-		 * allocate quota here as well
+		 * were real data which are all zeros.
 		 */
-		if (dquot_alloc_space_nodirty(inode, flow->length))
-			return RETERR(-EDQUOT);
+		inode_add_bytes(inode, flow->length);
 		result = reiser4_insert_flow(coord, lh, flow);
 		if (flow->length)
-			dquot_free_space_nodirty(inode, flow->length);
+			inode_sub_bytes(inode, flow->length);
 		return result;
 	}
 
-	/* check quota before appending data */
-	if (dquot_alloc_space_nodirty(inode, flow->length))
-		return RETERR(-EDQUOT);
+	inode_add_bytes(inode, flow->length);
 
 	to_write = flow->length;
 	result = reiser4_insert_flow(coord, lh, flow);
 	if (flow->length)
-		dquot_free_space_nodirty(inode, flow->length);
+		inode_sub_bytes(inode, flow->length);
 	return (to_write - flow->length) ? (to_write - flow->length) : result;
 }
 

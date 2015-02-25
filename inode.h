@@ -455,6 +455,17 @@ extern void inode_check_scale_nolock(struct inode *inode, __u64 old, __u64 new);
 })
 
 
+static inline void inode_add_blocks(struct inode *inode, __u64 blocks)
+{
+	inode_add_bytes(inode, blocks << inode->i_blkbits);
+}
+
+static inline void inode_sub_blocks(struct inode *inode, __u64 blocks)
+{
+	inode_sub_bytes(inode, blocks << inode->i_blkbits);
+}
+
+
 /* See comment before reiser4_readdir_common() for description. */
 static inline struct list_head *get_readdir_list(const struct inode *inode)
 {

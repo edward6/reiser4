@@ -10,7 +10,6 @@
 #include "../inode.h"
 #include "../safe_link.h"
 
-#include <linux/quotaops.h>
 #include <linux/namei.h>
 
 static int create_vfs_object(struct inode *parent, struct dentry *dentry,
@@ -462,15 +461,6 @@ int reiser4_setattr_common(struct dentry *dentry, struct iattr *attr)
 	 */
 	result = setattr_reserve(reiser4_tree_by_inode(inode));
 	if (!result) {
-		if (((attr->ia_valid & ATTR_UID) && !uid_eq(attr->ia_uid, inode->i_uid))
-		    || ((attr->ia_valid & ATTR_GID) && !gid_eq(attr->ia_gid, inode->i_gid))) {
-			result = dquot_transfer(inode, attr) ? -EDQUOT : 0;
-			if (result) {
-				context_set_commit_async(ctx);
-				reiser4_exit_context(ctx);
-				return result;
-			}
-		}
 		setattr_copy(inode, attr);
 		mark_inode_dirty(inode);
 		result = reiser4_update_sd(inode);
@@ -601,12 +591,6 @@ static int do_create_vfs_child(reiser4_object_create_data * data,/* parameters
 	/* So that on error iput will be called. */
 	*retobj = object;
 
-	if (dquot_alloc_inode(object)) {
-		dquot_drop(object);
-		object->i_flags |= S_NOQUOTA;
-		return RETERR(-EDQUOT);
-	}
-
 	memset(&entry, 0, sizeof entry);
 	entry.obj = object;
 
@@ -616,8 +600,6 @@ static int do_create_vfs_child(reiser4_object_create_data * data,/* parameters
 	if (result) {
 		warning("nikita-431", "Cannot install plugin %i on %llx",
 			data->id, (unsigned long long)get_inode_oid(object));
-		dquot_free_inode(object);
-		object->i_flags |= S_NOQUOTA;
 		return result;
 	}
 
@@ -625,8 +607,6 @@ static int do_create_vfs_child(reiser4_object_create_data * data,/* parameters
 	obj_plug = inode_file_plugin(object);
 
 	if (obj_plug->create_object == NULL) {
-		dquot_free_inode(object);
-		object->i_flags |= S_NOQUOTA;
 		return RETERR(-EPERM);
 	}
 
@@ -644,8 +624,6 @@ static int do_create_vfs_child(reiser4_object_create_data * data,/* parameters
 		warning("nikita-432", "Cannot inherit from %llx to %llx",
 			(unsigned long long)get_inode_oid(parent),
 			(unsigned long long)get_inode_oid(object));
-		dquot_free_inode(object);
-		object->i_flags |= S_NOQUOTA;
 		return result;
 	}
 
@@ -660,8 +638,6 @@ static int do_create_vfs_child(reiser4_object_create_data * data,/* parameters
 	/* obtain directory plugin (if any) for new object. */
 	obj_dir = inode_dir_plugin(object);
 	if (obj_dir != NULL && obj_dir->init == NULL) {
-		dquot_free_inode(object);
-		object->i_flags |= S_NOQUOTA;
 		return RETERR(-EPERM);
 	}
 
@@ -669,8 +645,6 @@ static int do_create_vfs_child(reiser4_object_create_data * data,/* parameters
 
 	reserve = estimate_create_vfs_object(parent, object);
 	if (reiser4_grab_space(reserve, BA_CAN_COMMIT)) {
-		dquot_free_inode(object);
-		object->i_flags |= S_NOQUOTA;
 		return RETERR(-ENOSPC);
 	}
 
@@ -700,8 +674,6 @@ static int do_create_vfs_child(reiser4_object_create_data * data,/* parameters
 			warning("nikita-2219",
 				"Failed to create sd for %llu",
 				(unsigned long long)get_inode_oid(object));
-		dquot_free_inode(object);
-		object->i_flags |= S_NOQUOTA;
 		return result;
 	}
 
@@ -737,8 +709,6 @@ static int do_create_vfs_child(reiser4_object_create_data * data,/* parameters
 	 */
 	reiser4_update_sd(object);
 	if (result != 0) {
-		dquot_free_inode(object);
-		object->i_flags |= S_NOQUOTA;
 		/* if everything was ok (result == 0), parent stat-data is
 		 * already updated above (update_parent_dir()) */
 		reiser4_update_sd(parent);

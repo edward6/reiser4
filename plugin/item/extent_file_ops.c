@@ -5,7 +5,6 @@
 #include "../../page_cache.h"
 #include "../object.h"
 
-#include <linux/quotaops.h>
 #include <linux/swap.h>
 
 static inline reiser4_extent *ext_by_offset(const znode *node, int offset)
@@ -260,9 +259,7 @@ static int append_last_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 
 	assert("", get_key_offset(key) == (loff_t)index_jnode(jnodes[0]) * PAGE_CACHE_SIZE);
 
-	result = dquot_alloc_block_nodirty(mapping_jnode(jnodes[0])->host,
-					   count);
-	BUG_ON(result != 0);
+	inode_add_blocks(mapping_jnode(jnodes[0])->host, count);
 
 	switch (state_of_extent(ext)) {
 	case UNALLOCATED_EXTENT:
@@ -408,9 +405,7 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	if (count == 0)
 		return 0;
 
-	result = dquot_alloc_block_nodirty(mapping_jnode(jnodes[0])->host,
-					   count);
-	BUG_ON(result != 0);
+	inode_add_blocks(mapping_jnode(jnodes[0])->host, count);
 
 	/*
 	 * prepare for tree modification: compose body of item and item data
@@ -623,9 +618,7 @@ static int overwrite_one_block(uf_coord_t *uf_coord, const reiser4_key *key,
 		break;
 
 	case HOLE_EXTENT:
-		result = dquot_alloc_block_nodirty(mapping_jnode(node)->host,
-						   1);
-		BUG_ON(result != 0);
+		inode_add_blocks(mapping_jnode(node)->host, 1);
 		result = plug_hole(uf_coord, key, &how);
 		if (result)
 			return result;
