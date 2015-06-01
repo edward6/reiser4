@@ -474,7 +474,7 @@ static int check_write_congestion(void)
 	struct backing_dev_info *bdi;
 
 	sb = reiser4_get_current_sb();
-	bdi = reiser4_get_super_fake(sb)->i_mapping->backing_dev_info;
+	bdi = inode_to_bdi(reiser4_get_super_fake(sb));
 	return bdi_write_congested(bdi);
 }
 

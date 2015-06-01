@@ -258,7 +258,7 @@ static void entd_flush(struct super_block *super, struct wbq *rq)
 		 * (via igrab), so that shutdown_super() will wait
 		 * (on reiser4_put_super) for entd completion.
 		 */
-		wb = &rq->mapping->backing_dev_info->wb;
+		wb = &inode_to_bdi(rq->mapping->host)->wb;
 
 		spin_lock(&wb->list_lock);
 		result = generic_writeback_sb_inodes(super,

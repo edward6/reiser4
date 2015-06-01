@@ -430,7 +430,7 @@ static int reiser4_sync_fs(struct super_block *super, int wait)
 			"reiser4_capture_super_block failed in write_super: %d",
 			ret);
 
-	wb = &reiser4_get_super_fake(super)->i_mapping->backing_dev_info->wb;
+	wb = &inode_to_bdi(reiser4_get_super_fake(super))->wb;
 	spin_lock(&wb->list_lock);
 	generic_writeback_sb_inodes(super, wb, &wbc, &work, true);
 	spin_unlock(&wb->list_lock);

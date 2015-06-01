@@ -529,7 +529,7 @@ ssize_t reiser4_write_dispatch(struct file *file, const char __user *buf,
 	ctx = reiser4_init_context(inode->i_sb);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
-	current->backing_dev_info = inode->i_mapping->backing_dev_info;
+	current->backing_dev_info = inode_to_bdi(inode);
 	init_dispatch_context(&cont);
 	mutex_lock(&inode->i_mutex);
 	/**

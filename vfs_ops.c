@@ -144,7 +144,6 @@ void reiser4_writeout(struct super_block *sb, struct writeback_control *wbc)
 	long written = 0;
 	int repeats = 0;
 	int result;
-	struct address_space *mapping;
 
 	/*
 	 * Performs early flushing, trying to free some memory. If there
@@ -159,13 +158,12 @@ void reiser4_writeout(struct super_block *sb, struct writeback_control *wbc)
 	}
 
 	BUG_ON(reiser4_get_super_fake(sb) == NULL);
-	mapping = reiser4_get_super_fake(sb)->i_mapping;
 	do {
 		long nr_submitted = 0;
 		jnode *node = NULL;
 
 		/* do not put more requests to overload write queue */
-		if (bdi_write_congested(mapping->backing_dev_info)) {
+		if (bdi_write_congested(inode_to_bdi(reiser4_get_super_fake(sb)))) {
 			//blk_flush_plug(current);
 			break;
 		}
