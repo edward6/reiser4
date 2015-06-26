@@ -1921,10 +1921,14 @@ static void checkout_page_cluster(struct cluster_handle * clust,
 		memcpy(tfm_stream_data(tc, INPUT_STREAM) + pg_to_off(i),
 		       data, in_page);
 		kunmap_atomic(data);
-
-		if (PageDirty(clust->pages[i]))
-			cancel_dirty_page(clust->pages[i], PAGE_CACHE_SIZE);
-
+		/*
+		 * modifications have been checked out and will be
+		 * committed later. Anyway, the dirty status of the
+		 * page is no longer relevant. However, the uptodate
+		 * status of the page is still relevant!
+		 */
+		if (TestClearPageDirty(clust->pages[i]))
+			account_page_cleaned(clust->pages[i], inode->i_mapping);
 		unlock_page(clust->pages[i]);
 
 		if (in_page < PAGE_CACHE_SIZE)
@@ -2875,13 +2879,6 @@ ssize_t write_cryptcompress(struct file *file, const char __user *buf,
 	info = cryptcompress_inode_data(inode);
 	ctx = get_current_context();
 
-	result = generic_write_checks(file, &pos, &count, 0);
-  	if (unlikely(result != 0)) {
-		context_set_commit_async(ctx);
-		return result;
-	}
-  	if (unlikely(count == 0))
-		return 0;
 	result = file_remove_suid(file);
 	if (unlikely(result != 0)) {
 		context_set_commit_async(ctx);

@@ -2101,13 +2101,6 @@ ssize_t write_unix_file(struct file *file,
 	assert("vs-947", !reiser4_inode_get_flag(inode, REISER4_NO_SD));
 	assert("vs-9471", (!reiser4_inode_get_flag(inode, REISER4_PART_MIXED)));
 
-	/* check amount of bytes to write and writing position */
-	result = generic_write_checks(file, pos, &count, 0);
-	if (result) {
-		context_set_commit_async(ctx);
-		return result;
-	}
-
 	result = file_remove_suid(file);
 	if (result) {
 		context_set_commit_async(ctx);

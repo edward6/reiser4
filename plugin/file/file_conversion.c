@@ -28,6 +28,7 @@
  * are CS readers.
  */
 
+#include <linux/uio.h>
 #include "../../inode.h"
 #include "../cluster.h"
 #include "file.h"
@@ -510,6 +511,24 @@ static inline void done_dispatch_context(struct dispatch_context * cont,
 	}
 }
 
+static inline ssize_t reiser4_write_checks(struct file *file,
+					   const char __user *buf,
+					   size_t count, loff_t *off)
+{
+	ssize_t result;
+	struct iovec iov = { .iov_base = (void __user *)buf, .iov_len = count };
+	struct kiocb iocb;
+	struct iov_iter iter;
+
+	init_sync_kiocb(&iocb, file);
+	iocb.ki_pos = *off;
+	iov_iter_init(&iter, WRITE, &iov, 1, count);
+
+	result = generic_write_checks(&iocb, &iter);
+	*off = iocb.ki_pos;
+	return result;
+}
+
 /*
  * ->write() VFS file operation
  *
@@ -519,7 +538,7 @@ static inline void done_dispatch_context(struct dispatch_context * cont,
 ssize_t reiser4_write_dispatch(struct file *file, const char __user *buf,
 			       size_t count, loff_t *off)
 {
-	int result;
+	ssize_t result;
 	reiser4_context *ctx;
 	ssize_t written_old = 0; /* bytes written with initial plugin */
 	ssize_t written_new = 0; /* bytes written with new plugin */
@@ -532,6 +551,10 @@ ssize_t reiser4_write_dispatch(struct file *file, const char __user *buf,
 	current->backing_dev_info = inode_to_bdi(inode);
 	init_dispatch_context(&cont);
 	mutex_lock(&inode->i_mutex);
+
+	result = reiser4_write_checks(file, buf, count, off);
+	if (unlikely(result <= 0))
+		goto exit;
 	/**
 	 * First step.
 	 * Start write with initial file plugin.
@@ -556,8 +579,7 @@ ssize_t reiser4_write_dispatch(struct file *file, const char __user *buf,
 		warning("edward-1544",
 			"Inode %llu: file plugin conversion failed (%d)",
 			(unsigned long long)get_inode_oid(inode),
-			result);
-		context_set_commit_async(ctx);
+			(int)result);
 		goto exit;
 	}
 	reiser4_txn_restart(ctx);
