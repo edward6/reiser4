@@ -1177,6 +1177,8 @@ static int alloc_item_convert_data(struct convert_info * sq)
 	sq->itm = kmalloc(sizeof(*sq->itm), reiser4_ctx_gfp_mask_get());
 	if (sq->itm == NULL)
 		return RETERR(-ENOMEM);
+	init_lh(&sq->right_lock);
+	sq->right_locked = 0;
 	return 0;
 }
 
@@ -1186,22 +1188,28 @@ static void free_item_convert_data(struct convert_info * sq)
 	assert("edward-819", sq->itm != NULL);
 	assert("edward-820", sq->iplug != NULL);
 
+	done_lh(&sq->right_lock);
+	sq->right_locked = 0;
 	kfree(sq->itm);
 	sq->itm = NULL;
 	return;
 }
 
-static int alloc_convert_data(flush_pos_t * pos)
+static struct convert_info *alloc_convert_data(void)
 {
-	assert("edward-821", pos != NULL);
-	assert("edward-822", pos->sq == NULL);
+	struct convert_info *info;
 
-	pos->sq = kmalloc(sizeof(*pos->sq), reiser4_ctx_gfp_mask_get());
-	if (!pos->sq)
-		return RETERR(-ENOMEM);
-	memset(pos->sq, 0, sizeof(*pos->sq));
-	cluster_init_write(&pos->sq->clust, NULL);
-	return 0;
+	info = kmalloc(sizeof(*info), reiser4_ctx_gfp_mask_get());
+	if (info != NULL) {
+		memset(info, 0, sizeof(*info));
+		cluster_init_write(&info->clust, NULL);
+	}
+	return info;
+}
+
+static void reset_convert_data(struct convert_info *info)
+{
+	info->clust.tc.all_zero = 0;
 }
 
 void free_convert_data(flush_pos_t * pos)
@@ -1230,7 +1238,6 @@ static int init_item_convert_data(flush_pos_t * pos, struct inode *inode)
 	assert("edward-828", inode != NULL);
 
 	sq = pos->sq;
-
 	memset(sq->itm, 0, sizeof(*sq->itm));
 
 	/* iplug->init_convert_data() */
@@ -1258,10 +1265,13 @@ static int attach_convert_idata(flush_pos_t * pos, struct inode *inode)
 	       item_plugin_by_id(CTAIL_ID));
 
 	if (!pos->sq) {
-		ret = alloc_convert_data(pos);
-		if (ret)
-			return ret;
+		pos->sq = alloc_convert_data();
+		if (!pos->sq)
+			return RETERR(-ENOMEM);
 	}
+	else
+		reset_convert_data(pos->sq);
+
 	clust = &pos->sq->clust;
 	ret = grab_coa(&clust->tc, cplug);
 	if (ret)
@@ -1300,6 +1310,9 @@ static int attach_convert_idata(flush_pos_t * pos, struct inode *inode)
 			     clust->tc.len,
 			     clust_to_off(clust->index, inode),
 			     WRITE_OP, &info->flow);
+	if (clust->tc.all_zero)
+		info->flow.length = 0;
+
 	jput(pos->child);
 	return 0;
       err:
@@ -1420,6 +1433,7 @@ static int pre_convert_ctail(flush_pos_t * pos)
 		coord_init_before_first_item(&coord, slider);
 
 		if (node_is_empty(slider)) {
+			warning("edward-1641", "Found empty right neighbor");
 			znode_make_dirty(slider);
 			znode_set_convertible(slider);
 			/*
@@ -1450,14 +1464,25 @@ static int pre_convert_ctail(flush_pos_t * pos)
 				znode_set_convertible(slider);
 			}
 			stop = 1;
+			convert_data(pos)->right_locked = 1;
 		} else {
 			item_convert_data(pos)->d_next = DC_AFTER_CLUSTER;
 			stop = 1;
+			convert_data(pos)->right_locked = 1;
 		}
 		zrelse(slider);
 		done_lh(&slider_lh);
 		move_lh(&slider_lh, &right_lh);
 	}
+	if (convert_data(pos)->right_locked)
+		/*
+		 * Store locked right neighbor in
+		 * the conversion info. Otherwise,
+		 * we won't be able to access it,
+		 * if the current node gets deleted
+		 * during conversion
+		 */
+		move_lh(&convert_data(pos)->right_lock, &slider_lh);
 	done_lh(&slider_lh);
 	done_lh(&right_lh);
 
@@ -1566,11 +1591,25 @@ static int assign_conversion_mode(flush_pos_t * pos, ctail_convert_mode_t *mode)
 			}
 			if (ret)
 				goto dont_convert;
-			/*
-			 * this is the first ctail in the cluster,
-			 * so it should be overwritten
-			 */
-			*mode = CTAIL_OVERWRITE_ITEM;
+
+			if (pos->sq->clust.tc.all_zero) {
+				assert("edward-1634",
+				      item_convert_data(pos)->flow.length == 0);
+				/*
+				 * new content is filled with zeros -
+				 * we punch a hole using cut (not kill)
+				 * primitive, so attached pages won't
+				 * be truncated
+				 */
+				*mode = CTAIL_CUT_ITEM;
+			}
+			else
+				/*
+				 * this is the first ctail in the cluster,
+				 * so it (may be only its head) should be
+				 * overwritten
+				 */
+				*mode = CTAIL_OVERWRITE_ITEM;
 		} else
 			/*
 			 * non-convertible item

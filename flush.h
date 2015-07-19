@@ -74,6 +74,8 @@ struct convert_info {
 	item_plugin *iplug;	/* current item plugin */
 	struct convert_item_info *itm;	/* current item info */
 	struct cluster_handle clust;	/* transform cluster */
+	lock_handle right_lock; /* lock handle of the right neighbor */
+	int right_locked;
 };
 
 typedef enum flush_position_state {
@@ -231,7 +233,7 @@ static inline int should_terminate_squalloc(flush_pos_t *pos)
 	    item_convert_count(pos) >= SQUALLOC_THRESHOLD;
 }
 
-#if 1
+#if REISER4_DEBUG
 #define check_convert_info(pos)						\
 do {							        	\
 	if (unlikely(should_convert_right_neighbor(pos))) {		\

@@ -921,12 +921,35 @@ static unsigned deflate_overrun(struct inode * inode, int ilen)
 	return coa_overrun(inode_compression_plugin(inode), ilen);
 }
 
+static bool is_all_zero(char const* mem, size_t size)
+{
+	while (size-- > 0)
+		if (*mem++)
+			return false;
+	return true;
+}
+
+static inline bool should_punch_hole(struct tfm_cluster *tc)
+{
+	if (0 &&
+	    !reiser4_is_set(reiser4_get_current_sb(), REISER4_DONT_PUNCH_HOLES)
+	    && is_all_zero(tfm_stream_data(tc, INPUT_STREAM), tc->lsize)) {
+		/*
+		 * the logical cluster is filled with zeros,
+		 * so we'll punch a hole
+		 */
+		tc->all_zero = 1;
+		return true;
+	}
+	return false;
+}
+
 /* Estimating compressibility of a logical cluster by various
    policies represented by compression mode plugin.
    If this returns false, then compressor won't be called for
    the cluster of index @index.
 */
-static int should_compress(struct tfm_cluster * tc, cloff_t index,
+static int should_compress(struct tfm_cluster *tc, cloff_t index,
 			   struct inode *inode)
 {
 	compression_plugin *cplug = inode_compression_plugin(inode);
@@ -936,6 +959,12 @@ static int should_compress(struct tfm_cluster * tc, cloff_t index,
 	assert("edward-1322", cplug != NULL);
 	assert("edward-1323", mplug != NULL);
 
+	if (should_punch_hole(tc))
+		/*
+		 * we are about to punch a hole,
+		 * so don't compress data
+		 */
+		return 0;
 	return /* estimate by size */
 		(cplug->min_size_deflate ?
 		 tc->len >= cplug->min_size_deflate() :
@@ -3368,7 +3397,7 @@ static int prune_cryptcompress(struct inode *inode, loff_t new_size,
 	       clust.dstat == UNPR_DISK_CLUSTER);
 
 	assert("edward-1191", inode->i_size == new_size);
-	assert("edward-1206", body_truncate_ok(inode, ridx));
+
  truncate_fake:
 	/* drop all the pages that don't have jnodes (i.e. pages
 	   which can not be truncated by cut_file_items() because

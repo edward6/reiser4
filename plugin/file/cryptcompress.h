@@ -159,6 +159,7 @@ struct tfm_cluster {
 	int uptodate;
 	int lsize;        /* number of bytes in logical cluster */
 	int len;          /* length of the transform stream */
+	int all_zero;     /* logical cluster is filled with zeros */
 };
 
 static inline coa_t get_coa(struct tfm_cluster * tc, reiser4_compression_id id,

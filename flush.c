@@ -1915,8 +1915,12 @@ out:
 }
 
 /*
- * Process nodes on leaf level until unformatted node or
- * rightmost node in the slum reached
+ * Process nodes on the leaf level until unformatted node or
+ * rightmost node in the slum reached.
+ *
+ * This function is a complicated beast, because it calls a
+ * static machine ->convert_node() for every node, which, in
+ * turn, scans node's items and does something for each of them.
  */
 static int handle_pos_on_formatted(flush_pos_t *pos)
 {
@@ -1933,19 +1937,39 @@ static int handle_pos_on_formatted(flush_pos_t *pos)
 			return ret;
 	}
 	while (1) {
-		int expected;
-		expected = should_convert_right_neighbor(pos);
-		ret = neighbor_in_slum(pos->lock.node, &right_lock, RIGHT_SIDE,
-				       ZNODE_WRITE_LOCK, !expected, expected);
-		if (ret) {
-			if (expected)
-				warning("edward-1495",
-		        "Right neighbor is expected but not found (%d). Fsck?",
-					ret);
-			break;
+		assert("edward-1635",
+		       ergo(node_is_empty(pos->lock.node),
+			    ZF_ISSET(pos->lock.node, JNODE_HEARD_BANSHEE)));
+		/*
+		 * First of all, grab a right neighbor
+		 */
+		if (convert_data(pos) && convert_data(pos)->right_locked) {
+			/*
+			 * the right neighbor was locked by convert_node()
+			 * transfer the lock from the "cache".
+ 			 */
+			move_lh(&right_lock, &convert_data(pos)->right_lock);
+			done_lh(&convert_data(pos)->right_lock);
+			convert_data(pos)->right_locked = 0;
+		}
+		else {
+			ret = neighbor_in_slum(pos->lock.node, &right_lock,
+					       RIGHT_SIDE, ZNODE_WRITE_LOCK,
+					       1, 0);
+			if (ret) {
+				/*
+				 * There is no right neighbor for some reasons,
+				 * so finish with this level.
+				 */
+				assert("edward-1636",
+				       !should_convert_right_neighbor(pos));
+				break;
+			}
 		}
 		/*
-		 * we don't prep(allocate) nodes for flushing twice. This can be
+		 * Check "flushprepped" status of the right neighbor.
+		 *
+		 * We don't prep(allocate) nodes for flushing twice. This can be
 		 * suboptimal, or it can be optimal. For now we choose to live
 		 * with the risk that it will be suboptimal because it would be
 		 * quite complex to code it to be smarter.
@@ -1957,38 +1981,65 @@ static int handle_pos_on_formatted(flush_pos_t *pos)
 			pos_stop(pos);
 			break;
 		}
-
 		ret = incr_load_count_znode(&right_load, right_lock.node);
 		if (ret)
 			break;
 		if (znode_convertible(right_lock.node)) {
+			assert("edward-xxxx",
+			       ergo(convert_data(pos),
+				    convert_data(pos)->right_locked == 0));
+
 			ret = convert_node(pos, right_lock.node);
 			if (ret)
 				break;
-			if (unlikely(node_is_empty(right_lock.node))) {
-				/*
-				 * node became empty after convertion,
-				 * skip this
-				 */
-				done_load_count(&right_load);
-				done_lh(&right_lock);
-				continue;
-			}
+		}
+		else
+			assert("edward-1637",
+			       !should_convert_right_neighbor(pos));
+
+		if (node_is_empty(pos->lock.node)) {
+			/*
+			 * Current node became empty after conversion
+			 * and, hence, was removed from the tree;
+			 * Advance the current position to the right neighbor.
+			 */
+			assert("edward-1638",
+			       ZF_ISSET(pos->lock.node, JNODE_HEARD_BANSHEE));
+			move_flush_pos(pos, &right_lock, &right_load, NULL);
+			continue;
+		}
+		if (node_is_empty(right_lock.node)) {
+			assert("edward-1639",
+			       ZF_ISSET(right_lock.node, JNODE_HEARD_BANSHEE));
+			/*
+			 * The right neighbor became empty after
+			 * convertion, and hence it was deleted
+			 * from the tree - skip this.
+			 * Since current node is not empty,
+			 * we'll obtain a correct pointer to
+			 * the next right neighbor
+			 */
+			done_load_count(&right_load);
+			done_lh(&right_lock);
+			continue;
 		}
 		/*
-		 * Current node and its right neighbor are converted.
+		 * At this point both, current node and its right
+		 * neigbor are converted and not empty.
 		 * Squeeze them _before_ going upward.
 		 */
 		ret = squeeze_right_neighbor(pos, pos->lock.node,
 					     right_lock.node);
 		if (ret < 0)
 			break;
-
 		if (node_is_empty(right_lock.node)) {
+			assert("edward-1640",
+			       ZF_ISSET(right_lock.node, JNODE_HEARD_BANSHEE));
 			/*
-                         * right node was squeezed completely,
-                         * skip this
-                         */
+                         * right neighbor was squeezed completely,
+                         * and hence has been deleted from the tree.
+			 * Skip this.
+			 */
                         done_load_count(&right_load);
                         done_lh(&right_lock);
                         continue;
