@@ -144,8 +144,9 @@ typedef enum {
 
 typedef enum {
 	LC_INVAL  = 0,   /* invalid value */
-	LC_APPOV = 1,    /* append and/or overwrite */
-	LC_TRUNC = 2	 /* truncate */
+	LC_APPOV  = 1,   /* append and/or overwrite */
+	LC_EXPAND = 2,	 /* expanding truncate */
+	LC_SHRINK = 3    /* shrinking truncate */
 } logical_cluster_op;
 
 /* Transform cluster.
@@ -159,7 +160,7 @@ struct tfm_cluster {
 	int uptodate;
 	int lsize;        /* number of bytes in logical cluster */
 	int len;          /* length of the transform stream */
-	int all_zero;     /* logical cluster is filled with zeros */
+	unsigned int hole:1;  /* should punch hole */
 };
 
 static inline coa_t get_coa(struct tfm_cluster * tc, reiser4_compression_id id,

@@ -245,7 +245,7 @@ typedef enum {
 	/* write is in progress */
 	JNODE_WRITEBACK = 18,
 
-	/* FIXME: now it is used by crypto-compress plugin only */
+	/* unused flag */
 	JNODE_NEW = 19,
 
 	/* delimiting keys are already set for this znode. */

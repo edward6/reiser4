@@ -1985,7 +1985,7 @@ static int handle_pos_on_formatted(flush_pos_t *pos)
 		if (ret)
 			break;
 		if (znode_convertible(right_lock.node)) {
-			assert("edward-xxxx",
+			assert("edward-1643",
 			       ergo(convert_data(pos),
 				    convert_data(pos)->right_locked == 0));
 

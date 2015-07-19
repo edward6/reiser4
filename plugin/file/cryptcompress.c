@@ -934,11 +934,8 @@ static inline bool should_punch_hole(struct tfm_cluster *tc)
 	if (0 &&
 	    !reiser4_is_set(reiser4_get_current_sb(), REISER4_DONT_PUNCH_HOLES)
 	    && is_all_zero(tfm_stream_data(tc, INPUT_STREAM), tc->lsize)) {
-		/*
-		 * the logical cluster is filled with zeros,
-		 * so we'll punch a hole
-		 */
-		tc->all_zero = 1;
+
+		tc->hole = 1;
 		return true;
 	}
 	return false;
@@ -1322,8 +1319,9 @@ static int get_new_nrpages(struct cluster_handle * clust)
 {
 	switch (clust->op) {
 	case LC_APPOV:
+	case LC_EXPAND:
 		return clust->nr_pages;
-	case LC_TRUNC:
+	case LC_SHRINK:
 		assert("edward-1179", clust->win != NULL);
 		return size_in_pages(clust->win->off + clust->win->count);
 	default:
@@ -1521,17 +1519,6 @@ static int jnode_truncate_ok(struct inode *inode, cloff_t index)
 		return 1;
 	jput(node);
 	return 0;
-}
-
-static int find_fake_appended(struct inode *inode, cloff_t * index);
-
-static int body_truncate_ok(struct inode *inode, cloff_t aidx)
-{
-	int result;
-	cloff_t raidx;
-
-	result = find_fake_appended(inode, &raidx);
-	return !result && (aidx == raidx);
 }
 #endif
 
@@ -1771,12 +1758,13 @@ static void checkin_file_size(struct cluster_handle * clust,
 
 	switch (clust->op) {
 	case LC_APPOV:
+	case LC_EXPAND:
 		if (new_size + win->count <= i_size_read(inode))
 			/* overwrite only */
 			return;
 		new_size += win->count;
 		break;
-	case LC_TRUNC:
+	case LC_SHRINK:
 		break;
 	default:
 		impossible("edward-1184", "bad page cluster option");
@@ -1867,7 +1855,9 @@ static int checkin_logical_cluster(struct cluster_handle * clust,
 
 	lock_cluster(node);
 	checkin_cluster_size(clust, inode);
-	/* this will unlock cluster */
+	/*
+	 * this will unlock the cluster
+	 */
 	result = checkin_page_cluster(clust, inode);
 	jput(node);
 	clust->node = NULL;
@@ -2074,8 +2064,9 @@ static int balance_dirty_page_cluster(struct cluster_handle * clust,
 	return 0;
 }
 
-/* set zeroes to the page cluster, proceed it, and maybe, try to capture
-   its pages */
+/*
+ * Check in part of a hole within a logical cluster
+ */
 static int write_hole(struct inode *inode, struct cluster_handle * clust,
 		      loff_t file_off, loff_t to_file)
 {
@@ -2099,15 +2090,18 @@ static int write_hole(struct inode *inode, struct cluster_handle * clust,
 	assert("edward-192", cluster_ok(clust, inode));
 
 	if (win->off == 0 && win->count == inode_cluster_size(inode)) {
-		/* This part of the hole will be represented by "fake"
-		 * logical cluster, i.e. which doesn't have appropriate
-		 * disk cluster until someone modify this logical cluster
-		 * and make it dirty.
-		 * So go forward here..
+		/*
+		 * This part of the hole occupies the whole logical
+		 * cluster, so it won't be represented by any items.
+		 * Nothing to submit.
 		 */
 		move_update_window(inode, clust, file_off, to_file);
 		return 0;
 	}
+	/*
+	 * This part of the hole starts not at logical cluster
+	 * boundary, so it has to be converted to zeros and written to disk
+	 */
 	cl_count = win->count;	/* number of zeroes to write */
 	cl_off = win->off;
 	pg_off = off_to_pgoff(win->off);
@@ -2130,7 +2124,7 @@ static int write_hole(struct inode *inode, struct cluster_handle * clust,
 		cl_count -= to_pg;
 		pg_off = 0;
 	}
-	if (!win->delta) {
+	if (win->delta == 0) {
 		/* only zeroes in this window, try to capture
 		 */
 		result = checkin_logical_cluster(clust, inode);
@@ -2624,32 +2618,39 @@ static int prepare_logical_cluster(struct inode *inode,
 
 	result = reserve4cluster(inode, clust);
 	if (result)
-		goto err1;
+		goto out;
+
 	result = read_some_cluster_pages(inode, clust);
-	if (result) {
+
+	if (result ||
+	    /*
+	     * don't submit data modifications
+	     * when expanding or shrinking holes
+	     */
+	    (op == LC_SHRINK && clust->dstat == FAKE_DISK_CLUSTER) ||
+	    (op == LC_EXPAND && clust->dstat == FAKE_DISK_CLUSTER)){
 		free_reserved4cluster(inode,
 				      clust,
 				      estimate_update_cluster(inode) +
 				      estimate_insert_cluster(inode));
-		goto err1;
+		goto out;
 	}
 	assert("edward-1124", clust->dstat != INVAL_DISK_CLUSTER);
 
 	result = cryptcompress_make_unprepped_cluster(clust, inode);
 	if (result)
-		goto err2;
+		goto error;
 	if (win && win->stat == HOLE_WINDOW) {
 		result = write_hole(inode, clust, file_off, to_file);
 		if (result)
-			goto err2;
+			goto error;
 	}
 	return 0;
- err2:
+ error:
 	free_reserved4cluster(inode, clust,
 			      estimate_update_cluster(inode));
- err1:
+ out:
 	put_page_cluster(clust, inode, WRITE_OP);
-	assert("edward-1125", result == -ENOSPC);
 	return result;
 }
 
@@ -2998,87 +2999,6 @@ ssize_t read_cryptcompress(struct file * file, char __user *buf, size_t size,
 	return result;
 }
 
-/* Look for a disk cluster and keep lookup result in @found.
- * If @index > 0, then find disk cluster of the index (@index - 1);
- * If @index == 0, then find the rightmost disk cluster.
- * Keep incremented index of the found disk cluster in @found.
- * @found == 0 means that disk cluster was not found (in the last
- * case (@index == 0) it means that file doesn't have disk clusters).
- */
-static int lookup_disk_cluster(struct inode *inode, cloff_t * found,
-			       cloff_t index)
-{
-	int result;
-	reiser4_key key;
-	loff_t offset;
-	hint_t *hint;
-	lock_handle *lh;
-	lookup_bias bias;
-	coord_t *coord;
-	item_plugin *iplug;
-
-	assert("edward-1131", inode != NULL);
-	assert("edward-95", cryptcompress_inode_ok(inode));
-
-	hint = kmalloc(sizeof(*hint), reiser4_ctx_gfp_mask_get());
-	if (hint == NULL)
-		return RETERR(-ENOMEM);
-	hint_init_zero(hint);
-	lh = &hint->lh;
-
-	bias = (index ? FIND_EXACT : FIND_MAX_NOT_MORE_THAN);
-	offset =
-	    (index ? clust_to_off(index, inode) -
-	     1 : get_key_offset(reiser4_max_key()));
-
-	key_by_inode_cryptcompress(inode, offset, &key);
-
-	/* find the last item of this object */
-	result =
-	    find_cluster_item(hint, &key, ZNODE_READ_LOCK, NULL /* ra_info */,
-			      bias, 0);
-	if (cbk_errored(result)) {
-		done_lh(lh);
-		kfree(hint);
-		return result;
-	}
-	if (result == CBK_COORD_NOTFOUND) {
-		/* no real disk clusters */
-		done_lh(lh);
-		kfree(hint);
-		*found = 0;
-		return 0;
-	}
-	/* disk cluster is found */
-	coord = &hint->ext_coord.coord;
-	coord_clear_iplug(coord);
-	result = zload(coord->node);
-	if (unlikely(result)) {
-		done_lh(lh);
-		kfree(hint);
-		return result;
-	}
-	iplug = item_plugin_by_coord(coord);
-	assert("edward-277", iplug == item_plugin_by_id(CTAIL_ID));
-	assert("edward-1202", ctail_ok(coord));
-
-	item_key_by_coord(coord, &key);
-	*found = off_to_clust(get_key_offset(&key), inode) + 1;
-
-	assert("edward-1132", ergo(index, index == *found));
-
-	zrelse(coord->node);
-	done_lh(lh);
-	kfree(hint);
-	return 0;
-}
-
-static int find_fake_appended(struct inode *inode, cloff_t * index)
-{
-	return lookup_disk_cluster(inode, index,
-				   0 /* find last real one */ );
-}
-
 /* Set left coord when unit is not found after node_lookup()
    This takes into account that there can be holes in a sequence
    of disk clusters */
@@ -3213,13 +3133,8 @@ int cut_tree_worker_cryptcompress(tap_t * tap, const reiser4_key * from_key,
 	return result;
 }
 
-/* Append or expand hole in two steps:
- * 1) set zeroes to the rightmost page of the rightmost non-fake
- *    logical cluster;
- * 2) expand hole via fake logical clusters (just increase i_size)
- */
-static int cryptcompress_append_hole(struct inode *inode /* with old size */,
-				     loff_t new_size)
+static int expand_cryptcompress(struct inode *inode /* old size */,
+				loff_t new_size)
 {
 	int result = 0;
 	hint_t *hint;
@@ -3245,16 +3160,22 @@ static int cryptcompress_append_hole(struct inode *inode /* with old size */,
 	cluster_init_read(&clust, &win);
 	clust.hint = hint;
 
+	if (off_to_cloff(inode->i_size, inode) == 0)
+		goto append_hole;
+	/*
+	 * It can happen that
+	 * a part of the hole will be converted
+	 * to zeros. If so, it should be submitted
+	 */
 	result = alloc_cluster_pgset(&clust, cluster_nrpages(inode));
 	if (result)
 		goto out;
-	if (off_to_cloff(inode->i_size, inode) == 0)
-		goto append_fake;
 	hole_size = new_size - inode->i_size;
-	nr_zeroes =
-		inode_cluster_size(inode) - off_to_cloff(inode->i_size, inode);
-	if (hole_size < nr_zeroes)
+	nr_zeroes = inode_cluster_size(inode) -
+		off_to_cloff(inode->i_size, inode);
+	if (nr_zeroes > hole_size)
 		nr_zeroes = hole_size;
+
 	set_window(&clust, &win, inode, inode->i_size,
 		   inode->i_size + nr_zeroes);
 	win.stat = HOLE_WINDOW;
@@ -3262,20 +3183,17 @@ static int cryptcompress_append_hole(struct inode *inode /* with old size */,
 	assert("edward-1137",
 	       clust.index == off_to_clust(inode->i_size, inode));
 
-	result = prepare_logical_cluster(inode, 0, 0, &clust, LC_APPOV);
-
-	assert("edward-1271", !result || result == -ENOSPC);
+	result = prepare_logical_cluster(inode, 0, 0, &clust, LC_EXPAND);
 	if (result)
 		goto out;
 	assert("edward-1139",
 	       clust.dstat == PREP_DISK_CLUSTER ||
-	       clust.dstat == UNPR_DISK_CLUSTER);
+	       clust.dstat == UNPR_DISK_CLUSTER ||
+	       clust.dstat == FAKE_DISK_CLUSTER);
 
 	assert("edward-1431", hole_size >= nr_zeroes);
-	if (hole_size == nr_zeroes)
-	/* nothing to append anymore */
-		goto out;
- append_fake:
+
+ append_hole:
 	INODE_SET_SIZE(inode, new_size);
  out:
 	done_lh(lh);
@@ -3284,29 +3202,28 @@ static int cryptcompress_append_hole(struct inode *inode /* with old size */,
 	return result;
 }
 
-static int update_cryptcompress_size(struct inode *inode, loff_t new_size,
-				     int update_sd)
+static int update_size_actor(struct inode *inode,
+			     loff_t new_size, int update_sd)
 {
-	return (new_size & ((loff_t) (inode_cluster_size(inode)) - 1)
-		? 0 : reiser4_update_file_size(inode, new_size, update_sd));
+	if (new_size & ((loff_t) (inode_cluster_size(inode)) - 1))
+		/*
+		 * cut not at logical cluster boundary,
+		 * size will be updated by write_hole()
+		 */
+		return 0;
+	else
+		return reiser4_update_file_size(inode, new_size, update_sd);
 }
 
-/* Prune cryptcompress file in two steps:
- * 1) cut all nominated logical clusters except the leftmost one which
- *    is to be partially truncated. Note, that there can be "holes"
- *    represented by fake logical clusters.
- * 2) set zeroes and capture leftmost partially truncated logical
- *    cluster, if it is not fake; otherwise prune fake logical cluster
- *    (just decrease i_size).
- */
-static int prune_cryptcompress(struct inode *inode, loff_t new_size,
-			       int update_sd, cloff_t aidx)
+static int prune_cryptcompress(struct inode *inode,
+			       loff_t new_size, int update_sd)
 {
 	int result = 0;
-	unsigned nr_zeroes;
+	unsigned nr_zeros;
 	loff_t to_prune;
 	loff_t old_size;
-	cloff_t ridx;
+	cloff_t from_idx;
+	cloff_t to_idx;
 
 	hint_t *hint;
 	lock_handle *lh;
@@ -3330,163 +3247,81 @@ static int prune_cryptcompress(struct inode *inode, loff_t new_size,
 	cluster_init_read(&clust, &win);
 	clust.hint = hint;
 
-	/* calculate index of the rightmost logical cluster
-	   that will be completely truncated */
-	ridx = size_in_lc(new_size, inode);
+	/*
+	 * index of the leftmost logical cluster
+	 * that will be completely truncated
+	 */
+	from_idx = size_in_lc(new_size, inode);
+	to_idx = size_in_lc(inode->i_size, inode);
+	/*
+	 * truncate all complete disk clusters starting from @from_idx
+	 */
+	assert("edward-1174", from_idx <= to_idx);
 
-	/* truncate all disk clusters starting from @ridx */
-	assert("edward-1174", ridx <= aidx);
 	old_size = inode->i_size;
-	if (ridx != aidx) {
-		struct cryptcompress_info * info;
+	if (from_idx != to_idx) {
+		struct cryptcompress_info *info;
 		info = cryptcompress_inode_data(inode);
+
 		result = cut_file_items(inode,
-					clust_to_off(ridx, inode),
+					clust_to_off(from_idx, inode),
 					update_sd,
-					clust_to_off(aidx, inode),
-					update_cryptcompress_size);
+					clust_to_off(to_idx, inode),
+					update_size_actor);
 		info->trunc_index = ULONG_MAX;
-		if (result)
+		if (unlikely(result == CBK_COORD_NOTFOUND))
+			result = 0;
+		if (unlikely(result))
 			goto out;
 	}
-	/*
-	 * there can be pages of fake logical clusters, truncate them
-	 */
-	truncate_inode_pages(inode->i_mapping, clust_to_off(ridx, inode));
-	assert("edward-1524",
-	       pages_truncate_ok(inode, clust_to_pg(ridx, inode)));
-	/*
-	 * now perform partial truncate of last logical cluster
-	 */
-	if (!off_to_cloff(new_size, inode)) {
-		/* no partial truncate is needed */
-		assert("edward-1145", inode->i_size == new_size);
-		goto truncate_fake;
-	}
+	if (off_to_cloff(new_size, inode) == 0)
+		goto truncate_hole;
+
 	assert("edward-1146", new_size < inode->i_size);
 
 	to_prune = inode->i_size - new_size;
-
-	/* check if the last logical cluster is fake */
-	result = lookup_disk_cluster(inode, &aidx, ridx);
-	if (result)
-		goto out;
-	if (!aidx)
-		/* yup, this is fake one */
-		goto truncate_fake;
-
-	assert("edward-1148", aidx == ridx);
-
-	/* do partial truncate of the last page cluster,
-	   and try to capture this one */
+	/*
+	 * Partial truncate of the last logical cluster.
+	 * Partial hole will be converted to zeros. The resulted
+	 * logical cluster will be captured and submitted to disk
+	 */
 	result = alloc_cluster_pgset(&clust, cluster_nrpages(inode));
 	if (result)
 		goto out;
-	nr_zeroes = (off_to_pgoff(new_size) ?
-		     PAGE_CACHE_SIZE - off_to_pgoff(new_size) : 0);
-	set_window(&clust, &win, inode, new_size, new_size + nr_zeroes);
+
+	nr_zeros = off_to_pgoff(new_size);
+	if (nr_zeros)
+		nr_zeros = PAGE_CACHE_SIZE - nr_zeros;
+
+	set_window(&clust, &win, inode, new_size, new_size + nr_zeros);
 	win.stat = HOLE_WINDOW;
 
-	assert("edward-1149", clust.index == ridx - 1);
+	assert("edward-1149", clust.index == from_idx - 1);
 
-	result = prepare_logical_cluster(inode, 0, 0, &clust, LC_TRUNC);
+	result = prepare_logical_cluster(inode, 0, 0, &clust, LC_SHRINK);
 	if (result)
 		goto out;
 	assert("edward-1151",
 	       clust.dstat == PREP_DISK_CLUSTER ||
-	       clust.dstat == UNPR_DISK_CLUSTER);
-
-	assert("edward-1191", inode->i_size == new_size);
-
- truncate_fake:
-	/* drop all the pages that don't have jnodes (i.e. pages
-	   which can not be truncated by cut_file_items() because
-	   of holes represented by fake disk clusters) including
-	   the pages of partially truncated cluster which was
-	   released by prepare_logical_cluster() */
+	       clust.dstat == UNPR_DISK_CLUSTER ||
+	       clust.dstat == FAKE_DISK_CLUSTER);
+ truncate_hole:
+	/*
+	 * drop all the pages that don't have jnodes (i.e. pages
+	 * which can not be truncated by cut_file_items() because
+	 * of holes represented by fake disk clusters) including
+	 * the pages of partially truncated cluster which was
+	 * released by prepare_logical_cluster()
+	 */
 	INODE_SET_SIZE(inode, new_size);
 	truncate_inode_pages(inode->i_mapping, new_size);
  out:
-	assert("edward-1334", !result || result == -ENOSPC);
 	assert("edward-1497",
 	       pages_truncate_ok(inode, size_in_pages(new_size)));
 
 	done_lh(lh);
 	kfree(hint);
 	put_cluster_handle(&clust);
-	return result;
-}
-
-/* Prepare cryptcompress file for truncate:
- * prune or append rightmost fake logical clusters (if any)
- */
-static int start_truncate_fake(struct inode *inode, cloff_t aidx,
-			       loff_t new_size, int update_sd)
-{
-	int result = 0;
-	int bytes;
-
-	if (new_size > inode->i_size) {
-		/* append */
-		if (inode->i_size < clust_to_off(aidx, inode))
-			/* no fake bytes */
-			return 0;
-		bytes = new_size - inode->i_size;
-		INODE_SET_SIZE(inode, inode->i_size + bytes);
-	} else {
-		/* prune */
-		if (inode->i_size <= clust_to_off(aidx, inode))
-			/* no fake bytes */
-			return 0;
-		bytes = inode->i_size -
-			max(new_size, clust_to_off(aidx, inode));
-		if (!bytes)
-			return 0;
-		INODE_SET_SIZE(inode, inode->i_size - bytes);
-		/* In the case of fake prune we need to drop page cluster.
-		   There are only 2 cases for partially truncated page:
-		   1. If is is dirty, therefore it is anonymous
-		   (was dirtied via mmap), and will be captured
-		   later via ->capture().
-		   2. If is clean, therefore it is filled by zeroes.
-		   In both cases we don't need to make it dirty and
-		   capture here.
-		 */
-		truncate_inode_pages(inode->i_mapping, inode->i_size);
-	}
-	if (update_sd)
-		result = update_sd_cryptcompress(inode);
-	return result;
-}
-
-/**
- * This is called in setattr_cryptcompress when it is used to truncate,
- * and in delete_object_cryptcompress
- */
-static int cryptcompress_truncate(struct inode *inode,	/* old size */
-				  loff_t new_size,	/* new size */
-				  int update_sd)
-{
-	int result;
-	cloff_t aidx;
-
-	result = find_fake_appended(inode, &aidx);
-	if (result)
-		return result;
-	assert("edward-1208",
-	       ergo(aidx > 0, inode->i_size > clust_to_off(aidx - 1, inode)));
-
-	result = start_truncate_fake(inode, aidx, new_size, update_sd);
-	if (result)
-		return result;
-	if (inode->i_size == new_size)
-		/* nothing to truncate anymore */
-		return 0;
-	result = (inode->i_size < new_size ?
-		  cryptcompress_append_hole(inode, new_size) :
-		  prune_cryptcompress(inode, new_size, update_sd, aidx));
-	if (!result && update_sd)
-		result = update_sd_cryptcompress(inode);
 	return result;
 }
 
@@ -3575,7 +3410,7 @@ static int capture_anon_pages(struct address_space * mapping, pgoff_t * index,
 	hint_init_zero(hint);
 	lh = &hint->lh;
 
-	cluster_init_read(&clust, NULL);
+	cluster_init_read(&clust, NULL /* no sliding window */);
 	clust.hint = hint;
 
 	result = alloc_cluster_pgset(&clust, cluster_nrpages(inode));
@@ -3750,7 +3585,7 @@ int delete_object_cryptcompress(struct inode *inode)
 	info = cryptcompress_inode_data(inode);
 
 	mutex_lock(&info->checkin_mutex);
-	result = cryptcompress_truncate(inode, 0, 0);
+	result = prune_cryptcompress(inode, 0, 0);
 	mutex_unlock(&info->checkin_mutex);
 
 	if (result) {
@@ -3796,9 +3631,13 @@ int setattr_cryptcompress(struct dentry *dentry, struct iattr *attr)
 			inode_check_scale(inode, old_size, attr->ia_size);
 
 			mutex_lock(&info->checkin_mutex);
-			result = cryptcompress_truncate(inode,
-							attr->ia_size,
-							1/* update sd */);
+			if (attr->ia_size > inode->i_size)
+				result = expand_cryptcompress(inode,
+							      attr->ia_size);
+			else
+				result = prune_cryptcompress(inode,
+							     attr->ia_size,
+							     1/* update sd */);
 			mutex_unlock(&info->checkin_mutex);
 			if (result) {
 			     warning("edward-1192",

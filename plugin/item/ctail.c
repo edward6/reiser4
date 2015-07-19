@@ -1209,7 +1209,7 @@ static struct convert_info *alloc_convert_data(void)
 
 static void reset_convert_data(struct convert_info *info)
 {
-	info->clust.tc.all_zero = 0;
+	info->clust.tc.hole = 0;
 }
 
 void free_convert_data(flush_pos_t * pos)
@@ -1310,7 +1310,7 @@ static int attach_convert_idata(flush_pos_t * pos, struct inode *inode)
 			     clust->tc.len,
 			     clust_to_off(clust->index, inode),
 			     WRITE_OP, &info->flow);
-	if (clust->tc.all_zero)
+	if (clust->tc.hole)
 		info->flow.length = 0;
 
 	jput(pos->child);
@@ -1592,7 +1592,7 @@ static int assign_conversion_mode(flush_pos_t * pos, ctail_convert_mode_t *mode)
 			if (ret)
 				goto dont_convert;
 
-			if (pos->sq->clust.tc.all_zero) {
+			if (pos->sq->clust.tc.hole) {
 				assert("edward-1634",
 				      item_convert_data(pos)->flow.length == 0);
 				/*
