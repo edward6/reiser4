@@ -145,6 +145,7 @@ int reiser4_status_write(__u64 status, __u64 extended_status, char *message)
 	strncpy(statuspage->texterror, message, REISER4_TEXTERROR_LEN);
 
 	kunmap_atomic((char *)statuspage);
+	bio_reset(bio);
 	bio->bi_bdev = sb->s_bdev;
 	bio->bi_io_vec[0].bv_page = get_super_private(sb)->status_page;
 	bio->bi_io_vec[0].bv_len = sb->s_blocksize;
