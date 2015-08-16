@@ -48,6 +48,7 @@ reiser4-y := \
 		   safe_link.o \
 		   blocknrlist.o \
 		   discard.o \
+		   checksum.o \
            \
 		   plugin/plugin.o \
 		   plugin/plugin_set.o \

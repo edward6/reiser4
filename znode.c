@@ -635,7 +635,7 @@ int zload_ra(znode * node /* znode to load */ , ra_info_t * info)
 }
 
 /* load content of node into memory */
-int zload(znode * node)
+int zload(znode *node)
 {
 	return zload_ra(node, NULL);
 }
@@ -651,7 +651,6 @@ int zinit_new(znode * node /* znode to initialise */ , gfp_t gfp_flags)
 void zrelse(znode * node /* znode to release references to */ )
 {
 	assert("nikita-1381", znode_invariant(node));
-
 	jrelse(ZJNODE(node));
 }
 

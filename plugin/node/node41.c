@@ -17,6 +17,7 @@
 #include "../../tap.h"
 #include "../../tree.h"
 #include "../../super.h"
+#include "../../checksum.h"
 #include "../../reiser4.h"
 
 #include <asm/uaccess.h>
@@ -27,7 +28,7 @@
  * node41 layout it almost the same as node40:
  * node41_header is at the beginning and a table of item headers
  * is at the end. Ther difference is that node41_header contains
- * a 32-bit reference counter (see node41.h)
+ * a 32-bit checksum (see node41.h)
  */
 
 static const __u32 REISER4_NODE41_MAGIC = 0x19051966;
@@ -41,12 +42,43 @@ static inline node41_header *node41_node_header(const znode *node)
 	return (node41_header *)zdata(node);
 }
 
+int csum_node41(znode *node, int check)
+{
+	__u32 cpu_csum;
+
+	cpu_csum = reiser4_crc32c(get_current_super_private()->csum_tfm,
+				  ~0,
+				  zdata(node),
+				  sizeof(struct node40_header));
+	cpu_csum = reiser4_crc32c(get_current_super_private()->csum_tfm,
+				  cpu_csum,
+				  zdata(node) + sizeof(struct node41_header),
+				  reiser4_get_current_sb()->s_blocksize -
+				  sizeof(node41_header));
+	if (check)
+		return cpu_csum == nh41_get_csum(node41_node_header(node));
+	else {
+		nh41_set_csum(node41_node_header(node), cpu_csum);
+		return 1;
+	}
+}
+
 /*
  * plugin->u.node.parse
  * look for description of this method in plugin/node/node.h
  */
 int parse_node41(znode *node /* node to parse */)
 {
+	int ret;
+
+	ret = csum_node41(node, 1/* check */);
+	if (!ret) {
+		warning("edward-1645",
+			"block %llu: bad checksum. FSCK?",
+			*jnode_get_block(ZJNODE(node)));
+		reiser4_handle_error();
+		return RETERR(-EIO);
+	}
 	return parse_node40_common(node, REISER4_NODE41_MAGIC);
 }
 
@@ -56,14 +88,8 @@ int parse_node41(znode *node /* node to parse */)
  */
 int init_node41(znode *node /* node to initialise */)
 {
-	node41_header *header41;
-
-	init_node40_common(node, node_plugin_by_id(NODE41_ID),
-			   sizeof(node41_header), REISER4_NODE41_MAGIC);
-
-	header41 = node41_node_header(node);
-	nh41_set_csum(header41, 0);
-	return 0;
+	return init_node40_common(node, node_plugin_by_id(NODE41_ID),
+				  sizeof(node41_header), REISER4_NODE41_MAGIC);
 }
 
 /*

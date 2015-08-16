@@ -29,10 +29,12 @@ int max_item_size_node41(void);
 int shift_node41(coord_t *from, znode *to, shift_direction pend,
 		 int delete_child, int including_stop_coord,
 		 carry_plugin_info *info);
+int csum_node41(znode *node, int check);
 
 #ifdef GUESS_EXISTS
 int guess_node41(const znode * node);
 #endif
+extern void reiser4_handle_error(void);
 
 /* __REISER4_NODE41_H__ */
 #endif

@@ -275,6 +275,7 @@ struct reiser4_super_info_data {
 	 * more details
 	 */
 	struct d_cursor_info d_info;
+	struct crypto_shash *csum_tfm;
 
 #ifdef CONFIG_REISER4_BADBLOCKS
 	/* Alternative master superblock offset (in bytes) */

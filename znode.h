@@ -172,6 +172,7 @@ extern int zload_ra(znode * node, ra_info_t * info);
 extern int zinit_new(znode * node, gfp_t gfp_flags);
 extern void zrelse(znode * node);
 extern void znode_change_parent(znode * new_parent, reiser4_block_nr * block);
+extern void znode_update_csum(znode *node);
 
 /* size of data in znode */
 static inline unsigned

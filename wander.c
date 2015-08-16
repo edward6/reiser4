@@ -769,8 +769,19 @@ static int write_jnodes_to_disk_extent(
 			JF_SET(cur, JNODE_WRITEBACK);
 			JF_CLR(cur, JNODE_DIRTY);
 			ON_DEBUG(cur->written++);
-			spin_unlock_jnode(cur);
 
+			assert("edward-1647",
+			       ergo(jnode_is_znode(cur), JF_ISSET(cur, JNODE_PARSED)));
+			spin_unlock_jnode(cur);
+			/*
+			 * update checksum
+			 */
+			if (jnode_is_znode(cur)) {
+				zload(JZNODE(cur));
+				if (node_plugin_by_node(JZNODE(cur))->csum)
+					node_plugin_by_node(JZNODE(cur))->csum(JZNODE(cur), 0);
+				zrelse(JZNODE(cur));
+			}
 			ClearPageError(pg);
 			set_page_writeback(pg);
 

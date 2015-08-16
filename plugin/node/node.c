@@ -153,7 +153,8 @@ node_plugin node_plugins[LAST_NODE_ID] = {
 		.fast_cut = fast_cut_node40,
 		.max_item_size = max_item_size_node41,
 		.prepare_removal = prepare_removal_node40,
-		.set_item_plugin = set_item_plugin_node40
+		.set_item_plugin = set_item_plugin_node40,
+		.csum = csum_node41
 	}
 };
 
