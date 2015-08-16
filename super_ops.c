@@ -646,8 +646,10 @@ static int __init init_reiser4(void)
 	int result;
 
 	printk(KERN_INFO
-	       "Loading Reiser4. "
-	       "See www.namesys.com for a description of Reiser4.\n");
+	       "Loading Reiser4 (format release: 4.%d.%d) "
+	       "See www.namesys.com for a description of Reiser4.\n",
+	       get_release_number_major(),
+	       get_release_number_minor());
 
 	/* initialize slab cache of inodes */
 	if ((result = init_inodes()) != 0)

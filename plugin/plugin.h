@@ -151,11 +151,13 @@ typedef struct reiser4_object_on_wire reiser4_object_on_wire;
  * them, and which are only invoked by other plugins.
  */
 
-/* This should be incremented with each new contributed
-   pair (plugin type, plugin id).
-   NOTE: Make sure there is a release of reiser4progs
-   with the corresponding version number */
-#define PLUGIN_LIBRARY_VERSION 0
+/*
+ * This should be incremented in every release which adds one
+ * or more new plugins.
+ * NOTE: Make sure that respective marco is also incremented in
+ * the new release of reiser4progs.
+ */
+#define PLUGIN_LIBRARY_VERSION 1
 
  /* enumeration of fields within plugin_set */
 typedef enum {
@@ -903,6 +905,16 @@ static inline reiser4_plugin_id TYPE ## _id(TYPE* plugin)		\
 	return TYPE ## _to_plugin(plugin)->h.id;			\
 }									\
 typedef struct { int foo; } TYPE ## _plugin_dummy
+
+static inline int get_release_number_major(void)
+{
+	return LAST_FORMAT_ID - 1;
+}
+
+static inline int get_release_number_minor(void)
+{
+	return PLUGIN_LIBRARY_VERSION;
+}
 
 PLUGIN_BY_ID(item_plugin, REISER4_ITEM_PLUGIN_TYPE, item);
 PLUGIN_BY_ID(file_plugin, REISER4_FILE_PLUGIN_TYPE, file);

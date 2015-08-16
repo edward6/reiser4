@@ -27,9 +27,6 @@
    & tx record. */
 #define RELEASE_RESERVED 4
 
-/* The greatest supported format40 version number */
-#define FORMAT40_VERSION PLUGIN_LIBRARY_VERSION
-
 /* This flag indicates that backup should be updated
    (the update is performed by fsck) */
 #define FORMAT40_UPDATE_BACKUP (1 << 31)
@@ -92,14 +89,14 @@ static int update_backup_version(const format40_disk_super_block * sb)
 		FORMAT40_UPDATE_BACKUP);
 }
 
-static int update_disk_version(const format40_disk_super_block * sb)
+static int update_disk_version_minor(const format40_disk_super_block * sb)
 {
-	return (get_format40_version(sb) < FORMAT40_VERSION);
+	return (get_format40_version(sb) < PLUGIN_LIBRARY_VERSION);
 }
 
 static int incomplete_compatibility(const format40_disk_super_block * sb)
 {
-	return (get_format40_version(sb) > FORMAT40_VERSION);
+	return (get_format40_version(sb) > PLUGIN_LIBRARY_VERSION);
 }
 
 static format40_super_info *get_sb_info(struct super_block *super)
@@ -327,7 +324,7 @@ static int try_init_format40(struct super_block *super,
 		printk("reiser4: Warning: The last completely supported "
 		       "version of disk format40 is %u. Some objects of "
 		       "the semantic tree can be unaccessible.\n",
-		       FORMAT40_VERSION);
+		       PLUGIN_LIBRARY_VERSION);
 	/* make sure that key format of kernel and filesystem match */
 	result = check_key_format(sb_copy);
 	if (result) {
@@ -491,8 +488,8 @@ static void pack_format40_super(const struct super_block *s, char *data)
 	put_unaligned(cpu_to_le16(sbinfo->tree.height),
 		      &super_data->tree_height);
 
-	if (update_disk_version(super_data)) {
-		__u32 version = FORMAT40_VERSION | FORMAT40_UPDATE_BACKUP;
+	if (update_disk_version_minor(super_data)) {
+		__u32 version = PLUGIN_LIBRARY_VERSION | FORMAT40_UPDATE_BACKUP;
 
 		put_unaligned(cpu_to_le32(version), &super_data->version);
 	}
@@ -606,9 +603,9 @@ int check_open_format40(const struct inode *object)
 	return 0;
 }
 
-/* plugin->u.format.version_update.
-   Perform all version update operations from the on-disk
-   format40_disk_super_block.version on disk to FORMAT40_VERSION.
+/*
+ * plugin->u.format.version_update
+ * Upgrade minor disk format version number
  */
 int version_update_format40(struct super_block *super) {
 	txn_handle * trans;
@@ -620,12 +617,12 @@ int version_update_format40(struct super_block *super) {
 	if (super->s_flags & MS_RDONLY)
  		return 0;
 
-	if (get_super_private(super)->version >= FORMAT40_VERSION)
+	if (get_super_private(super)->version >= PLUGIN_LIBRARY_VERSION)
 		return 0;
 
 	printk("reiser4: Updating disk format to 4.0.%u. The reiser4 metadata "
 	       "backup is left unchanged. Please run 'fsck.reiser4 --fix' "
-	       "on %s to update it too.\n", FORMAT40_VERSION, super->s_id);
+	       "on %s to update it too.\n", PLUGIN_LIBRARY_VERSION, super->s_id);
 
 	/* Mark the uber znode dirty to call log_super on write_logs. */
 	init_lh(&lh);
