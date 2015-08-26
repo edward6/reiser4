@@ -230,9 +230,8 @@ void reiser4_handle_error(void)
 	reiser4_status_write(REISER4_STATUS_DAMAGED, 0,
 			     "Filesystem error occured");
 	switch (get_super_private(sb)->onerror) {
-	case 0:
-		reiser4_panic("foobar-42", "Filesystem error occured\n");
 	case 1:
+		reiser4_panic("foobar-42", "Filesystem error occured\n");
 	default:
 		if (sb->s_flags & MS_RDONLY)
 			return;

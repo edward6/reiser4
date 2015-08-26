@@ -533,7 +533,7 @@ int reiser4_init_super_data(struct super_block *super, char *opt_string)
 			.oneof = {
 				.result = &sbinfo->onerror,
 				.list = {
-					"panic", "remount-ro", NULL
+					"remount-ro", "panic", NULL
 				},
 			}
 		}
