@@ -596,9 +596,9 @@ static int fill_super(struct super_block *super, void *data, int silent)
 	reiser4_done_txnmgr(&sbinfo->tmgr);
  failed_init_read_super:
  failed_init_super_data:
+ failed_init_csum_tfm:
 	reiser4_done_fs_info(super);
  failed_init_sinfo:
- failed_init_csum_tfm:
 	reiser4_exit_context(&ctx);
 	return result;
 }
