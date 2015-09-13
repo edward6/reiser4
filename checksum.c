@@ -4,11 +4,13 @@
 
 int reiser4_init_csum_tfm(struct crypto_shash **tfm)
 {
-	*tfm = crypto_alloc_shash("crc32c", 0, 0);
-	if (IS_ERR(*tfm)) {
-		*tfm = NULL;
-		return 1;
-	}
+	struct crypto_shash *new_tfm;
+
+	new_tfm = crypto_alloc_shash("crc32c", 0, 0);
+	if (IS_ERR(new_tfm))
+		return PTR_ERR(new_tfm);
+
+	*tfm = new_tfm;
 	return 0;
 }
 
