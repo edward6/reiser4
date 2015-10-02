@@ -396,13 +396,12 @@ int reiser4_mknod_common(struct inode *parent, struct dentry *dentry,
 /**
  * reiser4_follow_link_common - follow_link of inode operations
  * @dentry: dentry of symlink
- * @data:
  *
  * This is common implementation of vfs's followlink method of struct
  * inode_operations.
  * Assumes that inode's i_private points to the content of symbolic link.
  */
-void *reiser4_follow_link_common(struct dentry *dentry, struct nameidata *nd)
+const char *reiser4_follow_link_common(struct dentry *dentry, void **cookie)
 {
 	assert("vs-851", S_ISLNK(dentry->d_inode->i_mode));
 
@@ -410,8 +409,7 @@ void *reiser4_follow_link_common(struct dentry *dentry, struct nameidata *nd)
 	    || !reiser4_inode_get_flag(dentry->d_inode,
 				       REISER4_GENERIC_PTR_USED))
 		return ERR_PTR(RETERR(-EINVAL));
-	nd_set_link(nd, dentry->d_inode->i_private);
-	return NULL;
+	return dentry->d_inode->i_private;
 }
 
 /**

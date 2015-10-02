@@ -24,7 +24,7 @@ int reiser4_mknod_common(struct inode *parent, struct dentry *dentry,
 		 umode_t mode, dev_t rdev);
 int reiser4_rename_common(struct inode *old_dir, struct dentry *old_name,
 			  struct inode *new_dir, struct dentry *new_name);
-void *reiser4_follow_link_common(struct dentry *, struct nameidata *data);
+const char *reiser4_follow_link_common(struct dentry *, void **cookie);
 int reiser4_permission_common(struct inode *, int mask);
 int reiser4_setattr_common(struct dentry *, struct iattr *);
 int reiser4_getattr_common(struct vfsmount *mnt, struct dentry *,
