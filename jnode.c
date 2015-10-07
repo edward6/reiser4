@@ -1846,7 +1846,7 @@ static void info_jnode(const char *prefix /* prefix to print */ ,
 	}
 
 	printk
-	    ("%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i,"
+	    ("%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i,"
 	     " block: %s, d_count: %d, x_count: %d, "
 	     "pg: %p, atom: %p, lock: %i:%i, type: %s, ", prefix, node,
 	     node->state,
@@ -1863,7 +1863,6 @@ static void info_jnode(const char *prefix /* prefix to print */ ,
 	     jnode_state_name(node, JNODE_RIP),
 	     jnode_state_name(node, JNODE_MISSED_IN_CAPTURE),
 	     jnode_state_name(node, JNODE_WRITEBACK),
-	     jnode_state_name(node, JNODE_NEW),
 	     jnode_state_name(node, JNODE_DKSET),
 	     jnode_state_name(node, JNODE_REPACK),
 	     jnode_state_name(node, JNODE_CLUSTER_PAGE),
