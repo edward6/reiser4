@@ -2101,7 +2101,7 @@ ssize_t write_unix_file(struct file *file,
 	assert("vs-947", !reiser4_inode_get_flag(inode, REISER4_NO_SD));
 	assert("vs-9471", (!reiser4_inode_get_flag(inode, REISER4_PART_MIXED)));
 
-	result = file_remove_suid(file);
+	result = file_remove_privs(file);
 	if (result) {
 		context_set_commit_async(ctx);
 		return result;

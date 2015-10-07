@@ -2910,7 +2910,7 @@ ssize_t write_cryptcompress(struct file *file, const char __user *buf,
 	info = cryptcompress_inode_data(inode);
 	ctx = get_current_context();
 
-	result = file_remove_suid(file);
+	result = file_remove_privs(file);
 	if (unlikely(result != 0)) {
 		context_set_commit_async(ctx);
 		return result;
