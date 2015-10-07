@@ -402,9 +402,6 @@ end_io_handler(struct bio *bio, int err)
 
 	assert("zam-958", bio->bi_rw & WRITE);
 
-	if (err == -EOPNOTSUPP)
-		set_bit(BIO_EOPNOTSUPP, &bio->bi_flags);
-
 	/* we expect that bio->private is set to NULL or fq object which is used
 	 * for synchronization and error counting. */
 	fq = bio->bi_private;

@@ -841,15 +841,10 @@ static int write_jnodes_to_disk_extent(
 			if (super->s_flags & MS_RDONLY)
 				undo_bio(bio);
 			else {
-				int not_supported;
-
 				add_fq_to_bio(fq, bio);
 				bio_get(bio);
 				reiser4_submit_bio(write_op, bio);
-				not_supported = bio_flagged(bio, BIO_EOPNOTSUPP);
 				bio_put(bio);
-				if (not_supported)
-					return -EOPNOTSUPP;
 			}
 
 			block += nr_used - 1;
