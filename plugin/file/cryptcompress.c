@@ -1946,8 +1946,9 @@ static void checkout_page_cluster(struct cluster_handle * clust,
 		 * page is no longer relevant. However, the uptodate
 		 * status of the page is still relevant!
 		 */
-		if (TestClearPageDirty(clust->pages[i]))
-			account_page_cleaned(clust->pages[i], inode->i_mapping);
+		if (PageDirty(clust->pages[i]))
+			cancel_dirty_page(clust->pages[i]);
+
 		unlock_page(clust->pages[i]);
 
 		if (in_page < PAGE_CACHE_SIZE)
