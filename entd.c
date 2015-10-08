@@ -303,6 +303,7 @@ int write_page_by_ent(struct page *page, struct writeback_control *wbc)
 	 * write it - it will remain dirty
 	 */
 	set_page_dirty_notag(page);
+	account_page_redirty(page);
 
 	/*
 	 * pin inode in memory, unlock page, entd_flush will iput. We can not
