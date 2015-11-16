@@ -714,7 +714,6 @@ static int write_jnodes_to_disk_extent(
 {
 	struct super_block *super = reiser4_get_current_sb();
 	int write_op = ( flags & WRITEOUT_BARRIER ) ? WRITE_FLUSH_FUA : WRITE;
-	int max_blocks;
 	jnode *cur = first;
 	reiser4_block_nr block;
 
@@ -723,11 +722,10 @@ static int write_jnodes_to_disk_extent(
 	assert("zam-570", nr > 0);
 
 	block = *block_p;
-	max_blocks = min(bio_get_nr_vecs(super->s_bdev), BIO_MAX_PAGES);
 
 	while (nr > 0) {
 		struct bio *bio;
-		int nr_blocks = min(nr, max_blocks);
+		int nr_blocks = min(nr, BIO_MAX_PAGES);
 		int i;
 		int nr_used;
 

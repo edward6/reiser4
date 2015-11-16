@@ -16,11 +16,11 @@
 /* This is our end I/O handler that marks page uptodate if IO was successful.
    It also unconditionally unlocks the page, so we can see that io was done.
    We do not free bio, because we hope to reuse that. */
-static void reiser4_status_endio(struct bio *bio, int err)
+static void reiser4_status_endio(struct bio *bio)
 {
-	if (test_bit(BIO_UPTODATE, &bio->bi_flags)) {
+	if (!bio->bi_error)
 		SetPageUptodate(bio->bi_io_vec->bv_page);
-	} else {
+	else {
 		ClearPageUptodate(bio->bi_io_vec->bv_page);
 		SetPageError(bio->bi_io_vec->bv_page);
 	}

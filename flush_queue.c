@@ -392,9 +392,11 @@ int atom_fq_parts_are_clean(txn_atom * atom)
 	return list_empty_careful(&atom->flush_queues);
 }
 #endif
-/* Bio i/o completion routine for reiser4 write operations. */
-static void
-end_io_handler(struct bio *bio, int err)
+
+/*
+ * Bio i/o completion routine for reiser4 write operations
+ */
+static void end_io_handler(struct bio *bio)
 {
 	int i;
 	int nr_errors = 0;
@@ -409,7 +411,7 @@ end_io_handler(struct bio *bio, int err)
 	for (i = 0; i < bio->bi_vcnt; i += 1) {
 		struct page *pg = bio->bi_io_vec[i].bv_page;
 
-		if (!test_bit(BIO_UPTODATE, &bio->bi_flags)) {
+		if (bio->bi_error) {
 			SetPageError(pg);
 			nr_errors++;
 		}

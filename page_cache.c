@@ -324,16 +324,15 @@ reiser4_tree *reiser4_tree_by_page(const struct page *page/* page to query */)
    mpage_end_io_read() would also do. But it's static.
 
 */
-static void
-end_bio_single_page_read(struct bio *bio, int err UNUSED_ARG)
+static void end_bio_single_page_read(struct bio *bio)
 {
 	struct page *page;
 
 	page = bio->bi_io_vec[0].bv_page;
 
-	if (test_bit(BIO_UPTODATE, &bio->bi_flags)) {
+	if (!bio->bi_error)
 		SetPageUptodate(page);
-	} else {
+	else {
 		ClearPageUptodate(page);
 		SetPageError(page);
 	}
@@ -346,14 +345,13 @@ end_bio_single_page_read(struct bio *bio, int err UNUSED_ARG)
    mpage_end_io_write() would also do. But it's static.
 
 */
-static void
-end_bio_single_page_write(struct bio *bio, int err UNUSED_ARG)
+static void end_bio_single_page_write(struct bio *bio)
 {
 	struct page *page;
 
 	page = bio->bi_io_vec[0].bv_page;
 
-	if (!test_bit(BIO_UPTODATE, &bio->bi_flags))
+	if (bio->bi_error)
 		SetPageError(page);
 	end_page_writeback(page);
 	bio_put(bio);
