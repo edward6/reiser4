@@ -156,7 +156,7 @@ static struct address_space_operations regular_file_a_ops = {
 /* VFS methods for symlink files */
 static struct inode_operations symlink_file_i_ops = {
 	.readlink = generic_readlink,
-	.follow_link = reiser4_follow_link_common,
+	.get_link = reiser4_get_link_common,
 	.permission = reiser4_permission_common,
 	.setattr = reiser4_setattr_common,
 	.getattr = reiser4_getattr_common

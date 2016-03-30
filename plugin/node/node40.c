@@ -876,9 +876,10 @@ create_item_node40(coord_t *target, const reiser4_key *key,
 			   without this check? */
 			assert("nikita-3038", reiser4_schedulable());
 			/* copy data from user space */
-			__copy_from_user(zdata(target->node) + offset,
-					 (const char __user *)data->data,
-					 (unsigned)data->length);
+			if (__copy_from_user(zdata(target->node) + offset,
+					     (const char __user *)data->data,
+					     (unsigned)data->length))
+				return RETERR(-EFAULT);
 		} else
 			/* copy from kernel space */
 			memcpy(zdata(target->node) + offset, data->data,

@@ -394,21 +394,24 @@ int reiser4_mknod_common(struct inode *parent, struct dentry *dentry,
  */
 
 /**
- * reiser4_follow_link_common - follow_link of inode operations
+ * reiser4_get_link_common: ->get_link() of inode_operations
  * @dentry: dentry of symlink
  *
- * This is common implementation of vfs's followlink method of struct
- * inode_operations.
  * Assumes that inode's i_private points to the content of symbolic link.
  */
-const char *reiser4_follow_link_common(struct dentry *dentry, void **cookie)
+const char *reiser4_get_link_common(struct dentry *dentry,
+				    struct inode *inode,
+				    struct delayed_call *done)
 {
+	if (!dentry)
+		return ERR_PTR(-ECHILD);
+
 	assert("vs-851", S_ISLNK(dentry->d_inode->i_mode));
 
-	if (!dentry->d_inode->i_private
-	    || !reiser4_inode_get_flag(dentry->d_inode,
-				       REISER4_GENERIC_PTR_USED))
+	if (!dentry->d_inode->i_private ||
+	    !reiser4_inode_get_flag(dentry->d_inode, REISER4_GENERIC_PTR_USED))
 		return ERR_PTR(RETERR(-EINVAL));
+
 	return dentry->d_inode->i_private;
 }
 
@@ -876,3 +879,14 @@ int reiser4_update_dir(struct inode *dir)
 	dir->i_ctime = dir->i_mtime = CURRENT_TIME;
 	return reiser4_update_sd(dir);
 }
+
+/*
+  Local variables:
+  c-indentation-style: "K&R"
+  mode-name: "LC"
+  c-basic-offset: 8
+  tab-width: 8
+  fill-column: 80
+  scroll-step: 1
+  End:
+*/
