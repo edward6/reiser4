@@ -224,11 +224,6 @@ static void done_commit_handle(struct commit_handle *ch)
 	assert("zam-690", list_empty(&ch->tx_list));
 }
 
-static inline int reiser4_use_write_barrier(struct super_block * s)
-{
-	return !reiser4_is_set(s, REISER4_NO_WRITE_BARRIER);
-}
-
 /* fill journal header block data  */
 static void format_journal_header(struct commit_handle *ch)
 {
@@ -420,7 +415,7 @@ store_wmap_actor(txn_atom * atom UNUSED_ARG, const reiser4_block_nr * a,
    set is written to wandered locations and all wander records are written
    also. Updated journal header blocks contains a pointer (block number) to
    first wander record of the just written transaction */
-static int update_journal_header(struct commit_handle *ch, int use_barrier)
+static int update_journal_header(struct commit_handle *ch)
 {
 	struct reiser4_super_info_data *sbinfo = get_super_private(ch->super);
 	jnode *jh = sbinfo->journal_header;
@@ -430,7 +425,7 @@ static int update_journal_header(struct commit_handle *ch, int use_barrier)
 	format_journal_header(ch);
 
 	ret = write_jnodes_to_disk_extent(jh, 1, jnode_get_block(jh), NULL,
-					  use_barrier ? WRITEOUT_BARRIER : 0);
+					  WRITEOUT_FLUSH_FUA);
 	if (ret)
 		return ret;
 
@@ -450,7 +445,7 @@ static int update_journal_header(struct commit_handle *ch, int use_barrier)
 /* This function is called after write-back is finished. We update journal
    footer block and free blocks which were occupied by wandered blocks and
    transaction wander records */
-static int update_journal_footer(struct commit_handle *ch, int use_barrier)
+static int update_journal_footer(struct commit_handle *ch)
 {
 	reiser4_super_info_data *sbinfo = get_super_private(ch->super);
 
@@ -461,7 +456,7 @@ static int update_journal_footer(struct commit_handle *ch, int use_barrier)
 	format_journal_footer(ch);
 
 	ret = write_jnodes_to_disk_extent(jf, 1, jnode_get_block(jf), NULL,
-					  use_barrier ? WRITEOUT_BARRIER : 0);
+					  WRITEOUT_FLUSH_FUA);
 	if (ret)
 		return ret;
 
@@ -713,7 +708,7 @@ static int write_jnodes_to_disk_extent(
 	flush_queue_t *fq, int flags)
 {
 	struct super_block *super = reiser4_get_current_sb();
-	int write_op = ( flags & WRITEOUT_BARRIER ) ? WRITE_FLUSH_FUA : WRITE;
+	int write_op = ( flags & WRITEOUT_FLUSH_FUA ) ? WRITE_FLUSH_FUA : WRITE;
 	jnode *cur = first;
 	reiser4_block_nr block;
 
@@ -1101,7 +1096,6 @@ static int alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 static int commit_tx(struct commit_handle *ch)
 {
 	flush_queue_t *fq;
-	int barrier;
 	int ret;
 
 	/* Grab more space for wandered records. */
@@ -1126,23 +1120,16 @@ static int commit_tx(struct commit_handle *ch)
 	reiser4_fq_put(fq);
 	if (ret)
 		return ret;
- 	barrier = reiser4_use_write_barrier(ch->super);
-	if (!barrier) {
-		ret = current_atom_finish_all_fq();
-		if (ret)
-			return ret;
-	}
-	ret = update_journal_header(ch, barrier);
-	if (!barrier || ret)
+	ret = current_atom_finish_all_fq();
+	if (ret)
 		return ret;
-	return current_atom_finish_all_fq();
+	return update_journal_header(ch);
 }
 
 static int write_tx_back(struct commit_handle * ch)
 {
 	flush_queue_t *fq;
 	int ret;
-	int barrier;
 
 	fq = get_fq_for_current_atom();
 	if (IS_ERR(fq))
@@ -1153,22 +1140,10 @@ static int write_tx_back(struct commit_handle * ch)
 	reiser4_fq_put(fq);
 	if (ret)
 		return ret;
-
-	barrier = reiser4_use_write_barrier(ch->super);
-	if (!barrier) {
-		ret = current_atom_finish_all_fq();
-		if (ret)
-			return ret;
-	}
-	ret = update_journal_footer(ch, barrier);
+	ret = current_atom_finish_all_fq();
 	if (ret)
 		return ret;
-	if (barrier) {
-		ret = current_atom_finish_all_fq();
-		if (ret)
-			return ret;
-	}
-	return 0;
+	return update_journal_footer(ch);
 }
 
 /* We assume that at this moment all captured blocks are marked as RELOC or
@@ -1486,7 +1461,7 @@ static int replay_transaction(const struct super_block *s,
 		}
 	}
 
-	ret = update_journal_footer(&ch, 0);
+	ret = update_journal_footer(&ch);
 
       free_ow_set:
 
