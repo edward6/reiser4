@@ -1994,7 +1994,7 @@ static int capped_height(void)
 /* return number of pages required to store given number of bytes */
 static int bytes_to_pages(int bytes)
 {
-	return (bytes + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
+	return (bytes + PAGE_SIZE - 1) >> PAGE_SHIFT;
 }
 
 /* how many pages are required to allocate znodes during item insertion. */

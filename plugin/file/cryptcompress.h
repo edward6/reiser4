@@ -10,9 +10,9 @@
 
 #include <linux/pagemap.h>
 
-#define MIN_CLUSTER_SHIFT PAGE_CACHE_SHIFT
+#define MIN_CLUSTER_SHIFT PAGE_SHIFT
 #define MAX_CLUSTER_SHIFT 16
-#define MAX_CLUSTER_NRPAGES (1U << MAX_CLUSTER_SHIFT >> PAGE_CACHE_SHIFT)
+#define MAX_CLUSTER_NRPAGES (1U << MAX_CLUSTER_SHIFT >> PAGE_SHIFT)
 #define DC_CHECKSUM_SIZE 4
 
 #define MIN_LATTICE_FACTOR 1
@@ -602,7 +602,7 @@ static inline void info_set_digest(struct reiser4_crypto_info * info,
 
 static inline void put_cluster_page(struct page * page)
 {
-	page_cache_release(page);
+	put_page(page);
 }
 
 #endif /* __FS_REISER4_CRYPTCOMPRESS_H__ */

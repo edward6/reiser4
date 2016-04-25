@@ -179,7 +179,7 @@ static inline unsigned
 znode_size(const znode * node UNUSED_ARG /* znode to query */ )
 {
 	assert("nikita-1416", node != NULL);
-	return PAGE_CACHE_SIZE;
+	return PAGE_SIZE;
 }
 
 extern void parent_coord_to_coord(const parent_coord_t * pcoord,

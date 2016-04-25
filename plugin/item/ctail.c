@@ -662,7 +662,7 @@ int do_readpage_ctail(struct inode * inode, struct cluster_handle * clust,
 		goto exit;
 	to_page = pbytes(page_index(page), inode);
 	if (to_page == 0) {
-		zero_user(page, 0, PAGE_CACHE_SIZE);
+		zero_user(page, 0, PAGE_SIZE);
 		SetPageUptodate(page);
 		goto exit;
 	}
@@ -679,7 +679,7 @@ int do_readpage_ctail(struct inode * inode, struct cluster_handle * clust,
 		/* refresh bytes */
 		to_page = pbytes(page_index(page), inode);
 		if (to_page == 0) {
-			zero_user(page, 0, PAGE_CACHE_SIZE);
+			zero_user(page, 0, PAGE_SIZE);
 			SetPageUptodate(page);
 			goto exit;
 		}
@@ -710,7 +710,7 @@ int do_readpage_ctail(struct inode * inode, struct cluster_handle * clust,
 		 */
 	case FAKE_DISK_CLUSTER:
 		/* fill the page by zeroes */
-		zero_user(page, 0, PAGE_CACHE_SIZE);
+		zero_user(page, 0, PAGE_SIZE);
 		SetPageUptodate(page);
 		break;
 	case PREP_DISK_CLUSTER:
@@ -723,7 +723,7 @@ int do_readpage_ctail(struct inode * inode, struct cluster_handle * clust,
 
 		data = kmap(page);
 		memcpy(data, tfm_stream_data(tc, OUTPUT_STREAM) + cloff, to_page);
-		memset(data + to_page, 0, (size_t) PAGE_CACHE_SIZE - to_page);
+		memset(data + to_page, 0, (size_t) PAGE_SIZE - to_page);
 		flush_dcache_page(page);
 		kunmap(page);
 		SetPageUptodate(page);
@@ -820,7 +820,7 @@ static int ctail_readpages_filler(void * data, struct page * page)
 		return 0;
 	}
 	if (pbytes(page_index(page), inode) == 0) {
-		zero_user(page, 0, PAGE_CACHE_SIZE);
+		zero_user(page, 0, PAGE_SIZE);
 		SetPageUptodate(page);
 		unlock_page(page);
 		return 0;

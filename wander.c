@@ -736,7 +736,7 @@ static int write_jnodes_to_disk_extent(
 			pg = jnode_page(cur);
 			assert("zam-573", pg != NULL);
 
-			page_cache_get(pg);
+			get_page(pg);
 
 			lock_and_wait_page_writeback(pg);
 
@@ -746,7 +746,7 @@ static int write_jnodes_to_disk_extent(
 				 * pages to the bio.
 				 */
 				unlock_page(pg);
-				page_cache_release(pg);
+				put_page(pg);
 				break;
 			}
 

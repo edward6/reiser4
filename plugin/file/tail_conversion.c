@@ -140,7 +140,7 @@ static void release_all_pages(struct page **pages, unsigned nr_pages)
 #endif
 			break;
 		}
-		page_cache_release(pages[i]);
+		put_page(pages[i]);
 		pages[i] = NULL;
 	}
 }
@@ -372,7 +372,7 @@ int tail2extent(struct unix_file_info *uf_info)
 		bytes = 0;
 		for (i = 0; i < sizeof_array(pages) && done == 0; i++) {
 			assert("vs-598",
-			       (get_key_offset(&key) & ~PAGE_CACHE_MASK) == 0);
+			       (get_key_offset(&key) & ~PAGE_MASK) == 0);
 			page = alloc_page(reiser4_ctx_gfp_mask_get());
 			if (!page) {
 				result = RETERR(-ENOMEM);
@@ -381,7 +381,7 @@ int tail2extent(struct unix_file_info *uf_info)
 
 			page->index =
 			    (unsigned long)(get_key_offset(&key) >>
-					    PAGE_CACHE_SHIFT);
+					    PAGE_SHIFT);
 			/*
 			 * usually when one is going to longterm lock znode (as
 			 * find_file_item does, for instance) he must not hold
@@ -395,7 +395,7 @@ int tail2extent(struct unix_file_info *uf_info)
 			reiser4_invalidate_pages(inode->i_mapping, page->index,
 						 1, 0);
 
-			for (page_off = 0; page_off < PAGE_CACHE_SIZE;) {
+			for (page_off = 0; page_off < PAGE_SIZE;) {
 				coord_t coord;
 				lock_handle lh;
 
@@ -412,7 +412,7 @@ int tail2extent(struct unix_file_info *uf_info)
 					 * were found
 					 */
 					done_lh(&lh);
-					page_cache_release(page);
+					put_page(page);
 					goto error;
 				}
 
@@ -425,14 +425,14 @@ int tail2extent(struct unix_file_info *uf_info)
 					done = 1;
 					p_data = kmap_atomic(page);
 					memset(p_data + page_off, 0,
-					       PAGE_CACHE_SIZE - page_off);
+					       PAGE_SIZE - page_off);
 					kunmap_atomic(p_data);
 					break;
 				}
 
 				result = zload(coord.node);
 				if (result) {
-					page_cache_release(page);
+					put_page(page);
 					done_lh(&lh);
 					goto error;
 				}
@@ -445,8 +445,8 @@ int tail2extent(struct unix_file_info *uf_info)
 				    item_length_by_coord(&coord) -
 				    coord.unit_pos;
 				/* limit length of copy to end of page */
-				if (count > PAGE_CACHE_SIZE - page_off)
-					count = PAGE_CACHE_SIZE - page_off;
+				if (count > PAGE_SIZE - page_off)
+					count = PAGE_SIZE - page_off;
 
 				/*
 				 * copy item (as much as will fit starting from
@@ -470,7 +470,7 @@ int tail2extent(struct unix_file_info *uf_info)
 				/* something was copied into page */
 				pages[i] = page;
 			} else {
-				page_cache_release(page);
+				put_page(page);
 				assert("vs-1648", done == 1);
 				break;
 			}
@@ -602,8 +602,8 @@ int extent2tail(struct file * file, struct unix_file_info *uf_info)
 
 	/* number of pages in the file */
 	num_pages =
-	    (inode->i_size + - offset + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
-	start_page = offset >> PAGE_CACHE_SHIFT;
+	    (inode->i_size + - offset + PAGE_SIZE - 1) >> PAGE_SHIFT;
+	start_page = offset >> PAGE_SHIFT;
 
 	inode_file_plugin(inode)->key_by_inode(inode, offset, &from);
 	to = from;
@@ -633,15 +633,15 @@ int extent2tail(struct file * file, struct unix_file_info *uf_info)
 		wait_on_page_locked(page);
 
 		if (!PageUptodate(page)) {
-			page_cache_release(page);
+			put_page(page);
 			result = RETERR(-EIO);
 			break;
 		}
 
 		/* cut part of file we have read */
-		start_byte = (__u64) ((i + start_page) << PAGE_CACHE_SHIFT);
+		start_byte = (__u64) ((i + start_page) << PAGE_SHIFT);
 		set_key_offset(&from, start_byte);
-		set_key_offset(&to, start_byte + PAGE_CACHE_SIZE - 1);
+		set_key_offset(&to, start_byte + PAGE_SIZE - 1);
 		/*
 		 * reiser4_cut_tree_object() returns -E_REPEAT to allow atom
 		 * commits during over-long truncates. But
@@ -652,7 +652,7 @@ int extent2tail(struct file * file, struct unix_file_info *uf_info)
 					  &to, inode, 0);
 
 		if (result) {
-			page_cache_release(page);
+			put_page(page);
 			warning("edward-1570",
 				"Can not delete converted chunk: %i",
 				result);
@@ -660,11 +660,11 @@ int extent2tail(struct file * file, struct unix_file_info *uf_info)
 		}
 
 		/* put page data into tree via tail_write */
-		count = PAGE_CACHE_SIZE;
+		count = PAGE_SIZE;
 		if ((i == (num_pages - 1)) &&
-		    (inode->i_size & ~PAGE_CACHE_MASK))
+		    (inode->i_size & ~PAGE_MASK))
 			/* last page can be incompleted */
-			count = (inode->i_size & ~PAGE_CACHE_MASK);
+			count = (inode->i_size & ~PAGE_MASK);
 		while (count) {
 			loff_t pos = start_byte;
 
@@ -689,7 +689,7 @@ int extent2tail(struct file * file, struct unix_file_info *uf_info)
 				warning("edward-1571",
 			"Report the error code %i to developers. Run FSCK",
 					result);
-				page_cache_release(page);
+				put_page(page);
 				reiser4_inode_clr_flag(inode,
 						       REISER4_PART_IN_CONV);
 				return result;
@@ -708,7 +708,7 @@ int extent2tail(struct file * file, struct unix_file_info *uf_info)
 		wait_on_page_writeback(page);
 		reiser4_drop_page(page);
 		/* release reference taken by read_cache_page() above */
-		page_cache_release(page);
+		put_page(page);
 
 		drop_exclusive_access(uf_info);
 		/* throttle the conversion */

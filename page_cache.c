@@ -430,7 +430,7 @@ static struct bio *page_bio(struct page *page, jnode * node, int rw, gfp_t gfp)
 		super = page->mapping->host->i_sb;
 		assert("nikita-2029", super != NULL);
 		blksz = super->s_blocksize;
-		assert("nikita-2028", blksz == (int)PAGE_CACHE_SIZE);
+		assert("nikita-2028", blksz == (int)PAGE_SIZE);
 
 		spin_lock_jnode(node);
 		blocknr = *jnode_get_io_block(node);
@@ -672,8 +672,8 @@ void reiser4_invalidate_pages(struct address_space *mapping, pgoff_t from,
 
 	if (count == 0)
 		return;
-	from_bytes = ((loff_t) from) << PAGE_CACHE_SHIFT;
-	count_bytes = ((loff_t) count) << PAGE_CACHE_SHIFT;
+	from_bytes = ((loff_t) from) << PAGE_SHIFT;
+	count_bytes = ((loff_t) count) << PAGE_SHIFT;
 
 	unmap_mapping_range(mapping, from_bytes, count_bytes, even_cows);
 	truncate_inode_pages_range(mapping, from_bytes,

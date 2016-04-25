@@ -659,7 +659,7 @@ adjust_first_zero_bit(struct bitmap_node *bnode, bmap_off_t offset)
  * affected.  */
 
 #define REISER4_FIRST_BITMAP_BLOCK \
-	((REISER4_MASTER_OFFSET / PAGE_CACHE_SIZE) + 2)
+	((REISER4_MASTER_OFFSET / PAGE_SIZE) + 2)
 
 /* Audited by: green(2002.06.12) */
 static void

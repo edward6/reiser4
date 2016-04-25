@@ -721,12 +721,12 @@ static void uncapture_znode(znode * node)
 		 * that znode is pinned in memory, which we are, because
 		 * forget_znode() is only called from longterm_unlock_znode().
 		 */
-		page_cache_get(page);
+		get_page(page);
 		spin_unlock_znode(node);
 		lock_page(page);
 		reiser4_uncapture_page(page);
 		unlock_page(page);
-		page_cache_release(page);
+		put_page(page);
 	} else {
 		txn_atom *atom;
 
@@ -1390,10 +1390,10 @@ fake_kill_hook_tail(struct inode *inode, loff_t start, loff_t end, int truncate)
 	if (reiser4_inode_get_flag(inode, REISER4_HAS_MMAP)) {
 		pgoff_t start_pg, end_pg;
 
-		start_pg = start >> PAGE_CACHE_SHIFT;
-		end_pg = (end - 1) >> PAGE_CACHE_SHIFT;
+		start_pg = start >> PAGE_SHIFT;
+		end_pg = (end - 1) >> PAGE_SHIFT;
 
-		if ((start & (PAGE_CACHE_SIZE - 1)) == 0) {
+		if ((start & (PAGE_SIZE - 1)) == 0) {
 			/*
 			 * kill up to the page boundary.
 			 */

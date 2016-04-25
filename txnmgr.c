@@ -858,7 +858,7 @@ static int atom_should_commit_asap(const txn_atom * atom)
 	assert("nikita-3309", atom != NULL);
 
 	captured = (unsigned)atom->capture_count;
-	pinnedpages = (captured >> PAGE_CACHE_SHIFT) * sizeof(znode);
+	pinnedpages = (captured >> PAGE_SHIFT) * sizeof(znode);
 
 	return (pinnedpages > (totalram_pages >> 3)) || (atom->flushed > 100);
 }
@@ -2231,10 +2231,10 @@ void reiser4_uncapture_page(struct page *pg)
 		 * until @node can be removed from flush queue. But
 		 * reiser4_atom_wait_event() cannot be called with page locked,
 		 * because it deadlocks with jnode_extent_write(). Unlock page,
-		 * after making sure (through page_cache_get()) that it cannot
+		 * after making sure (through get_page()) that it cannot
 		 * be released from memory.
 		 */
-		page_cache_get(pg);
+		get_page(pg);
 		unlock_page(pg);
 		reiser4_atom_wait_event(atom);
 		lock_page(pg);
@@ -2243,7 +2243,7 @@ void reiser4_uncapture_page(struct page *pg)
 		 */
 		reiser4_wait_page_writeback(pg);
 		spin_lock_jnode(node);
-		page_cache_release(pg);
+		put_page(pg);
 		atom = jnode_get_atom(node);
 /* VS-FIXME-HANS: improve the commenting in this function */
 		if (atom == NULL) {
@@ -2423,7 +2423,7 @@ void znode_make_dirty(znode * z)
 		 * bit. */
 		/* assert("nikita-3292",
 		   !PageWriteback(page) || ZF_ISSET(z, JNODE_WRITEBACK)); */
-		page_cache_get(page);
+		get_page(page);
 
 		/* jnode lock is not needed for the rest of
 		 * znode_set_dirty(). */
@@ -2431,7 +2431,7 @@ void znode_make_dirty(znode * z)
 		/* reiser4 file write code calls set_page_dirty for
 		 * unformatted nodes, for formatted nodes we do it here. */
 		set_page_dirty_notag(page);
-		page_cache_release(page);
+		put_page(page);
 		/* bump version counter in znode */
 		z->version = znode_build_version(jnode_get_tree(node));
 	} else {

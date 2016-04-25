@@ -429,7 +429,7 @@ static void end_io_handler(struct bio *bio)
 		}
 
 		end_page_writeback(pg);
-		page_cache_release(pg);
+		put_page(pg);
 	}
 
 	if (fq) {

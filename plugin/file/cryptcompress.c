@@ -452,7 +452,7 @@ static int inode_check_cluster(struct inode * object)
 {
 	assert("edward-696", object != NULL);
 
-	if (unlikely(inode_cluster_size(object) < PAGE_CACHE_SIZE)) {
+	if (unlikely(inode_cluster_size(object) < PAGE_SIZE)) {
 		warning("edward-1320", "Can not support '%s' "
 			"logical clusters (less then page size)",
 			inode_cluster_plugin(object)->h.label);
@@ -1951,7 +1951,7 @@ static void checkout_page_cluster(struct cluster_handle * clust,
 
 		unlock_page(clust->pages[i]);
 
-		if (in_page < PAGE_CACHE_SIZE)
+		if (in_page < PAGE_SIZE)
 			/* end of the file */
 			break;
 	}
@@ -2113,7 +2113,7 @@ static int write_hole(struct inode *inode, struct cluster_handle * clust,
 
 		assert("edward-284", page != NULL);
 
-		to_pg = min((typeof(pg_off))PAGE_CACHE_SIZE - pg_off, cl_count);
+		to_pg = min((typeof(pg_off))PAGE_SIZE - pg_off, cl_count);
 		lock_page(page);
 		zero_user(page, pg_off, to_pg);
 		SetPageUptodate(page);
@@ -2354,7 +2354,7 @@ static int read_some_cluster_pages(struct inode * inode,
 			off = off_to_pgoff(win->off+win->count+win->delta);
 			if (off) {
 				lock_page(pg);
-				zero_user_segment(pg, off, PAGE_CACHE_SIZE);
+				zero_user_segment(pg, off, PAGE_SIZE);
 				unlock_page(pg);
 			}
 		}
@@ -2401,7 +2401,7 @@ static int read_some_cluster_pages(struct inode * inode,
 
 			offset =
 			    off_to_pgoff(win->off + win->count + win->delta);
-			zero_user_segment(pg, offset, PAGE_CACHE_SIZE);
+			zero_user_segment(pg, offset, PAGE_SIZE);
 			unlock_page(pg);
 			/* still not uptodate */
 			break;
@@ -2752,7 +2752,7 @@ static loff_t do_write_cryptcompress(struct file *file, struct inode *inode,
 	assert("edward-154", buf != NULL);
 	assert("edward-161", reiser4_schedulable());
 	assert("edward-748", cryptcompress_inode_ok(inode));
-	assert("edward-159", current_blocksize == PAGE_CACHE_SIZE);
+	assert("edward-159", current_blocksize == PAGE_SIZE);
 	assert("edward-1274", get_current_context()->grabbed_blocks == 0);
 
 	hint = kmalloc(sizeof(*hint), reiser4_ctx_gfp_mask_get());
@@ -2825,7 +2825,7 @@ static loff_t do_write_cryptcompress(struct file *file, struct inode *inode,
 		     i++, src += to_page) {
 			to_page = __mbp(win.off + win.count, i) - page_off;
 			assert("edward-1039",
-			       page_off + to_page <= PAGE_CACHE_SIZE);
+			       page_off + to_page <= PAGE_SIZE);
 			assert("edward-287", clust.pages[i] != NULL);
 
 			fault_in_pages_readable(src, to_page);
@@ -3148,7 +3148,7 @@ static int expand_cryptcompress(struct inode *inode /* old size */,
 	assert("edward-1133", inode->i_size < new_size);
 	assert("edward-1134", reiser4_schedulable());
 	assert("edward-1135", cryptcompress_inode_ok(inode));
-	assert("edward-1136", current_blocksize == PAGE_CACHE_SIZE);
+	assert("edward-1136", current_blocksize == PAGE_SIZE);
 	assert("edward-1333", off_to_cloff(inode->i_size, inode) != 0);
 
 	hint = kmalloc(sizeof(*hint), reiser4_ctx_gfp_mask_get());
@@ -3234,7 +3234,7 @@ static int prune_cryptcompress(struct inode *inode,
 	assert("edward-1140", inode->i_size >= new_size);
 	assert("edward-1141", reiser4_schedulable());
 	assert("edward-1142", cryptcompress_inode_ok(inode));
-	assert("edward-1143", current_blocksize == PAGE_CACHE_SIZE);
+	assert("edward-1143", current_blocksize == PAGE_SIZE);
 
 	old_size = inode->i_size;
 
@@ -3292,7 +3292,7 @@ static int prune_cryptcompress(struct inode *inode,
 
 	nr_zeros = off_to_pgoff(new_size);
 	if (nr_zeros)
-		nr_zeros = PAGE_CACHE_SIZE - nr_zeros;
+		nr_zeros = PAGE_SIZE - nr_zeros;
 
 	set_window(&clust, &win, inode, new_size, new_size + nr_zeros);
 	win.stat = HOLE_WINDOW;
@@ -3372,7 +3372,7 @@ static int find_anon_page_cluster(struct address_space * mapping,
 			break;
 
 		/* found */
-		page_cache_get(pages[i]);
+		get_page(pages[i]);
 		*index = pages[i]->index + 1;
 
 		radix_tree_tag_clear(&mapping->page_tree,

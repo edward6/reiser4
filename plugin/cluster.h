@@ -18,7 +18,7 @@ static inline int inode_cluster_shift(struct inode *inode)
 
 static inline unsigned cluster_nrpages_shift(struct inode *inode)
 {
-	return inode_cluster_shift(inode) - PAGE_CACHE_SHIFT;
+	return inode_cluster_shift(inode) - PAGE_SHIFT;
 }
 
 /* cluster size in page units */
@@ -51,12 +51,12 @@ static inline pgoff_t pg_to_clust_to_pg(pgoff_t idx, struct inode *inode)
 
 static inline pgoff_t off_to_pg(loff_t off)
 {
-	return (off >> PAGE_CACHE_SHIFT);
+	return (off >> PAGE_SHIFT);
 }
 
 static inline loff_t pg_to_off(pgoff_t idx)
 {
-	return ((loff_t) (idx) << PAGE_CACHE_SHIFT);
+	return ((loff_t) (idx) << PAGE_SHIFT);
 }
 
 static inline cloff_t off_to_clust(loff_t off, struct inode *inode)
@@ -81,7 +81,7 @@ static inline pgoff_t off_to_clust_to_pg(loff_t off, struct inode *inode)
 
 static inline unsigned off_to_pgoff(loff_t off)
 {
-	return off & (PAGE_CACHE_SIZE - 1);
+	return off & (PAGE_SIZE - 1);
 }
 
 static inline unsigned off_to_cloff(loff_t off, struct inode *inode)
@@ -129,7 +129,7 @@ static inline unsigned long size_in_blocks(loff_t count, unsigned blkbits)
 /* size in pages */
 static inline pgoff_t size_in_pages(loff_t size)
 {
-	return size_in_blocks(size, PAGE_CACHE_SHIFT);
+	return size_in_blocks(size, PAGE_SHIFT);
 }
 
 /* size in logical clusters */
@@ -173,7 +173,7 @@ static inline unsigned __mbb(loff_t size, unsigned long pos, int blkbits)
 /* the same as above, but block size is page size */
 static inline unsigned __mbp(loff_t size, pgoff_t pos)
 {
-	return __mbb(size, pos, PAGE_CACHE_SHIFT);
+	return __mbb(size, pos, PAGE_SHIFT);
 }
 
 /* number of file's bytes in the nominated logical cluster */
@@ -196,7 +196,7 @@ static inline unsigned pbytes(pgoff_t index, struct inode *inode)
 static inline pgoff_t win_count_to_nrpages(struct reiser4_slide * win)
 {
 	return ((win->off + win->count +
-		 (1UL << PAGE_CACHE_SHIFT) - 1) >> PAGE_CACHE_SHIFT) -
+		 (1UL << PAGE_SHIFT) - 1) >> PAGE_SHIFT) -
 		off_to_pg(win->off);
 }
 

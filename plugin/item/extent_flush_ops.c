@@ -70,11 +70,11 @@ int utmost_child_extent(const coord_t * coord, sideof side, jnode ** childp)
 		}
 
 		assert("vs-544",
-		       (get_key_offset(&key) >> PAGE_CACHE_SHIFT) < ~0ul);
+		       (get_key_offset(&key) >> PAGE_SHIFT) < ~0ul);
 		/* index of first or last (depending on @side) page addressed
 		   by the extent */
 		index =
-		    (unsigned long)(get_key_offset(&key) >> PAGE_CACHE_SHIFT);
+		    (unsigned long)(get_key_offset(&key) >> PAGE_SHIFT);
 		if (side == RIGHT_SIDE)
 			index--;
 

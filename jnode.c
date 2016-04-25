@@ -674,7 +674,7 @@ void jnode_attach_page(jnode * node, struct page *pg)
 	assert("nikita-2396", PageLocked(pg));
 	assert_spin_locked(&(node->guard));
 
-	page_cache_get(pg);
+	get_page(pg);
 	set_page_private(pg, (unsigned long)node);
 	node->pg = pg;
 	SetPagePrivate(pg);
@@ -695,7 +695,7 @@ void page_clear_jnode(struct page *page, jnode * node)
 	set_page_private(page, 0ul);
 	ClearPagePrivate(page);
 	node->pg = NULL;
-	page_cache_release(page);
+	put_page(page);
 }
 
 #if 0
@@ -741,7 +741,7 @@ static struct page *jnode_lock_page(jnode * node)
 		if (page == NULL)
 			break;
 
-		/* no need to page_cache_get( page ) here, because page cannot
+		/* no need to get_page( page ) here, because page cannot
 		   be evicted from memory without detaching it from jnode and
 		   this requires spin lock on jnode that we already hold.
 		 */
@@ -751,7 +751,7 @@ static struct page *jnode_lock_page(jnode * node)
 		}
 
 		/* Page is locked by someone else. */
-		page_cache_get(page);
+		get_page(page);
 		spin_unlock_jnode(node);
 		wait_on_page_locked(page);
 		/* it is possible that page was detached from jnode and
@@ -759,7 +759,7 @@ static struct page *jnode_lock_page(jnode * node)
 		   waiting on locked bit. This will be rechecked on the next
 		   loop iteration.
 		 */
-		page_cache_release(page);
+		put_page(page);
 
 		/* try again */
 	}
@@ -807,7 +807,7 @@ static struct page *jnode_get_page_locked(jnode * node, gfp_t gfp_flags)
 			spin_unlock_jnode(node);
 			return page;
 		}
-		page_cache_get(page);
+		get_page(page);
 		spin_unlock_jnode(node);
 		lock_page(page);
 		assert("nikita-3134", page->mapping == jnode_get_mapping(node));
@@ -818,7 +818,7 @@ static struct page *jnode_get_page_locked(jnode * node, gfp_t gfp_flags)
 		jnode_attach_page(node, page);
 	spin_unlock_jnode(node);
 
-	page_cache_release(page);
+	put_page(page);
 	assert("zam-894", jnode_page(node) == page);
 	return page;
 }
@@ -1038,10 +1038,10 @@ static void jnode_finish_io(jnode * node)
 	spin_lock_jnode(node);
 	page = jnode_page(node);
 	if (page != NULL) {
-		page_cache_get(page);
+		get_page(page);
 		spin_unlock_jnode(node);
 		wait_on_page_writeback(page);
-		page_cache_release(page);
+		put_page(page);
 	} else
 		spin_unlock_jnode(node);
 }
@@ -1255,7 +1255,7 @@ reiser4_key *jnode_build_key(const jnode * node, reiser4_key * key)
 	assert("nikita-3093", key != NULL);
 	assert("nikita-3094", jnode_is_unformatted(node));
 
-	off = ((loff_t) index_jnode(node)) << PAGE_CACHE_SHIFT;
+	off = ((loff_t) index_jnode(node)) << PAGE_SHIFT;
 	inode = mapping_jnode(node)->host;
 
 	if (node->parent_item_id != 0)
@@ -1753,14 +1753,14 @@ void reiser4_drop_io_head(jnode * node)
 void pin_jnode_data(jnode * node)
 {
 	assert("zam-671", jnode_page(node) != NULL);
-	page_cache_get(jnode_page(node));
+	get_page(jnode_page(node));
 }
 
 /* make jnode data free-able again */
 void unpin_jnode_data(jnode * node)
 {
 	assert("zam-672", jnode_page(node) != NULL);
-	page_cache_release(jnode_page(node));
+	put_page(jnode_page(node));
 }
 
 struct address_space *jnode_get_mapping(const jnode * node)

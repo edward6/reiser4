@@ -233,7 +233,7 @@ static void entd_flush(struct super_block *super, struct wbq *rq)
 
 	rq->wbc->range_start = page_offset(rq->page);
 	rq->wbc->range_end = rq->wbc->range_start +
-		(ENTD_CAPTURE_APAGE_BURST << PAGE_CACHE_SHIFT);
+		(ENTD_CAPTURE_APAGE_BURST << PAGE_SHIFT);
 
 
 	rq->mapping->a_ops->writepages(rq->mapping, rq->wbc);

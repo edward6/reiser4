@@ -320,7 +320,7 @@ static int read_check_compressibility(struct inode * inode,
 			BUG_ON(!PageUptodate(clust->pages[i]));
 			data = kmap(clust->pages[i]);
 			memcpy(tfm_stream_data(tc, INPUT_STREAM) + pg_to_off(i),
-			       data, PAGE_CACHE_SIZE);
+			       data, PAGE_SIZE);
 			kunmap(clust->pages[i]);
 			unlock_page(clust->pages[i]);
 		}
@@ -673,7 +673,7 @@ int reiser4_write_begin_dispatch(struct file *file,
 	reiser4_context *ctx;
 	struct inode * inode = file_inode(file);
 
-	index = pos >> PAGE_CACHE_SHIFT;
+	index = pos >> PAGE_SHIFT;
 	page = grab_cache_page_write_begin(mapping, index,
 					   flags & AOP_FLAG_NOFS);
 	*pagep = page;
@@ -701,7 +701,7 @@ int reiser4_write_begin_dispatch(struct file *file,
 	reiser4_exit_context(ctx);
  err2:
 	unlock_page(page);
-	page_cache_release(page);
+	put_page(page);
 	return ret;
 }
 
@@ -727,7 +727,7 @@ int reiser4_write_end_dispatch(struct file *file,
 	set_page_dirty_notag(page);
 
 	ret = PROT_PASSIVE(int, write_end, (file, page, pos, copied, fsdata));
-	page_cache_release(page);
+	put_page(page);
 
 	/* don't commit transaction under inode semaphore */
 	context_set_commit_async(ctx);

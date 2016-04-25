@@ -482,7 +482,7 @@ static int shorten_file(struct inode *inode, loff_t new_size)
 		 */
 		return 0;
 
-	padd_from = inode->i_size & (PAGE_CACHE_SIZE - 1);
+	padd_from = inode->i_size & (PAGE_SIZE - 1);
 	if (!padd_from)
 		/* file is truncated to page boundary */
 		return 0;
@@ -494,7 +494,7 @@ static int shorten_file(struct inode *inode, loff_t new_size)
 	}
 
 	/* last page is partially truncated - zero its content */
-	index = (inode->i_size >> PAGE_CACHE_SHIFT);
+	index = (inode->i_size >> PAGE_SHIFT);
 	page = read_mapping_page(inode->i_mapping, index, NULL);
 	if (IS_ERR(page)) {
 		/*
@@ -510,7 +510,7 @@ static int shorten_file(struct inode *inode, loff_t new_size)
 	}
 	wait_on_page_locked(page);
 	if (!PageUptodate(page)) {
-		page_cache_release(page);
+		put_page(page);
 		/*
 		 * the below does up(sbinfo->delete_mutex). Do not get
 		 * confused
@@ -530,7 +530,7 @@ static int shorten_file(struct inode *inode, loff_t new_size)
 	 * be better to update it here when file is really truncated
 	 */
 	if (result) {
-		page_cache_release(page);
+		put_page(page);
 		/*
 		 * the below does up(sbinfo->delete_mutex). Do not get
 		 * confused
@@ -541,9 +541,9 @@ static int shorten_file(struct inode *inode, loff_t new_size)
 
 	lock_page(page);
 	assert("vs-1066", PageLocked(page));
-	zero_user_segment(page, padd_from, PAGE_CACHE_SIZE);
+	zero_user_segment(page, padd_from, PAGE_SIZE);
 	unlock_page(page);
-	page_cache_release(page);
+	put_page(page);
 	/* the below does up(sbinfo->delete_mutex). Do not get confused */
 	reiser4_release_reserved(inode->i_sb);
 	return 0;
@@ -973,7 +973,7 @@ capture_anonymous_pages(struct address_space *mapping, pgoff_t *index,
 
 	/* clear MOVED tag for all found pages */
 	for (i = 0; i < pagevec_count(&pvec); i++) {
-		page_cache_get(pvec.pages[i]);
+		get_page(pvec.pages[i]);
 		radix_tree_tag_clear(&mapping->page_tree, pvec.pages[i]->index,
 				     PAGECACHE_TAG_REISER4_MOVED);
 	}
@@ -1107,14 +1107,14 @@ static int sync_page_list(struct inode *inode)
 		 * page may not leave radix tree because it is protected from
 		 * truncating by inode->i_mutex locked by sys_fsync
 		 */
-		page_cache_get(page);
+		get_page(page);
 		spin_unlock_irq(&mapping->tree_lock);
 
 		from = page->index + 1;
 
 		result = sync_page(page);
 
-		page_cache_release(page);
+		put_page(page);
 		spin_lock_irq(&mapping->tree_lock);
 	}
 
@@ -1211,7 +1211,7 @@ int writepages_unix_file(struct address_space *mapping,
 		result = 0;
 		goto end;
 	}
-	jindex = pindex = wbc->range_start >> PAGE_CACHE_SHIFT;
+	jindex = pindex = wbc->range_start >> PAGE_SHIFT;
 	result = 0;
 	nr_pages = size_in_pages(i_size_read(inode));
 
@@ -1357,7 +1357,7 @@ int readpage_unix_file(struct file *file, struct page *page)
 
 	if (page->mapping->host->i_size <= page_offset(page)) {
 		/* page is out of file */
-		zero_user(page, 0, PAGE_CACHE_SIZE);
+		zero_user(page, 0, PAGE_SIZE);
 		SetPageUptodate(page);
 		unlock_page(page);
 		return 0;
@@ -1390,11 +1390,11 @@ int readpage_unix_file(struct file *file, struct page *page)
 	key_by_inode_and_offset_common(inode, page_offset(page), &key);
 
 	/* look for file metadata corresponding to first byte of page */
-	page_cache_get(page);
+	get_page(page);
 	unlock_page(page);
 	result = find_file_item(hint, &key, ZNODE_READ_LOCK, inode);
 	lock_page(page);
-	page_cache_release(page);
+	put_page(page);
 
 	if (page->mapping == NULL) {
 		/*
@@ -1476,7 +1476,7 @@ int readpage_unix_file(struct file *file, struct page *page)
 
 	if (!result) {
 		set_key_offset(&key,
-			       (loff_t) (page->index + 1) << PAGE_CACHE_SHIFT);
+			       (loff_t) (page->index + 1) << PAGE_SHIFT);
 		/* FIXME should call reiser4_set_hint() */
 		reiser4_unset_hint(hint);
 	} else {
@@ -1533,7 +1533,7 @@ static int readpages_filler(void * data, struct page * page)
 		unlock_page(page);
 		return 0;
 	}
-	page_cache_get(page);
+	get_page(page);
 
 	if (rc->lh.node == 0) {
 		/* no twig lock  - have to do tree search. */
@@ -1602,7 +1602,7 @@ static int readpages_filler(void * data, struct page * page)
  unlock:
 	unlock_page(page);
  exit:
-	page_cache_release(page);
+	put_page(page);
 	return ret;
 }
 
@@ -1817,7 +1817,7 @@ static ssize_t read_compound_file(struct file *file, char __user *buf,
 	uf_info = unix_file_inode_data(inode);
 
 	/* read by page-aligned chunks */
-	to_read = PAGE_CACHE_SIZE - (*off & (loff_t)(PAGE_CACHE_SIZE - 1));
+	to_read = PAGE_SIZE - (*off & (loff_t)(PAGE_SIZE - 1));
 	if (to_read > count)
 		to_read = count;
 	while (count > 0) {
@@ -1840,8 +1840,8 @@ static ssize_t read_compound_file(struct file *file, char __user *buf,
 		/* total number of read bytes */
 		was_read += result;
 		to_read = count;
-		if (to_read > PAGE_CACHE_SIZE)
-			to_read = PAGE_CACHE_SIZE;
+		if (to_read > PAGE_SIZE)
+			to_read = PAGE_SIZE;
 	}
 	done_lh(&hint->lh);
 	save_file_hint(file, hint);
@@ -1865,8 +1865,8 @@ static ssize_t read_compound_file(struct file *file, char __user *buf,
 static int check_pages_unix_file(struct file *file, struct inode *inode)
 {
 	reiser4_invalidate_pages(inode->i_mapping, 0,
-				 (inode->i_size + PAGE_CACHE_SIZE -
-				  1) >> PAGE_CACHE_SHIFT, 0);
+				 (inode->i_size + PAGE_SIZE -
+				  1) >> PAGE_SHIFT, 0);
 	return unpack(file, inode, 0 /* not forever */ );
 }
 
@@ -2086,7 +2086,7 @@ ssize_t write_unix_file(struct file *file,
 	struct inode *inode;
 	struct unix_file_info *uf_info;
 	ssize_t written;
-	int to_write = PAGE_CACHE_SIZE * WRITE_GRANULARITY;
+	int to_write = PAGE_SIZE * WRITE_GRANULARITY;
 	size_t left;
 	ssize_t (*write_op)(struct file *, struct inode *,
 			    const char __user *, size_t,
@@ -2684,7 +2684,7 @@ static int do_write_begin(struct file *file, struct page *page,
 			  loff_t pos, unsigned len)
 {
 	int ret;
-	if (len == PAGE_CACHE_SIZE || PageUptodate(page))
+	if (len == PAGE_SIZE || PageUptodate(page))
 		return 0;
 
 	ret = readpage_unix_file(file, page);

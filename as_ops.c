@@ -94,7 +94,7 @@ int reiser4_set_page_dirty(struct page *page)
 void reiser4_invalidatepage(struct page *page, unsigned int offset, unsigned int length)
 {
 	int ret = 0;
-	int partial_page = (offset || length < PAGE_CACHE_SIZE);
+	int partial_page = (offset || length < PAGE_SIZE);
 	reiser4_context *ctx;
 	struct inode *inode;
 	jnode *node;

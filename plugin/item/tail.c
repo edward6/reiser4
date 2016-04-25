@@ -325,11 +325,11 @@ static int do_readpage_tail(uf_coord_t *uf_coord, struct page *page)
 		goto out_tap_done;
 
 	/* lookup until page is filled up. */
-	for (mapped = 0; mapped < PAGE_CACHE_SIZE; ) {
+	for (mapped = 0; mapped < PAGE_SIZE; ) {
 		/* number of bytes to be copied to page */
 		count = item_length_by_coord(&coord) - coord.unit_pos;
-		if (count > PAGE_CACHE_SIZE - mapped)
-			count = PAGE_CACHE_SIZE - mapped;
+		if (count > PAGE_SIZE - mapped)
+			count = PAGE_SIZE - mapped;
 
 		/* attach @page to address space and get data address */
 		pagedata = kmap_atomic(page);
@@ -346,7 +346,7 @@ static int do_readpage_tail(uf_coord_t *uf_coord, struct page *page)
 		kunmap_atomic(pagedata);
 
 		/* Getting next tail item. */
-		if (mapped < PAGE_CACHE_SIZE) {
+		if (mapped < PAGE_SIZE) {
 			/*
 			 * unlock page in order to avoid keep it locked
 			 * during tree lookup, which takes long term locks
@@ -390,8 +390,8 @@ static int do_readpage_tail(uf_coord_t *uf_coord, struct page *page)
 	}
 
  done:
-	if (mapped != PAGE_CACHE_SIZE)
-		zero_user_segment(page, mapped, PAGE_CACHE_SIZE);
+	if (mapped != PAGE_SIZE)
+		zero_user_segment(page, mapped, PAGE_SIZE);
 	SetPageUptodate(page);
  out_unlock_page:
 	unlock_page(page);
@@ -605,11 +605,11 @@ static loff_t faultin_user_pages(const char __user *buf, size_t count)
 	loff_t faulted;
 	int to_fault;
 
-	if (count > PAGE_PER_FLOW * PAGE_CACHE_SIZE)
-		count = PAGE_PER_FLOW * PAGE_CACHE_SIZE;
+	if (count > PAGE_PER_FLOW * PAGE_SIZE)
+		count = PAGE_PER_FLOW * PAGE_SIZE;
 	faulted = 0;
 	while (count > 0) {
-		to_fault = PAGE_CACHE_SIZE;
+		to_fault = PAGE_SIZE;
 		if (count < to_fault)
 			to_fault = count;
 		fault_in_pages_readable(buf + faulted, to_fault);

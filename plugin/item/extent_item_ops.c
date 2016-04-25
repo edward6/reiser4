@@ -393,29 +393,29 @@ kill_hook_extent(const coord_t * coord, pos_in_node_t from, pos_in_node_t count,
 			write_unlock_tree(tree);
 
 			from_off =
-			    get_key_offset(min_item_key) >> PAGE_CACHE_SHIFT;
+			    get_key_offset(min_item_key) >> PAGE_SHIFT;
 			to_off =
 			    (get_key_offset(max_item_key) +
-			     1) >> PAGE_CACHE_SHIFT;
+			     1) >> PAGE_SHIFT;
 			retval = ITEM_KILLED;
 		} else {
 			/* tail of item is to be removed */
 			from_off =
-			    (get_key_offset(pfrom_key) + PAGE_CACHE_SIZE -
-			     1) >> PAGE_CACHE_SHIFT;
+			    (get_key_offset(pfrom_key) + PAGE_SIZE -
+			     1) >> PAGE_SHIFT;
 			to_off =
 			    (get_key_offset(max_item_key) +
-			     1) >> PAGE_CACHE_SHIFT;
+			     1) >> PAGE_SHIFT;
 			retval = ITEM_TAIL_KILLED;
 		}
 	} else {
 		/* head of item is to be removed */
 		assert("vs-1571", keyeq(pfrom_key, min_item_key));
 		assert("vs-1572",
-		       (get_key_offset(pfrom_key) & (PAGE_CACHE_SIZE - 1)) ==
+		       (get_key_offset(pfrom_key) & (PAGE_SIZE - 1)) ==
 		       0);
 		assert("vs-1573",
-		       ((get_key_offset(pto_key) + 1) & (PAGE_CACHE_SIZE -
+		       ((get_key_offset(pto_key) + 1) & (PAGE_SIZE -
 							 1)) == 0);
 
 		if (kdata->left->node) {
@@ -430,8 +430,8 @@ kill_hook_extent(const coord_t * coord, pos_in_node_t from, pos_in_node_t count,
 			write_unlock_dk(current_tree);
 		}
 
-		from_off = get_key_offset(pfrom_key) >> PAGE_CACHE_SHIFT;
-		to_off = (get_key_offset(pto_key) + 1) >> PAGE_CACHE_SHIFT;
+		from_off = get_key_offset(pfrom_key) >> PAGE_SHIFT;
+		to_off = (get_key_offset(pto_key) + 1) >> PAGE_SHIFT;
 		retval = ITEM_HEAD_KILLED;
 	}
 
@@ -446,7 +446,7 @@ kill_hook_extent(const coord_t * coord, pos_in_node_t from, pos_in_node_t count,
 	ext = extent_item(coord) + from;
 	offset =
 	    (get_key_offset(min_item_key) +
-	     reiser4_extent_size(coord, from)) >> PAGE_CACHE_SHIFT;
+	     reiser4_extent_size(coord, from)) >> PAGE_SHIFT;
 
 	assert("vs-1551", from_off >= offset);
 	assert("vs-1552", from_off - offset <= extent_get_width(ext));
@@ -559,8 +559,8 @@ kill_units_extent(coord_t * coord, pos_in_node_t from, pos_in_node_t to,
 	if (new_first) {
 		/* item head is cut. Item key will change. This new key is calculated here */
 		assert("vs-1556",
-		       (get_key_offset(pto_key) & (PAGE_CACHE_SIZE - 1)) ==
-		       (PAGE_CACHE_SIZE - 1));
+		       (get_key_offset(pto_key) & (PAGE_SIZE - 1)) ==
+		       (PAGE_SIZE - 1));
 		*new_first = *pto_key;
 		set_key_offset(new_first, get_key_offset(new_first) + 1);
 	}
@@ -580,8 +580,8 @@ kill_units_extent(coord_t * coord, pos_in_node_t from, pos_in_node_t to,
 			/* unit @from is to be cut partially. Its width decreases */
 			ext = extent_item(coord) + from;
 			extent_set_width(ext,
-					 (off + PAGE_CACHE_SIZE -
-					  1) >> PAGE_CACHE_SHIFT);
+					 (off + PAGE_SIZE -
+					  1) >> PAGE_SHIFT);
 			count--;
 		}
 	} else {
@@ -591,7 +591,7 @@ kill_units_extent(coord_t * coord, pos_in_node_t from, pos_in_node_t to,
 		assert("vs-1575", result == ITEM_HEAD_KILLED);
 		assert("", from == 0);
 		assert("",
-		       ((get_key_offset(pto_key) + 1) & (PAGE_CACHE_SIZE -
+		       ((get_key_offset(pto_key) + 1) & (PAGE_SIZE -
 							 1)) == 0);
 		assert("",
 		       get_key_offset(pto_key) + 1 >
@@ -604,7 +604,7 @@ kill_units_extent(coord_t * coord, pos_in_node_t from, pos_in_node_t to,
 
 		rest =
 		    (max_to_offset -
-		     get_key_offset(pto_key)) >> PAGE_CACHE_SHIFT;
+		     get_key_offset(pto_key)) >> PAGE_SHIFT;
 		if (rest) {
 			/* unit @to is to be cut partially */
 			ext = extent_item(coord) + to;
@@ -662,10 +662,10 @@ cut_units_extent(coord_t * coord, pos_in_node_t from, pos_in_node_t to,
 	}
 
 	assert("vs-1555",
-	       (get_key_offset(pfrom_key) & (PAGE_CACHE_SIZE - 1)) == 0);
+	       (get_key_offset(pfrom_key) & (PAGE_SIZE - 1)) == 0);
 	assert("vs-1556",
-	       (get_key_offset(pto_key) & (PAGE_CACHE_SIZE - 1)) ==
-	       (PAGE_CACHE_SIZE - 1));
+	       (get_key_offset(pto_key) & (PAGE_SIZE - 1)) ==
+	       (PAGE_SIZE - 1));
 
 	item_key_by_coord(coord, &item_key);
 
@@ -720,7 +720,7 @@ cut_units_extent(coord_t * coord, pos_in_node_t from, pos_in_node_t to,
 		/* tail of unit @from is to be cut partially. Its width decreases */
 		assert("vs-1582", new_first == NULL);
 		ext = extent_item(coord) + from;
-		extent_set_width(ext, off >> PAGE_CACHE_SHIFT);
+		extent_set_width(ext, off >> PAGE_SHIFT);
 		count--;
 	}
 
@@ -735,15 +735,15 @@ cut_units_extent(coord_t * coord, pos_in_node_t from, pos_in_node_t to,
 	if (off) {
 		/* @to_key is smaller than max key of unit @to. Unit @to will not be removed. It gets start increased
 		   and width decreased. */
-		assert("vs-1583", (off & (PAGE_CACHE_SIZE - 1)) == 0);
+		assert("vs-1583", (off & (PAGE_SIZE - 1)) == 0);
 		ext = extent_item(coord) + to;
 		if (state_of_extent(ext) == ALLOCATED_EXTENT)
 			extent_set_start(ext,
 					 extent_get_start(ext) +
 					 (extent_get_width(ext) -
-					  (off >> PAGE_CACHE_SHIFT)));
+					  (off >> PAGE_SHIFT)));
 
-		extent_set_width(ext, (off >> PAGE_CACHE_SHIFT));
+		extent_set_width(ext, (off >> PAGE_SHIFT));
 		count--;
 	}
 	return count * sizeof(reiser4_extent);
