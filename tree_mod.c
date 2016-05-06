@@ -159,7 +159,7 @@ znode *reiser4_add_tree_root(znode * old_root /* existing tree root */ ,
 
 				/* recalculate max balance overhead */
 				tree->estimate_one_insert =
-				    estimate_one_insert_item(tree);
+					calc_estimate_one_insert(tree->height);
 
 				tree->root_block = *znode_get_block(new_root);
 				in_parent = &new_root->in_parent;
@@ -303,7 +303,8 @@ static int reiser4_kill_root(reiser4_tree * tree /* tree from which root is
 		--tree->height;
 
 		/* recalculate max balance overhead */
-		tree->estimate_one_insert = estimate_one_insert_item(tree);
+		tree->estimate_one_insert =
+			calc_estimate_one_insert(tree->height);
 
 		assert("nikita-1202",
 		       tree->height == znode_get_level(new_root));
