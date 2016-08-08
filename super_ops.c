@@ -401,7 +401,6 @@ static long reiser4_writeback_inodes(struct super_block *super,
 /* ->sync_fs() of super operations */
 static int reiser4_sync_fs(struct super_block *super, int wait)
 {
-	int ret;
 	reiser4_context *ctx;
 	struct bdi_writeback *wb;
 	struct wb_writeback_work work = {
@@ -424,14 +423,14 @@ static int reiser4_sync_fs(struct super_block *super, int wait)
 		return PTR_ERR(ctx);
 	}
 	/*
-	 * Capture znode associated with super block
+	 * We don't capture superblock here.
+	 * Superblock is captured only by operations, which change
+	 * its fields different from free_blocks, nr_files, next_oid.
+	 * After system crash the mentioned fields are recovered from
+	 * journal records, see reiser4_journal_recover_sb_data().
+	 * Also superblock is captured at final commit when releasing
+	 * disk format.
 	 */
-	ret = reiser4_capture_super_block(super);
-	if (ret != 0)
-		warning("vs-1701",
-			"reiser4_capture_super_block failed in write_super: %d",
-			ret);
-
 	wb = &inode_to_bdi(reiser4_get_super_fake(super))->wb;
 	spin_lock(&wb->list_lock);
 	generic_writeback_sb_inodes(super, wb, &wbc, &work, true);
