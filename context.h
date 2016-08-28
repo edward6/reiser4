@@ -65,18 +65,23 @@ struct reiser4_context {
 
 	/* count non-trivial jnode_set_dirty() calls */
 	unsigned long nr_marked_dirty;
-
-	/* reiser4_sync_inodes calls (via generic_sync_sb_inodes)
-	 * reiser4_writepages for each of dirty inodes. Reiser4_writepages
-	 * captures pages. When number of pages captured in one
-	 * reiser4_sync_inodes reaches some threshold - some atoms get
-	 * flushed */
+	/*
+	 * reiser4_writeback_inodes calls (via generic_writeback_sb_inodes)
+	 * reiser4_writepages_dispatch for each of dirty inodes.
+	 * Reiser4_writepages_dispatch captures pages. When number of pages
+	 * captured in one reiser4_writeback_inodes reaches some threshold -
+	 * some atoms get flushed
+	 */
 	int nr_captured;
 	int nr_children;	/* number of child contexts */
+	struct page *locked_page; /* page that should be unlocked in
+				   * reiser4_dirty_inode() before taking
+				   * a longterm lock (to not violate
+				   * reiser4 lock ordering) */
 #if REISER4_DEBUG
 	/* debugging information about reiser4 locks held by the current
 	 * thread */
-	reiser4_lock_counters_info locks;
+	reiser4_lock_cnt_info locks;
 	struct task_struct *task;	/* so we can easily find owner of the stack */
 
 	/*

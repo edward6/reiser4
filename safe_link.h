@@ -3,7 +3,7 @@
 
 /* Safe-links. See safe_link.c for details. */
 
-#if !defined( __FS_SAFE_LINK_H__ )
+#if !defined(__FS_SAFE_LINK_H__)
 #define __FS_SAFE_LINK_H__
 
 #include "tree.h"

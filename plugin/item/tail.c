@@ -6,7 +6,6 @@
 #include "../../carry.h"
 #include "../../vfs_ops.h"
 
-#include <linux/quotaops.h>
 #include <asm/uaccess.h>
 #include <linux/swap.h>
 #include <linux/writeback.h>
@@ -326,14 +325,14 @@ static int do_readpage_tail(uf_coord_t *uf_coord, struct page *page)
 		goto out_tap_done;
 
 	/* lookup until page is filled up. */
-	for (mapped = 0; mapped < PAGE_CACHE_SIZE; ) {
+	for (mapped = 0; mapped < PAGE_SIZE; ) {
 		/* number of bytes to be copied to page */
 		count = item_length_by_coord(&coord) - coord.unit_pos;
-		if (count > PAGE_CACHE_SIZE - mapped)
-			count = PAGE_CACHE_SIZE - mapped;
+		if (count > PAGE_SIZE - mapped)
+			count = PAGE_SIZE - mapped;
 
 		/* attach @page to address space and get data address */
-		pagedata = kmap_atomic(page, KM_USER0);
+		pagedata = kmap_atomic(page);
 
 		/* copy tail item to page */
 		memcpy(pagedata + mapped,
@@ -344,10 +343,10 @@ static int do_readpage_tail(uf_coord_t *uf_coord, struct page *page)
 		flush_dcache_page(page);
 
 		/* dettach page from address space */
-		kunmap_atomic(pagedata, KM_USER0);
+		kunmap_atomic(pagedata);
 
 		/* Getting next tail item. */
-		if (mapped < PAGE_CACHE_SIZE) {
+		if (mapped < PAGE_SIZE) {
 			/*
 			 * unlock page in order to avoid keep it locked
 			 * during tree lookup, which takes long term locks
@@ -391,12 +390,8 @@ static int do_readpage_tail(uf_coord_t *uf_coord, struct page *page)
 	}
 
  done:
-	if (mapped != PAGE_CACHE_SIZE) {
-		pagedata = kmap_atomic(page, KM_USER0);
-		memset(pagedata + mapped, 0, PAGE_CACHE_SIZE - mapped);
-		flush_dcache_page(page);
-		kunmap_atomic(pagedata, KM_USER0);
-	}
+	if (mapped != PAGE_SIZE)
+		zero_user_segment(page, mapped, PAGE_SIZE);
 	SetPageUptodate(page);
  out_unlock_page:
 	unlock_page(page);
@@ -408,13 +403,16 @@ static int do_readpage_tail(uf_coord_t *uf_coord, struct page *page)
 }
 
 /*
-   plugin->s.file.readpage
-   reiser4_read->unix_file_read->page_cache_readahead->reiser4_readpage->unix_file_readpage->readpage_tail
-   or
-   filemap_nopage->reiser4_readpage->readpage_unix_file->->readpage_tail
-
-   At the beginning: coord->node is read locked, zloaded, page is locked, coord is set to existing unit inside of tail
-   item. */
+ * plugin->s.file.readpage
+ *
+ * reiser4_read_dispatch->read_unix_file->page_cache_readahead->
+ * ->reiser4_readpage_dispatch->readpage_unix_file->readpage_tail
+ * or
+ * filemap_fault->reiser4_readpage_dispatch->readpage_unix_file->readpage_tail
+ *
+ * At the beginning: coord->node is read locked, zloaded, page is locked,
+ * coord is set to existing unit inside of tail item.
+ */
 int readpage_tail(void *vp, struct page *page)
 {
 	uf_coord_t *uf_coord = vp;
@@ -481,7 +479,7 @@ static ssize_t insert_first_tail(struct inode *inode, flow_t *flow,
 {
 	int result;
 	loff_t to_write;
-	unix_file_info_t *uf_info;
+	struct unix_file_info *uf_info;
 
 	if (get_key_offset(&flow->key) != 0) {
 		/*
@@ -495,14 +493,12 @@ static ssize_t insert_first_tail(struct inode *inode, flow_t *flow,
 		set_key_offset(&flow->key, 0);
 		/*
 		 * holes in files built of tails are stored just like if there
-		 * were real data which are all zeros. Therefore we have to
-		 * allocate quota here as well
+		 * were real data which are all zeros.
 		 */
-		if (DQUOT_ALLOC_SPACE_NODIRTY(inode, flow->length))
-			return RETERR(-EDQUOT);
+		inode_add_bytes(inode, flow->length);
 		result = reiser4_insert_flow(coord, lh, flow);
 		if (flow->length)
-			DQUOT_FREE_SPACE_NODIRTY(inode, flow->length);
+			inode_sub_bytes(inode, flow->length);
 
 		uf_info = unix_file_inode_data(inode);
 
@@ -521,14 +517,12 @@ static ssize_t insert_first_tail(struct inode *inode, flow_t *flow,
 		return result;
 	}
 
-	/* check quota before appending data */
-	if (DQUOT_ALLOC_SPACE_NODIRTY(inode, flow->length))
-		return RETERR(-EDQUOT);
+	inode_add_bytes(inode, flow->length);
 
 	to_write = flow->length;
 	result = reiser4_insert_flow(coord, lh, flow);
 	if (flow->length)
-		DQUOT_FREE_SPACE_NODIRTY(inode, flow->length);
+		inode_sub_bytes(inode, flow->length);
 	return (to_write - flow->length) ? (to_write - flow->length) : result;
 }
 
@@ -554,25 +548,21 @@ static ssize_t append_tail(struct inode *inode,
 		set_key_offset(&flow->key, get_key_offset(&append_key));
 		/*
 		 * holes in files built of tails are stored just like if there
-		 * were real data which are all zeros. Therefore we have to
-		 * allocate quota here as well
+		 * were real data which are all zeros.
 		 */
-		if (DQUOT_ALLOC_SPACE_NODIRTY(inode, flow->length))
-			return RETERR(-EDQUOT);
+		inode_add_bytes(inode, flow->length);
 		result = reiser4_insert_flow(coord, lh, flow);
 		if (flow->length)
-			DQUOT_FREE_SPACE_NODIRTY(inode, flow->length);
+			inode_sub_bytes(inode, flow->length);
 		return result;
 	}
 
-	/* check quota before appending data */
-	if (DQUOT_ALLOC_SPACE_NODIRTY(inode, flow->length))
-		return RETERR(-EDQUOT);
+	inode_add_bytes(inode, flow->length);
 
 	to_write = flow->length;
 	result = reiser4_insert_flow(coord, lh, flow);
 	if (flow->length)
-		DQUOT_FREE_SPACE_NODIRTY(inode, flow->length);
+		inode_sub_bytes(inode, flow->length);
 	return (to_write - flow->length) ? (to_write - flow->length) : result;
 }
 
@@ -615,11 +605,11 @@ static loff_t faultin_user_pages(const char __user *buf, size_t count)
 	loff_t faulted;
 	int to_fault;
 
-	if (count > PAGE_PER_FLOW * PAGE_CACHE_SIZE)
-		count = PAGE_PER_FLOW * PAGE_CACHE_SIZE;
+	if (count > PAGE_PER_FLOW * PAGE_SIZE)
+		count = PAGE_PER_FLOW * PAGE_SIZE;
 	faulted = 0;
 	while (count > 0) {
-		to_fault = PAGE_CACHE_SIZE;
+		to_fault = PAGE_SIZE;
 		if (count < to_fault)
 			to_fault = count;
 		fault_in_pages_readable(buf + faulted, to_fault);
@@ -629,19 +619,11 @@ static loff_t faultin_user_pages(const char __user *buf, size_t count)
 	return faulted;
 }
 
-/**
- * reiser4_write_extent - write method of tail item plugin
- * @file: file to write to
- * @buf: address of user-space buffer
- * @count: number of bytes to write
- * @pos: position in file to write to
- *
- * Returns number of written bytes or error code.
- */
-ssize_t reiser4_write_tail(struct file *file, const char __user *buf,
-			   size_t count, loff_t *pos)
+ssize_t reiser4_write_tail_noreserve(struct file *file,
+				     struct inode * inode,
+				     const char __user *buf,
+				     size_t count, loff_t *pos)
 {
-	struct inode *inode;
 	struct hint hint;
 	int result;
 	flow_t flow;
@@ -649,10 +631,7 @@ ssize_t reiser4_write_tail(struct file *file, const char __user *buf,
 	lock_handle *lh;
 	znode *loaded;
 
-	inode = file->f_dentry->d_inode;
-
-	if (write_extent_reserve_space(inode))
-		return RETERR(-ENOSPC);
+	assert("edward-1548", inode != NULL);
 
 	result = load_file_hint(file, &hint);
 	BUG_ON(result != 0);
@@ -699,6 +678,25 @@ ssize_t reiser4_write_tail(struct file *file, const char __user *buf,
 
 	save_file_hint(file, &hint);
 	return result;
+}
+
+/**
+ * reiser4_write_tail - write method of tail item plugin
+ * @file: file to write to
+ * @buf: address of user-space buffer
+ * @count: number of bytes to write
+ * @pos: position in file to write to
+ *
+ * Returns number of written bytes or error code.
+ */
+ssize_t reiser4_write_tail(struct file *file,
+			   struct inode * inode,
+			   const char __user *buf,
+			   size_t count, loff_t *pos)
+{
+	if (write_extent_reserve_space(inode))
+		return RETERR(-ENOSPC);
+	return reiser4_write_tail_noreserve(file, inode, buf, count, pos);
 }
 
 #if REISER4_DEBUG
@@ -761,7 +759,7 @@ int reiser4_read_tail(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
 		coord->unit_pos--;
 		coord->between = AFTER_UNIT;
 	}
-
+	reiser4_set_hint(hint, &f->key, ZNODE_READ_LOCK);
 	return 0;
 }
 

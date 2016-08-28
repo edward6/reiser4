@@ -1,4 +1,5 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 /* Long term locking data structures. See lock.c for details. */
 
@@ -67,10 +68,10 @@ static inline void spin_unlock_zlock(zlock *lock)
 #define lock_is_rlocked(lock)         ((lock)->nr_readers > 0)
 #define lock_is_wlocked(lock)         ((lock)->nr_readers < 0)
 #define lock_is_wlocked_once(lock)    ((lock)->nr_readers == -1)
-#define lock_can_be_rlocked(lock)     ((lock)->nr_readers >=0)
+#define lock_can_be_rlocked(lock)     ((lock)->nr_readers >= 0)
 #define lock_mode_compatible(lock, mode)				\
-             (((mode) == ZNODE_WRITE_LOCK && !lock_is_locked(lock)) ||	\
-              ((mode) == ZNODE_READ_LOCK && lock_can_be_rlocked(lock)))
+	      (((mode) == ZNODE_WRITE_LOCK && !lock_is_locked(lock)) ||	\
+	      ((mode) == ZNODE_READ_LOCK && lock_can_be_rlocked(lock)))
 
 /* Since we have R/W znode locks we need additional bidirectional `link'
    objects to implement n<->m relationship between lock owners and lock
@@ -95,7 +96,7 @@ struct lock_handle {
 	struct list_head owners_link;
 };
 
-typedef struct lock_request {
+struct lock_request {
 	/* A pointer to uninitialized link object */
 	lock_handle *handle;
 	/* A pointer to the object we want to lock */
@@ -104,7 +105,7 @@ typedef struct lock_request {
 	znode_lock_mode mode;
 	/* how dispatch_lock_requests() returns lock request result code */
 	int ret_code;
-} lock_request;
+};
 
 /* A lock stack structure for accumulating locks owned by a process */
 struct lock_stack {
@@ -130,7 +131,7 @@ struct lock_stack {
 	   This is only accessed by the current thread and thus requires no
 	   locking.
 	 */
-	lock_request request;
+	struct lock_request request;
 	/* the following two fields are the lock stack's
 	 * synchronization object to use with the standard linux/wait.h
 	 * interface. See reiser4_go_to_sleep and __reiser4_wake_up for
@@ -187,8 +188,8 @@ extern void __reiser4_wake_up(lock_stack * owner);
 
 extern int lock_stack_isclean(lock_stack * owner);
 
-/* zlock object state check macros: only used in assertions.  Both forms imply that the
-   lock is held by the current thread. */
+/* zlock object state check macros: only used in assertions. Both forms imply
+   that the lock is held by the current thread. */
 extern int znode_is_write_locked(const znode *);
 extern void reiser4_invalidate_lock(lock_handle *);
 
@@ -198,7 +199,7 @@ extern void reiser4_invalidate_lock(lock_handle *);
 	 LOCK_CNT_NIL(spin_locked_txnmgr) &&		\
 	 LOCK_CNT_NIL(spin_locked_inode) &&		\
 	 LOCK_CNT_NIL(rw_locked_cbk_cache) &&		\
-	 LOCK_CNT_NIL(spin_locked_super_eflush) )
+	 LOCK_CNT_NIL(spin_locked_super_eflush))
 
 static inline void spin_lock_stack(lock_stack *stack)
 {

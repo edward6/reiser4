@@ -196,7 +196,7 @@ TYPE_SAFE_HASH_DEFINE(z, znode, reiser4_block_nr, zjnode.key.z, zjnode.link.z,
 #undef KMALLOC
 
 /* slab for znodes */
-static kmem_cache_t *znode_cache;
+static struct kmem_cache *znode_cache;
 
 int znode_shift_order;
 
@@ -209,7 +209,7 @@ int init_znodes(void)
 {
 	znode_cache = kmem_cache_create("znode", sizeof(znode), 0,
 					SLAB_HWCACHE_ALIGN |
-					SLAB_RECLAIM_ACCOUNT, NULL, NULL);
+					SLAB_RECLAIM_ACCOUNT, NULL);
 	if (znode_cache == NULL)
 		return RETERR(-ENOMEM);
 
@@ -534,10 +534,11 @@ znode *zget(reiser4_tree * tree,
 
 		write_unlock_tree(tree);
 	}
-#if REISER4_DEBUG
-	if (!reiser4_blocknr_is_fake(blocknr) && *blocknr != 0)
-		reiser4_check_block(blocknr, 1);
-#endif
+
+	assert("intelfx-6",
+	       ergo(!reiser4_blocknr_is_fake(blocknr) && *blocknr != 0,
+	            reiser4_check_block(blocknr, 1)));
+
 	/* Check for invalid tree level, return -EIO */
 	if (unlikely(znode_get_level(result) != level)) {
 		warning("jmacd-504",
@@ -634,7 +635,7 @@ int zload_ra(znode * node /* znode to load */ , ra_info_t * info)
 }
 
 /* load content of node into memory */
-int zload(znode * node)
+int zload(znode *node)
 {
 	return zload_ra(node, NULL);
 }
@@ -650,7 +651,6 @@ int zinit_new(znode * node /* znode to initialise */ , gfp_t gfp_flags)
 void zrelse(znode * node /* znode to release references to */ )
 {
 	assert("nikita-1381", znode_invariant(node));
-
 	jrelse(ZJNODE(node));
 }
 

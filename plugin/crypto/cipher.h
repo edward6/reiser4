@@ -9,12 +9,12 @@
 #include <linux/crypto.h>
 
 /* key info imported from user space */
-typedef struct crypto_data {
+struct reiser4_crypto_data {
 	int keysize;    /* uninstantiated key size */
 	__u8 * key;     /* uninstantiated key */
 	int keyid_size; /* size of passphrase */
 	__u8 * keyid;   /* passphrase */
-} crypto_data_t;
+};
 
 /* This object contains all needed infrastructure to implement
    cipher transform. This is operated (allocating, inheriting,
@@ -23,7 +23,7 @@ typedef struct crypto_data {
    This info can be allocated in two cases:
    1. importing a key from user space.
    2. reading inode from disk */
-typedef struct crypto_stat {
+struct reiser4_crypto_info {
 	struct inode * host;
 	struct crypto_hash      * digest;
 	struct crypto_blkcipher * cipher;
@@ -39,7 +39,7 @@ typedef struct crypto_stat {
 				      to be stored in disk stat-data */
 	int keyload_count;         /* number of the objects which has this
 				      crypto-stat attached */
-} crypto_stat_t;
+};
 
 #endif /* __FS_REISER4_CRYPT_H__ */
 

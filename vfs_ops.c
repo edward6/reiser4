@@ -46,7 +46,6 @@
 #include <linux/module.h>
 #include <linux/writeback.h>
 #include <linux/blkdev.h>
-#include <linux/quotaops.h>
 #include <linux/security.h>
 #include <linux/reboot.h>
 #include <linux/rcupdate.h>
@@ -145,31 +144,27 @@ void reiser4_writeout(struct super_block *sb, struct writeback_control *wbc)
 	long written = 0;
 	int repeats = 0;
 	int result;
-	struct address_space *mapping;
 
 	/*
-	 * Performs early flushing, trying to free some memory. If there is
-	 * nothing to flush, commits some atoms.
+	 * Performs early flushing, trying to free some memory. If there
+	 * is nothing to flush, commits some atoms.
+	 *
+	 * Commit all atoms if reiser4_writepages_dispatch() is called
+	 * from sys_sync() or sys_fsync()
 	 */
-
-	/* Commit all atoms if reiser4_writepages() is called from sys_sync() or
-	   sys_fsync(). */
 	if (wbc->sync_mode != WB_SYNC_NONE) {
 		txnmgr_force_commit_all(sb, 0);
 		return;
 	}
 
 	BUG_ON(reiser4_get_super_fake(sb) == NULL);
-	mapping = reiser4_get_super_fake(sb)->i_mapping;
 	do {
 		long nr_submitted = 0;
 		jnode *node = NULL;
 
 		/* do not put more requests to overload write queue */
-		if (wbc->nonblocking &&
-		    bdi_write_congested(mapping->backing_dev_info)) {
-			blk_run_address_space(mapping);
-			wbc->encountered_congestion = 1;
+		if (bdi_write_congested(inode_to_bdi(reiser4_get_super_fake(sb)))) {
+			//blk_flush_plug(current);
 			break;
 		}
 		repeats++;
@@ -184,7 +179,7 @@ void reiser4_writeout(struct super_block *sb, struct writeback_control *wbc)
 				 * requested page itself - start flush from
 				 * that page
 				 */
-				node = jref(ent->cur_request->node);
+				node = ent->cur_request->node;
 		}
 
 		result = flush_some_atom(node, &nr_submitted, wbc,
@@ -192,6 +187,8 @@ void reiser4_writeout(struct super_block *sb, struct writeback_control *wbc)
 		if (result != 0)
 			warning("nikita-31001", "Flush failed: %i", result);
 		if (node)
+			/* drop the reference aquired
+			   in find_or_create_extent() */
 			jput(node);
 		if (!nr_submitted)
 			break;
@@ -201,13 +198,18 @@ void reiser4_writeout(struct super_block *sb, struct writeback_control *wbc)
 	} while (wbc->nr_to_write > 0);
 }
 
+/* tell VM how many pages were dirtied */
 void reiser4_throttle_write(struct inode *inode)
 {
-	reiser4_txn_restart_current();
+	reiser4_context *ctx;
+
+	ctx = get_current_context();
+	reiser4_txn_restart(ctx);
+	current->journal_info = NULL;
 	balance_dirty_pages_ratelimited(inode->i_mapping);
+	current->journal_info = ctx;
 }
 
-const char *REISER4_SUPER_MAGIC_STRING = "ReIsEr4";
 const int REISER4_MAGIC_OFFSET = 16 * 4096;	/* offset to magic string from the
 						 * beginning of device */
 
@@ -228,9 +230,8 @@ void reiser4_handle_error(void)
 	reiser4_status_write(REISER4_STATUS_DAMAGED, 0,
 			     "Filesystem error occured");
 	switch (get_super_private(sb)->onerror) {
-	case 0:
-		reiser4_panic("foobar-42", "Filesystem error occured\n");
 	case 1:
+		reiser4_panic("foobar-42", "Filesystem error occured\n");
 	default:
 		if (sb->s_flags & MS_RDONLY)
 			return;

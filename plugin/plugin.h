@@ -1,9 +1,10 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 /* Basic plugin data-types.
    see fs/reiser4/plugin/plugin.c for details */
 
-#if !defined( __FS_REISER4_PLUGIN_TYPES_H__ )
+#if !defined(__FS_REISER4_PLUGIN_TYPES_H__)
 #define __FS_REISER4_PLUGIN_TYPES_H__
 
 #include "../forward.h"
@@ -19,7 +20,7 @@
 #include "item/cde.h"
 #include "item/item.h"
 #include "node/node.h"
-#include "node/node40.h"
+#include "node/node41.h"
 #include "security/perm.h"
 #include "fibration.h"
 
@@ -150,17 +151,20 @@ typedef struct reiser4_object_on_wire reiser4_object_on_wire;
  * them, and which are only invoked by other plugins.
  */
 
-/* This should be incremented with each new contributed
-   pair (plugin type, plugin id).
-   NOTE: Make sure there is a release of reiser4progs
-   with the corresponding version number */
-#define PLUGIN_LIBRARY_VERSION 0
+/*
+ * This should be incremented in every release which adds one
+ * or more new plugins.
+ * NOTE: Make sure that respective marco is also incremented in
+ * the new release of reiser4progs.
+ */
+#define PLUGIN_LIBRARY_VERSION 1
 
  /* enumeration of fields within plugin_set */
 typedef enum {
 	PSET_FILE,
-	PSET_DIR,		/* PSET_FILE and PSET_DIR should be first elements:
-				 * inode.c:read_inode() depends on this. */
+	PSET_DIR,		/* PSET_FILE and PSET_DIR should be first
+				 * elements: inode.c:read_inode() depends on
+				 * this. */
 	PSET_PERM,
 	PSET_FORMATTING,
 	PSET_HASH,
@@ -199,20 +203,52 @@ typedef struct file_plugin {
 	/* generic fields */
 	plugin_header h;
 
-	struct inode_operations inode_ops;
-	struct file_operations file_ops;
-	struct address_space_operations as_ops;
-
+	/* VFS methods */
+	struct inode_operations * inode_ops;
+	struct file_operations * file_ops;
+	struct address_space_operations * as_ops;
+	/**
+	 * Private methods. These are optional. If used they will allow you
+	 * to minimize the amount of code needed to implement a deviation
+	 * from some other method that also uses them.
+	 */
+	/*
+	 * private inode_ops
+	 */
+	int (*setattr)(struct dentry *, struct iattr *);
+	/*
+	 * private file_ops
+	 */
+	/* do whatever is necessary to do when object is opened */
+	int (*open) (struct inode *inode, struct file *file);
+	ssize_t (*read) (struct file *, char __user *buf, size_t read_amount,
+			loff_t *off);
+	/* write as much as possible bytes from nominated @write_amount
+	 * before plugin scheduling is occurred. Save scheduling state
+	 * in @cont */
+	ssize_t (*write) (struct file *, const char __user *buf,
+			  size_t write_amount, loff_t * off,
+			  struct dispatch_context * cont);
+	int (*ioctl) (struct file *filp, unsigned int cmd, unsigned long arg);
+	int (*mmap) (struct file *, struct vm_area_struct *);
+	int (*release) (struct inode *, struct file *);
+	/*
+	 * private a_ops
+	 */
+	int (*readpage) (struct file *file, struct page *page);
+	int (*readpages)(struct file *file, struct address_space *mapping,
+			  struct list_head *pages, unsigned nr_pages);
+	int (*writepages)(struct address_space *mapping,
+			  struct writeback_control *wbc);
+	int (*write_begin)(struct file *file, struct page *page,
+			   loff_t pos, unsigned len, void **fsdata);
+	int (*write_end)(struct file *file, struct page *page,
+			 loff_t pos, unsigned copied, void *fsdata);
+	sector_t (*bmap) (struct address_space * mapping, sector_t lblock);
+	/* other private methods */
 	/* save inode cached stat-data onto disk. It was called
 	   reiserfs_update_sd() in 3.x */
 	int (*write_sd_by_inode) (struct inode *);
-
-	/*
-	 * private methods: These are optional.  If used they will allow you to
-	 * minimize the amount of code needed to implement a deviation from
-	 * some other method that also uses them.
-	 */
-
 	/*
 	 * Construct flow into @flow according to user-supplied data.
 	 *
@@ -242,7 +278,6 @@ typedef struct file_plugin {
 	int (*flow_by_inode) (struct inode *, const char __user *buf,
 			      int user, loff_t size,
 			      loff_t off, rw_op op, flow_t *);
-
 	/*
 	 * Return the key used to retrieve an offset of a file. It is used by
 	 * default implementation of ->flow_by_inode() method
@@ -251,7 +286,8 @@ typedef struct file_plugin {
 	 */
 	int (*key_by_inode) (struct inode *, loff_t off, reiser4_key *);
 
-	/* NIKITA-FIXME-HANS: this comment is not as clear to others as you think.... */
+	/* NIKITA-FIXME-HANS: this comment is not as clear to others as you
+	 * think.... */
 	/*
 	 * set the plugin for a file.  Called during file creation in creat()
 	 * but not reiser4() unless an inode already exists for the file.
@@ -273,9 +309,6 @@ typedef struct file_plugin {
 	 */
 	int (*create_object) (struct inode *object, struct inode *parent,
 			      reiser4_object_create_data *);
-
-	/* this does whatever is necessary to do when object is opened */
-	int (*open_object) (struct inode * inode, struct file * file);
 	/*
 	 * this method should check REISER4_NO_SD and set REISER4_NO_SD on
 	 * success. Deletion of an object usually includes removal of items
@@ -307,15 +340,15 @@ typedef struct file_plugin {
 
 	/* not empty for DIRECTORY_FILE_PLUGIN_ID only currently. It calls
 	   detach of directory plugin to remove ".." */
-	int (*detach) (struct inode * child, struct inode * parent);
+	int (*detach) (struct inode *child, struct inode *parent);
 
 	/* called when @child was just looked up in the @parent. It is not
 	   empty for DIRECTORY_FILE_PLUGIN_ID only where it calls attach of
 	   directory plugin */
-	int (*bind) (struct inode * child, struct inode * parent);
+	int (*bind) (struct inode *child, struct inode *parent);
 
 	/* process safe-link during mount */
-	int (*safelink) (struct inode * object, reiser4_safe_link_t link,
+	int (*safelink) (struct inode *object, reiser4_safe_link_t link,
 			 __u64 value);
 
 	/* The couple of estimate methods for all file operations */
@@ -332,7 +365,7 @@ typedef struct file_plugin {
 	 * (read_inode) and when file is created (common_create_child) so that
 	 * file plugin could initialize its inode data
 	 */
-	void (*init_inode_data) (struct inode *, reiser4_object_create_data *,
+	void (*init_inode_data) (struct inode *, reiser4_object_create_data * ,
 				 int);
 
 	/*
@@ -344,8 +377,8 @@ typedef struct file_plugin {
 	 * @to_key: the end of the deleted key range,
 	 * @smallest_removed: the smallest removed key,
 	 *
-	 * @return: 0 if success, error code otherwise, -E_REPEAT means that long cut_tree
-	 * operation was interrupted for allowing atom commit .
+	 * @return: 0 if success, error code otherwise, -E_REPEAT means that
+	 * long cut_tree operation was interrupted for allowing atom commit .
 	 */
 	int (*cut_tree_worker) (tap_t *, const reiser4_key * from_key,
 				const reiser4_key * to_key,
@@ -361,14 +394,14 @@ typedef struct file_plugin {
 	 */
 	struct {
 		/* store object's identity at @area */
-		char *(*write) (struct inode * inode, char *area);
+		char *(*write) (struct inode *inode, char *area);
 		/* parse object from wire to the @obj */
 		char *(*read) (char *area, reiser4_object_on_wire * obj);
 		/* given object identity in @obj, find or create its dentry */
-		struct dentry *(*get) (struct super_block * s,
+		struct dentry *(*get) (struct super_block *s,
 				       reiser4_object_on_wire * obj);
 		/* how many bytes ->wire.write() consumes */
-		int (*size) (struct inode * inode);
+		int (*size) (struct inode *inode);
 		/* finish with object identify */
 		void (*done) (reiser4_object_on_wire * obj);
 	} wire;
@@ -397,9 +430,9 @@ typedef struct dir_plugin {
 	/* generic fields */
 	plugin_header h;
 
-	struct inode_operations inode_ops;
-	struct file_operations file_ops;
-	struct address_space_operations as_ops;
+	struct inode_operations * inode_ops;
+	struct file_operations * file_ops;
+	struct address_space_operations * as_ops;
 
 	/*
 	 * private methods: These are optional.  If used they will allow you to
@@ -408,44 +441,44 @@ typedef struct dir_plugin {
 	 * they should be a separate type of plugin.
 	 */
 
-	struct dentry *(*get_parent) (struct inode * childdir);
+	struct dentry *(*get_parent) (struct inode *childdir);
 
 	/*
 	 * check whether "name" is acceptable name to be inserted into this
 	 * object. Optionally implemented by directory-like objects.  Can check
 	 * for maximal length, reserved symbols etc
 	 */
-	int (*is_name_acceptable) (const struct inode * inode, const char *name,
+	int (*is_name_acceptable) (const struct inode *inode, const char *name,
 				   int len);
 
-	void (*build_entry_key) (const struct inode * dir	/* directory where
-								 * entry is (or will
-								 * be) in.*/ ,
-				 const struct qstr * name	/* name of file
-								 * referenced by this
-								 * entry */ ,
+	void (*build_entry_key) (const struct inode *dir /* directory where
+							  * entry is (or will
+							  * be) in.*/ ,
+				 const struct qstr *name /* name of file
+							  * referenced by this
+							  * entry */ ,
 				 reiser4_key * result	/* resulting key of
 							 * directory entry */ );
-	int (*build_readdir_key) (struct file * dir, reiser4_key * result);
-	int (*add_entry) (struct inode * object, struct dentry * where,
+	int (*build_readdir_key) (struct file *dir, reiser4_key * result);
+	int (*add_entry) (struct inode *object, struct dentry *where,
 			  reiser4_object_create_data * data,
 			  reiser4_dir_entry_desc * entry);
-	int (*rem_entry) (struct inode * object, struct dentry * where,
+	int (*rem_entry) (struct inode *object, struct dentry *where,
 			  reiser4_dir_entry_desc * entry);
 
 	/*
 	 * initialize directory structure for newly created object. For normal
 	 * unix directories, insert dot and dotdot.
 	 */
-	int (*init) (struct inode * object, struct inode * parent,
+	int (*init) (struct inode *object, struct inode *parent,
 		     reiser4_object_create_data * data);
 
 	/* destroy directory */
-	int (*done) (struct inode * child);
+	int (*done) (struct inode *child);
 
 	/* called when @subdir was just looked up in the @dir */
-	int (*attach) (struct inode * subdir, struct inode * dir);
-	int (*detach) (struct inode * subdir, struct inode * dir);
+	int (*attach) (struct inode *subdir, struct inode *dir);
+	int (*detach) (struct inode *subdir, struct inode *dir);
 
 	struct {
 		reiser4_block_nr(*add_entry) (const struct inode *);
@@ -462,8 +495,50 @@ typedef struct formatting_plugin {
 	plugin_header h;
 	/* returns non-zero iff file's tail has to be stored
 	   in a direct item. */
-	int (*have_tail) (const struct inode * inode, loff_t size);
+	int (*have_tail) (const struct inode *inode, loff_t size);
 } formatting_plugin;
+
+/**
+ * Plugins of this interface implement different transaction models.
+ * Transaction model is a high-level block allocator, which assigns block
+ * numbers to dirty nodes, and, thereby, decides, how individual dirty
+ * nodes of an atom will be committed.
+  */
+typedef struct txmod_plugin {
+	/* generic fields */
+	plugin_header h;
+	/**
+	 * allocate blocks in the FORWARD PARENT-FIRST context
+	 * for formatted nodes
+	 */
+	int (*forward_alloc_formatted)(znode *node, const coord_t *parent_coord,
+			       flush_pos_t *pos); //was allocate_znode_loaded
+	/**
+	 * allocate blocks in the REVERSE PARENT-FIRST context
+	 * for formatted nodes
+	 */
+	int (*reverse_alloc_formatted)(jnode * node,
+				       const coord_t *parent_coord,
+				       flush_pos_t *pos); // was reverse_relocate_test
+	/**
+	 * allocate blocks in the FORWARD PARENT-FIRST context
+	 * for unformatted nodes.
+	 *
+	 * This is called by handle_pos_on_twig to proceed extent unit
+	 * flush_pos->coord is set to. It is to prepare for flushing
+	 * sequence of not flushprepped nodes (slum). It supposes that
+	 * slum starts at flush_pos->pos_in_unit position within the extent
+	 */
+	int (*forward_alloc_unformatted)(flush_pos_t *flush_pos); //was reiser4_alloc_extent
+	/**
+	 * allocale blocks for unformatted nodes in squeeze_right_twig().
+ 	 * @coord is set to extent unit
+	 */
+	squeeze_result (*squeeze_alloc_unformatted)(znode *left,
+				const coord_t *coord,
+				flush_pos_t *flush_pos,
+				reiser4_key *stop_key); // was_squalloc_extent
+} txmod_plugin;
 
 typedef struct hash_plugin {
 	/* generic fields */
@@ -476,25 +551,25 @@ typedef struct cipher_plugin {
 	/* generic fields */
 	plugin_header h;
 	struct crypto_blkcipher * (*alloc) (void);
-	void (*free) (struct crypto_blkcipher * tfm);
+	void (*free) (struct crypto_blkcipher *tfm);
 	/* Offset translator. For each offset this returns (k * offset), where
 	   k (k >= 1) is an expansion factor of the cipher algorithm.
 	   For all symmetric algorithms k == 1. For asymmetric algorithms (which
 	   inflate data) offset translation guarantees that all disk cluster's
 	   units will have keys smaller then next cluster's one.
 	 */
-	 loff_t(*scale) (struct inode * inode, size_t blocksize, loff_t src);
+	 loff_t(*scale) (struct inode *inode, size_t blocksize, loff_t src);
 	/* Cipher algorithms can accept data only by chunks of cipher block
 	   size. This method is to align any flow up to cipher block size when
 	   we pass it to cipher algorithm. To align means to append padding of
 	   special format specific to the cipher algorithm */
-	int (*align_stream) (__u8 * tail, int clust_size, int blocksize);
+	int (*align_stream) (__u8 *tail, int clust_size, int blocksize);
 	/* low-level key manager (check, install, etc..) */
-	int (*setkey) (struct crypto_tfm * tfm, const __u8 * key,
+	int (*setkey) (struct crypto_tfm *tfm, const __u8 *key,
 		       unsigned int keylen);
 	/* main text processing procedures */
-	void (*encrypt) (__u32 * expkey, __u8 * dst, const __u8 * src);
-	void (*decrypt) (__u32 * expkey, __u8 * dst, const __u8 * src);
+	void (*encrypt) (__u32 *expkey, __u8 *dst, const __u8 *src);
+	void (*decrypt) (__u32 *expkey, __u8 *dst, const __u8 *src);
 } cipher_plugin;
 
 typedef struct digest_plugin {
@@ -503,7 +578,7 @@ typedef struct digest_plugin {
 	/* fingerprint size in bytes */
 	int fipsize;
 	struct crypto_hash * (*alloc) (void);
-	void (*free) (struct crypto_hash * tfm);
+	void (*free) (struct crypto_hash *tfm);
 } digest_plugin;
 
 typedef struct compression_plugin {
@@ -519,10 +594,10 @@ typedef struct compression_plugin {
 	int (*min_size_deflate) (void);
 	 __u32(*checksum) (char *data, __u32 length);
 	/* main transform procedures */
-	void (*compress) (coa_t coa, __u8 * src_first, unsigned src_len,
-			  __u8 * dst_first, unsigned *dst_len);
-	void (*decompress) (coa_t coa, __u8 * src_first, unsigned src_len,
-			    __u8 * dst_first, unsigned *dst_len);
+	void (*compress) (coa_t coa, __u8 *src_first, size_t src_len,
+			  __u8 *dst_first, size_t *dst_len);
+	void (*decompress) (coa_t coa, __u8 *src_first, size_t src_len,
+			    __u8 *dst_first, size_t *dst_len);
 } compression_plugin;
 
 typedef struct compression_mode_plugin {
@@ -530,11 +605,11 @@ typedef struct compression_mode_plugin {
 	plugin_header h;
 	/* this is called when estimating compressibility
 	   of a logical cluster by its content */
-	int (*should_deflate) (struct inode * inode, cloff_t index);
+	int (*should_deflate) (struct inode *inode, cloff_t index);
 	/* this is called when results of compression should be saved */
-	int (*accept_hook) (struct inode * inode, cloff_t index);
+	int (*accept_hook) (struct inode *inode, cloff_t index);
 	/* this is called when results of compression should be discarded */
-	int (*discard_hook) (struct inode * inode, cloff_t index);
+	int (*discard_hook) (struct inode *inode, cloff_t index);
 } compression_mode_plugin;
 
 typedef struct cluster_plugin {
@@ -546,10 +621,10 @@ typedef struct cluster_plugin {
 typedef struct sd_ext_plugin {
 	/* generic fields */
 	plugin_header h;
-	int (*present) (struct inode * inode, char **area, int *len);
-	int (*absent) (struct inode * inode);
-	int (*save_len) (struct inode * inode);
-	int (*save) (struct inode * inode, char **area);
+	int (*present) (struct inode *inode, char **area, int *len);
+	int (*absent) (struct inode *inode);
+	int (*save_len) (struct inode *inode);
+	int (*save) (struct inode *inode, char **area);
 	/* alignment requirement for this stat-data part */
 	int alignment;
 } sd_ext_plugin;
@@ -590,11 +665,11 @@ typedef struct disk_format_plugin {
 	int (*init_format) (struct super_block *, void *data);
 
 	/* key of root directory stat data */
-	const reiser4_key *(*root_dir_key) (const struct super_block *);
+	const reiser4_key * (*root_dir_key) (const struct super_block *);
 
 	int (*release) (struct super_block *);
-	jnode *(*log_super) (struct super_block *);
-	int (*check_open) (const struct inode * object);
+	jnode * (*log_super) (struct super_block *);
+	int (*check_open) (const struct inode *object);
 	int (*version_update) (struct super_block *);
 } disk_format_plugin;
 
@@ -605,7 +680,7 @@ struct jnode_plugin {
 	int (*parse) (jnode * node);
 	struct address_space *(*mapping) (const jnode * node);
 	unsigned long (*index) (const jnode * node);
-	jnode *(*clone) (jnode * node);
+	jnode * (*clone) (jnode * node);
 };
 
 /* plugin instance.                                                         */
@@ -658,6 +733,8 @@ union reiser4_plugin {
 	compression_mode_plugin compression_mode;
 	/* cluster plugin, used by object plugin */
 	cluster_plugin clust;
+	/* transaction mode plugin */
+	txmod_plugin txmod;
 	/* place-holder for new plugin types that can be registered
 	   dynamically, and used by other dynamically loaded plugins.  */
 	void *generic;
@@ -669,24 +746,24 @@ struct reiser4_plugin_ops {
 	/* called when plugin is unloaded */
 	int (*done) (reiser4_plugin * plugin);
 	/* load given plugin from disk */
-	int (*load) (struct inode * inode,
+	int (*load) (struct inode *inode,
 		     reiser4_plugin * plugin, char **area, int *len);
 	/* how many space is required to store this plugin's state
 	   in stat-data */
-	int (*save_len) (struct inode * inode, reiser4_plugin * plugin);
+	int (*save_len) (struct inode *inode, reiser4_plugin * plugin);
 	/* save persistent plugin-data to disk */
-	int (*save) (struct inode * inode, reiser4_plugin * plugin,
+	int (*save) (struct inode *inode, reiser4_plugin * plugin,
 		     char **area);
 	/* alignment requirement for on-disk state of this plugin
 	   in number of bytes */
 	int alignment;
 	/* install itself into given inode. This can return error
 	   (e.g., you cannot change hash of non-empty directory). */
-	int (*change) (struct inode * inode, reiser4_plugin * plugin,
+	int (*change) (struct inode *inode, reiser4_plugin * plugin,
 		       pset_member memb);
 	/* install itself into given inode. This can return error
 	   (e.g., you cannot change hash of non-empty directory). */
-	int (*inherit) (struct inode * inode, struct inode * parent,
+	int (*inherit) (struct inode *inode, struct inode *parent,
 			reiser4_plugin * plugin);
 };
 
@@ -694,7 +771,6 @@ struct reiser4_plugin_ops {
 
 /* stores plugin reference in reiser4-specific part of inode */
 extern int set_object_plugin(struct inode *inode, reiser4_plugin_id id);
-extern int setup_plugins(struct super_block *super, reiser4_plugin ** area);
 extern int init_plugins(void);
 
 /* builtin plugins */
@@ -714,7 +790,6 @@ typedef enum {
 
 typedef enum {
 	NONE_CIPHER_ID,
-	AES_CIPHER_ID,
 	LAST_CIPHER_ID
 } reiser4_cipher_id;
 
@@ -728,13 +803,11 @@ typedef enum {
 /* builtin compression mode plugins */
 typedef enum {
 	NONE_COMPRESSION_MODE_ID,
-	COL_8_COMPRESSION_MODE_ID,
-	COL_16_COMPRESSION_MODE_ID,
-	COL_32_COMPRESSION_MODE_ID,
-	CONVX_COMPRESSION_MODE_ID,
+	LATTD_COMPRESSION_MODE_ID,
+	ULTIM_COMPRESSION_MODE_ID,
 	FORCE_COMPRESSION_MODE_ID,
-	TEST_COMPRESSION_MODE_ID,
-  	LAST_COMPRESSION_MODE_ID
+	CONVX_COMPRESSION_MODE_ID,
+	LAST_COMPRESSION_MODE_ID
 } reiser4_compression_mode_id;
 
 /* builtin cluster plugins */
@@ -747,8 +820,7 @@ typedef enum {
 	LAST_CLUSTER_ID
 } reiser4_cluster_id;
 
-/* builtin tail-plugins */
-
+/* builtin tail packing policies */
 typedef enum {
 	NEVER_TAILS_FORMATTING_ID,
 	ALWAYS_TAILS_FORMATTING_ID,
@@ -756,12 +828,14 @@ typedef enum {
 	LAST_TAIL_FORMATTING_ID
 } reiser4_formatting_id;
 
-/* compression/clustering specific data */
-typedef struct compression_data {
-	reiser4_compression_id coa;	/* id of the compression algorithm */
-} compression_data_t;
+/* builtin transaction models */
+typedef enum {
+	HYBRID_TXMOD_ID,
+	JOURNAL_TXMOD_ID,
+	WA_TXMOD_ID,
+	LAST_TXMOD_ID
+} reiser4_txmod_id;
 
-typedef __u8 cluster_data_t;	/* cluster info */
 
 /* data type used to pack parameters that we pass to vfs object creation
    function create_object() */
@@ -770,7 +844,7 @@ struct reiser4_object_create_data {
 	reiser4_file_id id;
 	/* mode of regular file, directory or special file */
 /* what happens if some other sort of perm plugin is in use? */
-	int mode;
+	umode_t mode;
 	/* rdev of special file */
 	dev_t rdev;
 	/* symlink target */
@@ -778,9 +852,7 @@ struct reiser4_object_create_data {
 	/* add here something for non-standard objects you invent, like
 	   query for interpolation file etc. */
 
- 	crypto_stat_t * crypto;
-	compression_data_t *compression;
-	cluster_data_t *cluster;
+	struct reiser4_crypto_info *crypto;
 
 	struct inode *parent;
 	struct dentry *dentry;
@@ -808,42 +880,41 @@ struct reiser4_dir_entry_desc {
 #define MAX_PLUGIN_TYPE_LABEL_LEN  32
 #define MAX_PLUGIN_PLUG_LABEL_LEN  32
 
-/* used for interface with user-land: table-driven parsing in
-    reiser4(). */
-typedef struct plugin_locator {
-	reiser4_plugin_type type_id;
-	reiser4_plugin_id id;
-	char type_label[MAX_PLUGIN_TYPE_LABEL_LEN];
-	char plug_label[MAX_PLUGIN_PLUG_LABEL_LEN];
-} plugin_locator;
-
-extern int locate_plugin(struct inode *inode, plugin_locator * loc);
-
-#define PLUGIN_BY_ID(TYPE,ID,FIELD)					\
-static inline TYPE *TYPE ## _by_id( reiser4_plugin_id id )		\
+#define PLUGIN_BY_ID(TYPE, ID, FIELD)					\
+static inline TYPE *TYPE ## _by_id(reiser4_plugin_id id)		\
 {									\
-	reiser4_plugin *plugin = plugin_by_id ( ID, id );		\
-	return plugin ? & plugin -> FIELD : NULL;			\
+	reiser4_plugin *plugin = plugin_by_id(ID, id);			\
+	return plugin ? &plugin->FIELD : NULL;				\
 }									\
-static inline TYPE *TYPE ## _by_disk_id( reiser4_tree *tree, d16 *id )	\
+static inline TYPE *TYPE ## _by_disk_id(reiser4_tree * tree, d16 *id)	\
 {									\
-	reiser4_plugin *plugin = plugin_by_disk_id ( tree, ID, id );	\
-	return plugin ? & plugin -> FIELD : NULL;			\
+	reiser4_plugin *plugin = plugin_by_disk_id(tree, ID, id);	\
+	return plugin ? &plugin->FIELD : NULL;				\
 }									\
-static inline TYPE *TYPE ## _by_unsafe_id( reiser4_plugin_id id )	\
+static inline TYPE *TYPE ## _by_unsafe_id(reiser4_plugin_id id)	        \
 {									\
-	reiser4_plugin *plugin = plugin_by_unsafe_id ( ID, id );	\
-	return plugin ? & plugin -> FIELD : NULL;			\
+	reiser4_plugin *plugin = plugin_by_unsafe_id(ID, id);		\
+	return plugin ? &plugin->FIELD : NULL;				\
 }									\
-static inline reiser4_plugin* TYPE ## _to_plugin( TYPE* plugin )	\
+static inline reiser4_plugin* TYPE ## _to_plugin(TYPE* plugin)	        \
 {									\
-	return ( reiser4_plugin * ) plugin;				\
+	return (reiser4_plugin *) plugin;				\
 }									\
-static inline reiser4_plugin_id TYPE ## _id( TYPE* plugin )		\
+static inline reiser4_plugin_id TYPE ## _id(TYPE* plugin)		\
 {									\
-	return TYPE ## _to_plugin (plugin) -> h.id;			\
+	return TYPE ## _to_plugin(plugin)->h.id;			\
 }									\
 typedef struct { int foo; } TYPE ## _plugin_dummy
+
+static inline int get_release_number_major(void)
+{
+	return LAST_FORMAT_ID - 1;
+}
+
+static inline int get_release_number_minor(void)
+{
+	return PLUGIN_LIBRARY_VERSION;
+}
 
 PLUGIN_BY_ID(item_plugin, REISER4_ITEM_PLUGIN_TYPE, item);
 PLUGIN_BY_ID(file_plugin, REISER4_FILE_PLUGIN_TYPE, file);
@@ -862,6 +933,7 @@ PLUGIN_BY_ID(jnode_plugin, REISER4_JNODE_PLUGIN_TYPE, jnode);
 PLUGIN_BY_ID(compression_mode_plugin, REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
 	     compression_mode);
 PLUGIN_BY_ID(cluster_plugin, REISER4_CLUSTER_PLUGIN_TYPE, clust);
+PLUGIN_BY_ID(txmod_plugin, REISER4_TXMOD_PLUGIN_TYPE, txmod);
 
 extern int save_plugin_id(reiser4_plugin * plugin, d16 * area);
 
@@ -873,8 +945,10 @@ for (plugin = list_entry(get_plugin_list(ptype)->next, reiser4_plugin, h.linkage
      plugin = list_entry(plugin->h.linkage.next, reiser4_plugin, h.linkage))
 
 
-extern int grab_plugin_pset(struct inode *self, struct inode *ancestor, pset_member memb);
-extern int force_plugin_pset(struct inode *self, pset_member memb, reiser4_plugin *plug);
+extern int grab_plugin_pset(struct inode *self, struct inode *ancestor,
+			    pset_member memb);
+extern int force_plugin_pset(struct inode *self, pset_member memb,
+			     reiser4_plugin *plug);
 extern int finish_pset(struct inode *inode);
 
 /* defined in fs/reiser4/plugin/object.c */
@@ -887,6 +961,8 @@ extern sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION];
 extern hash_plugin hash_plugins[LAST_HASH_ID];
 /* defined in fs/reiser4/plugin/fibration.c */
 extern fibration_plugin fibration_plugins[LAST_FIBRATION_ID];
+/* defined in fs/reiser4/plugin/txmod.c */
+extern txmod_plugin txmod_plugins[LAST_TXMOD_ID];
 /* defined in fs/reiser4/plugin/crypt.c */
 extern cipher_plugin cipher_plugins[LAST_CIPHER_ID];
 /* defined in fs/reiser4/plugin/digest.c */

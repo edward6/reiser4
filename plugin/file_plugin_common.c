@@ -9,15 +9,13 @@
 #include "object.h"
 #include "../safe_link.h"
 
-#include <linux/quotaops.h>
-
 static int insert_new_sd(struct inode *inode);
 static int update_sd(struct inode *inode);
 
 /* this is common implementation of write_sd_by_inode method of file plugin
    either insert stat data or update it
  */
-int write_sd_by_inode_common(struct inode *inode /* object to save */ )
+int write_sd_by_inode_common(struct inode *inode/* object to save */)
 {
 	int result;
 
@@ -61,7 +59,7 @@ int set_plug_in_inode_common(struct inode *object /* inode to set plugin on */ ,
 
 	object->i_mode = data->mode;
 	/* this should be plugin decision */
-	object->i_uid = current->fsuid;
+	object->i_uid = current_fsuid();
 	object->i_mtime = object->i_atime = object->i_ctime = CURRENT_TIME;
 
 	/* support for BSD style group-id assignment. See mount's manual page
@@ -75,7 +73,7 @@ int set_plug_in_inode_common(struct inode *object /* inode to set plugin on */ ,
 			/* sguid is inherited by sub-directories */
 			object->i_mode |= S_ISGID;
 	} else
-		object->i_gid = current->fsgid;
+		object->i_gid = current_fsgid();
 
 	/* this object doesn't have stat-data yet */
 	reiser4_inode_set_flag(object, REISER4_NO_SD);
@@ -85,7 +83,6 @@ int set_plug_in_inode_common(struct inode *object /* inode to set plugin on */ ,
 	/* setup inode and file-operations for this inode */
 	setup_inode_ops(object, data);
 #endif
-	object->i_nlink = 0;
 	reiser4_seal_init(&reiser4_inode_data(object)->sd_seal, NULL, NULL);
 	mask = (1 << UNIX_STAT) | (1 << LIGHT_WEIGHT_STAT);
 	if (!reiser4_is_set(object->i_sb, REISER4_32_BIT_TIMES))
@@ -100,7 +97,7 @@ int set_plug_in_inode_common(struct inode *object /* inode to set plugin on */ ,
  */
 int adjust_to_parent_common(struct inode *object /* new object */ ,
 			    struct inode *parent /* parent directory */ ,
-			    struct inode *root /* root directory */ )
+			    struct inode *root/* root directory */)
 {
 	assert("nikita-2165", object != NULL);
 	if (parent == NULL)
@@ -123,7 +120,7 @@ int adjust_to_parent_common(struct inode *object /* new object */ ,
  */
 int adjust_to_parent_common_dir(struct inode *object /* new object */ ,
 				struct inode *parent /* parent directory */ ,
-				struct inode *root /* root directory */ )
+				struct inode *root/* root directory */)
 {
 	int result = 0;
 	pset_member memb;
@@ -146,21 +143,21 @@ int adjust_to_parent_common_dir(struct inode *object /* new object */ ,
 
 int adjust_to_parent_cryptcompress(struct inode *object /* new object */ ,
 				   struct inode *parent /* parent directory */,
-				   struct inode *root /* root directory */)
+				   struct inode *root/* root directory */)
 {
- 	int result;
- 	result = adjust_to_parent_common(object, parent, root);
- 	if (result)
- 		return result;
- 	assert("edward-1416", parent != NULL);
+	int result;
+	result = adjust_to_parent_common(object, parent, root);
+	if (result)
+		return result;
+	assert("edward-1416", parent != NULL);
 
- 	grab_plugin_pset(object, parent, PSET_CLUSTER);
- 	grab_plugin_pset(object, parent, PSET_CIPHER);
- 	grab_plugin_pset(object, parent, PSET_DIGEST);
- 	grab_plugin_pset(object, parent, PSET_COMPRESSION);
- 	grab_plugin_pset(object, parent, PSET_COMPRESSION_MODE);
+	grab_plugin_pset(object, parent, PSET_CLUSTER);
+	grab_plugin_pset(object, parent, PSET_CIPHER);
+	grab_plugin_pset(object, parent, PSET_DIGEST);
+	grab_plugin_pset(object, parent, PSET_COMPRESSION);
+	grab_plugin_pset(object, parent, PSET_COMPRESSION_MODE);
 
- 	return 0;
+	return 0;
 }
 
 /* this is common implementation of create_object method of file plugin
@@ -258,7 +255,7 @@ int reiser4_add_link_common(struct inode *object, struct inode *parent)
 	 * increment ->i_nlink and update ->i_ctime
 	 */
 
-	INODE_INC_FIELD(object, i_nlink);
+	INODE_INC_NLINK(object);
 	object->i_ctime = CURRENT_TIME;
 	return 0;
 }
@@ -274,7 +271,7 @@ int reiser4_rem_link_common(struct inode *object, struct inode *parent)
 	 * decrement ->i_nlink and update ->i_ctime
 	 */
 
-	INODE_DEC_FIELD(object, i_nlink);
+	INODE_DROP_NLINK(object);
 	object->i_ctime = CURRENT_TIME;
 	return 0;
 }
@@ -290,9 +287,11 @@ int rem_link_common_dir(struct inode *object, struct inode *parent UNUSED_ARG)
 	/*
 	 * decrement ->i_nlink and update ->i_ctime
 	 */
-	INODE_DEC_FIELD(object, i_nlink);
-	if (object->i_nlink == 1)
-		INODE_DEC_FIELD(object, i_nlink);
+	if(object->i_nlink == 2)
+		INODE_SET_NLINK(object, 0);
+
+	else
+		INODE_DROP_NLINK(object);
 	object->i_ctime = CURRENT_TIME;
 	return 0;
 }
@@ -301,7 +300,7 @@ int rem_link_common_dir(struct inode *object, struct inode *parent UNUSED_ARG)
    compare objectids of keys in inode and coord */
 int owns_item_common(const struct inode *inode,	/* object to check
 						 * against */
-		     const coord_t * coord /* coord to check */ )
+		     const coord_t *coord/* coord to check */)
 {
 	reiser4_key item_key;
 	reiser4_key file_key;
@@ -317,8 +316,8 @@ int owns_item_common(const struct inode *inode,	/* object to check
 /* this is common implementation of owns_item method of file plugin
    for typical directory
 */
-int owns_item_common_dir(const struct inode *inode,	/* object to check against */
-			 const coord_t * coord /* coord of item to check */ )
+int owns_item_common_dir(const struct inode *inode,/* object to check against */
+			 const coord_t *coord/* coord of item to check */)
 {
 	reiser4_key item_key;
 
@@ -335,7 +334,7 @@ int owns_item_common_dir(const struct inode *inode,	/* object to check against *
 /* this is common implementation of can_add_link method of file plugin
    checks whether yet another hard links to this object can be added
 */
-int can_add_link_common(const struct inode *object /* object to check */ )
+int can_add_link_common(const struct inode *object/* object to check */)
 {
 	assert("nikita-732", object != NULL);
 
@@ -404,7 +403,7 @@ int safelink_common(struct inode *object, reiser4_safe_link_t link, __u64 value)
    can be used when object creation involves insertion of one item (usually stat
    data) into tree
 */
-reiser4_block_nr estimate_create_common(const struct inode * object)
+reiser4_block_nr estimate_create_common(const struct inode *object)
 {
 	return estimate_one_insert_item(reiser4_tree_by_inode(object));
 }
@@ -414,7 +413,7 @@ reiser4_block_nr estimate_create_common(const struct inode * object)
    can be used when directory creation involves insertion of two items (usually
    stat data and item containing "." and "..") into tree
 */
-reiser4_block_nr estimate_create_common_dir(const struct inode * object)
+reiser4_block_nr estimate_create_common_dir(const struct inode *object)
 {
 	return 2 * estimate_one_insert_item(reiser4_tree_by_inode(object));
 }
@@ -423,7 +422,7 @@ reiser4_block_nr estimate_create_common_dir(const struct inode * object)
    can be used when stat data update does not do more than inserting a unit
    into a stat data item which is probably true for most cases
 */
-reiser4_block_nr estimate_update_common(const struct inode * inode)
+reiser4_block_nr estimate_update_common(const struct inode *inode)
 {
 	return estimate_one_insert_into_item(reiser4_tree_by_inode(inode));
 }
@@ -431,8 +430,8 @@ reiser4_block_nr estimate_update_common(const struct inode * inode)
 /* this is common implementation of estimate.unlink method of file plugin
  */
 reiser4_block_nr
-estimate_unlink_common(const struct inode * object UNUSED_ARG,
-		       const struct inode * parent UNUSED_ARG)
+estimate_unlink_common(const struct inode *object UNUSED_ARG,
+		       const struct inode *parent UNUSED_ARG)
 {
 	return 0;
 }
@@ -441,8 +440,8 @@ estimate_unlink_common(const struct inode * object UNUSED_ARG,
    typical directory
 */
 reiser4_block_nr
-estimate_unlink_common_dir(const struct inode * object,
-			   const struct inode * parent)
+estimate_unlink_common_dir(const struct inode *object,
+			   const struct inode *parent)
 {
 	dir_plugin *dplug;
 
@@ -459,6 +458,8 @@ char *wire_write_common(struct inode *inode, char *start)
 
 char *wire_read_common(char *addr, reiser4_object_on_wire * obj)
 {
+	if (!obj)
+		return locate_obj_key_id_onwire(addr);
 	return extract_obj_key_id_from_onwire(addr, &obj->u.std.key_id);
 }
 
@@ -473,11 +474,8 @@ struct dentry *wire_get_common(struct super_block *sb,
 	inode = reiser4_iget(sb, &key, 1);
 	if (!IS_ERR(inode)) {
 		reiser4_iget_complete(inode);
-		dentry = d_alloc_anon(inode);
-		if (dentry == NULL) {
-			iput(inode);
-			dentry = ERR_PTR(-ENOMEM);
-		} else
+		dentry = d_obtain_alias(inode);
+		if (!IS_ERR(dentry))
 			dentry->d_op = &get_super_private(sb)->ops.dentry;
 	} else if (PTR_ERR(inode) == -ENOENT)
 		/*
@@ -503,7 +501,7 @@ void wire_done_common(reiser4_object_on_wire * obj)
 /* helper function to print errors */
 static void key_warning(const reiser4_key * key /* key to print */ ,
 			const struct inode *inode,
-			int code /* error code to print */ )
+			int code/* error code to print */)
 {
 	assert("nikita-716", key != NULL);
 
@@ -518,7 +516,7 @@ static void key_warning(const reiser4_key * key /* key to print */ ,
 #if REISER4_DEBUG
 static void
 check_inode_seal(const struct inode *inode,
-		 const coord_t * coord, const reiser4_key * key)
+		 const coord_t *coord, const reiser4_key * key)
 {
 	reiser4_key unit_key;
 
@@ -528,7 +526,7 @@ check_inode_seal(const struct inode *inode,
 	assert("nikita-2753", get_inode_oid(inode) == get_key_objectid(key));
 }
 
-static void check_sd_coord(coord_t * coord, const reiser4_key * key)
+static void check_sd_coord(coord_t *coord, const reiser4_key * key)
 {
 	reiser4_key ukey;
 
@@ -556,7 +554,7 @@ static void check_sd_coord(coord_t * coord, const reiser4_key * key)
 
 /* insert new stat-data into tree. Called with inode state
     locked. Return inode state locked. */
-static int insert_new_sd(struct inode *inode /* inode to create sd for */ )
+static int insert_new_sd(struct inode *inode/* inode to create sd for */)
 {
 	int result;
 	reiser4_key key;
@@ -589,13 +587,14 @@ static int insert_new_sd(struct inode *inode /* inode to create sd for */ )
 /* could be optimized for case where there is only one node format in
  * use in the filesystem, probably there are lots of such
  * places we could optimize for only one node layout.... -Hans */
-	if (data.length > reiser4_tree_by_inode(inode)->nplug->max_item_size()){
+	if (data.length > reiser4_tree_by_inode(inode)->nplug->max_item_size()) {
 		/* This is silly check, but we don't know actual node where
 		   insertion will go into. */
 		return RETERR(-ENAMETOOLONG);
 	}
 	oid = oid_allocate(inode->i_sb);
-/* NIKITA-FIXME-HANS: what is your opinion on whether this error check should be encapsulated into oid_allocate? */
+/* NIKITA-FIXME-HANS: what is your opinion on whether this error check should be
+ * encapsulated into oid_allocate? */
 	if (oid == ABSOLUTE_MAX_OID)
 		return RETERR(-EOVERFLOW);
 
@@ -642,7 +641,8 @@ static int insert_new_sd(struct inode *inode /* inode to create sd for */ )
 			if (result == 0) {
 				/* object has stat-data now */
 				reiser4_inode_clr_flag(inode, REISER4_NO_SD);
-				reiser4_inode_set_flag(inode, REISER4_SDLEN_KNOWN);
+				reiser4_inode_set_flag(inode,
+						       REISER4_SDLEN_KNOWN);
 				/* initialise stat-data seal */
 				reiser4_seal_init(&ref->sd_seal, &coord, &key);
 				ref->sd_coord = coord;
@@ -670,7 +670,7 @@ static int insert_new_sd(struct inode *inode /* inode to create sd for */ )
 /* find sd of inode in a tree, deal with errors */
 int lookup_sd(struct inode *inode /* inode to look sd for */ ,
 	      znode_lock_mode lock_mode /* lock mode */ ,
-	      coord_t * coord /* resulting coord */ ,
+	      coord_t *coord /* resulting coord */ ,
 	      lock_handle * lh /* resulting lock handle */ ,
 	      const reiser4_key * key /* resulting key */ ,
 	      int silent)
@@ -709,7 +709,7 @@ int lookup_sd(struct inode *inode /* inode to look sd for */ ,
 
 static int
 locate_inode_sd(struct inode *inode,
-		reiser4_key * key, coord_t * coord, lock_handle * lh)
+		reiser4_key * key, coord_t *coord, lock_handle * lh)
 {
 	reiser4_inode *state;
 	seal_t seal;
@@ -725,23 +725,23 @@ locate_inode_sd(struct inode *inode,
 	spin_unlock_inode(inode);
 
 	build_sd_key(inode, key);
+	/* first, try to use seal */
 	if (reiser4_seal_is_set(&seal)) {
-		/* first, try to use seal */
 		result = reiser4_seal_validate(&seal,
 					       coord,
 					       key,
 					       lh, ZNODE_WRITE_LOCK,
 					       ZNODE_LOCK_LOPRI);
-		if (result == 0)
+		if (result == 0) {
 			check_sd_coord(coord, key);
-	} else
-		result = -E_REPEAT;
-
-	if (result != 0) {
-		coord_init_zero(coord);
-		result = lookup_sd(inode, ZNODE_WRITE_LOCK, coord, lh, key, 0);
+			return 0;
+		}
 	}
-	return result;
+	/* hint is invalid,
+	 * so traverse tree
+	 */
+	coord_init_zero(coord);
+	return lookup_sd(inode, ZNODE_WRITE_LOCK, coord, lh, key, 0);
 }
 
 #if REISER4_DEBUG
@@ -757,8 +757,8 @@ static int all_but_offset_key_eq(const reiser4_key * k1, const reiser4_key * k2)
 #include "../tree_walk.h"
 
 /* make some checks before and after stat-data resize operation */
-static int check_sd_resize(struct inode * inode, coord_t * coord,
-			   int length, int progress /* 1 means after resize */)
+static int check_sd_resize(struct inode *inode, coord_t *coord,
+			   int length, int progress/* 1 means after resize */)
 {
 	int ret = 0;
 	lock_handle left_lock;
@@ -804,7 +804,7 @@ static int check_sd_resize(struct inode * inode, coord_t * coord,
 
 /* update stat-data at @coord */
 static int
-update_sd_at(struct inode *inode, coord_t * coord, reiser4_key * key,
+update_sd_at(struct inode *inode, coord_t *coord, reiser4_key * key,
 	     lock_handle * lh)
 {
 	int result;
@@ -908,7 +908,7 @@ update_sd_at(struct inode *inode, coord_t * coord, reiser4_key * key,
 
 /* Update existing stat-data in a tree. Called with inode state locked. Return
    inode state locked. */
-static int update_sd(struct inode *inode /* inode to update sd for */ )
+static int update_sd(struct inode *inode/* inode to update sd for */)
 {
 	int result;
 	reiser4_key key;
@@ -934,7 +934,7 @@ static int update_sd(struct inode *inode /* inode to update sd for */ )
    Remove object stat data. Space for that must be reserved by caller before
 */
 static int
-common_object_delete_no_reserve(struct inode *inode /* object to remove */ )
+common_object_delete_no_reserve(struct inode *inode/* object to remove */)
 {
 	int result;
 
@@ -942,9 +942,6 @@ common_object_delete_no_reserve(struct inode *inode /* object to remove */ )
 
 	if (!reiser4_inode_get_flag(inode, REISER4_NO_SD)) {
 		reiser4_key sd_key;
-
-		DQUOT_FREE_INODE(inode);
-		DQUOT_DROP(inode);
 
 		build_sd_key(inode, &sd_key);
 		result =
@@ -983,11 +980,11 @@ static int process_truncate(struct inode *inode, __u64 size)
 	attr.ia_valid = ATTR_SIZE | ATTR_CTIME;
 	fplug = inode_file_plugin(inode);
 
-	mutex_lock(&inode->i_mutex);
+	inode_lock(inode);
 	assert("vs-1704", get_current_context()->trans->atom == NULL);
 	dentry.d_inode = inode;
 	result = inode->i_op->setattr(&dentry, &attr);
-	mutex_unlock(&inode->i_mutex);
+	inode_unlock(inode);
 
 	context_set_commit_async(ctx);
 	reiser4_exit_context(ctx);

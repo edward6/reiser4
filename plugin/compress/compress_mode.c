@@ -9,11 +9,6 @@
 #include "../../inode.h"
 #include "../plugin.h"
 
-static int should_deflate_test(struct inode * inode, cloff_t index)
-{
-	return !test_bit(0, &index);
-}
-
 static int should_deflate_none(struct inode * inode, cloff_t index)
 {
 	return 0;
@@ -24,62 +19,57 @@ static int should_deflate_common(struct inode * inode, cloff_t index)
 	return compression_is_on(cryptcompress_inode_data(inode));
 }
 
-static int turn_off_compression(struct inode *inode, cloff_t index)
+static int discard_hook_ultim(struct inode *inode, cloff_t index)
 {
-	toggle_compression(cryptcompress_inode_data(inode), 0);
+	turn_off_compression(cryptcompress_inode_data(inode));
 	return 0;
 }
 
-static int turn_on_compression(struct inode *inode, cloff_t index)
+static int discard_hook_lattd(struct inode *inode, cloff_t index)
 {
-	toggle_compression(cryptcompress_inode_data(inode), 1);
+	struct cryptcompress_info * info = cryptcompress_inode_data(inode);
+
+	assert("edward-1462",
+	       get_lattice_factor(info) >= MIN_LATTICE_FACTOR &&
+	       get_lattice_factor(info) <= MAX_LATTICE_FACTOR);
+
+	turn_off_compression(info);
+	if (get_lattice_factor(info) < MAX_LATTICE_FACTOR)
+		set_lattice_factor(info, get_lattice_factor(info) << 1);
 	return 0;
 }
 
-/* Check on lattice (COL) of some sparseness factor,
-   the family of adaptive compression modes which define
-   the following behavior:
+static int accept_hook_lattd(struct inode *inode, cloff_t index)
+{
+	turn_on_compression(cryptcompress_inode_data(inode));
+	set_lattice_factor(cryptcompress_inode_data(inode), MIN_LATTICE_FACTOR);
+	return 0;
+}
+
+/* Check on dynamic lattice, the adaptive compression modes which
+   defines the following behavior:
 
    Compression is on: try to compress everything and turn
    it off, whenever cluster is incompressible.
 
    Compression is off: try to compress clusters of indexes
    k * FACTOR (k = 0, 1, 2, ...) and turn it on, if some of
-   them is compressible. */
+   them is compressible. If incompressible, then increase FACTOR */
 
 /* check if @index belongs to one-dimensional lattice
    of sparce factor @factor */
-static int check_on_lattice(cloff_t index, int factor)
+static int is_on_lattice(cloff_t index, int factor)
 {
 	return (factor ? index % factor == 0: index == 0);
 }
 
-#define DEFINE_CHECK_ON_LATTICE(FACTOR)                                 \
-	static int check_on_lattice_ ## FACTOR (struct inode * inode,   \
-						cloff_t index)		\
-{                                                                       \
-	return should_deflate_common(inode, index) ||			\
-		check_on_lattice(index, FACTOR);			\
+static int should_deflate_lattd(struct inode * inode, cloff_t index)
+{
+	return should_deflate_common(inode, index) ||
+		is_on_lattice(index,
+			      get_lattice_factor
+			      (cryptcompress_inode_data(inode)));
 }
-
-#define SUPPORT_COL_COMPRESSION_MODE(FACTOR, LABEL)                     \
-[COL_ ## FACTOR ## _COMPRESSION_MODE_ID] = {                            \
-	.h = {                                                          \
-		.type_id = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,        \
-		.id = COL_ ## FACTOR ## _COMPRESSION_MODE_ID,           \
-		.pops = NULL,                                           \
-		.label = LABEL,                                         \
-		.desc = LABEL,                                          \
-		.linkage = {NULL, NULL}                                 \
-	},                                                              \
-	.should_deflate = check_on_lattice_ ## FACTOR,                  \
-	.accept_hook =  turn_on_compression,                            \
-	.discard_hook = turn_off_compression                            \
-}
-
-DEFINE_CHECK_ON_LATTICE(8)
-DEFINE_CHECK_ON_LATTICE(16)
-DEFINE_CHECK_ON_LATTICE(32)
 
 /* compression mode_plugins */
 compression_mode_plugin compression_mode_plugins[LAST_COMPRESSION_MODE_ID] = {
@@ -96,28 +86,37 @@ compression_mode_plugin compression_mode_plugins[LAST_COMPRESSION_MODE_ID] = {
 		.accept_hook = NULL,
 		.discard_hook = NULL
 	},
-	/* Check-on-lattice adaptive compression modes.
-	   Turn compression on/off in flush time */
-	SUPPORT_COL_COMPRESSION_MODE(8, "col8"),
-	SUPPORT_COL_COMPRESSION_MODE(16, "col16"),
-	SUPPORT_COL_COMPRESSION_MODE(32, "col32"),
-	/* In this mode items will be converted to extents and management
-	   will be passed to (classic) unix file plugin as soon as ->write()
-	   detects that the first complete logical cluster (of index #0) is
-	   incompressible. */
-	[CONVX_COMPRESSION_MODE_ID] = {
+	/* Check-on-dynamic-lattice adaptive compression mode */
+	[LATTD_COMPRESSION_MODE_ID] = {
 		.h = {
 			.type_id = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
-			.id = CONVX_COMPRESSION_MODE_ID,
+			.id = LATTD_COMPRESSION_MODE_ID,
 			.pops = NULL,
-			.label = "conv",
-			.desc = "Convert to extent",
+			.label = "lattd",
+			.desc = "Check on dynamic lattice",
+			.linkage = {NULL, NULL}
+		},
+		.should_deflate = should_deflate_lattd,
+		.accept_hook = accept_hook_lattd,
+		.discard_hook = discard_hook_lattd
+	},
+	/* Check-ultimately compression mode:
+	   Turn off compression forever as soon as we meet
+	   incompressible data */
+	[ULTIM_COMPRESSION_MODE_ID] = {
+		.h = {
+			.type_id = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
+			.id = ULTIM_COMPRESSION_MODE_ID,
+			.pops = NULL,
+			.label = "ultim",
+			.desc = "Check ultimately",
 			.linkage = {NULL, NULL}
 		},
 		.should_deflate = should_deflate_common,
 		.accept_hook = NULL,
-		.discard_hook = NULL
+		.discard_hook = discard_hook_ultim
 	},
+	/* Force-to-compress-everything compression mode */
 	[FORCE_COMPRESSION_MODE_ID] = {
 		.h = {
 			.type_id = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
@@ -131,16 +130,21 @@ compression_mode_plugin compression_mode_plugins[LAST_COMPRESSION_MODE_ID] = {
 		.accept_hook = NULL,
 		.discard_hook = NULL
 	},
-	[TEST_COMPRESSION_MODE_ID] = {
+	/* Convert-to-extent compression mode.
+	   In this mode items will be converted to extents and management
+	   will be passed to (classic) unix file plugin as soon as ->write()
+	   detects that the first complete logical cluster (of index #0) is
+	   incompressible. */
+	[CONVX_COMPRESSION_MODE_ID] = {
 		.h = {
 			.type_id = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
-			.id = TEST_COMPRESSION_MODE_ID,
+			.id = CONVX_COMPRESSION_MODE_ID,
 			.pops = NULL,
-			.label = "test", /* This mode is for benchmarks only */
-			.desc = "Don't compress odd clusters",
+			.label = "conv",
+			.desc = "Convert to extent",
 			.linkage = {NULL, NULL}
 		},
-		.should_deflate = should_deflate_test,
+		.should_deflate = should_deflate_common,
 		.accept_hook = NULL,
 		.discard_hook = NULL
 	}

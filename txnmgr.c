@@ -90,7 +90,7 @@ year old --- define all technical terms used.
    For actually implementing these out-of-system-call-scopped transcrashes, the
    reiser4_context has a "txn_handle *trans" pointer that may be set to an open
    transcrash.  Currently there are no dynamically-allocated transcrashes, but there is a
-   "kmem_cache_t *_txnh_slab" created for that purpose in this file.
+   "struct kmem_cache *_txnh_slab" created for that purpose in this file.
 */
 
 /* Extending the other system call interfaces for future transaction features:
@@ -179,7 +179,7 @@ year old --- define all technical terms used.
  *
  *     When file is accessed through mmap(2) page is always created during
  *     page fault.
- *     After this (in reiser4_readpage()->reiser4_readpage_extent()):
+ *     After this (in reiser4_readpage_dispatch()->reiser4_readpage_extent()):
  *
  *         1. if access is made to non-hole page new jnode is created, (if
  *         necessary)
@@ -233,6 +233,7 @@ year old --- define all technical terms used.
 #include "vfs_ops.h"
 #include "inode.h"
 #include "flush.h"
+#include "discard.h"
 
 #include <asm/atomic.h>
 #include <linux/types.h>
@@ -279,9 +280,9 @@ struct _txn_wait_links {
 
 /* FIXME: In theory, we should be using the slab cache init & destructor
    methods instead of, e.g., jnode_init, etc. */
-static kmem_cache_t *_atom_slab = NULL;
+static struct kmem_cache *_atom_slab = NULL;
 /* this is for user-visible, cross system-call transactions. */
-static kmem_cache_t *_txnh_slab = NULL;
+static struct kmem_cache *_txnh_slab = NULL;
 
 /**
  * init_txnmgr_static - create transaction manager slab caches
@@ -298,12 +299,12 @@ int init_txnmgr_static(void)
 
 	_atom_slab = kmem_cache_create("txn_atom", sizeof(txn_atom), 0,
 				       SLAB_HWCACHE_ALIGN |
-				       SLAB_RECLAIM_ACCOUNT, NULL, NULL);
+				       SLAB_RECLAIM_ACCOUNT, NULL);
 	if (_atom_slab == NULL)
 		return RETERR(-ENOMEM);
 
 	_txnh_slab = kmem_cache_create("txn_handle", sizeof(txn_handle), 0,
-			      SLAB_HWCACHE_ALIGN, NULL, NULL);
+			      SLAB_HWCACHE_ALIGN, NULL);
 	if (_txnh_slab == NULL) {
 		kmem_cache_destroy(_atom_slab);
 		_atom_slab = NULL;
@@ -404,8 +405,9 @@ static void atom_init(txn_atom * atom)
 	INIT_LIST_HEAD(&atom->atom_link);
 	INIT_LIST_HEAD(&atom->fwaitfor_list);
 	INIT_LIST_HEAD(&atom->fwaiting_list);
-	blocknr_set_init(&atom->delete_set);
 	blocknr_set_init(&atom->wandered_map);
+
+	atom_dset_init(atom);
 
 	init_atom_fq_parts(atom);
 }
@@ -798,8 +800,9 @@ static void atom_free(txn_atom * atom)
 	       (atom->stage == ASTAGE_INVALID || atom->stage == ASTAGE_DONE));
 	atom->stage = ASTAGE_FREE;
 
-	blocknr_set_destroy(&atom->delete_set);
 	blocknr_set_destroy(&atom->wandered_map);
+
+	atom_dset_destroy(atom);
 
 	assert("jmacd-16", atom_isclean(atom));
 
@@ -855,7 +858,7 @@ static int atom_should_commit_asap(const txn_atom * atom)
 	assert("nikita-3309", atom != NULL);
 
 	captured = (unsigned)atom->capture_count;
-	pinnedpages = (captured >> PAGE_CACHE_SHIFT) * sizeof(znode);
+	pinnedpages = (captured >> PAGE_SHIFT) * sizeof(znode);
 
 	return (pinnedpages > (totalram_pages >> 3)) || (atom->flushed > 100);
 }
@@ -976,6 +979,28 @@ static int current_atom_complete_writes(void)
 	/* Wait all nodes we just submitted */
 	return current_atom_finish_all_fq();
 }
+
+#if REISER4_DEBUG
+
+static void reiser4_info_atom(const char *prefix, const txn_atom * atom)
+{
+	if (atom == NULL) {
+		printk("%s: no atom\n", prefix);
+		return;
+	}
+
+	printk("%s: refcount: %i id: %i flags: %x txnh_count: %i"
+	       " capture_count: %i stage: %x start: %lu, flushed: %i\n", prefix,
+	       atomic_read(&atom->refcount), atom->atom_id, atom->flags,
+	       atom->txnh_count, atom->capture_count, atom->stage,
+	       atom->start_time, atom->flushed);
+}
+
+#else  /*  REISER4_DEBUG  */
+
+static inline void reiser4_info_atom(const char *prefix, const txn_atom * atom) {}
+
+#endif  /*  REISER4_DEBUG  */
 
 #define TOOMANYFLUSHES (1 << 13)
 
@@ -1357,7 +1382,7 @@ flush_some_atom(jnode * start, long *nr_submitted, const struct writeback_contro
 	BUG_ON(wbc->nr_to_write == 0);
 	BUG_ON(*nr_submitted != 0);
 	assert("zam-1042", txnh != NULL);
-      repeat:
+repeat:
 	if (txnh->atom == NULL) {
 		/* current atom is not available, take first from txnmgr */
 		spin_lock_txnmgr(tmgr);
@@ -1388,7 +1413,7 @@ flush_some_atom(jnode * start, long *nr_submitted, const struct writeback_contro
 		 * Write throttling is case of no one atom can be
 		 * flushed/committed.
 		 */
-		if (!current_is_pdflush() && !wbc->nonblocking) {
+		if (!current_is_flush_bd_task()) {
 			list_for_each_entry(atom, &tmgr->atoms_list, atom_link) {
 				spin_lock_atom(atom);
 				/* Repeat the check from the above. */
@@ -1448,7 +1473,7 @@ flush_some_atom(jnode * start, long *nr_submitted, const struct writeback_contro
 			 * we force current atom to commit */
 			/* wait for commit completion but only if this
 			 * wouldn't stall pdflushd and ent thread. */
-			if (!wbc->nonblocking && !ctx->entd)
+			if (!ctx->entd)
 				txnh->flags |= TXNH_WAIT_COMMIT;
 			atom->flags |= ATOM_FORCE_COMMIT;
 		}
@@ -2206,10 +2231,10 @@ void reiser4_uncapture_page(struct page *pg)
 		 * until @node can be removed from flush queue. But
 		 * reiser4_atom_wait_event() cannot be called with page locked,
 		 * because it deadlocks with jnode_extent_write(). Unlock page,
-		 * after making sure (through page_cache_get()) that it cannot
+		 * after making sure (through get_page()) that it cannot
 		 * be released from memory.
 		 */
-		page_cache_get(pg);
+		get_page(pg);
 		unlock_page(pg);
 		reiser4_atom_wait_event(atom);
 		lock_page(pg);
@@ -2218,7 +2243,7 @@ void reiser4_uncapture_page(struct page *pg)
 		 */
 		reiser4_wait_page_writeback(pg);
 		spin_lock_jnode(node);
-		page_cache_release(pg);
+		put_page(pg);
 		atom = jnode_get_atom(node);
 /* VS-FIXME-HANS: improve the commenting in this function */
 		if (atom == NULL) {
@@ -2306,7 +2331,8 @@ static void do_jnode_make_dirty(jnode * node, txn_atom * atom)
 
 	JF_SET(node, JNODE_DIRTY);
 
-	get_current_context()->nr_marked_dirty++;
+	if (!JF_ISSET(node, JNODE_CLUSTER_PAGE))
+		get_current_context()->nr_marked_dirty++;
 
 	/* We grab2flush_reserve one additional block only if node was
 	   not CREATED and jnode_flush did not sort it into neither
@@ -2397,15 +2423,15 @@ void znode_make_dirty(znode * z)
 		 * bit. */
 		/* assert("nikita-3292",
 		   !PageWriteback(page) || ZF_ISSET(z, JNODE_WRITEBACK)); */
-		page_cache_get(page);
+		get_page(page);
 
 		/* jnode lock is not needed for the rest of
 		 * znode_set_dirty(). */
 		spin_unlock_jnode(node);
 		/* reiser4 file write code calls set_page_dirty for
 		 * unformatted nodes, for formatted nodes we do it here. */
-		reiser4_set_page_dirty_internal(page);
-		page_cache_release(page);
+		set_page_dirty_notag(page);
+		put_page(page);
 		/* bump version counter in znode */
 		z->version = znode_build_version(jnode_get_tree(node));
 	} else {
@@ -2563,86 +2589,6 @@ count_jnode(txn_atom * atom, jnode * node, atom_list old_list,
 }
 
 #endif
-
-/* Make node OVRWR and put it on atom->overwrite_nodes list, atom lock and jnode
- * lock should be taken before calling this function. */
-void jnode_make_wander_nolock(jnode * node)
-{
-	txn_atom *atom;
-
-	assert("nikita-2431", node != NULL);
-	assert("nikita-2432", !JF_ISSET(node, JNODE_RELOC));
-	assert("nikita-3153", JF_ISSET(node, JNODE_DIRTY));
-	assert("zam-897", !JF_ISSET(node, JNODE_FLUSH_QUEUED));
-	assert("nikita-3367", !reiser4_blocknr_is_fake(jnode_get_block(node)));
-
-	atom = node->atom;
-
-	assert("zam-895", atom != NULL);
-	assert("zam-894", atom_is_protected(atom));
-
-	JF_SET(node, JNODE_OVRWR);
-	/* move node to atom's overwrite list */
-	list_move_tail(&node->capture_link, ATOM_OVRWR_LIST(atom));
-	ON_DEBUG(count_jnode(atom, node, DIRTY_LIST, OVRWR_LIST, 1));
-}
-
-/* Same as jnode_make_wander_nolock, but all necessary locks are taken inside
- * this function. */
-void jnode_make_wander(jnode * node)
-{
-	txn_atom *atom;
-
-	spin_lock_jnode(node);
-	atom = jnode_get_atom(node);
-	assert("zam-913", atom != NULL);
-	assert("zam-914", !JF_ISSET(node, JNODE_RELOC));
-
-	jnode_make_wander_nolock(node);
-	spin_unlock_atom(atom);
-	spin_unlock_jnode(node);
-}
-
-/* this just sets RELOC bit  */
-static void jnode_make_reloc_nolock(flush_queue_t * fq, jnode * node)
-{
-	assert_spin_locked(&(node->guard));
-	assert("zam-916", JF_ISSET(node, JNODE_DIRTY));
-	assert("zam-917", !JF_ISSET(node, JNODE_RELOC));
-	assert("zam-918", !JF_ISSET(node, JNODE_OVRWR));
-	assert("zam-920", !JF_ISSET(node, JNODE_FLUSH_QUEUED));
-	assert("nikita-3367", !reiser4_blocknr_is_fake(jnode_get_block(node)));
-	jnode_set_reloc(node);
-}
-
-/* Make znode RELOC and put it on flush queue */
-void znode_make_reloc(znode * z, flush_queue_t * fq)
-{
-	jnode *node;
-	txn_atom *atom;
-
-	node = ZJNODE(z);
-	spin_lock_jnode(node);
-
-	atom = jnode_get_atom(node);
-	assert("zam-919", atom != NULL);
-
-	jnode_make_reloc_nolock(fq, node);
-	queue_jnode(fq, node);
-
-	spin_unlock_atom(atom);
-	spin_unlock_jnode(node);
-
-}
-
-/* Make unformatted node RELOC and put it on flush queue */
-void unformatted_make_reloc(jnode *node, flush_queue_t *fq)
-{
-	assert("vs-1479", jnode_is_unformatted(node));
-
-	jnode_make_reloc_nolock(fq, node);
-	queue_jnode(fq, node);
-}
 
 int reiser4_capture_super_block(struct super_block *s)
 {
@@ -2995,8 +2941,10 @@ static void capture_fuse_into(txn_atom * small, txn_atom * large)
 	large->flags |= small->flags;
 
 	/* Merge blocknr sets. */
-	blocknr_set_merge(&small->delete_set, &large->delete_set);
 	blocknr_set_merge(&small->wandered_map, &large->wandered_map);
+
+	/* Merge delete sets. */
+	atom_dset_merge(small, large);
 
 	/* Merge allocated/deleted file counts */
 	large->nr_objects_deleted += small->nr_objects_deleted;
@@ -3094,24 +3042,6 @@ void insert_into_atom_ovrwr_list(txn_atom * atom, jnode * node)
 	ON_DEBUG(count_jnode(atom, node, NODE_LIST(node), OVRWR_LIST, 1));
 }
 
-#if REISER4_DEBUG
-
-void reiser4_info_atom(const char *prefix, const txn_atom * atom)
-{
-	if (atom == NULL) {
-		printk("%s: no atom\n", prefix);
-		return;
-	}
-
-	printk("%s: refcount: %i id: %i flags: %x txnh_count: %i"
-	       " capture_count: %i stage: %x start: %lu, flushed: %i\n", prefix,
-	       atomic_read(&atom->refcount), atom->atom_id, atom->flags,
-	       atom->txnh_count, atom->capture_count, atom->stage,
-	       atom->start_time, atom->flushed);
-}
-
-#endif
-
 static int count_deleted_blocks_actor(txn_atom * atom,
 				      const reiser4_block_nr * a,
 				      const reiser4_block_nr * b, void *data)
@@ -3139,14 +3069,87 @@ reiser4_block_nr txnmgr_count_deleted_blocks(void)
 	list_for_each_entry(atom, &tmgr->atoms_list, atom_link) {
 		spin_lock_atom(atom);
 		if (atom_isopen(atom))
-			blocknr_set_iterator(
-				atom, &atom->delete_set,
-				count_deleted_blocks_actor, &result, 0);
+			atom_dset_deferred_apply(atom, count_deleted_blocks_actor, &result, 0);
 		spin_unlock_atom(atom);
 	}
 	spin_unlock_txnmgr(tmgr);
 
 	return result;
+}
+
+void atom_dset_init(txn_atom *atom)
+{
+	if (reiser4_is_set(reiser4_get_current_sb(), REISER4_DISCARD)) {
+		blocknr_list_init(&atom->discard.delete_set);
+	} else {
+		blocknr_set_init(&atom->nodiscard.delete_set);
+	}
+}
+
+void atom_dset_destroy(txn_atom *atom)
+{
+	if (reiser4_is_set(reiser4_get_current_sb(), REISER4_DISCARD)) {
+		blocknr_list_destroy(&atom->discard.delete_set);
+	} else {
+		blocknr_set_destroy(&atom->nodiscard.delete_set);
+	}
+}
+
+void atom_dset_merge(txn_atom *from, txn_atom *to)
+{
+	if (reiser4_is_set(reiser4_get_current_sb(), REISER4_DISCARD)) {
+		blocknr_list_merge(&from->discard.delete_set, &to->discard.delete_set);
+	} else {
+		blocknr_set_merge(&from->nodiscard.delete_set, &to->nodiscard.delete_set);
+	}
+}
+
+int atom_dset_deferred_apply(txn_atom* atom,
+                             blocknr_set_actor_f actor,
+                             void *data,
+                             int delete)
+{
+	int ret;
+
+	if (reiser4_is_set(reiser4_get_current_sb(), REISER4_DISCARD)) {
+		ret = blocknr_list_iterator(atom,
+		                            &atom->discard.delete_set,
+		                            actor,
+		                            data,
+		                            delete);
+	} else {
+		ret = blocknr_set_iterator(atom,
+		                           &atom->nodiscard.delete_set,
+		                           actor,
+		                           data,
+		                           delete);
+	}
+
+	return ret;
+}
+
+extern int atom_dset_deferred_add_extent(txn_atom *atom,
+                                         void **new_entry,
+                                         const reiser4_block_nr *start,
+                                         const reiser4_block_nr *len)
+{
+	int ret;
+
+	if (reiser4_is_set(reiser4_get_current_sb(), REISER4_DISCARD)) {
+		ret = blocknr_list_add_extent(atom,
+		                              &atom->discard.delete_set,
+		                              (blocknr_list_entry**)new_entry,
+		                              start,
+		                              len);
+	} else {
+		ret = blocknr_set_add_extent(atom,
+		                             &atom->nodiscard.delete_set,
+		                             (blocknr_set_entry**)new_entry,
+		                             start,
+		                             len);
+	}
+
+	return ret;
 }
 
 /*

@@ -3,7 +3,7 @@
 /* Fibration plugin used by hashed directory plugin to segment content
  * of directory. See fs/reiser4/plugin/fibration.c for more on this. */
 
-#if !defined( __FS_REISER4_PLUGIN_FIBRATION_H__ )
+#if !defined(__FS_REISER4_PLUGIN_FIBRATION_H__)
 #define __FS_REISER4_PLUGIN_FIBRATION_H__
 
 #include "plugin_header.h"
@@ -12,7 +12,7 @@ typedef struct fibration_plugin {
 	/* generic fields */
 	plugin_header h;
 
-	 __u64(*fibre) (const struct inode * dir, const char *name, int len);
+	 __u64(*fibre) (const struct inode *dir, const char *name, int len);
 } fibration_plugin;
 
 typedef enum {

@@ -3,8 +3,10 @@
 
 /* Super-block functions. See super.c for details. */
 
-#if !defined( __REISER4_SUPER_H__ )
+#if !defined(__REISER4_SUPER_H__)
 #define __REISER4_SUPER_H__
+
+#include <linux/exportfs.h>
 
 #include "tree.h"
 #include "entd.h"
@@ -16,12 +18,12 @@
 /*
  * Flush algorithms parameters.
  */
-typedef struct {
+struct flush_params {
 	unsigned relocate_threshold;
 	unsigned relocate_distance;
 	unsigned written_threshold;
 	unsigned scan_maxnodes;
-} flush_params;
+};
 
 typedef enum {
 	/*
@@ -48,18 +50,20 @@ typedef enum {
 	REISER4_DONT_LOAD_BITMAP = 5,
 	/* enforce atomicity during write(2) */
 	REISER4_ATOMIC_WRITE = 6,
-	/* don't use write barriers in the log writer code. */
-	REISER4_NO_WRITE_BARRIER = 7
+	/* enable issuing of discard requests */
+	REISER4_DISCARD = 8,
+	/* disable hole punching at flush time */
+	REISER4_DONT_PUNCH_HOLES = 9
 } reiser4_fs_flag;
 
 /*
  * VFS related operation vectors.
  */
-typedef struct object_ops {
+struct object_ops {
 	struct super_operations super;
 	struct dentry_operations dentry;
 	struct export_operations export;
-} object_ops;
+};
 
 /* reiser4-specific part of super block
 
@@ -129,6 +133,9 @@ struct reiser4_super_info_data {
 	/* space manager plugin */
 	reiser4_space_allocator space_allocator;
 
+	/* transaction model */
+	reiser4_txmod_id txmod;
+
 	/* reiser4 internal tree */
 	reiser4_tree tree;
 
@@ -136,13 +143,13 @@ struct reiser4_super_info_data {
 	 * default user id used for light-weight files without their own
 	 * stat-data.
 	 */
-	uid_t default_uid;
+	__u32 default_uid;
 
 	/*
 	 * default group id used for light-weight files without their own
 	 * stat-data.
 	 */
-	gid_t default_gid;
+	__u32 default_gid;
 
 	/* mkfs identifier generated at mkfs time. */
 	__u32 mkfs_id;
@@ -221,7 +228,7 @@ struct reiser4_super_info_data {
 	unsigned long optimal_io_size;
 
 	/* parameters for the flush algorithm */
-	flush_params flush;
+	struct flush_params flush;
 
 	/* pointers to jnodes for journal header and footer */
 	jnode *journal_header;
@@ -241,7 +248,7 @@ struct reiser4_super_info_data {
 	/* committed number of files (oid allocator state variable ) */
 	__u64 nr_files_committed;
 
-	ra_params_t ra_params;
+	struct formatted_ra_params ra_params;
 
 	/*
 	 * A mutex for serializing cut tree operation if out-of-free-space:
@@ -259,13 +266,14 @@ struct reiser4_super_info_data {
 	int onerror;
 
 	/* operations for objects on this file system */
-	object_ops ops;
+	struct object_ops ops;
 
 	/*
 	 * structure to maintain d_cursors. See plugin/file_ops_readdir.c for
 	 * more details
 	 */
-	d_cursor_info d_info;
+	struct d_cursor_info d_info;
+	struct crypto_shash *csum_tfm;
 
 #ifdef CONFIG_REISER4_BADBLOCKS
 	/* Alternative master superblock offset (in bytes) */
@@ -297,11 +305,11 @@ struct reiser4_super_info_data {
 };
 
 extern reiser4_super_info_data *get_super_private_nocheck(const struct
-							  super_block *super);
+							  super_block * super);
 
 /* Return reiser4-specific part of super block */
 static inline reiser4_super_info_data *get_super_private(const struct
-							 super_block *super)
+							 super_block * super)
 {
 	assert("nikita-447", super != NULL);
 
@@ -329,7 +337,7 @@ static inline reiser4_super_info_data *get_current_super_private(void)
 	return get_super_private(reiser4_get_current_sb());
 }
 
-static inline ra_params_t *get_current_super_ra_params(void)
+static inline struct formatted_ra_params *get_current_super_ra_params(void)
 {
 	return &(get_current_super_private()->ra_params);
 }
@@ -368,7 +376,7 @@ static inline int rofs_jnode(jnode * node)
 
 extern __u64 reiser4_current_block_count(void);
 
-extern void build_object_ops(struct super_block *super, object_ops * ops);
+extern void build_object_ops(struct super_block *super, struct object_ops *ops);
 
 #define REISER4_SUPER_MAGIC 0x52345362	/* (*(__u32 *)"R4Sb"); */
 
@@ -431,7 +439,7 @@ extern reiser4_plugin *get_default_plugin(pset_member memb);
 /* Maximal possible object id. */
 #define  ABSOLUTE_MAX_OID ((oid_t)~0)
 
-#define OIDS_RESERVED  ( 1 << 16 )
+#define OIDS_RESERVED  (1 << 16)
 int oid_init_allocator(struct super_block *, oid_t nr_files, oid_t next);
 oid_t oid_allocate(struct super_block *);
 int oid_release(struct super_block *, oid_t);
@@ -444,7 +452,7 @@ long oids_used(const struct super_block *);
 void print_fs_info(const char *prefix, const struct super_block *);
 #endif
 
-extern void destroy_reiser4_cache(kmem_cache_t **);
+extern void destroy_reiser4_cache(struct kmem_cache **);
 
 extern struct super_operations reiser4_super_operations;
 extern struct export_operations reiser4_export_operations;

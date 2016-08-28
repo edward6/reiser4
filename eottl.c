@@ -1,4 +1,5 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+   reiser4/README */
 
 #include "forward.h"
 #include "debug.h"
@@ -118,8 +119,8 @@
  * is returned if search restart has to be done.
  */
 static int
-is_next_item_internal(coord_t *coord, const reiser4_key *key,
-		      lock_handle *lh)
+is_next_item_internal(coord_t *coord, const reiser4_key * key,
+		      lock_handle * lh)
 {
 	coord_t next;
 	lock_handle rn;
@@ -377,8 +378,8 @@ add_empty_leaf(coord_t *insert_coord, lock_handle *lh,
  *
  * Handles search on twig level. If this function completes search itself then
  * it returns 1. If search has to go one level down then 0 is returned. If
- * error happens then LOOKUP_DONE is returned via @outcome and error code is saved
- * in @h->result.
+ * error happens then LOOKUP_DONE is returned via @outcome and error code is
+ * saved in @h->result.
  */
 int handle_eottl(cbk_handle *h, int *outcome)
 {
@@ -399,7 +400,7 @@ int handle_eottl(cbk_handle *h, int *outcome)
 	 * set to extent item or after extent item
 	 */
 	assert("vs-356", h->level == TWIG_LEVEL);
-	assert("vs-357", ( {
+	assert("vs-357", ({
 			  coord_t lcoord;
 			  coord_dup(&lcoord, coord);
 			  check_me("vs-733", coord_set_to_left(&lcoord) == 0);

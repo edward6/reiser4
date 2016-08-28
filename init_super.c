@@ -17,14 +17,13 @@ int reiser4_init_fs_info(struct super_block *super)
 {
 	reiser4_super_info_data *sbinfo;
 
-	sbinfo = kmalloc(sizeof(reiser4_super_info_data),
+	sbinfo = kzalloc(sizeof(reiser4_super_info_data),
 			 reiser4_ctx_gfp_mask_get());
 	if (!sbinfo)
 		return RETERR(-ENOMEM);
 
 	super->s_fs_info = sbinfo;
 	super->s_op = NULL;
-	memset(sbinfo, 0, sizeof(*sbinfo));
 
 	ON_DEBUG(INIT_LIST_HEAD(&sbinfo->all_jnodes));
 	ON_DEBUG(spin_lock_init(&sbinfo->all_guard));
@@ -83,15 +82,25 @@ typedef enum {
 	 * onerror=remount-ro
 	 */
 	OPT_ONEOF,
+
+	/*
+	 * option take one of txmod plugin labels.
+	 * Example is "txmod=journal" or "txmod=wa"
+	 */
+	OPT_TXMOD,
 } opt_type_t;
 
-typedef struct opt_bitmask_bit {
+#if 0
+struct opt_bitmask_bit {
 	const char *bit_name;
 	int bit_nr;
-} opt_bitmask_bit;
+};
+#endif
+
+#define MAX_ONEOF_LIST 10
 
 /* description of option parseable by parse_option() */
-typedef struct opt_desc {
+struct opt_desc {
 	/* option name.
 
 	   parsed portion of string has a form "name=value".
@@ -119,15 +128,18 @@ typedef struct opt_desc {
 		} f;
 		struct {
 			int *result;
-			const char *list[10];
+			const char *list[MAX_ONEOF_LIST];
 		} oneof;
+		struct {
+			reiser4_txmod_id *result;
+		} txmod;
 		struct {
 			void *addr;
 			int nr_bits;
-			opt_bitmask_bit *bits;
+			/* struct opt_bitmask_bit *bits; */
 		} bitmask;
 	} u;
-} opt_desc_t;
+};
 
 /**
  * parse_option - parse one option
@@ -141,7 +153,7 @@ typedef struct opt_desc {
  * +-- opt_string
  * Figures out option type and handles option correspondingly.
  */
-static int parse_option(char *opt_string, opt_desc_t *opt)
+static int parse_option(char *opt_string, struct opt_desc *opt)
 {
 	char *val_start;
 	int result;
@@ -206,6 +218,30 @@ static int parse_option(char *opt_string, opt_desc_t *opt)
 			}
 			break;
 		}
+		break;
+	case OPT_TXMOD:
+		{
+			reiser4_txmod_id i = 0;
+
+			if (val_start == NULL) {
+				err_msg = "Value is missing";
+				result = RETERR(-EINVAL);
+				break;
+			}
+			err_msg = "Wrong option value";
+			result = RETERR(-EINVAL);
+			while (i < LAST_TXMOD_ID) {
+				if (!strcmp(txmod_plugins[i].h.label,
+					    val_start)) {
+					result = 0;
+					err_msg = NULL;
+					*opt->u.txmod.result = i;
+					break;
+				}
+				i++;
+			}
+			break;
+		}
 	default:
 		wrong_return_value("nikita-2100", "opt -> type");
 		break;
@@ -226,7 +262,7 @@ static int parse_option(char *opt_string, opt_desc_t *opt)
  *
  * Parses comma separated list of reiser4 mount options.
  */
-static int parse_options(char *opt_string, opt_desc_t *opts, int nr_opts)
+static int parse_options(char *opt_string, struct opt_desc *opts, int nr_opts)
 {
 	int result;
 
@@ -259,15 +295,15 @@ static int parse_options(char *opt_string, opt_desc_t *opts, int nr_opts)
 	return result;
 }
 
-#define NUM_OPT( label, fmt, addr )				\
+#define NUM_OPT(label, fmt, addr)				\
 		{						\
-			.name = ( label ),			\
+			.name = (label),			\
 			.type = OPT_FORMAT,			\
 			.u = {					\
 				.f = {				\
-					.format  = ( fmt ),	\
+					.format  = (fmt),	\
 					.nr_args = 1,		\
-					.arg1 = ( addr ),	\
+					.arg1 = (addr),		\
 					.arg2 = NULL,		\
 					.arg3 = NULL,		\
 					.arg4 = NULL		\
@@ -275,7 +311,7 @@ static int parse_options(char *opt_string, opt_desc_t *opts, int nr_opts)
 			}					\
 		}
 
-#define SB_FIELD_OPT( field, fmt ) NUM_OPT( #field, fmt, &sbinfo -> field )
+#define SB_FIELD_OPT(field, fmt) NUM_OPT(#field, fmt, &sbinfo->field)
 
 #define BIT_OPT(label, bitnr)					\
 	{							\
@@ -291,84 +327,28 @@ static int parse_options(char *opt_string, opt_desc_t *opts, int nr_opts)
 
 #define MAX_NR_OPTIONS (30)
 
-/**
- * reiser4_init_super_data - initialize reiser4 private super block
- * @super: super block to initialize
- * @opt_string: list of reiser4 mount options
- *
- * Sets various reiser4 parameters to default values. Parses mount options and
- * overwrites default settings.
- */
-int reiser4_init_super_data(struct super_block *super, char *opt_string)
-{
-	int result;
-	opt_desc_t *opts, *p;
-	reiser4_super_info_data *sbinfo = get_super_private(super);
-
-	/* initialize super, export, dentry operations */
-	sbinfo->ops.super = reiser4_super_operations;
-	sbinfo->ops.export = reiser4_export_operations;
-	sbinfo->ops.dentry = reiser4_dentry_operations;
-	super->s_op = &sbinfo->ops.super;
-	super->s_export_op = &sbinfo->ops.export;
-
-	/* initialize transaction manager parameters to default values */
-	sbinfo->tmgr.atom_max_size = totalram_pages / 4;
-	sbinfo->tmgr.atom_max_age = REISER4_ATOM_MAX_AGE / HZ;
-	sbinfo->tmgr.atom_min_size = 256;
-	sbinfo->tmgr.atom_max_flushers = ATOM_MAX_FLUSHERS;
-
-	/* initialize cbk cache parameter */
-	sbinfo->tree.cbk_cache.nr_slots = CBK_CACHE_SLOTS;
-
-	/* initialize flush parameters */
-	sbinfo->flush.relocate_threshold = FLUSH_RELOCATE_THRESHOLD;
-	sbinfo->flush.relocate_distance = FLUSH_RELOCATE_DISTANCE;
-	sbinfo->flush.written_threshold = FLUSH_WRITTEN_THRESHOLD;
-	sbinfo->flush.scan_maxnodes = FLUSH_SCAN_MAXNODES;
-
-	sbinfo->optimal_io_size = REISER4_OPTIMAL_IO_SIZE;
-
-	/* preliminary tree initializations */
-	sbinfo->tree.super = super;
-	sbinfo->tree.carry.new_node_flags = REISER4_NEW_NODE_FLAGS;
-	sbinfo->tree.carry.new_extent_flags = REISER4_NEW_EXTENT_FLAGS;
-	sbinfo->tree.carry.paste_flags = REISER4_PASTE_FLAGS;
-	sbinfo->tree.carry.insert_flags = REISER4_INSERT_FLAGS;
-	rwlock_init(&(sbinfo->tree.tree_lock));
-	spin_lock_init(&(sbinfo->tree.epoch_lock));
-
-	/* initialize default readahead params */
-	sbinfo->ra_params.max = num_physpages / 4;
-	sbinfo->ra_params.flags = 0;
-
-	/* allocate memory for structure describing reiser4 mount options */
-	opts = kmalloc(sizeof(opt_desc_t) * MAX_NR_OPTIONS,
-		       reiser4_ctx_gfp_mask_get());
-	if (opts == NULL)
-		return RETERR(-ENOMEM);
-
-	/* initialize structure describing reiser4 mount options */
-	p = opts;
-
 #if REISER4_DEBUG
-#  define OPT_ARRAY_CHECK if ((p) > (opts) + MAX_NR_OPTIONS) {		\
-		warning ("zam-1046", "opt array is overloaded"); break;	\
+#  define OPT_ARRAY_CHECK(opt, array)					\
+	if ((opt) > (array) + MAX_NR_OPTIONS) {				\
+		warning("zam-1046", "opt array is overloaded"); break;	\
 	}
 #else
-#   define OPT_ARRAY_CHECK noop
+#   define OPT_ARRAY_CHECK(opt, array) noop
 #endif
 
-#define PUSH_OPT(...)				\
+#define PUSH_OPT(opt, array, ...)		\
 do {						\
-	 opt_desc_t o = __VA_ARGS__;		\
-	 OPT_ARRAY_CHECK;			\
-	 *p ++ = o;				\
+	struct opt_desc o = __VA_ARGS__;	\
+	OPT_ARRAY_CHECK(opt, array);		\
+	*(opt) ++ = o;				\
 } while (0)
 
-#define PUSH_SB_FIELD_OPT(field, format) PUSH_OPT(SB_FIELD_OPT(field, format))
-#define PUSH_BIT_OPT(name, bit) PUSH_OPT(BIT_OPT(name, bit))
-
+static noinline void push_sb_field_opts(struct opt_desc **p,
+					struct opt_desc *opts,
+					reiser4_super_info_data *sbinfo)
+{
+#define PUSH_SB_FIELD_OPT(field, format)		\
+	PUSH_OPT(*p, opts, SB_FIELD_OPT(field, format))
 	/*
 	 * tmgr.atom_max_size=N
 	 * Atoms containing more than N blocks will be forced to commit. N is
@@ -434,8 +414,74 @@ do {						\
 	 */
 	PUSH_SB_FIELD_OPT(altsuper, "%lu");
 #endif
+}
 
+/**
+ * reiser4_init_super_data - initialize reiser4 private super block
+ * @super: super block to initialize
+ * @opt_string: list of reiser4 mount options
+ *
+ * Sets various reiser4 parameters to default values. Parses mount options and
+ * overwrites default settings.
+ */
+int reiser4_init_super_data(struct super_block *super, char *opt_string)
+{
+	int result;
+	struct opt_desc *opts, *p;
+	reiser4_super_info_data *sbinfo = get_super_private(super);
+
+	/* initialize super, export, dentry operations */
+	sbinfo->ops.super = reiser4_super_operations;
+	sbinfo->ops.export = reiser4_export_operations;
+	sbinfo->ops.dentry = reiser4_dentry_operations;
+	super->s_op = &sbinfo->ops.super;
+	super->s_export_op = &sbinfo->ops.export;
+
+	/* initialize transaction manager parameters to default values */
+	sbinfo->tmgr.atom_max_size = totalram_pages / 4;
+	sbinfo->tmgr.atom_max_age = REISER4_ATOM_MAX_AGE / HZ;
+	sbinfo->tmgr.atom_min_size = 256;
+	sbinfo->tmgr.atom_max_flushers = ATOM_MAX_FLUSHERS;
+
+	/* initialize cbk cache parameter */
+	sbinfo->tree.cbk_cache.nr_slots = CBK_CACHE_SLOTS;
+
+	/* initialize flush parameters */
+	sbinfo->flush.relocate_threshold = FLUSH_RELOCATE_THRESHOLD;
+	sbinfo->flush.relocate_distance = FLUSH_RELOCATE_DISTANCE;
+	sbinfo->flush.written_threshold = FLUSH_WRITTEN_THRESHOLD;
+	sbinfo->flush.scan_maxnodes = FLUSH_SCAN_MAXNODES;
+
+	sbinfo->optimal_io_size = REISER4_OPTIMAL_IO_SIZE;
+
+	/* preliminary tree initializations */
+	sbinfo->tree.super = super;
+	sbinfo->tree.carry.new_node_flags = REISER4_NEW_NODE_FLAGS;
+	sbinfo->tree.carry.new_extent_flags = REISER4_NEW_EXTENT_FLAGS;
+	sbinfo->tree.carry.paste_flags = REISER4_PASTE_FLAGS;
+	sbinfo->tree.carry.insert_flags = REISER4_INSERT_FLAGS;
+	rwlock_init(&(sbinfo->tree.tree_lock));
+	spin_lock_init(&(sbinfo->tree.epoch_lock));
+
+	/* initialize default readahead params */
+	sbinfo->ra_params.max = totalram_pages / 4;
+	sbinfo->ra_params.flags = 0;
+
+	/* allocate memory for structure describing reiser4 mount options */
+	opts = kmalloc(sizeof(struct opt_desc) * MAX_NR_OPTIONS,
+		       reiser4_ctx_gfp_mask_get());
+	if (opts == NULL)
+		return RETERR(-ENOMEM);
+
+	/* initialize structure describing reiser4 mount options */
+	p = opts;
+
+	push_sb_field_opts(&p, opts, sbinfo);
 	/* turn on BSD-style gid assignment */
+
+#define PUSH_BIT_OPT(name, bit)			\
+	PUSH_OPT(p, opts, BIT_OPT(name, bit))
+
 	PUSH_BIT_OPT("bsdgroups", REISER4_BSD_GID);
 	/* turn on 32 bit times */
 	PUSH_BIT_OPT("32bittimes", REISER4_32_BIT_TIMES);
@@ -446,10 +492,12 @@ do {						\
 	PUSH_BIT_OPT("dont_load_bitmap", REISER4_DONT_LOAD_BITMAP);
 	/* disable transaction commits during write() */
 	PUSH_BIT_OPT("atomic_write", REISER4_ATOMIC_WRITE);
-	/* disable use of write barriers in the reiser4 log writer. */
-	PUSH_BIT_OPT("no_write_barrier", REISER4_NO_WRITE_BARRIER);
+	/* enable issuing of discard requests */
+	PUSH_BIT_OPT("discard", REISER4_DISCARD);
+	/* disable hole punching at flush time */
+	PUSH_BIT_OPT("dont_punch_holes", REISER4_DONT_PUNCH_HOLES);
 
-	PUSH_OPT(
+	PUSH_OPT(p, opts,
 	{
 		/*
 		 * tree traversal readahead parameters:
@@ -475,7 +523,7 @@ do {						\
 	);
 
 	/* What to do in case of fs error */
-	PUSH_OPT(
+	PUSH_OPT(p, opts,
 	{
 		.name = "onerror",
 		.type = OPT_ONEOF,
@@ -483,9 +531,25 @@ do {						\
 			.oneof = {
 				.result = &sbinfo->onerror,
 				.list = {
-					"panic", "remount-ro", NULL
+					"remount-ro", "panic", NULL
 				},
 			}
+		}
+	}
+	);
+
+	/*
+	 * What trancaction model (journal, cow, etc)
+	 * is used to commit transactions
+	 */
+	PUSH_OPT(p, opts,
+	{
+		.name = "txmod",
+		.type = OPT_TXMOD,
+		.u = {
+			.txmod = {
+				 .result = &sbinfo->txmod
+			 }
 		}
 	}
 	);
@@ -551,7 +615,7 @@ int reiser4_init_read_super(struct super_block *super, int silent)
 		/* reiser4 master super block contains filesystem blocksize */
 		blocksize = le16_to_cpu(get_unaligned(&master_sb->blocksize));
 
-		if (blocksize != PAGE_CACHE_SIZE) {
+		if (blocksize != PAGE_SIZE) {
 			/*
 			 * currenly reiser4's blocksize must be equal to
 			 * pagesize
@@ -649,7 +713,7 @@ static struct {
 	},
 	[PSET_COMPRESSION_MODE] = {
 		.type = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
-		.id = COL_16_COMPRESSION_MODE_ID
+		.id = CONVX_COMPRESSION_MODE_ID
 	},
 	[PSET_CLUSTER] = {
 		.type = REISER4_CLUSTER_PLUGIN_TYPE,
@@ -685,9 +749,8 @@ int reiser4_init_root_inode(struct super_block *super)
 	if (IS_ERR(inode))
 		return RETERR(PTR_ERR(inode));
 
-	super->s_root = d_alloc_root(inode);
+	super->s_root = d_make_root(inode);
 	if (!super->s_root) {
-		iput(inode);
 		return RETERR(-ENOMEM);
 	}
 

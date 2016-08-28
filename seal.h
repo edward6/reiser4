@@ -32,7 +32,7 @@ extern void reiser4_seal_init(seal_t *, const coord_t *, const reiser4_key *);
 extern void reiser4_seal_done(seal_t *);
 extern int reiser4_seal_is_set(const seal_t *);
 extern int reiser4_seal_validate(seal_t *, coord_t *,
-			 const reiser4_key *, lock_handle *,
+			 const reiser4_key *, lock_handle * ,
 			 znode_lock_mode mode, znode_lock_request request);
 
 /* __SEAL_H__ */

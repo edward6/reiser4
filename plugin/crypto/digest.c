@@ -14,7 +14,7 @@ extern digest_plugin digest_plugins[LAST_DIGEST_ID];
 static struct crypto_hash * alloc_sha256 (void)
 {
 #if REISER4_SHA256
-	return crypto_alloc_hash ("sha256", 0);
+	return crypto_alloc_hash ("sha256", 0, CRYPTO_ALG_ASYNC);
 #else
 	warning("edward-1418", "sha256 unsupported");
 	return ERR_PTR(-EINVAL);

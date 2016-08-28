@@ -233,12 +233,15 @@ typedef struct node_plugin {
 	/* change plugin id of items which are in a node already. Currently it is Used in tail conversion for regular
 	 * files */
 	int (*set_item_plugin) (coord_t * coord, item_id);
+	/* calculate and check/update znode's checksum
+	   (if @check is true, then check, otherwise update) */
+	int (*csum)(znode *node, int check);
 } node_plugin;
 
 typedef enum {
-	/* standard unified node layout used for both leaf and internal
-	   nodes */
-	NODE40_ID,
+	NODE40_ID, /* standard unified node layout used for both,
+		      leaf and internal nodes */
+	NODE41_ID, /* node layout with a checksum */
 	LAST_NODE_ID
 } reiser4_node_id;
 

@@ -1,7 +1,7 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
  * reiser4/README */
 
-#if !defined( __REISER4_FSDATA_H__ )
+#if !defined(__REISER4_FSDATA_H__)
 #define __REISER4_FSDATA_H__
 
 #include "debug.h"
@@ -29,31 +29,31 @@
  */
 
 /* logical position within directory */
-typedef struct {
+struct dir_pos {
 	/* key of directory entry (actually, part of a key sufficient to
 	   identify directory entry)  */
 	de_id dir_entry_key;
 	/* ordinal number of directory entry among all entries with the same
 	   key. (Starting from 0.) */
 	unsigned pos;
-} dir_pos;
+};
 
-typedef struct {
+struct readdir_pos {
 	/* f_pos corresponding to this readdir position */
 	__u64 fpos;
 	/* logical position within directory */
-	dir_pos position;
+	struct dir_pos position;
 	/* logical number of directory entry within
 	   directory  */
 	__u64 entry_no;
-} readdir_pos;
+};
 
 /*
  * this is used to speed up lookups for directory entry: on initial call to
  * ->lookup() seal and coord of directory entry (if found, that is) are stored
  * in struct dentry and reused later to avoid tree traversals.
  */
-typedef struct de_location {
+struct de_location {
 	/* seal covering directory entry */
 	seal_t entry_seal;
 	/* coord of directory entry */
@@ -61,7 +61,7 @@ typedef struct de_location {
 	/* ordinal number of directory entry among all entries with the same
 	   key. (Starting from 0.) */
 	int pos;
-} de_location;
+};
 
 /**
  * reiser4_dentry_fsdata - reiser4-specific data attached to dentries
@@ -71,20 +71,20 @@ typedef struct de_location {
  * Currently it only contains cached location (hint) of directory entry, but
  * it is expected that other information will be accumulated here.
  */
-typedef struct reiser4_dentry_fsdata {
+struct reiser4_dentry_fsdata {
 	/*
 	 * here will go fields filled by ->lookup() to speedup next
 	 * create/unlink, like blocknr of znode with stat-data, or key of
 	 * stat-data.
 	 */
-	de_location dec;
-	int stateless;		/* created through reiser4_decode_fh, needs special
-				 * treatment in readdir. */
-} reiser4_dentry_fsdata;
+	struct de_location dec;
+	int stateless;		/* created through reiser4_decode_fh, needs
+				 * special treatment in readdir. */
+};
 
 extern int reiser4_init_dentry_fsdata(void);
 extern void reiser4_done_dentry_fsdata(void);
-extern reiser4_dentry_fsdata *reiser4_get_dentry_fsdata(struct dentry *);
+extern struct reiser4_dentry_fsdata *reiser4_get_dentry_fsdata(struct dentry *);
 extern void reiser4_free_dentry_fsdata(struct dentry *dentry);
 
 /**
@@ -109,7 +109,7 @@ typedef struct reiser4_file_fsdata {
 		 * position in directory. It is updated each time directory is
 		 * modified
 		 */
-		readdir_pos readdir;
+		struct readdir_pos readdir;
 		/* head of this list is reiser4_inode->lists.readdir_list */
 		struct list_head linkage;
 	} dir;
@@ -117,8 +117,6 @@ typedef struct reiser4_file_fsdata {
 	struct {
 		hint_t hint;
 	} reg;
-	struct reiser4_file_ra_state ra1;
-
 } reiser4_file_fsdata;
 
 extern int reiser4_init_file_fsdata(void);
@@ -131,10 +129,10 @@ extern void reiser4_free_file_fsdata(struct file *);
  * used to address problem reiser4 has with readdir accesses via NFS. See
  * plugin/file_ops_readdir.c for more details.
  */
-typedef struct {
+struct d_cursor_key{
 	__u16 cid;
 	__u64 oid;
-} d_cursor_key;
+};
 
 /*
  * define structures d_cursor_hash_table d_cursor_hash_link which are used to
@@ -142,8 +140,6 @@ typedef struct {
  */
 typedef struct dir_cursor dir_cursor;
 TYPE_SAFE_HASH_DECLARE(d_cursor, dir_cursor);
-
-typedef struct d_cursor_info d_cursor_info;
 
 struct dir_cursor {
 	int ref;
@@ -157,8 +153,8 @@ struct dir_cursor {
 	 * cursors if there are more than one cursor of the same objectid
 	 */
 	struct list_head list;
-	d_cursor_key key;
-	d_cursor_info *info;
+	struct d_cursor_key key;
+	struct d_cursor_info *info;
 	/* list of unused cursors */
 	struct list_head alist;
 };
@@ -169,8 +165,8 @@ extern void reiser4_done_d_cursor(void);
 extern int reiser4_init_super_d_info(struct super_block *);
 extern void reiser4_done_super_d_info(struct super_block *);
 
-extern loff_t reiser4_get_dir_fpos(struct file *);
-extern int reiser4_attach_fsdata(struct file *, struct inode *);
+extern loff_t reiser4_get_dir_fpos(struct file *, loff_t);
+extern int reiser4_attach_fsdata(struct file *, loff_t *, struct inode *);
 extern void reiser4_detach_fsdata(struct file *);
 
 /* these are needed for "stateless" readdir. See plugin/file_ops_readdir.c for
@@ -191,7 +187,7 @@ struct d_cursor_info {
 };
 
 /* spinlock protecting readdir cursors */
-extern spinlock_t d_lock;
+extern spinlock_t d_c_lock;
 
 /* __REISER4_FSDATA_H__ */
 #endif

@@ -9,14 +9,14 @@ typedef struct {
 	reiser4_dblock_nr width;
 } reiser4_extent;
 
-typedef struct extent_stat {
+struct extent_stat {
 	int unallocated_units;
 	int unallocated_blocks;
 	int allocated_units;
 	int allocated_blocks;
 	int hole_units;
 	int hole_blocks;
-} extent_stat;
+};
 
 /* extents in an extent item can be either holes, or unallocated or allocated
    extents */
@@ -30,7 +30,7 @@ typedef enum {
 #define UNALLOCATED_EXTENT_START 1
 #define UNALLOCATED_EXTENT_START2 2
 
-typedef struct {
+struct extent_coord_extension {
 	reiser4_block_nr pos_in_unit;
 	reiser4_block_nr width;	/* width of current unit */
 	pos_in_node_t nr_units;	/* number of units */
@@ -39,7 +39,7 @@ typedef struct {
 #if REISER4_DEBUG
 	reiser4_extent extent;
 #endif
-} extent_coord_extension_t;
+};
 
 /* macros to set/get fields of on-disk extent */
 static inline reiser4_block_nr extent_get_start(const reiser4_extent * ext)
@@ -131,8 +131,8 @@ void item_stat_extent(const coord_t * coord, void *vp);
 int reiser4_check_extent(const coord_t * coord, const char **error);
 
 /* plugin->u.item.s.file.* */
-ssize_t reiser4_write_extent(struct file *, const char __user *,
-			     size_t, loff_t *);
+ssize_t reiser4_write_extent(struct file *, struct inode * inode,
+			     const char __user *, size_t, loff_t *);
 int reiser4_read_extent(struct file *, flow_t *, hint_t *);
 int reiser4_readpage_extent(void *, struct page *);
 int reiser4_do_readpage_extent(reiser4_extent*, reiser4_block_nr, struct page*);

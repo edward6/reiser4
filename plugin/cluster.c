@@ -1,4 +1,5 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 /* Contains reiser4 cluster plugins (see
    http://www.namesys.com/cryptcompress_design.html
@@ -17,7 +18,7 @@ static int change_cluster(struct inode *inode,
 	assert("edward-1326", is_reiser4_inode(inode));
 	assert("edward-1327", plugin->h.type_id == REISER4_CLUSTER_PLUGIN_TYPE);
 
-	/* Can't change the cluster plugin for already existent regular files. */
+	/* Can't change the cluster plugin for already existent regular files */
 	if (!plugin_of_group(inode_file_plugin(inode), REISER4_DIRECTORY_FILE))
 		return RETERR(-EINVAL);
 

@@ -34,7 +34,7 @@ typedef enum {
 /* this is the part of each item plugin that all items are expected to
    support or at least explicitly fail to support by setting the
    pointer to null. */
-typedef struct {
+struct balance_ops {
 	/* operations called by balancing
 
 	   It is interesting to consider that some of these item
@@ -189,9 +189,9 @@ typedef struct {
 	int (*check) (const coord_t *, const char **error);
 #endif
 
-} balance_ops;
+};
 
-typedef struct {
+struct flush_ops {
 	/* return the right or left child of @coord, only if it is in memory */
 	int (*utmost_child) (const coord_t *, sideof side, jnode ** child);
 
@@ -207,10 +207,10 @@ typedef struct {
 	int (*convert) (flush_pos_t * pos);
 	/* backward mapping from jnode offset to a key.  */
 	int (*key_by_offset) (struct inode *, loff_t, reiser4_key *);
-} flush_ops;
+};
 
 /* operations specific to the directory item */
-typedef struct {
+struct dir_entry_iops {
 	/* extract stat-data key from directory entry at @coord and place it
 	   into @key. */
 	int (*extract_key) (const coord_t *, reiser4_key * key);
@@ -229,11 +229,12 @@ typedef struct {
 			  coord_t *, lock_handle *,
 			  reiser4_dir_entry_desc * entry);
 	int (*max_name_len) (const struct inode * dir);
-} dir_entry_ops;
+};
 
 /* operations specific to items regular (unix) file metadata are built of */
-typedef struct {
-	int (*write) (struct file *, const char __user *, size_t, loff_t *pos);
+struct file_iops{
+	ssize_t (*write) (struct file *, struct inode *,
+			  const char __user *, size_t, loff_t *pos);
 	int (*read) (struct file *, flow_t *, hint_t *);
 	int (*readpage) (void *, struct page *);
 	int (*get_block) (const coord_t *, sector_t, sector_t *);
@@ -251,17 +252,17 @@ typedef struct {
 	reiser4_key *(*append_key) (const coord_t *, reiser4_key *);
 
 	void (*init_coord_extension) (uf_coord_t *, loff_t);
-} file_ops;
+};
 
 /* operations specific to items of stat data type */
-typedef struct {
+struct sd_iops {
 	int (*init_inode) (struct inode * inode, char *sd, int len);
 	int (*save_len) (struct inode * inode);
 	int (*save) (struct inode * inode, char **area);
-} sd_ops;
+};
 
 /* operations specific to internal item */
-typedef struct {
+struct internal_iops{
 	/* all tree traversal want to know from internal item is where
 	   to go next. */
 	void (*down_link) (const coord_t * coord,
@@ -269,25 +270,22 @@ typedef struct {
 	/* check that given internal item contains given pointer. */
 	int (*has_pointer_to) (const coord_t * coord,
 			       const reiser4_block_nr * block);
-} internal_item_ops;
+};
 
 struct item_plugin {
 	/* generic fields */
 	plugin_header h;
-
 	/* methods common for all item types */
-	balance_ops b;
-	/* methods used during flush */
-	flush_ops f;
+	struct balance_ops b; /* balance operations */
+ 	struct flush_ops f;   /* flush operates with items via this methods */
 
 	/* methods specific to particular type of item */
 	union {
-		dir_entry_ops dir;
-		file_ops file;
-		sd_ops sd;
-		internal_item_ops internal;
+		struct dir_entry_iops dir;
+		struct      file_iops file;
+		struct        sd_iops sd;
+		struct  internal_iops internal;
 	} s;
-
 };
 
 #define is_solid_item(iplug) ((iplug)->b.nr_units == nr_units_single_unit)

@@ -10,7 +10,6 @@
 #include "../inode.h"
 #include "../safe_link.h"
 
-#include <linux/quotaops.h>
 #include <linux/namei.h>
 
 static int create_vfs_object(struct inode *parent, struct dentry *dentry,
@@ -21,14 +20,14 @@ static int create_vfs_object(struct inode *parent, struct dentry *dentry,
  * @parent: inode of parent directory
  * @dentry: dentry of new object to create
  * @mode: the permissions to use
- * @nameidata:
+ * @exclusive:
  *
  * This is common implementation of vfs's create method of struct
  * inode_operations.
  * Creates regular file using file plugin from parent directory plugin set.
  */
 int reiser4_create_common(struct inode *parent, struct dentry *dentry,
-			  int mode, struct nameidata *nameidata)
+			  umode_t mode, bool exclusive)
 {
 	reiser4_object_create_data data;
 	file_plugin *fplug;
@@ -52,14 +51,14 @@ void check_light_weight(struct inode *inode, struct inode *parent);
  * reiser4_lookup_common - lookup of inode operations
  * @parent: inode of directory to lookup into
  * @dentry: name to look for
- * @nameidata:
+ * @flags:
  *
  * This is common implementation of vfs's lookup method of struct
  * inode_operations.
  */
 struct dentry *reiser4_lookup_common(struct inode *parent,
 				     struct dentry *dentry,
-				     struct nameidata *nameidata)
+				     unsigned int flags)
 {
 	reiser4_context *ctx;
 	int result;
@@ -110,6 +109,15 @@ static reiser4_block_nr common_estimate_link(struct inode *parent,
 					     struct inode *object);
 int reiser4_update_dir(struct inode *);
 
+static inline void reiser4_check_immutable(struct inode *inode)
+{
+        do {
+	        if (!reiser4_inode_get_flag(inode, REISER4_IMMUTABLE))
+		        break;
+		yield();
+	} while (1);
+}
+
 /**
  * reiser4_link_common - link of inode operations
  * @existing: dentry of object which is to get new name
@@ -142,11 +150,7 @@ int reiser4_link_common(struct dentry *existing, struct inode *parent,
 	assert("nikita-1434", object != NULL);
 
 	/* check for race with create_object() */
-	if (reiser4_inode_get_flag(object, REISER4_IMMUTABLE)) {
-		context_set_commit_async(ctx);
-		reiser4_exit_context(ctx);
-		return RETERR(-E_REPEAT);
-	}
+	reiser4_check_immutable(object);
 
 	parent_dplug = inode_dir_plugin(parent);
 
@@ -351,7 +355,7 @@ int reiser4_symlink_common(struct inode *parent, struct dentry *dentry,
  * inode_operations.
  * Creates object using file plugin DIRECTORY_FILE_PLUGIN_ID.
  */
-int reiser4_mkdir_common(struct inode *parent, struct dentry *dentry, int mode)
+int reiser4_mkdir_common(struct inode *parent, struct dentry *dentry, umode_t mode)
 {
 	reiser4_object_create_data data;
 
@@ -373,7 +377,7 @@ int reiser4_mkdir_common(struct inode *parent, struct dentry *dentry, int mode)
  * Creates object using file plugin SPECIAL_FILE_PLUGIN_ID.
  */
 int reiser4_mknod_common(struct inode *parent, struct dentry *dentry,
-			 int mode, dev_t rdev)
+			 umode_t mode, dev_t rdev)
 {
 	reiser4_object_create_data data;
 
@@ -390,38 +394,43 @@ int reiser4_mknod_common(struct inode *parent, struct dentry *dentry,
  */
 
 /**
- * reiser4_follow_link_common - follow_link of inode operations
+ * reiser4_get_link_common: ->get_link() of inode_operations
  * @dentry: dentry of symlink
- * @data:
  *
- * This is common implementation of vfs's followlink method of struct
- * inode_operations.
  * Assumes that inode's i_private points to the content of symbolic link.
  */
-void *reiser4_follow_link_common(struct dentry *dentry, struct nameidata *nd)
+const char *reiser4_get_link_common(struct dentry *dentry,
+				    struct inode *inode,
+				    struct delayed_call *done)
 {
+	if (!dentry)
+		return ERR_PTR(-ECHILD);
+
 	assert("vs-851", S_ISLNK(dentry->d_inode->i_mode));
 
-	if (!dentry->d_inode->i_private
-	    || !reiser4_inode_get_flag(dentry->d_inode,
-				       REISER4_GENERIC_PTR_USED))
+	if (!dentry->d_inode->i_private ||
+	    !reiser4_inode_get_flag(dentry->d_inode, REISER4_GENERIC_PTR_USED))
 		return ERR_PTR(RETERR(-EINVAL));
-	nd_set_link(nd, dentry->d_inode->i_private);
-	return NULL;
+
+	return dentry->d_inode->i_private;
 }
 
 /**
  * reiser4_permission_common - permission of inode operations
  * @inode: inode to check permissions for
  * @mask: mode bits to check permissions for
- * @nameidata:
+ * @flags:
  *
  * Uses generic function to check for rwx permissions.
  */
-int reiser4_permission_common(struct inode *inode, int mask,
-			      struct nameidata *nameidata)
+int reiser4_permission_common(struct inode *inode, int mask)
 {
-	return generic_permission(inode, mask, NULL);
+	// generic_permission() says that it's rcu-aware...
+#if 0
+	if (mask & MAY_NOT_BLOCK)
+		return -ECHILD;
+#endif
+	return generic_permission(inode, mask);
 }
 
 static int setattr_reserve(reiser4_tree *);
@@ -447,25 +456,16 @@ int reiser4_setattr_common(struct dentry *dentry, struct iattr *attr)
 	assert("nikita-3119", !(attr->ia_valid & ATTR_SIZE));
 
 	/*
-	 * grab disk space and call standard inode_setattr().
+	 * grab disk space and call standard
+	 * setattr_copy();
+	 * mark_inode_dirty().
 	 */
 	result = setattr_reserve(reiser4_tree_by_inode(inode));
 	if (!result) {
-		if ((attr->ia_valid & ATTR_UID && attr->ia_uid != inode->i_uid)
-		    || (attr->ia_valid & ATTR_GID
-			&& attr->ia_gid != inode->i_gid)) {
-			result = DQUOT_TRANSFER(inode, attr) ? -EDQUOT : 0;
-			if (result) {
-				context_set_commit_async(ctx);
-				reiser4_exit_context(ctx);
-				return result;
-			}
-		}
-		result = inode_setattr(inode, attr);
-		if (!result)
-			reiser4_update_sd(inode);
+		setattr_copy(inode, attr);
+		mark_inode_dirty(inode);
+		result = reiser4_update_sd(inode);
 	}
-
 	context_set_commit_async(ctx);
 	reiser4_exit_context(ctx);
 	return result;
@@ -511,9 +511,10 @@ int reiser4_getattr_common(struct vfsmount *mnt UNUSED_ARG,
    method of file plugin, adding directory entry to parent and update parent
    directory's stat data.
 */
-static reiser4_block_nr estimate_create_vfs_object(struct inode *parent,	/* parent object */
+static reiser4_block_nr estimate_create_vfs_object(struct inode *parent,
+						   /* parent object */
 						   struct inode *object
-						   /* object */ )
+						   /* object */)
 {
 	assert("vpf-309", parent != NULL);
 	assert("vpf-307", object != NULL);
@@ -540,8 +541,9 @@ static reiser4_block_nr estimate_create_vfs_object(struct inode *parent,	/* pare
    . instantiate dentry
 
 */
-static int do_create_vfs_child(reiser4_object_create_data * data,	/* parameters of new
-									   object */
+static int do_create_vfs_child(reiser4_object_create_data * data,/* parameters
+								    of new
+								    object */
 			       struct inode **retobj)
 {
 	int result;
@@ -581,8 +583,6 @@ static int do_create_vfs_child(reiser4_object_create_data * data,	/* parameters 
 	object = new_inode(parent->i_sb);
 	if (object == NULL)
 		return RETERR(-ENOMEM);
-	/* we'll update i_nlink below */
-	object->i_nlink = 0;
 	/* new_inode() initializes i_ino to "arbitrary" value. Reset it to 0,
 	 * to simplify error handling: if some error occurs before i_ino is
 	 * initialized with oid, i_ino should already be set to some
@@ -591,12 +591,6 @@ static int do_create_vfs_child(reiser4_object_create_data * data,	/* parameters 
 
 	/* So that on error iput will be called. */
 	*retobj = object;
-
-	if (DQUOT_ALLOC_INODE(object)) {
-		DQUOT_DROP(object);
-		object->i_flags |= S_NOQUOTA;
-		return RETERR(-EDQUOT);
-	}
 
 	memset(&entry, 0, sizeof entry);
 	entry.obj = object;
@@ -607,8 +601,6 @@ static int do_create_vfs_child(reiser4_object_create_data * data,	/* parameters 
 	if (result) {
 		warning("nikita-431", "Cannot install plugin %i on %llx",
 			data->id, (unsigned long long)get_inode_oid(object));
-		DQUOT_FREE_INODE(object);
-		object->i_flags |= S_NOQUOTA;
 		return result;
 	}
 
@@ -616,8 +608,6 @@ static int do_create_vfs_child(reiser4_object_create_data * data,	/* parameters 
 	obj_plug = inode_file_plugin(object);
 
 	if (obj_plug->create_object == NULL) {
-		DQUOT_FREE_INODE(object);
-		object->i_flags |= S_NOQUOTA;
 		return RETERR(-EPERM);
 	}
 
@@ -635,8 +625,6 @@ static int do_create_vfs_child(reiser4_object_create_data * data,	/* parameters 
 		warning("nikita-432", "Cannot inherit from %llx to %llx",
 			(unsigned long long)get_inode_oid(parent),
 			(unsigned long long)get_inode_oid(object));
-		DQUOT_FREE_INODE(object);
-		object->i_flags |= S_NOQUOTA;
 		return result;
 	}
 
@@ -646,13 +634,11 @@ static int do_create_vfs_child(reiser4_object_create_data * data,	/* parameters 
 	/* call file plugin's method to initialize plugin specific part of
 	 * inode */
 	if (obj_plug->init_inode_data)
-		obj_plug->init_inode_data(object, data, 1 /*create */ );
+		obj_plug->init_inode_data(object, data, 1/*create */);
 
 	/* obtain directory plugin (if any) for new object. */
 	obj_dir = inode_dir_plugin(object);
 	if (obj_dir != NULL && obj_dir->init == NULL) {
-		DQUOT_FREE_INODE(object);
-		object->i_flags |= S_NOQUOTA;
 		return RETERR(-EPERM);
 	}
 
@@ -660,8 +646,6 @@ static int do_create_vfs_child(reiser4_object_create_data * data,	/* parameters 
 
 	reserve = estimate_create_vfs_object(parent, object);
 	if (reiser4_grab_space(reserve, BA_CAN_COMMIT)) {
-		DQUOT_FREE_INODE(object);
-		object->i_flags |= S_NOQUOTA;
 		return RETERR(-ENOSPC);
 	}
 
@@ -691,8 +675,6 @@ static int do_create_vfs_child(reiser4_object_create_data * data,	/* parameters 
 			warning("nikita-2219",
 				"Failed to create sd for %llu",
 				(unsigned long long)get_inode_oid(object));
-		DQUOT_FREE_INODE(object);
-		object->i_flags |= S_NOQUOTA;
 		return result;
 	}
 
@@ -706,20 +688,14 @@ static int do_create_vfs_child(reiser4_object_create_data * data,	/* parameters 
 		/* create entry */
 		result = par_dir->add_entry(parent, dentry, data, &entry);
 		if (result == 0) {
-			result = reiser4_add_nlink(object, parent, 0);
 			/* If O_CREAT is set and the file did not previously
 			   exist, upon successful completion, open() shall
 			   mark for update the st_atime, st_ctime, and
 			   st_mtime fields of the file and the st_ctime and
 			   st_mtime fields of the parent directory. --SUS
 			 */
-			/* @object times are already updated by
-			   reiser4_add_nlink() */
-			if (result == 0)
-				reiser4_update_dir(parent);
-			if (result != 0)
-				/* cleanup failure to add nlink */
-				par_dir->rem_entry(parent, dentry, &entry);
+			object->i_ctime = CURRENT_TIME;
+			reiser4_update_dir(parent);
 		}
 		if (result != 0)
 			/* cleanup failure to add entry */
@@ -734,8 +710,6 @@ static int do_create_vfs_child(reiser4_object_create_data * data,	/* parameters 
 	 */
 	reiser4_update_sd(object);
 	if (result != 0) {
-		DQUOT_FREE_INODE(object);
-		object->i_flags |= S_NOQUOTA;
 		/* if everything was ok (result == 0), parent stat-data is
 		 * already updated above (update_parent_dir()) */
 		reiser4_update_sd(parent);
@@ -776,6 +750,8 @@ create_vfs_object(struct inode *parent,
 	result = do_create_vfs_child(data, &child);
 	if (unlikely(result != 0)) {
 		if (child != NULL) {
+			/* for unlinked inode accounting in iput() */
+			clear_nlink(child);
 			reiser4_make_bad_inode(child);
 			iput(child);
 		}
@@ -786,13 +762,18 @@ create_vfs_object(struct inode *parent,
 	return result;
 }
 
-/* helper for link_common. Estimate disk space necessary to add a link
-   from @parent to @object
-*/
-static reiser4_block_nr common_estimate_link(struct inode *parent,	/* parent directory */
-					     struct inode *object
-					     /* object to which new link is being cerated */
-					     )
+/**
+ * helper for link_common. Estimate disk space necessary to add a link
+ * from @parent to @object
+ */
+static reiser4_block_nr common_estimate_link(struct inode *parent /* parent
+								   * directory
+								   */,
+					     struct inode *object /* object to
+								   * which new
+								   * link is
+								   * being
+								   * created */)
 {
 	reiser4_block_nr res = 0;
 	file_plugin *fplug;
@@ -803,7 +784,8 @@ static reiser4_block_nr common_estimate_link(struct inode *parent,	/* parent dir
 
 	fplug = inode_file_plugin(object);
 	dplug = inode_dir_plugin(parent);
-	/* VS-FIXME-HANS: why do we do fplug->estimate.update(object) twice instead of multiplying by 2? */
+	/* VS-FIXME-HANS: why do we do fplug->estimate.update(object) twice
+	 * instead of multiplying by 2? */
 	/* reiser4_add_nlink(object) */
 	res += fplug->estimate.update(object);
 	/* add_entry(parent) */
@@ -821,10 +803,12 @@ static reiser4_block_nr common_estimate_link(struct inode *parent,	/* parent dir
 /* Estimate disk space necessary to remove a link between @parent and
    @object.
 */
-static reiser4_block_nr estimate_unlink(struct inode *parent,	/* parent directory */
-					struct inode *object
-					/* object to which new link is being cerated */
-					)
+static reiser4_block_nr estimate_unlink(struct inode *parent /* parent
+							      * directory */,
+					struct inode *object /* object to which
+							      * new link is
+							      * being created
+							      */)
 {
 	reiser4_block_nr res = 0;
 	file_plugin *fplug;
@@ -862,8 +846,8 @@ static int unlink_check_and_grab(struct inode *parent, struct dentry *victim)
 	fplug = inode_file_plugin(child);
 
 	/* check for race with create_object() */
-	if (reiser4_inode_get_flag(child, REISER4_IMMUTABLE))
-		return RETERR(-E_REPEAT);
+	reiser4_check_immutable(child);
+
 	/* object being deleted should have stat data */
 	assert("vs-949", !reiser4_inode_get_flag(child, REISER4_NO_SD));
 
@@ -895,3 +879,14 @@ int reiser4_update_dir(struct inode *dir)
 	dir->i_ctime = dir->i_mtime = CURRENT_TIME;
 	return reiser4_update_sd(dir);
 }
+
+/*
+  Local variables:
+  c-indentation-style: "K&R"
+  mode-name: "LC"
+  c-basic-offset: 8
+  tab-width: 8
+  fill-column: 80
+  scroll-step: 1
+  End:
+*/

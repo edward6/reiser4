@@ -171,7 +171,7 @@ static int find_next_zero_bit_in_word(ulong_t word, int start_bit)
 	return i;
 }
 
-#include <asm/bitops.h>
+#include <linux/bitops.h>
 
 #if BITS_PER_LONG == 64
 
@@ -180,35 +180,35 @@ static int find_next_zero_bit_in_word(ulong_t word, int start_bit)
 
 static inline void reiser4_set_bit(int nr, void *addr)
 {
-	ext2_set_bit(nr + OFF(addr), BASE(addr));
+	__test_and_set_bit_le(nr + OFF(addr), BASE(addr));
 }
 
 static inline void reiser4_clear_bit(int nr, void *addr)
 {
-	ext2_clear_bit(nr + OFF(addr), BASE(addr));
+	__test_and_clear_bit_le(nr + OFF(addr), BASE(addr));
 }
 
 static inline int reiser4_test_bit(int nr, void *addr)
 {
-	return ext2_test_bit(nr + OFF(addr), BASE(addr));
+	return test_bit_le(nr + OFF(addr), BASE(addr));
 }
 static inline int reiser4_find_next_zero_bit(void *addr, int maxoffset,
 					     int offset)
 {
 	int off = OFF(addr);
 
-	return ext2_find_next_zero_bit(BASE(addr), maxoffset + off,
-				       offset + off) - off;
+	return find_next_zero_bit_le(BASE(addr), maxoffset + off,
+				     offset + off) - off;
 }
 
 #else
 
-#define reiser4_set_bit(nr, addr)    ext2_set_bit(nr, addr)
-#define reiser4_clear_bit(nr, addr)  ext2_clear_bit(nr, addr)
-#define reiser4_test_bit(nr, addr)  ext2_test_bit(nr, addr)
+#define reiser4_set_bit(nr, addr)    __test_and_set_bit_le(nr, addr)
+#define reiser4_clear_bit(nr, addr)  __test_and_clear_bit_le(nr, addr)
+#define reiser4_test_bit(nr, addr)  test_bit_le(nr, addr)
 
 #define reiser4_find_next_zero_bit(addr, maxoffset, offset) \
-ext2_find_next_zero_bit(addr, maxoffset, offset)
+find_next_zero_bit_le(addr, maxoffset, offset)
 #endif
 
 /* Search for a set bit in the bit array [@start_offset, @max_offset[, offsets
@@ -659,7 +659,7 @@ adjust_first_zero_bit(struct bitmap_node *bnode, bmap_off_t offset)
  * affected.  */
 
 #define REISER4_FIRST_BITMAP_BLOCK \
-	((REISER4_MASTER_OFFSET / PAGE_CACHE_SIZE) + 2)
+	((REISER4_MASTER_OFFSET / PAGE_SIZE) + 2)
 
 /* Audited by: green(2002.06.12) */
 static void
@@ -830,45 +830,43 @@ static int load_and_lock_bnode(struct bitmap_node *bnode)
 	}
 
 	ret = prepare_bnode(bnode, &cjnode, &wjnode);
-	if (ret == 0) {
-		mutex_lock(&bnode->mutex);
+	if (ret)
+		return ret;
 
-		if (!atomic_read(&bnode->loaded)) {
-			assert("nikita-2822", cjnode != NULL);
-			assert("nikita-2823", wjnode != NULL);
-			assert("nikita-2824", jnode_is_loaded(cjnode));
-			assert("nikita-2825", jnode_is_loaded(wjnode));
+	mutex_lock(&bnode->mutex);
 
-			bnode->wjnode = wjnode;
-			bnode->cjnode = cjnode;
+	if (!atomic_read(&bnode->loaded)) {
+		assert("nikita-2822", cjnode != NULL);
+		assert("nikita-2823", wjnode != NULL);
+		assert("nikita-2824", jnode_is_loaded(cjnode));
+		assert("nikita-2825", jnode_is_loaded(wjnode));
 
-			ret = check_struct_bnode(bnode, current_blocksize);
-			if (!ret) {
-				cjnode = wjnode = NULL;
-				atomic_set(&bnode->loaded, 1);
-				/* working bitmap is initialized by on-disk
-				 * commit bitmap. This should be performed
-				 * under mutex. */
-				memcpy(bnode_working_data(bnode),
-				       bnode_commit_data(bnode),
-				       bmap_size(current_blocksize));
-			} else
-				mutex_unlock(&bnode->mutex);
-		} else
-			/* race: someone already loaded bitmap while we were
-			 * busy initializing data. */
-			check_bnode_loaded(bnode);
-	}
+		bnode->wjnode = wjnode;
+		bnode->cjnode = cjnode;
 
-	if (wjnode != NULL) {
-		release(wjnode);
-		bnode->wjnode = NULL;
-	}
-	if (cjnode != NULL) {
-		release(cjnode);
-		bnode->cjnode = NULL;
-	}
+		ret = check_struct_bnode(bnode, current_blocksize);
+		if (unlikely(ret != 0))
+			goto error;
 
+		atomic_set(&bnode->loaded, 1);
+		/* working bitmap is initialized by on-disk
+		 * commit bitmap. This should be performed
+		 * under mutex. */
+		memcpy(bnode_working_data(bnode),
+		       bnode_commit_data(bnode),
+		       bmap_size(current_blocksize));
+	} else
+		/* race: someone already loaded bitmap
+		 * while we were busy initializing data. */
+		check_bnode_loaded(bnode);
+	return 0;
+
+ error:
+	release(wjnode);
+	release(cjnode);
+	bnode->wjnode = NULL;
+	bnode->cjnode = NULL;
+	mutex_unlock(&bnode->mutex);
 	return ret;
 }
 
@@ -1224,28 +1222,12 @@ void reiser4_dealloc_blocks_bitmap(reiser4_space_allocator * allocator,
 	release_and_unlock_bnode(bnode);
 }
 
-/* plugin->u.space_allocator.check_blocks(). */
-void reiser4_check_blocks_bitmap(const reiser4_block_nr * start,
-				 const reiser4_block_nr * len, int desired)
+static int check_blocks_one_bitmap(bmap_nr_t bmap, bmap_off_t start_offset,
+                                    bmap_off_t end_offset, int desired)
 {
-#if REISER4_DEBUG
 	struct super_block *super = reiser4_get_current_sb();
-
-	bmap_nr_t bmap;
-	bmap_off_t start_offset;
-	bmap_off_t end_offset;
-
-	struct bitmap_node *bnode;
+	struct bitmap_node *bnode = get_bnode(super, bmap);
 	int ret;
-
-	assert("zam-622", len != NULL);
-	check_block_range(start, len);
-	parse_blocknr(start, &bmap, &start_offset);
-
-	end_offset = start_offset + *len;
-	assert("nikita-2214", end_offset <= bmap_bit_count(super->s_blocksize));
-
-	bnode = get_bnode(super, bmap);
 
 	assert("nikita-2215", bnode != NULL);
 
@@ -1255,19 +1237,62 @@ void reiser4_check_blocks_bitmap(const reiser4_block_nr * start,
 	assert("nikita-2216", jnode_is_loaded(bnode->wjnode));
 
 	if (desired) {
-		assert("zam-623",
-		       reiser4_find_next_zero_bit(bnode_working_data(bnode),
+		ret = reiser4_find_next_zero_bit(bnode_working_data(bnode),
 						  end_offset, start_offset)
-		       >= end_offset);
+		      >= end_offset;
 	} else {
-		assert("zam-624",
-		       reiser4_find_next_set_bit(bnode_working_data(bnode),
+		ret = reiser4_find_next_set_bit(bnode_working_data(bnode),
 						 end_offset, start_offset)
-		       >= end_offset);
+		      >= end_offset;
 	}
 
 	release_and_unlock_bnode(bnode);
-#endif
+
+	return ret;
+}
+
+/* plugin->u.space_allocator.check_blocks(). */
+int reiser4_check_blocks_bitmap(const reiser4_block_nr * start,
+				 const reiser4_block_nr * len, int desired)
+{
+	struct super_block *super = reiser4_get_current_sb();
+
+	reiser4_block_nr end;
+	bmap_nr_t bmap, end_bmap;
+	bmap_off_t offset, end_offset;
+	const bmap_off_t max_offset = bmap_bit_count(super->s_blocksize);
+
+	assert("intelfx-9", start != NULL);
+	assert("intelfx-10", ergo(len != NULL, *len > 0));
+
+	if (len != NULL) {
+		check_block_range(start, len);
+		end = *start + *len - 1;
+	} else {
+		/* on next line, end is used as temporary len for check_block_range() */
+		end = 1; check_block_range(start, &end);
+		end = *start;
+	}
+
+	parse_blocknr(start, &bmap, &offset);
+
+	if (end == *start) {
+		end_bmap = bmap;
+		end_offset = offset;
+	} else {
+		parse_blocknr(&end, &end_bmap, &end_offset);
+	}
+	++end_offset;
+
+	assert("intelfx-4", end_bmap >= bmap);
+	assert("intelfx-5", ergo(end_bmap == bmap, end_offset >= offset));
+
+	for (; bmap < end_bmap; bmap++, offset = 0) {
+		if (!check_blocks_one_bitmap(bmap, offset, max_offset, desired)) {
+			return 0;
+		}
+	}
+	return check_blocks_one_bitmap(bmap, offset, end_offset, desired);
 }
 
 /* conditional insertion of @node into atom's overwrite set  if it was not there */
@@ -1433,8 +1458,7 @@ int reiser4_pre_commit_hook_bitmap(void)
 		}
 	}
 
-	blocknr_set_iterator(atom, &atom->delete_set, apply_dset_to_commit_bmap,
-			     &blocks_freed, 0);
+	atom_dset_deferred_apply(atom, apply_dset_to_commit_bmap, &blocks_freed, 0);
 
 	blocks_freed -= atom->nr_blocks_allocated;
 

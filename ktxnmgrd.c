@@ -35,6 +35,7 @@
 #include <linux/kernel.h>
 #include <linux/writeback.h>
 #include <linux/kthread.h>
+#include <linux/freezer.h>
 
 static int scan_mgr(struct super_block *);
 
@@ -43,9 +44,9 @@ static int scan_mgr(struct super_block *);
  * state. This serves no useful purpose whatsoever, but also costs nothing. May
  * be it will make lonely system administrator feeling less alone at 3 A.M.
  */
-#define set_comm( state ) 						\
-	snprintf( current -> comm, sizeof( current -> comm ),	\
-		  "%s:%s:%s", __FUNCTION__, (super)->s_id, ( state ) )
+#define set_comm(state) 						\
+	snprintf(current->comm, sizeof(current->comm),			\
+		  "%s:%s:%s", __FUNCTION__, (super)->s_id, (state))
 
 /**
  * ktxnmgrd - kernel txnmgr daemon
@@ -77,10 +78,11 @@ static int ktxnmgrd(void *arg)
 		{
 			DEFINE_WAIT(__wait);
 
-			prepare_to_wait(&ctx->wait, &__wait, TASK_INTERRUPTIBLE);
-			if (kthread_should_stop()) {
+			prepare_to_wait(&ctx->wait, &__wait,
+					TASK_INTERRUPTIBLE);
+			if (kthread_should_stop())
 				done = 1;
-			} else
+			else
 				schedule_timeout(ctx->timeout);
 			finish_wait(&ctx->wait, &__wait);
 		}
@@ -129,13 +131,12 @@ int reiser4_init_ktxnmgrd(struct super_block *super)
 
 	assert("zam-1014", mgr->daemon == NULL);
 
-	ctx = kmalloc(sizeof(ktxnmgrd_context), reiser4_ctx_gfp_mask_get());
-	if (ctx == NULL)
+	ctx = kzalloc(sizeof(ktxnmgrd_context), reiser4_ctx_gfp_mask_get());
+	if (!ctx)
 		return RETERR(-ENOMEM);
 
 	assert("nikita-2442", ctx != NULL);
 
-	memset(ctx, 0, sizeof *ctx);
 	init_waitqueue_head(&ctx->wait);
 
 	/*kcond_init(&ctx->startup);*/

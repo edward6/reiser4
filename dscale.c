@@ -49,7 +49,7 @@ static int gettag(const unsigned char *address)
 }
 
 /* clear tag from value. Clear tag embedded into @value. */
-static void cleartag(__u64 * value, int tag)
+static void cleartag(__u64 *value, int tag)
 {
 	/*
 	 * W-w-what ?!
@@ -94,7 +94,7 @@ static int dscale_range(__u64 value)
 
 /* restore value stored at @adderss by dscale_write() and return number of
  * bytes consumed */
-int dscale_read(unsigned char *address, __u64 * value)
+int dscale_read(unsigned char *address, __u64 *value)
 {
 	int tag;
 
@@ -126,6 +126,24 @@ int dscale_read(unsigned char *address, __u64 * value)
 	return 1 << tag;
 }
 
+/* number of bytes consumed */
+int dscale_bytes_to_read(unsigned char *address)
+{
+	int tag;
+
+	tag = gettag(address);
+	switch (tag) {
+	case 0:
+	case 1:
+	case 2:
+		return 1 << tag;
+	case 3:
+		return 9;
+	default:
+		return RETERR(-EIO);
+	}
+}
+
 /* store @value at @address and return number of bytes consumed */
 int dscale_write(unsigned char *address, __u64 value)
 {
@@ -144,7 +162,7 @@ int dscale_write(unsigned char *address, __u64 value)
 }
 
 /* number of bytes required to store @value */
-int dscale_bytes(__u64 value)
+int dscale_bytes_to_write(__u64 value)
 {
 	int bytes;
 

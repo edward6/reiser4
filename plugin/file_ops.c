@@ -11,14 +11,14 @@
 /* file operations */
 
 /* implementation of vfs's llseek method of struct file_operations for
-   typical directory can be found in readdir_common.c
+   typical directory can be found in file_ops_readdir.c
 */
 loff_t reiser4_llseek_dir_common(struct file *, loff_t, int origin);
 
-/* implementation of vfs's readdir method of struct file_operations for
-   typical directory can be found in readdir_common.c
+/* implementation of vfs's iterate method of struct file_operations for
+   typical directory can be found in file_ops_readdir.c
 */
-int reiser4_readdir_common(struct file *, void *dirent, filldir_t);
+int reiser4_iterate_common(struct file *, struct dir_context *);
 
 /**
  * reiser4_release_dir_common - release of struct file_operations
@@ -43,10 +43,12 @@ int reiser4_release_dir_common(struct inode *inode, struct file *file)
 /* this is common implementation of vfs's fsync method of struct
    file_operations
 */
-int reiser4_sync_common(struct file *file, struct dentry *dentry, int datasync)
+int reiser4_sync_common(struct file *file, loff_t start,
+			loff_t end, int datasync)
 {
 	reiser4_context *ctx;
 	int result;
+	struct dentry *dentry = file->f_path.dentry;
 
 	ctx = reiser4_init_context(dentry->d_inode->i_sb);
 	if (IS_ERR(ctx))
@@ -58,102 +60,51 @@ int reiser4_sync_common(struct file *file, struct dentry *dentry, int datasync)
 	return result;
 }
 
-/* this is common implementation of vfs's sendfile method of struct
-   file_operations
-
-   Reads @count bytes from @file and calls @actor for every page read. This is
-   needed for loop back devices support.
-*/
-#if 0
-ssize_t
-sendfile_common(struct file *file, loff_t *ppos, size_t count,
-		read_actor_t actor, void *target)
+/*
+ * common sync method for regular files.
+ *
+ * We are trying to be smart here. Instead of committing all atoms (original
+ * solution), we scan dirty pages of this file and commit all atoms they are
+ * part of.
+ *
+ * Situation is complicated by anonymous pages: i.e., extent-less pages
+ * dirtied through mmap. Fortunately sys_fsync() first calls
+ * filemap_fdatawrite() that will ultimately call reiser4_writepages_dispatch,
+ * insert all missing extents and capture anonymous pages.
+ */
+int reiser4_sync_file_common(struct file *file, loff_t start, loff_t end, int datasync)
 {
 	reiser4_context *ctx;
-	ssize_t result;
+	txn_atom *atom;
+	reiser4_block_nr reserve;
+	struct dentry *dentry = file->f_path.dentry;
+	struct inode *inode = file->f_mapping->host;
 
-	ctx = reiser4_init_context(file->f_dentry->d_inode->i_sb);
+	int err = filemap_write_and_wait_range(file->f_mapping->host->i_mapping, start, end);
+	if (err)
+		return err;
+
+	ctx = reiser4_init_context(dentry->d_inode->i_sb);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
-	result = generic_file_sendfile(file, ppos, count, actor, target);
-	reiser4_exit_context(ctx);
-	return result;
-}
-#endif  /*  0  */
 
-/* address space operations */
+	inode_lock(inode);
 
-/* this is common implementation of vfs's prepare_write method of struct
-   address_space_operations
-*/
-int
-prepare_write_common(struct file *file, struct page *page, unsigned from,
-		     unsigned to)
-{
-	reiser4_context *ctx;
-	int result;
-
-	ctx = reiser4_init_context(page->mapping->host->i_sb);
-	result = do_prepare_write(file, page, from, to);
-
-	/* don't commit transaction under inode semaphore */
-	context_set_commit_async(ctx);
-	reiser4_exit_context(ctx);
-
-	return result;
-}
-
-/* this is helper for prepare_write_common and prepare_write_unix_file
- */
-int
-do_prepare_write(struct file *file, struct page *page, unsigned from,
-		 unsigned to)
-{
-	int result;
-	file_plugin *fplug;
-	struct inode *inode;
-
-	assert("umka-3099", file != NULL);
-	assert("umka-3100", page != NULL);
-	assert("umka-3095", PageLocked(page));
-
-	if (to - from == PAGE_CACHE_SIZE || PageUptodate(page))
-		return 0;
-
-	inode = page->mapping->host;
-	fplug = inode_file_plugin(inode);
-
-	if (page->mapping->a_ops->readpage == NULL)
-		return RETERR(-EINVAL);
-
-	result = page->mapping->a_ops->readpage(file, page);
-	if (result != 0) {
-		SetPageError(page);
-		ClearPageUptodate(page);
-		/* All reiser4 readpage() implementations should return the
-		 * page locked in case of error. */
-		assert("nikita-3472", PageLocked(page));
-	} else {
-		/*
-		 * ->readpage() either:
-		 *
-		 *     1. starts IO against @page. @page is locked for IO in
-		 *     this case.
-		 *
-		 *     2. doesn't start IO. @page is unlocked.
-		 *
-		 * In either case, page should be locked.
-		 */
-		lock_page(page);
-		/*
-		 * IO (if any) is completed at this point. Check for IO
-		 * errors.
-		 */
-		if (!PageUptodate(page))
-			result = RETERR(-EIO);
+	reserve = estimate_update_common(dentry->d_inode);
+	if (reiser4_grab_space(reserve, BA_CAN_COMMIT)) {
+		reiser4_exit_context(ctx);
+		inode_unlock(inode);
+		return RETERR(-ENOSPC);
 	}
-	assert("umka-3098", PageLocked(page));
-	return result;
+	write_sd_by_inode_common(dentry->d_inode);
+
+	atom = get_current_atom_locked();
+	spin_lock_txnh(ctx->trans);
+	force_commit_atom(ctx->trans);
+	reiser4_exit_context(ctx);
+	inode_unlock(inode);
+
+	return 0;
 }
 
 /*

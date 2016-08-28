@@ -271,6 +271,8 @@ int item_is_tail(const coord_t * item)
 	return item_id_by_coord(item) == FORMATTING_ID;
 }
 
+#if REISER4_DEBUG
+
 int item_is_statdata(const coord_t * item)
 {
 	assert("vs-516", coord_is_existing_item(item));
@@ -282,6 +284,8 @@ int item_is_ctail(const coord_t * item)
 	assert("edward-xx", coord_is_existing_item(item));
 	return item_id_by_coord(item) == CTAIL_ID;
 }
+
+#endif  /*  REISER4_DEBUG  */
 
 static int change_item(struct inode *inode,
 		       reiser4_plugin * plugin,

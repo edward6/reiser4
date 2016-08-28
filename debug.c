@@ -40,11 +40,13 @@
 #include <linux/sysctl.h>
 #include <linux/hardirq.h>
 
+#if 0
 #if REISER4_DEBUG
 static void reiser4_report_err(void);
 #else
 #define reiser4_report_err() noop
 #endif
+#endif  /*  0  */
 
 /*
  * global buffer where message given to reiser4_panic is formatted.
@@ -58,7 +60,7 @@ static DEFINE_SPINLOCK(panic_guard);
 
 /* Your best friend. Call it on each occasion.  This is called by
     fs/reiser4/debug.h:reiser4_panic(). */
-void reiser4_do_panic(const char *format /* format string */ , ... /* rest */ )
+void reiser4_do_panic(const char *format/* format string */ , ... /* rest */)
 {
 	static int in_panic = 0;
 	va_list args;
@@ -95,6 +97,7 @@ void reiser4_do_panic(const char *format /* format string */ , ... /* rest */ )
 	panic("%s", panic_buf);
 }
 
+#if 0
 void
 reiser4_print_prefix(const char *level, int reperr, const char *mid,
 		     const char *function, const char *file, int lineno)
@@ -114,6 +117,7 @@ reiser4_print_prefix(const char *level, int reperr, const char *mid,
 	if (reperr)
 		reiser4_report_err();
 }
+#endif  /*  0  */
 
 /* Preemption point: this should be called periodically during long running
    operations (carry, allocate, and squeeze are best examples) */
@@ -130,7 +134,7 @@ int reiser4_preempt_point(void)
    constraints and various assertions.
 
 */
-reiser4_lock_counters_info *reiser4_lock_counters(void)
+reiser4_lock_cnt_info *reiser4_lock_counters(void)
 {
 	reiser4_context *ctx = get_current_context();
 	assert("jmacd-1123", ctx != NULL);
@@ -141,7 +145,7 @@ reiser4_lock_counters_info *reiser4_lock_counters(void)
  * print human readable information about locks held by the reiser4 context.
  */
 static void print_lock_counters(const char *prefix,
-				const reiser4_lock_counters_info * info)
+				const reiser4_lock_cnt_info * info)
 {
 	printk("%s: jnode: %i, tree: %i (r:%i,w:%i), dk: %i (r:%i,w:%i)\n"
 	       "jload: %i, "
@@ -191,7 +195,7 @@ int reiser4_schedulable(void)
  */
 int reiser4_no_counters_are_held(void)
 {
-	reiser4_lock_counters_info *counters;
+	reiser4_lock_cnt_info *counters;
 
 	counters = reiser4_lock_counters();
 	return
@@ -220,7 +224,7 @@ int reiser4_no_counters_are_held(void)
  */
 int reiser4_commit_check_locks(void)
 {
-	reiser4_lock_counters_info *counters;
+	reiser4_lock_cnt_info *counters;
 	int inode_sem_r;
 	int inode_sem_w;
 	int result;
@@ -258,6 +262,7 @@ void reiser4_return_err(int code, const char *file, int line)
 	}
 }
 
+#if 0
 /*
  * report error information recorder by reiser4_return_err().
  */
@@ -272,6 +277,7 @@ static void reiser4_report_err(void)
 		}
 	}
 }
+#endif  /*  0  */
 
 #endif				/* REISER4_DEBUG */
 
@@ -285,8 +291,8 @@ void reiser4_debugtrap(void)
 {
 	/* do nothing. Put break point here. */
 #if defined(CONFIG_KGDB) && !defined(CONFIG_REISER4_FS_MODULE)
-	extern void breakpoint(void);
-	breakpoint();
+	extern void kgdb_breakpoint(void);
+	kgdb_breakpoint();
 #endif
 }
 #endif

@@ -31,10 +31,17 @@
 #include <linux/stddef.h>
 
 /* slab for plugin sets */
-static kmem_cache_t *plugin_set_slab;
+static struct kmem_cache *plugin_set_slab;
 
 static spinlock_t plugin_set_lock[8] __cacheline_aligned_in_smp = {
-	[0 ... 7] = SPIN_LOCK_UNLOCKED
+	__SPIN_LOCK_UNLOCKED(plugin_set_lock[0]),
+	__SPIN_LOCK_UNLOCKED(plugin_set_lock[1]),
+	__SPIN_LOCK_UNLOCKED(plugin_set_lock[2]),
+	__SPIN_LOCK_UNLOCKED(plugin_set_lock[3]),
+	__SPIN_LOCK_UNLOCKED(plugin_set_lock[4]),
+	__SPIN_LOCK_UNLOCKED(plugin_set_lock[5]),
+	__SPIN_LOCK_UNLOCKED(plugin_set_lock[6]),
+	__SPIN_LOCK_UNLOCKED(plugin_set_lock[7])
 };
 
 /* hash table support */
@@ -92,7 +99,7 @@ static inline int pseq(const unsigned long *a1, const unsigned long *a2)
 
 #define HASH_FIELD(hash, set, field)		\
 ({						\
-        (hash) += (unsigned long)(set)->field >> 2;	\
+	(hash) += (unsigned long)(set)->field >> 2;	\
 })
 
 static inline unsigned long calculate_hash(const plugin_set * set)
@@ -324,7 +331,8 @@ reiser4_plugin *PREFIX##_get(plugin_set * set, pset_member memb)	       \
 
 DEFINE_PSET_OPS(aset);
 
-int set_plugin(plugin_set ** set, pset_member memb, reiser4_plugin * plugin) {
+int set_plugin(plugin_set ** set, pset_member memb, reiser4_plugin * plugin)
+{
 	return plugin_set_field(set,
 		(unsigned long)plugin, pset_descr[memb].offset);
 }
@@ -344,7 +352,7 @@ int init_plugin_set(void)
 		plugin_set_slab = kmem_cache_create("plugin_set",
 						    sizeof(plugin_set), 0,
 						    SLAB_HWCACHE_ALIGN,
-						    NULL, NULL);
+						    NULL);
 		if (plugin_set_slab == NULL)
 			result = RETERR(-ENOMEM);
 	}

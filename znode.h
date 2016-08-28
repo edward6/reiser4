@@ -20,7 +20,6 @@
 #include <linux/spinlock.h>
 #include <linux/pagemap.h>	/* for PAGE_CACHE_SIZE */
 #include <asm/atomic.h>
-#include <asm/semaphore.h>
 
 /* znode tracks its position within parent (internal item in a parent node,
  * that contains znode's block number). */
@@ -173,13 +172,14 @@ extern int zload_ra(znode * node, ra_info_t * info);
 extern int zinit_new(znode * node, gfp_t gfp_flags);
 extern void zrelse(znode * node);
 extern void znode_change_parent(znode * new_parent, reiser4_block_nr * block);
+extern void znode_update_csum(znode *node);
 
 /* size of data in znode */
 static inline unsigned
 znode_size(const znode * node UNUSED_ARG /* znode to query */ )
 {
 	assert("nikita-1416", node != NULL);
-	return PAGE_CACHE_SIZE;
+	return PAGE_SIZE;
 }
 
 extern void parent_coord_to_coord(const parent_coord_t * pcoord,
@@ -402,7 +402,7 @@ extern void copy_load_count(load_count * new, load_count * old);	/* Copy the con
 
 #if REISER4_DEBUG
 #define STORE_COUNTERS						\
-	reiser4_lock_counters_info __entry_counters =		\
+	reiser4_lock_cnt_info __entry_counters =		\
 		*reiser4_lock_counters()
 #define CHECK_COUNTERS						        \
 ON_DEBUG_CONTEXT(						        \

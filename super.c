@@ -22,13 +22,13 @@ static __u64 reserved_for_uid(const struct super_block *super, uid_t uid);
 static __u64 reserved_for_root(const struct super_block *super);
 
 /* Return reiser4-specific part of super block */
-reiser4_super_info_data *get_super_private_nocheck(const struct super_block *super	/* super block
-											 * queried */ )
+reiser4_super_info_data *get_super_private_nocheck(const struct super_block *super)
 {
 	return (reiser4_super_info_data *) super->s_fs_info;
 }
 
-/* Return reiser4 fstype: value that is returned in ->f_type field by statfs() */
+/* Return reiser4 fstype: value that is returned in ->f_type field by statfs()
+ */
 long reiser4_statfs_type(const struct super_block *super UNUSED_ARG)
 {
 	assert("nikita-448", super != NULL);
@@ -47,6 +47,7 @@ __u64 reiser4_block_count(const struct super_block *super	/* super block
 	return get_super_private(super)->block_count;
 }
 
+#if REISER4_DEBUG
 /*
  * number of blocks in the current file system
  */
@@ -54,6 +55,7 @@ __u64 reiser4_current_block_count(void)
 {
 	return get_current_super_private()->block_count;
 }
+#endif  /*  REISER4_DEBUG  */
 
 /* set number of block in filesystem */
 void reiser4_set_block_count(const struct super_block *super, __u64 nr)
@@ -130,7 +132,7 @@ __u64 reiser4_free_committed_blocks(const struct super_block *super)
 long reiser4_reserved_blocks(const struct super_block *super	/* super block
 								   queried */ ,
 			     uid_t uid /* user id */ ,
-			     gid_t gid /* group id */ )
+			     gid_t gid/* group id */)
 {
 	long reserved;
 
@@ -156,7 +158,7 @@ __u64 reiser4_grabbed_blocks(const struct super_block * super)
 	return get_super_private(super)->blocks_grabbed;
 }
 
-__u64 reiser4_flush_reserved(const struct super_block * super)
+__u64 reiser4_flush_reserved(const struct super_block *super)
 {
 	assert("vpf-285", super != NULL);
 	assert("vpf-286", is_reiser4_super(super));
@@ -165,7 +167,7 @@ __u64 reiser4_flush_reserved(const struct super_block * super)
 }
 
 /* get/set value of/to counter of fake allocated formatted blocks */
-__u64 reiser4_fake_allocated(const struct super_block * super)
+__u64 reiser4_fake_allocated(const struct super_block *super)
 {
 	assert("zam-516", super != NULL);
 	assert("zam-517", is_reiser4_super(super));
@@ -174,7 +176,7 @@ __u64 reiser4_fake_allocated(const struct super_block * super)
 }
 
 /* get/set value of/to counter of fake allocated unformatted blocks */
-__u64 reiser4_fake_allocated_unformatted(const struct super_block * super)
+__u64 reiser4_fake_allocated_unformatted(const struct super_block *super)
 {
 	assert("zam-516", super != NULL);
 	assert("zam-517", is_reiser4_super(super));
@@ -183,7 +185,7 @@ __u64 reiser4_fake_allocated_unformatted(const struct super_block * super)
 }
 
 /* get/set value of/to counter of clustered blocks */
-__u64 reiser4_clustered_blocks(const struct super_block * super)
+__u64 reiser4_clustered_blocks(const struct super_block *super)
 {
 	assert("edward-601", super != NULL);
 	assert("edward-602", is_reiser4_super(super));
@@ -201,16 +203,14 @@ reiser4_space_allocator * reiser4_get_space_allocator(const struct super_block
 }
 
 /* return fake inode used to bind formatted nodes in the page cache */
-struct inode *reiser4_get_super_fake(const struct super_block *super	/* super block
-								   queried */ )
+struct inode *reiser4_get_super_fake(const struct super_block *super)
 {
 	assert("nikita-1757", super != NULL);
 	return get_super_private(super)->fake;
 }
 
 /* return fake inode used to bind copied on capture nodes in the page cache */
-struct inode *reiser4_get_cc_fake(const struct super_block *super	/* super block
-								   queried */ )
+struct inode *reiser4_get_cc_fake(const struct super_block *super)
 {
 	assert("nikita-1757", super != NULL);
 	return get_super_private(super)->cc;
@@ -224,8 +224,7 @@ struct inode *reiser4_get_bitmap_fake(const struct super_block *super)
 }
 
 /* tree used by this file system */
-reiser4_tree *reiser4_get_tree(const struct super_block * super	/* super block
-							 * queried */ )
+reiser4_tree *reiser4_get_tree(const struct super_block *super)
 {
 	assert("nikita-460", super != NULL);
 	assert("nikita-461", is_reiser4_super(super));
@@ -234,8 +233,7 @@ reiser4_tree *reiser4_get_tree(const struct super_block * super	/* super block
 
 /* Check that @super is (looks like) reiser4 super block. This is mainly for
    use in assertions. */
-int is_reiser4_super(const struct super_block *super	/* super block
-							 * queried */ )
+int is_reiser4_super(const struct super_block *super)
 {
 	return
 	    super != NULL &&
@@ -249,27 +247,21 @@ int reiser4_is_set(const struct super_block *super, reiser4_fs_flag f)
 }
 
 /* amount of blocks reserved for given group in file system */
-static __u64 reserved_for_gid(const struct super_block *super UNUSED_ARG	/* super
-										 * block
-										 * queried */ ,
-			      gid_t gid UNUSED_ARG /* group id */ )
+static __u64 reserved_for_gid(const struct super_block *super UNUSED_ARG,
+			      gid_t gid UNUSED_ARG/* group id */)
 {
 	return 0;
 }
 
 /* amount of blocks reserved for given user in file system */
-static __u64 reserved_for_uid(const struct super_block *super UNUSED_ARG	/* super
-										   block
-										   queried */ ,
-			      uid_t uid UNUSED_ARG /* user id */ )
+static __u64 reserved_for_uid(const struct super_block *super UNUSED_ARG,
+			      uid_t uid UNUSED_ARG/* user id */)
 {
 	return 0;
 }
 
 /* amount of blocks reserved for super user in file system */
-static __u64 reserved_for_root(const struct super_block *super UNUSED_ARG	/* super
-										   block
-										   queried */ )
+static __u64 reserved_for_root(const struct super_block *super UNUSED_ARG)
 {
 	return 0;
 }
@@ -293,6 +285,7 @@ reiser4_blocknr_is_sane_for(const struct super_block *super,
 	return *blk < sbinfo->block_count;
 }
 
+#if REISER4_DEBUG
 /*
  * true, if block number @blk makes sense for the current file system
  */
@@ -300,6 +293,7 @@ int reiser4_blocknr_is_sane(const reiser4_block_nr * blk)
 {
 	return reiser4_blocknr_is_sane_for(reiser4_get_current_sb(), blk);
 }
+#endif  /*  REISER4_DEBUG  */
 
 /* Make Linus happy.
    Local variables:

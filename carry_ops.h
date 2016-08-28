@@ -1,8 +1,9 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+   reiser4/README */
 
 /* implementation of carry operations. See carry_ops.c for details. */
 
-#if !defined( __CARRY_OPS_H__ )
+#if !defined(__CARRY_OPS_H__)
 #define __CARRY_OPS_H__
 
 #include "forward.h"
@@ -22,7 +23,7 @@ typedef struct carry_op_handler {
    thing. */
 extern carry_op_handler op_dispatch_table[COP_LAST_OP];
 
-unsigned int space_needed(const znode * node, const coord_t * coord,
+unsigned int space_needed(const znode * node, const coord_t *coord,
 			  const reiser4_item_data * data, int inserting);
 extern carry_node *find_left_carry(carry_node * node, carry_level * level);
 extern carry_node *find_right_carry(carry_node * node, carry_level * level);

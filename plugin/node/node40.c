@@ -34,7 +34,7 @@
 */
 /* NIKITA-FIXME-HANS: I told you guys not less than 10 times to not call it r4fs.  Change to "ReIs". */
 /* magic number that is stored in ->magic field of node header */
-static const __u32 REISER4_NODE_MAGIC = 0x52344653;	/* (*(__u32 *)"R4FS"); */
+static const __u32 REISER4_NODE40_MAGIC = 0x52344653;	/* (*(__u32 *)"R4FS"); */
 
 static int prepare_for_update(znode * left, znode * right,
 			      carry_plugin_info * info);
@@ -656,9 +656,7 @@ int check_node40(const znode * node /* node to check */ ,
 	return 0;
 }
 
-/* plugin->u.node.parse
-   look for description of this method in plugin/node/node.h */
-int parse_node40(znode * node /* node to parse */ )
+int parse_node40_common(znode *node, const __u32 magic)
 {
 	node40_header *header;
 	int result;
@@ -670,10 +668,10 @@ int parse_node40(znode * node /* node to parse */ )
 	if (unlikely(((__u8) znode_get_level(node)) != level))
 		warning("nikita-494", "Wrong level found in node: %i != %i",
 			znode_get_level(node), level);
-	else if (unlikely(nh40_get_magic(header) != REISER4_NODE_MAGIC))
+	else if (unlikely(nh40_get_magic(header) != magic))
 		warning("nikita-495",
 			"Wrong magic in tree node: want %x, got %x",
-			REISER4_NODE_MAGIC, nh40_get_magic(header));
+			magic, nh40_get_magic(header));
 	else {
 		node->nr_items = node40_num_of_items_internal(node);
 		result = 0;
@@ -681,45 +679,74 @@ int parse_node40(znode * node /* node to parse */ )
 	return RETERR(result);
 }
 
-/* plugin->u.node.init
-   look for description of this method in plugin/node/node.h */
-int init_node40(znode * node /* node to initialise */ )
+/*
+ * plugin->u.node.parse
+ * look for description of this method in plugin/node/node.h
+ */
+int parse_node40(znode *node /* node to parse */)
 {
-	node40_header *header;
+	return parse_node40_common(node, REISER4_NODE40_MAGIC);
+}
+
+/*
+ * common part of ->init_node() for all nodes,
+ * which contain node40_header at the beginning
+ */
+int init_node40_common(znode *node, node_plugin *nplug,
+		       size_t node_header_size, const __u32 magic)
+{
+	node40_header *header40;
 
 	assert("nikita-570", node != NULL);
 	assert("nikita-572", zdata(node) != NULL);
 
-	header = node40_node_header(node);
-	memset(header, 0, sizeof(node40_header));
-	nh40_set_free_space(header, znode_size(node) - sizeof(node40_header));
-	nh40_set_free_space_start(header, sizeof(node40_header));
-	/* sane hypothesis: 0 in CPU format is 0 in disk format */
-	/* items: 0 */
-	save_plugin_id(node_plugin_to_plugin(node->nplug),
-		       &header->common_header.plugin_id);
-	nh40_set_level(header, znode_get_level(node));
-	nh40_set_magic(header, REISER4_NODE_MAGIC);
-	node->nr_items = 0;
-	nh40_set_mkfs_id(header, reiser4_mkfs_id(reiser4_get_current_sb()));
+	header40 = node40_node_header(node);
+	memset(header40, 0, sizeof(node40_header));
 
-	/* flags: 0 */
+	nh40_set_free_space(header40, znode_size(node) - node_header_size);
+	nh40_set_free_space_start(header40, node_header_size);
+	/*
+	 * sane hypothesis: 0 in CPU format is 0 in disk format
+	 */
+	save_plugin_id(node_plugin_to_plugin(nplug),
+		       &header40->common_header.plugin_id);
+	nh40_set_level(header40, znode_get_level(node));
+	nh40_set_magic(header40, magic);
+	nh40_set_mkfs_id(header40, reiser4_mkfs_id(reiser4_get_current_sb()));
+	/*
+	 * nr_items: 0
+	 * flags: 0
+	 */
 	return 0;
 }
 
-#ifdef GUESS_EXISTS
-int guess_node40(const znode * node /* node to guess plugin of */ )
+/*
+ * plugin->u.node.init
+ * look for description of this method in plugin/node/node.h
+ */
+int init_node40(znode *node /* node to initialise */)
 {
-	node40_header *nethack;
+	return init_node40_common(node, node_plugin_by_id(NODE40_ID),
+				  sizeof(node40_header), REISER4_NODE40_MAGIC);
+}
+
+#ifdef GUESS_EXISTS
+int guess_node40_common(const znode *node, reiser4_node_id id,
+			const __u32 magic)
+{
+	node40_header *header;
 
 	assert("nikita-1058", node != NULL);
-	nethack = node40_node_header(node);
-	return
-	    (nh40_get_magic(nethack) == REISER4_NODE_MAGIC) &&
-	    (plugin_by_disk_id(znode_get_tree(node),
-			       REISER4_NODE_PLUGIN_TYPE,
-			       &nethack->common_header.plugin_id)->h.id ==
-	     NODE40_ID);
+	header = node40_node_header(node);
+	return (nh40_get_magic(header) == magic) &&
+		(id == plugin_by_disk_id(znode_get_tree(node),
+				       REISER4_NODE_PLUGIN_TYPE,
+				       &header->common_header.plugin_id)->h.id);
+}
+
+int guess_node40(const znode *node /* node to guess plugin of */)
+{
+	return guess_node40_common(node, NODE40_ID, REISER4_NODE40_MAGIC);
 }
 #endif
 
@@ -849,9 +876,10 @@ create_item_node40(coord_t *target, const reiser4_key *key,
 			   without this check? */
 			assert("nikita-3038", reiser4_schedulable());
 			/* copy data from user space */
-			__copy_from_user(zdata(target->node) + offset,
-					 (const char __user *)data->data,
-					 (unsigned)data->length);
+			if (__copy_from_user(zdata(target->node) + offset,
+					     (const char __user *)data->data,
+					     (unsigned)data->length))
+				return RETERR(-EFAULT);
 		} else
 			/* copy from kernel space */
 			memcpy(zdata(target->node) + offset, data->data,
@@ -1017,35 +1045,31 @@ int shrink_item_node40(coord_t * coord, int delta)
 	return 0;
 }
 
-/* this is used by cut_node40 and kill_node40. It analyses input parameters and calculates cut mode. There are 2 types
-   of cut. First is when a unit is removed from the middle of an item.  In this case this function returns 1. All the
-   rest fits into second case: 0 or 1 of items getting tail cut, 0 or more items removed completely and 0 or 1 item
-   getting head cut. Function returns 0 in this case */
-static int
-parse_cut(struct cut40_info *cinfo, const struct cut_kill_params *params)
+/*
+ * Evaluate cut mode, if key range has been specified.
+ *
+ * This is for the case when units are not minimal objects
+ * addressed by keys.
+ *
+ * This doesn't work when range contains objects with
+ * non-unique keys (e.g. directory items).
+ */
+static int parse_cut_by_key_range(struct cut40_info *cinfo,
+				  const struct cut_kill_params *params)
 {
-	reiser4_key left_key, right_key;
 	reiser4_key min_from_key, max_to_key;
-	const reiser4_key *from_key, *to_key;
-
-	init_cinfo(cinfo);
-
-	/* calculate minimal key stored in first item of items to be cut (params->from) */
+	const reiser4_key *from_key = params->from_key;
+	const reiser4_key *to_key = params->to_key;
+	/*
+	 * calculate minimal key stored in first item
+	 * of items to be cut (params->from)
+	 */
 	item_key_by_coord(params->from, &min_from_key);
-	/* and max key stored in last item of items to be cut (params->to) */
+	/*
+	 * calculate maximal key stored in last item
+	 * of items to be cut (params->to)
+	 */
 	max_item_key_by_coord(params->to, &max_to_key);
-
-	/* if cut key range is not defined in input parameters - define it using cut coord range */
-	if (params->from_key == NULL) {
-		assert("vs-1513", params->to_key == NULL);
-		unit_key_by_coord(params->from, &left_key);
-		from_key = &left_key;
-		max_unit_key_by_coord(params->to, &right_key);
-		to_key = &right_key;
-	} else {
-		from_key = params->from_key;
-		to_key = params->to_key;
-	}
 
 	if (params->from->item_pos == params->to->item_pos) {
 		if (keylt(&min_from_key, from_key)
@@ -1069,7 +1093,7 @@ parse_cut(struct cut40_info *cinfo, const struct cut_kill_params *params)
 	} else {
 		cinfo->first_removed = params->from->item_pos + 1;
 		cinfo->removed_count =
-		    params->to->item_pos - params->from->item_pos - 1;
+			params->to->item_pos - params->from->item_pos - 1;
 
 		if (keygt(from_key, &min_from_key)) {
 			/* first item is not cut completely */
@@ -1089,8 +1113,108 @@ parse_cut(struct cut40_info *cinfo, const struct cut_kill_params *params)
 		if (cinfo->removed_count)
 			cinfo->mode |= CMODE_WHOLE;
 	}
-
 	return 0;
+}
+
+/*
+ * Evaluate cut mode, if the key range hasn't been specified.
+ * In this case the range can include objects with non-unique
+ * keys (e.g. directory entries).
+ *
+ * This doesn't work when units are not the minimal objects
+ * addressed by keys (e.g. bytes in file's body stored in
+ * unformatted nodes).
+ */
+static int parse_cut_by_coord_range(struct cut40_info *cinfo,
+				    const struct cut_kill_params *params)
+{
+	coord_t *from = params->from;
+	coord_t *to = params->to;
+
+	if (from->item_pos == to->item_pos) {
+		/*
+		 * cut is performed on only one item
+		 */
+		if (from->unit_pos > 0 &&
+		    to->unit_pos < coord_last_unit_pos(to))
+			/*
+			 * cut from the middle of item
+			 */
+			return 1;
+		if (from->unit_pos > 0) {
+			/*
+			 * tail of item is to be cut
+			 */
+			cinfo->tail_removed = params->from->item_pos;
+			cinfo->mode |= CMODE_TAIL;
+		} else if (to->unit_pos < coord_last_unit_pos(to)) {
+			/*
+			 * head of item is to be cut
+			 */
+			cinfo->head_removed = params->from->item_pos;
+			cinfo->mode |= CMODE_HEAD;
+		} else {
+			/*
+			 * item is removed completely
+			 */
+			assert("edward-1631",
+			       from->unit_pos == 0 &&
+			       to->unit_pos == coord_last_unit_pos(to));
+
+			cinfo->first_removed = params->from->item_pos;
+			cinfo->removed_count = 1;
+			cinfo->mode |= CMODE_WHOLE;
+		}
+	} else {
+		cinfo->first_removed = from->item_pos + 1;
+		cinfo->removed_count =
+			to->item_pos - from->item_pos - 1;
+
+		if (from->unit_pos > 0) {
+			/*
+			 * first item is not cut completely
+			 */
+			cinfo->tail_removed = from->item_pos;
+			cinfo->mode |= CMODE_TAIL;
+		} else {
+			cinfo->first_removed--;
+			cinfo->removed_count++;
+		}
+		if (to->unit_pos < coord_last_unit_pos(to)) {
+			/*
+			 * last item is not cut completely
+			 */
+			cinfo->head_removed = to->item_pos;
+			cinfo->mode |= CMODE_HEAD;
+		} else {
+			cinfo->removed_count++;
+		}
+		if (cinfo->removed_count)
+			cinfo->mode |= CMODE_WHOLE;
+	}
+	return 0;
+}
+
+/*
+ * this is used by cut_node40 and kill_node40. It analyses input parameters
+ * and calculates cut mode. There are 2 types of cut. First is when a unit is
+ * removed from the middle of an item.  In this case this function returns 1.
+ * All the rest fits into second case: 0 or 1 of items getting tail cut, 0 or
+ * more items removed completely and 0 or 1 item getting head cut. Function
+ * returns 0 in this case
+ */
+static int parse_cut(struct cut40_info *cinfo,
+		     const struct cut_kill_params *params)
+{
+	init_cinfo(cinfo);
+	if (params->from_key == NULL) {
+		/*
+		 * cut key range is not defined in input parameters
+		 */
+		assert("vs-1513", params->to_key == NULL);
+		return parse_cut_by_coord_range(cinfo, params);
+	} else
+		return parse_cut_by_key_range(cinfo, params);
 }
 
 static void
@@ -1771,7 +1895,7 @@ copy_units(coord_t * target, coord_t * source, unsigned from, unsigned count,
 /* copy part of @shift->real_stop.node starting either from its beginning or
    from its end and ending at @shift->real_stop to either the end or the
    beginning of @shift->target */
-static void copy(struct shift_params *shift)
+static void copy(struct shift_params *shift, size_t node_header_size)
 {
 	node40_header *nh;
 	coord_t from;
@@ -1898,10 +2022,10 @@ static void copy(struct shift_params *shift)
 		coord_set_item_pos(&to, 0);
 
 		/* prepare space for new items */
-		memmove(zdata(to.node) + sizeof(node40_header) +
+		memmove(zdata(to.node) + node_header_size +
 			shift->shift_bytes,
-			zdata(to.node) + sizeof(node40_header),
-			free_space_start - sizeof(node40_header));
+			zdata(to.node) + node_header_size,
+			free_space_start - node_header_size);
 		/* update item headers of moved items */
 		to_ih = node40_ih_at(to.node, 0);
 		/* first item gets @merging_bytes longer. free space appears
@@ -1965,11 +2089,11 @@ static void copy(struct shift_params *shift)
 				ih40_set_offset(to_ih,
 						ih40_get_offset(from_ih) -
 						old_offset +
-						sizeof(node40_header) +
+						node_header_size +
 						shift->part_bytes);
 			/* copy item bodies */
 			coord_add_item_pos(&from, -(int)(shift->entire - 1));
-			memcpy(zdata(to.node) + sizeof(node40_header) +
+			memcpy(zdata(to.node) + node_header_size +
 			       shift->part_bytes, item_by_coord_node40(&from),
 			       shift->entire_bytes);
 			coord_dec_item_pos(&from);
@@ -1984,7 +2108,7 @@ static void copy(struct shift_params *shift)
 
 			/* copy item header of partially copied item */
 			memcpy(to_ih, from_ih, sizeof(item_header40));
-			ih40_set_offset(to_ih, sizeof(node40_header));
+			ih40_set_offset(to_ih, node_header_size);
 			if (item_plugin_by_coord(&to)->b.init)
 				item_plugin_by_coord(&to)->b.init(&to, &from,
 								  NULL);
@@ -2750,11 +2874,19 @@ void shift_check(void *vp, const znode * left, const znode * right)
 
 #endif
 
-/* plugin->u.node.shift
-   look for description of this method in plugin/node/node.h */
-int shift_node40(coord_t * from, znode * to, shift_direction pend, int delete_child,	/* if @from->node becomes empty - it will be
-											   deleted from the tree if this is set to 1 */
-		 int including_stop_coord, carry_plugin_info * info)
+/*
+ * common part of ->shift() for all nodes,
+ * which contain node40_header at the beginning and
+ * the table of item headers at the end
+ */
+int shift_node40_common(coord_t *from, znode *to,
+			shift_direction pend,
+			int delete_child, /* if @from->node becomes empty,
+					   * it will be deleted from the
+					   * tree if this is set to 1 */
+			int including_stop_coord,
+			carry_plugin_info *info,
+			size_t node_header_size)
 {
 	struct shift_params shift;
 	int result;
@@ -2823,7 +2955,7 @@ int shift_node40(coord_t * from, znode * to, shift_direction pend, int delete_ch
 		return 0;
 	}
 
-	copy(&shift);
+	copy(&shift, node_header_size);
 
 	/* result value of this is important. It is used by adjust_coord below */
 	result = delete_copied(&shift);
@@ -2869,6 +3001,23 @@ int shift_node40(coord_t * from, znode * to, shift_direction pend, int delete_ch
 	}
 	assert("nikita-2080", coord_check(from));
 	return result ? result : (int)shift.shift_bytes;
+}
+
+/*
+ * plugin->u.node.shift
+ * look for description of this method in plugin/node/node.h
+ */
+int shift_node40(coord_t *from, znode *to,
+		 shift_direction pend,
+		 int delete_child, /* if @from->node becomes empty,
+				    * it will be deleted from the
+				    * tree if this is set to 1 */
+		 int including_stop_coord,
+		 carry_plugin_info *info)
+{
+	return shift_node40_common(from, to, pend, delete_child,
+				   including_stop_coord, info,
+				   sizeof(node40_header));
 }
 
 /* plugin->u.node.fast_insert()

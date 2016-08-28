@@ -116,6 +116,45 @@ node_plugin node_plugins[LAST_NODE_ID] = {
 		.max_item_size = max_item_size_node40,
 		.prepare_removal = prepare_removal_node40,
 		.set_item_plugin = set_item_plugin_node40
+	},
+	[NODE41_ID] = {
+		.h = {
+			.type_id = REISER4_NODE_PLUGIN_TYPE,
+			.id = NODE41_ID,
+			.pops = NULL,
+			.label = "node41",
+			.desc = "node41 layout",
+			.linkage = {NULL, NULL}
+		},
+		.item_overhead = item_overhead_node40,
+		.free_space = free_space_node40,
+		.lookup = lookup_node40,
+		.num_of_items = num_of_items_node40,
+		.item_by_coord = item_by_coord_node40,
+		.length_by_coord = length_by_coord_node40,
+		.plugin_by_coord = plugin_by_coord_node40,
+		.key_at = key_at_node40,
+		.estimate = estimate_node40,
+		.check = NULL,
+		.parse = parse_node41,
+		.init = init_node41,
+#ifdef GUESS_EXISTS
+		.guess = guess_node41,
+#endif
+		.change_item_size = change_item_size_node40,
+		.create_item = create_item_node40,
+		.update_item_key = update_item_key_node40,
+		.cut_and_kill = kill_node40,
+		.cut = cut_node40,
+		.shift = shift_node41,
+		.shrink_item = shrink_item_node40,
+		.fast_insert = fast_insert_node40,
+		.fast_paste = fast_paste_node40,
+		.fast_cut = fast_cut_node40,
+		.max_item_size = max_item_size_node41,
+		.prepare_removal = prepare_removal_node40,
+		.set_item_plugin = set_item_plugin_node40,
+		.csum = csum_node41
 	}
 };
 

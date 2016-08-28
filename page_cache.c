@@ -2,6 +2,26 @@
  * reiser4/README */
 
 /* Memory pressure hooks. Fake inodes handling. */
+
+/*   GLOSSARY
+
+   . Formatted and unformatted nodes.
+     Elements of reiser4 balanced tree to store data and metadata.
+     Unformatted nodes are pointed to by extent pointers. Such nodes
+     are used to store data of large objects. Unlike unformatted nodes,
+     formatted ones have associated format described by node4X plugin.
+
+   . Jnode (or journal node)
+     The in-memory header which is used to track formatted and unformatted
+     nodes, bitmap nodes, etc. In particular, jnodes are used to track
+     transactional information associated with each block(see reiser4/jnode.c
+     for details).
+
+   . Znode
+     The in-memory header which is used to track formatted nodes. Contains
+     embedded jnode (see reiser4/znode.c for details).
+*/
+
 /* We store all file system meta data (and data, of course) in the page cache.
 
    What does this mean? In stead of using bread/brelse we create special
@@ -32,8 +52,8 @@
    1. when jnode-to-page mapping is established (by jnode_attach_page()), page
    reference counter is increased.
 
-   2. when jnode-to-page mapping is destroyed (by jnode_detach_page() and
-   page_detach_jnode()), page reference counter is decreased.
+   2. when jnode-to-page mapping is destroyed (by page_clear_jnode(), page
+   reference counter is decreased.
 
    3. on jload() reference counter on jnode page is increased, page is
    kmapped and `referenced'.
@@ -120,11 +140,11 @@
       first time following happens (in call to ->read_node() or
       ->allocate_node()):
 
-        1. new page is added to the page cache.
+	1. new page is added to the page cache.
 
-        2. this page is attached to znode and its ->count is increased.
+	2. this page is attached to znode and its ->count is increased.
 
-        3. page is kmapped.
+	3. page is kmapped.
 
       3. if more calls to zload() follow (without corresponding zrelses), page
       counter is left intact and in its stead ->d_count is increased in znode.
@@ -138,14 +158,14 @@
       6. if node is removed from the tree (empty node with JNODE_HEARD_BANSHEE
       bit set) following will happen (also see comment at the top of znode.c):
 
-        1. when last lock is released, node will be uncaptured from
-        transaction. This released reference that transaction manager acquired
-        at the step 5.
+	1. when last lock is released, node will be uncaptured from
+	transaction. This released reference that transaction manager acquired
+	at the step 5.
 
-        2. when last reference is released, zput() detects that node is
-        actually deleted and calls ->delete_node()
-        operation. page_cache_delete_node() implementation detaches jnode from
-        page and releases page.
+	2. when last reference is released, zput() detects that node is
+	actually deleted and calls ->delete_node()
+	operation. page_cache_delete_node() implementation detaches jnode from
+	page and releases page.
 
       7. otherwise (node wasn't removed from the tree), last reference to
       znode will be released after transaction manager committed transaction
@@ -184,7 +204,7 @@
 #include <linux/writeback.h>
 #include <linux/blkdev.h>
 
-static struct bio *page_bio(struct page *, jnode *, int rw, gfp_t gfp);
+static struct bio *page_bio(struct page *, jnode * , int rw, gfp_t gfp);
 
 static struct address_space_operations formatted_fake_as_ops;
 
@@ -198,6 +218,7 @@ init_fake_inode(struct super_block *super, struct inode *fake,
 {
 	assert("nikita-2168", fake->i_state & I_NEW);
 	fake->i_mapping->a_ops = &formatted_fake_as_ops;
+	inode_attach_wb(fake, NULL);
 	*pfake = fake;
 	/* NOTE-NIKITA something else? */
 	unlock_new_inode(fake);
@@ -261,16 +282,19 @@ void reiser4_done_formatted_fake(struct super_block *super)
 	sinfo = get_super_private_nocheck(super);
 
 	if (sinfo->fake != NULL) {
+		inode_detach_wb(sinfo->fake);
 		iput(sinfo->fake);
 		sinfo->fake = NULL;
 	}
 
 	if (sinfo->bitmap != NULL) {
+		inode_detach_wb(sinfo->bitmap);
 		iput(sinfo->bitmap);
 		sinfo->bitmap = NULL;
 	}
 
 	if (sinfo->cc != NULL) {
+		inode_detach_wb(sinfo->cc);
 		iput(sinfo->cc);
 		sinfo->cc = NULL;
 	}
@@ -289,7 +313,7 @@ void reiser4_wait_page_writeback(struct page *page)
 }
 
 /* return tree @page is in */
-reiser4_tree *reiser4_tree_by_page(const struct page *page /* page to query */ )
+reiser4_tree *reiser4_tree_by_page(const struct page *page/* page to query */)
 {
 	assert("nikita-2461", page != NULL);
 	return &get_super_private(page->mapping->host->i_sb)->tree;
@@ -300,29 +324,20 @@ reiser4_tree *reiser4_tree_by_page(const struct page *page /* page to query */ )
    mpage_end_io_read() would also do. But it's static.
 
 */
-static int
-end_bio_single_page_read(struct bio *bio, unsigned int bytes_done UNUSED_ARG,
-			 int err UNUSED_ARG)
+static void end_bio_single_page_read(struct bio *bio)
 {
 	struct page *page;
 
-	if (bio->bi_size != 0) {
-		warning("nikita-3332", "Truncated single page read: %i",
-			bio->bi_size);
-		return 1;
-	}
-
 	page = bio->bi_io_vec[0].bv_page;
 
-	if (test_bit(BIO_UPTODATE, &bio->bi_flags)) {
+	if (!bio->bi_error)
 		SetPageUptodate(page);
-	} else {
+	else {
 		ClearPageUptodate(page);
 		SetPageError(page);
 	}
 	unlock_page(page);
 	bio_put(bio);
-	return 0;
 }
 
 /* completion handler for single page bio-based write.
@@ -330,30 +345,21 @@ end_bio_single_page_read(struct bio *bio, unsigned int bytes_done UNUSED_ARG,
    mpage_end_io_write() would also do. But it's static.
 
 */
-static int
-end_bio_single_page_write(struct bio *bio, unsigned int bytes_done UNUSED_ARG,
-			  int err UNUSED_ARG)
+static void end_bio_single_page_write(struct bio *bio)
 {
 	struct page *page;
 
-	if (bio->bi_size != 0) {
-		warning("nikita-3333", "Truncated single page write: %i",
-			bio->bi_size);
-		return 1;
-	}
-
 	page = bio->bi_io_vec[0].bv_page;
 
-	if (!test_bit(BIO_UPTODATE, &bio->bi_flags))
+	if (bio->bi_error)
 		SetPageError(page);
 	end_page_writeback(page);
 	bio_put(bio);
-	return 0;
 }
 
 /* ->readpage() method for formatted nodes */
 static int formatted_readpage(struct file *f UNUSED_ARG,
-			      struct page *page /* page to read */ )
+			      struct page *page/* page to read */)
 {
 	assert("nikita-2412", PagePrivate(page) && jprivate(page));
 	return reiser4_page_io(page, jprivate(page), READ,
@@ -389,7 +395,7 @@ int reiser4_page_io(struct page *page, jnode *node, int rw, gfp_t gfp)
 	bio = page_bio(page, node, rw, gfp);
 	if (!IS_ERR(bio)) {
 		if (rw == WRITE) {
-			SetPageWriteback(page);
+			set_page_writeback(page);
 			unlock_page(page);
 		}
 		reiser4_submit_bio(rw, bio);
@@ -424,7 +430,7 @@ static struct bio *page_bio(struct page *page, jnode * node, int rw, gfp_t gfp)
 		super = page->mapping->host->i_sb;
 		assert("nikita-2029", super != NULL);
 		blksz = super->s_blocksize;
-		assert("nikita-2028", blksz == (int)PAGE_CACHE_SIZE);
+		assert("nikita-2028", blksz == (int)PAGE_SIZE);
 
 		spin_lock_jnode(node);
 		blocknr = *jnode_get_io_block(node);
@@ -434,10 +440,10 @@ static struct bio *page_bio(struct page *page, jnode * node, int rw, gfp_t gfp)
 		assert("nikita-2276", !reiser4_blocknr_is_fake(&blocknr));
 
 		bio->bi_bdev = super->s_bdev;
-		/* fill bio->bi_sector before calling bio_add_page(), because
+		/* fill bio->bi_iter.bi_sector before calling bio_add_page(), because
 		 * q->merge_bvec_fn may want to inspect it (see
 		 * drivers/md/linear.c:linear_mergeable_bvec() for example. */
-		bio->bi_sector = blocknr * (blksz >> 9);
+		bio->bi_iter.bi_sector = blocknr * (blksz >> 9);
 
 		if (!bio_add_page(bio, page, blksz, 0)) {
 			warning("nikita-3452",
@@ -454,34 +460,7 @@ static struct bio *page_bio(struct page *page, jnode * node, int rw, gfp_t gfp)
 		return ERR_PTR(RETERR(-ENOMEM));
 }
 
-/* this function is internally called by jnode_make_dirty() */
-int reiser4_set_page_dirty_internal(struct page *page)
-{
-	struct address_space *mapping;
-
-	mapping = page->mapping;
-	BUG_ON(mapping == NULL);
-
-	if (!TestSetPageDirty(page)) {
-		if (mapping_cap_account_dirty(mapping))
-			inc_zone_page_state(page, NR_FILE_DIRTY);
-
-		__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
-	}
-
-	/* znode must be dirty ? */
-	if (mapping->host == reiser4_get_super_fake(mapping->host->i_sb))
-		assert("", JF_ISSET(jprivate(page), JNODE_DIRTY));
-	return 0;
-}
-
-#if REISER4_DEBUG
-
-/**
- * can_hit_entd
- *
- * This is used on
- */
+#if 0
 static int can_hit_entd(reiser4_context *ctx, struct super_block *s)
 {
 	if (ctx == NULL || ((unsigned long)ctx->magic) != context_magic)
@@ -496,7 +475,6 @@ static int can_hit_entd(reiser4_context *ctx, struct super_block *s)
 		return 0;
 	return 1;
 }
-
 #endif
 
 /**
@@ -510,15 +488,11 @@ static int can_hit_entd(reiser4_context *ctx, struct super_block *s)
 int reiser4_writepage(struct page *page,
 		      struct writeback_control *wbc)
 {
-	struct super_block *s;
-	reiser4_context *ctx;
-
+	/*
+	 * assert("edward-1562",
+	 * can_hit_entd(get_current_context_check(), sb));
+	 */
 	assert("vs-828", PageLocked(page));
-
-	s = page->mapping->host->i_sb;
-	ctx = get_current_context_check();
-
-	assert("", can_hit_entd(ctx, s));
 
 	return write_page_by_ent(page, wbc);
 }
@@ -555,8 +529,8 @@ static struct address_space_operations formatted_fake_as_ops = {
 	   This is most annoyingly misnomered method. Actually it is called
 	   from wait_on_page_bit() and lock_page() and its purpose is to
 	   actually start io by jabbing device drivers.
-	 */
-	.sync_page = block_sync_page,
+	   .sync_page = block_sync_page,
+	*/
 	/* Write back some dirty pages from this mapping. Called from sync.
 	   called during sync (pdflush) */
 	.writepages = writepages_fake,
@@ -564,8 +538,8 @@ static struct address_space_operations formatted_fake_as_ops = {
 	.set_page_dirty = formatted_set_page_dirty,
 	/* used for read-ahead. Not applicable */
 	.readpages = NULL,
-	.prepare_write = NULL,
-	.commit_write = NULL,
+	.write_begin = NULL,
+	.write_end = NULL,
 	.bmap = NULL,
 	/* called just before page is being detached from inode mapping and
 	   removed from memory. Called on truncate, cut/squeeze, and
@@ -576,7 +550,8 @@ static struct address_space_operations formatted_fake_as_ops = {
 	   and, may be made page itself free-able.
 	 */
 	.releasepage = reiser4_releasepage,
-	.direct_IO = NULL
+	.direct_IO = NULL,
+	.migratepage = reiser4_migratepage
 };
 
 /* called just before page is released (no longer used by reiser4). Callers:
@@ -592,37 +567,9 @@ void reiser4_drop_page(struct page *page)
 	unlock_page(page);
 }
 
-/* this is called by truncate_jnodes_range which in its turn is always called
-   after truncate_mapping_pages_range. Therefore, here jnode can not have
-   page. New pages can not be created because truncate_jnodes_range goes under
-   exclusive access on file obtained, where as new page creation requires
-   non-exclusive access obtained */
-static void invalidate_unformatted(jnode * node)
-{
-	struct page *page;
-
-	spin_lock_jnode(node);
-	page = node->pg;
-	if (page) {
-		loff_t from, to;
-
-		page_cache_get(page);
-		spin_unlock_jnode(node);
-		/* FIXME: use truncate_complete_page instead */
-		from = page_offset(page);
-		to = from + PAGE_CACHE_SIZE - 1;
-		truncate_inode_pages_range(page->mapping, from, to);
-		page_cache_release(page);
-	} else {
-		JF_SET(node, JNODE_HEARD_BANSHEE);
-		reiser4_uncapture_jnode(node);
-		unhash_unformatted_jnode(node);
-	}
-}
-
 #define JNODE_GANG_SIZE (16)
 
-/* find all eflushed jnodes from range specified and invalidate them */
+/* find all jnodes from range specified and invalidate them */
 static int
 truncate_jnodes_range(struct inode *inode, pgoff_t from, pgoff_t count)
 {
@@ -632,6 +579,16 @@ truncate_jnodes_range(struct inode *inode, pgoff_t from, pgoff_t count)
 	unsigned long index;
 	unsigned long end;
 
+	if (inode_file_plugin(inode) ==
+	    file_plugin_by_id(CRYPTCOMPRESS_FILE_PLUGIN_ID))
+		/*
+		 * No need to get rid of jnodes here: if the single jnode of
+		 * page cluster did not have page, then it was found and killed
+		 * before in
+		 * truncate_complete_page_cluster()->jput()->jput_final(),
+		 * otherwise it will be dropped by reiser4_invalidatepage()
+		 */
+		return 0;
 	truncated_jnodes = 0;
 
 	info = reiser4_inode_data(inode);
@@ -666,7 +623,18 @@ truncate_jnodes_range(struct inode *inode, pgoff_t from, pgoff_t count)
 			node = gang[i];
 			if (node != NULL) {
 				index = max(index, index_jnode(node));
-				invalidate_unformatted(node);
+				spin_lock_jnode(node);
+				assert("edward-1457", node->pg == NULL);
+				/* this is always called after
+				   truncate_inode_pages_range(). Therefore, here
+				   jnode can not have page. New pages can not be
+				   created because truncate_jnodes_range goes
+				   under exclusive access on file obtained,
+				   where as new page creation requires
+				   non-exclusive access obtained */
+				JF_SET(node, JNODE_HEARD_BANSHEE);
+				reiser4_uncapture_jnode(node);
+				unhash_unformatted_jnode(node);
 				truncated_jnodes++;
 				jput(node);
 			} else
@@ -678,16 +646,34 @@ truncate_jnodes_range(struct inode *inode, pgoff_t from, pgoff_t count)
 	return truncated_jnodes;
 }
 
-void
-reiser4_invalidate_pages(struct address_space *mapping, pgoff_t from,
-			 unsigned long count, int even_cows)
+/* Truncating files in reiser4: problems and solutions.
+
+   VFS calls fs's truncate after it has called truncate_inode_pages()
+   to get rid of pages corresponding to part of file being truncated.
+   In reiser4 it may cause existence of unallocated extents which do
+   not have jnodes. Flush code does not expect that. Solution of this
+   problem is straightforward. As vfs's truncate is implemented using
+   setattr operation, it seems reasonable to have ->setattr() that
+   will cut file body. However, flush code also does not expect dirty
+   pages without parent items, so it is impossible to cut all items,
+   then truncate all pages in two steps. We resolve this problem by
+   cutting items one-by-one. Each such fine-grained step performed
+   under longterm znode lock calls at the end ->kill_hook() method of
+   a killed item to remove its binded pages and jnodes.
+
+   The following function is a common part of mentioned kill hooks.
+   Also, this is called before tail-to-extent conversion (to not manage
+   few copies of the data).
+*/
+void reiser4_invalidate_pages(struct address_space *mapping, pgoff_t from,
+			      unsigned long count, int even_cows)
 {
 	loff_t from_bytes, count_bytes;
 
 	if (count == 0)
 		return;
-	from_bytes = ((loff_t) from) << PAGE_CACHE_SHIFT;
-	count_bytes = ((loff_t) count) << PAGE_CACHE_SHIFT;
+	from_bytes = ((loff_t) from) << PAGE_SHIFT;
+	count_bytes = ((loff_t) count) << PAGE_SHIFT;
 
 	unmap_mapping_range(mapping, from_bytes, count_bytes, even_cows);
 	truncate_inode_pages_range(mapping, from_bytes,

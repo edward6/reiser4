@@ -194,19 +194,20 @@ int safe_link_del(reiser4_tree * tree, oid_t oid, reiser4_safe_link_t link)
  * in-memory structure to keep information extracted from safe-link. This is
  * used to iterate over all safe-links.
  */
-typedef struct {
+struct safe_link_context {
 	reiser4_tree *tree;	/* internal tree */
 	reiser4_key key;	/* safe-link key */
 	reiser4_key sdkey;	/* key of object stat-data */
 	reiser4_safe_link_t link;	/* safe-link type */
 	oid_t oid;		/* object oid */
 	__u64 size;		/* final size for truncate */
-} safe_link_context;
+};
 
 /*
  * start iterating over all safe-links.
  */
-static void safe_link_iter_begin(reiser4_tree * tree, safe_link_context * ctx)
+static void safe_link_iter_begin(reiser4_tree * tree,
+				 struct safe_link_context *ctx)
 {
 	ctx->tree = tree;
 	reiser4_key_init(&ctx->key);
@@ -218,7 +219,7 @@ static void safe_link_iter_begin(reiser4_tree * tree, safe_link_context * ctx)
 /*
  * return next safe-link.
  */
-static int safe_link_iter_next(safe_link_context * ctx)
+static int safe_link_iter_next(struct safe_link_context *ctx)
 {
 	int result;
 	safelink_t sl;
@@ -237,7 +238,7 @@ static int safe_link_iter_next(safe_link_context * ctx)
 /*
  * check are there any more safe-links left in the tree.
  */
-static int safe_link_iter_finished(safe_link_context * ctx)
+static int safe_link_iter_finished(struct safe_link_context *ctx)
 {
 	return get_key_locality(&ctx->key) != safe_link_locality(ctx->tree);
 }
@@ -245,7 +246,7 @@ static int safe_link_iter_finished(safe_link_context * ctx)
 /*
  * finish safe-link iteration.
  */
-static void safe_link_iter_end(safe_link_context * ctx)
+static void safe_link_iter_end(struct safe_link_context *ctx)
 {
 	/* nothing special */
 }
@@ -293,10 +294,12 @@ static int process_safelink(struct super_block *super, reiser4_safe_link_t link,
 		reiser4_iget_complete(inode);
 		iput(inode);
 		if (result == 0) {
-			result = safe_link_grab(reiser4_get_tree(super), BA_CAN_COMMIT);
+			result = safe_link_grab(reiser4_get_tree(super),
+						BA_CAN_COMMIT);
 			if (result == 0)
 				result =
-				    safe_link_del(reiser4_get_tree(super), oid, link);
+				    safe_link_del(reiser4_get_tree(super), oid,
+						  link);
 			safe_link_release(reiser4_get_tree(super));
 			/*
 			 * restart transaction: if there was large number of
@@ -316,7 +319,7 @@ static int process_safelink(struct super_block *super, reiser4_safe_link_t link,
  */
 int process_safelinks(struct super_block *super)
 {
-	safe_link_context ctx;
+	struct safe_link_context ctx;
 	int result;
 
 	if (rofs_super(super))

@@ -78,11 +78,18 @@ item_plugin *plugin_by_coord_node40(const coord_t * coord);
 reiser4_key *key_at_node40(const coord_t * coord, reiser4_key * key);
 size_t estimate_node40(znode * node);
 int check_node40(const znode * node, __u32 flags, const char **error);
+int parse_node40_common(znode *node, const __u32 magic);
 int parse_node40(znode * node);
-int init_node40(znode * node);
+int init_node40_common(znode *node, node_plugin *nplug,
+		       size_t node_header_size, const __u32 magic);
+int init_node40(znode *node);
+
 #ifdef GUESS_EXISTS
-int guess_node40(const znode * node);
+int guess_node40_common(const znode *node, reiser4_node_id id,
+			const __u32 magic);
+int guess_node40(const znode *node);
 #endif
+
 void change_item_size_node40(coord_t * coord, int by);
 int create_item_node40(coord_t * target, const reiser4_key * key,
 		       reiser4_item_data * data, carry_plugin_info * info);
@@ -90,14 +97,12 @@ void update_item_key_node40(coord_t * target, const reiser4_key * key,
 			    carry_plugin_info * info);
 int kill_node40(struct carry_kill_data *, carry_plugin_info *);
 int cut_node40(struct carry_cut_data *, carry_plugin_info *);
-int shift_node40(coord_t * from, znode * to, shift_direction pend,
-		 /* if @from->node becomes
-		    empty - it will be deleted from
-		    the tree if this is set to 1
-		  */
+int shift_node40_common(coord_t *from, znode *to, shift_direction pend,
+			int delete_child, int including_stop_coord,
+			carry_plugin_info *info, size_t nh_size);
+int shift_node40(coord_t *from, znode *to, shift_direction pend,
 		 int delete_child, int including_stop_coord,
-		 carry_plugin_info * info);
-
+		 carry_plugin_info *info);
 int fast_insert_node40(const coord_t * coord);
 int fast_paste_node40(const coord_t * coord);
 int fast_cut_node40(const coord_t * coord);

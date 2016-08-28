@@ -144,6 +144,8 @@ utmost_child_internal(const coord_t * coord, sideof side UNUSED_ARG,
 	return 0;
 }
 
+#if REISER4_DEBUG
+
 static void check_link(znode * left, znode * right)
 {
 	znode *scan;
@@ -208,6 +210,8 @@ int check__internal(const coord_t * coord, const char **error)
 	}
 	return 0;
 }
+
+#endif  /*  REISER4_DEBUG  */
 
 /* return true only if this item really points to "block" */
 /* Audited by: green(2002.06.14) */
@@ -304,15 +308,23 @@ int kill_hook_internal(const coord_t * item /* coord of item */ ,
 		       struct carry_kill_data *p UNUSED_ARG)
 {
 	znode *child;
+	int result = 0;
 
 	assert("nikita-1222", item != NULL);
 	assert("nikita-1224", from == 0);
 	assert("nikita-1225", count == 1);
 
 	child = znode_at(item, item->node);
+	if (child == NULL)
+		return 0;
 	if (IS_ERR(child))
 		return PTR_ERR(child);
-	else if (node_is_empty(child)) {
+	result = zload(child);
+	if (result) {
+		zput(child);
+		return result;
+	}
+	if (node_is_empty(child)) {
 		reiser4_tree *tree;
 
 		assert("nikita-1397", znode_is_write_locked(child));
@@ -324,14 +336,14 @@ int kill_hook_internal(const coord_t * item /* coord of item */ ,
 		init_parent_coord(&child->in_parent, NULL);
 		--item->node->c_count;
 		write_unlock_tree(tree);
-		zput(child);
-		return 0;
 	} else {
 		warning("nikita-1223",
 			"Cowardly refuse to remove link to non-empty node");
-		zput(child);
-		return RETERR(-EIO);
+		result = RETERR(-EIO);
 	}
+	zrelse(child);
+	zput(child);
+	return result;
 }
 
 /* hook called by ->shift() node plugin method when iternal item was just

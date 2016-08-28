@@ -1,7 +1,7 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
  * reiser4/README */
 
-#if !defined( __REISER4_IOCTL_H__ )
+#if !defined(__REISER4_IOCTL_H__)
 #define __REISER4_IOCTL_H__
 
 #include <linux/fs.h>
@@ -24,7 +24,7 @@
  * and its stat-data will be updated so that it will never be converted back
  * into tails again.
  */
-#define REISER4_IOC_UNPACK _IOW(0xCD,1,long)
+#define REISER4_IOC_UNPACK _IOW(0xCD, 1, long)
 
 /* __REISER4_IOCTL_H__ */
 #endif

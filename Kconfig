@@ -1,9 +1,11 @@
 config REISER4_FS
 	tristate "Reiser4 (EXPERIMENTAL)"
-	depends on EXPERIMENTAL
 	select ZLIB_INFLATE
 	select ZLIB_DEFLATE
+	select LZO_COMPRESS
+	select LZO_DECOMPRESS
 	select CRYPTO
+	select CRYPTO_CRC32C
 	help
 	  Reiser4 is a filesystem that performs all filesystem operations
 	  as atomic transactions, which means that it either performs a

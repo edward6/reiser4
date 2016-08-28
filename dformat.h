@@ -1,4 +1,5 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+   reiser4/README */
 
 /* Formats of on-disk data and conversion functions. */
 
@@ -10,8 +11,10 @@
    To declare fields of on-disk structures, use d8, d16, d32 and d64.
    d??tocpu() and cputod??() to convert. */
 
-#if !defined( __FS_REISER4_DFORMAT_H__ )
+#if !defined(__FS_REISER4_DFORMAT_H__)
 #define __FS_REISER4_DFORMAT_H__
+
+#include "debug.h"
 
 #include <asm/byteorder.h>
 #include <asm/unaligned.h>
@@ -37,7 +40,7 @@ typedef __le64 reiser4_dblock_nr;
  *
  * Returns true if if disk addresses are the same
  */
-static inline int disk_addr_eq(const reiser4_block_nr *b1,
+static inline int disk_addr_eq(const reiser4_block_nr * b1,
 			       const reiser4_block_nr * b2)
 {
 	assert("nikita-1033", b1 != NULL);

@@ -199,9 +199,12 @@ int save_len_static_sd(struct inode *inode /* object being processed */ )
 
 			sdplug = sd_ext_plugin_by_id(bit);
 			assert("nikita-633", sdplug != NULL);
-			/* no aligment support
-			   result +=
-			   round_up( result, sdplug -> alignment ) - result; */
+			/*
+			  no aligment support
+			  result +=
+			  reiser4_round_up(result, sdplug -> alignment) -
+			  result;
+			*/
 			result += sdplug->save_len(inode);
 		}
 	}
@@ -269,7 +272,7 @@ static int present_lw_sd(struct inode *inode /* object being processed */ ,
 		sd_lw = (reiser4_light_weight_stat *) * area;
 
 		inode->i_mode = le16_to_cpu(get_unaligned(&sd_lw->mode));
-		inode->i_nlink = le32_to_cpu(get_unaligned(&sd_lw->nlink));
+		set_nlink(inode, le32_to_cpu(get_unaligned(&sd_lw->nlink)));
 		inode->i_size = le64_to_cpu(get_unaligned(&sd_lw->size));
 		if ((inode->i_mode & S_IFMT) == (S_IFREG | S_IFIFO)) {
 			inode->i_mode &= ~S_IFIFO;
@@ -324,8 +327,8 @@ static int present_unix_sd(struct inode *inode /* object being processed */ ,
 
 		sd = (reiser4_unix_stat *) * area;
 
-		inode->i_uid = le32_to_cpu(get_unaligned(&sd->uid));
-		inode->i_gid = le32_to_cpu(get_unaligned(&sd->gid));
+		i_uid_write(inode, le32_to_cpu(get_unaligned(&sd->uid)));
+		i_gid_write(inode, le32_to_cpu(get_unaligned(&sd->gid)));
 		inode->i_atime.tv_sec = le32_to_cpu(get_unaligned(&sd->atime));
 		inode->i_mtime.tv_sec = le32_to_cpu(get_unaligned(&sd->mtime));
 		inode->i_ctime.tv_sec = le32_to_cpu(get_unaligned(&sd->ctime));
@@ -341,8 +344,8 @@ static int present_unix_sd(struct inode *inode /* object being processed */ ,
 
 static int absent_unix_sd(struct inode *inode /* object being processed */ )
 {
-	inode->i_uid = get_super_private(inode->i_sb)->default_uid;
-	inode->i_gid = get_super_private(inode->i_sb)->default_gid;
+	i_uid_write(inode, get_super_private(inode->i_sb)->default_uid);
+	i_gid_write(inode, get_super_private(inode->i_sb)->default_gid);
 	inode->i_atime = inode->i_mtime = inode->i_ctime = CURRENT_TIME;
 	inode_set_bytes(inode, inode->i_size);
 	/* mark inode as lightweight, so that caller (lookup_common) will
@@ -368,8 +371,8 @@ static int save_unix_sd(struct inode *inode /* object being processed */ ,
 	assert("nikita-644", *area != NULL);
 
 	sd = (reiser4_unix_stat *) * area;
-	put_unaligned(cpu_to_le32(inode->i_uid), &sd->uid);
-	put_unaligned(cpu_to_le32(inode->i_gid), &sd->gid);
+	put_unaligned(cpu_to_le32(i_uid_read(inode)), &sd->uid);
+	put_unaligned(cpu_to_le32(i_gid_read(inode)), &sd->gid);
 	put_unaligned(cpu_to_le32((__u32) inode->i_atime.tv_sec), &sd->atime);
 	put_unaligned(cpu_to_le32((__u32) inode->i_ctime.tv_sec), &sd->ctime);
 	put_unaligned(cpu_to_le32((__u32) inode->i_mtime.tv_sec), &sd->mtime);
@@ -737,10 +740,14 @@ static int len_for(reiser4_plugin * plugin /* plugin to save */ ,
 	    info->heir_mask & (1 << memb)) {
 		len += sizeof(reiser4_plugin_slot);
 		if (plugin->h.pops && plugin->h.pops->save_len != NULL) {
-			/* non-standard plugin, call method */
-			/* commented as it is incompatible with alignment
-			 * policy in save_plug() -edward */
-			/* len = round_up(len, plugin->h.pops->alignment); */
+			/*
+			 * non-standard plugin, call method
+			 * commented as it is incompatible with alignment
+			 * policy in save_plug() -edward
+			 *
+			 * len = reiser4_round_up(len,
+			 * plugin->h.pops->alignment);
+			 */
 			len += plugin->h.pops->save_len(inode, plugin);
 		}
 	}
@@ -870,21 +877,21 @@ static int save_hset_sd(struct inode *inode, char **area) {
 }
 
 /* helper function for crypto_sd_present(), crypto_sd_save.
-   Allocates memory for crypto stat, keyid and attaches it to the inode */
-static int extract_crypto_stat (struct inode * inode,
+   Extract crypto info from stat-data and attach it to inode */
+static int extract_crypto_info (struct inode * inode,
 				reiser4_crypto_stat * sd)
 {
-	crypto_stat_t * info;
-	assert("edward-11", !inode_crypto_stat(inode));
+	struct reiser4_crypto_info * info;
+	assert("edward-11", !inode_crypto_info(inode));
 	assert("edward-1413",
 	       !reiser4_inode_get_flag(inode, REISER4_CRYPTO_STAT_LOADED));
 	/* create and attach a crypto-stat without secret key loaded */
-	info = reiser4_alloc_crypto_stat(inode);
+	info = reiser4_alloc_crypto_info(inode);
 	if (IS_ERR(info))
 		return PTR_ERR(info);
 	info->keysize = le16_to_cpu(get_unaligned(&sd->keysize));
 	memcpy(info->keyid, sd->keyid, inode_digest_plugin(inode)->fipsize);
-	reiser4_attach_crypto_stat(inode, info);
+	reiser4_attach_crypto_info(inode, info);
 	reiser4_inode_set_flag(inode, REISER4_CRYPTO_STAT_LOADED);
 	return 0;
 }
@@ -912,7 +919,7 @@ static int present_crypto_sd(struct inode *inode, char **area, int *len)
 	assert("edward-75", sizeof(*sd) + dplug->fipsize <= *len);
 
 	sd = (reiser4_crypto_stat *) * area;
-	result = extract_crypto_stat(inode, sd);
+	result = extract_crypto_info(inode, sd);
 	move_on(len, area, sizeof(*sd) + dplug->fipsize);
 
 	return result;
@@ -928,7 +935,7 @@ static int save_crypto_sd(struct inode *inode, char **area)
 {
 	int result = 0;
 	reiser4_crypto_stat *sd;
-	crypto_stat_t * info = inode_crypto_stat(inode);
+	struct reiser4_crypto_info * info = inode_crypto_info(inode);
 	digest_plugin *dplug = inode_digest_plugin(inode);
 
 	assert("edward-12", dplug != NULL);

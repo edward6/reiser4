@@ -4,7 +4,7 @@
 
 #define WRITEOUT_SINGLE_STREAM (0x1)
 #define WRITEOUT_FOR_PAGE_RECLAIM  (0x2)
-#define WRITEOUT_BARRIER (0x4)
+#define WRITEOUT_FLUSH_FUA (0x4)
 
 extern int reiser4_get_writeout_flags(void);
 

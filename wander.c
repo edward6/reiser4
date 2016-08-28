@@ -16,10 +16,11 @@
    This code guarantees that those blocks that are defined to be part of an
    atom either all take effect or none of them take effect.
 
-   Relocate set nodes are submitted to write by the jnode_flush() routine, and
-   the overwrite set is submitted by reiser4_write_log().  This is because with
-   the overwrite set we seek to optimize writes, and with the relocate set we
-   seek to cause disk order to correlate with the parent first pre-order.
+   The "relocate set" of nodes are submitted to write by the jnode_flush()
+   routine, and the "overwrite set" is submitted by reiser4_write_log().
+   This is because with the overwrite set we seek to optimize writes, and
+   with the relocate set we seek to cause disk order to correlate with the
+   "parent first order" (preorder).
 
    reiser4_write_log() allocates and writes wandered blocks and maintains
    additional on-disk structures of the atom as wander records (each wander
@@ -223,18 +224,6 @@ static void done_commit_handle(struct commit_handle *ch)
 	assert("zam-690", list_empty(&ch->tx_list));
 }
 
-static inline int reiser4_use_write_barrier(struct super_block * s)
-{
-	return !reiser4_is_set(s, REISER4_NO_WRITE_BARRIER);
-}
-
-static void disable_write_barrier(struct super_block * s)
-{
-	notice("zam-1055", "%s does not support write barriers,"
-	       " using synchronous write instead.", s->s_id);
-	set_bit((int)REISER4_NO_WRITE_BARRIER, &get_super_private(s)->fs_flags);
-}
-
 /* fill journal header block data  */
 static void format_journal_header(struct commit_handle *ch)
 {
@@ -426,7 +415,7 @@ store_wmap_actor(txn_atom * atom UNUSED_ARG, const reiser4_block_nr * a,
    set is written to wandered locations and all wander records are written
    also. Updated journal header blocks contains a pointer (block number) to
    first wander record of the just written transaction */
-static int update_journal_header(struct commit_handle *ch, int use_barrier)
+static int update_journal_header(struct commit_handle *ch)
 {
 	struct reiser4_super_info_data *sbinfo = get_super_private(ch->super);
 	jnode *jh = sbinfo->journal_header;
@@ -436,12 +425,12 @@ static int update_journal_header(struct commit_handle *ch, int use_barrier)
 	format_journal_header(ch);
 
 	ret = write_jnodes_to_disk_extent(jh, 1, jnode_get_block(jh), NULL,
-					  use_barrier ? WRITEOUT_BARRIER : 0);
+					  WRITEOUT_FLUSH_FUA);
 	if (ret)
 		return ret;
 
-	// blk_run_address_space(sbinfo->fake->i_mapping);
-	/*blk_run_queues(); */
+	/* blk_run_address_space(sbinfo->fake->i_mapping);
+	 * blk_run_queues(); */
 
 	ret = jwait_io(jh, WRITE);
 
@@ -456,7 +445,7 @@ static int update_journal_header(struct commit_handle *ch, int use_barrier)
 /* This function is called after write-back is finished. We update journal
    footer block and free blocks which were occupied by wandered blocks and
    transaction wander records */
-static int update_journal_footer(struct commit_handle *ch, int use_barrier)
+static int update_journal_footer(struct commit_handle *ch)
 {
 	reiser4_super_info_data *sbinfo = get_super_private(ch->super);
 
@@ -467,12 +456,12 @@ static int update_journal_footer(struct commit_handle *ch, int use_barrier)
 	format_journal_footer(ch);
 
 	ret = write_jnodes_to_disk_extent(jf, 1, jnode_get_block(jf), NULL,
-					  use_barrier ? WRITEOUT_BARRIER : 0);
+					  WRITEOUT_FLUSH_FUA);
 	if (ret)
 		return ret;
 
-	// blk_run_address_space(sbinfo->fake->i_mapping);
-	/*blk_run_queue(); */
+	/* blk_run_address_space(sbinfo->fake->i_mapping);
+	 * blk_run_queue(); */
 
 	ret = jwait_io(jf, WRITE);
 	if (ret)
@@ -488,8 +477,8 @@ static void dealloc_tx_list(struct commit_handle *ch)
 		jnode *cur = list_entry(ch->tx_list.next, jnode, capture_link);
 		list_del(&cur->capture_link);
 		ON_DEBUG(INIT_LIST_HEAD(&cur->capture_link));
-		reiser4_dealloc_block(jnode_get_block(cur), BLOCK_NOT_COUNTED,
-				      BA_FORMATTED);
+		reiser4_dealloc_block(jnode_get_block(cur), 0,
+				      BA_DEFER | BA_FORMATTED);
 
 		unpin_jnode_data(cur);
 		reiser4_drop_io_head(cur);
@@ -508,7 +497,7 @@ dealloc_wmap_actor(txn_atom * atom UNUSED_ARG,
 	assert("zam-500", *b != 0);
 	assert("zam-501", !reiser4_blocknr_is_fake(b));
 
-	reiser4_dealloc_block(b, BLOCK_NOT_COUNTED, BA_FORMATTED);
+	reiser4_dealloc_block(b, 0, BA_DEFER | BA_FORMATTED);
 	return 0;
 }
 
@@ -557,7 +546,7 @@ static void undo_bio(struct bio *bio)
 		jnode *node;
 
 		pg = bio->bi_io_vec[i].bv_page;
-		ClearPageWriteback(pg);
+		end_page_writeback(pg);
 		node = jprivate(pg);
 		spin_lock_jnode(node);
 		JF_CLR(node, JNODE_WRITEBACK);
@@ -719,8 +708,7 @@ static int write_jnodes_to_disk_extent(
 	flush_queue_t *fq, int flags)
 {
 	struct super_block *super = reiser4_get_current_sb();
-	int write_op = ( flags & WRITEOUT_BARRIER ) ? WRITE_BARRIER : WRITE;
-	int max_blocks;
+	int write_op = ( flags & WRITEOUT_FLUSH_FUA ) ? WRITE_FLUSH_FUA : WRITE;
 	jnode *cur = first;
 	reiser4_block_nr block;
 
@@ -729,11 +717,10 @@ static int write_jnodes_to_disk_extent(
 	assert("zam-570", nr > 0);
 
 	block = *block_p;
-	max_blocks = min(bio_get_nr_vecs(super->s_bdev), BIO_MAX_PAGES);
 
 	while (nr > 0) {
 		struct bio *bio;
-		int nr_blocks = min(nr, max_blocks);
+		int nr_blocks = min(nr, BIO_MAX_PAGES);
 		int i;
 		int nr_used;
 
@@ -742,14 +729,14 @@ static int write_jnodes_to_disk_extent(
 			return RETERR(-ENOMEM);
 
 		bio->bi_bdev = super->s_bdev;
-		bio->bi_sector = block * (super->s_blocksize >> 9);
+		bio->bi_iter.bi_sector = block * (super->s_blocksize >> 9);
 		for (nr_used = 0, i = 0; i < nr_blocks; i++) {
 			struct page *pg;
 
 			pg = jnode_page(cur);
 			assert("zam-573", pg != NULL);
 
-			page_cache_get(pg);
+			get_page(pg);
 
 			lock_and_wait_page_writeback(pg);
 
@@ -759,7 +746,7 @@ static int write_jnodes_to_disk_extent(
 				 * pages to the bio.
 				 */
 				unlock_page(pg);
-				page_cache_release(pg);
+				put_page(pg);
 				break;
 			}
 
@@ -775,8 +762,19 @@ static int write_jnodes_to_disk_extent(
 			JF_SET(cur, JNODE_WRITEBACK);
 			JF_CLR(cur, JNODE_DIRTY);
 			ON_DEBUG(cur->written++);
-			spin_unlock_jnode(cur);
 
+			assert("edward-1647",
+			       ergo(jnode_is_znode(cur), JF_ISSET(cur, JNODE_PARSED)));
+			spin_unlock_jnode(cur);
+			/*
+			 * update checksum
+			 */
+			if (jnode_is_znode(cur)) {
+				zload(JZNODE(cur));
+				if (node_plugin_by_node(JZNODE(cur))->csum)
+					node_plugin_by_node(JZNODE(cur))->csum(JZNODE(cur), 0);
+				zrelse(JZNODE(cur));
+			}
 			ClearPageError(pg);
 			set_page_writeback(pg);
 
@@ -829,22 +827,17 @@ static int write_jnodes_to_disk_extent(
 		}
 		if (nr_used > 0) {
 			assert("nikita-3453",
-			       bio->bi_size == super->s_blocksize * nr_used);
+			       bio->bi_iter.bi_size == super->s_blocksize * nr_used);
 			assert("nikita-3454", bio->bi_vcnt == nr_used);
 
 			/* Check if we are allowed to write at all */
 			if (super->s_flags & MS_RDONLY)
 				undo_bio(bio);
 			else {
-				int not_supported;
-
 				add_fq_to_bio(fq, bio);
 				bio_get(bio);
 				reiser4_submit_bio(write_op, bio);
-				not_supported = bio_flagged(bio, BIO_EOPNOTSUPP);
 				bio_put(bio);
-				if (not_supported)
-					return -EOPNOTSUPP;
 			}
 
 			block += nr_used - 1;
@@ -1103,7 +1096,6 @@ static int alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 static int commit_tx(struct commit_handle *ch)
 {
 	flush_queue_t *fq;
-	int barrier;
 	int ret;
 
 	/* Grab more space for wandered records. */
@@ -1128,34 +1120,17 @@ static int commit_tx(struct commit_handle *ch)
 	reiser4_fq_put(fq);
 	if (ret)
 		return ret;
- repeat_wo_barrier:
-	barrier = reiser4_use_write_barrier(ch->super);
-	if (!barrier) {
-		ret = current_atom_finish_all_fq();
-		if (ret)
-			return ret;
-	}
-	ret = update_journal_header(ch, barrier);
-	if (barrier) {
-		if (ret) {
-			if (ret == -EOPNOTSUPP) {
-				disable_write_barrier(ch->super);
-				goto repeat_wo_barrier;
-			}
-			return ret;
-		}
-		ret = current_atom_finish_all_fq();
-	}
-	return ret;
+	ret = current_atom_finish_all_fq();
+	if (ret)
+		return ret;
+	return update_journal_header(ch);
 }
 
 static int write_tx_back(struct commit_handle * ch)
 {
 	flush_queue_t *fq;
 	int ret;
-	int barrier;
 
-	reiser4_post_commit_hook();
 	fq = get_fq_for_current_atom();
 	if (IS_ERR(fq))
 		return  PTR_ERR(fq);
@@ -1165,28 +1140,10 @@ static int write_tx_back(struct commit_handle * ch)
 	reiser4_fq_put(fq);
 	if (ret)
 		return ret;
- repeat_wo_barrier:
-	barrier = reiser4_use_write_barrier(ch->super);
-	if (!barrier) {
-		ret = current_atom_finish_all_fq();
-		if (ret)
-			return ret;
-	}
-	ret = update_journal_footer(ch, barrier);
-	if (barrier) {
-		if (ret) {
-			if (ret == -EOPNOTSUPP) {
-				disable_write_barrier(ch->super);
-				goto repeat_wo_barrier;
-			}
-			return ret;
-		}
-		ret = current_atom_finish_all_fq();
-	}
+	ret = current_atom_finish_all_fq();
 	if (ret)
 		return ret;
-	reiser4_post_write_back_hook();
-	return 0;
+	return update_journal_footer(ch);
 }
 
 /* We assume that at this moment all captured blocks are marked as RELOC or
@@ -1271,9 +1228,9 @@ int reiser4_write_logs(long *nr_submitted)
 	spin_lock_atom(atom);
 	reiser4_atom_set_stage(atom, ASTAGE_POST_COMMIT);
 	spin_unlock_atom(atom);
+	reiser4_post_commit_hook();
 
 	ret = write_tx_back(&ch);
-	reiser4_post_write_back_hook();
 
       up_and_ret:
 	if (ret) {
@@ -1285,6 +1242,8 @@ int reiser4_write_logs(long *nr_submitted)
 	/* free blocks of flushed transaction */
 	dealloc_tx_list(&ch);
 	dealloc_wmap(&ch);
+
+	reiser4_post_write_back_hook();
 
 	put_overwrite_set(&ch);
 
@@ -1502,7 +1461,7 @@ static int replay_transaction(const struct super_block *s,
 		}
 	}
 
-	ret = update_journal_footer(&ch, 0);
+	ret = update_journal_footer(&ch);
 
       free_ow_set:
 

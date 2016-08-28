@@ -1,4 +1,5 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+   reiser4/README */
 
 #include "debug.h"
 #include "super.h"
@@ -50,7 +51,7 @@
 #define mark_fq_ready(fq)      do { (fq)->state &= ~FQ_IN_USE;   } while (0)
 
 /* get lock on atom from locked flush queue object */
-static txn_atom *atom_locked_by_fq_nolock(flush_queue_t * fq)
+static txn_atom *atom_locked_by_fq_nolock(flush_queue_t *fq)
 {
 	/* This code is similar to jnode_get_atom(), look at it for the
 	 * explanation. */
@@ -84,7 +85,7 @@ static txn_atom *atom_locked_by_fq_nolock(flush_queue_t * fq)
 	return atom;
 }
 
-txn_atom *atom_locked_by_fq(flush_queue_t * fq)
+txn_atom *atom_locked_by_fq(flush_queue_t *fq)
 {
 	txn_atom *atom;
 
@@ -94,7 +95,7 @@ txn_atom *atom_locked_by_fq(flush_queue_t * fq)
 	return atom;
 }
 
-static void init_fq(flush_queue_t * fq)
+static void init_fq(flush_queue_t *fq)
 {
 	memset(fq, 0, sizeof *fq);
 
@@ -107,7 +108,7 @@ static void init_fq(flush_queue_t * fq)
 }
 
 /* slab for flush queues */
-static kmem_cache_t *fq_slab;
+static struct kmem_cache *fq_slab;
 
 /**
  * reiser4_init_fqs - create flush queue cache
@@ -119,7 +120,7 @@ int reiser4_init_fqs(void)
 {
 	fq_slab = kmem_cache_create("fq",
 				    sizeof(flush_queue_t),
-				    0, SLAB_HWCACHE_ALIGN, NULL, NULL);
+				    0, SLAB_HWCACHE_ALIGN, NULL);
 	if (fq_slab == NULL)
 		return RETERR(-ENOMEM);
 	return 0;
@@ -148,12 +149,12 @@ static flush_queue_t *create_fq(gfp_t gfp)
 }
 
 /* adjust atom's and flush queue's counters of queued nodes */
-static void count_enqueued_node(flush_queue_t * fq)
+static void count_enqueued_node(flush_queue_t *fq)
 {
 	ON_DEBUG(fq->atom->num_queued++);
 }
 
-static void count_dequeued_node(flush_queue_t * fq)
+static void count_dequeued_node(flush_queue_t *fq)
 {
 	assert("zam-993", fq->atom->num_queued > 0);
 	ON_DEBUG(fq->atom->num_queued--);
@@ -168,7 +169,7 @@ static void attach_fq(txn_atom *atom, flush_queue_t *fq)
 	ON_DEBUG(atom->nr_flush_queues++);
 }
 
-static void detach_fq(flush_queue_t * fq)
+static void detach_fq(flush_queue_t *fq)
 {
 	assert_spin_locked(&(fq->atom->alock));
 
@@ -181,7 +182,7 @@ static void detach_fq(flush_queue_t * fq)
 }
 
 /* destroy flush queue object */
-static void done_fq(flush_queue_t * fq)
+static void done_fq(flush_queue_t *fq)
 {
 	assert("zam-763", list_empty_careful(ATOM_FQ_LIST(fq)));
 	assert("zam-766", atomic_read(&fq->nr_submitted) == 0);
@@ -190,7 +191,7 @@ static void done_fq(flush_queue_t * fq)
 }
 
 /* */
-static void mark_jnode_queued(flush_queue_t * fq, jnode * node)
+static void mark_jnode_queued(flush_queue_t *fq, jnode * node)
 {
 	JF_SET(node, JNODE_FLUSH_QUEUED);
 	count_enqueued_node(fq);
@@ -198,7 +199,7 @@ static void mark_jnode_queued(flush_queue_t * fq, jnode * node)
 
 /* Putting jnode into the flush queue. Both atom and jnode should be
    spin-locked. */
-void queue_jnode(flush_queue_t * fq, jnode * node)
+void queue_jnode(flush_queue_t *fq, jnode * node)
 {
 	assert_spin_locked(&(node->guard));
 	assert("zam-713", node->atom != NULL);
@@ -220,7 +221,7 @@ void queue_jnode(flush_queue_t * fq, jnode * node)
 }
 
 /* repeatable process for waiting io completion on a flush queue object */
-static int wait_io(flush_queue_t * fq, int *nr_io_errors)
+static int wait_io(flush_queue_t *fq, int *nr_io_errors)
 {
 	assert("zam-738", fq->atom != NULL);
 	assert_spin_locked(&(fq->atom->alock));
@@ -237,10 +238,11 @@ static int wait_io(flush_queue_t * fq, int *nr_io_errors)
 		super = reiser4_get_current_sb();
 
 		/* FIXME: this is instead of blk_run_queues() */
-		blk_run_address_space(reiser4_get_super_fake(super)->i_mapping);
+		//blk_flush_plug(current);
 
 		if (!(super->s_flags & MS_RDONLY))
-			wait_event(fq->wait, atomic_read(&fq->nr_submitted) == 0);
+			wait_event(fq->wait,
+				   atomic_read(&fq->nr_submitted) == 0);
 
 		/* Ask the caller to re-acquire the locks and call this
 		   function again. Note: this technique is commonly used in
@@ -253,7 +255,7 @@ static int wait_io(flush_queue_t * fq, int *nr_io_errors)
 }
 
 /* wait on I/O completion, re-submit dirty nodes to write */
-static int finish_fq(flush_queue_t * fq, int *nr_io_errors)
+static int finish_fq(flush_queue_t *fq, int *nr_io_errors)
 {
 	int ret;
 	txn_atom *atom = fq->atom;
@@ -390,23 +392,17 @@ int atom_fq_parts_are_clean(txn_atom * atom)
 	return list_empty_careful(&atom->flush_queues);
 }
 #endif
-/* Bio i/o completion routine for reiser4 write operations. */
-static int
-end_io_handler(struct bio *bio, unsigned int bytes_done UNUSED_ARG,
-	       int err)
+
+/*
+ * Bio i/o completion routine for reiser4 write operations
+ */
+static void end_io_handler(struct bio *bio)
 {
 	int i;
 	int nr_errors = 0;
 	flush_queue_t *fq;
 
 	assert("zam-958", bio->bi_rw & WRITE);
-
-	/* i/o op. is not fully completed */
-	if (bio->bi_size != 0)
-		return 1;
-
-	if (err == -EOPNOTSUPP)
-		set_bit(BIO_EOPNOTSUPP, &bio->bi_flags);
 
 	/* we expect that bio->private is set to NULL or fq object which is used
 	 * for synchronization and error counting. */
@@ -415,7 +411,7 @@ end_io_handler(struct bio *bio, unsigned int bytes_done UNUSED_ARG,
 	for (i = 0; i < bio->bi_vcnt; i += 1) {
 		struct page *pg = bio->bi_io_vec[i].bv_page;
 
-		if (!test_bit(BIO_UPTODATE, &bio->bi_flags)) {
+		if (bio->bi_error) {
 			SetPageError(pg);
 			nr_errors++;
 		}
@@ -433,7 +429,7 @@ end_io_handler(struct bio *bio, unsigned int bytes_done UNUSED_ARG,
 		}
 
 		end_page_writeback(pg);
-		page_cache_release(pg);
+		put_page(pg);
 	}
 
 	if (fq) {
@@ -447,12 +443,11 @@ end_io_handler(struct bio *bio, unsigned int bytes_done UNUSED_ARG,
 	}
 
 	bio_put(bio);
-	return 0;
 }
 
 /* Count I/O requests which will be submitted by @bio in given flush queues
    @fq */
-void add_fq_to_bio(flush_queue_t * fq, struct bio *bio)
+void add_fq_to_bio(flush_queue_t *fq, struct bio *bio)
 {
 	bio->bi_private = fq;
 	bio->bi_end_io = end_io_handler;
@@ -462,7 +457,7 @@ void add_fq_to_bio(flush_queue_t * fq, struct bio *bio)
 }
 
 /* Move all queued nodes out from @fq->prepped list. */
-static void release_prepped_list(flush_queue_t * fq)
+static void release_prepped_list(flush_queue_t *fq)
 {
 	txn_atom *atom;
 
@@ -484,11 +479,13 @@ static void release_prepped_list(flush_queue_t * fq)
 
 		if (JF_ISSET(cur, JNODE_DIRTY)) {
 			list_add_tail(&cur->capture_link,
-				      ATOM_DIRTY_LIST(atom, jnode_get_level(cur)));
+				      ATOM_DIRTY_LIST(atom,
+						      jnode_get_level(cur)));
 			ON_DEBUG(count_jnode(atom, cur, FQ_LIST,
 					     DIRTY_LIST, 1));
 		} else {
-			list_add_tail(&cur->capture_link, ATOM_CLEAN_LIST(atom));
+			list_add_tail(&cur->capture_link,
+				      ATOM_CLEAN_LIST(atom));
 			ON_DEBUG(count_jnode(atom, cur, FQ_LIST,
 					     CLEAN_LIST, 1));
 		}
@@ -506,8 +503,8 @@ static void release_prepped_list(flush_queue_t * fq)
 
    @fq: flush queue object which contains jnodes we can (and will) write.
    @return: number of submitted blocks (>=0) if success, otherwise -- an error
-            code (<0). */
-int reiser4_write_fq(flush_queue_t * fq, long *nr_submitted, int flags)
+	    code (<0). */
+int reiser4_write_fq(flush_queue_t *fq, long *nr_submitted, int flags)
 {
 	int ret;
 	txn_atom *atom;
@@ -587,7 +584,7 @@ static int fq_by_atom_gfp(txn_atom *atom, flush_queue_t **new_fq, gfp_t gfp)
 	return RETERR(-E_REPEAT);
 }
 
-int reiser4_fq_by_atom(txn_atom * atom, flush_queue_t ** new_fq)
+int reiser4_fq_by_atom(txn_atom * atom, flush_queue_t **new_fq)
 {
 	return fq_by_atom_gfp(atom, new_fq, reiser4_ctx_gfp_mask_get());
 }
@@ -620,7 +617,7 @@ void reiser4_fq_put_nolock(flush_queue_t *fq)
 	ON_DEBUG(fq->owner = NULL);
 }
 
-void reiser4_fq_put(flush_queue_t * fq)
+void reiser4_fq_put(flush_queue_t *fq)
 {
 	txn_atom *atom;
 

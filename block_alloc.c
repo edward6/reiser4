@@ -1,4 +1,5 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+reiser4/README */
 
 #include "debug.h"
 #include "dformat.h"
@@ -8,6 +9,7 @@
 #include "block_alloc.h"
 #include "tree.h"
 #include "super.h"
+#include "discard.h"
 
 #include <linux/types.h>	/* for __u??  */
 #include <linux/fs.h>		/* for struct super_block  */
@@ -31,21 +33,21 @@
    used -- already allocated blocks,
 
    grabbed -- initially reserved for performing an fs operation, those blocks
-          are taken from free blocks, then grabbed disk space leaks from grabbed
-          blocks counter to other counters like "fake allocated", "flush
-          reserved", "used", the rest of not used grabbed space is returned to
-          free space at the end of fs operation;
+	 are taken from free blocks, then grabbed disk space leaks from grabbed
+	 blocks counter to other counters like "fake allocated", "flush
+	 reserved", "used", the rest of not used grabbed space is returned to
+	 free space at the end of fs operation;
 
    fake allocated -- counts all nodes without real disk block numbers assigned,
-                     we have separate accounting for formatted and unformatted
-                     nodes (for easier debugging);
+		    we have separate accounting for formatted and unformatted
+		    nodes (for easier debugging);
 
    flush reserved -- disk space needed for flushing and committing an atom.
-                     Each dirty already allocated block could be written as a
-                     part of atom's overwrite set or as a part of atom's
-                     relocate set.  In both case one additional block is needed,
-                     it is used as a wandered block if we do overwrite or as a
-		     new location for a relocated block.
+		    Each dirty already allocated block could be written as a
+		    part of atom's overwrite set or as a part of atom's
+		    relocate set.  In both case one additional block is needed,
+		    it is used as a wandered block if we do overwrite or as a
+		    new location for a relocated block.
 
    In addition, blocks in some states are counted on per-thread and per-atom
    basis.  A reiser4 context has a counter of blocks grabbed by this transaction
@@ -68,8 +70,9 @@
    2) one block for either allocating a new node, or dirtying of right or left
       clean neighbor, only one case may happen.
 
-   VS-FIXME-HANS: why can only one case happen? I would expect to see dirtying of left neighbor, right neighbor, current
-   node, and creation of new node.  have I forgotten something?  email me.
+   VS-FIXME-HANS: why can only one case happen? I would expect to see dirtying
+   of left neighbor, right neighbor, current node, and creation of new node.
+   Have I forgotten something?  email me.
 
    These grabbed blocks are counted in both reiser4 context "grabbed blocks"
    counter and in the fs-wide one (both ctx->grabbed_blocks and
@@ -127,7 +130,7 @@ void reiser4_blocknr_hint_init(reiser4_blocknr_hint * hint)
 /* Release any resources of a blocknr hint. */
 void reiser4_blocknr_hint_done(reiser4_blocknr_hint * hint UNUSED_ARG)
 {
-	/* No resources should be freed in current blocknr_hint implementation. */
+/* No resources should be freed in current blocknr_hint implementation. */
 }
 
 /* see above for explanation of fake block number.  */
@@ -255,7 +258,7 @@ int reiser4_check_block_counters(const struct super_block *super)
    @count           -- number of blocks we reserve;
 
    @return          -- 0 if success,  -ENOSPC, if all
-                       free blocks are preserved or already allocated.
+			free blocks are preserved or already allocated.
 */
 
 static int
@@ -300,7 +303,7 @@ reiser4_grab(reiser4_context * ctx, __u64 count, reiser4_ba_flags_t flags)
 	/* disable grab space in current context */
 	ctx->grab_enabled = 0;
 
-      unlock_and_ret:
+unlock_and_ret:
 	spin_unlock_reiser4_super(sbinfo);
 
 	return ret;
@@ -315,14 +318,14 @@ int reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags)
 				   lock_stack_isclean(get_current_lock_stack
 						      ())));
 	ctx = get_current_context();
-	if (!(flags & BA_FORCE) && !is_grab_enabled(ctx)) {
+	if (!(flags & BA_FORCE) && !is_grab_enabled(ctx))
 		return 0;
-	}
 
 	ret = reiser4_grab(ctx, count, flags);
 	if (ret == -ENOSPC) {
 
-		/* Trying to commit the all transactions if BA_CAN_COMMIT flag present */
+		/* Trying to commit the all transactions if BA_CAN_COMMIT flag
+		   present */
 		if (flags & BA_CAN_COMMIT) {
 			txnmgr_force_commit_all(ctx->super, 0);
 			ctx->grab_enabled = 1;
@@ -664,12 +667,12 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 
 	/* For write-optimized data we use default search start value, which is
 	 * close to last write location. */
-	if (flags & BA_USE_DEFAULT_SEARCH_START) {
+	if (flags & BA_USE_DEFAULT_SEARCH_START)
 		get_blocknr_hint_default(&hint->blk);
-	}
 
-	/* VITALY: allocator should grab this for internal/tx-lists/similar only. */
-/* VS-FIXME-HANS: why is this comment above addressed to vitaly (from vitaly)? */
+	/* VITALY: allocator should grab this for internal/tx-lists/similar
+	   only. */
+/* VS-FIXME-HANS: why is this comment above addressed to vitaly (from vitaly)?*/
 	if (hint->block_stage == BLOCK_NOT_COUNTED) {
 		ret = reiser4_grab_space_force(*len, flags);
 		if (ret != 0)
@@ -721,6 +724,29 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 	return ret;
 }
 
+/**
+ * ask block allocator for some unformatted blocks
+ */
+void allocate_blocks_unformatted(reiser4_blocknr_hint *preceder,
+				 reiser4_block_nr wanted_count,
+				 reiser4_block_nr *first_allocated,
+				 reiser4_block_nr *allocated,
+				 block_stage_t block_stage)
+{
+	*allocated = wanted_count;
+	preceder->max_dist = 0;	/* scan whole disk, if needed */
+
+	/* that number of blocks (wanted_count) is either in UNALLOCATED or in GRABBED */
+	preceder->block_stage = block_stage;
+
+	/* FIXME: we do not handle errors here now */
+	check_me("vs-420",
+		 reiser4_alloc_blocks(preceder, first_allocated, allocated,
+				      BA_PERMANENT) == 0);
+	/* update flush_pos's preceder to last allocated block number */
+	preceder->blk = *first_allocated + *allocated - 1;
+}
+
 /* used -> fake_allocated -> grabbed -> free */
 
 /* adjust sb block counters when @count unallocated blocks get unmapped from
@@ -765,7 +791,8 @@ used2flush_reserved(reiser4_super_info_data * sbinfo, txn_atom * atom,
 	spin_unlock_reiser4_super(sbinfo);
 }
 
-/* disk space, virtually used by fake block numbers is counted as "grabbed" again. */
+/* disk space, virtually used by fake block numbers is counted as "grabbed"
+   again. */
 static void
 fake_allocated2grabbed(reiser4_context * ctx, reiser4_super_info_data * sbinfo,
 		       __u64 count, reiser4_ba_flags_t flags)
@@ -936,34 +963,23 @@ static void used2free(reiser4_super_info_data * sbinfo, __u64 count)
 	spin_unlock_reiser4_super(sbinfo);
 }
 
-#if REISER4_DEBUG
-
 /* check "allocated" state of given block range */
-static void
+int
 reiser4_check_blocks(const reiser4_block_nr * start,
 		     const reiser4_block_nr * len, int desired)
 {
-	sa_check_blocks(start, len, desired);
+	return sa_check_blocks(start, len, desired);
 }
-
-/* check "allocated" state of given block */
-void reiser4_check_block(const reiser4_block_nr * block, int desired)
-{
-	const reiser4_block_nr one = 1;
-
-	reiser4_check_blocks(block, &one, desired);
-}
-
-#endif
 
 /* Blocks deallocation function may do an actual deallocation through space
    plugin allocation or store deleted block numbers in atom's delete_set data
    structure depend on @defer parameter. */
 
-/* if BA_DEFER bit is not turned on, @target_stage means the stage of blocks which
-   will be deleted from WORKING bitmap. They might be just unmapped from disk, or
-   freed but disk space is still grabbed by current thread, or these blocks must
-   not be counted in any reiser4 sb block counters, see block_stage_t comment */
+/* if BA_DEFER bit is not turned on, @target_stage means the stage of blocks
+   which will be deleted from WORKING bitmap. They might be just unmapped from
+   disk, or freed but disk space is still grabbed by current thread, or these
+   blocks must not be counted in any reiser4 sb block counters,
+   see block_stage_t comment */
 
 /* BA_FORMATTED bit is only used when BA_DEFER in not present: it is used to
    distinguish blocks allocated for unformatted and formatted nodes */
@@ -977,6 +993,7 @@ reiser4_dealloc_blocks(const reiser4_block_nr * start,
 	int ret;
 	reiser4_context *ctx;
 	reiser4_super_info_data *sbinfo;
+	void *new_entry = NULL;
 
 	ctx = get_current_context();
 	sbinfo = get_super_private(ctx->super);
@@ -992,17 +1009,19 @@ reiser4_dealloc_blocks(const reiser4_block_nr * start,
 	}
 
 	if (flags & BA_DEFER) {
-		blocknr_set_entry *bsep = NULL;
+		/*
+		 * These blocks will be later deallocated by apply_dset().
+		 * It is equivalent to a non-deferred deallocation with target
+		 * stage BLOCK_NOT_COUNTED.
+		 */
 
-		/* storing deleted block numbers in a blocknr set
-		   datastructure for further actual deletion */
+		/* store deleted block numbers in the atom's deferred delete set
+		   for further actual deletion */
 		do {
 			atom = get_current_atom_locked();
 			assert("zam-430", atom != NULL);
 
-			ret =
-			    blocknr_set_add_extent(atom, &atom->delete_set,
-						   &bsep, start, len);
+			ret = atom_dset_deferred_add_extent(atom, &new_entry, start, len);
 
 			if (ret == -ENOMEM)
 				return ret;
@@ -1021,8 +1040,8 @@ reiser4_dealloc_blocks(const reiser4_block_nr * start,
 				  *start, *len);
 
 		if (flags & BA_PERMANENT) {
-			/* These blocks were counted as allocated, we have to revert it
-			 * back if allocation is discarded. */
+			/* These blocks were counted as allocated, we have to
+			 * revert it back if allocation is discarded. */
 			txn_atom *atom = get_current_atom_locked();
 			atom->nr_blocks_allocated -= *len;
 			spin_unlock_atom(atom);
@@ -1031,7 +1050,8 @@ reiser4_dealloc_blocks(const reiser4_block_nr * start,
 		switch (target_stage) {
 		case BLOCK_NOT_COUNTED:
 			assert("vs-960", flags & BA_FORMATTED);
-			/* VITALY: This is what was grabbed for internal/tx-lists/similar only */
+			/* VITALY: This is what was grabbed for
+			   internal/tx-lists/similar only */
 			used2free(sbinfo, *len);
 			break;
 
@@ -1104,15 +1124,13 @@ apply_dset(txn_atom * atom UNUSED_ARG, const reiser4_block_nr * a,
 
 void reiser4_post_commit_hook(void)
 {
+#ifdef REISER4_DEBUG
 	txn_atom *atom;
 
 	atom = get_current_atom_locked();
 	assert("zam-452", atom->stage == ASTAGE_POST_COMMIT);
 	spin_unlock_atom(atom);
-
-	/* do the block deallocation which was deferred
-	   until commit is done */
-	blocknr_set_iterator(atom, &atom->delete_set, apply_dset, NULL, 1);
+#endif
 
 	assert("zam-504", get_current_super_private() != NULL);
 	sa_post_commit_hook();
@@ -1120,9 +1138,30 @@ void reiser4_post_commit_hook(void)
 
 void reiser4_post_write_back_hook(void)
 {
-	assert("zam-504", get_current_super_private() != NULL);
+	struct list_head discarded_set;
+	txn_atom *atom;
+	int ret;
 
-	sa_post_commit_hook();
+	/* process and issue discard requests */
+	blocknr_list_init (&discarded_set);
+	do {
+		atom = get_current_atom_locked();
+		ret = discard_atom(atom, &discarded_set);
+	} while (ret == -E_REPEAT);
+
+	if (ret) {
+		warning("intelfx-8", "discard atom failed (%d)", ret);
+	}
+
+	atom = get_current_atom_locked();
+	discard_atom_post(atom, &discarded_set);
+
+	/* do the block deallocation which was deferred
+	   until commit is done */
+	atom_dset_deferred_apply(atom, apply_dset, NULL, 1);
+
+	assert("zam-504", get_current_super_private() != NULL);
+	sa_post_write_back_hook();
 }
 
 /*
