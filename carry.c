@@ -1,4 +1,5 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+   reiser4/README */
 /* Functions to "carry" tree modification(s) upward. */
 /* Tree is modified one level at a time. As we modify a level we accumulate a
    set of changes that need to be propagated to the next level.  We manage
@@ -44,7 +45,8 @@
        // Most carry processes will only take objects from here, without
        // dynamic allocation.
 
-I feel uneasy about this pool.  It adds to code complexity, I understand why it exists, but.... -Hans
+I feel uneasy about this pool.  It adds to code complexity, I understand why it
+exists, but.... -Hans
 
        carry_pool  pool;
        carry_level lowest_level;
@@ -63,28 +65,28 @@ I feel uneasy about this pool.  It adds to code complexity, I understand why it 
 
        op = reiser4_post_carry( &lowest_level, operation, node, 0 );
        if( IS_ERR( op ) || ( op == NULL ) ) {
-           handle error
+		handle error
        } else {
-           // fill in remaining fields in @op, according to carry.h:carry_op
-           result = carry( &lowest_level, NULL );
+	// fill in remaining fields in @op, according to carry.h:carry_op
+		result = carry(&lowest_level, NULL);
        }
-       done_carry_pool( &pool );
+       done_carry_pool(&pool);
     }
 
    When you are implementing node plugin method that participates in carry
    (shifting, insertion, deletion, etc.), do the following:
 
-   int foo_node_method( znode *node, ..., carry_level *todo )
+   int foo_node_method(znode * node, ..., carry_level * todo)
    {
        carry_op   *op;
 
        ....
 
-       // note, that last argument to reiser4_post_carry() is non-null
-       // here, because @op is to be applied to the parent of @node, rather
-       // than to the @node itself as in the previous case.
+	// note, that last argument to reiser4_post_carry() is non-null
+	// here, because @op is to be applied to the parent of @node, rather
+	// than to the @node itself as in the previous case.
 
-       op = node_post_carry( todo, operation, node, 1 );
+       op = node_post_carry(todo, operation, node, 1);
        // fill in remaining fields in @op, according to carry.h:carry_op
 
        ....
@@ -308,7 +310,7 @@ static int carry_on_level(carry_level * doing	/* queue of carry operations to
 
 	/* @doing->nodes are locked. */
 
-	/* This function can be split into two phases: analysis and modification.
+	/* This function can be split into two phases: analysis and modification
 
 	   Analysis calculates precisely what items should be moved between
 	   nodes. This information is gathered in some structures attached to
@@ -451,7 +453,7 @@ carry_pool *init_carry_pool(int size)
 }
 
 /* finish with queue pools */
-void done_carry_pool(carry_pool * pool /* pool to destroy */ )
+void done_carry_pool(carry_pool * pool/* pool to destroy */)
 {
 	reiser4_done_pool(&pool->op_pool);
 	reiser4_done_pool(&pool->node_pool);
@@ -505,14 +507,17 @@ carry_node *reiser4_add_carry_skip(carry_level * level	/* &carry_level to add
 	return reiser4_add_carry(level, order, reference);
 }
 
-carry_node *reiser4_add_carry(carry_level * level	/* &carry_level to add node
-						 * to */ ,
-		      pool_ordering order	/* where to insert: at the
-						 * beginning of @level, before
-						 * @reference, after @reference,
-						 * at the end of @level */ ,
-		      carry_node * reference	/* reference node for
-						 * insertion */ )
+carry_node *reiser4_add_carry(carry_level * level,   /* carry_level to add
+							node to */
+			      pool_ordering order,   /* where to insert:
+						      * at the beginning of
+						      * @level;
+						      * before @reference;
+						      * after @reference;
+						      * at the end of @level
+						      */
+			      carry_node * reference /* reference node for
+						      * insertion */)
 {
 	carry_node *result;
 
@@ -525,19 +530,20 @@ carry_node *reiser4_add_carry(carry_level * level	/* &carry_level to add node
 	return result;
 }
 
-/* add new carry operation to the @level.
-
-   Returns pointer to the new carry operations allocated from pool. It's up to
-   callers to maintain proper order in the @level. To control ordering use
-   @order and @reference parameters.
-
-*/
-static carry_op *add_op(carry_level * level /* &carry_level to add node to */ ,
-			pool_ordering order	/* where to insert: at the beginning of
-						 * @level, before @reference, after
-						 * @reference, at the end of @level */ ,
-			carry_op *
-			reference /* reference node for insertion */ )
+/**
+ * add new carry operation to the @level.
+ *
+ * Returns pointer to the new carry operations allocated from pool. It's up to
+ * callers to maintain proper order in the @level. To control ordering use
+ * @order and @reference parameters.
+ */
+static carry_op *add_op(carry_level * level, /* &carry_level to add node to */
+			pool_ordering order, /* where to insert:
+					      * at the beginning of @level;
+					      * before @reference;
+					      * after @reference;
+					      * at the end of @level */
+			carry_op * reference /* reference node for insertion */)
 {
 	carry_op *result;
 
@@ -549,19 +555,19 @@ static carry_op *add_op(carry_level * level /* &carry_level to add node to */ ,
 	return result;
 }
 
-/* Return node on the right of which @node was created.
-
-   Each node is created on the right of some existing node (or it is new root,
-   which is special case not handled here).
-
-   @node is new node created on some level, but not yet inserted into its
-   parent, it has corresponding bit (JNODE_ORPHAN) set in zstate.
-
-*/
-static carry_node *find_begetting_brother(carry_node * node	/* node to start search
-								 * from */ ,
-					  carry_level * kin UNUSED_ARG	/* level to
-									 * scan */ )
+/**
+ * Return node on the right of which @node was created.
+ *
+ * Each node is created on the right of some existing node (or it is new root,
+ * which is special case not handled here).
+ *
+ * @node is new node created on some level, but not yet inserted into its
+ * parent, it has corresponding bit (JNODE_ORPHAN) set in zstate.
+ */
+static carry_node *find_begetting_brother(carry_node * node,/* node to start
+								search from */
+					  carry_level * kin UNUSED_ARG
+					                    /* level to scan */)
 {
 	carry_node *scan;
 
@@ -659,9 +665,9 @@ static carry_node *add_carry_atplace(carry_level * doing, carry_level * todo,
 	return reiser4_add_carry(todo, POOLO_BEFORE, reference);
 }
 
-/* like reiser4_post_carry(), but designed to be called from node plugin methods.
-   This function is different from reiser4_post_carry() in that it finds proper
-   place to insert node in the queue. */
+/* like reiser4_post_carry(), but designed to be called from node plugin
+   methods. This function is different from reiser4_post_carry() in that it
+   finds proper place to insert node in the queue. */
 carry_op *node_post_carry(carry_plugin_info * info	/* carry parameters
 							 * passed down to node
 							 * plugin */ ,
@@ -700,7 +706,7 @@ carry_op *node_post_carry(carry_plugin_info * info	/* carry parameters
 }
 
 /* lock all carry nodes in @level */
-static int lock_carry_level(carry_level * level /* level to lock */ )
+static int lock_carry_level(carry_level * level/* level to lock */)
 {
 	int result;
 	carry_node *node;
@@ -733,7 +739,7 @@ static int lock_carry_level(carry_level * level /* level to lock */ )
 ON_DEBUG(extern atomic_t delim_key_version;
     )
 
-static void sync_dkeys(znode * spot /* node to update */ )
+static void sync_dkeys(znode * spot/* node to update */)
 {
 	reiser4_key pivot;
 	reiser4_tree *tree;
@@ -824,7 +830,7 @@ static void unlock_carry_level(carry_level * level /* level to unlock */ ,
 /* finish with @level
 
    Unlock nodes and release all allocated resources */
-static void done_carry_level(carry_level * level /* level to finish */ )
+static void done_carry_level(carry_level * level/* level to finish */)
 {
 	carry_node *node;
 	carry_node *tmp_node;
@@ -853,7 +859,7 @@ static void done_carry_level(carry_level * level /* level to finish */ )
    fills ->real_node from this lock handle.
 
 */
-int lock_carry_node_tail(carry_node * node /* node to complete locking of */ )
+int lock_carry_node_tail(carry_node * node/* node to complete locking of */)
 {
 	assert("nikita-1052", node != NULL);
 	assert("nikita-1187", reiser4_carry_real(node) != NULL);
@@ -889,7 +895,7 @@ int lock_carry_node_tail(carry_node * node /* node to complete locking of */ )
 
 */
 int lock_carry_node(carry_level * level /* level @node is in */ ,
-		    carry_node * node /* node to lock */ )
+		    carry_node * node/* node to lock */)
 {
 	int result;
 	znode *reference_point;
@@ -1066,8 +1072,9 @@ followed by remount, but this can wait for later versions.
    2. once isolated transactions will be implemented it will be possible to
    roll back offending transaction.
 
-2. is additional code complexity of inconsistent value (it implies that a broken tree should be kept in operation), so we must think about
-it more before deciding if it should be done.  -Hans
+2. is additional code complexity of inconsistent value (it implies that a
+broken tree should be kept in operation), so we must think about it more
+before deciding if it should be done.  -Hans
 
 */
 static void fatal_carry_error(carry_level * doing UNUSED_ARG	/* carry level
@@ -1075,7 +1082,7 @@ static void fatal_carry_error(carry_level * doing UNUSED_ARG	/* carry level
 								 * unrecoverable
 								 * error
 								 * occurred */ ,
-			      int ecode /* error code */ )
+			      int ecode/* error code */)
 {
 	assert("nikita-1230", doing != NULL);
 	assert("nikita-1231", ecode < 0);
@@ -1083,21 +1090,21 @@ static void fatal_carry_error(carry_level * doing UNUSED_ARG	/* carry level
 	reiser4_panic("nikita-1232", "Carry failed: %i", ecode);
 }
 
-/* add new root to the tree
-
-   This function itself only manages changes in carry structures and delegates
-   all hard work (allocation of znode for new root, changes of parent and
-   sibling pointers to the reiser4_add_tree_root().
-
-   Locking: old tree root is locked by carry at this point. Fake znode is also
-   locked.
-
-*/
-static int add_new_root(carry_level * level	/* carry level in context of which
-						 * operation is performed */ ,
-			carry_node * node /* carry node for existing root */ ,
-			znode * fake	/* "fake" znode already locked by
-					 * us */ )
+/**
+ * Add new root to the tree
+ *
+ * This function itself only manages changes in carry structures and delegates
+ * all hard work (allocation of znode for new root, changes of parent and
+ * sibling pointers) to the reiser4_add_tree_root().
+ *
+ * Locking: old tree root is locked by carry at this point. Fake znode is also
+ * locked.
+ */
+static int add_new_root(carry_level * level,/* carry level in context of which
+					     * operation is performed */
+			carry_node * node,  /* carry node for existing root */
+			znode * fake	    /* "fake" znode already locked by
+					     * us */)
 {
 	int result;
 
@@ -1266,13 +1273,13 @@ static int carry_level_invariant(carry_level * level, carry_queue_state state)
 #endif
 
 /* get symbolic name for boolean */
-static const char *tf(int boolean /* truth value */ )
+static const char *tf(int boolean/* truth value */)
 {
 	return boolean ? "t" : "f";
 }
 
 /* symbolic name for carry operation */
-static const char *carry_op_name(carry_opcode op /* carry opcode */ )
+static const char *carry_op_name(carry_opcode op/* carry opcode */)
 {
 	switch (op) {
 	case COP_INSERT:
@@ -1301,7 +1308,7 @@ static const char *carry_op_name(carry_opcode op /* carry opcode */ )
 
 /* dump information about carry node */
 static void print_carry(const char *prefix /* prefix to print */ ,
-			carry_node * node /* node to print */ )
+			carry_node * node/* node to print */)
 {
 	if (node == NULL) {
 		printk("%s: null\n", prefix);
@@ -1315,7 +1322,7 @@ static void print_carry(const char *prefix /* prefix to print */ ,
 
 /* dump information about carry operation */
 static void print_op(const char *prefix /* prefix to print */ ,
-		     carry_op * op /* operation to print */ )
+		     carry_op * op/* operation to print */)
 {
 	if (op == NULL) {
 		printk("%s: null\n", prefix);
@@ -1359,7 +1366,7 @@ static void print_op(const char *prefix /* prefix to print */ ,
 
 /* dump information about all nodes and operations in a @level */
 static void print_level(const char *prefix /* prefix to print */ ,
-			carry_level * level /* level to print */ )
+			carry_level * level/* level to print */)
 {
 	carry_node *node;
 	carry_node *tmp_node;

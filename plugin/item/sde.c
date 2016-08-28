@@ -120,7 +120,7 @@ int add_entry_de(struct inode *dir /* directory of item */ ,
 	data.iplug = item_plugin_by_id(SIMPLE_DIR_ENTRY_ID);
 
 	/* NOTE-NIKITA quota plugin */
-	if (DQUOT_ALLOC_SPACE_NODIRTY(dir, data.length))
+	if (dquot_alloc_space_nodirty(dir, data.length))
 		return -EDQUOT;
 
 	result = insert_by_coord(coord, &data, &entry->key, lh, 0 /*flags */ );
@@ -168,7 +168,7 @@ int rem_entry_de(struct inode *dir /* directory of item */ ,
 	    kill_node_content(coord, &shadow, NULL, NULL, NULL, NULL, NULL, 0);
 	if (result == 0) {
 		/* NOTE-NIKITA quota plugin */
-		DQUOT_FREE_SPACE_NODIRTY(dir, length);
+		dquot_free_space_nodirty(dir, length);
 	}
 	return result;
 }

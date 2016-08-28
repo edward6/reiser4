@@ -166,10 +166,8 @@ void reiser4_writeout(struct super_block *sb, struct writeback_control *wbc)
 		jnode *node = NULL;
 
 		/* do not put more requests to overload write queue */
-		if (wbc->nonblocking &&
-		    bdi_write_congested(mapping->backing_dev_info)) {
-			blk_run_address_space(mapping);
-			wbc->encountered_congestion = 1;
+		if (bdi_write_congested(mapping->backing_dev_info)) {
+			//blk_flush_plug(current);
 			break;
 		}
 		repeats++;
@@ -184,7 +182,7 @@ void reiser4_writeout(struct super_block *sb, struct writeback_control *wbc)
 				 * requested page itself - start flush from
 				 * that page
 				 */
-				node = jref(ent->cur_request->node);
+				node = ent->cur_request->node;
 		}
 
 		result = flush_some_atom(node, &nr_submitted, wbc,
@@ -192,6 +190,8 @@ void reiser4_writeout(struct super_block *sb, struct writeback_control *wbc)
 		if (result != 0)
 			warning("nikita-31001", "Flush failed: %i", result);
 		if (node)
+			/* drop the reference aquired
+			   in find_or_create_extent() */
 			jput(node);
 		if (!nr_submitted)
 			break;
@@ -201,10 +201,16 @@ void reiser4_writeout(struct super_block *sb, struct writeback_control *wbc)
 	} while (wbc->nr_to_write > 0);
 }
 
-void reiser4_throttle_write(struct inode *inode)
+/* tell VM how many pages were dirtied */
+void reiser4_throttle_write(struct inode *inode, int nrpages)
 {
-	reiser4_txn_restart_current();
-	balance_dirty_pages_ratelimited(inode->i_mapping);
+	reiser4_context *ctx;
+
+	ctx = get_current_context();
+	reiser4_txn_restart(ctx);
+	current->journal_info = NULL;
+	balance_dirty_pages_ratelimited_nr(inode->i_mapping, nrpages);
+	current->journal_info = ctx;
 }
 
 const char *REISER4_SUPER_MAGIC_STRING = "ReIsEr4";

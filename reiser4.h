@@ -24,24 +24,7 @@
 #define REISER4_DEBUG (0)
 #endif
 
-#if defined(CONFIG_ZLIB_INFLATE)
-/* turn on zlib */
-#define REISER4_ZLIB (1)
-#else
-#define REISER4_ZLIB (0)
-#endif
-
-#if defined(CONFIG_CRYPTO_SHA256)
-#define REISER4_SHA256 (1)
-#else
 #define REISER4_SHA256 (0)
-#endif
-
-#if defined(CONFIG_CRYPTO_AES_586)
-#define REISER4_AES (1)
-#else
-#define REISER4_AES (0)
-#endif
 
 /*
  * Turn on large keys mode. In his mode (which is default), reiser4 key has 4
@@ -177,11 +160,12 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 */
 #define REISER4_USE_COLLISION_LIMIT    (0)
 
-/* If flush finds more than FLUSH_RELOCATE_THRESHOLD adjacent dirty leaf-level blocks it
-   will force them to be relocated. */
+/* If flush finds more than FLUSH_RELOCATE_THRESHOLD adjacent dirty leaf-level
+   blocks it will force them to be relocated. */
 #define FLUSH_RELOCATE_THRESHOLD 64
-/* If flush finds can find a block allocation closer than at most FLUSH_RELOCATE_DISTANCE
-   from the preceder it will relocate to that position. */
+/* If flush finds can find a block allocation closer than at most
+   FLUSH_RELOCATE_DISTANCE from the preceder it will relocate to that position.
+ */
 #define FLUSH_RELOCATE_DISTANCE  64
 
 /* If we have written this much or more blocks before encountering busy jnode
@@ -228,9 +212,9 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 #define REISER4_I reiser4_inode_data
 
 /* implication */
-#define ergo( antecedent, consequent ) ( !( antecedent ) || ( consequent ) )
+#define ergo(antecedent, consequent) (!(antecedent) || (consequent))
 /* logical equivalence */
-#define equi( p1, p2 ) ( ergo( ( p1 ), ( p2 ) ) && ergo( ( p2 ), ( p1 ) ) )
+#define equi(p1, p2) (ergo((p1), (p2)) && ergo((p2), (p1)))
 
 #define sizeof_array(x) ((int) (sizeof(x) / sizeof(x[0])))
 
@@ -238,7 +222,7 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 
 /** Reiser4 specific error codes **/
 
-#define REISER4_ERROR_CODE_BASE 500
+#define REISER4_ERROR_CODE_BASE 10000
 
 /* Neighbor is not available (side neighbor or parent) */
 #define E_NO_NEIGHBOR  (REISER4_ERROR_CODE_BASE)

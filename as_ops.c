@@ -67,33 +67,12 @@ int reiser4_set_page_dirty(struct page *page)
 	assert("vs-1734", (page->mapping &&
 			   page->mapping->host &&
 			   reiser4_get_super_fake(page->mapping->host->i_sb) !=
-			   page->mapping->host
-			   && reiser4_get_cc_fake(page->mapping->host->i_sb) !=
-			   page->mapping->host
-			   && reiser4_get_bitmap_fake(page->mapping->host->i_sb) !=
+			   page->mapping->host &&
+			   reiser4_get_cc_fake(page->mapping->host->i_sb) !=
+			   page->mapping->host &&
+			   reiser4_get_bitmap_fake(page->mapping->host->i_sb) !=
 			   page->mapping->host));
-
-	if (!TestSetPageDirty(page)) {
-		struct address_space *mapping = page->mapping;
-
-		if (mapping) {
-			write_lock_irq(&mapping->tree_lock);
-
-			/* check for race with truncate */
-			if (page->mapping) {
-				assert("vs-1652", page->mapping == mapping);
-				if (mapping_cap_account_dirty(mapping))
-					inc_zone_page_state(page,
-							NR_FILE_DIRTY);
-				radix_tree_tag_set(&mapping->page_tree,
-						   page->index,
-						   PAGECACHE_TAG_REISER4_MOVED);
-			}
-			write_unlock_irq(&mapping->tree_lock);
-			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
-		}
-	}
-	return 0;
+	return __set_page_dirty_nobuffers(page);
 }
 
 /* ->invalidatepage method for reiser4 */
@@ -169,7 +148,7 @@ void reiser4_invalidatepage(struct page *page, unsigned long offset)
 
 	node = jprivate(page);
 	spin_lock_jnode(node);
-	if (!(node->state & ((1 << JNODE_DIRTY) | (1<< JNODE_FLUSH_QUEUED) |
+	if (!(node->state & ((1 << JNODE_DIRTY) | (1 << JNODE_FLUSH_QUEUED) |
 			  (1 << JNODE_WRITEBACK) | (1 << JNODE_OVRWR)))) {
 		/* there is not need to capture */
 		jref(node);
@@ -211,7 +190,7 @@ void reiser4_invalidatepage(struct page *page, unsigned long offset)
 
 /* help function called from reiser4_releasepage(). It returns true if jnode
  * can be detached from its page and page released. */
-int jnode_is_releasable(jnode * node /* node to check */ )
+int jnode_is_releasable(jnode * node/* node to check */)
 {
 	assert("nikita-2781", node != NULL);
 	assert_spin_locked(&(node->guard));
@@ -219,9 +198,8 @@ int jnode_is_releasable(jnode * node /* node to check */ )
 
 	/* is some thread is currently using jnode page, later cannot be
 	 * detached */
-	if (atomic_read(&node->d_count) != 0) {
+	if (atomic_read(&node->d_count) != 0)
 		return 0;
-	}
 
 	assert("vs-1214", !jnode_is_loaded(node));
 
@@ -324,6 +302,28 @@ int reiser4_releasepage(struct page *page, gfp_t gfp UNUSED_ARG)
 		assert("nikita-3020", reiser4_schedulable());
 		return 0;
 	}
+}
+
+int reiser4_readpage(struct file *file, struct page *page)
+{
+	assert("edward-1533", PageLocked(page));
+	assert("edward-1534", !PageUptodate(page));
+	assert("edward-1535", page->mapping && page->mapping->host);
+
+	return inode_file_plugin(page->mapping->host)->readpage(file, page);
+}
+
+int reiser4_readpages(struct file *file, struct address_space *mapping,
+		      struct list_head *pages, unsigned nr_pages)
+{
+	return inode_file_plugin(mapping->host)->readpages(file, mapping,
+							   pages, nr_pages);
+}
+
+int reiser4_writepages(struct address_space *mapping,
+		       struct writeback_control *wbc)
+{
+	return inode_file_plugin(mapping->host)->writepages(mapping, wbc);
 }
 
 /* Make Linus happy.

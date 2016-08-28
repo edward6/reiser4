@@ -13,7 +13,7 @@
    tail2extent and extent2tail */
 
 /* exclusive access to a file is acquired when file state changes: tail2extent, empty2tail, extent2tail, etc */
-void get_exclusive_access(unix_file_info_t * uf_info)
+void get_exclusive_access(struct unix_file_info * uf_info)
 {
 	assert("nikita-3028", reiser4_schedulable());
 	assert("nikita-3047", LOCK_CNT_NIL(inode_sem_w));
@@ -33,7 +33,7 @@ void get_exclusive_access(unix_file_info_t * uf_info)
 	ON_DEBUG(uf_info->ea_owner = current);
 }
 
-void drop_exclusive_access(unix_file_info_t * uf_info)
+void drop_exclusive_access(struct unix_file_info * uf_info)
 {
 	assert("vs-1714", uf_info->ea_owner == current);
 	assert("vs-1715", atomic_read(&uf_info->nr_neas) == 0);
@@ -53,7 +53,7 @@ void drop_exclusive_access(unix_file_info_t * uf_info)
  * This is called when nonexclisive access is obtained on file. All it does is
  * for debugging purposes.
  */
-static void nea_grabbed(unix_file_info_t *uf_info)
+static void nea_grabbed(struct unix_file_info *uf_info)
 {
 #if REISER4_DEBUG
 	LOCK_CNT_INC(inode_sem_r);
@@ -69,7 +69,7 @@ static void nea_grabbed(unix_file_info_t *uf_info)
  *
  * Nonexclusive access is obtained on a file before read, write, readpage.
  */
-void get_nonexclusive_access(unix_file_info_t *uf_info)
+void get_nonexclusive_access(struct unix_file_info *uf_info)
 {
 	assert("nikita-3029", reiser4_schedulable());
 	assert("nikita-3361", get_current_context()->trans->atom == NULL);
@@ -84,7 +84,7 @@ void get_nonexclusive_access(unix_file_info_t *uf_info)
  *
  * Non-blocking version of nonexclusive access obtaining.
  */
-int try_to_get_nonexclusive_access(unix_file_info_t *uf_info)
+int try_to_get_nonexclusive_access(struct unix_file_info *uf_info)
 {
 	int result;
 
@@ -94,7 +94,7 @@ int try_to_get_nonexclusive_access(unix_file_info_t *uf_info)
 	return result;
 }
 
-void drop_nonexclusive_access(unix_file_info_t * uf_info)
+void drop_nonexclusive_access(struct unix_file_info * uf_info)
 {
 	assert("vs-1718", uf_info->ea_owner == NULL);
 	assert("vs-1719", atomic_read(&uf_info->nr_neas) > 0);
@@ -133,9 +133,11 @@ static void release_all_pages(struct page **pages, unsigned nr_pages)
 
 	for (i = 0; i < nr_pages; i++) {
 		if (pages[i] == NULL) {
+#if REISER4_DEBUG
 			unsigned j;
 			for (j = i + 1; j < nr_pages; j++)
 				assert("vs-1620", pages[j] == NULL);
+#endif
 			break;
 		}
 		page_cache_release(pages[i]);
@@ -175,8 +177,17 @@ static int replace(struct inode *inode, struct page **pages, unsigned nr_pages, 
 			break;
 		unlock_page(pages[i]);
 		result = find_or_create_extent(pages[i]);
-		if (result)
+		if (result) {
+			/*
+			 * Unsuccess in critical place:
+			 * tail has been removed,
+			 * but extent hasn't been created
+			 */
+			warning("edward-1572",
+			"Report the error code %i to developers. Run FSCK",
+				result);
 			break;
+		}
 		SetPageUptodate(pages[i]);
 	}
 	return result;
@@ -252,7 +263,7 @@ static int find_start(struct inode *inode, reiser4_plugin_id id, __u64 *offset)
 	int result;
 	lock_handle lh;
 	coord_t coord;
-	unix_file_info_t *ufo;
+	struct unix_file_info *ufo;
 	int found;
 	reiser4_key key;
 
@@ -294,7 +305,7 @@ static int find_start(struct inode *inode, reiser4_plugin_id id, __u64 *offset)
  *
  *
  */
-int tail2extent(unix_file_info_t *uf_info)
+int tail2extent(struct unix_file_info *uf_info)
 {
 	int result;
 	reiser4_key key;	/* key of next byte to be moved to page */
@@ -348,8 +359,10 @@ int tail2extent(unix_file_info_t *uf_info)
 	while (done == 0) {
 		memset(pages, 0, sizeof(pages));
 		result = reserve_tail2extent_iteration(inode);
-		if (result != 0)
+		if (result != 0) {
+			reiser4_inode_clr_flag(inode, REISER4_PART_IN_CONV);
 			goto out;
+		}
 		if (first_iteration) {
 			reiser4_inode_set_flag(inode, REISER4_PART_MIXED);
 			reiser4_update_sd(inode);
@@ -468,19 +481,24 @@ int tail2extent(unix_file_info_t *uf_info)
 			if (result)
 				goto error;
 			/*
-			 * we have to drop exclusive access to avoid deadlock
-			 * which may happen because called by
-			 * reiser4_writepages capture_unix_file requires to get
-			 * non-exclusive access to a file. It is safe to drop
-			 * EA in the middle of tail2extent conversion because
-			 * write_unix_file/unix_setattr(truncate)/release_unix_file(extent2tail)
-			 * are serialized by reiser4_inode->mutex_write semaphore and
-			 * because read_unix_file works (should at least) on
-			 * partially converted files
+			 * We have to drop exclusive access to avoid deadlock
+			 * which may happen because called by reiser4_writepages
+			 * capture_unix_file requires to get non-exclusive
+			 * access to a file. It is safe to drop EA in the middle
+			 * of tail2extent conversion because write_unix_file,
+			 * setattr_unix_file(truncate), mmap_unix_file,
+			 * release_unix_file(extent2tail) checks if conversion
+			 * is not in progress (see comments before
+			 * get_exclusive_access_careful().
+			 * Other processes that acquire non-exclusive access
+			 * (read_unix_file, reiser4_writepages, etc) should work
+			 * on partially converted files.
 			 */
 			drop_exclusive_access(uf_info);
-			/* throttle the conversion */
-			reiser4_throttle_write(inode);
+			/* throttle the conversion
+			   FIXME-EDWARD: Pass the precise number of pages
+			   that was dirtied */
+			reiser4_throttle_write(inode, 1);
 			get_exclusive_access(uf_info);
 
 			/*
@@ -491,11 +509,9 @@ int tail2extent(unix_file_info_t *uf_info)
 							  REISER4_PART_MIXED));
 		}
 	}
-
-	reiser4_inode_clr_flag(inode, REISER4_PART_IN_CONV);
-
 	if (result == 0) {
 		/* file is converted to extent items */
+		reiser4_inode_clr_flag(inode, REISER4_PART_IN_CONV);
 		assert("vs-1697", reiser4_inode_get_flag(inode,
 							 REISER4_PART_MIXED));
 
@@ -504,16 +520,21 @@ int tail2extent(unix_file_info_t *uf_info)
 	} else {
 		/*
 		 * conversion is not complete. Inode was already marked as
-		 * REISER4_PART_CONV and stat-data were updated at the first
+		 * REISER4_PART_MIXED and stat-data were updated at the first
 		 * iteration of the loop above.
 		 */
-	      error:
+	error:
 		release_all_pages(pages, sizeof_array(pages));
-		warning("nikita-2282", "Partial conversion of %llu: %i",
+		reiser4_inode_clr_flag(inode, REISER4_PART_IN_CONV);
+		warning("edward-1548", "Partial conversion of %llu: %i",
 			(unsigned long long)get_inode_oid(inode), result);
 	}
 
-      out:
+ out:
+	/* this flag should be cleared, otherwise get_exclusive_access_careful()
+	   will fall into infinite loop */
+	assert("edward-1549", !reiser4_inode_get_flag(inode,
+						      REISER4_PART_IN_CONV));
 	return result;
 }
 
@@ -543,7 +564,7 @@ static int reserve_extent2tail_iteration(struct inode *inode)
 
 /* for every page of file: read page, cut part of extent pointing to this page,
    put data of page tree by tail item */
-int extent2tail(unix_file_info_t *uf_info)
+int extent2tail(struct file * file, struct unix_file_info *uf_info)
 {
 	int result;
 	struct inode *inode;
@@ -578,7 +599,6 @@ int extent2tail(unix_file_info_t *uf_info)
 			/* some other error */
 			return result;
 	}
-
 	reiser4_inode_set_flag(inode, REISER4_PART_IN_CONV);
 
 	/* number of pages in the file */
@@ -605,6 +625,9 @@ int extent2tail(unix_file_info_t *uf_info)
 					 (unsigned)(i + start_page), NULL);
 		if (IS_ERR(page)) {
 			result = PTR_ERR(page);
+			warning("edward-1569",
+				"Can not read page %lu of %lu: %i",
+				i, num_pages, result);
 			break;
 		}
 
@@ -617,7 +640,7 @@ int extent2tail(unix_file_info_t *uf_info)
 		}
 
 		/* cut part of file we have read */
-		start_byte = (__u64) (i << PAGE_CACHE_SHIFT);
+		start_byte = (__u64) ((i + start_page) << PAGE_CACHE_SHIFT);
 		set_key_offset(&from, start_byte);
 		set_key_offset(&to, start_byte + PAGE_CACHE_SIZE - 1);
 		/*
@@ -631,6 +654,9 @@ int extent2tail(unix_file_info_t *uf_info)
 
 		if (result) {
 			page_cache_release(page);
+			warning("edward-1570",
+				"Can not delete converted chunk: %i",
+				result);
 			break;
 		}
 
@@ -641,24 +667,32 @@ int extent2tail(unix_file_info_t *uf_info)
 			/* last page can be incompleted */
 			count = (inode->i_size & ~PAGE_CACHE_MASK);
 		while (count) {
-			struct dentry dentry;
-			struct file file;
-			loff_t pos;
+			loff_t pos = start_byte;
 
-			dentry.d_inode = inode;
-			file.f_dentry = &dentry;
-			file.private_data = NULL;
-			file.f_pos = start_byte;
-			file.private_data = NULL;
-			pos = start_byte;
-			result = reiser4_write_tail(&file,
-						    (char __user *)kmap(page),
-						    count, &pos);
-			reiser4_free_file_fsdata(&file);
+			assert("edward-1537",
+			       file != NULL && file->f_dentry != NULL);
+			assert("edward-1538",
+			       file->f_dentry->d_inode == inode);
+
+			result = reiser4_write_tail_noreserve(file, inode,
+						 (char __user *)kmap(page),
+							      count, &pos);
+			kunmap(page);
+			/* FIXME:
+			   may be put_file_hint() instead ? */
+			reiser4_free_file_fsdata(file);
 			if (result <= 0) {
-				warning("", "reiser4_write_tail failed");
+				/*
+				 * Unsuccess in critical place:
+				 * extent has been removed,
+				 * but tail hasn't been created
+				 */
+				warning("edward-1571",
+			"Report the error code %i to developers. Run FSCK",
+					result);
 				page_cache_release(page);
-				reiser4_inode_clr_flag(inode, REISER4_PART_IN_CONV);
+				reiser4_inode_clr_flag(inode,
+						       REISER4_PART_IN_CONV);
 				return result;
 			}
 			count -= result;
@@ -678,8 +712,12 @@ int extent2tail(unix_file_info_t *uf_info)
 		page_cache_release(page);
 
 		drop_exclusive_access(uf_info);
-		/* throttle the conversion */
-		reiser4_throttle_write(inode);
+		/*
+		 * throttle the conversion.
+		 * FIXME-EDWARD: Calculate and pass the precise number
+		 * of pages that was dirtied
+		 */
+		reiser4_throttle_write(inode, 1);
 		get_exclusive_access(uf_info);
 		/*
 		 * nobody is allowed to complete conversion but a process which
@@ -703,7 +741,7 @@ int extent2tail(unix_file_info_t *uf_info)
 	}
 	/*
 	 * conversion is not complete. Inode was already marked as
-	 * REISER4_PART_MIXED and stat-data were updated at the first *
+	 * REISER4_PART_MIXED and stat-data were updated at the first
 	 * iteration of the loop above.
 	 */
 	warning("nikita-2282",
@@ -711,6 +749,10 @@ int extent2tail(unix_file_info_t *uf_info)
 		(unsigned long long)get_inode_oid(inode), i,
 		num_pages, result);
 
+	/* this flag should be cleared, otherwise get_exclusive_access_careful()
+	   will fall into infinite loop */
+	assert("edward-1550", !reiser4_inode_get_flag(inode,
+						      REISER4_PART_IN_CONV));
 	return result;
 }
 

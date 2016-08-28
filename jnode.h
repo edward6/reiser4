@@ -21,7 +21,7 @@
 #include <linux/mm.h>
 #include <linux/spinlock.h>
 #include <asm/atomic.h>
-#include <asm/bitops.h>
+#include <linux/bitops.h>
 #include <linux/list.h>
 #include <linux/rcupdate.h>
 
@@ -32,11 +32,11 @@ TYPE_SAFE_HASH_DECLARE(j, jnode);
 /* declare hash table of znodes */
 TYPE_SAFE_HASH_DECLARE(z, znode);
 
-typedef struct {
+struct jnode_key {
 	__u64 objectid;
 	unsigned long index;
 	struct address_space *mapping;
-} jnode_key_t;
+};
 
 /*
    Jnode is the "base class" of other nodes in reiser4. It is also happens to
@@ -126,7 +126,7 @@ struct jnode {
 		/* znodes are hashed by block number */
 		reiser4_block_nr z;
 		/* unformatted nodes are hashed by mapping plus offset */
-		jnode_key_t j;
+		struct jnode_key j;
 	} key;
 
 	/* THIRD CACHE LINE */
@@ -165,14 +165,12 @@ struct jnode {
 
 	/* the real blocknr (where io is going to/from) */
 	/*   80 */ reiser4_block_nr blocknr;
-	/* Parent item type, unformatted and CRC need it for offset => key conversion.  */
+	/* Parent item type, unformatted and CRC need it for
+	 * offset => key conversion.  */
 	/* NOTE: this parent_item_id looks like jnode type. */
 	/*   88 */ reiser4_plugin_id parent_item_id;
 	/*   92 */
 #if REISER4_DEBUG
-	/* number of pages referenced by the jnode (meaningful while capturing of
-	   page clusters) */
-	int page_count;
 	/* list of all jnodes for debugging purposes. */
 	struct list_head jnodes;
 	/* how many times this jnode was written in one transaction */
@@ -358,7 +356,7 @@ extern void jnode_make_dirty(jnode * node) NONNULL;
 extern void jnode_make_clean(jnode * node) NONNULL;
 extern void jnode_make_wander_nolock(jnode * node) NONNULL;
 extern void jnode_make_wander(jnode *) NONNULL;
-extern void znode_make_reloc(znode *, flush_queue_t *) NONNULL;
+extern void znode_make_reloc(znode * , flush_queue_t *) NONNULL;
 extern void unformatted_make_reloc(jnode *, flush_queue_t *) NONNULL;
 extern struct address_space *jnode_get_mapping(const jnode * node) NONNULL;
 
@@ -399,8 +397,8 @@ static inline const reiser4_block_nr *jnode_get_io_block(jnode * node)
 }
 
 /* Jnode flush interface. */
-extern reiser4_blocknr_hint *reiser4_pos_hint(flush_pos_t * pos);
-extern flush_queue_t *reiser4_pos_fq(flush_pos_t * pos);
+extern reiser4_blocknr_hint *reiser4_pos_hint(flush_pos_t *pos);
+extern flush_queue_t *reiser4_pos_fq(flush_pos_t *pos);
 
 /* FIXME-VS: these are used in plugin/item/extent.c */
 
@@ -414,13 +412,13 @@ extern flush_queue_t *reiser4_pos_fq(flush_pos_t * pos);
 
 /* Macros to convert from jnode to znode, znode to jnode.  These are macros
    because C doesn't allow overloading of const prototypes. */
-#define ZJNODE(x) (& (x) -> zjnode)
+#define ZJNODE(x) (&(x)->zjnode)
 #define JZNODE(x)						\
 ({								\
-	typeof (x) __tmp_x;					\
+	typeof(x) __tmp_x;					\
 								\
 	__tmp_x = (x);						\
-	assert ("jmacd-1300", jnode_is_znode (__tmp_x));	\
+	assert("jmacd-1300", jnode_is_znode(__tmp_x));		\
 	(znode*) __tmp_x;					\
 })
 
@@ -441,7 +439,7 @@ extern void jnode_list_remove(jnode * node);
 int znode_is_root(const znode * node) NONNULL;
 
 /* bump reference counter on @node */
-static inline void add_x_ref(jnode * node /* node to increase x_count of */ )
+static inline void add_x_ref(jnode * node/* node to increase x_count of */)
 {
 	assert("nikita-1911", node != NULL);
 
@@ -576,7 +574,8 @@ static inline int jnode_check_flushprepped(jnode * node)
 {
 	int result;
 
-	/* It must be clean or relocated or wandered.  New allocations are set to relocate. */
+	/* It must be clean or relocated or wandered.  New allocations are set
+	 * to relocate. */
 	spin_lock_jnode(node);
 	result = jnode_is_flushprepped(node);
 	spin_unlock_jnode(node);
@@ -636,7 +635,7 @@ static inline void jput(jnode * node);
 extern void jput_final(jnode * node);
 
 /* bump data counter on @node */
-static inline void add_d_ref(jnode * node /* node to increase d_count of */ )
+static inline void add_d_ref(jnode * node/* node to increase d_count of */)
 {
 	assert("nikita-1962", node != NULL);
 
@@ -663,9 +662,9 @@ static inline void jput(jnode * node)
 	/*
 	 * we don't need any kind of lock here--jput_final() uses RCU.
 	 */
-	if (unlikely(atomic_dec_and_test(&node->x_count))) {
+	if (unlikely(atomic_dec_and_test(&node->x_count)))
 		jput_final(node);
-	} else
+	else
 		rcu_read_unlock();
 	assert("nikita-3473", reiser4_schedulable());
 }

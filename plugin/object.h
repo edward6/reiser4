@@ -3,7 +3,7 @@
 
 /* Declaration of object plugin functions. */
 
-#if !defined( __FS_REISER4_PLUGIN_OBJECT_H__ )
+#if !defined(__FS_REISER4_PLUGIN_OBJECT_H__)
 #define __FS_REISER4_PLUGIN_OBJECT_H__
 
 #include "../type_safe_hash.h"
@@ -11,7 +11,7 @@
 /* common implementations of inode operations */
 int reiser4_create_common(struct inode *parent, struct dentry *dentry,
 			  int mode, struct nameidata *);
-struct dentry * reiser4_lookup_common(struct inode *parent,
+struct dentry *reiser4_lookup_common(struct inode *parent,
 				      struct dentry *dentry,
 				      struct nameidata *nameidata);
 int reiser4_link_common(struct dentry *existing, struct inode *parent,
@@ -25,8 +25,7 @@ int reiser4_mknod_common(struct inode *parent, struct dentry *dentry,
 int reiser4_rename_common(struct inode *old_dir, struct dentry *old_name,
 			  struct inode *new_dir, struct dentry *new_name);
 void *reiser4_follow_link_common(struct dentry *, struct nameidata *data);
-int reiser4_permission_common(struct inode *, int mask,
-			      struct nameidata *nameidata);
+int reiser4_permission_common(struct inode *, int mask);
 int reiser4_setattr_common(struct dentry *, struct iattr *);
 int reiser4_getattr_common(struct vfsmount *mnt, struct dentry *,
 			   struct kstat *);
@@ -35,11 +34,7 @@ int reiser4_getattr_common(struct vfsmount *mnt, struct dentry *,
 loff_t reiser4_llseek_dir_common(struct file *, loff_t off, int origin);
 int reiser4_readdir_common(struct file *, void *dirent, filldir_t);
 int reiser4_release_dir_common(struct inode *, struct file *);
-int reiser4_sync_common(struct file *, struct dentry *, int datasync);
-
-/* common implementations of address space operations */
-int prepare_write_common(struct file *, struct page *, unsigned from,
-			 unsigned to);
+int reiser4_sync_common(struct file *, loff_t, loff_t, int datasync);
 
 /* file plugin operations: common implementations */
 int write_sd_by_inode_common(struct inode *);
@@ -86,7 +81,7 @@ void build_entry_key_common(const struct inode *,
 			    const struct qstr *qname, reiser4_key *);
 int build_readdir_key_common(struct file *dir, reiser4_key *);
 int reiser4_add_entry_common(struct inode *object, struct dentry *where,
-		     reiser4_object_create_data *, reiser4_dir_entry_desc *);
+		     reiser4_object_create_data * , reiser4_dir_entry_desc *);
 int reiser4_rem_entry_common(struct inode *object, struct dentry *where,
 		     reiser4_dir_entry_desc *);
 int reiser4_dir_init_common(struct inode *object, struct inode *parent,
@@ -101,11 +96,10 @@ reiser4_block_nr dir_estimate_unlink_common(const struct inode *,
 
 /* these are essential parts of common implementations, they are to make
    customized implementations easier */
-int do_prepare_write(struct file *, struct page *, unsigned from, unsigned to);
 
 /* merely useful functions */
-int lookup_sd(struct inode *, znode_lock_mode, coord_t *, lock_handle *,
-	      const reiser4_key *, int silent);
+int lookup_sd(struct inode *, znode_lock_mode, coord_t *, lock_handle * ,
+	      const reiser4_key * , int silent);
 
 /* __FS_REISER4_PLUGIN_OBJECT_H__ */
 #endif

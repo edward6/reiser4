@@ -20,7 +20,6 @@
 #include <linux/spinlock.h>
 #include <linux/pagemap.h>	/* for PAGE_CACHE_SIZE */
 #include <asm/atomic.h>
-#include <asm/semaphore.h>
 
 /* znode tracks its position within parent (internal item in a parent node,
  * that contains znode's block number). */
@@ -402,7 +401,7 @@ extern void copy_load_count(load_count * new, load_count * old);	/* Copy the con
 
 #if REISER4_DEBUG
 #define STORE_COUNTERS						\
-	reiser4_lock_counters_info __entry_counters =		\
+	reiser4_lock_cnt_info __entry_counters =		\
 		*reiser4_lock_counters()
 #define CHECK_COUNTERS						        \
 ON_DEBUG_CONTEXT(						        \

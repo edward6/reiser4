@@ -1,4 +1,5 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 /* Key manipulations. */
 
@@ -32,27 +33,27 @@ static const reiser4_key MAXIMAL_KEY = {
 };
 
 /* Initialize key. */
-void reiser4_key_init(reiser4_key * key /* key to init */ )
+void reiser4_key_init(reiser4_key * key/* key to init */)
 {
 	assert("nikita-1169", key != NULL);
 	memset(key, 0, sizeof *key);
 }
 
 /* minimal possible key in the tree. Return pointer to the static storage. */
-const reiser4_key *reiser4_min_key(void)
+const reiser4_key * reiser4_min_key(void)
 {
 	return &MINIMAL_KEY;
 }
 
 /* maximum possible key in the tree. Return pointer to the static storage. */
-const reiser4_key *reiser4_max_key(void)
+const reiser4_key * reiser4_max_key(void)
 {
 	return &MAXIMAL_KEY;
 }
 
 #if REISER4_DEBUG
 /* debugging aid: print symbolic name of key type */
-static const char *type_name(unsigned int key_type /* key type */ )
+static const char *type_name(unsigned int key_type/* key type */)
 {
 	switch (key_type) {
 	case KEY_FILE_NAME_MINOR:
@@ -72,7 +73,7 @@ static const char *type_name(unsigned int key_type /* key type */ )
 
 /* debugging aid: print human readable information about key */
 void reiser4_print_key(const char *prefix /* prefix to print */ ,
-	       const reiser4_key * key /* key to print */ )
+	       const reiser4_key * key/* key to print */)
 {
 	/* turn bold on */
 	/* printf ("\033[1m"); */

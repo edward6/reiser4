@@ -196,7 +196,7 @@ TYPE_SAFE_HASH_DEFINE(z, znode, reiser4_block_nr, zjnode.key.z, zjnode.link.z,
 #undef KMALLOC
 
 /* slab for znodes */
-static kmem_cache_t *znode_cache;
+static struct kmem_cache *znode_cache;
 
 int znode_shift_order;
 
@@ -209,7 +209,7 @@ int init_znodes(void)
 {
 	znode_cache = kmem_cache_create("znode", sizeof(znode), 0,
 					SLAB_HWCACHE_ALIGN |
-					SLAB_RECLAIM_ACCOUNT, NULL, NULL);
+					SLAB_RECLAIM_ACCOUNT, NULL);
 	if (znode_cache == NULL)
 		return RETERR(-ENOMEM);
 

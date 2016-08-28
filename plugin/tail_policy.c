@@ -35,7 +35,7 @@
 /* Audited by: green(2002.06.12) */
 static int have_formatting_never(const struct inode *inode UNUSED_ARG
 		      /* inode to operate on */ ,
-		      loff_t size UNUSED_ARG /* new object size */ )
+		      loff_t size UNUSED_ARG/* new object size */)
 {
 	return 0;
 }
@@ -45,17 +45,17 @@ static int have_formatting_never(const struct inode *inode UNUSED_ARG
 static int
 have_formatting_always(const struct inode *inode UNUSED_ARG
 		       /* inode to operate on */ ,
-		       loff_t size UNUSED_ARG /* new object size */ )
+		       loff_t size UNUSED_ARG/* new object size */)
 {
 	return 1;
 }
 
-/* This function makes test if we should store file denoted @inode as tails only or
-   as extents only. */
+/* This function makes test if we should store file denoted @inode as tails only
+   or as extents only. */
 static int
 have_formatting_default(const struct inode *inode UNUSED_ARG
 			/* inode to operate on */ ,
-			loff_t size /* new object size */ )
+			loff_t size/* new object size */)
 {
 	assert("umka-1253", inode != NULL);
 

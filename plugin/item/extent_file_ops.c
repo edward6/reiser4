@@ -7,7 +7,6 @@
 
 #include <linux/quotaops.h>
 #include <linux/swap.h>
-#include "../../../../mm/filemap.h"
 
 static inline reiser4_extent *ext_by_offset(const znode *node, int offset)
 {
@@ -29,7 +28,7 @@ static void check_uf_coord(const uf_coord_t *uf_coord, const reiser4_key *key)
 {
 #if REISER4_DEBUG
 	const coord_t *coord;
-	const extent_coord_extension_t *ext_coord;
+	const struct extent_coord_extension *ext_coord;
 	reiser4_extent *ext;
 
 	coord = &uf_coord->coord;
@@ -234,7 +233,7 @@ static int append_last_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	reiser4_extent new_ext;
 	reiser4_item_data idata;
 	coord_t *coord;
-	extent_coord_extension_t *ext_coord;
+	struct extent_coord_extension *ext_coord;
 	reiser4_extent *ext;
 	reiser4_block_nr block;
 	jnode *node;
@@ -261,7 +260,7 @@ static int append_last_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 
 	assert("", get_key_offset(key) == (loff_t)index_jnode(jnodes[0]) * PAGE_CACHE_SIZE);
 
-	result = DQUOT_ALLOC_BLOCK_NODIRTY(mapping_jnode(jnodes[0])->host,
+	result = dquot_alloc_block_nodirty(mapping_jnode(jnodes[0])->host,
 					   count);
 	BUG_ON(result != 0);
 
@@ -379,7 +378,7 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	reiser4_extent new_ext;
 	reiser4_item_data idata;
 	reiser4_block_nr block;
-	unix_file_info_t *uf_info;
+	struct unix_file_info *uf_info;
 	jnode *node;
 
 	/* first extent insertion starts at leaf level */
@@ -409,7 +408,8 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	if (count == 0)
 		return 0;
 
-	result = DQUOT_ALLOC_BLOCK_NODIRTY(mapping_jnode(jnodes[0])->host, count);
+	result = dquot_alloc_block_nodirty(mapping_jnode(jnodes[0])->host,
+					   count);
 	BUG_ON(result != 0);
 
 	/*
@@ -469,7 +469,7 @@ static int plug_hole(uf_coord_t *uf_coord, const reiser4_key *key, int *how)
 	reiser4_extent *ext;
 	reiser4_block_nr width, pos_in_unit;
 	coord_t *coord;
-	extent_coord_extension_t *ext_coord;
+	struct extent_coord_extension *ext_coord;
 	int return_inserted_position;
 
  	check_uf_coord(uf_coord, key);
@@ -605,7 +605,7 @@ static int overwrite_one_block(uf_coord_t *uf_coord, const reiser4_key *key,
 			       jnode *node, int *hole_plugged)
 {
 	int result;
-	extent_coord_extension_t *ext_coord;
+	struct extent_coord_extension *ext_coord;
 	reiser4_extent *ext;
 	reiser4_block_nr block;
 	int how;
@@ -623,7 +623,8 @@ static int overwrite_one_block(uf_coord_t *uf_coord, const reiser4_key *key,
 		break;
 
 	case HOLE_EXTENT:
-		result = DQUOT_ALLOC_BLOCK_NODIRTY(mapping_jnode(node)->host, 1);
+		result = dquot_alloc_block_nodirty(mapping_jnode(node)->host,
+						   1);
 		BUG_ON(result != 0);
 		result = plug_hole(uf_coord, key, &how);
 		if (result)
@@ -651,7 +652,7 @@ static int overwrite_one_block(uf_coord_t *uf_coord, const reiser4_key *key,
  */
 static int move_coord(uf_coord_t *uf_coord)
 {
-	extent_coord_extension_t *ext_coord;
+	struct extent_coord_extension *ext_coord;
 
 	if (uf_coord->valid == 0)
 		return 1;
@@ -815,9 +816,9 @@ int reiser4_update_extent(struct inode *inode, jnode *node, loff_t pos,
  * @off:
  *
  */
-static int update_extents(struct file *file, jnode **jnodes, int count, loff_t pos)
+static int update_extents(struct file *file, struct inode *inode,
+			  jnode **jnodes, int count, loff_t pos)
 {
-	struct inode *inode;
 	struct hint hint;
 	reiser4_key key;
 	int result;
@@ -826,7 +827,6 @@ static int update_extents(struct file *file, jnode **jnodes, int count, loff_t p
 	result = load_file_hint(file, &hint);
 	BUG_ON(result != 0);
 
-	inode = file->f_dentry->d_inode;
 	if (count != 0)
 		/*
 		 * count == 0 is special case: expanding truncate
@@ -937,45 +937,70 @@ static int write_extent_reserve_space(struct inode *inode)
 	return reiser4_grab_space(count, 0 /* flags */);
 }
 
+/*
+ * filemap_copy_from_user no longer exists in generic code, because it
+ * is deadlocky (copying from user while holding the page lock is bad).
+ * As a temporary fix for reiser4, just define it here.
+ */
+static inline size_t
+filemap_copy_from_user(struct page *page, unsigned long offset,
+			const char __user *buf, unsigned bytes)
+{
+	char *kaddr;
+	int left;
+
+	kaddr = kmap_atomic(page, KM_USER0);
+	left = __copy_from_user_inatomic_nocache(kaddr + offset, buf, bytes);
+	kunmap_atomic(kaddr, KM_USER0);
+
+	if (left != 0) {
+		/* Do it the slow way */
+		kaddr = kmap(page);
+		left = __copy_from_user_nocache(kaddr + offset, buf, bytes);
+		kunmap(page);
+	}
+	return bytes - left;
+}
+
 /**
  * reiser4_write_extent - write method of extent item plugin
  * @file: file to write to
  * @buf: address of user-space buffer
- * @write_amount: number of bytes to write
- * @off: position in file to write to
+ * @count: number of bytes to write
+ * @pos: position in file to write to
  *
  */
-ssize_t reiser4_write_extent(struct file *file, const char __user *buf,
-			     size_t count, loff_t *pos)
+ssize_t reiser4_write_extent(struct file *file, struct inode * inode,
+			     const char __user *buf, size_t count, loff_t *pos)
 {
 	int have_to_update_extent;
-	int nr_pages;
+	int nr_pages, nr_dirty;
 	struct page *page;
 	jnode *jnodes[WRITE_GRANULARITY + 1];
-	struct inode *inode;
 	unsigned long index;
 	unsigned long end;
 	int i;
 	int to_page, page_off;
 	size_t left, written;
-	int result;
+	int result = 0;
 
-	inode = file->f_dentry->d_inode;
 	if (write_extent_reserve_space(inode))
 		return RETERR(-ENOSPC);
 
 	if (count == 0) {
 		/* truncate case */
-		update_extents(file, jnodes, 0, *pos);
+		update_extents(file, inode, jnodes, 0, *pos);
 		return 0;
 	}
 
 	BUG_ON(get_current_context()->trans->atom != NULL);
 
+	left = count;
 	index = *pos >> PAGE_CACHE_SHIFT;
 	/* calculate number of pages which are to be written */
       	end = ((*pos + count - 1) >> PAGE_CACHE_SHIFT);
 	nr_pages = end - index + 1;
+	nr_dirty = 0;
 	assert("", nr_pages <= WRITE_GRANULARITY + 1);
 
 	/* get pages and jnodes */
@@ -983,22 +1008,18 @@ ssize_t reiser4_write_extent(struct file *file, const char __user *buf,
 		page = find_or_create_page(inode->i_mapping, index + i,
 					   reiser4_ctx_gfp_mask_get());
 		if (page == NULL) {
-			while(i --) {
-				unlock_page(jnode_page(jnodes[i]));
-				page_cache_release(jnode_page(jnodes[i]));
-			}
-			return RETERR(-ENOMEM);
+			nr_pages = i;
+			result = RETERR(-ENOMEM);
+			goto out;
 		}
 
 		jnodes[i] = jnode_of_page(page);
 		if (IS_ERR(jnodes[i])) {
 			unlock_page(page);
 			page_cache_release(page);
-			while (i --) {
-				jput(jnodes[i]);
-				page_cache_release(jnode_page(jnodes[i]));
-			}
-			return RETERR(-ENOMEM);
+			nr_pages = i;
+			result = RETERR(-ENOMEM);
+			goto out;
 		}
 		/* prevent jnode and page from disconnecting */
 		JF_SET(jnodes[i], JNODE_WRITE_PREPARED);
@@ -1009,7 +1030,6 @@ ssize_t reiser4_write_extent(struct file *file, const char __user *buf,
 
 	have_to_update_extent = 0;
 
-	left = count;
 	page_off = (*pos & (PAGE_CACHE_SIZE - 1));
 	for (i = 0; i < nr_pages; i ++) {
 		to_page = PAGE_CACHE_SIZE - page_off;
@@ -1030,9 +1050,9 @@ ssize_t reiser4_write_extent(struct file *file, const char __user *buf,
 				/* wait for read completion */
 				lock_page(page);
 				BUG_ON(!PageUptodate(page));
-				unlock_page(page);
 			} else
 				result = 0;
+			unlock_page(page);
 		}
 
 		BUG_ON(get_current_context()->trans->atom != NULL);
@@ -1040,32 +1060,25 @@ ssize_t reiser4_write_extent(struct file *file, const char __user *buf,
 		BUG_ON(get_current_context()->trans->atom != NULL);
 
 		lock_page(page);
-		if (!PageUptodate(page) && to_page != PAGE_CACHE_SIZE) {
-			void *kaddr;
-
-			kaddr = kmap_atomic(page, KM_USER0);
-			memset(kaddr, 0, page_off);
-			memset(kaddr + page_off + to_page, 0,
-			       PAGE_CACHE_SIZE - (page_off + to_page));
-			flush_dcache_page(page);
-			kunmap_atomic(kaddr, KM_USER0);
-		}
+		if (!PageUptodate(page) && to_page != PAGE_CACHE_SIZE)
+			zero_user_segments(page, 0, page_off,
+					   page_off + to_page,
+					   PAGE_CACHE_SIZE);
 
 		written = filemap_copy_from_user(page, page_off, buf, to_page);
-		if (written != to_page) {
+		if (unlikely(written != to_page)) {
 			unlock_page(page);
-			page_cache_release(page);
-			nr_pages = i;
-			jput(jnodes[i]);
 			result = RETERR(-EFAULT);
 			break;
 		}
+
 		flush_dcache_page(page);
-		reiser4_set_page_dirty_internal(page);
+		set_page_dirty_notag(page);
 		unlock_page(page);
+		nr_dirty++;
+
 		mark_page_accessed(page);
 		SetPageUptodate(page);
-		page_cache_release(page);
 
 		if (jnodes[i]->blocknr == 0)
 			have_to_update_extent ++;
@@ -1077,36 +1090,29 @@ ssize_t reiser4_write_extent(struct file *file, const char __user *buf,
 	}
 
 	if (have_to_update_extent) {
-		update_extents(file, jnodes, nr_pages, *pos);
+		update_extents(file, inode, jnodes, nr_dirty, *pos);
 	} else {
-		for (i = 0; i < nr_pages; i ++) {
+		for (i = 0; i < nr_dirty; i ++) {
+			int ret;
 			spin_lock_jnode(jnodes[i]);
-			result = reiser4_try_capture(jnodes[i],
+			ret = reiser4_try_capture(jnodes[i],
 						     ZNODE_WRITE_LOCK, 0);
-			BUG_ON(result != 0);
+			BUG_ON(ret != 0);
 			jnode_make_dirty_locked(jnodes[i]);
 			spin_unlock_jnode(jnodes[i]);
 		}
 	}
-
+out:
 	for (i = 0; i < nr_pages; i ++) {
+		page_cache_release(jnode_page(jnodes[i]));
 		JF_CLR(jnodes[i], JNODE_WRITE_PREPARED);
 		jput(jnodes[i]);
 	}
 
-	/* the only error handled so far is EFAULT on copy_from_user  */
-	return (count - left) ? (count - left) : -EFAULT;
-}
+	/* the only errors handled so far is ENOMEM and
+	   EFAULT on copy_from_user  */
 
-static inline void zero_page(struct page *page)
-{
-	char *kaddr = kmap_atomic(page, KM_USER0);
-
-	memset(kaddr, 0, PAGE_CACHE_SIZE);
-	flush_dcache_page(page);
-	kunmap_atomic(kaddr, KM_USER0);
-	SetPageUptodate(page);
-	unlock_page(page);
+	return (count - left) ? (count - left) : result;
 }
 
 int reiser4_do_readpage_extent(reiser4_extent * ext, reiser4_block_nr pos,
@@ -1130,7 +1136,9 @@ int reiser4_do_readpage_extent(reiser4_extent * ext, reiser4_block_nr pos,
 		 */
 		j = jfind(mapping, index);
 		if (j == NULL) {
-			zero_page(page);
+			zero_user(page, 0, PAGE_CACHE_SIZE);
+			SetPageUptodate(page);
+			unlock_page(page);
 			return 0;
 		}
 		spin_lock_jnode(j);
@@ -1143,7 +1151,9 @@ int reiser4_do_readpage_extent(reiser4_extent * ext, reiser4_block_nr pos,
 		block = *jnode_get_io_block(j);
 		spin_unlock_jnode(j);
 		if (block == 0) {
-			zero_page(page);
+			zero_user(page, 0, PAGE_CACHE_SIZE);
+			SetPageUptodate(page);
+			unlock_page(page);
 			jput(j);
 			return 0;
 		}
@@ -1189,14 +1199,15 @@ int reiser4_read_extent(struct file *file, flow_t *flow, hint_t *hint)
 {
 	int result;
 	struct page *page;
-	unsigned long cur_page, next_page;
-	unsigned long page_off, count;
+	unsigned long page_idx;
+	unsigned long page_off; /* offset within the page to start read from */
+	unsigned long page_cnt; /* bytes which can be read from the page which
+				   contains file_off */
 	struct address_space *mapping;
-	loff_t file_off;
+	loff_t file_off; /* offset in a file to start read from */
 	uf_coord_t *uf_coord;
 	coord_t *coord;
-	extent_coord_extension_t *ext_coord;
-	unsigned long nr_pages;
+	struct extent_coord_extension *ext_coord;
 	char *kaddr;
 
 	assert("vs-1353", current_blocksize == PAGE_CACHE_SIZE);
@@ -1216,37 +1227,29 @@ int reiser4_read_extent(struct file *file, flow_t *flow, hint_t *hint)
 	mapping = file->f_dentry->d_inode->i_mapping;
 	ext_coord = &uf_coord->extension.extent;
 
-	/* offset in a file to start read from */
 	file_off = get_key_offset(&flow->key);
-	/* offset within the page to start read from */
 	page_off = (unsigned long)(file_off & (PAGE_CACHE_SIZE - 1));
-	/* bytes which can be read from the page which contains file_off */
-	count = PAGE_CACHE_SIZE - page_off;
+	page_cnt = PAGE_CACHE_SIZE - page_off;
 
-	/* index of page containing offset read is to start from */
-	cur_page = (unsigned long)(file_off >> PAGE_CACHE_SHIFT);
-	next_page = cur_page;
-	/* number of pages flow spans over */
-	nr_pages =
-	    ((file_off + flow->length + PAGE_CACHE_SIZE -
-	      1) >> PAGE_CACHE_SHIFT) - cur_page;
+	page_idx = (unsigned long)(file_off >> PAGE_CACHE_SHIFT);
 
 	/* we start having twig node read locked. However, we do not want to
-	   keep that lock all the time readahead works. So, set a sel and
+	   keep that lock all the time readahead works. So, set a seal and
 	   release twig node. */
 	reiser4_set_hint(hint, &flow->key, ZNODE_READ_LOCK);
 	/* &hint->lh is done-ed */
 
 	do {
 		reiser4_txn_restart_current();
-		page = read_mapping_page(mapping, cur_page, file);
+		page = read_mapping_page(mapping, page_idx, file);
 		if (IS_ERR(page))
 			return PTR_ERR(page);
 		lock_page(page);
 		if (!PageUptodate(page)) {
 			unlock_page(page);
 			page_cache_release(page);
-			warning("jmacd-97178", "extent_read: page is not up to date");
+			warning("jmacd-97178",
+				"extent_read: page is not up to date");
 			return RETERR(-EIO);
 		}
 		mark_page_accessed(page);
@@ -1262,10 +1265,10 @@ int reiser4_read_extent(struct file *file, flow_t *flow, hint_t *hint)
 		assert("nikita-3034", reiser4_schedulable());
 
 		/* number of bytes which are to be read from the page */
-		if (count > flow->length)
-			count = flow->length;
+		if (page_cnt > flow->length)
+			page_cnt = flow->length;
 
-		result = fault_in_pages_writeable(flow->data, count);
+		result = fault_in_pages_writeable(flow->data, page_cnt);
 		if (result) {
 			page_cache_release(page);
 			return RETERR(-EFAULT);
@@ -1273,27 +1276,27 @@ int reiser4_read_extent(struct file *file, flow_t *flow, hint_t *hint)
 
 		kaddr = kmap_atomic(page, KM_USER0);
 		result = __copy_to_user_inatomic(flow->data,
-					       kaddr + page_off, count);
+						 kaddr + page_off, page_cnt);
 		kunmap_atomic(kaddr, KM_USER0);
 		if (result != 0) {
 			kaddr = kmap(page);
-			result = __copy_to_user(flow->data, kaddr + page_off, count);
+			result = __copy_to_user(flow->data,
+						kaddr + page_off, page_cnt);
 			kunmap(page);
 			if (unlikely(result))
 				return RETERR(-EFAULT);
 		}
-
 		page_cache_release(page);
 
-		/* increase key (flow->key), update user area pointer (flow->data) */
-		move_flow_forward(flow, count);
+		/* increase (flow->key) offset,
+		 * update (flow->data) user area pointer
+		 */
+		move_flow_forward(flow, page_cnt);
 
 		page_off = 0;
-		cur_page ++;
-		count = PAGE_CACHE_SIZE;
-		nr_pages--;
-	} while (flow->length);
+		page_idx++;
 
+	} while (flow->length);
 	return 0;
 }
 
@@ -1301,7 +1304,7 @@ int reiser4_read_extent(struct file *file, flow_t *flow, hint_t *hint)
    plugin->s.file.readpage
    reiser4_read->unix_file_read->page_cache_readahead->reiser4_readpage->unix_file_readpage->extent_readpage
    or
-   filemap_nopage->reiser4_readpage->readpage_unix_file->->readpage_extent
+   filemap_fault->reiser4_readpage->readpage_unix_file->->readpage_extent
 
    At the beginning: coord->node is read locked, zloaded, page is
    locked, coord is set to existing unit inside of extent item (it is not necessary that coord matches to page->index)
@@ -1330,14 +1333,6 @@ int reiser4_readpage_extent(void *vp, struct page *page)
 		uf_coord->extension.extent.pos_in_unit, page);
 }
 
-/**
- * get_block_address_extent
- * @coord:
- * @block:
- * @result:
- *
- *
- */
 int get_block_address_extent(const coord_t *coord, sector_t block,
 			     sector_t *result)
 {
@@ -1390,7 +1385,7 @@ reiser4_key *append_key_extent(const coord_t * coord, reiser4_key * key)
 void init_coord_extension_extent(uf_coord_t * uf_coord, loff_t lookuped)
 {
 	coord_t *coord;
-	extent_coord_extension_t *ext_coord;
+	struct extent_coord_extension *ext_coord;
 	reiser4_key key;
 	loff_t offset;
 

@@ -2,7 +2,7 @@
  * reiser4/README */
 /* Memory pressure hooks. Fake inodes handling. See page_cache.c. */
 
-#if !defined( __REISER4_PAGE_CACHE_H__ )
+#if !defined(__REISER4_PAGE_CACHE_H__)
 #define __REISER4_PAGE_CACHE_H__
 
 #include "forward.h"
@@ -17,8 +17,6 @@ extern int reiser4_init_formatted_fake(struct super_block *);
 extern void reiser4_done_formatted_fake(struct super_block *);
 
 extern reiser4_tree *reiser4_tree_by_page(const struct page *);
-
-extern int reiser4_set_page_dirty_internal(struct page *);
 
 #define reiser4_submit_bio(rw, bio) submit_bio((rw), (bio))
 
@@ -38,7 +36,7 @@ extern void reiser4_invalidate_pages(struct address_space *, pgoff_t from,
 				     unsigned long count, int even_cows);
 extern void capture_reiser4_inodes(struct super_block *,
 				   struct writeback_control *);
-static inline void * reiser4_vmalloc (unsigned long size)
+static inline void *reiser4_vmalloc(unsigned long size)
 {
 	return __vmalloc(size,
 			 reiser4_ctx_gfp_mask_get() | __GFP_HIGHMEM,

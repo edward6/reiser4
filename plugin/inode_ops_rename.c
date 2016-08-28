@@ -13,11 +13,11 @@ static int replace_name(struct inode *to_inode,	/* inode where @from_coord is
 						 * to be re-targeted at */
 			struct inode *from_dir,	/* directory where @from_coord
 						 * lives */
-			struct inode *from_inode,	/* inode @from_coord
-							 * originally point to */
-			coord_t * from_coord,	/* where directory entry is in
+			struct inode *from_inode, /* inode @from_coord
+						   * originally point to */
+			coord_t *from_coord,	/* where directory entry is in
 						 * the tree */
-			lock_handle * from_lh /* lock handle on @from_coord */ )
+			lock_handle * from_lh/* lock handle on @from_coord */)
 {
 	item_plugin *from_item;
 	int result;
@@ -30,8 +30,7 @@ static int replace_name(struct inode *to_inode,	/* inode where @from_coord is
 		return result;
 	from_item = item_plugin_by_coord(from_coord);
 	if (plugin_of_group(item_plugin_by_coord(from_coord),
-			    DIR_ENTRY_ITEM_TYPE))
-	{
+			    DIR_ENTRY_ITEM_TYPE)) {
 		reiser4_key to_key;
 
 		build_sd_key(to_inode, &to_key);
@@ -97,9 +96,10 @@ static int add_name(struct inode *inode,	/* inode where @coord is to be
 						 * re-targeted at */
 		    struct inode *dir,	/* directory where @coord lives */
 		    struct dentry *name,	/* new name */
-		    coord_t * coord,	/* where directory entry is in the tree */
+		    coord_t *coord,	/* where directory entry is in the tree
+					 */
 		    lock_handle * lh,	/* lock handle on @coord */
-		    int is_dir /* true, if @inode is directory */ )
+		    int is_dir/* true, if @inode is directory */)
 {
 	int result;
 	reiser4_dir_entry_desc entry;
@@ -142,14 +142,18 @@ static int add_name(struct inode *inode,	/* inode where @coord is to be
 	return result;
 }
 
-static reiser4_block_nr estimate_rename(struct inode *old_dir,	/* directory where @old is located */
-					struct dentry *old_name,	/* old name */
-					struct inode *new_dir,	/* directory where @new is located */
-					struct dentry *new_name /* new name */ )
+static reiser4_block_nr estimate_rename(struct inode *old_dir,  /* directory
+								 * where @old is
+								 * located */
+					struct dentry *old_name,/* old name */
+					struct inode *new_dir,  /* directory
+								 * where @new is
+								 * located */
+					struct dentry *new_name /* new name */)
 {
 	reiser4_block_nr res1, res2;
-	dir_plugin *p_parent_old, *p_parent_new;
-	file_plugin *p_child_old, *p_child_new;
+	dir_plugin * p_parent_old, *p_parent_new;
+	file_plugin * p_child_old, *p_child_new;
 
 	assert("vpf-311", old_dir != NULL);
 	assert("vpf-312", new_dir != NULL);
@@ -169,7 +173,8 @@ static reiser4_block_nr estimate_rename(struct inode *old_dir,	/* directory wher
 
 	/* replace_name */
 	{
-		/* reiser4_add_nlink(p_child_old) and reiser4_del_nlink(p_child_old) */
+		/* reiser4_add_nlink(p_child_old) and
+		 * reiser4_del_nlink(p_child_old) */
 		res1 += 2 * p_child_old->estimate.update(old_name->d_inode);
 		/* update key */
 		res1 += 1;
@@ -180,7 +185,8 @@ static reiser4_block_nr estimate_rename(struct inode *old_dir,	/* directory wher
 
 	/* else add_name */
 	{
-		/* reiser4_add_nlink(p_parent_new) and reiser4_del_nlink(p_parent_new) */
+		/* reiser4_add_nlink(p_parent_new) and
+		 * reiser4_del_nlink(p_parent_new) */
 		res2 +=
 		    2 * inode_file_plugin(new_dir)->estimate.update(new_dir);
 		/* reiser4_add_nlink(p_parent_old) */
@@ -227,11 +233,18 @@ static reiser4_block_nr estimate_rename(struct inode *old_dir,	/* directory wher
 	return res1;
 }
 
-static int hashed_rename_estimate_and_grab(struct inode *old_dir,	/* directory where @old is located */
-					   struct dentry *old_name,	/* old name */
-					   struct inode *new_dir,	/* directory where @new is located */
-					   struct dentry *new_name
-					   /* new name */ )
+static int hashed_rename_estimate_and_grab(struct inode *old_dir,  /* directory
+								    * where @old
+								    * is located
+								    */
+					   struct dentry *old_name,/* old name
+								    */
+					   struct inode *new_dir,  /* directory
+								    * where @new
+								    * is located
+								    */
+					   struct dentry *new_name /* new name
+								    */)
 {
 	reiser4_block_nr reserve;
 
@@ -271,7 +284,7 @@ static int can_rename(struct inode *old_dir, struct inode *old_inode,
 	return 0;
 }
 
-int reiser4_find_entry(struct inode *, struct dentry *, lock_handle *,
+int reiser4_find_entry(struct inode *, struct dentry *, lock_handle * ,
 	       znode_lock_mode, reiser4_dir_entry_desc *);
 int reiser4_update_dir(struct inode *);
 
@@ -291,7 +304,7 @@ int reiser4_rename_common(struct inode *old_dir /* directory where @old
 			  struct dentry *old_name /* old name */ ,
 			  struct inode *new_dir /* directory where @new
 						 * is located */ ,
-			  struct dentry *new_name /* new name */ )
+			  struct dentry *new_name/* new name */)
 {
 	/* From `The Open Group Base Specifications Issue 6'
 
@@ -379,36 +392,34 @@ int reiser4_rename_common(struct inode *old_dir /* directory where @old
 	struct inode *new_inode;
 	coord_t *new_coord;
 
-	reiser4_dentry_fsdata *new_fsdata;
+	struct reiser4_dentry_fsdata *new_fsdata;
 	dir_plugin *dplug;
 	file_plugin *fplug;
 
 	reiser4_dir_entry_desc *old_entry, *new_entry, *dotdot_entry;
-	lock_handle *new_lh, *dotdot_lh;
+	lock_handle * new_lh, *dotdot_lh;
 	struct dentry *dotdot_name;
-	reiser4_dentry_fsdata *dataonstack;
+	struct reiser4_dentry_fsdata *dataonstack;
 
 	ctx = reiser4_init_context(old_dir->i_sb);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 
-	old_entry = kmalloc(3 * sizeof(*old_entry) + 2 * sizeof(*new_lh) +
+	old_entry = kzalloc(3 * sizeof(*old_entry) + 2 * sizeof(*new_lh) +
 			    sizeof(*dotdot_name) + sizeof(*dataonstack),
 			    reiser4_ctx_gfp_mask_get());
-	if (old_entry == NULL) {
+	if (!old_entry) {
 		context_set_commit_async(ctx);
 		reiser4_exit_context(ctx);
 		return RETERR(-ENOMEM);
 	}
-	memset(old_entry, 0, 3 * sizeof(*old_entry) + 2 * sizeof(*new_lh) +
-	       sizeof(*dotdot_name) + sizeof(*dataonstack));
 
 	new_entry = old_entry + 1;
 	dotdot_entry = old_entry + 2;
 	new_lh = (lock_handle *)(old_entry + 3);
 	dotdot_lh = new_lh + 1;
 	dotdot_name = (struct dentry *)(new_lh + 2);
-	dataonstack = (reiser4_dentry_fsdata *)(dotdot_name + 1);
+	dataonstack = (struct reiser4_dentry_fsdata *)(dotdot_name + 1);
 
 	assert("nikita-2318", old_dir != NULL);
 	assert("nikita-2319", new_dir != NULL);
@@ -619,7 +630,7 @@ int reiser4_rename_common(struct inode *old_dir /* directory where @old
 			  struct dentry *old_name /* old name */ ,
 			  struct inode *new_dir /* directory where @new
 						 * is located */ ,
-			  struct dentry *new_name /* new name */ )
+			  struct dentry *new_name/* new name */)
 {
 	/* From `The Open Group Base Specifications Issue 6'
 
@@ -707,7 +718,7 @@ int reiser4_rename_common(struct inode *old_dir /* directory where @old
 	reiser4_dir_entry_desc old_entry;
 	reiser4_dir_entry_desc new_entry;
 	coord_t *new_coord;
-	reiser4_dentry_fsdata *new_fsdata;
+	struct reiser4_dentry_fsdata *new_fsdata;
 	lock_handle new_lh;
 	dir_plugin *dplug;
 	file_plugin *fplug;
@@ -854,8 +865,8 @@ int reiser4_rename_common(struct inode *old_dir /* directory where @old
 			lock_handle dotdot_lh;
 			struct dentry dotdot_name;
 			reiser4_dir_entry_desc dotdot_entry;
-			reiser4_dentry_fsdata dataonstack;
-			reiser4_dentry_fsdata *fsdata;
+			struct reiser4_dentry_fsdata dataonstack;
+			struct reiser4_dentry_fsdata *fsdata;
 
 			memset(&dataonstack, 0, sizeof dataonstack);
 			memset(&dotdot_entry, 0, sizeof dotdot_entry);
@@ -906,7 +917,7 @@ int reiser4_rename_common(struct inode *old_dir /* directory where @old
 				result = safe_link_add(new_inode, SAFE_UNLINK);
 		}
 	}
-      exit:
+exit:
 	context_set_commit_async(ctx);
 	reiser4_exit_context(ctx);
 	return result;

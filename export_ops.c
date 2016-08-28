@@ -50,67 +50,91 @@ static char *decode_inode(struct super_block *s, char *addr,
 	return addr;
 }
 
+static struct dentry *reiser4_get_dentry(struct super_block *super,
+					 void *data);
 /**
- * reiser4_decode_fh - decode_fh of export operations
- * @super: super block
- * @fh: nfsd file handle
- * @len: length of file handle
- * @fhtype: type of file handle
- * @acceptable: acceptability testing function
- * @context: argument for @acceptable
+ * reiser4_decode_fh: decode on-wire object - helper function
+ * for fh_to_dentry, fh_to_parent export operations;
+ * @super: super block;
+ * @addr: onwire object to be decoded;
  *
- * Returns dentry referring to the same file as @fh.
+ * Returns dentry referring to the object being decoded.
  */
-static struct dentry *reiser4_decode_fh(struct super_block *super, __u32 *fh,
-					int len, int fhtype,
-					int (*acceptable) (void *context,
-							   struct dentry *de),
-					void *context)
+static struct dentry *reiser4_decode_fh(struct super_block * super,
+					char * addr)
 {
-	reiser4_context *ctx;
 	reiser4_object_on_wire object;
-	reiser4_object_on_wire parent;
-	char *addr;
-	int with_parent;
-
-	ctx = reiser4_init_context(super);
-	if (IS_ERR(ctx))
-		return (struct dentry *)ctx;
-
-	assert("vs-1482",
-	       fhtype == FH_WITH_PARENT || fhtype == FH_WITHOUT_PARENT);
-
-	with_parent = (fhtype == FH_WITH_PARENT);
-
-	addr = (char *)fh;
 
 	object_on_wire_init(&object);
-	object_on_wire_init(&parent);
 
 	addr = decode_inode(super, addr, &object);
 	if (!IS_ERR(addr)) {
-		if (with_parent)
-			addr = decode_inode(super, addr, &parent);
-		if (!IS_ERR(addr)) {
-			struct dentry *d;
-			typeof(super->s_export_op->find_exported_dentry) fn;
-
-			fn = super->s_export_op->find_exported_dentry;
-			assert("nikita-3521", fn != NULL);
-			d = fn(super, &object, with_parent ? &parent : NULL,
-			       acceptable, context);
-			if (d != NULL && !IS_ERR(d))
-				/* FIXME check for -ENOMEM */
-			  	reiser4_get_dentry_fsdata(d)->stateless = 1;
-			addr = (char *)d;
-		}
+		struct dentry *d;
+		d = reiser4_get_dentry(super, &object);
+		if (d != NULL && !IS_ERR(d))
+			/* FIXME check for -ENOMEM */
+			reiser4_get_dentry_fsdata(d)->stateless = 1;
+		addr = (char *)d;
 	}
-
 	object_on_wire_done(&object);
-	object_on_wire_done(&parent);
+	return (void *)addr;
+}
+
+static struct dentry *reiser4_fh_to_dentry(struct super_block *sb,
+					   struct fid *fid,
+					   int fh_len, int fh_type)
+{
+	reiser4_context *ctx;
+	struct dentry *d;
+
+	assert("edward-1536",
+	       fh_type == FH_WITH_PARENT || fh_type == FH_WITHOUT_PARENT);
+
+	ctx = reiser4_init_context(sb);
+	if (IS_ERR(ctx))
+		return (struct dentry *)ctx;
+
+	d = reiser4_decode_fh(sb, (char *)fid->raw);
 
 	reiser4_exit_context(ctx);
-	return (void *)addr;
+	return d;
+}
+
+static struct dentry *reiser4_fh_to_parent(struct super_block *sb,
+					   struct fid *fid,
+					   int fh_len, int fh_type)
+{
+	char * addr;
+	struct dentry * d;
+	reiser4_context *ctx;
+	file_plugin *fplug;
+
+	if (fh_type == FH_WITHOUT_PARENT)
+		return NULL;
+	assert("edward-1537", fh_type == FH_WITH_PARENT);
+
+	ctx = reiser4_init_context(sb);
+	if (IS_ERR(ctx))
+		return (struct dentry *)ctx;
+	addr = (char *)fid->raw;
+	/* extract 2-bytes file plugin id */
+	fplug = file_plugin_by_disk_id(reiser4_get_tree(sb), (d16 *)addr);
+	if (fplug == NULL) {
+		d = ERR_PTR(RETERR(-EINVAL));
+		goto exit;
+	}
+	addr += sizeof(d16);
+	/* skip previously encoded object */
+	addr = fplug->wire.read(addr, NULL /* skip */);
+	if (IS_ERR(addr)) {
+		d = (struct dentry *)addr;
+		goto exit;
+	}
+	/* @extract and decode parent object */
+	d = reiser4_decode_fh(sb, addr);
+ exit:
+	reiser4_exit_context(ctx);
+	return d;
 }
 
 /*
@@ -233,19 +257,28 @@ static struct dentry *reiser4_get_dentry_parent(struct dentry *child)
 {
 	struct inode *dir;
 	dir_plugin *dplug;
+	struct dentry *result;
+	reiser4_context *ctx;
 
 	assert("nikita-3527", child != NULL);
-	/* see comment in reiser4_get_dentry() about following assertion */
-	assert("nikita-3528", is_in_reiser4_context());
 
 	dir = child->d_inode;
 	assert("nikita-3529", dir != NULL);
+
+	ctx = reiser4_init_context(dir->i_sb);
+	if (IS_ERR(ctx))
+		return (void *)ctx;
+
 	dplug = inode_dir_plugin(dir);
 	assert("nikita-3531", ergo(dplug != NULL, dplug->get_parent != NULL));
-	if (dplug != NULL)
-		return dplug->get_parent(dir);
-	else
+
+	if (unlikely(dplug == NULL)) {
+		reiser4_exit_context(ctx);
 		return ERR_PTR(RETERR(-ENOTDIR));
+	}
+	result = dplug->get_parent(dir);
+	reiser4_exit_context(ctx);
+	return result;
 }
 
 /**
@@ -279,9 +312,9 @@ static struct dentry *reiser4_get_dentry(struct super_block *super, void *data)
 
 struct export_operations reiser4_export_operations = {
 	.encode_fh = reiser4_encode_fh,
-	.decode_fh = reiser4_decode_fh,
+	.fh_to_dentry = reiser4_fh_to_dentry,
+	.fh_to_parent = reiser4_fh_to_parent,
 	.get_parent = reiser4_get_dentry_parent,
-	.get_dentry = reiser4_get_dentry
 };
 
 /*

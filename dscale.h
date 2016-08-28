@@ -3,14 +3,15 @@
 
 /* Scalable on-disk integers. See dscale.h for details. */
 
-#if !defined( __FS_REISER4_DSCALE_H__ )
+#if !defined(__FS_REISER4_DSCALE_H__)
 #define __FS_REISER4_DSCALE_H__
 
 #include "dformat.h"
 
-extern int dscale_read(unsigned char *address, __u64 * value);
+extern int dscale_read(unsigned char *address, __u64 *value);
 extern int dscale_write(unsigned char *address, __u64 value);
-extern int dscale_bytes(__u64 value);
+extern int dscale_bytes_to_read(unsigned char *address);
+extern int dscale_bytes_to_write(__u64 value);
 extern int dscale_fit(__u64 value, __u64 other);
 
 /* __FS_REISER4_DSCALE_H__ */

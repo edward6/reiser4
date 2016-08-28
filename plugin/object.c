@@ -84,6 +84,97 @@ static reiser4_plugin_ops file_plugin_ops = {
 	.change = change_file
 };
 
+static struct inode_operations         null_i_ops = {.create = NULL};
+static struct file_operations          null_f_ops = {.owner = NULL};
+static struct address_space_operations null_a_ops = {.writepage = NULL};
+
+/* VFS methods for regular files */
+static struct inode_operations regular_file_i_ops = {
+	.permission = reiser4_permission_common,
+	.setattr = reiser4_setattr,
+	.getattr = reiser4_getattr_common
+};
+static struct file_operations regular_file_f_ops = {
+	.llseek = generic_file_llseek,
+	.read = reiser4_read_careful,
+	.write = reiser4_write_careful,
+	.aio_read = generic_file_aio_read,
+	.unlocked_ioctl = reiser4_ioctl_careful,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = reiser4_ioctl_careful,
+#endif
+	.mmap = reiser4_mmap_careful,
+	.open = reiser4_open_careful,
+	.release = reiser4_release_careful,
+	.fsync = reiser4_sync_file_common,
+	.splice_read = generic_file_splice_read,
+	.splice_write = generic_file_splice_write
+};
+static struct address_space_operations regular_file_a_ops = {
+	.writepage = reiser4_writepage,
+	.readpage = reiser4_readpage,
+	//.sync_page = block_sync_page,
+	.writepages = reiser4_writepages,
+	.set_page_dirty = reiser4_set_page_dirty,
+	.readpages = reiser4_readpages,
+	.write_begin = reiser4_write_begin_careful,
+	.write_end = reiser4_write_end_careful,
+	.bmap = reiser4_bmap_careful,
+	.invalidatepage = reiser4_invalidatepage,
+	.releasepage = reiser4_releasepage
+};
+
+/* VFS methods for symlink files */
+static struct inode_operations symlink_file_i_ops = {
+	.readlink = generic_readlink,
+	.follow_link = reiser4_follow_link_common,
+	.permission = reiser4_permission_common,
+	.setattr = reiser4_setattr_common,
+	.getattr = reiser4_getattr_common
+};
+
+/* VFS methods for special files */
+static struct inode_operations special_file_i_ops = {
+	.permission = reiser4_permission_common,
+	.setattr = reiser4_setattr_common,
+	.getattr = reiser4_getattr_common
+};
+
+/* VFS methods for directories */
+static struct inode_operations directory_i_ops = {
+	.create = reiser4_create_common,
+	.lookup = reiser4_lookup_common,
+	.link = reiser4_link_common,
+	.unlink = reiser4_unlink_common,
+	.symlink = reiser4_symlink_common,
+	.mkdir = reiser4_mkdir_common,
+	.rmdir = reiser4_unlink_common,
+	.mknod = reiser4_mknod_common,
+	.rename = reiser4_rename_common,
+	.permission = reiser4_permission_common,
+	.setattr = reiser4_setattr_common,
+	.getattr = reiser4_getattr_common
+};
+static struct file_operations directory_f_ops = {
+	.llseek = reiser4_llseek_dir_common,
+	.read = generic_read_dir,
+	.readdir = reiser4_readdir_common,
+	.release = reiser4_release_dir_common,
+	.fsync = reiser4_sync_common
+};
+static struct address_space_operations directory_a_ops = {
+	.writepage = bugop,
+	//.sync_page = bugop,
+	.writepages = dummyop,
+	.set_page_dirty = bugop,
+	.readpages = bugop,
+	.write_begin = bugop,
+	.write_end = bugop,
+	.bmap = bugop,
+	.invalidatepage = bugop,
+	.releasepage = bugop
+};
+
 /*
  * Definitions of object plugins.
  */
@@ -99,38 +190,37 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.desc = "regular file",
 			.linkage = {NULL, NULL},
 		},
-		.inode_ops = {
-			.permission = reiser4_permission_common,
-			.setattr = setattr_unix_file,
-			.getattr = reiser4_getattr_common
-		},
-		.file_ops = {
-			.llseek = generic_file_llseek,
-			.read = read_unix_file,
-			.write = do_sync_write,
-			.aio_read = generic_file_aio_read,
-			.aio_write = generic_file_aio_write,
-			.ioctl = ioctl_unix_file,
-			.mmap = mmap_unix_file,
-			.open = open_unix_file,
-			.release = release_unix_file,
-			.fsync = sync_unix_file,
-			.sendfile = sendfile_unix_file
-		},
-		.as_ops = {
-			.writepage = reiser4_writepage,
-			.readpage = readpage_unix_file,
-			.sync_page = block_sync_page,
-			.writepages = writepages_unix_file,
-			.set_page_dirty = reiser4_set_page_dirty,
-			.readpages = readpages_unix_file,
-			.prepare_write = prepare_write_unix_file,
-			.commit_write =	commit_write_unix_file,
-			.batch_write = batch_write_unix_file,
-			.bmap = bmap_unix_file,
-			.invalidatepage = reiser4_invalidatepage,
-			.releasepage = reiser4_releasepage
-		},
+		/*
+		 * invariant vfs ops
+		 */
+		.inode_ops = &regular_file_i_ops,
+		.file_ops = &regular_file_f_ops,
+		.as_ops = &regular_file_a_ops,
+		/*
+		 * private i_ops
+		 */
+		.setattr = setattr_unix_file,
+		.open = open_unix_file,
+		.read = read_unix_file,
+		.write = write_unix_file,
+		.ioctl = ioctl_unix_file,
+		.mmap = mmap_unix_file,
+		.release = release_unix_file,
+		/*
+		 * private f_ops
+		 */
+		.readpage = readpage_unix_file,
+		.readpages = readpages_unix_file,
+		.writepages = writepages_unix_file,
+		.write_begin = write_begin_unix_file,
+		.write_end = write_end_unix_file,
+		/*
+		 * private a_ops
+		 */
+		.bmap = bmap_unix_file,
+		/*
+		 * other private methods
+		 */
 		.write_sd_by_inode = write_sd_by_inode_common,
 		.flow_by_inode = flow_by_inode_unix_file,
 		.key_by_inode = key_by_inode_and_offset_common,
@@ -170,9 +260,9 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.desc = "directory",
 			.linkage = {NULL, NULL}
 		},
-		.inode_ops = {.create = NULL},
-		.file_ops = {.owner = NULL},
-		.as_ops = {.writepage = NULL},
+		.inode_ops = &null_i_ops,
+		.file_ops = &null_f_ops,
+		.as_ops = &null_a_ops,
 
 		.write_sd_by_inode = write_sd_by_inode_common,
 		.flow_by_inode = bugop,
@@ -214,16 +304,11 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.desc = "symbolic link",
 			.linkage = {NULL,NULL}
 		},
-		.inode_ops = {
-			.readlink = generic_readlink,
-			.follow_link = reiser4_follow_link_common,
-			.permission = reiser4_permission_common,
-			.setattr = reiser4_setattr_common,
-			.getattr = reiser4_getattr_common
-		},
-		/* inode->i_fop of symlink is initialized by NULL in setup_inode_ops */
-		.file_ops = {.owner = NULL},
-		.as_ops = {.writepage = NULL},
+		.inode_ops = &symlink_file_i_ops,
+		/* inode->i_fop of symlink is initialized
+		   by NULL in setup_inode_ops */
+		.file_ops = &null_f_ops,
+		.as_ops = &null_a_ops,
 
 		.write_sd_by_inode = write_sd_by_inode_common,
 		.set_plug_in_inode = set_plug_in_inode_common,
@@ -263,15 +348,11 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			"special: fifo, device or socket",
 			.linkage = {NULL, NULL}
 		},
-		.inode_ops = {
-			.permission = reiser4_permission_common,
-			.setattr = reiser4_setattr_common,
-			.getattr = reiser4_getattr_common
-		},
+		.inode_ops = &special_file_i_ops,
 		/* file_ops of special files (sockets, block, char, fifo) are
 		   initialized by init_special_inode. */
-		.file_ops = {.owner = NULL},
-		.as_ops = {.writepage = NULL},
+		.file_ops = &null_f_ops,
+		.as_ops = &null_a_ops,
 
 		.write_sd_by_inode = write_sd_by_inode_common,
 		.set_plug_in_inode = set_plug_in_inode_common,
@@ -310,39 +391,32 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.desc = "cryptcompress file",
 			.linkage = {NULL, NULL}
 		},
-		.inode_ops = {
-			.permission = reiser4_permission_common,
-			.setattr = prot_setattr_cryptcompress,
-			.getattr = reiser4_getattr_common
-		},
-		.file_ops = {
-			.llseek = generic_file_llseek,
-			.read = prot_read_cryptcompress,
-			.write = prot_write_cryptcompress,
-			.aio_read = generic_file_aio_read,
-			.mmap = prot_mmap_cryptcompress,
-			.release = prot_release_cryptcompress,
-			.fsync = reiser4_sync_common,
-			.sendfile = prot_sendfile_cryptcompress
-		},
-		.as_ops = {
-			.writepage = reiser4_writepage,
-			.readpage = readpage_cryptcompress,
-			.sync_page = block_sync_page,
-			.writepages = writepages_cryptcompress,
-			.set_page_dirty = reiser4_set_page_dirty,
-			.readpages = readpages_cryptcompress,
-			.prepare_write = prepare_write_common,
-			.invalidatepage = reiser4_invalidatepage,
-			.releasepage = reiser4_releasepage
-		},
+		.inode_ops = &regular_file_i_ops,
+		.file_ops = &regular_file_f_ops,
+		.as_ops = &regular_file_a_ops,
+
+		.setattr = setattr_cryptcompress,
+		.open = open_cryptcompress,
+		.read = read_cryptcompress,
+		.write = write_cryptcompress,
+		.ioctl = ioctl_cryptcompress,
+		.mmap = mmap_cryptcompress,
+		.release = release_cryptcompress,
+
+		.readpage = readpage_cryptcompress,
+		.readpages = readpages_cryptcompress,
+		.writepages = writepages_cryptcompress,
+		.write_begin = write_begin_cryptcompress,
+		.write_end = write_end_cryptcompress,
+
+		.bmap = bmap_cryptcompress,
+
 		.write_sd_by_inode = write_sd_by_inode_common,
 		.flow_by_inode = flow_by_inode_cryptcompress,
 		.key_by_inode = key_by_inode_cryptcompress,
 		.set_plug_in_inode = set_plug_in_inode_common,
 		.adjust_to_parent = adjust_to_parent_cryptcompress,
-		.create_object = create_cryptcompress,
-		.open_object = open_object_cryptcompress,
+		.create_object = create_object_cryptcompress,
 		.delete_object = delete_object_cryptcompress,
 		.add_link = reiser4_add_link_common,
 		.rem_link = reiser4_rem_link_common,
@@ -396,39 +470,10 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 			.desc = "hashed directory",
 			.linkage = {NULL, NULL}
 		},
-		.inode_ops = {
-			.create = reiser4_create_common,
-			.lookup = reiser4_lookup_common,
-			.link = reiser4_link_common,
-			.unlink = reiser4_unlink_common,
-			.symlink = reiser4_symlink_common,
-			.mkdir = reiser4_mkdir_common,
-			.rmdir = reiser4_unlink_common,
-			.mknod = reiser4_mknod_common,
-			.rename = reiser4_rename_common,
-			.permission = reiser4_permission_common,
-			.setattr = reiser4_setattr_common,
-			.getattr = reiser4_getattr_common
-		},
-		.file_ops = {
-			.llseek = reiser4_llseek_dir_common,
-			.read = generic_read_dir,
-			.readdir = reiser4_readdir_common,
-			.release = reiser4_release_dir_common,
-			.fsync = reiser4_sync_common
-		},
-		.as_ops = {
-			.writepage = bugop,
-			.sync_page = bugop,
-			.writepages = dummyop,
-			.set_page_dirty = bugop,
-			.readpages = bugop,
-			.prepare_write = bugop,
-			.commit_write = bugop,
-			.bmap = bugop,
-			.invalidatepage = bugop,
-			.releasepage = bugop
-		},
+		.inode_ops = &directory_i_ops,
+		.file_ops = &directory_f_ops,
+		.as_ops = &directory_a_ops,
+
 		.get_parent = get_parent_common,
 		.is_name_acceptable = is_name_acceptable_common,
 		.build_entry_key = build_entry_key_hashed,
@@ -456,39 +501,10 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 			.desc = "directory hashed with 31 bit hash",
 			.linkage = {NULL, NULL}
 		},
-		.inode_ops = {
-			.create = reiser4_create_common,
-			.lookup = reiser4_lookup_common,
-			.link = reiser4_link_common,
-			.unlink = reiser4_unlink_common,
-			.symlink = reiser4_symlink_common,
-			.mkdir = reiser4_mkdir_common,
-			.rmdir = reiser4_unlink_common,
-			.mknod = reiser4_mknod_common,
-			.rename = reiser4_rename_common,
-			.permission = reiser4_permission_common,
-			.setattr = reiser4_setattr_common,
-			.getattr = reiser4_getattr_common
-		},
-		.file_ops = {
-			.llseek = reiser4_llseek_dir_common,
-			.read =	generic_read_dir,
-			.readdir = reiser4_readdir_common,
-			.release = reiser4_release_dir_common,
-			.fsync = reiser4_sync_common
-		},
-		.as_ops = {
-			.writepage = bugop,
-			.sync_page = bugop,
-			.writepages = dummyop,
-			.set_page_dirty = bugop,
-			.readpages = bugop,
-			.prepare_write = bugop,
-			.commit_write = bugop,
-			.bmap = bugop,
-			.invalidatepage = bugop,
-			.releasepage = bugop
-		},
+		.inode_ops = &directory_i_ops,
+		.file_ops = &directory_f_ops,
+		.as_ops = &directory_a_ops,
+
 		.get_parent = get_parent_common,
 		.is_name_acceptable = is_name_acceptable_common,
 		.build_entry_key = build_entry_key_seekable,

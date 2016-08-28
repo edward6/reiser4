@@ -121,16 +121,16 @@
 #include <linux/pagemap.h>
 #include <linux/swap.h>
 #include <linux/fs.h>		/* for struct address_space  */
-#include <linux/writeback.h>	/* for inode_lock */
+#include <linux/writeback.h>	/* for inode_wb_list_lock */
 
-static kmem_cache_t *_jnode_slab = NULL;
+static struct kmem_cache *_jnode_slab = NULL;
 
 static void jnode_set_type(jnode * node, jnode_type type);
 static int jdelete(jnode * node);
 static int jnode_try_drop(jnode * node);
 
 #if REISER4_DEBUG
-static int jnode_invariant(const jnode * node, int tlocked, int jlocked);
+static int jnode_invariant(jnode * node, int tlocked, int jlocked);
 #endif
 
 /* true if valid page is attached to jnode */
@@ -142,7 +142,8 @@ static inline int jnode_is_parsed(jnode * node)
 /* hash table support */
 
 /* compare two jnode keys for equality. Used by hash-table macros */
-static inline int jnode_key_eq(const jnode_key_t * k1, const jnode_key_t * k2)
+static inline int jnode_key_eq(const struct jnode_key *k1,
+			       const struct jnode_key *k2)
 {
 	assert("nikita-2350", k1 != NULL);
 	assert("nikita-2351", k2 != NULL);
@@ -151,8 +152,8 @@ static inline int jnode_key_eq(const jnode_key_t * k1, const jnode_key_t * k2)
 }
 
 /* Hash jnode by its key (inode plus offset). Used by hash-table macros */
-static inline __u32
-jnode_key_hashfn(j_hash_table * table, const jnode_key_t * key)
+static inline __u32 jnode_key_hashfn(j_hash_table * table,
+				     const struct jnode_key *key)
 {
 	assert("nikita-2352", key != NULL);
 	assert("nikita-3346", IS_POW(table->_buckets));
@@ -164,20 +165,20 @@ jnode_key_hashfn(j_hash_table * table, const jnode_key_t * key)
 /* The hash table definition */
 #define KMALLOC(size) reiser4_vmalloc(size)
 #define KFREE(ptr, size) vfree(ptr)
-TYPE_SAFE_HASH_DEFINE(j, jnode, jnode_key_t, key.j, link.j, jnode_key_hashfn,
-		      jnode_key_eq);
+TYPE_SAFE_HASH_DEFINE(j, jnode, struct jnode_key, key.j, link.j,
+		      jnode_key_hashfn, jnode_key_eq);
 #undef KFREE
 #undef KMALLOC
 
 /* call this to initialise jnode hash table */
-int jnodes_tree_init(reiser4_tree * tree /* tree to initialise jnodes for */ )
+int jnodes_tree_init(reiser4_tree * tree/* tree to initialise jnodes for */)
 {
 	assert("nikita-2359", tree != NULL);
 	return j_hash_init(&tree->jhash_table, 16384);
 }
 
 /* call this to destroy jnode hash table. This is called during umount. */
-int jnodes_tree_done(reiser4_tree * tree /* tree to destroy jnodes for */ )
+int jnodes_tree_done(reiser4_tree * tree/* tree to destroy jnodes for */)
 {
 	j_hash_table *jtable;
 	jnode *node;
@@ -211,7 +212,7 @@ int init_jnodes(void)
 
 	_jnode_slab = kmem_cache_create("jnode", sizeof(jnode), 0,
 					SLAB_HWCACHE_ALIGN |
-					SLAB_RECLAIM_ACCOUNT, NULL, NULL);
+					SLAB_RECLAIM_ACCOUNT, NULL);
 	if (_jnode_slab == NULL)
 		return RETERR(-ENOMEM);
 
@@ -245,8 +246,6 @@ void jnode_init(jnode * node, reiser4_tree * tree, jnode_type type)
 	INIT_LIST_HEAD(&node->capture_link);
 
 	ASSIGN_NODE_LIST(node, NOT_CAPTURED);
-
-	INIT_RCU_HEAD(&node->rcu);
 
 #if REISER4_DEBUG
 	{
@@ -370,7 +369,7 @@ static jnode *jnew_unformatted(void)
 /* look for jnode with given mapping and offset within hash table */
 jnode *jlookup(reiser4_tree * tree, oid_t objectid, unsigned long index)
 {
-	jnode_key_t jkey;
+	struct jnode_key jkey;
 	jnode *node;
 
 	assert("nikita-2353", tree != NULL);
@@ -403,7 +402,7 @@ static jnode *jfind_nolock(struct address_space *mapping, unsigned long index)
 	return radix_tree_lookup(jnode_tree_by_inode(mapping->host), index);
 }
 
-jnode *jfind(struct address_space * mapping, unsigned long index)
+jnode *jfind(struct address_space *mapping, unsigned long index)
 {
 	reiser4_tree *tree;
 	jnode *node;
@@ -433,9 +432,9 @@ static void inode_attach_jnode(jnode * node)
 	if (rtree->rnode == NULL) {
 		/* prevent inode from being pruned when it has jnodes attached
 		   to it */
-		write_lock_irq(&inode->i_data.tree_lock);
+		spin_lock_irq(&inode->i_data.tree_lock);
 		inode->i_data.nrpages++;
-		write_unlock_irq(&inode->i_data.tree_lock);
+		spin_unlock_irq(&inode->i_data.tree_lock);
 	}
 	assert("zam-1049", equi(rtree->rnode != NULL, info->nr_jnodes != 0));
 	check_me("zam-1045",
@@ -463,9 +462,9 @@ static void inode_detach_jnode(jnode * node)
 	check_me("zam-1046", radix_tree_delete(rtree, node->key.j.index));
 	if (rtree->rnode == NULL) {
 		/* inode can be pruned now */
-		write_lock_irq(&inode->i_data.tree_lock);
+		spin_lock_irq(&inode->i_data.tree_lock);
 		inode->i_data.nrpages--;
-		write_unlock_irq(&inode->i_data.tree_lock);
+		spin_unlock_irq(&inode->i_data.tree_lock);
 	}
 }
 
@@ -556,7 +555,8 @@ static jnode *find_get_jnode(reiser4_tree * tree,
 	write_lock_tree(tree);
 	shadow = jfind_nolock(mapping, index);
 	if (likely(shadow == NULL)) {
-		/* add new jnode to hash table and inode's radix tree of jnodes */
+		/* add new jnode to hash table and inode's radix tree of
+		 * jnodes */
 		jref(result);
 		hash_unformatted_jnode(result, mapping, index);
 	} else {
@@ -629,7 +629,7 @@ static jnode *do_jget(reiser4_tree * tree, struct page *pg)
 /*
  * return jnode for @pg, creating it if necessary.
  */
-jnode *jnode_of_page(struct page * pg)
+jnode *jnode_of_page(struct page *pg)
 {
 	jnode *result;
 
@@ -738,15 +738,14 @@ static struct page *jnode_lock_page(jnode * node)
 
 		spin_lock_jnode(node);
 		page = jnode_page(node);
-		if (page == NULL) {
+		if (page == NULL)
 			break;
-		}
 
 		/* no need to page_cache_get( page ) here, because page cannot
 		   be evicted from memory without detaching it from jnode and
 		   this requires spin lock on jnode that we already hold.
 		 */
-		if (!TestSetPageLocked(page)) {
+		if (trylock_page(page)) {
 			/* We won a lock on jnode page, proceed. */
 			break;
 		}
@@ -804,7 +803,7 @@ static struct page *jnode_get_page_locked(jnode * node, gfp_t gfp_flags)
 		if (page == NULL)
 			return ERR_PTR(RETERR(-ENOMEM));
 	} else {
-		if (!TestSetPageLocked(page)) {
+		if (trylock_page(page)) {
 			spin_unlock_jnode(node);
 			return page;
 		}
@@ -870,7 +869,7 @@ void jload_prefetch(jnode * node)
 /* load jnode's data into memory */
 int jload_gfp(jnode * node /* node to load */ ,
 	      gfp_t gfp_flags /* allocation flags */ ,
-	      int do_kmap /* true if page should be kmapped */ )
+	      int do_kmap/* true if page should be kmapped */)
 {
 	struct page *page;
 	int result = 0;
@@ -939,7 +938,7 @@ int jload_gfp(jnode * node /* node to load */ ,
 
 	return 0;
 
-      failed:
+failed:
 	jrelse_tail(node);
 	return result;
 
@@ -992,13 +991,13 @@ int jinit_new(jnode * node, gfp_t gfp_flags)
 
 	return 0;
 
-      failed:
+failed:
 	jrelse(node);
 	return result;
 }
 
 /* release a reference to jnode acquired by jload(), decrement ->d_count */
-void jrelse_tail(jnode * node /* jnode to release references to */ )
+void jrelse_tail(jnode * node/* jnode to release references to */)
 {
 	assert("nikita-489", atomic_read(&node->d_count) > 0);
 	atomic_dec(&node->d_count);
@@ -1010,7 +1009,7 @@ void jrelse_tail(jnode * node /* jnode to release references to */ )
 
 /* drop reference to node data. When last reference is dropped, data are
    unloaded. */
-void jrelse(jnode * node /* jnode to release references to */ )
+void jrelse(jnode * node/* jnode to release references to */)
 {
 	struct page *page;
 
@@ -1066,8 +1065,6 @@ void jput_final(jnode * node)
 		rcu_read_unlock();
 		return;
 	}
-	assert("edward-1432", node->page_count == 0);
-
 	r_i_p = !JF_TEST_AND_SET(node, JNODE_RIP);
 	/*
 	 * if r_i_p is true, we were first to set JNODE_RIP on this node. In
@@ -1615,7 +1612,7 @@ static int jnode_try_drop(jnode * node)
 }
 
 /* jdelete() -- Delete jnode from the tree and file system */
-static int jdelete(jnode * node /* jnode to finish with */ )
+static int jdelete(jnode * node/* jnode to finish with */)
 {
 	struct page *page;
 	int result;
@@ -1708,9 +1705,8 @@ static int jdrop_in_tree(jnode * node, reiser4_tree * tree)
 		jnode_remove(node, jtype, tree);
 		write_unlock_tree(tree);
 		jnode_free(node, jtype);
-		if (page != NULL) {
+		if (page != NULL)
 			reiser4_drop_page(page);
-		}
 	} else {
 		/* busy check failed: reference was acquired by concurrent
 		 * thread. */
@@ -1838,12 +1834,12 @@ static const char *jnode_type_name(jnode_type type)
 	}
 }
 
-#define jnode_state_name( node, flag )			\
-	( JF_ISSET( ( node ), ( flag ) ) ? ((#flag "|")+6) : "" )
+#define jnode_state_name(node, flag)			\
+	(JF_ISSET((node), (flag)) ? ((#flag "|")+6) : "")
 
 /* debugging aid: output human readable information about @node */
 static void info_jnode(const char *prefix /* prefix to print */ ,
-		       const jnode * node /* node to print */ )
+		       const jnode * node/* node to print */)
 {
 	assert("umka-068", prefix != NULL);
 
@@ -1885,7 +1881,7 @@ static void info_jnode(const char *prefix /* prefix to print */ ,
 }
 
 /* debugging aid: check znode invariant and panic if it doesn't hold */
-static int jnode_invariant(const jnode * node, int tlocked, int jlocked)
+static int jnode_invariant(jnode * node, int tlocked, int jlocked)
 {
 	char const *failed_msg;
 	int result;

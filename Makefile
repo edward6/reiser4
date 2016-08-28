@@ -70,7 +70,6 @@ reiser4-y := \
 		   plugin/crypto/cipher.o \
 		   plugin/crypto/digest.o \
            \
-		   plugin/compress/minilzo.o \
 		   plugin/compress/compress.o \
 		   plugin/compress/compress_mode.o \
            \

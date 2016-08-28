@@ -468,7 +468,7 @@ kill_hook_extent(const coord_t * coord, pos_in_node_t from, pos_in_node_t count,
 			length = to_off - offset;
 		}
 
-		DQUOT_FREE_BLOCK_NODIRTY(inode, length);
+		dquot_free_block_nodirty(inode, length);
 
 		if (state_of_extent(ext) == UNALLOCATED_EXTENT) {
 			/* some jnodes corresponding to this unallocated extent */

@@ -16,10 +16,11 @@
    This code guarantees that those blocks that are defined to be part of an
    atom either all take effect or none of them take effect.
 
-   Relocate set nodes are submitted to write by the jnode_flush() routine, and
-   the overwrite set is submitted by reiser4_write_log().  This is because with
-   the overwrite set we seek to optimize writes, and with the relocate set we
-   seek to cause disk order to correlate with the parent first pre-order.
+   The "relocate set" of nodes are submitted to write by the jnode_flush()
+   routine, and the "overwrite set" is submitted by reiser4_write_log().
+   This is because with the overwrite set we seek to optimize writes, and
+   with the relocate set we seek to cause disk order to correlate with the
+   "parent first order" (preorder).
 
    reiser4_write_log() allocates and writes wandered blocks and maintains
    additional on-disk structures of the atom as wander records (each wander
@@ -228,13 +229,6 @@ static inline int reiser4_use_write_barrier(struct super_block * s)
 	return !reiser4_is_set(s, REISER4_NO_WRITE_BARRIER);
 }
 
-static void disable_write_barrier(struct super_block * s)
-{
-	notice("zam-1055", "%s does not support write barriers,"
-	       " using synchronous write instead.", s->s_id);
-	set_bit((int)REISER4_NO_WRITE_BARRIER, &get_super_private(s)->fs_flags);
-}
-
 /* fill journal header block data  */
 static void format_journal_header(struct commit_handle *ch)
 {
@@ -440,8 +434,8 @@ static int update_journal_header(struct commit_handle *ch, int use_barrier)
 	if (ret)
 		return ret;
 
-	// blk_run_address_space(sbinfo->fake->i_mapping);
-	/*blk_run_queues(); */
+	/* blk_run_address_space(sbinfo->fake->i_mapping);
+	 * blk_run_queues(); */
 
 	ret = jwait_io(jh, WRITE);
 
@@ -471,8 +465,8 @@ static int update_journal_footer(struct commit_handle *ch, int use_barrier)
 	if (ret)
 		return ret;
 
-	// blk_run_address_space(sbinfo->fake->i_mapping);
-	/*blk_run_queue(); */
+	/* blk_run_address_space(sbinfo->fake->i_mapping);
+	 * blk_run_queue(); */
 
 	ret = jwait_io(jf, WRITE);
 	if (ret)
@@ -557,7 +551,7 @@ static void undo_bio(struct bio *bio)
 		jnode *node;
 
 		pg = bio->bi_io_vec[i].bv_page;
-		ClearPageWriteback(pg);
+		end_page_writeback(pg);
 		node = jprivate(pg);
 		spin_lock_jnode(node);
 		JF_CLR(node, JNODE_WRITEBACK);
@@ -719,7 +713,7 @@ static int write_jnodes_to_disk_extent(
 	flush_queue_t *fq, int flags)
 {
 	struct super_block *super = reiser4_get_current_sb();
-	int write_op = ( flags & WRITEOUT_BARRIER ) ? WRITE_BARRIER : WRITE;
+	int write_op = ( flags & WRITEOUT_BARRIER ) ? WRITE_FLUSH_FUA : WRITE;
 	int max_blocks;
 	jnode *cur = first;
 	reiser4_block_nr block;
@@ -1128,25 +1122,16 @@ static int commit_tx(struct commit_handle *ch)
 	reiser4_fq_put(fq);
 	if (ret)
 		return ret;
- repeat_wo_barrier:
-	barrier = reiser4_use_write_barrier(ch->super);
+ 	barrier = reiser4_use_write_barrier(ch->super);
 	if (!barrier) {
 		ret = current_atom_finish_all_fq();
 		if (ret)
 			return ret;
 	}
 	ret = update_journal_header(ch, barrier);
-	if (barrier) {
-		if (ret) {
-			if (ret == -EOPNOTSUPP) {
-				disable_write_barrier(ch->super);
-				goto repeat_wo_barrier;
-			}
-			return ret;
-		}
-		ret = current_atom_finish_all_fq();
-	}
-	return ret;
+	if (!barrier || ret)
+		return ret;
+	return current_atom_finish_all_fq();
 }
 
 static int write_tx_back(struct commit_handle * ch)
@@ -1165,7 +1150,7 @@ static int write_tx_back(struct commit_handle * ch)
 	reiser4_fq_put(fq);
 	if (ret)
 		return ret;
- repeat_wo_barrier:
+
 	barrier = reiser4_use_write_barrier(ch->super);
 	if (!barrier) {
 		ret = current_atom_finish_all_fq();
@@ -1173,18 +1158,13 @@ static int write_tx_back(struct commit_handle * ch)
 			return ret;
 	}
 	ret = update_journal_footer(ch, barrier);
-	if (barrier) {
-		if (ret) {
-			if (ret == -EOPNOTSUPP) {
-				disable_write_barrier(ch->super);
-				goto repeat_wo_barrier;
-			}
-			return ret;
-		}
-		ret = current_atom_finish_all_fq();
-	}
 	if (ret)
 		return ret;
+	if (barrier) {
+		ret = current_atom_finish_all_fq();
+		if (ret)
+			return ret;
+	}
 	reiser4_post_write_back_hook();
 	return 0;
 }

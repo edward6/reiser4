@@ -323,11 +323,6 @@ ON_DEBUG(void
 	 count_jnode(txn_atom *, jnode *, atom_list old_list,
 		     atom_list new_list, int check_lists));
 
-typedef struct protected_jnodes {
-	struct list_head inatom; /* link to atom's list these structures */
-	struct list_head nodes; /* head of list of protected nodes */
-} protected_jnodes;
-
 /* A transaction handle: the client obtains and commits this handle which is assigned by
    the system to a txn_atom. */
 struct txn_handle {
@@ -691,15 +686,7 @@ extern int atom_fq_parts_are_clean(txn_atom *);
 extern void add_fq_to_bio(flush_queue_t *, struct bio *);
 extern flush_queue_t *get_fq_for_current_atom(void);
 
-void protected_jnodes_init(protected_jnodes * list);
-void protected_jnodes_done(protected_jnodes * list);
 void reiser4_invalidate_list(struct list_head * head);
-
-#if REISER4_DEBUG
-void reiser4_info_atom(const char *prefix, const txn_atom * atom);
-#else
-#define reiser4_info_atom(p,a) noop
-#endif
 
 # endif				/* __REISER4_TXNMGR_H__ */
 

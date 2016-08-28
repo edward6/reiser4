@@ -3,6 +3,8 @@ config REISER4_FS
 	depends on EXPERIMENTAL
 	select ZLIB_INFLATE
 	select ZLIB_DEFLATE
+	select LZO_COMPRESS
+	select LZO_DECOMPRESS
 	select CRYPTO
 	help
 	  Reiser4 is a filesystem that performs all filesystem operations

@@ -22,6 +22,7 @@
 #include <linux/backing-dev.h>	/* bdi_write_congested */
 #include <linux/wait.h>
 #include <linux/kthread.h>
+#include <linux/freezer.h>
 
 #define DEF_PRIORITY 12
 #define MAX_ENTD_ITERS 10
@@ -34,7 +35,7 @@ static int entd(void *arg);
  */
 #define entd_set_comm(state)					\
 	snprintf(current->comm, sizeof(current->comm),	\
-	         "ent:%s%s", super->s_id, (state))
+		"ent:%s%s", super->s_id, (state))
 
 /**
  * reiser4_init_entd - initialize entd context and start kernel daemon
@@ -81,7 +82,7 @@ static struct wbq *__get_wbq(entd_context * ent)
 	if (list_empty(&ent->todo_list))
 		return NULL;
 
-	ent->nr_todo_reqs --;
+	ent->nr_todo_reqs--;
 	wbq = list_entry(ent->todo_list.next, struct wbq, link);
 	list_del_init(&wbq->link);
 	return wbq;
@@ -130,7 +131,7 @@ static int entd(void *arg)
 			while (!list_empty(&ent->done_list)) {
 				rq = list_entry(ent->done_list.next, struct wbq, link);
 				list_del_init(&rq->link);
-				ent->nr_done_reqs --;
+				ent->nr_done_reqs--;
 				spin_unlock(&ent->guard);
 				assert("", rq->written == 1);
 				put_wbq(rq);
@@ -217,7 +218,7 @@ void reiser4_leave_flush(struct super_block *super)
 #endif
 	spin_unlock(&ent->guard);
 	if (wake_up_ent)
-		wake_up(&ent->wait);
+		wake_up_process(ent->tsk);
 }
 
 #define ENTD_CAPTURE_APAGE_BURST SWAP_CLUSTER_MAX
@@ -225,7 +226,6 @@ void reiser4_leave_flush(struct super_block *super)
 static void entd_flush(struct super_block *super, struct wbq *rq)
 {
 	reiser4_context ctx;
-	int tmp;
 
 	init_stack_context(&ctx, super);
 	ctx.entd = 1;
@@ -234,17 +234,38 @@ static void entd_flush(struct super_block *super, struct wbq *rq)
 	rq->wbc->range_start = page_offset(rq->page);
 	rq->wbc->range_end = rq->wbc->range_start +
 		(ENTD_CAPTURE_APAGE_BURST << PAGE_CACHE_SHIFT);
-	tmp = rq->wbc->nr_to_write;
+
+
 	rq->mapping->a_ops->writepages(rq->mapping, rq->wbc);
 
 	if (rq->wbc->nr_to_write > 0) {
+		long result;
+		struct wb_writeback_work work = {
+			.sb		= super,
+			.sync_mode	= WB_SYNC_NONE,
+			.nr_pages	= LONG_MAX,
+			.range_cyclic	= 0,
+			.reason		= WB_REASON_TRY_TO_FREE_PAGES,
+		};
+		rq->wbc->sync_mode = work.sync_mode,
+		rq->wbc->range_cyclic = work.range_cyclic,
 		rq->wbc->range_start = 0;
 		rq->wbc->range_end = LLONG_MAX;
-		generic_sync_sb_inodes(super, rq->wbc);
+		/*
+		 * we don't need to pin superblock for writeback:
+		 * this is implicitly pinned by write_page_by_ent
+		 * (via igrab), so that shutdown_super() will wait
+		 * (on reiser4_put_super) for entd completion.
+		 */
+		result = generic_writeback_sb_inodes(super,
+				             &rq->mapping->backing_dev_info->wb,
+					     rq->wbc,
+					     &work,
+					     true);
 	}
 	rq->wbc->nr_to_write = ENTD_CAPTURE_APAGE_BURST;
-	reiser4_writeout(super, rq->wbc);
 
+	reiser4_writeout(super, rq->wbc);
 	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx);
 }
@@ -276,7 +297,7 @@ int write_page_by_ent(struct page *page, struct writeback_control *wbc)
 	 * page. Re-dirty page before unlocking so that if ent thread fails to
 	 * write it - it will remain dirty
 	 */
-	reiser4_set_page_dirty_internal(page);
+	set_page_dirty_notag(page);
 
 	/*
 	 * pin inode in memory, unlock page, entd_flush will iput. We can not
@@ -303,7 +324,7 @@ int write_page_by_ent(struct page *page, struct writeback_control *wbc)
 	ent->nr_todo_reqs++;
 	list_add_tail(&rq.link, &ent->todo_list);
 	if (ent->nr_todo_reqs == 1)
-		wake_up(&ent->wait);
+		wake_up_process(ent->tsk);
 
 	spin_unlock(&ent->guard);
 

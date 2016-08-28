@@ -1,4 +1,5 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+reiser4/README */
 
 /* This file contains code for various block number sets used by the atom to
    track the deleted set and wandered block mappings. */
@@ -28,7 +29,8 @@
  * extent; atom's wandered map is also stored as a blocknr set, blocknr pairs
  * there represent a (real block) -> (wandered block) mapping. */
 
-typedef struct blocknr_pair blocknr_pair;
+/* Protection: blocknr sets belong to reiser4 atom, and
+ * their modifications are performed with the atom lock held */
 
 /* The total size of a blocknr_set_entry. */
 #define BLOCKNR_SET_ENTRY_SIZE 128
@@ -36,9 +38,9 @@ typedef struct blocknr_pair blocknr_pair;
 /* The number of blocks that can fit the blocknr data area. */
 #define BLOCKNR_SET_ENTRIES_NUMBER		\
        ((BLOCKNR_SET_ENTRY_SIZE -		\
-         2 * sizeof (unsigned) -		\
-         sizeof(struct list_head)) /		\
-        sizeof(reiser4_block_nr))
+	2 * sizeof(unsigned) -			\
+	sizeof(struct list_head)) /		\
+	sizeof(reiser4_block_nr))
 
 /* An entry of the blocknr_set */
 struct blocknr_set_entry {
@@ -108,12 +110,14 @@ bse_put_single(blocknr_set_entry * bse, const reiser4_block_nr * block)
 
 /* Get a pair of block numbers */
 /* Audited by: green(2002.06.11) */
-static inline blocknr_pair *bse_get_pair(blocknr_set_entry * bse, unsigned pno)
+static inline struct blocknr_pair *bse_get_pair(blocknr_set_entry * bse,
+						unsigned pno)
 {
 	assert("green-1", BLOCKNR_SET_ENTRIES_NUMBER >= 2 * (pno + 1));
 
-	return (blocknr_pair *) (bse->entries + BLOCKNR_SET_ENTRIES_NUMBER -
-				 2 * (pno + 1));
+	return (struct blocknr_pair *) (bse->entries +
+					BLOCKNR_SET_ENTRIES_NUMBER -
+					2 * (pno + 1));
 }
 
 /* Add a pair of block numbers to a blocknr_set_entry */
@@ -122,7 +126,7 @@ static void
 bse_put_pair(blocknr_set_entry * bse, const reiser4_block_nr * a,
 	     const reiser4_block_nr * b)
 {
-	blocknr_pair *pair;
+	struct blocknr_pair *pair;
 
 	assert("jmacd-5100", bse_avail(bse) >= 2 && a != NULL && b != NULL);
 
@@ -177,7 +181,8 @@ static int blocknr_set_add(txn_atom *atom, struct list_head *bset,
 		bse_put_pair(bse, a, b);
 	}
 
-	/* If new_bsep is non-NULL then there was an allocation race, free this copy. */
+	/* If new_bsep is non-NULL then there was an allocation race, free this
+	   copy. */
 	if (*new_bsep != NULL) {
 		bse_free(*new_bsep);
 		*new_bsep = NULL;
@@ -194,7 +199,7 @@ static int blocknr_set_add(txn_atom *atom, struct list_head *bset,
    properly freed. */
 int
 blocknr_set_add_extent(txn_atom * atom,
-		       struct list_head * bset,
+		       struct list_head *bset,
 		       blocknr_set_entry ** new_bsep,
 		       const reiser4_block_nr * start,
 		       const reiser4_block_nr * len)
@@ -212,7 +217,7 @@ blocknr_set_add_extent(txn_atom * atom,
    properly freed. */
 int
 blocknr_set_add_pair(txn_atom * atom,
-		     struct list_head * bset,
+		     struct list_head *bset,
 		     blocknr_set_entry ** new_bsep, const reiser4_block_nr * a,
 		     const reiser4_block_nr * b)
 {
@@ -231,7 +236,7 @@ void blocknr_set_destroy(struct list_head *bset)
 {
 	blocknr_set_entry *bse;
 
-	while (!list_empty_careful(bset)) {
+	while (!list_empty(bset)) {
 		bse = list_entry(bset->next, blocknr_set_entry, link);
 		list_del_init(&bse->link);
 		bse_free(bse);
@@ -248,17 +253,18 @@ void blocknr_set_destroy(struct list_head *bset)
    actual processing of this set. Testing this kind of stuff right here is
    also complicated by the fact that these sets are not sorted and going
    through whole set on each element addition is going to be CPU-heavy task */
-void blocknr_set_merge(struct list_head * from, struct list_head * into)
+void blocknr_set_merge(struct list_head *from, struct list_head *into)
 {
 	blocknr_set_entry *bse_into = NULL;
 
 	/* If @from is empty, no work to perform. */
-	if (list_empty_careful(from))
+	if (list_empty(from))
 		return;
 	/* If @into is not empty, try merging partial-entries. */
-	if (!list_empty_careful(into)) {
+	if (!list_empty(into)) {
 
-		/* Neither set is empty, pop the front to members and try to combine them. */
+		/* Neither set is empty, pop the front to members and try to
+		   combine them. */
 		blocknr_set_entry *bse_from;
 		unsigned into_avail;
 
@@ -279,8 +285,8 @@ void blocknr_set_merge(struct list_head * from, struct list_head * into)
 		/* Combine pairs. */
 		for (; into_avail > 1 && bse_from->nr_pairs != 0;
 		     into_avail -= 2) {
-			blocknr_pair *pair =
-			    bse_get_pair(bse_from, --bse_from->nr_pairs);
+			struct blocknr_pair *pair =
+				bse_get_pair(bse_from, --bse_from->nr_pairs);
 			bse_put_pair(bse_into, &pair->a, &pair->b);
 		}
 

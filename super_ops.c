@@ -12,62 +12,59 @@
 #include <linux/mount.h>
 #include <linux/seq_file.h>
 #include <linux/debugfs.h>
+#include <linux/backing-dev.h>
+#include <linux/module.h>
 
 /* slab cache for inodes */
-static kmem_cache_t *inode_cache;
+static struct kmem_cache *inode_cache;
 
 static struct dentry *reiser4_debugfs_root = NULL;
 
 /**
  * init_once - constructor for reiser4 inodes
- * @obj: inode to be initialized
  * @cache: cache @obj belongs to
- * @flags: SLAB flags
+ * @obj: inode to be initialized
  *
  * Initialization function to be called when new page is allocated by reiser4
  * inode cache. It is set on inode cache creation.
  */
-static void init_once(void *obj, kmem_cache_t *cache, unsigned long flags)
+static void init_once(void *obj)
 {
-	reiser4_inode_object *info;
+	struct reiser4_inode_object *info;
 
 	info = obj;
 
-	if ((flags & (SLAB_CTOR_VERIFY | SLAB_CTOR_CONSTRUCTOR)) ==
-	    SLAB_CTOR_CONSTRUCTOR) {
-		/* initialize vfs inode */
-		inode_init_once(&info->vfs_inode);
+	/* initialize vfs inode */
+	inode_init_once(&info->vfs_inode);
 
-		/*
-		 * initialize reiser4 specific part fo inode.
-		 * NOTE-NIKITA add here initializations for locks, list heads,
-		 * etc. that will be added to our private inode part.
-		 */
-		INIT_LIST_HEAD(get_readdir_list(&info->vfs_inode));
-		sema_init(&info->p.mutex_write, 1);
-		init_rwsem(&info->p.conv_sem);
-		/* init semaphore which is used during inode loading */
-		loading_init_once(&info->p);
-		INIT_RADIX_TREE(jnode_tree_by_reiser4_inode(&info->p),
-				GFP_ATOMIC);
+	/*
+	 * initialize reiser4 specific part fo inode.
+	 * NOTE-NIKITA add here initializations for locks, list heads,
+	 * etc. that will be added to our private inode part.
+	 */
+	INIT_LIST_HEAD(get_readdir_list(&info->vfs_inode));
+	init_rwsem(&info->p.conv_sem);
+	/* init semaphore which is used during inode loading */
+	loading_init_once(&info->p);
+	INIT_RADIX_TREE(jnode_tree_by_reiser4_inode(&info->p),
+			GFP_ATOMIC);
 #if REISER4_DEBUG
-		info->p.nr_jnodes = 0;
+	info->p.nr_jnodes = 0;
 #endif
-	}
 }
 
 /**
  * init_inodes - create znode cache
  *
- * Initializes slab cache of inodes. It is part of reiser4 module initialization.
+ * Initializes slab cache of inodes. It is part of reiser4 module initialization
  */
 static int init_inodes(void)
 {
 	inode_cache = kmem_cache_create("reiser4_inode",
-					sizeof(reiser4_inode_object),
+					sizeof(struct reiser4_inode_object),
 					0,
 					SLAB_HWCACHE_ALIGN |
-					SLAB_RECLAIM_ACCOUNT, init_once, NULL);
+					SLAB_RECLAIM_ACCOUNT, init_once);
 	if (inode_cache == NULL)
 		return RETERR(-ENOMEM);
 	return 0;
@@ -91,7 +88,7 @@ static void done_inodes(void)
  */
 static struct inode *reiser4_alloc_inode(struct super_block *super)
 {
-	reiser4_inode_object *obj;
+	struct reiser4_inode_object *obj;
 
 	assert("nikita-1696", super != NULL);
 	obj = kmem_cache_alloc(inode_cache, reiser4_ctx_gfp_mask_get());
@@ -159,7 +156,7 @@ static void reiser4_destroy_inode(struct inode *inode)
 	loading_destroy(info);
 
 	kmem_cache_free(inode_cache,
-			container_of(info, reiser4_inode_object, p));
+			container_of(info, struct reiser4_inode_object, p));
 }
 
 /**
@@ -168,7 +165,7 @@ static void reiser4_destroy_inode(struct inode *inode)
  *
  * Updates stat data.
  */
-static void reiser4_dirty_inode(struct inode *inode)
+static void reiser4_dirty_inode(struct inode *inode, int flags)
 {
 	int result;
 
@@ -185,13 +182,13 @@ static void reiser4_dirty_inode(struct inode *inode)
 }
 
 /**
- * reiser4_delete_inode - delete_inode of super operations
+ * ->evict_inode() of super operations
  * @inode: inode to delete
  *
  * Calls file plugin's delete_object method to delete object items from
- * filesystem tree and calls clear_inode.
+ * filesystem tree and calls end_writeback().
  */
-static void reiser4_delete_inode(struct inode *inode)
+static void reiser4_evict_inode(struct inode *inode)
 {
 	reiser4_context *ctx;
 	file_plugin *fplug;
@@ -202,7 +199,7 @@ static void reiser4_delete_inode(struct inode *inode)
 		return;
 	}
 
-	if (is_inode_loaded(inode)) {
+	if (inode->i_nlink == 0 && is_inode_loaded(inode)) {
 		fplug = inode_file_plugin(inode);
 		if (fplug != NULL && fplug->delete_object != NULL)
 			fplug->delete_object(inode);
@@ -210,7 +207,7 @@ static void reiser4_delete_inode(struct inode *inode)
 
 	truncate_inode_pages(&inode->i_data, 0);
 	inode->i_blocks = 0;
-	clear_inode(inode);
+	end_writeback(inode);
 	reiser4_exit_context(ctx);
 }
 
@@ -366,66 +363,97 @@ static int reiser4_statfs(struct dentry *dentry, struct kstatfs *statfs)
 }
 
 /**
- * reiser4_clear_inode - clear_inode of super operation
- * @inode: inode about to destroy
- *
- * Does sanity checks: being destroyed should have all jnodes detached.
- */
-static void reiser4_clear_inode(struct inode *inode)
-{
-#if REISER4_DEBUG
-	reiser4_inode *r4_inode;
-
-	r4_inode = reiser4_inode_data(inode);
-	if (!inode_has_no_jnodes(r4_inode))
-		warning("vs-1732", "reiser4 inode has %ld jnodes\n",
-			r4_inode->nr_jnodes);
-#endif
-}
-
-/**
- * reiser4_sync_inodes - sync_inodes of super operations
+ * reiser4_writeback_inodes - writeback_inodes of super operations
  * @super:
+ * @wb:
  * @wbc:
  *
  * This method is called by background and non-backgound writeback. Reiser4's
- * implementation uses generic_sync_sb_inodes to call reiser4_writepages for
- * each of dirty inodes. Reiser4_writepages handles pages dirtied via shared
- * mapping - dirty pages get into atoms. Writeout is called to flush some
- * atoms.
+ * implementation uses generic_writeback_sb_inodes to call reiser4_writepages
+ * for each of dirty inodes. reiser4_writepages handles pages dirtied via shared
+ * mapping - dirty pages get into atoms. Writeout is called to flush some atoms.
  */
-static void reiser4_sync_inodes(struct super_block *super,
-				struct writeback_control *wbc)
+static long reiser4_writeback_inodes(struct super_block *super,
+				     struct bdi_writeback *wb,
+				     struct writeback_control *wbc,
+				     struct wb_writeback_work *work,
+				     bool flush_all)
 {
+	long result;
 	reiser4_context *ctx;
-	long to_write;
 
 	if (wbc->for_kupdate)
 		/* reiser4 has its own means of periodical write-out */
-		return;
+		goto skip;
 
-	to_write = wbc->nr_to_write;
-	assert("vs-49", wbc->older_than_this == NULL);
-
+	spin_unlock(&wb->list_lock);
 	ctx = reiser4_init_context(super);
 	if (IS_ERR(ctx)) {
 		warning("vs-13", "failed to init context");
-		return;
+		spin_lock(&wb->list_lock);
+		goto skip;
 	}
-
 	/*
-	 * call reiser4_writepages for each of dirty inodes to turn dirty pages
-	 * into transactions if they were not yet.
+	 * call reiser4_writepages for each of dirty inodes to turn
+	 * dirty pages into transactions if they were not yet.
 	 */
-	generic_sync_sb_inodes(super, wbc);
+	spin_lock(&wb->list_lock);
+	result = generic_writeback_sb_inodes(super, wb, wbc, work, flush_all);
+	spin_unlock(&wb->list_lock);
+
+	if (result <= 0)
+		goto exit;
+	wbc->nr_to_write = result;
 
 	/* flush goes here */
-	wbc->nr_to_write = to_write;
 	reiser4_writeout(super, wbc);
-
-	/* avoid recursive calls to ->sync_inodes */
+ exit:
+	/* avoid recursive calls to ->writeback_inodes */
 	context_set_commit_async(ctx);
 	reiser4_exit_context(ctx);
+	spin_lock(&wb->list_lock);
+
+	return result;
+ skip:
+	writeback_skip_sb_inodes(super, wb);
+	return 0;
+}
+
+/* ->sync_fs() of super operations */
+static int reiser4_sync_fs(struct super_block *super, int wait)
+{
+	reiser4_context *ctx;
+	struct bdi_writeback *wb;
+	struct wb_writeback_work work = {
+		.sb		= super,
+		.sync_mode	= WB_SYNC_ALL,
+		.range_cyclic	= 0,
+		.nr_pages	= LONG_MAX,
+		.reason		= WB_REASON_SYNC,
+	};
+	struct writeback_control wbc = {
+		.sync_mode	= work.sync_mode,
+		.range_cyclic	= work.range_cyclic,
+		.range_start	= 0,
+		.range_end	= LLONG_MAX,
+	};
+	ctx = reiser4_init_context(super);
+	if (IS_ERR(ctx)) {
+		warning("edward-1567", "failed to init context");
+		return PTR_ERR(ctx);
+	}
+	wb = &reiser4_get_super_fake(super)->i_mapping->backing_dev_info->wb;
+	spin_lock(&wb->list_lock);
+	generic_writeback_sb_inodes(super, wb, &wbc, &work, true);
+	spin_unlock(&wb->list_lock);
+	wbc.nr_to_write = LONG_MAX;
+	/*
+	 * flush goes here
+	 */
+	reiser4_writeout(super, &wbc);
+
+	reiser4_exit_context(ctx);
+	return 0;
 }
 
 /**
@@ -458,12 +486,12 @@ struct super_operations reiser4_super_operations = {
 	.alloc_inode = reiser4_alloc_inode,
 	.destroy_inode = reiser4_destroy_inode,
 	.dirty_inode = reiser4_dirty_inode,
-	.delete_inode = reiser4_delete_inode,
+	.evict_inode = reiser4_evict_inode,
 	.put_super = reiser4_put_super,
 	.write_super = reiser4_write_super,
+	.sync_fs = reiser4_sync_fs,
 	.statfs = reiser4_statfs,
-	.clear_inode = reiser4_clear_inode,
-	.sync_inodes = reiser4_sync_inodes,
+	.writeback_inodes = reiser4_writeback_inodes,
 	.show_options = reiser4_show_options
 };
 
@@ -515,7 +543,8 @@ static int fill_super(struct super_block *super, void *data, int silent)
 		goto failed_init_formatted_fake;
 
 	/* initialize disk format plugin */
-	if ((result = get_super_private(super)->df_plug->init_format(super, data)) != 0 )
+	if ((result = get_super_private(super)->df_plug->init_format(super,
+								    data)) != 0)
 		goto failed_init_disk_format;
 
 	/*
@@ -530,7 +559,7 @@ static int fill_super(struct super_block *super, void *data, int silent)
 	if ((result = reiser4_init_root_inode(super)) != 0)
 		goto failed_init_root_inode;
 
-	if ((result = get_super_private(super)->df_plug->version_update(super)) != 0 )
+	if ((result = get_super_private(super)->df_plug->version_update(super)) != 0)
 		goto failed_update_format_version;
 
 	process_safelinks(super);
@@ -571,7 +600,7 @@ static int fill_super(struct super_block *super, void *data, int silent)
 }
 
 /**
- * reiser4_get_sb - get_sb of file_system_type operations
+ * reiser4_mount - mount of file_system_type operations
  * @fs_type:
  * @flags: mount flags MS_RDONLY, MS_VERBOSE, etc
  * @dev_name: block device file name
@@ -579,10 +608,10 @@ static int fill_super(struct super_block *super, void *data, int silent)
  *
  * Reiser4 mount entry.
  */
-static int reiser4_get_sb(struct file_system_type *fs_type, int flags,
-			const char *dev_name, void *data, struct vfsmount *mnt)
+static struct dentry *reiser4_mount(struct file_system_type *fs_type, int flags,
+				    const char *dev_name, void *data)
 {
-	return get_sb_bdev(fs_type, flags, dev_name, data, fill_super, mnt);
+	return mount_bdev(fs_type, flags, dev_name, data, fill_super);
 }
 
 /* structure describing the reiser4 filesystem implementation */
@@ -590,12 +619,12 @@ static struct file_system_type reiser4_fs_type = {
 	.owner = THIS_MODULE,
 	.name = "reiser4",
 	.fs_flags = FS_REQUIRES_DEV,
-	.get_sb = reiser4_get_sb,
+	.mount = reiser4_mount,
 	.kill_sb = kill_block_super,
 	.next = NULL
 };
 
-void destroy_reiser4_cache(kmem_cache_t **cachep)
+void destroy_reiser4_cache(struct kmem_cache **cachep)
 {
 	BUG_ON(*cachep == NULL);
 	kmem_cache_destroy(*cachep);

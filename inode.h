@@ -1,8 +1,9 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+   reiser4/README */
 
 /* Inode functions. */
 
-#if !defined( __REISER4_INODE_H__ )
+#if !defined(__REISER4_INODE_H__)
 #define __REISER4_INODE_H__
 
 #include "forward.h"
@@ -131,26 +132,15 @@ struct reiser4_inode {
 	unsigned long flags;
 	union {
 		/* fields specific to unix_file plugin */
-		unix_file_info_t unix_file_info;
-		/* fields specific to cryptcompress plugin */
-		cryptcompress_info_t cryptcompress_info;
+		struct unix_file_info unix_file_info;
+		/* fields specific to cryptcompress file plugin */
+		struct cryptcompress_info cryptcompress_info;
 	} file_plugin_data;
-
- 	/* this semaphore is used to serialize writes of any file plugin,
-	 * and should be invariant during file plugin conversion (which
-	 * is going in the context of ->write()).
- 	 * inode->i_mutex can not be used for the serialization, because
- 	 * write_unix_file uses get_user_pages which is to be used under
- 	 * mm->mmap_sem and because it is required to take mm->mmap_sem before
- 	 * inode->i_mutex, so inode->i_mutex would have to be up()-ed before
- 	 * calling to get_user_pages which is unacceptable.
-	 */
- 	struct semaphore mutex_write;
 
 	/* this semaphore is to serialize readers and writers of @pset->file
 	 * when file plugin conversion is enabled
 	 */
- 	struct rw_semaphore conv_sem;
+	struct rw_semaphore conv_sem;
 
 	/* tree of jnodes. Phantom jnodes (ones not attched to any atom) are
 	   tagged in that tree by EFLUSH_TAG_ANONYMOUS */
@@ -170,26 +160,27 @@ void loading_init_once(reiser4_inode *);
 void loading_alloc(reiser4_inode *);
 void loading_destroy(reiser4_inode *);
 
-typedef struct reiser4_inode_object {
+struct reiser4_inode_object {
 	/* private part */
 	reiser4_inode p;
 	/* generic fields not specific to reiser4, but used by VFS */
 	struct inode vfs_inode;
-} reiser4_inode_object;
+};
 
 /* return pointer to the reiser4 specific portion of @inode */
 static inline reiser4_inode *reiser4_inode_data(const struct inode *inode
 						/* inode queried */ )
 {
 	assert("nikita-254", inode != NULL);
-	return &container_of(inode, reiser4_inode_object, vfs_inode)->p;
+	return &container_of(inode, struct reiser4_inode_object, vfs_inode)->p;
 }
 
 static inline struct inode *inode_by_reiser4_inode(const reiser4_inode *
 						   r4_inode /* inode queried */
 						   )
 {
-	return &container_of(r4_inode, reiser4_inode_object, p)->vfs_inode;
+	return &container_of(r4_inode, struct reiser4_inode_object,
+			     p)->vfs_inode;
 }
 
 /*
@@ -262,10 +253,10 @@ static inline void set_inode_ordering(const struct inode *inode, __u64 ordering)
 #endif
 
 /* return inode in which @uf_info is embedded */
-static inline struct inode *unix_file_info_to_inode(const unix_file_info_t *
-						    uf_info)
+static inline struct inode *
+unix_file_info_to_inode(const struct unix_file_info *uf_info)
 {
-	return &container_of(uf_info, reiser4_inode_object,
+	return &container_of(uf_info, struct reiser4_inode_object,
 			     p.file_plugin_data.unix_file_info)->vfs_inode;
 }
 
@@ -341,14 +332,16 @@ extern int setup_inode_ops(struct inode *inode, reiser4_object_create_data *);
 extern struct inode *reiser4_iget(struct super_block *super,
 				  const reiser4_key * key, int silent);
 extern void reiser4_iget_complete(struct inode *inode);
-extern void reiser4_inode_set_flag(struct inode *inode, reiser4_file_plugin_flags f);
-extern void reiser4_inode_clr_flag(struct inode *inode, reiser4_file_plugin_flags f);
+extern void reiser4_inode_set_flag(struct inode *inode,
+				   reiser4_file_plugin_flags f);
+extern void reiser4_inode_clr_flag(struct inode *inode,
+				   reiser4_file_plugin_flags f);
 extern int reiser4_inode_get_flag(const struct inode *inode,
 				  reiser4_file_plugin_flags f);
 
 /*  has inode been initialized? */
 static inline int
-is_inode_loaded(const struct inode *inode /* inode queried */ )
+is_inode_loaded(const struct inode *inode/* inode queried */)
 {
 	assert("nikita-1120", inode != NULL);
 	return reiser4_inode_get_flag(inode, REISER4_LOADED);
@@ -375,7 +368,18 @@ extern void reiser4_make_bad_inode(struct inode *inode);
 extern void inode_set_extension(struct inode *inode, sd_ext_bits ext);
 extern void inode_clr_extension(struct inode *inode, sd_ext_bits ext);
 extern void inode_check_scale(struct inode *inode, __u64 old, __u64 new);
-extern void inode_check_scale_nolock(struct inode * inode, __u64 old, __u64 new);
+extern void inode_check_scale_nolock(struct inode *inode, __u64 old, __u64 new);
+
+#define INODE_SET_SIZE(i, value)			\
+({							\
+	struct inode *__i;				\
+	typeof(value) __v;				\
+							\
+	__i = (i);					\
+	__v = (value);					\
+	inode_check_scale(__i, __i->i_size, __v);	\
+	i_size_write(__i, __v);				\
+})
 
 /*
  * update field @field in inode @i to contain value @value.
@@ -424,7 +428,7 @@ static inline struct radix_tree_root *jnode_tree_by_inode(struct inode *inode)
 }
 
 static inline struct radix_tree_root *jnode_tree_by_reiser4_inode(reiser4_inode
-								  * r4_inode)
+								  *r4_inode)
 {
 	return &r4_inode->jnodes_tree;
 }

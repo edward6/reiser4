@@ -29,7 +29,7 @@ int oid_init_allocator(struct super_block *super, oid_t nr_files, oid_t next)
  * allocate oid and return it. ABSOLUTE_MAX_OID is returned when allocator
  * runs out of oids.
  */
-oid_t oid_allocate(struct super_block * super)
+oid_t oid_allocate(struct super_block *super)
 {
 	reiser4_super_info_data *sbinfo;
 	oid_t oid;
@@ -66,7 +66,7 @@ int oid_release(struct super_block *super, oid_t oid UNUSED_ARG)
  * without actually allocating it. This is used by disk format plugin to save
  * oid allocator state on the disk.
  */
-oid_t oid_next(const struct super_block * super)
+oid_t oid_next(const struct super_block *super)
 {
 	reiser4_super_info_data *sbinfo;
 	oid_t oid;

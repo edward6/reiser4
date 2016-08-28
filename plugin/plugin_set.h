@@ -1,9 +1,10 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 /* Reiser4 plugin set definition.
    See fs/reiser4/plugin/plugin_set.c for details */
 
-#if !defined( __PLUGIN_SET_H__ )
+#if !defined(__PLUGIN_SET_H__)
 #define __PLUGIN_SET_H__
 
 #include "../type_safe_hash.h"

@@ -123,3 +123,6 @@ and Jeff) make it possible for the entire rest of the Namesys team to
 focus on Reiser4, and he fixed a whole lot of Reiser4 bugs also.  It
 is just amazing to watch his talent for spotting bugs in action.
 
+Edward Shishkin wrote cryptcompress file plugin (which manages files
+built of encrypted and(or) compressed bodies) and other plugins related
+to transparent encryption and compression support.

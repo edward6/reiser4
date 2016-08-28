@@ -1,8 +1,9 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+   reiser4/README */
 
 /* Forward declarations. Thank you Kernighan. */
 
-#if !defined( __REISER4_FORWARD_H__ )
+#if !defined(__REISER4_FORWARD_H__)
 #define __REISER4_FORWARD_H__
 
 #include <asm/errno.h>
@@ -15,8 +16,6 @@ typedef struct znode znode;
 typedef struct flow flow_t;
 typedef struct coord coord_t;
 typedef struct tree_access_pointer tap_t;
-typedef struct item_coord item_coord;
-typedef struct shift_params shift_params;
 typedef struct reiser4_object_create_data reiser4_object_create_data;
 typedef union reiser4_plugin reiser4_plugin;
 typedef __u16 reiser4_plugin_id;
@@ -59,8 +58,6 @@ typedef struct hint hint_t;
 
 typedef struct ktxnmgrd_context ktxnmgrd_context;
 
-typedef struct reiser4_xattr_plugin reiser4_xattr_plugin;
-
 struct inode;
 struct page;
 struct file;
@@ -77,8 +74,10 @@ typedef enum {
 typedef enum {
 	FILE_NAME_FOUND = 0,
 	FILE_NAME_NOTFOUND = -ENOENT,
-	FILE_IO_ERROR = -EIO,	/* FIXME: it seems silly to have special OOM, IO_ERROR return codes for each search. */
-	FILE_OOM = -ENOMEM	/* FIXME: it seems silly to have special OOM, IO_ERROR return codes for each search. */
+	FILE_IO_ERROR = -EIO,	/* FIXME: it seems silly to have special OOM,
+				   IO_ERROR return codes for each search. */
+	FILE_OOM = -ENOMEM	/* FIXME: it seems silly to have special OOM,
+				   IO_ERROR return codes for each search. */
 } file_lookup_result;
 
 /* behaviors of lookup. If coord we are looking for is actually in a tree,
@@ -135,9 +134,10 @@ typedef enum {
 	ZNODE_LOCK_LOPRI = 0,
 	ZNODE_LOCK_HIPRI = (1 << 0),
 
-	/* By setting the ZNODE_LOCK_NONBLOCK flag in a lock request the call to longterm_lock_znode will not sleep
-	   waiting for the lock to become available.  If the lock is unavailable, reiser4_znode_lock will immediately
-	   return the value -E_REPEAT. */
+	/* By setting the ZNODE_LOCK_NONBLOCK flag in a lock request the call to
+	   longterm_lock_znode will not sleep waiting for the lock to become
+	   available.  If the lock is unavailable, reiser4_znode_lock will
+	   immediately return the value -E_REPEAT. */
 	ZNODE_LOCK_NONBLOCK = (1 << 1),
 	/* An option for longterm_lock_znode which prevents atom fusion */
 	ZNODE_LOCK_DONT_FUSE = (1 << 2)
@@ -156,9 +156,9 @@ typedef enum {
 	RIGHT_SIDE
 } sideof;
 
-#define round_up( value, order )						\
-	( ( typeof( value ) )( ( ( long ) ( value ) + ( order ) - 1U ) &	\
-			     ~( ( order ) - 1 ) ) )
+#define reiser4_round_up(value, order)				\
+	((typeof(value))(((long) (value) + (order) - 1U) &	\
+			 ~((order) - 1)))
 
 /* values returned by squalloc_right_neighbor and its auxiliary functions */
 typedef enum {
@@ -186,8 +186,8 @@ typedef enum {
 	LAST_ITEM_ID = 0x9
 } item_id;
 
-/* Flags passed to jnode_flush() to allow it to distinguish default settings based on
-   whether commit() was called or VM memory pressure was applied. */
+/* Flags passed to jnode_flush() to allow it to distinguish default settings
+   based on whether commit() was called or VM memory pressure was applied. */
 typedef enum {
 	/* submit flush queue to disk at jnode_flush completion */
 	JNODE_FLUSH_WRITE_BLOCKS = 1,

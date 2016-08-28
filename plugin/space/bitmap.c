@@ -171,7 +171,7 @@ static int find_next_zero_bit_in_word(ulong_t word, int start_bit)
 	return i;
 }
 
-#include <asm/bitops.h>
+#include <linux/bitops.h>
 
 #if BITS_PER_LONG == 64
 
@@ -180,35 +180,35 @@ static int find_next_zero_bit_in_word(ulong_t word, int start_bit)
 
 static inline void reiser4_set_bit(int nr, void *addr)
 {
-	ext2_set_bit(nr + OFF(addr), BASE(addr));
+	__test_and_set_bit_le(nr + OFF(addr), BASE(addr));
 }
 
 static inline void reiser4_clear_bit(int nr, void *addr)
 {
-	ext2_clear_bit(nr + OFF(addr), BASE(addr));
+	__test_and_clear_bit_le(nr + OFF(addr), BASE(addr));
 }
 
 static inline int reiser4_test_bit(int nr, void *addr)
 {
-	return ext2_test_bit(nr + OFF(addr), BASE(addr));
+	return test_bit_le(nr + OFF(addr), BASE(addr));
 }
 static inline int reiser4_find_next_zero_bit(void *addr, int maxoffset,
 					     int offset)
 {
 	int off = OFF(addr);
 
-	return ext2_find_next_zero_bit(BASE(addr), maxoffset + off,
-				       offset + off) - off;
+	return find_next_zero_bit_le(BASE(addr), maxoffset + off,
+				     offset + off) - off;
 }
 
 #else
 
-#define reiser4_set_bit(nr, addr)    ext2_set_bit(nr, addr)
-#define reiser4_clear_bit(nr, addr)  ext2_clear_bit(nr, addr)
-#define reiser4_test_bit(nr, addr)  ext2_test_bit(nr, addr)
+#define reiser4_set_bit(nr, addr)    __test_and_set_bit_le(nr, addr)
+#define reiser4_clear_bit(nr, addr)  __test_and_clear_bit_le(nr, addr)
+#define reiser4_test_bit(nr, addr)  test_bit_le(nr, addr)
 
 #define reiser4_find_next_zero_bit(addr, maxoffset, offset) \
-ext2_find_next_zero_bit(addr, maxoffset, offset)
+find_next_zero_bit_le(addr, maxoffset, offset)
 #endif
 
 /* Search for a set bit in the bit array [@start_offset, @max_offset[, offsets
@@ -830,45 +830,43 @@ static int load_and_lock_bnode(struct bitmap_node *bnode)
 	}
 
 	ret = prepare_bnode(bnode, &cjnode, &wjnode);
-	if (ret == 0) {
-		mutex_lock(&bnode->mutex);
+	if (ret)
+		return ret;
 
-		if (!atomic_read(&bnode->loaded)) {
-			assert("nikita-2822", cjnode != NULL);
-			assert("nikita-2823", wjnode != NULL);
-			assert("nikita-2824", jnode_is_loaded(cjnode));
-			assert("nikita-2825", jnode_is_loaded(wjnode));
+	mutex_lock(&bnode->mutex);
 
-			bnode->wjnode = wjnode;
-			bnode->cjnode = cjnode;
+	if (!atomic_read(&bnode->loaded)) {
+		assert("nikita-2822", cjnode != NULL);
+		assert("nikita-2823", wjnode != NULL);
+		assert("nikita-2824", jnode_is_loaded(cjnode));
+		assert("nikita-2825", jnode_is_loaded(wjnode));
 
-			ret = check_struct_bnode(bnode, current_blocksize);
-			if (!ret) {
-				cjnode = wjnode = NULL;
-				atomic_set(&bnode->loaded, 1);
-				/* working bitmap is initialized by on-disk
-				 * commit bitmap. This should be performed
-				 * under mutex. */
-				memcpy(bnode_working_data(bnode),
-				       bnode_commit_data(bnode),
-				       bmap_size(current_blocksize));
-			} else
-				mutex_unlock(&bnode->mutex);
-		} else
-			/* race: someone already loaded bitmap while we were
-			 * busy initializing data. */
-			check_bnode_loaded(bnode);
-	}
+		bnode->wjnode = wjnode;
+		bnode->cjnode = cjnode;
 
-	if (wjnode != NULL) {
-		release(wjnode);
-		bnode->wjnode = NULL;
-	}
-	if (cjnode != NULL) {
-		release(cjnode);
-		bnode->cjnode = NULL;
-	}
+		ret = check_struct_bnode(bnode, current_blocksize);
+		if (unlikely(ret != 0))
+			goto error;
 
+		atomic_set(&bnode->loaded, 1);
+		/* working bitmap is initialized by on-disk
+		 * commit bitmap. This should be performed
+		 * under mutex. */
+		memcpy(bnode_working_data(bnode),
+		       bnode_commit_data(bnode),
+		       bmap_size(current_blocksize));
+	} else
+		/* race: someone already loaded bitmap
+		 * while we were busy initializing data. */
+		check_bnode_loaded(bnode);
+	return 0;
+
+ error:
+	release(wjnode);
+	release(cjnode);
+	bnode->wjnode = NULL;
+	bnode->cjnode = NULL;
+	mutex_unlock(&bnode->mutex);
 	return ret;
 }
 

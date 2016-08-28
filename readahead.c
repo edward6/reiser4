@@ -11,20 +11,22 @@
 
 #include <linux/swap.h>		/* for totalram_pages */
 
-void reiser4_init_ra_info(ra_info_t * rai)
+void reiser4_init_ra_info(ra_info_t *rai)
 {
 	rai->key_to_stop = *reiser4_min_key();
 }
 
-/* global formatted node readahead parameter. It can be set by mount option -o readahead:NUM:1 */
+/* global formatted node readahead parameter. It can be set by mount option
+ * -o readahead:NUM:1 */
 static inline int ra_adjacent_only(int flags)
 {
 	return flags & RA_ADJACENT_ONLY;
 }
 
-/* this is used by formatted_readahead to decide whether read for right neighbor of node is to be issued. It returns 1
-   if right neighbor's first key is less or equal to readahead's stop key */
-static int should_readahead_neighbor(znode * node, ra_info_t * info)
+/* this is used by formatted_readahead to decide whether read for right neighbor
+ * of node is to be issued. It returns 1 if right neighbor's first key is less
+ * or equal to readahead's stop key */
+static int should_readahead_neighbor(znode * node, ra_info_t *info)
 {
 	int result;
 
@@ -45,15 +47,16 @@ static int low_on_memory(void)
 }
 
 /* start read for @node and for a few of its right neighbors */
-void formatted_readahead(znode * node, ra_info_t * info)
+void formatted_readahead(znode * node, ra_info_t *info)
 {
-	ra_params_t *ra_params;
+	struct formatted_ra_params *ra_params;
 	znode *cur;
 	int i;
 	int grn_flags;
 	lock_handle next_lh;
 
-	/* do nothing if node block number has not been assigned to node (which means it is still in cache). */
+	/* do nothing if node block number has not been assigned to node (which
+	 * means it is still in cache). */
 	if (reiser4_blocknr_is_fake(znode_get_block(node)))
 		return;
 
@@ -78,7 +81,7 @@ void formatted_readahead(znode * node, ra_info_t * info)
 	cur = zref(node);
 	init_lh(&next_lh);
 	while (i < ra_params->max) {
-		const reiser4_block_nr *nextblk;
+		const reiser4_block_nr * nextblk;
 
 		if (!should_readahead_neighbor(cur, info))
 			break;
@@ -90,9 +93,8 @@ void formatted_readahead(znode * node, ra_info_t * info)
 		nextblk = znode_get_block(next_lh.node);
 		if (reiser4_blocknr_is_fake(nextblk) ||
 		    (ra_adjacent_only(ra_params->flags)
-		     && *nextblk != *znode_get_block(cur) + 1)) {
+		     && *nextblk != *znode_get_block(cur) + 1))
 			break;
-		}
 
 		zput(cur);
 		cur = zref(next_lh.node);
@@ -110,7 +112,7 @@ void formatted_readahead(znode * node, ra_info_t * info)
 	done_lh(&next_lh);
 }
 
-void reiser4_readdir_readahead_init(struct inode *dir, tap_t * tap)
+void reiser4_readdir_readahead_init(struct inode *dir, tap_t *tap)
 {
 	reiser4_key *stop_key;
 

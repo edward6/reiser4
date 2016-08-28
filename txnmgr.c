@@ -90,7 +90,7 @@ year old --- define all technical terms used.
    For actually implementing these out-of-system-call-scopped transcrashes, the
    reiser4_context has a "txn_handle *trans" pointer that may be set to an open
    transcrash.  Currently there are no dynamically-allocated transcrashes, but there is a
-   "kmem_cache_t *_txnh_slab" created for that purpose in this file.
+   "struct kmem_cache *_txnh_slab" created for that purpose in this file.
 */
 
 /* Extending the other system call interfaces for future transaction features:
@@ -279,9 +279,9 @@ struct _txn_wait_links {
 
 /* FIXME: In theory, we should be using the slab cache init & destructor
    methods instead of, e.g., jnode_init, etc. */
-static kmem_cache_t *_atom_slab = NULL;
+static struct kmem_cache *_atom_slab = NULL;
 /* this is for user-visible, cross system-call transactions. */
-static kmem_cache_t *_txnh_slab = NULL;
+static struct kmem_cache *_txnh_slab = NULL;
 
 /**
  * init_txnmgr_static - create transaction manager slab caches
@@ -298,12 +298,12 @@ int init_txnmgr_static(void)
 
 	_atom_slab = kmem_cache_create("txn_atom", sizeof(txn_atom), 0,
 				       SLAB_HWCACHE_ALIGN |
-				       SLAB_RECLAIM_ACCOUNT, NULL, NULL);
+				       SLAB_RECLAIM_ACCOUNT, NULL);
 	if (_atom_slab == NULL)
 		return RETERR(-ENOMEM);
 
 	_txnh_slab = kmem_cache_create("txn_handle", sizeof(txn_handle), 0,
-			      SLAB_HWCACHE_ALIGN, NULL, NULL);
+			      SLAB_HWCACHE_ALIGN, NULL);
 	if (_txnh_slab == NULL) {
 		kmem_cache_destroy(_atom_slab);
 		_atom_slab = NULL;
@@ -977,6 +977,28 @@ static int current_atom_complete_writes(void)
 	return current_atom_finish_all_fq();
 }
 
+#if REISER4_DEBUG
+
+static void reiser4_info_atom(const char *prefix, const txn_atom * atom)
+{
+	if (atom == NULL) {
+		printk("%s: no atom\n", prefix);
+		return;
+	}
+
+	printk("%s: refcount: %i id: %i flags: %x txnh_count: %i"
+	       " capture_count: %i stage: %x start: %lu, flushed: %i\n", prefix,
+	       atomic_read(&atom->refcount), atom->atom_id, atom->flags,
+	       atom->txnh_count, atom->capture_count, atom->stage,
+	       atom->start_time, atom->flushed);
+}
+
+#else  /*  REISER4_DEBUG  */
+
+static inline void reiser4_info_atom(const char *prefix, const txn_atom * atom) {}
+
+#endif  /*  REISER4_DEBUG  */
+
 #define TOOMANYFLUSHES (1 << 13)
 
 /* Called with the atom locked and no open "active" transaction handlers except
@@ -1357,7 +1379,7 @@ flush_some_atom(jnode * start, long *nr_submitted, const struct writeback_contro
 	BUG_ON(wbc->nr_to_write == 0);
 	BUG_ON(*nr_submitted != 0);
 	assert("zam-1042", txnh != NULL);
-      repeat:
+repeat:
 	if (txnh->atom == NULL) {
 		/* current atom is not available, take first from txnmgr */
 		spin_lock_txnmgr(tmgr);
@@ -1388,7 +1410,7 @@ flush_some_atom(jnode * start, long *nr_submitted, const struct writeback_contro
 		 * Write throttling is case of no one atom can be
 		 * flushed/committed.
 		 */
-		if (!current_is_pdflush() && !wbc->nonblocking) {
+		if (!current_is_flush_bd_task()) {
 			list_for_each_entry(atom, &tmgr->atoms_list, atom_link) {
 				spin_lock_atom(atom);
 				/* Repeat the check from the above. */
@@ -1448,7 +1470,7 @@ flush_some_atom(jnode * start, long *nr_submitted, const struct writeback_contro
 			 * we force current atom to commit */
 			/* wait for commit completion but only if this
 			 * wouldn't stall pdflushd and ent thread. */
-			if (!wbc->nonblocking && !ctx->entd)
+			if (!ctx->entd)
 				txnh->flags |= TXNH_WAIT_COMMIT;
 			atom->flags |= ATOM_FORCE_COMMIT;
 		}
@@ -2306,7 +2328,8 @@ static void do_jnode_make_dirty(jnode * node, txn_atom * atom)
 
 	JF_SET(node, JNODE_DIRTY);
 
-	get_current_context()->nr_marked_dirty++;
+	if (!JF_ISSET(node, JNODE_CLUSTER_PAGE))
+		get_current_context()->nr_marked_dirty++;
 
 	/* We grab2flush_reserve one additional block only if node was
 	   not CREATED and jnode_flush did not sort it into neither
@@ -2404,7 +2427,7 @@ void znode_make_dirty(znode * z)
 		spin_unlock_jnode(node);
 		/* reiser4 file write code calls set_page_dirty for
 		 * unformatted nodes, for formatted nodes we do it here. */
-		reiser4_set_page_dirty_internal(page);
+		set_page_dirty_notag(page);
 		page_cache_release(page);
 		/* bump version counter in znode */
 		z->version = znode_build_version(jnode_get_tree(node));
@@ -3093,24 +3116,6 @@ void insert_into_atom_ovrwr_list(txn_atom * atom, jnode * node)
 	atom->capture_count++;
 	ON_DEBUG(count_jnode(atom, node, NODE_LIST(node), OVRWR_LIST, 1));
 }
-
-#if REISER4_DEBUG
-
-void reiser4_info_atom(const char *prefix, const txn_atom * atom)
-{
-	if (atom == NULL) {
-		printk("%s: no atom\n", prefix);
-		return;
-	}
-
-	printk("%s: refcount: %i id: %i flags: %x txnh_count: %i"
-	       " capture_count: %i stage: %x start: %lu, flushed: %i\n", prefix,
-	       atomic_read(&atom->refcount), atom->atom_id, atom->flags,
-	       atom->txnh_count, atom->capture_count, atom->stage,
-	       atom->start_time, atom->flushed);
-}
-
-#endif
 
 static int count_deleted_blocks_actor(txn_atom * atom,
 				      const reiser4_block_nr * a,

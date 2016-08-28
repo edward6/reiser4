@@ -22,16 +22,16 @@ typedef struct cde_item_format {
 	cde_unit_header entry[0];
 } cde_item_format;
 
-typedef struct cde_entry {
+struct cde_entry {
 	const struct inode *dir;
 	const struct inode *obj;
 	const struct qstr *name;
-} cde_entry;
+};
 
-typedef struct cde_entry_data {
+struct cde_entry_data {
 	int num_of_entries;
-	cde_entry *entry;
-} cde_entry_data;
+	struct cde_entry *entry;
+};
 
 /* plugin->item.b.* */
 reiser4_key *max_key_inside_cde(const coord_t * coord, reiser4_key * result);

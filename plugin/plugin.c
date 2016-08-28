@@ -11,14 +11,8 @@
 
    Plugins are classified into several disjoint "types". Plugins
    belonging to the particular plugin type are termed "instances" of
-   this type. Currently the following types are present:
-
-    . object plugin
-    . hash plugin
-    . tail plugin
-    . perm plugin
-    . item plugin
-    . node layout plugin
+   this type. Existing types are listed by enum reiser4_plugin_type
+   (see plugin/plugin_header.h)
 
 NIKITA-FIXME-HANS: update this list, and review this entire comment for currency
 
@@ -35,8 +29,6 @@ NIKITA-FIXME-HANS: update this list, and review this entire comment for currency
    Tail plugins (or, more precisely, tail policy plugins) determine
    when last part of the file should be stored in a formatted item.
 
-   Perm plugins control permissions granted for a process accessing a file.
-
    Scope and lookup:
 
    label such that pair ( type_label, plugin_label ) is unique.  This
@@ -49,20 +41,15 @@ NIKITA-FIXME-HANS: update this list, and review this entire comment for currency
    store the offset into the plugin array for that plugin type as the
    plugin id in the stat data of the filesystem object.
 
-   plugin_labels have meaning for the user interface that assigns
-   plugins to files, and may someday have meaning for dynamic loading of
-   plugins and for copying of plugins from one fs instance to
-   another by utilities like cp and tar.
-
    Internal kernel plugin type identifier (index in plugins[] array) is
    of type reiser4_plugin_type. Set of available plugin types is
    currently static, but dynamic loading doesn't seem to pose
    insurmountable problems.
 
    Within each type plugins are addressed by the identifiers of type
-   reiser4_plugin_id (indices in
-   reiser4_plugin_type_data.builtin[]). Such identifiers are only
-   required to be unique within one type, not globally.
+   reiser4_plugin_id (indices in reiser4_plugin_type_data.builtin[]).
+   Such identifiers are only required to be unique within one type,
+   not globally.
 
    Thus, plugin in memory is uniquely identified by the pair (type_id,
    id).
@@ -83,9 +70,7 @@ NIKITA-FIXME-HANS: update this list, and review this entire comment for currency
 
    With each subject the plugin possibly stores some state. For example,
    the state of a directory plugin (instance of object plugin type) is pointer
-   to hash plugin (if directories always use hashing that is). State of
-   audit plugin is file descriptor (struct file) of log file or some
-   magic value to do logging through printk().
+   to hash plugin (if directories always use hashing that is).
 
    Interface:
 
@@ -97,7 +82,7 @@ NIKITA-FIXME-HANS: update this list, and review this entire comment for currency
    .desc fields of reiser4_plugin_header respectively. It's possible to
    locate plugin by the pair of labels.
 
-   Features:
+   Features (not implemented):
 
     . user-level plugin manipulations:
       + reiser4("filename/..file_plugin<='audit'");
@@ -107,7 +92,9 @@ NIKITA-FIXME-HANS: update this list, and review this entire comment for currency
       Utilities are not of primary priority. Possibly they will be not
       working on v4.0
 
-NIKITA-FIXME-HANS: this should be a mkreiserfs option not a mount option, do you agree?  I don't think that specifying it at mount time, and then changing it with each mount, is a good model for usage.
+   NIKITA-FIXME-HANS: this should be a mkreiserfs option not a mount
+   option, do you agree?  I don't think that specifying it at mount time,
+   and then changing it with each mount, is a good model for usage.
 
     . mount option "plug" to set-up plugins of root-directory.
       "plug=foo:bar" will set "bar" as default plugin of type "foo".
@@ -135,7 +122,7 @@ NIKITA-FIXME-HANS: this should be a mkreiserfs option not a mount option, do you
 
     . perm:acl
 
-    d audi---audit plugin intercepting and possibly logging all
+    . audi---audit plugin intercepting and possibly logging all
       accesses to object. Requires to put stub functions in file_operations
       in stead of generic_file_*.
 
@@ -160,10 +147,10 @@ Each file is associated
    but not for directories, how such plugins would be inherited?
     . always store them with directories also
 
-NIKTIA-FIXME-HANS: Do the line above.  It is not exclusive of doing the line below which is also useful.
+NIKTIA-FIXME-HANS: Do the line above.  It is not exclusive of doing
+the line below which is also useful.
 
     . use inheritance hierarchy, independent of file-system namespace
-
 */
 
 #include "../debug.h"
@@ -181,15 +168,9 @@ NIKTIA-FIXME-HANS: Do the line above.  It is not exclusive of doing the line bel
 
 #include <linux/fs.h>		/* for struct super_block  */
 
-/* public interface */
-
-/* initialise plugin sub-system. Just call this once on reiser4 startup. */
-int init_plugins(void);
-int setup_plugins(struct super_block *super, reiser4_plugin ** area);
-int locate_plugin(struct inode *inode, plugin_locator * loc);
-
-/**
- * init_plugins - initialize plugins
+/*
+ * init_plugins - initialize plugin sub-system.
+ * Just call this once on reiser4 startup.
  *
  * Initializes plugin sub-system. It is part of reiser4 module
  * initialization. For each plugin of each type init method is called and each
@@ -200,7 +181,7 @@ int init_plugins(void)
 	reiser4_plugin_type type_id;
 
 	for (type_id = 0; type_id < REISER4_PLUGIN_TYPES; ++type_id) {
-		reiser4_plugin_type_data *ptype;
+		struct reiser4_plugin_type_data *ptype;
 		int i;
 
 		ptype = &plugins[type_id];
@@ -208,7 +189,8 @@ int init_plugins(void)
 		assert("nikita-3509", ptype->type_id == type_id);
 
 		INIT_LIST_HEAD(&ptype->plugins_list);
-/* NIKITA-FIXME-HANS: change builtin_num to some other name lacking the term builtin. */
+/* NIKITA-FIXME-HANS: change builtin_num to some other name lacking the term
+ * builtin. */
 		for (i = 0; i < ptype->builtin_num; ++i) {
 			reiser4_plugin *plugin;
 
@@ -285,7 +267,7 @@ reiser4_plugin *plugin_by_unsafe_id(reiser4_plugin_type type /* plugin type
  * Puts id of @plugin in little endian format to address @area.
  */
 int save_plugin_id(reiser4_plugin *plugin /* plugin to convert */ ,
-		   d16 *area /* where to store result */ )
+		   d16 * area/* where to store result */)
 {
 	assert("nikita-1261", plugin != NULL);
 	assert("nikita-1262", area != NULL);
@@ -345,8 +327,7 @@ int grab_plugin_pset(struct inode *self,
 		parent = reiser4_inode_data(ancestor);
 		plug = aset_get(parent->hset, memb) ? :
 			aset_get(parent->pset, memb);
-	}
-	else
+	} else
 		plug = get_default_plugin(memb);
 
 	result = set_plugin(&info->pset, memb, plug);
@@ -393,7 +374,8 @@ int finish_pset(struct inode *inode)
 	return result;
 }
 
-int force_plugin_pset(struct inode *self, pset_member memb, reiser4_plugin * plug)
+int force_plugin_pset(struct inode *self, pset_member memb,
+		      reiser4_plugin * plug)
 {
 	reiser4_inode *info;
 	int result = 0;
@@ -418,7 +400,7 @@ int force_plugin_pset(struct inode *self, pset_member memb, reiser4_plugin * plu
 	return result;
 }
 
-reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
+struct reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 	/* C90 initializers */
 	[REISER4_FILE_PLUGIN_TYPE] = {
 		.type_id = REISER4_FILE_PLUGIN_TYPE,

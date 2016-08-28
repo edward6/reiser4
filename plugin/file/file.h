@@ -8,44 +8,159 @@
 #if !defined( __REISER4_FILE_H__ )
 #define __REISER4_FILE_H__
 
-/* declarations of functions implementing UNIX_FILE_PLUGIN_ID file plugin */
+/* possible states in dispatching process */
+typedef enum {
+	DISPATCH_INVAL_STATE,  /* invalid state */
+	DISPATCH_POINT,        /* dispatching point has been achieved */
+	DISPATCH_REMAINS_OLD,  /* made a decision to manage by old plugin */
+	DISPATCH_ASSIGNED_NEW  /* a new plugin has been assigned */
+} dispatch_state;
+
+struct dispatch_context {
+	int nr_pages;
+	struct page **pages;
+	dispatch_state state;
+};
+
+/**
+ * Declarations of common/careful/generic methods.
+ * Suppose ->foo() is a vs method (of f_ops, i_ops, or a_ops);
+ * Then common reiser4 method for foo looks like reiser4_foo_common;
+ * careful method looks like reiser4_foo_careful;
+ * generic method looks like reiser4_foo.
+ *
+ * Common method is a simple instruction set eligible for more
+ * then one plugin id.
+ *
+ * Generic method looks at the plugin installed in inode's
+ * plugin set and calls its appropriate method.
+ *
+ * Careful method looks like generic method with protected pset
+ * (see plugin/file/file_conversion.c for details).
+ */
 
 /* inode operations */
-int setattr_unix_file(struct dentry *, struct iattr *);
+int reiser4_setattr(struct dentry *, struct iattr *);
 
 /* file operations */
+ssize_t reiser4_read_careful(struct file *, char __user *buf,
+			     size_t count, loff_t *off);
+ssize_t reiser4_write_careful(struct file *, const char __user *buf,
+			      size_t count, loff_t * off);
+long reiser4_ioctl_careful(struct file *filp, unsigned int cmd,
+			   unsigned long arg);
+int reiser4_mmap_careful(struct file *, struct vm_area_struct *);
+int reiser4_open_careful(struct inode *inode, struct file *file);
+int reiser4_release_careful(struct inode *, struct file *);
+int reiser4_sync_file_common(struct file *, loff_t, loff_t, int datasync);
+
+/* address space operations */
+int reiser4_readpage(struct file *, struct page *);
+int reiser4_readpages(struct file*, struct address_space*, struct list_head*,
+		      unsigned);
+int reiser4_writepages(struct address_space *, struct writeback_control *);
+int reiser4_write_begin_careful(struct file *file,
+				struct address_space *mapping,
+				loff_t pos, unsigned len, unsigned flags,
+				struct page **pagep, void **fsdata);
+int reiser4_write_end_careful(struct file *file,
+			      struct address_space *mapping,
+			      loff_t pos, unsigned len, unsigned copied,
+			      struct page *page, void *fsdata);
+sector_t reiser4_bmap_careful(struct address_space *, sector_t lblock);
+
+/*
+ * Private methods of unix-file plugin
+ * (UNIX_FILE_PLUGIN_ID)
+ */
+
+/* private inode operations */
+int setattr_unix_file(struct dentry *, struct iattr *);
+
+/* private file operations */
+
 ssize_t read_unix_file(struct file *, char __user *buf, size_t read_amount,
 		       loff_t *off);
 ssize_t write_unix_file(struct file *, const char __user *buf, size_t write_amount,
-			loff_t * off);
-int ioctl_unix_file(struct inode *, struct file *, unsigned int cmd,
-		    unsigned long arg);
+			loff_t * off, struct dispatch_context * cont);
+int ioctl_unix_file(struct file *, unsigned int cmd, unsigned long arg);
 int mmap_unix_file(struct file *, struct vm_area_struct *);
 int open_unix_file(struct inode *, struct file *);
 int release_unix_file(struct inode *, struct file *);
-int sync_unix_file(struct file *, struct dentry *, int datasync);
-ssize_t sendfile_unix_file(struct file *, loff_t *ppos, size_t count,
-			   read_actor_t, void *target);
 
-/* address space operations */
+/* private address space operations */
 int readpage_unix_file(struct file *, struct page *);
-int readpages_unix_file(struct file*, struct address_space*, struct list_head*, unsigned);
+int readpages_unix_file(struct file*, struct address_space*, struct list_head*,
+			unsigned);
 int writepages_unix_file(struct address_space *, struct writeback_control *);
-int prepare_write_unix_file(struct file *, struct page *, unsigned from,
-			    unsigned to);
-int commit_write_unix_file(struct file *, struct page *, unsigned from,
-			   unsigned to);
-long batch_write_unix_file(struct file *, struct write_descriptor *,
-			   size_t *written);
+int write_begin_unix_file(struct file *file, struct page *page,
+			  loff_t pos, unsigned len, void **fsdata);
+int write_end_unix_file(struct file *file, struct page *page,
+			loff_t pos, unsigned copied, void *fsdata);
 sector_t bmap_unix_file(struct address_space *, sector_t lblock);
 
-/* file plugin operations */
+/* other private methods */
+int delete_object_unix_file(struct inode *);
 int flow_by_inode_unix_file(struct inode *, const char __user *buf,
 			    int user, loff_t, loff_t, rw_op, flow_t *);
 int owns_item_unix_file(const struct inode *, const coord_t *);
 void init_inode_data_unix_file(struct inode *, reiser4_object_create_data *,
 			       int create);
-int delete_object_unix_file(struct inode *);
+
+/*
+ * Private methods of cryptcompress file plugin
+ * (CRYPTCOMPRESS_FILE_PLUGIN_ID)
+ */
+
+/* private inode operations */
+int setattr_cryptcompress(struct dentry *, struct iattr *);
+
+/* private file operations */
+ssize_t read_cryptcompress(struct file *, char __user *buf,
+			   size_t count, loff_t *off);
+ssize_t write_cryptcompress(struct file *, const char __user *buf,
+			    size_t count, loff_t * off,
+			    struct dispatch_context *cont);
+int ioctl_cryptcompress(struct file *, unsigned int cmd, unsigned long arg);
+int mmap_cryptcompress(struct file *, struct vm_area_struct *);
+int open_cryptcompress(struct inode *, struct file *);
+int release_cryptcompress(struct inode *, struct file *);
+
+/* private address space operations */
+int readpage_cryptcompress(struct file *, struct page *);
+int readpages_cryptcompress(struct file*, struct address_space*,
+			    struct list_head*, unsigned);
+int writepages_cryptcompress(struct address_space *,
+			     struct writeback_control *);
+int write_begin_cryptcompress(struct file *file, struct page *page,
+			      loff_t pos, unsigned len, void **fsdata);
+int write_end_cryptcompress(struct file *file, struct page *page,
+			    loff_t pos, unsigned copied, void *fsdata);
+sector_t bmap_cryptcompress(struct address_space *, sector_t lblock);
+
+/* other private methods */
+int flow_by_inode_cryptcompress(struct inode *, const char __user *buf,
+				int user, loff_t, loff_t, rw_op, flow_t *);
+int key_by_inode_cryptcompress(struct inode *, loff_t off, reiser4_key *);
+int create_object_cryptcompress(struct inode *, struct inode *,
+				reiser4_object_create_data *);
+int delete_object_cryptcompress(struct inode *);
+void init_inode_data_cryptcompress(struct inode *, reiser4_object_create_data *,
+				   int create);
+int cut_tree_worker_cryptcompress(tap_t *, const reiser4_key * from_key,
+				  const reiser4_key * to_key,
+				  reiser4_key * smallest_removed,
+				  struct inode *object, int truncate,
+				  int *progress);
+void destroy_inode_cryptcompress(struct inode *);
+
+/*
+ * Private methods of symlink file plugin
+ * (SYMLINK_FILE_PLUGIN_ID)
+ */
+int reiser4_create_symlink(struct inode *symlink, struct inode *dir,
+			   reiser4_object_create_data *);
+void destroy_inode_symlink(struct inode *);
 
 /*
  * all the write into unix file is performed by item write method. Write method
@@ -70,7 +185,7 @@ struct formatting_plugin;
 struct inode;
 
 /* unix file plugin specific part of reiser4 inode */
-typedef struct unix_file_info {
+struct unix_file_info {
 	/*
 	 * this read-write lock protects file containerization change. Accesses
 	 * which do not change file containerization (see file_container_t)
@@ -95,14 +210,14 @@ typedef struct unix_file_info {
 	atomic_t nr_neas;
 	void *last_reader;
 #endif
-} unix_file_info_t;
+};
 
 struct unix_file_info *unix_file_inode_data(const struct inode *inode);
-void get_exclusive_access(unix_file_info_t *);
-void drop_exclusive_access(unix_file_info_t *);
-void get_nonexclusive_access(unix_file_info_t *);
-void drop_nonexclusive_access(unix_file_info_t *);
-int try_to_get_nonexclusive_access(unix_file_info_t *);
+void get_exclusive_access(struct unix_file_info *);
+void drop_exclusive_access(struct unix_file_info *);
+void get_nonexclusive_access(struct unix_file_info *);
+void drop_nonexclusive_access(struct unix_file_info *);
+int try_to_get_nonexclusive_access(struct unix_file_info *);
 int find_file_item(hint_t *, const reiser4_key *, znode_lock_mode,
 		   struct inode *);
 int find_file_item_nohint(coord_t *, lock_handle *,
@@ -121,9 +236,9 @@ struct uf_coord {
 	lock_handle *lh;
 	int valid;
 	union {
-		extent_coord_extension_t extent;
-		tail_coord_extension_t tail;
-		ctail_coord_extension_t ctail;
+		struct extent_coord_extension extent;
+		struct tail_coord_extension tail;
+		struct ctail_coord_extension ctail;
 	} extension;
 };
 
@@ -168,14 +283,14 @@ void reiser4_set_hint(hint_t *, const reiser4_key *, znode_lock_mode);
 int hint_is_set(const hint_t *);
 void reiser4_unset_hint(hint_t *);
 
-int reiser4_update_file_size(struct inode *, reiser4_key *, int update_sd);
-int cut_file_items(struct inode *, loff_t new_size, int update_sd,
-		   loff_t cur_size, int (*update_actor) (struct inode *,
-							 reiser4_key *, int));
+int reiser4_update_file_size(struct inode *, loff_t, int update_sd);
+int cut_file_items(struct inode *, loff_t new_size,
+		   int update_sd, loff_t cur_size,
+		   int (*update_actor) (struct inode *, loff_t, int));
 #if REISER4_DEBUG
 
 /* return 1 is exclusive access is obtained, 0 - otherwise */
-static inline int ea_obtained(unix_file_info_t * uf_info)
+static inline int ea_obtained(struct unix_file_info * uf_info)
 {
 	int ret;
 
@@ -187,68 +302,10 @@ static inline int ea_obtained(unix_file_info_t * uf_info)
 
 #endif
 
-/* declarations of functions implementing SYMLINK_FILE_PLUGIN_ID file plugin */
-int reiser4_create_symlink(struct inode *symlink, struct inode *dir,
-			   reiser4_object_create_data *);
-void destroy_inode_symlink(struct inode *);
-
-/* declarations of functions implementing CRYPTCOMPRESS_FILE_PLUGIN_ID
-   file plugin */
-
-/* inode operations */
-int setattr_cryptcompress(struct dentry *, struct iattr *);
-int prot_setattr_cryptcompress(struct dentry *, struct iattr *);
-
-/* file operations */
-ssize_t read_cryptcompress(struct file *, char __user *buf, size_t read_amount,
-			   loff_t * off);
-ssize_t prot_read_cryptcompress(struct file *, char __user *buf,
-				size_t read_amount, loff_t * off);
-
-int prepare_write_cryptcompress(struct file *file, struct page *page,
-				unsigned from, unsigned to);
-ssize_t write_cryptcompress(struct file *, const char __user *buf, size_t write_amount,
-			    loff_t * off, int * conv);
-ssize_t prot_write_cryptcompress(struct file *, const char __user *buf, size_t write_amount,
-				 loff_t * off);
-int mmap_cryptcompress(struct file *, struct vm_area_struct *);
-int prot_mmap_cryptcompress(struct file *, struct vm_area_struct *);
-ssize_t sendfile_cryptcompress(struct file *file, loff_t *ppos, size_t count,
-			       read_actor_t actor, void *target);
-ssize_t prot_sendfile_cryptcompress(struct file *file, loff_t *ppos, size_t count,
-				    read_actor_t actor, void *target);
-
-int release_cryptcompress(struct inode *, struct file *);
-int prot_release_cryptcompress(struct inode *, struct file *);
-
-/* address space operations */
-extern int readpage_cryptcompress(struct file *, struct page *);
-extern int writepages_cryptcompress(struct address_space *,
-				     struct writeback_control *);
-/* file plugin operations */
-int flow_by_inode_cryptcompress(struct inode *, const char __user *buf,
-				int user, loff_t, loff_t, rw_op, flow_t *);
-int key_by_inode_cryptcompress(struct inode *, loff_t off, reiser4_key *);
-int create_cryptcompress(struct inode *, struct inode *,
-			 reiser4_object_create_data *);
-int delete_object_cryptcompress(struct inode *);
-int prot_delete_object_cryptcompress(struct inode *);
-void init_inode_data_cryptcompress(struct inode *, reiser4_object_create_data *,
-				   int create);
-int cut_tree_worker_cryptcompress(tap_t *, const reiser4_key * from_key,
-				  const reiser4_key * to_key,
-				  reiser4_key * smallest_removed,
-				  struct inode *object, int truncate,
-				  int *progress);
-void destroy_inode_cryptcompress(struct inode *);
-int open_object_cryptcompress(struct inode * inode, struct file * file);
-
-extern reiser4_plugin_ops cryptcompress_plugin_ops;
-
 #define WRITE_GRANULARITY 32
 
-int tail2extent(unix_file_info_t *);
-int extent2tail(unix_file_info_t *);
+int tail2extent(struct unix_file_info *);
+int extent2tail(struct file *, struct unix_file_info *);
 
 int goto_right_neighbor(coord_t *, lock_handle *);
 int find_or_create_extent(struct page *);

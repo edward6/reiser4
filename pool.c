@@ -50,9 +50,8 @@
 #include <linux/types.h>
 #include <linux/err.h>
 
-/* initialize new pool object */
-static void reiser4_init_pool_obj(reiser4_pool_header * h	/* pool object to
-								 * initialize */ )
+/* initialize new pool object @h */
+static void reiser4_init_pool_obj(struct reiser4_pool_header *h)
 {
 	INIT_LIST_HEAD(&h->usage_linkage);
 	INIT_LIST_HEAD(&h->level_linkage);
@@ -60,12 +59,12 @@ static void reiser4_init_pool_obj(reiser4_pool_header * h	/* pool object to
 }
 
 /* initialize new pool */
-void reiser4_init_pool(reiser4_pool * pool /* pool to initialize */ ,
+void reiser4_init_pool(struct reiser4_pool *pool /* pool to initialize */ ,
 		       size_t obj_size /* size of objects in @pool */ ,
 		       int num_of_objs /* number of preallocated objects */ ,
-		       char *data /* area for preallocated objects */ )
+		       char *data/* area for preallocated objects */)
 {
-	reiser4_pool_header *h;
+	struct reiser4_pool_header *h;
 	int i;
 
 	assert("nikita-955", pool != NULL);
@@ -81,7 +80,7 @@ void reiser4_init_pool(reiser4_pool * pool /* pool to initialize */ ,
 	INIT_LIST_HEAD(&pool->extra);
 	memset(data, 0, obj_size * num_of_objs);
 	for (i = 0; i < num_of_objs; ++i) {
-		h = (reiser4_pool_header *) (data + i * obj_size);
+		h = (struct reiser4_pool_header *) (data + i * obj_size);
 		reiser4_init_pool_obj(h);
 		/* add pool header to the end of pool's free list */
 		list_add_tail(&h->usage_linkage, &pool->free);
@@ -94,20 +93,19 @@ void reiser4_init_pool(reiser4_pool * pool /* pool to initialize */ ,
    allocated objects.
 
 */
-void reiser4_done_pool(reiser4_pool * pool UNUSED_ARG /* pool to destroy */ )
+void reiser4_done_pool(struct reiser4_pool *pool UNUSED_ARG)
 {
 }
 
-/* allocate carry object from pool
+/* allocate carry object from @pool
 
    First, try to get preallocated object. If this fails, resort to dynamic
    allocation.
 
 */
-static void *reiser4_pool_alloc(reiser4_pool * pool	/* pool to allocate object
-							 * from */ )
+static void *reiser4_pool_alloc(struct reiser4_pool *pool)
 {
-	reiser4_pool_header *result;
+	struct reiser4_pool_header *result;
 
 	assert("nikita-959", pool != NULL);
 
@@ -117,7 +115,8 @@ static void *reiser4_pool_alloc(reiser4_pool * pool	/* pool to allocate object
 		linkage = pool->free.next;
 		list_del(linkage);
 		INIT_LIST_HEAD(linkage);
-		result = list_entry(linkage, reiser4_pool_header, usage_linkage);
+		result = list_entry(linkage, struct reiser4_pool_header,
+				    usage_linkage);
 		BUG_ON(!list_empty(&result->level_linkage) ||
 		       !list_empty(&result->extra_linkage));
 	} else {
@@ -139,8 +138,8 @@ static void *reiser4_pool_alloc(reiser4_pool * pool	/* pool to allocate object
 }
 
 /* return object back to the pool */
-void reiser4_pool_free(reiser4_pool * pool, reiser4_pool_header * h	/* pool to return object back
-									 * into */ )
+void reiser4_pool_free(struct reiser4_pool *pool,
+		       struct reiser4_pool_header *h)
 {
 	assert("nikita-961", h != NULL);
 	assert("nikita-962", pool != NULL);
@@ -179,18 +178,16 @@ void reiser4_pool_free(reiser4_pool * pool, reiser4_pool_header * h	/* pool to r
    supplied with at least node whose left delimiting key is to be updated
    (that is "right" node).
 
+   @pool - from which to allocate new object;
+   @list - where to add object;
+   @reference - after (or before) which existing object to add
 */
-reiser4_pool_header *reiser4_add_obj(reiser4_pool * pool /* pool from which to
-							  * allocate new object
-							  */,
-				     struct list_head *list /* list where to add
-							     * object */,
-				     pool_ordering order /* where to add */,
-				     reiser4_pool_header * reference
-				     /* after (or before) which existing object
-					to add */)
+struct reiser4_pool_header *reiser4_add_obj(struct reiser4_pool *pool,
+					 struct list_head *list,
+					 pool_ordering order,
+					 struct reiser4_pool_header *reference)
 {
-	reiser4_pool_header *result;
+	struct reiser4_pool_header *result;
 
 	assert("nikita-972", pool != NULL);
 

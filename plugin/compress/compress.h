@@ -4,22 +4,27 @@
 #include <linux/types.h>
 #include <linux/string.h>
 
+/* transform direction */
 typedef enum {
-	TFMA_READ,
-	TFMA_WRITE,
+	TFMA_READ,   /* decrypt, decompress */
+	TFMA_WRITE,  /* encrypt, compress */
 	TFMA_LAST
 } tfm_action;
 
-/* builtin compression plugins */
-
+/* supported compression algorithms */
 typedef enum {
 	LZO1_COMPRESSION_ID,
 	GZIP1_COMPRESSION_ID,
 	LAST_COMPRESSION_ID,
 } reiser4_compression_id;
 
+/* the same as pgoff, but units are page clusters */
 typedef unsigned long cloff_t;
+
+/* working data of a (de)compression algorithm */
 typedef void *coa_t;
+
+/* table for all supported (de)compression algorithms */
 typedef coa_t coa_set[LAST_COMPRESSION_ID][TFMA_LAST];
 
 __u32 reiser4_adler32(char *data, __u32 len);

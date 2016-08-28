@@ -285,7 +285,7 @@ static int expand_item(const coord_t * coord /* coord of item */ ,
 
 /* insert new @entry into item */
 static int expand(const coord_t * coord /* coord of item */ ,
-		  cde_entry * entry /* entry to insert */ ,
+		  struct cde_entry * entry /* entry to insert */ ,
 		  int len /* length of @entry data */ ,
 		  int *pos /* position to insert */ ,
 		  reiser4_dir_entry_desc * dir_entry	/* parameters for new
@@ -309,7 +309,7 @@ static int expand(const coord_t * coord /* coord of item */ ,
 
 /* paste body of @entry into item */
 static int paste_entry(const coord_t * coord /* coord of item */ ,
-		       cde_entry * entry /* new entry */ ,
+		       struct cde_entry * entry /* new entry */ ,
 		       int pos /* position to insert */ ,
 		       reiser4_dir_entry_desc * dir_entry	/* parameters for
 								 * new entry */ )
@@ -345,11 +345,11 @@ static int paste_entry(const coord_t * coord /* coord of item */ ,
 int estimate_cde(const coord_t * coord /* coord of item */ ,
 		 const reiser4_item_data * data /* parameters for new item */ )
 {
-	cde_entry_data *e;
+	struct cde_entry_data *e;
 	int result;
 	int i;
 
-	e = (cde_entry_data *) data->data;
+	e = (struct cde_entry_data *) data->data;
 
 	assert("nikita-1288", e != NULL);
 	assert("nikita-1289", e->num_of_entries >= 0);
@@ -568,12 +568,12 @@ int paste_cde(coord_t * coord /* coord of item */ ,
 					 * inserted */ ,
 	      carry_plugin_info * info UNUSED_ARG /* todo carry queue */ )
 {
-	cde_entry_data *e;
+	struct cde_entry_data *e;
 	int result;
 	int i;
 
 	CHECKME(coord);
-	e = (cde_entry_data *) data->data;
+	e = (struct cde_entry_data *) data->data;
 
 	result = 0;
 	for (i = 0; i < e->num_of_entries; ++i) {
@@ -908,8 +908,8 @@ int add_entry_cde(struct inode *dir /* directory object */ ,
 							 * directory entry */ )
 {
 	reiser4_item_data data;
-	cde_entry entry;
-	cde_entry_data edata;
+	struct cde_entry entry;
+	struct cde_entry_data edata;
 	int result;
 
 	assert("nikita-1656", coord->node == lh->node);
@@ -932,7 +932,7 @@ int add_entry_cde(struct inode *dir /* directory object */ ,
 	data.length = estimate_cde(result ? coord : NULL, &data);
 
 	/* NOTE-NIKITA quota plugin? */
-	if (DQUOT_ALLOC_SPACE_NODIRTY(dir, cde_bytes(result, &data)))
+	if (dquot_alloc_space_nodirty(dir, cde_bytes(result, &data)))
 		return RETERR(-EDQUOT);
 
 	if (result)
@@ -983,7 +983,7 @@ int rem_entry_cde(struct inode *dir /* directory of item */ ,
 	    kill_node_content(coord, &shadow, NULL, NULL, NULL, NULL, NULL, 0);
 	if (result == 0) {
 		/* NOTE-NIKITA quota plugin? */
-		DQUOT_FREE_SPACE_NODIRTY(dir, length);
+		dquot_free_space_nodirty(dir, length);
 	}
 	return result;
 }
