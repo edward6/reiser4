@@ -140,7 +140,8 @@ static int dir_go_to(struct file *dir, struct readdir_pos *pos, tap_t *tap)
 	result = inode_dir_plugin(inode)->build_readdir_key(dir, &key);
 	if (result != 0)
 		return result;
-	result = reiser4_object_lookup(inode,
+	result = reiser4_object_lookup(&subvol_for_meta(inode)->tree,
+				       inode,
 				       &key,
 				       tap->coord,
 				       tap->lh,
@@ -295,8 +296,8 @@ static int dir_rewind(struct file *dir, loff_t *fpos, struct readdir_pos *pos, t
  * When ->filldir() wants no more, feed_entry() returns 1, and node is
  * unlocked.
  */
-static int
-feed_entry(tap_t *tap, struct dir_context *context)
+static int feed_entry(tap_t *tap, reiser4_tree *tree,
+		      struct dir_context *context)
 {
 	item_plugin *iplug;
 	char *name;
@@ -357,7 +358,7 @@ feed_entry(tap_t *tap, struct dir_context *context)
 		/* ->filldir() is satisfied. (no space in buffer, IOW) */
 		result = 1;
 	else
-		result = reiser4_seal_validate(&seal, coord, &entry_key,
+		result = reiser4_seal_validate(&seal, tree, coord, &entry_key,
 					       tap->lh, tap->mode,
 					       ZNODE_LOCK_HIPRI);
 
@@ -598,7 +599,8 @@ repeat:
 			assert("nikita-2572", coord_is_existing_unit(coord));
 			assert("nikita-3227", is_valid_dir_coord(inode, coord));
 
-			result = feed_entry(&tap, context);
+			result = feed_entry(&tap, &subvol_for_meta(inode)->tree,
+					    context);
 			if (result > 0) {
 				break;
 			} else if (result == 0) {
@@ -632,10 +634,10 @@ repeat:
 		result = 0;
 	reiser4_tap_done(&tap);
 	reiser4_detach_fsdata(f);
-
-	/* try to update directory's atime */
-	if (reiser4_grab_space_force(inode_file_plugin(inode)->estimate.update(inode),
-			       BA_CAN_COMMIT) != 0)
+	/*
+	 * try to update directory's atime
+	 */
+	if (reserve_update_sd_common(inode) != 0)
 		warning("", "failed to update atime on readdir: %llu",
 			get_inode_oid(inode));
 	else

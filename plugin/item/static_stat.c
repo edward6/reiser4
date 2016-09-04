@@ -614,8 +614,7 @@ static int present_plugin_sd(struct inode *inode /* object being processed */ ,
 				(unsigned long long)get_inode_oid(inode));
 			return RETERR(-EINVAL);
 		}
-		plugin = plugin_by_disk_id(reiser4_tree_by_inode(inode),
-					   type, &slot->id);
+		plugin = plugin_by_disk_id(type, &slot->id);
 		if (plugin == NULL)
 			return unknown_plugin(le16_to_cpu(get_unaligned(&slot->id)), inode);
 

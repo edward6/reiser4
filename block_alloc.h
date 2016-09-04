@@ -87,51 +87,64 @@ typedef enum reiser4_ba_flags reiser4_ba_flags_t;
 extern void reiser4_blocknr_hint_init(reiser4_blocknr_hint * hint);
 extern void reiser4_blocknr_hint_done(reiser4_blocknr_hint * hint);
 extern void update_blocknr_hint_default(const struct super_block *,
+					struct reiser4_subvol *,
 					const reiser4_block_nr *);
-extern void get_blocknr_hint_default(reiser4_block_nr *);
+extern void get_blocknr_hint_default(reiser4_block_nr *, reiser4_subvol *);
 
 extern reiser4_block_nr reiser4_fs_reserved_space(struct super_block *super);
 
-int assign_fake_blocknr_formatted(reiser4_block_nr *);
-reiser4_block_nr fake_blocknr_unformatted(int);
+int assign_fake_blocknr_formatted(reiser4_block_nr *, reiser4_subvol *subv);
+reiser4_block_nr fake_blocknr_unformatted(int, reiser4_subvol *subv);
 
 /* free -> grabbed -> fake_allocated -> used */
 
-int reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags);
+int reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags, reiser4_subvol *);
 void all_grabbed2free(void);
-void grabbed2free(reiser4_context * , reiser4_super_info_data * , __u64 count);
-void fake_allocated2free(__u64 count, reiser4_ba_flags_t flags);
-void grabbed2flush_reserved_nolock(txn_atom * atom, __u64 count);
-void grabbed2flush_reserved(__u64 count);
-int reiser4_alloc_blocks(reiser4_blocknr_hint * hint,
-			 reiser4_block_nr * start,
-			 reiser4_block_nr * len, reiser4_ba_flags_t flags);
+void grabbed2free(reiser4_context *, reiser4_super_info_data *, __u64 count,
+		  reiser4_subvol *);
+void fake_allocated2free(__u64 count,
+			 reiser4_ba_flags_t flags, reiser4_subvol *);
+void grabbed2flush_reserved_nolock(txn_atom * atom, __u64 count,
+				   reiser4_subvol *);
+void grabbed2flush_reserved(__u64 count, reiser4_subvol *subv);
+__u64 ctx_subvol_grabbed(reiser4_context *ctx, __u32 subvol_id);
+int reiser4_alloc_blocks(reiser4_blocknr_hint *hint,
+			 reiser4_block_nr *start, reiser4_block_nr *len,
+			 reiser4_ba_flags_t flags, reiser4_subvol *subvol);
 int reiser4_dealloc_blocks(const reiser4_block_nr *,
-			   const reiser4_block_nr *,
-			   block_stage_t, reiser4_ba_flags_t flags);
+ 			   const reiser4_block_nr *,
+			   block_stage_t, reiser4_ba_flags_t flags,
+			   reiser4_subvol *);
 
-static inline int reiser4_alloc_block(reiser4_blocknr_hint * hint,
-				      reiser4_block_nr * start,
-				      reiser4_ba_flags_t flags)
+static inline int reiser4_alloc_block(reiser4_blocknr_hint *hint,
+				      reiser4_block_nr *start,
+				      reiser4_ba_flags_t flags,
+				      reiser4_subvol *subvol)
 {
 	reiser4_block_nr one = 1;
-	return reiser4_alloc_blocks(hint, start, &one, flags);
+	return reiser4_alloc_blocks(hint, start, &one, flags, subvol);
 }
 
 static inline int reiser4_dealloc_block(const reiser4_block_nr * block,
 					block_stage_t stage,
-					reiser4_ba_flags_t flags)
+					reiser4_ba_flags_t flags,
+					reiser4_subvol *subv)
 {
 	const reiser4_block_nr one = 1;
-	return reiser4_dealloc_blocks(block, &one, stage, flags);
+	return reiser4_dealloc_blocks(block, &one, stage, flags, subv);
 }
+#define reiser4_grab_space_force(count, flags, subvol)	\
+	reiser4_grab_space(count, flags | BA_FORCE, subvol)
 
-#define reiser4_grab_space_force(count, flags)		\
-	reiser4_grab_space(count, flags | BA_FORCE)
-
-extern void grabbed2free_mark(__u64 mark);
-extern int reiser4_grab_reserved(struct super_block *,
-				 __u64, reiser4_ba_flags_t);
+extern void allocate_blocks_unformatted(reiser4_blocknr_hint *preceder,
+					reiser4_block_nr wanted_count,
+					reiser4_block_nr *first_allocated,
+					reiser4_block_nr *allocated,
+					block_stage_t block_stage,
+					reiser4_subvol *subv);
+extern void grabbed2free_mark(__u64 mark, reiser4_subvol *subv);
+extern int reiser4_grab_reserved(struct super_block *, __u64,
+				 reiser4_ba_flags_t, reiser4_subvol *);
 extern void reiser4_release_reserved(struct super_block *super);
 
 /* grabbed -> fake_allocated */
@@ -140,29 +153,31 @@ extern void reiser4_release_reserved(struct super_block *super);
 
 /* used -> fake_allocated -> grabbed -> free */
 
-extern void flush_reserved2grabbed(txn_atom * atom, __u64 count);
-
+extern void flush_reserved2grabbed(txn_atom * atom, __u64 count,
+				   reiser4_subvol *subv);
 extern int reiser4_blocknr_is_fake(const reiser4_block_nr * da);
 
-extern void grabbed2cluster_reserved(int count);
-extern void cluster_reserved2grabbed(int count);
-extern void cluster_reserved2free(int count);
+extern void grabbed2cluster_reserved(int count, reiser4_subvol *);
+extern void cluster_reserved2grabbed(int count, reiser4_subvol *);
+extern void cluster_reserved2free(int count, reiser4_subvol *);
 
-extern int reiser4_check_block_counters(const struct super_block *);
-
+extern int subvol_check_block_counters(const reiser4_subvol *);
+extern int volume_check_block_counters(const struct super_block *super);
 
 extern int reiser4_check_blocks(const reiser4_block_nr *start,
-                                const reiser4_block_nr *len, int desired);
+                                const reiser4_block_nr *len, int desired,
+				reiser4_subvol *subv);
 
 static inline int reiser4_check_block(const reiser4_block_nr *start,
-                                      int desired)
+                                      int desired, reiser4_subvol *subv)
 {
-	return reiser4_check_blocks(start, NULL, desired);
+	return reiser4_check_blocks(start, NULL, desired, subv);
 }
 
 extern int reiser4_pre_commit_hook(void);
 extern void reiser4_post_commit_hook(void);
 extern void reiser4_post_write_back_hook(void);
+
 
 #endif				/* __FS_REISER4_BLOCK_ALLOC_H__ */
 

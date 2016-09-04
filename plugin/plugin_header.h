@@ -29,6 +29,8 @@ typedef enum {
 	REISER4_COMPRESSION_MODE_PLUGIN_TYPE, /* dispatching policies */
 	REISER4_CLUSTER_PLUGIN_TYPE,          /* manage logical clusters */
 	REISER4_TXMOD_PLUGIN_TYPE,            /* transaction models */
+	REISER4_DISTRIBUTION_PLUGIN_TYPE,     /* distribution algorithm */
+	REISER4_VOLUME_PLUGIN_TYPE,	      /* volume types */
 	REISER4_PLUGIN_TYPES
 } reiser4_plugin_type;
 
@@ -123,8 +125,7 @@ extern reiser4_plugin *plugin_by_unsafe_id(reiser4_plugin_type type_id,
  *
  * Returns reiser4_plugin by plugin type id an dplugin_id.
  */
-static inline reiser4_plugin *plugin_by_disk_id(reiser4_tree * tree UNUSED_ARG,
-						reiser4_plugin_type type_id,
+static inline reiser4_plugin *plugin_by_disk_id(reiser4_plugin_type type_id,
 						__le16 *plugin_id)
 {
 	/*

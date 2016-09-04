@@ -146,7 +146,7 @@ struct reiser4_tree {
 
 	znode *uber;
 	node_plugin *nplug;
-	struct super_block *super;
+	reiser4_subvol *subvol;
 	struct {
 		/* carry flags used for insertion of new nodes */
 		__u32 new_node_flags;
@@ -159,9 +159,10 @@ struct reiser4_tree {
 	} carry;
 };
 
-extern int reiser4_init_tree(reiser4_tree * tree,
-			     const reiser4_block_nr * root_block,
-			     tree_level height, node_plugin * default_plugin);
+extern int reiser4_subvol_init_tree(struct super_block *super,
+				    struct reiser4_subvol *subvol,
+				    const reiser4_block_nr *root_block,
+				    tree_level height, node_plugin *nplug);
 extern void reiser4_done_tree(reiser4_tree * tree);
 
 /* cbk flags: options for coord_by_key() */
@@ -292,7 +293,8 @@ lookup_result coord_by_key(reiser4_tree * tree, const reiser4_key * key,
 			   tree_level lock_level, tree_level stop_level,
 			   __u32 flags, ra_info_t *);
 
-lookup_result reiser4_object_lookup(struct inode *object,
+lookup_result reiser4_object_lookup(reiser4_tree *tree,
+				    struct inode *object,
 				    const reiser4_key * key,
 				    coord_t * coord,
 				    lock_handle * lh,

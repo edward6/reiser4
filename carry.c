@@ -339,7 +339,7 @@ static int carry_on_level(carry_level * doing	/* queue of carry operations to
 		assert("nikita-1041", op != NULL);
 		opcode = op->op;
 		assert("nikita-1042", op->op < COP_LAST_OP);
-		f = op_dispatch_table[op->op].handler;
+		f = op_dispatch_table[op->op].cop_handler;
 		result = f(op, doing, todo);
 		/* locking can fail with -E_REPEAT. Any different error is fatal
 		   and will be handled by fatal_carry_error() sledgehammer.

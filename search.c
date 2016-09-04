@@ -325,7 +325,8 @@ lookup_result coord_by_key(reiser4_tree * tree	/* tree to perform search
 
 /* like coord_by_key(), but starts traversal from vroot of @object rather than
  * from tree root. */
-lookup_result reiser4_object_lookup(struct inode *object,
+lookup_result reiser4_object_lookup(reiser4_tree *tree,
+				    struct inode *object,
 				    const reiser4_key * key,
 				    coord_t *coord,
 				    lock_handle * lh,
@@ -353,7 +354,7 @@ lookup_result reiser4_object_lookup(struct inode *object,
 	assert("nikita-2104", lock_stack_isclean(get_current_lock_stack()));
 
 	cbk_pack(&handle,
-		 object != NULL ? reiser4_tree_by_inode(object) : current_tree,
+		 tree,
 		 key,
 		 coord,
 		 lh,
@@ -459,7 +460,9 @@ int reiser4_iterate_tree(reiser4_tree * tree /* tree to scan */ ,
 	return result;
 }
 
-/* return locked uber znode for @tree */
+/**
+ * Return locked uber znode for @tree
+ */
 int get_uber_znode(reiser4_tree * tree, znode_lock_mode mode,
 		   znode_lock_request pri, lock_handle * lh)
 {
@@ -842,9 +845,8 @@ static level_lookup_result cbk_level_lookup(cbk_handle * h/* search handle */)
 	assert("nikita-3025", reiser4_schedulable());
 
 	/* acquire reference to @active node */
-	active =
-	    zget(h->tree, &h->block, h->parent_lh->node, h->level,
-		 reiser4_ctx_gfp_mask_get());
+	active = zget(h->tree->subvol, &h->block, h->parent_lh->node, h->level,
+		      reiser4_ctx_gfp_mask_get());
 
 	if (IS_ERR(active)) {
 		h->result = PTR_ERR(active);
@@ -990,9 +992,10 @@ void check_dkeys(znode * node)
 {
 	znode *left;
 	znode *right;
+	reiser4_tree *tree = znode_get_tree(node);
 
-	read_lock_tree(current_tree);
-	read_lock_dk(current_tree);
+	read_lock_tree(tree);
+	read_lock_dk(tree);
 
 	assert("vs-1710", znode_is_any_locked(node));
 	assert("vs-1197",
@@ -1017,8 +1020,8 @@ void check_dkeys(znode * node)
 		       (keyeq(znode_get_rd_key(node), znode_get_ld_key(right))
 			|| ZF_ISSET(right, JNODE_HEARD_BANSHEE)));
 
-	read_unlock_dk(current_tree);
-	read_unlock_tree(current_tree);
+	read_unlock_dk(tree);
+	read_unlock_tree(tree);
 }
 #endif
 
@@ -1570,17 +1573,18 @@ static int setup_delimiting_keys(cbk_handle * h/* search handle */)
 	return 0;
 }
 
-/* true if @block makes sense for the @tree. Used to detect corrupted node
- * pointers */
-static int
-block_nr_is_correct(reiser4_block_nr * block /* block number to check */ ,
-		    reiser4_tree * tree/* tree to check against */)
+/*
+ * true if @block makes sense for the @tree.
+ * Used to detect corrupted node pointers
+ */
+static int block_nr_is_correct(reiser4_block_nr *block, reiser4_subvol *subv)
 {
 	assert("nikita-757", block != NULL);
-	assert("nikita-758", tree != NULL);
-
-	/* check to see if it exceeds the size of the device. */
-	return reiser4_blocknr_is_sane_for(tree->super, block);
+	assert("nikita-758", subv != NULL);
+	/*
+	 * check to see if it exceeds the size of the device
+	 */
+	return reiser4_blocknr_is_sane_for(subv, block);
 }
 
 /* check consistency of fields */
@@ -1592,7 +1596,7 @@ static int sanity_check(cbk_handle * h/* search handle */)
 		h->error = "Buried under leaves";
 		h->result = RETERR(-EIO);
 		return LOOKUP_DONE;
-	} else if (!block_nr_is_correct(&h->block, h->tree)) {
+	} else if (!block_nr_is_correct(&h->block, h->tree->subvol)) {
 		h->error = "bad block number";
 		h->result = RETERR(-EIO);
 		return LOOKUP_DONE;

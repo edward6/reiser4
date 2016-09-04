@@ -129,6 +129,11 @@ struct flush_position {
 				   flush */
 };
 
+static inline reiser4_subvol *flush_pos_subvol(flush_pos_t *pos)
+{
+	return ZJNODE(pos->coord.node)->subvol;
+}
+
 static inline int item_convert_count(flush_pos_t *pos)
 {
 	return pos->sq->count;
@@ -267,11 +272,11 @@ extern void reiser4_done_fqs(void);
 extern void reiser4_check_fq(const txn_atom *atom);
 extern atomic_t flush_cnt;
 
-#define check_preceder(blk) \
-assert("nikita-2588", blk < reiser4_block_count(reiser4_get_current_sb()));
+#define check_preceder(blk, subv)				\
+assert("nikita-2588", blk < reiser4_subvol_block_count(subv));
 extern void check_pos(flush_pos_t *pos);
 #else
-#define check_preceder(b) noop
+#define check_preceder(blk, subv) noop
 #define check_pos(pos) noop
 #endif
 

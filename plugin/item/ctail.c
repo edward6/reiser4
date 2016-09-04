@@ -439,7 +439,7 @@ static int ctail_convertible(const coord_t * coord)
 		return 1;
 
 	item_key_by_coord(coord, &key);
-	child = jlookup(current_tree,
+	child = jlookup(tree_by_coord(coord),
 			get_key_objectid(&key),
 			off_to_pg(off_by_coord(coord)));
 	if (!child)
@@ -1084,7 +1084,7 @@ int ctail_insert_unprepped_cluster(struct cluster_handle * clust,
 	assert("edward-1252", cryptcompress_inode_ok(inode));
 	assert("edward-1253", znode_is_write_locked(clust->hint->lh.node));
 	assert("edward-1254",
-	       reiser4_clustered_blocks(reiser4_get_current_sb()));
+	       reiser4_clustered_blocks(subvol_for_meta(inode)));
 	assert("edward-1255",
 	       znode_convertible(clust->hint->ext_coord.coord.node));
 
@@ -1357,9 +1357,9 @@ int utmost_child_ctail(const coord_t * coord, sideof side, jnode ** child)
 	if (!is_disk_cluster_key(&key, coord))
 		*child = NULL;
 	else
-		*child = jlookup(current_tree,
-				 get_key_objectid(item_key_by_coord
-						  (coord, &key)),
+		*child = jlookup(tree_by_coord(coord),
+				 get_key_objectid(item_key_by_coord(coord,
+								    &key)),
 				 off_to_pg(get_key_offset(&key)));
 	return 0;
 }

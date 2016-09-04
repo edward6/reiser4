@@ -178,8 +178,12 @@ static int scan_mgr(struct super_block *super)
 	int ret;
 	reiser4_context ctx;
 
-	init_stack_context(&ctx, super);
-
+	ret = init_stack_context(&ctx, super);
+	if (ret)
+		/*
+		 * FIXME-EDWARD: It is not allowed to fail here
+		 */
+		return ret;
 	ret = commit_some_atoms(&get_super_private(super)->tmgr);
 
 	reiser4_exit_context(&ctx);

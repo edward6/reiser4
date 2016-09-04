@@ -38,7 +38,7 @@ static char *decode_inode(struct super_block *s, char *addr,
 
 	/* identifier of object plugin is stored in the first two bytes,
 	 * followed by... */
-	fplug = file_plugin_by_disk_id(reiser4_get_tree(s), (d16 *) addr);
+	fplug = file_plugin_by_disk_id((d16 *) addr);
 	if (fplug != NULL) {
 		addr += sizeof(d16);
 		obj->plugin = fplug;
@@ -118,7 +118,7 @@ static struct dentry *reiser4_fh_to_parent(struct super_block *sb,
 		return (struct dentry *)ctx;
 	addr = (char *)fid->raw;
 	/* extract 2-bytes file plugin id */
-	fplug = file_plugin_by_disk_id(reiser4_get_tree(sb), (d16 *)addr);
+	fplug = file_plugin_by_disk_id((d16 *)addr);
 	if (fplug == NULL) {
 		d = ERR_PTR(RETERR(-EINVAL));
 		goto exit;

@@ -222,7 +222,7 @@ item_plugin *plugin_by_coord_node40(const coord_t * coord)
 
 	ih = node40_ih_at_coord(coord);
 	/* pass NULL in stead of current tree. This is time critical call. */
-	result = item_plugin_by_disk_id(NULL, &ih->plugin_id);
+	result = item_plugin_by_disk_id(&ih->plugin_id);
 	return result;
 }
 
@@ -398,7 +398,7 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 		}
 	}
 	/* left <= key, ok */
-	iplug = item_plugin_by_disk_id(znode_get_tree(node), &bstop->plugin_id);
+	iplug = item_plugin_by_disk_id(&bstop->plugin_id);
 
 	if (unlikely(iplug == NULL)) {
 		warning("nikita-588", "Unknown plugin %i",
@@ -466,6 +466,7 @@ int check_node40(const znode * node /* node to check */ ,
 		 __u32 flags /* check flags */ ,
 		 const char **error /* where to store error message */ )
 {
+	reiser4_tree *tree;
 	int nr_items;
 	int i;
 	reiser4_key prev;
@@ -482,6 +483,8 @@ int check_node40(const znode * node /* node to check */ ,
 		return 0;
 
 	assert("nikita-582", zdata(node) != NULL);
+
+	tree = znode_get_tree(node);
 
 	nr_items = node40_num_of_items_internal(node);
 	if (nr_items < 0) {
@@ -589,9 +592,9 @@ int check_node40(const znode * node /* node to check */ ,
 
 			iplug->s.file.append_key(&coord, &mkey);
 			set_key_offset(&mkey, get_key_offset(&mkey) - 1);
-			read_lock_dk(current_tree);
+			read_lock_dk(tree);
 			result = keygt(&mkey, znode_get_rd_key((znode *) node));
-			read_unlock_dk(current_tree);
+			read_unlock_dk(tree);
 			if (result) {
 				*error = "key of rightmost item is too large";
 				return -1;
@@ -599,16 +602,16 @@ int check_node40(const znode * node /* node to check */ ,
 		}
 	}
 	if (flags & REISER4_NODE_DKEYS) {
-		read_lock_tree(current_tree);
-		read_lock_dk(current_tree);
+		read_lock_tree(tree);
+		read_lock_dk(tree);
 
 		flags |= REISER4_NODE_TREE_STABLE;
 
 		if (keygt(&prev, znode_get_rd_key((znode *) node))) {
 			if (flags & REISER4_NODE_TREE_STABLE) {
 				*error = "Last key is greater than rdkey";
-				read_unlock_dk(current_tree);
-				read_unlock_tree(current_tree);
+				read_unlock_dk(tree);
+				read_unlock_tree(tree);
 				return -1;
 			}
 		}
@@ -616,8 +619,8 @@ int check_node40(const znode * node /* node to check */ ,
 		    (znode_get_ld_key((znode *) node),
 		     znode_get_rd_key((znode *) node))) {
 			*error = "ldkey is greater than rdkey";
-			read_unlock_dk(current_tree);
-			read_unlock_tree(current_tree);
+			read_unlock_dk(tree);
+			read_unlock_tree(tree);
 			return -1;
 		}
 		if (ZF_ISSET(node, JNODE_LEFT_CONNECTED) &&
@@ -630,8 +633,8 @@ int check_node40(const znode * node /* node to check */ ,
 			    keygt(znode_get_rd_key(node->left),
 				  znode_get_ld_key((znode *) node)))) {
 			*error = "left rdkey or ldkey is wrong";
- 			read_unlock_dk(current_tree);
-			read_unlock_tree(current_tree);
+ 			read_unlock_dk(tree);
+			read_unlock_tree(tree);
 			return -1;
 		}
 		if (ZF_ISSET(node, JNODE_RIGHT_CONNECTED) &&
@@ -644,13 +647,13 @@ int check_node40(const znode * node /* node to check */ ,
 			    keygt(znode_get_rd_key((znode *) node),
 				  znode_get_ld_key(node->right)))) {
 			*error = "rdkey or right ldkey is wrong";
- 			read_unlock_dk(current_tree);
-			read_unlock_tree(current_tree);
+ 			read_unlock_dk(tree);
+			read_unlock_tree(tree);
 			return -1;
 		}
 
-		read_unlock_dk(current_tree);
-		read_unlock_tree(current_tree);
+		read_unlock_dk(tree);
+		read_unlock_tree(tree);
 	}
 
 	return 0;
@@ -712,7 +715,8 @@ int init_node40_common(znode *node, node_plugin *nplug,
 		       &header40->common_header.plugin_id);
 	nh40_set_level(header40, znode_get_level(node));
 	nh40_set_magic(header40, magic);
-	nh40_set_mkfs_id(header40, reiser4_mkfs_id(reiser4_get_current_sb()));
+	nh40_set_mkfs_id(header40, reiser4_mkfs_id(reiser4_get_current_sb(),
+						   znode_get_subvol(node)->id));
 	/*
 	 * nr_items: 0
 	 * flags: 0
@@ -739,9 +743,8 @@ int guess_node40_common(const znode *node, reiser4_node_id id,
 	assert("nikita-1058", node != NULL);
 	header = node40_node_header(node);
 	return (nh40_get_magic(header) == magic) &&
-		(id == plugin_by_disk_id(znode_get_tree(node),
-				       REISER4_NODE_PLUGIN_TYPE,
-				       &header->common_header.plugin_id)->h.id);
+		(id == plugin_by_disk_id(REISER4_NODE_PLUGIN_TYPE,
+					 &header->common_header.plugin_id)->h.id);
 }
 
 int guess_node40(const znode *node /* node to guess plugin of */)

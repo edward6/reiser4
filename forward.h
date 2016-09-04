@@ -39,6 +39,8 @@ typedef struct reiser4_context reiser4_context;
 typedef struct carry_level carry_level;
 typedef struct blocknr_set_entry blocknr_set_entry;
 typedef struct blocknr_list_entry blocknr_list_entry;
+typedef struct reiser4_volume reiser4_volume;
+typedef struct reiser4_subvol reiser4_subvol;
 /* super_block->s_fs_info points to this */
 typedef struct reiser4_super_info_data reiser4_super_info_data;
 /* next two objects are fields of reiser4_super_info_data */
@@ -50,6 +52,7 @@ typedef struct flush_position flush_pos_t;
 
 typedef unsigned short pos_in_node_t;
 #define MAX_POS_IN_NODE 65535
+#define MAX_NUM_SUBVOLS 8
 
 typedef struct jnode jnode;
 typedef struct reiser4_blocknr_hint reiser4_blocknr_hint;
@@ -58,6 +61,8 @@ typedef struct uf_coord uf_coord_t;
 typedef struct hint hint_t;
 
 typedef struct ktxnmgrd_context ktxnmgrd_context;
+typedef union reiser4_aib reiser4_aib;
+typedef struct fnode fnode;
 
 struct inode;
 struct page;

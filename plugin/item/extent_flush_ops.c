@@ -78,7 +78,7 @@ int utmost_child_extent(const coord_t * coord, sideof side, jnode ** childp)
 		if (side == RIGHT_SIDE)
 			index--;
 
-		tree = coord->node->zjnode.tree;
+		tree = tree_by_coord(coord);
 		*childp = jlookup(tree, get_key_objectid(&key), index);
 	}
 
@@ -184,7 +184,7 @@ int reiser4_scan_extent(flush_scan * scan)
 		incr = +1;
 	}
 
-	tree = coord.node->zjnode.tree;
+	tree = tree_by_coord(&coord);
 
 	/* If the extent is allocated we have to check each of its blocks.  If the extent
 	   is unallocated we can skip to the scan_max. */
@@ -260,7 +260,8 @@ int reiser4_scan_extent(flush_scan * scan)
 				/* skip preceder update when we are at hole */
 				scan->preceder_blk =
 				    unit_start + scan_index - unit_index;
-				check_preceder(scan->preceder_blk);
+				check_preceder(scan->preceder_blk,
+					       subvol_by_coord(&scan->parent_coord));
 			}
 		}
 
@@ -288,23 +289,25 @@ int reiser4_scan_extent(flush_scan * scan)
  * have to add new nodes into tree. Space for that is taken from inviolable
  * reserve (5%).
  */
-static reiser4_block_nr reserve_replace(void)
+static reiser4_block_nr reserve_replace(reiser4_subvol *subv)
 {
 	reiser4_block_nr grabbed, needed;
 
-	grabbed = get_current_context()->grabbed_blocks;
-	needed = estimate_one_insert_into_item(current_tree);
-	check_me("vpf-340", !reiser4_grab_space_force(needed, BA_RESERVED));
+	grabbed = get_current_context()->ctx_grabbed_blocks[subv->id];
+	needed = estimate_one_insert_into_item(&subv->tree);
+	check_me("vpf-340",
+		 !reiser4_grab_space_force(needed, BA_RESERVED, subv));
 	return grabbed;
 }
 
-static void free_replace_reserved(reiser4_block_nr grabbed)
+static void free_reserved_replace(reiser4_block_nr grabbed,
+				  reiser4_subvol *subv)
 {
 	reiser4_context *ctx;
 
 	ctx = get_current_context();
 	grabbed2free(ctx, get_super_private(ctx->super),
-		     ctx->grabbed_blocks - grabbed);
+		     ctx->ctx_grabbed_blocks[subv->id] - grabbed, subv);
 }
 
 /* Block offset of first block addressed by unit */
@@ -369,31 +372,37 @@ int split_allocated_extent(coord_t *coord, reiser4_block_nr pos_in_unit)
 	h->paste_key = h->key;
 
 	/* reserve space for extent unit paste, @grabbed is reserved before */
-	grabbed = reserve_replace();
+	grabbed = reserve_replace(subvol_by_coord(coord));
 	result = reiser4_replace_extent(h, 0 /* leave @coord set to overwritten
 						extent */);
 	/* restore reserved */
-	free_replace_reserved(grabbed);
+	free_reserved_replace(grabbed, subvol_by_coord(coord));
 	kfree(h);
 	return result;
 }
 
-/* replace extent @ext by extent @replace. Try to merge @replace with previous extent of the item (if there is
-   one). Return 1 if it succeeded, 0 - otherwise */
+/**
+ * replace extent @ext by extent @replace.
+ * Try to merge @replace with previous extent of the item (if there is one).
+ * Return 1 if it succeeded, 0 - otherwise
+ */
 static int try_to_merge_with_left(coord_t *coord, reiser4_extent *ext,
 		       reiser4_extent *replace)
 {
 	assert("vs-1415", extent_by_coord(coord) == ext);
 
-	if (coord->unit_pos == 0
-	    || state_of_extent(ext - 1) != ALLOCATED_EXTENT)
-		/* @ext either does not exist or is not allocated extent */
+	if (coord->unit_pos == 0 ||
+	    state_of_extent(ext - 1) != ALLOCATED_EXTENT)
+		/*
+		 * @ext either does not exist or is not allocated extent
+		 */
 		return 0;
 	if (extent_get_start(ext - 1) + extent_get_width(ext - 1) !=
 	    extent_get_start(replace))
 		return 0;
-
-	/* we can glue, widen previous unit */
+	/*
+	 * we can glue, widen previous unit
+	 */
 	extent_set_width(ext - 1,
 			 extent_get_width(ext - 1) + extent_get_width(replace));
 
@@ -490,12 +499,11 @@ int convert_extent(coord_t *coord, reiser4_extent *replace)
 	h->paste_key = h->key;
 
 	/* reserve space for extent unit paste, @grabbed is reserved before */
-	grabbed = reserve_replace();
+	grabbed = reserve_replace(subvol_by_coord(coord));
 	result = reiser4_replace_extent(h, 0 /* leave @coord set to overwritten
 						extent */);
-
 	/* restore reserved */
-	free_replace_reserved(grabbed);
+	free_reserved_replace(grabbed, subvol_by_coord(coord));
 	kfree(h);
 	return result;
 }
@@ -525,7 +533,7 @@ void assign_real_blocknrs(flush_pos_t *flush_pos, oid_t oid,
 	BUG_ON(atom == NULL);
 
 	nr = 0;
-	tree = current_tree;
+	tree = tree_by_coord(&flush_pos->coord);
 	for (i = 0; i < count; ++i, ++index) {
 		jnode *node;
 
@@ -575,7 +583,7 @@ int allocated_extent_slum_size(flush_pos_t *flush_pos, oid_t oid,
 	assert("vs-1468", atom);
 
 	nr = 0;
-	tree = current_tree;
+	tree = tree_by_coord(&flush_pos->coord);
 	for (i = 0; i < count; ++i, ++index) {
 		jnode *node;
 

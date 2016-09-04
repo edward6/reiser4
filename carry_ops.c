@@ -48,8 +48,8 @@ static carry_node *find_left_neighbor(carry_op * op	/* node to find left
 	reiser4_tree *tree;
 
 	node = op->node;
+	tree = znode_get_tree(node->node);
 
-	tree = current_tree;
 	read_lock_tree(tree);
 	/* first, check whether left neighbor is already in a @doing queue */
 	if (reiser4_carry_real(node)->left != NULL) {
@@ -133,8 +133,8 @@ static carry_node *find_right_neighbor(carry_op * op	/* node to find right
 	init_lh(&lh);
 
 	node = op->node;
+	tree = znode_get_tree(node->node);
 
-	tree = current_tree;
 	read_lock_tree(tree);
 	/* first, check whether right neighbor is already in a @doing queue */
 	if (reiser4_carry_real(node)->right != NULL) {
@@ -1129,9 +1129,11 @@ make_space_for_flow_insertion(carry_op * op, carry_level * doing,
 	return make_space_by_new_nodes(op, doing, todo);
 }
 
-/* implements COP_INSERT_FLOW operation */
-static int
-carry_insert_flow(carry_op * op, carry_level * doing, carry_level * todo)
+/**
+ * Implements COP_INSERT_FLOW operation
+ */
+static int carry_insert_flow(carry_op *op,
+			     carry_level *doing, carry_level *todo)
 {
 	int result;
 	flow_t *f;
@@ -1220,19 +1222,18 @@ carry_insert_flow(carry_op * op, carry_level * doing, carry_level * todo)
 	return result;
 }
 
-/* implements COP_DELETE operation
-
-   Remove pointer to @op -> u.delete.child from it's parent.
-
-   This function also handles killing of a tree root is last pointer from it
-   was removed. This is complicated by our handling of "twig" level: root on
-   twig level is never killed.
-
-*/
-static int carry_delete(carry_op * op /* operation to be performed */ ,
-			carry_level * doing UNUSED_ARG	/* current carry
-							 * level */ ,
-			carry_level * todo/* next carry level */)
+/**
+ * Implements COP_DELETE operation
+ *
+ * Remove pointer to @op -> u.delete.child from it's parent.
+ * This operation is called to delete internal item pointing to the
+ * child node that was removed by carry from the tree on the previous
+ * tree level. *
+ * This function also handles killing of a tree root is last pointer from it
+ * was removed. This is complicated by our handling of "twig" level: root on
+ * twig level is never killed.
+ */
+static int carry_delete(carry_op *op, carry_level *doing, carry_level *todo)
 {
 	int result;
 	coord_t coord;
@@ -1241,12 +1242,6 @@ static int carry_delete(carry_op * op /* operation to be performed */ ,
 	znode *child;
 	carry_plugin_info info;
 	reiser4_tree *tree;
-
-	/*
-	 * This operation is called to delete internal item pointing to the
-	 * child node that was removed by carry from the tree on the previous
-	 * tree level.
-	 */
 
 	assert("nikita-893", op != NULL);
 	assert("nikita-894", todo != NULL);
@@ -1260,14 +1255,12 @@ static int carry_delete(carry_op * op /* operation to be performed */ ,
 		reiser4_carry_real(op->u.delete.child) : op->node->node;
 	tree = znode_get_tree(child);
 	read_lock_tree(tree);
-
 	/*
 	 * @parent was determined when carry entered parent level
 	 * (lock_carry_level/lock_carry_node). Since then, actual parent of
 	 * @child node could change due to other carry operations performed on
 	 * the parent level. Check for this.
 	 */
-
 	if (znode_parent(child) != parent) {
 		/* NOTE-NIKITA add stat counter for this. */
 		parent = znode_parent(child);
@@ -1276,12 +1269,11 @@ static int carry_delete(carry_op * op /* operation to be performed */ ,
 	read_unlock_tree(tree);
 
 	assert("nikita-1213", znode_get_level(parent) > LEAF_LEVEL);
-
-	/* Twig level horrors: tree should be of height at least 2. So, last
-	   pointer from the root at twig level is preserved even if child is
-	   empty. This is ugly, but so it was architectured.
+	/*
+	 * Twig level horrors: tree should be of height at least 2. So, last
+	 * pointer from the root at twig level is preserved even if child is
+	 * empty. This is ugly, but so it was architectured.
 	 */
-
 	if (znode_is_root(parent) &&
 	    znode_get_level(parent) <= REISER4_MIN_TREE_HEIGHT &&
 	    node_num_items(parent) == 1) {
@@ -1296,15 +1288,15 @@ static int carry_delete(carry_op * op /* operation to be performed */ ,
 		ZF_CLR(child, JNODE_HEARD_BANSHEE);
 		return 0;
 	}
-
-	/* convert child pointer to the coord_t */
+	/*
+	 * construct a coord of the pointer to the child
+	 */
 	result = find_child_ptr(parent, child, &coord);
 	if (result != NS_FOUND) {
 		warning("nikita-994", "Cannot find child pointer: %i", result);
 		print_coord_content("coord", &coord);
 		return result;
 	}
-
 	coord_dup(&coord2, &coord);
 	info.doing = doing;
 	info.todo = todo;
@@ -1313,7 +1305,6 @@ static int carry_delete(carry_op * op /* operation to be performed */ ,
 		 * Actually kill internal item: prepare structure with
 		 * arguments for ->cut_and_kill() method...
 		 */
-
 		struct carry_kill_data kdata;
 		kdata.params.from = &coord;
 		kdata.params.to = &coord2;
@@ -1331,10 +1322,11 @@ static int carry_delete(carry_op * op /* operation to be performed */ ,
 								   &info);
 	}
 	doing->restartable = 0;
-
-	/* check whether root should be killed violently */
+	/*
+	 * kill the root if needed.
+	 * we don't kill roots at and lower than twig level
+	 */
 	if (znode_is_root(parent) &&
-	    /* don't kill roots at and lower than twig level */
 	    znode_get_level(parent) > REISER4_MIN_TREE_HEIGHT &&
 	    node_num_items(parent) == 1)
 		result = reiser4_kill_tree_root(coord.node);
@@ -1372,11 +1364,12 @@ static int carry_cut(carry_op * op /* operation to be performed */ ,
 	return result < 0 ? result : 0;
 }
 
-/* helper function for carry_paste(): returns true if @op can be continued as
-   paste  */
-static int
-can_paste(coord_t *icoord, const reiser4_key * key,
-	  const reiser4_item_data * data)
+/**
+ * Helper function for carry_paste(): returns true if @op can be
+ * continued as paste
+ */
+static int can_paste(coord_t *icoord, const reiser4_key *key,
+		     const reiser4_item_data *data)
 {
 	coord_t circa;
 	item_plugin *new_iplug;
@@ -1499,7 +1492,8 @@ static int carry_paste(carry_op * op /* operation to be performed */ ,
 	if (!can_paste(coord, op->u.insert.d->key, op->u.insert.d->data)) {
 		op->op = COP_INSERT;
 		op->u.insert.type = COPT_PASTE_RESTARTED;
-		result = op_dispatch_table[COP_INSERT].handler(op, doing, todo);
+		result = op_dispatch_table[COP_INSERT].cop_handler(op,
+								   doing, todo);
 
 		return result;
 	}
@@ -1986,9 +1980,9 @@ static int cap_tree_height(reiser4_tree * tree)
 }
 
 /* return capped tree height for the current tree. */
-static int capped_height(void)
+static int capped_height(reiser4_tree *tree)
 {
-	return cap_tree_height(current_tree);
+	return cap_tree_height(tree);
 }
 
 /* return number of pages required to store given number of bytes */
@@ -1998,7 +1992,7 @@ static int bytes_to_pages(int bytes)
 }
 
 /* how many pages are required to allocate znodes during item insertion. */
-static int carry_estimate_znodes(void)
+static int carry_estimate_znodes(reiser4_tree *tree)
 {
 	/*
 	 * Note, that there we have some problem here: there is no way to
@@ -2007,21 +2001,21 @@ static int carry_estimate_znodes(void)
 	 */
 
 	/* in the worst case we need 3 new znode on each tree level */
-	return bytes_to_pages(capped_height() * sizeof(znode) * 3);
+	return bytes_to_pages(capped_height(tree) * sizeof(znode) * 3);
 }
 
 /*
  * how many pages are required to load bitmaps. One bitmap per level.
  */
-static int carry_estimate_bitmaps(void)
+static int carry_estimate_bitmaps(reiser4_tree *tree)
 {
 	if (reiser4_is_set(reiser4_get_current_sb(), REISER4_DONT_LOAD_BITMAP)) {
 		int bytes;
 
-		bytes = capped_height() * (0 +	/* bnode should be added, but
-						 * it is private to bitmap.c,
-						 * skip for now. */
-					   2 * sizeof(jnode));
+		bytes = capped_height(tree) * (0 + /* bnode should be added, but
+						* it is private to bitmap.c,
+						* skip for now. */
+					       2 * sizeof(jnode));
 						/* working and commit jnodes */
 		return bytes_to_pages(bytes) + 2;	/* and their contents */
 	} else
@@ -2030,56 +2024,67 @@ static int carry_estimate_bitmaps(void)
 }
 
 /* worst case item insertion memory requirements */
-static int carry_estimate_insert(carry_op * op, carry_level * level)
+static int carry_estimate_insert(carry_op *op, carry_level *level,
+				 reiser4_tree *tree)
 {
-	return carry_estimate_bitmaps() + carry_estimate_znodes() + 1 +
-								/* new atom */
-	    capped_height() +	/* new block on each level */
-	    1 +		/* and possibly extra new block at the leaf level */
-	    3;			/* loading of leaves into memory */
+	return carry_estimate_bitmaps(tree)
+		+ carry_estimate_znodes(tree)
+		+ 1 /* new atom */
+		+ capped_height(tree) /* new block on each level */
+		+ 1 /* possibly extra new block at the leaf level */
+		+ 3; /* loading of leaves into memory */
 }
 
 /* worst case item deletion memory requirements */
-static int carry_estimate_delete(carry_op * op, carry_level * level)
+static int carry_estimate_delete(carry_op *op, carry_level *level,
+				 reiser4_tree *tree)
 {
-	return carry_estimate_bitmaps() + carry_estimate_znodes() + 1 +
-								/* new atom */
-	    3;			/* loading of leaves into memory */
+	return carry_estimate_bitmaps(tree)
+		+ carry_estimate_znodes(tree)
+		+ 1  /* new atom */
+		+ 3; /* loading of leaves into memory */
 }
 
 /* worst case tree cut memory requirements */
-static int carry_estimate_cut(carry_op * op, carry_level * level)
+static int carry_estimate_cut(carry_op *op, carry_level *level,
+			      reiser4_tree *tree)
 {
-	return carry_estimate_bitmaps() + carry_estimate_znodes() + 1 +
-								/* new atom */
-	    3;			/* loading of leaves into memory */
+	return carry_estimate_bitmaps(tree)
+		+ carry_estimate_znodes(tree)
+		+ 1 /* new atom */
+		+ 3;/* loading of leaves into memory */
 }
 
 /* worst case memory requirements of pasting into item */
-static int carry_estimate_paste(carry_op * op, carry_level * level)
+static int carry_estimate_paste(carry_op * op, carry_level * level,
+				reiser4_tree *tree)
 {
-	return carry_estimate_bitmaps() + carry_estimate_znodes() + 1 +
-								/* new atom */
-	    capped_height() +	/* new block on each level */
-	    1 +		/* and possibly extra new block at the leaf level */
-	    3;			/* loading of leaves into memory */
+	return carry_estimate_bitmaps(tree)
+		+ carry_estimate_znodes(tree)
+		+ 1 /* new atom */
+		+ capped_height(tree) /* new block on each level */
+		+ 1 /* possibly extra new block at the leaf level */
+		+ 3; /* loading of leaves into memory */
 }
 
 /* worst case memory requirements of extent insertion */
-static int carry_estimate_extent(carry_op * op, carry_level * level)
+static int carry_estimate_extent(carry_op *op, carry_level *level,
+				 reiser4_tree *tree)
 {
-	return carry_estimate_insert(op, level) +	/* insert extent */
-	    carry_estimate_delete(op, level);	/* kill leaf */
+	return carry_estimate_insert(op, level, tree) /* insert extent */
+		+ carry_estimate_delete(op, level, tree); /* kill leaf */
 }
 
 /* worst case memory requirements of key update */
-static int carry_estimate_update(carry_op * op, carry_level * level)
+static int carry_estimate_update(carry_op *op, carry_level *level,
+				 reiser4_tree *tree)
 {
 	return 0;
 }
 
 /* worst case memory requirements of flow insertion */
-static int carry_estimate_insert_flow(carry_op * op, carry_level * level)
+static int carry_estimate_insert_flow(carry_op *op, carry_level *level,
+				      reiser4_tree *tree)
 {
 	int newnodes;
 
@@ -2088,7 +2093,7 @@ static int carry_estimate_insert_flow(carry_op * op, carry_level * level)
 	/*
 	 * roughly estimate insert_flow as a sequence of insertions.
 	 */
-	return newnodes * carry_estimate_insert(op, level);
+	return newnodes * carry_estimate_insert(op, level, tree);
 }
 
 /* This is dispatch table for carry operations. It can be trivially
@@ -2096,32 +2101,32 @@ static int carry_estimate_insert_flow(carry_op * op, carry_level * level)
    thing. */
 carry_op_handler op_dispatch_table[COP_LAST_OP] = {
 	[COP_INSERT] = {
-			.handler = carry_insert,
-			.estimate = carry_estimate_insert}
+			.cop_handler = carry_insert,
+			.cop_estimate = carry_estimate_insert}
 	,
 	[COP_DELETE] = {
-			.handler = carry_delete,
-			.estimate = carry_estimate_delete}
+			.cop_handler = carry_delete,
+			.cop_estimate = carry_estimate_delete}
 	,
 	[COP_CUT] = {
-		     .handler = carry_cut,
-		     .estimate = carry_estimate_cut}
+		     .cop_handler = carry_cut,
+		     .cop_estimate = carry_estimate_cut}
 	,
 	[COP_PASTE] = {
-		       .handler = carry_paste,
-		       .estimate = carry_estimate_paste}
+		       .cop_handler = carry_paste,
+		       .cop_estimate = carry_estimate_paste}
 	,
 	[COP_EXTENT] = {
-			.handler = carry_extent,
-			.estimate = carry_estimate_extent}
+			.cop_handler = carry_extent,
+			.cop_estimate = carry_estimate_extent}
 	,
 	[COP_UPDATE] = {
-			.handler = carry_update,
-			.estimate = carry_estimate_update}
+			.cop_handler = carry_update,
+			.cop_estimate = carry_estimate_update}
 	,
 	[COP_INSERT_FLOW] = {
-			     .handler = carry_insert_flow,
-			     .estimate = carry_estimate_insert_flow}
+			     .cop_handler = carry_insert_flow,
+			     .cop_estimate = carry_estimate_insert_flow}
 };
 
 /* Make Linus happy.

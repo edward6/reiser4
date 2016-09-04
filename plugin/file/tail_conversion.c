@@ -12,7 +12,10 @@
 /* this file contains:
    tail2extent and extent2tail */
 
-/* exclusive access to a file is acquired when file state changes: tail2extent, empty2tail, extent2tail, etc */
+/**
+ * exclusive access to a file is acquired when file state changes:
+ * tail2extent, empty2tail, extent2tail, etc
+ */
 void get_exclusive_access(struct unix_file_info * uf_info)
 {
 	assert("nikita-3028", reiser4_schedulable());
@@ -106,23 +109,29 @@ void drop_nonexclusive_access(struct unix_file_info * uf_info)
 	reiser4_txn_restart_current();
 }
 
-/* part of tail2extent. Cut all items covering @count bytes starting from
-   @offset */
-/* Audited by: green(2002.06.15) */
+/**
+ * part of tail2extent.
+ * Cut all items covering @count bytes starting from @offset
+ */
 static int cut_formatting_items(struct inode *inode, loff_t offset, int count)
 {
 	reiser4_key from, to;
-
-	/* AUDIT: How about putting an assertion here, what would check
-	   all provided range is covered by tail items only? */
-	/* key of first byte in the range to be cut  */
+	/*
+	 * AUDIT: How about putting an assertion here, what would check
+	 * all provided range is covered by tail items only?
+	 */
+	/*
+	 * key of first byte in the range to be cut
+	 */
 	inode_file_plugin(inode)->key_by_inode(inode, offset, &from);
-
-	/* key of last byte in that range */
+	/*
+	 * key of last byte in that range
+	 */
 	to = from;
 	set_key_offset(&to, (__u64) (offset + count - 1));
-
-	/* cut everything between those keys */
+	/*
+	 * cut everything between those keys
+	 */
 	return reiser4_cut_tree(reiser4_tree_by_inode(inode), &from, &to,
 				inode, 0);
 }
@@ -145,10 +154,12 @@ static void release_all_pages(struct page **pages, unsigned nr_pages)
 	}
 }
 
-/* part of tail2extent. replace tail items with extent one. Content of tail
-   items (@count bytes) being cut are copied already into
-   pages. extent_writepage method is called to create extents corresponding to
-   those pages */
+/**
+ * Part of tail2extent. replace tail items with extent one.
+ * Content of tail items (@count bytes) being cut are copied already into
+ * pages. extent_writepage method is called to create extents corresponding
+ * to those pages
+ */
 static int replace(struct inode *inode, struct page **pages, unsigned nr_pages, int count)
 {
 	int result;
@@ -159,15 +170,17 @@ static int replace(struct inode *inode, struct page **pages, unsigned nr_pages, 
 		return 0;
 
 	assert("vs-596", pages[0]);
-
-	/* cut copied items */
+	/*
+	 * cut copied items
+	 */
 	result = cut_formatting_items(inode, page_offset(pages[0]), count);
 	if (result)
 		return result;
 
 	CHECK_COUNTERS;
-
-	/* put into tree replacement for just removed items: extent item, namely */
+	/*
+	 * put into tree replacement for just removed items: extent item, namely
+	 */
 	for (i = 0; i < nr_pages; i++) {
 		result = add_to_page_cache_lru(pages[i], inode->i_mapping,
 					       pages[i]->index,
@@ -197,16 +210,15 @@ static int replace(struct inode *inode, struct page **pages, unsigned nr_pages, 
 #define TAIL2EXTENT_PAGE_NUM 3	/* number of pages to fill before cutting tail
 				 * items */
 
-static int reserve_tail2extent_iteration(struct inode *inode)
+/**
+ * @offset - offset of portion of data to be converted to extent
+ */
+static int reserve_tail2extent_iteration(struct inode *inode, loff_t offset)
 {
-	reiser4_block_nr unformatted_nodes;
-	reiser4_tree *tree;
-
-	tree = reiser4_tree_by_inode(inode);
-
-	/* number of unformatted nodes which will be created */
-	unformatted_nodes = TAIL2EXTENT_PAGE_NUM;
-
+	int ret;
+	reiser4_subvol *subv_d = subvol_for_data(inode, offset);
+	reiser4_subvol *subv_m = subvol_for_meta(inode);
+	reiser4_tree *tree_m = &subv_m->tree;
 	/*
 	 * space required for one iteration of extent->tail conversion:
 	 *
@@ -217,21 +229,35 @@ static int reserve_tail2extent_iteration(struct inode *inode)
 	 *     3. insert TAIL2EXTENT_PAGE_NUM (worst-case single-block
 	 *     extents) extent units.
 	 *
-	 *     4. drilling to the leaf level by coord_by_key()
+	 *     4. drilling to the leaf level by coord_by_key() - see
+	 *     comment in the carry_extent()
 	 *
 	 *     5. possible update of stat-data
 	 *
+	 * reserve for 2 on data subvolume
 	 */
 	grab_space_enable();
-	return reiser4_grab_space
-	    (2 * tree->height +
-	     TAIL2EXTENT_PAGE_NUM +
-	     TAIL2EXTENT_PAGE_NUM * estimate_one_insert_into_item(tree) +
-	     1 + estimate_one_insert_item(tree) +
-	     inode_file_plugin(inode)->estimate.update(inode), BA_CAN_COMMIT);
+	ret = reiser4_grab_space(TAIL2EXTENT_PAGE_NUM, BA_CAN_COMMIT, subv_d);
+	if (ret)
+		return ret;
+	/*
+	 * reserve for 1,3,4,5 on meta-data subvolume
+	 */
+	grab_space_enable();
+	ret = reiser4_grab_space(2 * tree_m->height +
+			       TAIL2EXTENT_PAGE_NUM *
+			       estimate_one_insert_into_item(tree_m) +
+			       1 + estimate_one_insert_item(tree_m) +
+			       inode_file_plugin(inode)->estimate.update(inode),
+			       BA_CAN_COMMIT,
+			       subv_m);
+	return ret;
 }
 
-/* clear stat data's flag indicating that conversion is being converted */
+/**
+ * Clear stat data's flag indicating that conversion is not completed
+ * and update stat-data
+ */
 static int complete_conversion(struct inode *inode)
 {
 	int result;
@@ -239,15 +265,15 @@ static int complete_conversion(struct inode *inode)
 	grab_space_enable();
 	result =
 	    reiser4_grab_space(inode_file_plugin(inode)->estimate.update(inode),
-			       BA_CAN_COMMIT);
-	if (result == 0) {
-		reiser4_inode_clr_flag(inode, REISER4_PART_MIXED);
-		result = reiser4_update_sd(inode);
-	}
-	if (result)
+			       BA_CAN_COMMIT,
+			       subvol_for_meta(inode));
+	if (result) {
 		warning("vs-1696", "Failed to clear converting bit of %llu: %i",
 			(unsigned long long)get_inode_oid(inode), result);
-	return 0;
+		return result;
+	}
+	reiser4_inode_clr_flag(inode, REISER4_PART_MIXED);
+	return reiser4_update_sd(inode);
 }
 
 /**
@@ -300,12 +326,6 @@ static int find_start(struct inode *inode, reiser4_plugin_id id, __u64 *offset)
 	return result;
 }
 
-/**
- * tail2extent
- * @uf_info:
- *
- *
- */
 int tail2extent(struct unix_file_info *uf_info)
 {
 	int result;
@@ -333,6 +353,8 @@ int tail2extent(struct unix_file_info *uf_info)
 	offset = 0;
 	first_iteration = 1;
 	result = 0;
+	get_current_super_private()->ctx = get_current_context();
+
 	if (reiser4_inode_get_flag(inode, REISER4_PART_MIXED)) {
 		/*
 		 * file is marked on disk as there was a conversion which did
@@ -341,25 +363,30 @@ int tail2extent(struct unix_file_info *uf_info)
 		 */
 		result = find_start(inode, FORMATTING_ID, &offset);
 		if (result == -ENOENT) {
-			/* no tail items found, everything is converted */
+			/*
+			 * no tail items found, everything is converted
+			 */
 			uf_info->container = UF_CONTAINER_EXTENTS;
 			complete_conversion(inode);
 			return 0;
 		} else if (result != 0)
-			/* some other error */
+			/*
+			 * some other error
+			 */
 			return result;
 		first_iteration = 0;
 	}
-
 	reiser4_inode_set_flag(inode, REISER4_PART_IN_CONV);
-
-	/* get key of first byte of a file */
+	/*
+	 * get key of first byte of a file
+	 */
 	inode_file_plugin(inode)->key_by_inode(inode, offset, &key);
 
 	done = 0;
 	while (done == 0) {
 		memset(pages, 0, sizeof(pages));
-		result = reserve_tail2extent_iteration(inode);
+		result = reserve_tail2extent_iteration(inode,
+						       get_key_offset(&key));
 		if (result != 0) {
 			reiser4_inode_clr_flag(inode, REISER4_PART_IN_CONV);
 			goto out;
@@ -378,7 +405,6 @@ int tail2extent(struct unix_file_info *uf_info)
 				result = RETERR(-ENOMEM);
 				goto error;
 			}
-
 			page->index =
 			    (unsigned long)(get_key_offset(&key) >>
 					    PAGE_SHIFT);
@@ -394,18 +420,18 @@ int tail2extent(struct unix_file_info *uf_info)
 			assert("vs-983", !PagePrivate(page));
 			reiser4_invalidate_pages(inode->i_mapping, page->index,
 						 1, 0);
-
 			for (page_off = 0; page_off < PAGE_SIZE;) {
 				coord_t coord;
 				lock_handle lh;
-
-				/* get next item */
-				/* FIXME: we might want to readahead here */
+				/*
+				 * get next item
+				 * FIXME: we might want to readahead here
+				 */
 				init_lh(&lh);
-				result =
-				    find_file_item_nohint(&coord, &lh, &key,
-							  ZNODE_READ_LOCK,
-							  inode);
+				result = find_file_item_nohint(&coord,
+							       &lh, &key,
+							       ZNODE_READ_LOCK,
+							       inode);
 				if (result != CBK_COORD_FOUND) {
 					/*
 					 * error happened of not items of file
@@ -415,7 +441,6 @@ int tail2extent(struct unix_file_info *uf_info)
 					put_page(page);
 					goto error;
 				}
-
 				if (coord.between == AFTER_UNIT) {
 					/*
 					 * end of file is reached. Padd page
@@ -429,7 +454,6 @@ int tail2extent(struct unix_file_info *uf_info)
 					kunmap_atomic(p_data);
 					break;
 				}
-
 				result = zload(coord.node);
 				if (result) {
 					put_page(page);
@@ -439,15 +463,16 @@ int tail2extent(struct unix_file_info *uf_info)
 				assert("vs-856", coord.between == AT_UNIT);
 				item = ((char *)item_body_by_coord(&coord)) +
 					coord.unit_pos;
-
-				/* how many bytes to copy */
-				count =
-				    item_length_by_coord(&coord) -
-				    coord.unit_pos;
-				/* limit length of copy to end of page */
+				/*
+				 * how many bytes to copy
+				 */
+				count = item_length_by_coord(&coord) -
+					coord.unit_pos;
+				/*
+				 * limit length of copy to end of page
+				 */
 				if (count > PAGE_SIZE - page_off)
 					count = PAGE_SIZE - page_off;
-
 				/*
 				 * copy item (as much as will fit starting from
 				 * the beginning of the item) into the page
@@ -463,19 +488,23 @@ int tail2extent(struct unix_file_info *uf_info)
 
 				zrelse(coord.node);
 				done_lh(&lh);
-			} /* end of loop which fills one page by content of
-			   * formatting items */
-
+				/*
+				 * end of loop which fills one page by
+				 * content of formatting items
+				 */
+			}
 			if (page_off) {
-				/* something was copied into page */
+				/*
+				 * something was copied into page
+				 */
 				pages[i] = page;
 			} else {
 				put_page(page);
 				assert("vs-1648", done == 1);
 				break;
 			}
-		} /* end of loop through pages of one conversion iteration */
-
+			/* end of loop through pages of one conversion iteration */
+		}
 		if (i > 0) {
 			result = replace(inode, pages, i, bytes);
 			release_all_pages(pages, sizeof_array(pages));
@@ -496,10 +525,11 @@ int tail2extent(struct unix_file_info *uf_info)
 			 * on partially converted files.
 			 */
 			drop_exclusive_access(uf_info);
-			/* throttle the conversion */
+			/*
+			 * throttle the conversion
+			 */
 			reiser4_throttle_write(inode);
 			get_exclusive_access(uf_info);
-
 			/*
 			 * nobody is allowed to complete conversion but a
 			 * process which started it
@@ -509,11 +539,12 @@ int tail2extent(struct unix_file_info *uf_info)
 		}
 	}
 	if (result == 0) {
-		/* file is converted to extent items */
+		/*
+		 * file is converted to extent items
+		 */
 		reiser4_inode_clr_flag(inode, REISER4_PART_IN_CONV);
 		assert("vs-1697", reiser4_inode_get_flag(inode,
 							 REISER4_PART_MIXED));
-
 		uf_info->container = UF_CONTAINER_EXTENTS;
 		complete_conversion(inode);
 	} else {
@@ -528,10 +559,11 @@ int tail2extent(struct unix_file_info *uf_info)
 		warning("edward-1548", "Partial conversion of %llu: %i",
 			(unsigned long long)get_inode_oid(inode), result);
 	}
-
  out:
-	/* this flag should be cleared, otherwise get_exclusive_access_careful()
-	   will fall into infinite loop */
+	/*
+	 * this flag should be cleared, otherwise get_exclusive_access_careful()
+	 * will fall into infinite loop
+	 */
 	assert("edward-1549", !reiser4_inode_get_flag(inode,
 						      REISER4_PART_IN_CONV));
 	return result;
@@ -539,9 +571,8 @@ int tail2extent(struct unix_file_info *uf_info)
 
 static int reserve_extent2tail_iteration(struct inode *inode)
 {
-	reiser4_tree *tree;
-
-	tree = reiser4_tree_by_inode(inode);
+	reiser4_subvol *subv = subvol_for_meta(inode);
+	reiser4_tree *tree = &subv->tree;
 	/*
 	 * reserve blocks for (in this order):
 	 *
@@ -554,15 +585,17 @@ static int reserve_extent2tail_iteration(struct inode *inode)
 	 *     4. possible update of stat-data
 	 */
 	grab_space_enable();
-	return reiser4_grab_space
-	    (estimate_one_item_removal(tree) +
-	     estimate_insert_flow(tree->height) +
-	     1 + estimate_one_insert_item(tree) +
-	     inode_file_plugin(inode)->estimate.update(inode), BA_CAN_COMMIT);
+	return reiser4_grab_space(estimate_one_item_removal(tree) +
+			       estimate_insert_flow(tree->height) +
+			       1 + estimate_one_insert_item(tree) +
+			       inode_file_plugin(inode)->estimate.update(inode),
+			       BA_CAN_COMMIT, subv);
 }
 
-/* for every page of file: read page, cut part of extent pointing to this page,
-   put data of page tree by tail item */
+/**
+ * for every page of file: read page, cut part of extent pointing to this page,
+ * put data of page tree by tail item
+ */
 int extent2tail(struct file * file, struct unix_file_info *uf_info)
 {
 	int result;
@@ -590,19 +623,24 @@ int extent2tail(struct file * file, struct unix_file_info *uf_info)
 		 */
 		result = find_start(inode, EXTENT_POINTER_ID, &offset);
 		if (result == -ENOENT) {
-			/* no extent found, everything is converted */
+			/*
+			 * no extent found, everything is converted
+			 */
 			uf_info->container = UF_CONTAINER_TAILS;
 			complete_conversion(inode);
 			return 0;
 		} else if (result != 0)
-			/* some other error */
+			/*
+			 * some other error
+			 */
 			return result;
 	}
 	reiser4_inode_set_flag(inode, REISER4_PART_IN_CONV);
-
-	/* number of pages in the file */
+	/*
+	 * number of pages in the file
+	 */
 	num_pages =
-	    (inode->i_size + - offset + PAGE_SIZE - 1) >> PAGE_SHIFT;
+	   (inode->i_size + - offset + PAGE_SIZE - 1) >> PAGE_SHIFT;
 	start_page = offset >> PAGE_SHIFT;
 
 	inode_file_plugin(inode)->key_by_inode(inode, offset, &from);
@@ -619,7 +657,6 @@ int extent2tail(struct file * file, struct unix_file_info *uf_info)
 			reiser4_inode_set_flag(inode, REISER4_PART_MIXED);
 			reiser4_update_sd(inode);
 		}
-
 		page = read_mapping_page(inode->i_mapping,
 					 (unsigned)(i + start_page), NULL);
 		if (IS_ERR(page)) {
@@ -629,7 +666,6 @@ int extent2tail(struct file * file, struct unix_file_info *uf_info)
 				i, num_pages, result);
 			break;
 		}
-
 		wait_on_page_locked(page);
 
 		if (!PageUptodate(page)) {
@@ -637,8 +673,9 @@ int extent2tail(struct file * file, struct unix_file_info *uf_info)
 			result = RETERR(-EIO);
 			break;
 		}
-
-		/* cut part of file we have read */
+		/*
+		 * cut part of file we have read
+		 */
 		start_byte = (__u64) ((i + start_page) << PAGE_SHIFT);
 		set_key_offset(&from, start_byte);
 		set_key_offset(&to, start_byte + PAGE_SIZE - 1);
@@ -650,7 +687,6 @@ int extent2tail(struct file * file, struct unix_file_info *uf_info)
 		 */
 		result = reiser4_cut_tree(reiser4_tree_by_inode(inode), &from,
 					  &to, inode, 0);
-
 		if (result) {
 			put_page(page);
 			warning("edward-1570",
@@ -658,12 +694,15 @@ int extent2tail(struct file * file, struct unix_file_info *uf_info)
 				result);
 			break;
 		}
-
-		/* put page data into tree via tail_write */
+		/*
+		 * put page data into tree via tail_write
+		 */
 		count = PAGE_SIZE;
 		if ((i == (num_pages - 1)) &&
 		    (inode->i_size & ~PAGE_MASK))
-			/* last page can be incompleted */
+			/*
+			 * last page can be incompleted
+			 */
 			count = (inode->i_size & ~PAGE_MASK);
 		while (count) {
 			loff_t pos = start_byte;
@@ -674,11 +713,12 @@ int extent2tail(struct file * file, struct unix_file_info *uf_info)
 			       file_inode(file) == inode);
 
 			result = reiser4_write_tail_noreserve(file, inode,
-						 (char __user *)kmap(page),
-							      count, &pos);
+						(char __user *)kmap(page),
+							     count, &pos);
 			kunmap(page);
-			/* FIXME:
-			   may be put_file_hint() instead ? */
+			/*
+			 * FIXME: may be put_file_hint() instead ?
+			 */
 			reiser4_free_file_fsdata(file);
 			if (result <= 0) {
 				/*
@@ -696,22 +736,31 @@ int extent2tail(struct file * file, struct unix_file_info *uf_info)
 			}
 			count -= result;
 		}
-
-		/* release page */
+		/*
+		 * release page
+		 */
 		lock_page(page);
-		/* page is already detached from jnode and mapping. */
+		/*
+		 * page is already detached from jnode and mapping
+		 */
 		assert("vs-1086", page->mapping == NULL);
 		assert("nikita-2690",
 		       (!PagePrivate(page) && jprivate(page) == 0));
-		/* waiting for writeback completion with page lock held is
-		 * perfectly valid. */
+		/*
+		 * waiting for writeback completion with page lock held is
+		 * perfectly valid
+		 */
 		wait_on_page_writeback(page);
 		reiser4_drop_page(page);
-		/* release reference taken by read_cache_page() above */
+		/*
+		 * release reference taken by read_cache_page() above
+		 */
 		put_page(page);
 
 		drop_exclusive_access(uf_info);
-		/* throttle the conversion */
+		/*
+		 * throttle the conversion
+		 */
 		reiser4_throttle_write(inode);
 		get_exclusive_access(uf_info);
 		/*
@@ -720,16 +769,16 @@ int extent2tail(struct file * file, struct unix_file_info *uf_info)
 		 */
 		assert("", reiser4_inode_get_flag(inode, REISER4_PART_MIXED));
 	}
-
 	reiser4_inode_clr_flag(inode, REISER4_PART_IN_CONV);
 
 	if (i == num_pages) {
-		/* file is converted to formatted items */
+		/*
+		 * file is converted to formatting items
+		 */
 		assert("vs-1698", reiser4_inode_get_flag(inode,
 							 REISER4_PART_MIXED));
 		assert("vs-1260",
 		       inode_has_no_jnodes(reiser4_inode_data(inode)));
-
 		uf_info->container = UF_CONTAINER_TAILS;
 		complete_conversion(inode);
 		return 0;
@@ -743,9 +792,10 @@ int extent2tail(struct file * file, struct unix_file_info *uf_info)
 		"Partial conversion of %llu: %lu of %lu: %i",
 		(unsigned long long)get_inode_oid(inode), i,
 		num_pages, result);
-
-	/* this flag should be cleared, otherwise get_exclusive_access_careful()
-	   will fall into infinite loop */
+	/*
+	 * this flag should be cleared, otherwise get_exclusive_access_careful()
+	 * will fall into infinite loop
+	 */
 	assert("edward-1550", !reiser4_inode_get_flag(inode,
 						      REISER4_PART_IN_CONV));
 	return result;

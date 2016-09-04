@@ -14,6 +14,8 @@
 #include <linux/slab.h>
 #include <linux/list_sort.h>
 
+#define INVALID_SUBVOL_ID 0xffffffff
+
 static struct kmem_cache *blocknr_list_slab = NULL;
 
 /**
@@ -21,6 +23,7 @@ static struct kmem_cache *blocknr_list_slab = NULL;
  */
 struct blocknr_list_entry {
 	reiser4_block_nr start, len;
+	__u32 subv_id;
 	struct list_head link;
 };
 
@@ -32,6 +35,7 @@ static void blocknr_list_entry_init(blocknr_list_entry *entry)
 
 	entry->start = 0;
 	entry->len = 0;
+	entry->subv_id = INVALID_SUBVOL_ID;
 	INIT_LIST_HEAD(&entry->link);
 }
 
@@ -63,7 +67,8 @@ static void blocknr_list_entry_free(blocknr_list_entry *entry)
  */
 static int blocknr_list_entry_merge(blocknr_list_entry *to,
                                     reiser4_block_nr start,
-                                    reiser4_block_nr len)
+                                    reiser4_block_nr len,
+				    __u32 subv_id)
 {
 	reiser4_block_nr end, to_end;
 
@@ -71,24 +76,22 @@ static int blocknr_list_entry_merge(blocknr_list_entry *to,
 
 	assert("intelfx-16", to->len > 0);
 	assert("intelfx-17", len > 0);
+	assert("edward-xxx", subv_id != INVALID_SUBVOL_ID);
+	assert("edward-xxx", to->subv_id != INVALID_SUBVOL_ID);
 
 	end = start + len;
 	to_end = to->start + to->len;
 
-	if ((to->start <= end) && (start <= to_end)) {
-		if (start < to->start) {
+	if ((to->subv_id == subv_id) &&
+	    (to->start <= end) && (start <= to_end)) {
+
+		if (start < to->start)
 			to->start = start;
-		}
-
-		if (end > to_end) {
+		if (end > to_end)
 			to_end = end;
-		}
-
 		to->len = to_end - to->start;
-
 		return 0;
 	}
-
 	return -1;
 }
 
@@ -97,7 +100,8 @@ static int blocknr_list_entry_merge_entry(blocknr_list_entry *to,
 {
 	assert("intelfx-18", from != NULL);
 
-	return blocknr_list_entry_merge(to, from->start, from->len);
+	return blocknr_list_entry_merge(to, from->start, from->len,
+					from->subv_id);
 }
 
 /**
@@ -120,28 +124,32 @@ static int blocknr_list_entry_compare(void* priv UNUSED_ARG,
 	entry_a = blocknr_list_entry(a);
 	entry_b = blocknr_list_entry(b);
 
+	assert("edward-xxx", entry_a->subv_id != INVALID_SUBVOL_ID);
+	assert("edward-xxx", entry_b->subv_id != INVALID_SUBVOL_ID);
+
 	entry_a_end = entry_a->start + entry_a->len;
 	entry_b_end = entry_b->start + entry_b->len;
 
-	/* First sort by starting block numbers... */
-	if (entry_a->start < entry_b->start) {
-		return -1;
-	}
+	/* First sort by subvolume ids... */
 
-	if (entry_a->start > entry_b->start) {
+	if (entry_a->subv_id < entry_b->subv_id)
+		return -1;
+	if (entry_a->subv_id > entry_b->subv_id)
 		return 1;
-	}
+
+	/* Then sort by starting block numbers... */
+
+	if (entry_a->start < entry_b->start)
+		return -1;
+	if (entry_a->start > entry_b->start)
+		return 1;
 
 	/** Then by ending block numbers.
 	 * If @a contains @b, it will be sorted before. */
-	if (entry_a_end > entry_b_end) {
+	if (entry_a_end > entry_b_end)
 		return -1;
-	}
-
-	if (entry_a_end < entry_b_end) {
+	if (entry_a_end < entry_b_end)
 		return 1;
-	}
-
 	return 0;
 }
 
@@ -237,7 +245,8 @@ int blocknr_list_add_extent(txn_atom *atom,
                             struct list_head *blist,
                             blocknr_list_entry **new_entry,
                             const reiser4_block_nr *start,
-                            const reiser4_block_nr *len)
+                            const reiser4_block_nr *len,
+			    __u32 subv_id)
 {
 	assert("intelfx-29", atom != NULL);
 	assert("intelfx-42", atom_is_protected(atom));
@@ -245,6 +254,7 @@ int blocknr_list_add_extent(txn_atom *atom,
 	assert("intelfx-30", new_entry != NULL);
 	assert("intelfx-31", start != NULL);
 	assert("intelfx-32", len != NULL && *len > 0);
+	assert("edward-xxx", !is_mirror_id(subv_id));
 
 	if (*new_entry == NULL) {
 		/*
@@ -253,7 +263,9 @@ int blocknr_list_add_extent(txn_atom *atom,
 		if (!list_empty(blist)) {
 			blocknr_list_entry *last_entry;
 			last_entry = blocknr_list_entry(blist->prev);
-			if (!blocknr_list_entry_merge(last_entry, *start, *len)) {
+			if (!blocknr_list_entry_merge(last_entry,
+						      *start, *len,
+						      subv_id)) {
 				return 0;
 			}
 		}
@@ -272,6 +284,7 @@ int blocknr_list_add_extent(txn_atom *atom,
 	 */
 	(*new_entry)->start = *start;
 	(*new_entry)->len = *len;
+	(*new_entry)->subv_id = subv_id;
 	list_add_tail(&(*new_entry)->link, blist);
 
 	return 0;
@@ -301,7 +314,8 @@ int blocknr_list_iterator(txn_atom *atom,
 			 * downgrade from iterating to just deleting.
 			 */
 			if (ret == 0) {
-				ret = actor(atom, &entry->start, &entry->len, data);
+				ret = actor(atom, &entry->start, &entry->len,
+					    entry->subv_id, data);
 			}
 
 			list_del_init(pos);
@@ -313,7 +327,8 @@ int blocknr_list_iterator(txn_atom *atom,
 		list_for_each(pos, blist) {
 			entry = blocknr_list_entry(pos);
 
-			ret = actor(atom, &entry->start, &entry->len, data);
+			ret = actor(atom, &entry->start, &entry->len,
+				    entry->subv_id, data);
 
 			if (ret != 0) {
 				return ret;

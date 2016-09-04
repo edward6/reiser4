@@ -164,7 +164,8 @@ ON_DEBUG(extern atomic_t delim_key_version;
 #define	ZF_CLR(p,f)	        JF_CLR  (ZJNODE(p), (f))
 #define	ZF_ISSET(p,f)	        JF_ISSET(ZJNODE(p), (f))
 #define	ZF_SET(p,f)		JF_SET  (ZJNODE(p), (f))
-extern znode *zget(reiser4_tree * tree, const reiser4_block_nr * const block,
+extern znode *zget(struct reiser4_subvol *subvol,
+		   const reiser4_block_nr * const block,
 		   znode * parent, tree_level level, gfp_t gfp_flag);
 extern znode *zlook(reiser4_tree * tree, const reiser4_block_nr * const block);
 extern int zload(znode * node);
@@ -227,7 +228,7 @@ extern int znode_contains_key_lock(znode * node, const reiser4_key * key);
 extern unsigned znode_save_free_space(znode * node);
 extern unsigned znode_recover_free_space(znode * node);
 extern znode *zalloc(gfp_t gfp_flag);
-extern void zinit(znode *, const znode * parent, reiser4_tree *);
+extern void zinit(znode *, const znode *parent, struct reiser4_subvol *);
 extern int zparse(znode * node);
 
 extern int znode_just_created(const znode * node);
@@ -307,8 +308,12 @@ static inline int jnode_is_leaf(const jnode * node)
 	return 0;
 }
 
-/* return znode's tree */
-static inline reiser4_tree *znode_get_tree(const znode * node)
+static inline struct reiser4_subvol *znode_get_subvol(const znode *node)
+{
+	return jnode_get_subvol(ZJNODE(node));
+}
+
+static inline reiser4_tree *znode_get_tree(const znode *node)
 {
 	assert("nikita-2692", node != NULL);
 	return jnode_get_tree(ZJNODE(node));

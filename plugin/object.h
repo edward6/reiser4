@@ -38,7 +38,7 @@ int reiser4_release_dir_common(struct inode *, struct file *);
 int reiser4_sync_common(struct file *, loff_t, loff_t, int datasync);
 
 /* file plugin operations: common implementations */
-int write_sd_by_inode_common(struct inode *);
+int write_sd_by_inode_common(struct inode *, oid_t *oid);
 int key_by_inode_and_offset_common(struct inode *, loff_t, reiser4_key *);
 int set_plug_in_inode_common(struct inode *object, struct inode *parent,
 			     reiser4_object_create_data *);
@@ -49,7 +49,7 @@ int adjust_to_parent_common_dir(struct inode *object, struct inode *parent,
 int adjust_to_parent_cryptcompress(struct inode *object, struct inode *parent,
 				   struct inode *root);
 int reiser4_create_object_common(struct inode *object, struct inode *parent,
-				 reiser4_object_create_data *);
+				 reiser4_object_create_data *, oid_t*);
 int reiser4_delete_object_common(struct inode *);
 int reiser4_delete_dir_common(struct inode *);
 int reiser4_add_link_common(struct inode *object, struct inode *parent);
@@ -69,6 +69,8 @@ reiser4_block_nr estimate_unlink_common(const struct inode *,
 					const struct inode *);
 reiser4_block_nr estimate_unlink_common_dir(const struct inode *,
 					    const struct inode *);
+int reserve_update_sd_common(struct inode *inode);
+
 char *wire_write_common(struct inode *, char *start);
 char *wire_read_common(char *addr, reiser4_object_on_wire *);
 struct dentry *wire_get_common(struct super_block *, reiser4_object_on_wire *);

@@ -314,20 +314,19 @@ znode *zalloc(gfp_t gfp_flag /* allocation flag */ )
 	return node;
 }
 
-/* Initialize fields of znode
-   @node:    znode to initialize;
-   @parent:  parent znode;
-   @tree:    tree we are in. */
-void zinit(znode * node, const znode * parent, reiser4_tree * tree)
+/*
+ * Initialize fields of znode
+ * @node:    znode to initialize;
+ * @parent:  parent znode;
+ * @subvol:  subvolume we are in
+ */
+void zinit(znode *node, const znode *parent, struct reiser4_subvol *subvol)
 {
 	assert("nikita-466", node != NULL);
-	assert("umka-268", current_tree != NULL);
+	assert("edward-xxx", subvol != NULL);
 
 	memset(node, 0, sizeof *node);
-
-	assert("umka-051", tree != NULL);
-
-	jnode_init(&node->zjnode, tree, JNODE_FORMATTED_BLOCK);
+	jnode_init(&node->zjnode, subvol, JNODE_FORMATTED_BLOCK);
 	reiser4_init_lock(&node->lock);
 	init_parent_coord(&node->in_parent, parent);
 }
@@ -409,7 +408,7 @@ int znode_rehash(znode * node /* node to rehash */ ,
    accepts pre-computed hash index.  The hash table is accessed under caller's
    tree->hash_lock.
 */
-znode *zlook(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
+znode *zlook(reiser4_tree *tree, const reiser4_block_nr *const blocknr)
 {
 	znode *result;
 	__u32 hash;
@@ -461,16 +460,15 @@ static z_hash_table *znode_get_htable(const znode * node)
    LOCKS TAKEN:   TREE_LOCK, ZNODE_LOCK
    LOCK ORDERING: NONE
 */
-znode *zget(reiser4_tree * tree,
+znode *zget(struct reiser4_subvol *subv,
 	    const reiser4_block_nr * const blocknr,
 	    znode * parent, tree_level level, gfp_t gfp_flag)
 {
 	znode *result;
 	__u32 hashi;
-
+	reiser4_tree *tree = &subv->tree;
 	z_hash_table *zth;
 
-	assert("jmacd-512", tree != NULL);
 	assert("jmacd-513", blocknr != NULL);
 	assert("jmacd-514", level < REISER4_MAX_ZTREE_HEIGHT);
 
@@ -510,7 +508,7 @@ znode *zget(reiser4_tree * tree,
 			return ERR_PTR(RETERR(-ENOMEM));
 		}
 
-		zinit(result, parent, tree);
+		zinit(result, parent, subv);
 		ZJNODE(result)->blocknr = *blocknr;
 		ZJNODE(result)->key.z = *blocknr;
 		result->level = level;
@@ -537,7 +535,7 @@ znode *zget(reiser4_tree * tree,
 
 	assert("intelfx-6",
 	       ergo(!reiser4_blocknr_is_fake(blocknr) && *blocknr != 0,
-	            reiser4_check_block(blocknr, 1)));
+	            reiser4_check_block(blocknr, 1, subv)));
 
 	/* Check for invalid tree level, return -EIO */
 	if (unlikely(znode_get_level(result) != level)) {
@@ -556,24 +554,28 @@ znode *zget(reiser4_tree * tree,
 
 /* ZNODE PLUGINS/DATA */
 
-/* "guess" plugin for node loaded from the disk. Plugin id of node plugin is
-   stored at the fixed offset from the beginning of the node. */
-static node_plugin *znode_guess_plugin(const znode * node	/* znode to guess
-								 * plugin of */ )
+/**
+ * Guess plugin for node loaded from the disk.
+ * Id of node plugin is stored at the fixed offset
+ * from the beginning of the node
+ *
+ * @node: znode to guess plugin of
+ */
+static node_plugin *znode_guess_plugin(const znode *node)
 {
-	reiser4_tree *tree;
+	reiser4_subvol *subv;
 
 	assert("nikita-1053", node != NULL);
 	assert("nikita-1055", zdata(node) != NULL);
 
-	tree = znode_get_tree(node);
-	assert("umka-053", tree != NULL);
+	subv = znode_get_subvol(node);
+	assert("edward-xxx", subv != NULL);
 
-	if (reiser4_is_set(tree->super, REISER4_ONE_NODE_PLUGIN)) {
-		return tree->nplug;
+	if (subvol_is_set(subv, SUBVOL_ONE_NODE_PLUGIN)) {
+		return subv->tree.nplug;
 	} else {
 		return node_plugin_by_disk_id
-		    (tree, &((common_node_header *) zdata(node))->plugin_id);
+		    (&((common_node_header *) zdata(node))->plugin_id);
 #ifdef GUESS_EXISTS
 		reiser4_plugin *plugin;
 
@@ -772,10 +774,10 @@ int znode_above_root(const znode * node /* znode to query */ )
 /* check that @node is root---that its block number is recorder in the tree as
    that of root node */
 #if REISER4_DEBUG
-static int znode_is_true_root(const znode * node /* znode to query */ )
+static int znode_is_true_root(const znode *node)
 {
 	assert("umka-060", node != NULL);
-	assert("umka-061", current_tree != NULL);
+	assert("edward-xxx", znode_get_subvol(node) != NULL);
 
 	return disk_addr_eq(znode_get_block(node),
 			    &znode_get_tree(node)->root_block);
@@ -783,9 +785,10 @@ static int znode_is_true_root(const znode * node /* znode to query */ )
 #endif
 
 /* check that @node is root */
-int znode_is_root(const znode * node /* znode to query */ )
+int znode_is_root(const znode *node)
 {
 	assert("nikita-1206", node != NULL);
+	assert("edward-xxx", znode_get_subvol(node) != NULL);
 
 	return znode_get_level(node) == znode_get_tree(node)->height;
 }
@@ -983,14 +986,17 @@ static int znode_invariant_f(const znode * node /* znode to check */ ,
 		  atomic_read(&ZJNODE(node)->x_count) != 0);
 }
 
-/* debugging aid: check znode invariant and panic if it doesn't hold */
-int znode_invariant(znode * node /* znode to check */ )
+/*
+ * debugging aid: check znode invariant and panic if it doesn't hold
+ * @node: znode to check
+ */
+int znode_invariant(znode *node)
 {
 	char const *failed_msg;
 	int result;
 
 	assert("umka-063", node != NULL);
-	assert("umka-064", current_tree != NULL);
+	assert("edward-xxx", znode_get_subvol(node) != NULL);
 
 	spin_lock_znode(node);
 	read_lock_tree(znode_get_tree(node));

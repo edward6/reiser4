@@ -139,12 +139,14 @@ struct jnode {
 
 	/* pointer to jnode page.  */
 	/*   36 */ struct page *pg;
-	/* pointer to node itself. This is page_address(node->pg) when page is
-	   attached to the jnode
+	/*
+	 * Pointer to node's content.
+	 * This is page_address(node->pg) when page is attached to the jnode
 	 */
 	/*   40 */ void *data;
 
-	/*   44 */ reiser4_tree *tree;
+	/* Subvolume, where IO is going to/from */
+	/*   44 */ struct reiser4_subvol *subvol;
 
 	/* FOURTH CACHE LINE: atom related fields */
 
@@ -346,12 +348,13 @@ extern jnode *jlookup(reiser4_tree * tree,
 		      oid_t objectid, unsigned long ind) NONNULL;
 extern jnode *jfind(struct address_space *, unsigned long index) NONNULL;
 extern jnode *jnode_by_page(struct page *pg) NONNULL;
-extern jnode *jnode_of_page(struct page *pg) NONNULL;
+extern jnode *jnode_of_page(struct page *pg, int for_io) NONNULL;
 void jnode_attach_page(jnode * node, struct page *pg);
 
 void unhash_unformatted_jnode(jnode *);
 extern jnode *page_next_jnode(jnode * node) NONNULL;
-extern void jnode_init(jnode * node, reiser4_tree * tree, jnode_type) NONNULL;
+extern void jnode_init(jnode *node,
+		       struct reiser4_subvol *sub, jnode_type) NONNULL;
 extern void jnode_make_dirty(jnode * node) NONNULL;
 extern void jnode_make_clean(jnode * node) NONNULL;
 extern void jnode_make_wander_nolock(jnode * node) NONNULL;
@@ -360,11 +363,14 @@ extern void znode_make_reloc(znode * , flush_queue_t *) NONNULL;
 extern void unformatted_make_reloc(jnode *, flush_queue_t *) NONNULL;
 extern struct address_space *jnode_get_mapping(const jnode * node) NONNULL;
 
-/**
- * jnode_get_block
- * @node: jnode to query
- *
- */
+static inline reiser4_subvol *jnode_get_subvol(const jnode *node)
+{
+	assert("edard-xxx", node != NULL);
+	assert("edard-xxx", node->subvol != NULL);
+
+	return node->subvol;
+}
+
 static inline const reiser4_block_nr *jnode_get_block(const jnode *node)
 {
 	assert("nikita-528", node != NULL);
@@ -372,11 +378,6 @@ static inline const reiser4_block_nr *jnode_get_block(const jnode *node)
 	return &node->blocknr;
 }
 
-/**
- * jnode_set_block
- * @node: jnode to update
- * @blocknr: new block nr
- */
 static inline void jnode_set_block(jnode *node, const reiser4_block_nr *blocknr)
 {
 	assert("nikita-2020", node != NULL);
@@ -384,10 +385,11 @@ static inline void jnode_set_block(jnode *node, const reiser4_block_nr *blocknr)
 	node->blocknr = *blocknr;
 }
 
-
-/* block number for IO. Usually this is the same as jnode_get_block(), unless
- * jnode was emergency flushed---then block number chosen by eflush is
- * used. */
+/**
+ * block number for IO. Usually this is the same as jnode_get_block(),
+ * unless jnode was emergency flushed - then block number chosen by
+ * eflush is used
+ */
 static inline const reiser4_block_nr *jnode_get_io_block(jnode * node)
 {
 	assert("nikita-2768", node != NULL);
@@ -511,14 +513,12 @@ extern int jwait_io(jnode *, int rw) NONNULL;
 
 void jload_prefetch(jnode *);
 
-extern jnode *reiser4_alloc_io_head(const reiser4_block_nr * block) NONNULL;
+extern jnode *reiser4_alloc_io_head(const reiser4_block_nr *block,
+				    reiser4_subvol *subv) NONNULL;
 extern void reiser4_drop_io_head(jnode * node) NONNULL;
-
-static inline reiser4_tree *jnode_get_tree(const jnode * node)
-{
-	assert("nikita-2691", node != NULL);
-	return node->tree;
-}
+extern reiser4_tree *jnode_get_tree(const jnode *node);
+extern struct reiser4_subvol *jnode_get_subvol(const jnode *node);
+extern struct super_block *jnode_get_super(const jnode *node);
 
 extern void pin_jnode_data(jnode *);
 extern void unpin_jnode_data(jnode *);
@@ -680,6 +680,11 @@ static inline jnode *jnode_rip_check(reiser4_tree * tree, jnode * node)
 	if (unlikely(JF_ISSET(node, JNODE_RIP)))
 		node = jnode_rip_sync(tree, node);
 	return node;
+}
+
+static inline jnode *jnode_by_link(struct list_head *link)
+{
+	return list_entry(link, jnode, capture_link);
 }
 
 extern reiser4_key *jnode_build_key(const jnode *node, reiser4_key * key);

@@ -13,19 +13,17 @@
  */
 
 /**
- * reiser4_create_symlink - create_object of file plugin for SYMLINK_FILE_PLUGIN_ID
+ * reiser4_create_symlink - create a synlink (object managed by
+ * file plugin with SYMLINK_FILE_PLUGIN_ID.
+ * Inserts stat data with symlink extension where into the tree.
+ *
  * @symlink: inode of symlink object
  * @dir: inode of parent directory
- * @info:  parameters of new object
- *
- * Inserts stat data with symlink extension where into the tree.
+ * @data: parameters of new object (in particular, filled by reiser4() syscall)
  */
 int reiser4_create_symlink(struct inode *symlink,
 			   struct inode *dir UNUSED_ARG,
-			   reiser4_object_create_data *data /* info passed to us
-							     * this is filled by
-							     * reiser4() syscall
-							     * in particular */)
+			   reiser4_object_create_data *data, oid_t *oid)
 {
 	int result;
 
@@ -35,7 +33,6 @@ int reiser4_create_symlink(struct inode *symlink,
 	assert("nikita-682", dir != NULL);
 	assert("nikita-684", data != NULL);
 	assert("nikita-686", data->id == SYMLINK_FILE_PLUGIN_ID);
-
 	/*
 	 * stat data of symlink has symlink extension in which we store
 	 * symlink content, that is, path symlink is pointing to.
@@ -49,7 +46,7 @@ int reiser4_create_symlink(struct inode *symlink,
 	INODE_SET_FIELD(symlink, i_size, strlen(data->name));
 
 	/* insert stat data appended with data->name */
-	result = inode_file_plugin(symlink)->write_sd_by_inode(symlink);
+	result = inode_file_plugin(symlink)->write_sd_by_inode(symlink, oid);
 	if (result) {
 		/* FIXME-VS: Make sure that symlink->i_private is not attached
 		   to kmalloced data */

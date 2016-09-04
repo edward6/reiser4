@@ -36,24 +36,28 @@ static int add_child_ptr(znode * parent, znode * child);
 	if( ( error ) != -E_REPEAT )		\
 		warning( __VA_ARGS__ )
 
-/* allocate new node on the @level and immediately on the right of @brother. */
-znode * reiser4_new_node(znode * brother /* existing left neighbor
-					  *  of new node */,
-			 tree_level level /* tree level at which new node is to
-					   * be allocated */)
+/*
+ * allocate new node on the @level and immediately on the right of @brother
+ */
+znode *reiser4_new_node(znode *brother, /* existing left neighbor of new node */
+			tree_level level /* tree level at which new node is to
+					  * be allocated */)
 {
 	znode *result;
 	int retcode;
+	reiser4_subvol *subv;
 	reiser4_block_nr blocknr;
 
 	assert("nikita-930", brother != NULL);
 	assert("umka-264", level < REAL_MAX_ZTREE_HEIGHT);
 
-	retcode = assign_fake_blocknr_formatted(&blocknr);
+	subv = znode_get_subvol(brother);
+	assert("edward-xxx", subv != NULL);
+
+	retcode = assign_fake_blocknr_formatted(&blocknr, subv);
 	if (retcode == 0) {
-		result =
-		    zget(znode_get_tree(brother), &blocknr, NULL, level,
-			 reiser4_ctx_gfp_mask_get());
+		result = zget(subv, &blocknr, NULL, level,
+			      reiser4_ctx_gfp_mask_get());
 		if (IS_ERR(result)) {
 			ewarning(PTR_ERR(result), "nikita-929",
 				 "Cannot allocate znode for carry: %li",
@@ -159,7 +163,7 @@ znode *reiser4_add_tree_root(znode * old_root /* existing tree root */ ,
 
 				/* recalculate max balance overhead */
 				tree->estimate_one_insert =
-					calc_estimate_one_insert(tree->height);
+				    calc_estimate_one_insert(tree->height);
 
 				tree->root_block = *znode_get_block(new_root);
 				in_parent = &new_root->in_parent;
@@ -354,7 +358,7 @@ int reiser4_kill_tree_root(znode * old_root /* tree root that we are
 	znode *new_root;
 	reiser4_tree *tree;
 
-	assert("umka-266", current_tree != NULL);
+	assert("edward-xxx", znode_get_subvol(old_root) != NULL);
 	assert("nikita-1194", old_root != NULL);
 	assert("nikita-1196", znode_is_root(old_root));
 	assert("nikita-1200", node_num_items(old_root) == 1);

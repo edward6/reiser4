@@ -264,9 +264,6 @@ struct txn_atom {
 		} discard;
 	};
 
-	/* The atom's wandered_block mapping. */
-	struct list_head wandered_map;
-
 	/* The transaction's list of dirty captured nodes--per level.  Index
 	   by (level). dirty_nodes[0] is for znode-above-root */
 	struct list_head dirty_nodes[REAL_MAX_ZTREE_HEIGHT + 1];
@@ -299,8 +296,6 @@ struct txn_atom {
 	   thereby numbers of objects IDs which were released/deallocated. */
 	int nr_objects_deleted;
 	int nr_objects_created;
-	/* number of blocks allocated during the transaction */
-	__u64 nr_blocks_allocated;
 	/* All atom's flush queue objects are on this list  */
 	struct list_head flush_queues;
 #if REISER4_DEBUG
@@ -317,9 +312,11 @@ struct txn_atom {
 	/* number of flush queues which are IN_USE and jnodes from fq->prepped
 	   are submitted to disk by the reiser4_write_fq() routine. */
 	int nr_running_queues;
+	/* number of blocks allocated during the transaction */
+	reiser4_block_nr *nr_blocks_allocated;
 	/* A counter of grabbed unformatted nodes, see a description of the
 	 * reiser4 space reservation scheme at block_alloc.c */
-	reiser4_block_nr flush_reserved;
+	reiser4_block_nr *flush_reserved;
 #if REISER4_DEBUG
 	void *committer;
 #endif
@@ -474,7 +471,10 @@ extern txn_atom *jnode_get_atom(jnode *);
 extern void reiser4_atom_wait_event(txn_atom *);
 extern void reiser4_atom_send_event(txn_atom *);
 
-extern void insert_into_atom_ovrwr_list(txn_atom * atom, jnode * node);
+extern void insert_into_atom_ovrwr_list(txn_atom *atom, jnode *node);
+extern void insert_into_subv_ovrwr_list(reiser4_subvol *subv, jnode *node,
+					txn_atom *atom);
+
 extern int reiser4_capture_super_block(struct super_block *s);
 int capture_bulk(jnode **, int count);
 
@@ -489,18 +489,23 @@ extern int blocknr_set_add_extent(txn_atom * atom,
 				  struct list_head * bset,
 				  blocknr_set_entry ** new_bsep,
 				  const reiser4_block_nr * start,
-				  const reiser4_block_nr * len);
+				  const reiser4_block_nr * len,
+				  const __u32 subvol_id);
 extern int blocknr_set_add_pair(txn_atom * atom, struct list_head * bset,
 				blocknr_set_entry ** new_bsep,
 				const reiser4_block_nr * a,
-				const reiser4_block_nr * b);
+				const reiser4_block_nr * b,
+				__u32 subvol_id);
 
-typedef int (*blocknr_set_actor_f) (txn_atom *, const reiser4_block_nr *,
-				    const reiser4_block_nr *, void *);
+typedef int (*blocknr_set_actor_f) (txn_atom *,
+				    const reiser4_block_nr *,
+				    const reiser4_block_nr *,
+				    __u32,
+				    void *);
 
 extern int blocknr_set_iterator(txn_atom * atom, struct list_head * bset,
 				blocknr_set_actor_f actor, void *data,
-				int delete);
+				int delete, u32 subv_id);
 
 /* This is the block list interface (see blocknrlist.c) */
 extern int blocknr_list_init_static(void);
@@ -516,7 +521,8 @@ extern int blocknr_list_add_extent(txn_atom *atom,
                                    struct list_head *blist,
                                    blocknr_list_entry **new_entry,
                                    const reiser4_block_nr *start,
-                                   const reiser4_block_nr *len);
+                                   const reiser4_block_nr *len,
+				   __u32 subvol_id);
 extern int blocknr_list_iterator(txn_atom *atom,
                                  struct list_head *blist,
                                  blocknr_set_actor_f actor,
@@ -537,7 +543,8 @@ extern int atom_dset_deferred_apply(txn_atom* atom,
 extern int atom_dset_deferred_add_extent(txn_atom *atom,
                                          void **new_entry,
                                          const reiser4_block_nr *start,
-                                         const reiser4_block_nr *len);
+                                         const reiser4_block_nr *len,
+					 const __u32 subvol_id);
 
 /* flush code takes care about how to fuse flush queues */
 extern void flush_init_atom(txn_atom * atom);

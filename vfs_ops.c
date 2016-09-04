@@ -56,13 +56,14 @@ int reiser4_update_sd(struct inode *object)
 	file_plugin *fplug;
 
 	assert("nikita-2338", object != NULL);
+
 	/* check for read-only file system. */
 	if (IS_RDONLY(object))
 		return 0;
 
 	fplug = inode_file_plugin(object);
 	assert("nikita-2339", fplug != NULL);
-	return fplug->write_sd_by_inode(object);
+	return fplug->write_sd_by_inode(object, NULL);
 }
 
 /* helper function: increase inode nlink count and call plugin method to save
@@ -70,9 +71,8 @@ int reiser4_update_sd(struct inode *object)
 
    Used by link/create and during creation of dot and dotdot in mkdir
 */
-int reiser4_add_nlink(struct inode *object /* object to which link is added */ ,
-		      struct inode *parent /* parent where new entry will be */
-		      ,
+int reiser4_add_nlink(struct inode *object, /* object to which link is added */
+		      struct inode *parent, /* parent where new entry will be */
 		      int write_sd_p	/* true if stat-data has to be
 					 * updated */ )
 {
@@ -95,7 +95,7 @@ int reiser4_add_nlink(struct inode *object /* object to which link is added */ ,
 
 	/* optionally update stat data */
 	if (result == 0 && write_sd_p)
-		result = fplug->write_sd_by_inode(object);
+		result = fplug->write_sd_by_inode(object, NULL);
 	return result;
 }
 
@@ -125,7 +125,7 @@ int reiser4_del_nlink(struct inode *object	/* object from which link is
 
 	/* optionally update stat data */
 	if (result == 0 && write_sd_p)
-		result = fplug->write_sd_by_inode(object);
+		result = fplug->write_sd_by_inode(object, NULL);
 	return result;
 }
 
@@ -227,7 +227,8 @@ void reiser4_handle_error(void)
 
 	if (!sb)
 		return;
-	reiser4_status_write(REISER4_STATUS_DAMAGED, 0,
+	reiser4_status_write(subvol_for_system(),
+			     REISER4_STATUS_DAMAGED, 0,
 			     "Filesystem error occured");
 	switch (get_super_private(sb)->onerror) {
 	case 1:

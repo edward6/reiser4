@@ -49,14 +49,24 @@ static inline int disk_addr_eq(const reiser4_block_nr * b1,
 	return !memcmp(b1, b2, sizeof *b1);
 }
 
-/* structure of master reiser4 super block */
+/*
+ * Structure of master super block.
+ * Having been set by mkfs utility, master super block never
+ * get changed in its life long and doesn't participate in
+ * transactions.
+ */
 typedef struct reiser4_master_sb {
 	char magic[16];		/* "ReIsEr4" */
-	__le16 disk_plugin_id;	/* id of disk layout plugin */
-	__le16 blocksize;
-	char uuid[16];		/* unique id */
-	char label[16];		/* filesystem label */
+	__le16 dformat_pid;	/* disk format plugin id (per subvolume) */
+	__le16 blocksize;       /* block size (per-volume) */
+	char uuid[16];		/* volume id (per volume) */
+	char label[16];		/* filesystem label (per volume) */
 	__le64 diskmap;		/* location of the diskmap. 0 if not present */
+	/* Reiser5  */
+	char sub_uuid[16];    /* subvolume's external id (per subolvume) */
+	__le16 volume_pid;    /* volume plugin id (per volume) */
+	__le16 distrib_pid;   /* distribution plugin id (per volume) */
+	char stripe_size_bits; /* logarithm of stripe size (per volume) */
 } reiser4_master_sb;
 
 /* __FS_REISER4_DFORMAT_H__ */
