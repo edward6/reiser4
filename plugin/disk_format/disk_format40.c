@@ -379,9 +379,9 @@ static struct page *find_disk_format40(reiser4_subvol *subv)
 	subv->id = get_format40_subvol_id(disk_sb);
 	if (subv->id < get_format40_num_mirrors(disk_sb))
 		/*
-		 * FIXME-EDWARD: This belongs to specifications of format 5.0
+		 * FIXME-EDWARD: This belongs to specifications of format41
 		 */
-		subv->flags |= (1 << SUBVOL_IS_MIRROR);
+		subv->vgid = REISER4_VG_MIRRORS;
 
 	ret = check_num_subvols(subv, disk_sb);
 	if (ret) {
@@ -389,7 +389,7 @@ static struct page *find_disk_format40(reiser4_subvol *subv)
 		put_page(page);
 		return ERR_PTR(RETERR(-EINVAL));
 	}
-	if (subvol_is_set(subv, SUBVOL_IS_MIRROR))
+	if (is_mirror(subv))
 		goto exit;
 	reiser4_subvol_set_block_count(subv,
 			     le64_to_cpu(get_unaligned(&disk_sb->block_count)));
@@ -412,8 +412,8 @@ static struct page *find_disk_format40(reiser4_subvol *subv)
 /**
  * Initialize in-memory subvolume header
  */
-int try_init_format40(struct super_block *super,
-		      format40_init_stage *stage, reiser4_subvol *subv)
+int try_init_format40(struct super_block *super, format40_init_stage *stage,
+		      reiser4_subvol *subv, reiser4_vg_id vgid)
 {
 	int result;
 	struct page *page;
@@ -445,15 +445,17 @@ int try_init_format40(struct super_block *super,
 
 	if (is_mirror(subv))
 		/*
-		 * the subvolume is replica, so
-		 * it doesn't need to be fully activated
+		 * subvolume doesn't need to be fully activated
 		 */
 		return 0;
-
 	*stage = FIND_A_SUPER;
 	/*
 	 * OK, we are sure that subvolume format is format40
 	 */
+	if (subv->vgid != vgid)
+		/* this subvolumes will be activated later */
+		return -E_NOTEXP;
+
 	result = reiser4_init_journal_info(subv);
 	if (result)
 		return result;
@@ -650,12 +652,13 @@ int try_init_format40(struct super_block *super,
 /**
  * ->init_format() method of disk_format40 plugin
  */
-int init_format_format40(struct super_block *s, reiser4_subvol *subv)
+int init_format_format40(struct super_block *s, reiser4_subvol *subv,
+			 reiser4_vg_id vgid)
 {
 	int result;
 	format40_init_stage stage;
 
-	result = try_init_format40(s, &stage, subv);
+	result = try_init_format40(s, &stage, subv, vgid);
 	switch (stage) {
 	case ALL_DONE:
 		assert("nikita-3458", result == 0);
@@ -878,26 +881,28 @@ int version_update_format40(struct super_block *super, reiser4_subvol *subv)
 	return force_commit_atom(trans);
 }
 
-
 /**
  * Upadte original superblock to be written to replica device.
  * @subv: original subvolume to be replicated.
  * @replica_id: internal id of the subvolume-replica
  */
-void update_sb4replica_format41(reiser4_subvol *orig, u64 replica_id)
+void update_sb4replica_format41(reiser4_subvol *subv)
 {
 	jnode *sb_jnode;
 	format40_disk_super_block *format_sb;
+
+	assert("edward-xxx", subv != NULL);
+	assert("edward-xxx", subv->super != NULL);
 	/*
 	 * get IO header of the original format super-block
 	 */
-	sb_jnode = orig->u.format40.sb_jnode;
+	sb_jnode = super_origin(subv->super)->u.format40.sb_jnode;
 
 	assert("edward-xxx", sb_jnode->magic == JMAGIC);
 
 	jload(sb_jnode);
 	format_sb = (format40_disk_super_block *)jdata(sb_jnode);
-	put_unaligned(cpu_to_le64(replica_id), &format_sb->subvol_id);
+	put_unaligned(cpu_to_le64(subv->id), &format_sb->subvol_id);
 	jrelse(sb_jnode);
 }
 

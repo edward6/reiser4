@@ -59,9 +59,7 @@ typedef enum {
 	/* set if subvol is registered */
 	SUBVOL_REGISTERED = 2,
 	/* set if subvol is activated */
-	SUBVOL_ACTIVATED = 3,
-	/* set if subvol is a replica */
-	SUBVOL_IS_MIRROR = 4
+	SUBVOL_ACTIVATED = 3
 } reiser4_subvol_flag;
 
 /*
@@ -163,6 +161,7 @@ struct reiser4_subvol {
 	void *fiber; /* array of segments (cpu fiber) */
 	jnode **fiber_nodes; /* array of jnodes which represent on-disk fiber */
 
+	reiser4_vg_id vgid; /* id of volume group this subvolume bolongs to */
 	unsigned long flags; /* subvolume-wide flags, see subvol_flags enum */
 	disk_format_plugin *df_plug; /* disk format of this subvolume */
 	union {
@@ -469,10 +468,24 @@ static inline int is_mirror(struct reiser4_subvol *subv)
 	assert("edward-xxx", get_super_volume(subv->super) != NULL);
 	assert("edward-xxx",
 	       ergo(subvol_is_set(subv, SUBVOL_ACTIVATED) &&
-		    subvol_is_set(subv, SUBVOL_IS_MIRROR),
+		    subv->vgid == REISER4_VG_MIRRORS,
 		    subv->id < get_super_volume(subv->super)->num_mirrors));
 
-	return subvol_is_set(subv, SUBVOL_IS_MIRROR);
+	return subv->vgid == REISER4_VG_MIRRORS;
+}
+
+static inline u32 super_num_mirrors(struct super_block *super)
+{
+	return get_super_volume(super)->num_mirrors;
+}
+
+static inline int is_origin(struct reiser4_subvol *subv)
+{
+	assert("edward-xxx", subv != NULL);
+	assert("edward-xxx", subv->super != NULL);
+	assert("edward-xxx", get_super_volume(subv->super) != NULL);
+
+	return subv->id == super_num_mirrors(subv->super);
 }
 
 static inline int is_mirror_id(u32 subv_id)
