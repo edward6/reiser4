@@ -16,6 +16,11 @@
 #define REISER4_STATUS_DESTROYED 0x4
 #define REISER4_STATUS_IOERROR 0x8
 
+/* These are extended status flags */
+
+#define REISER4_ESTATUS_OK 0
+#define REISER4_ESTATUS_MIRRORS_NOT_SYNCED 0x1
+
 /* Return values for reiser4_status_query() */
 #define REISER4_STATUS_MOUNT_OK 0
 #define REISER4_STATUS_MOUNT_WARN 1
@@ -39,9 +44,10 @@ struct reiser4_status {
 						 * with zeroes */
 };
 
-int reiser4_status_init(reiser4_block_nr block);
-int reiser4_status_query(u64 *status, u64 *extended);
-int reiser4_status_write(u64 status, u64 extended_status, char *message);
-int reiser4_status_finish(void);
+int reiser4_status_init(reiser4_subvol *subv, reiser4_block_nr block);
+int reiser4_status_query(reiser4_subvol *subv, u64 *status, u64 *extended);
+int reiser4_status_write(reiser4_subvol *subv, u64 status,
+			 u64 extended_status, char *message);
+int reiser4_status_finish(reiser4_subvol *subv);
 
 #endif

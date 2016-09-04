@@ -13,9 +13,11 @@
 /* carry operation handlers */
 typedef struct carry_op_handler {
 	/* perform operation */
-	int (*handler) (carry_op * op, carry_level * doing, carry_level * todo);
+	int (*cop_handler)(carry_op *op, carry_level *doing,
+			   carry_level *todo);
 	/* estimate memory requirements for @op */
-	int (*estimate) (carry_op * op, carry_level * level);
+	int (*cop_estimate)(carry_op *op, carry_level *level,
+			    reiser4_tree *tree);
 } carry_op_handler;
 
 /* This is dispatch table for carry operations. It can be trivially

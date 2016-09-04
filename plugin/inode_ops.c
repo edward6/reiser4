@@ -166,13 +166,12 @@ int reiser4_link_common(struct dentry *existing, struct inode *parent,
 		reiser4_exit_context(ctx);
 		return reserve;
 	}
-
-	if (reiser4_grab_space(reserve, BA_CAN_COMMIT)) {
+	if (reiser4_grab_space(reserve,
+			       BA_CAN_COMMIT, subvol_for_meta(object))) {
 		context_set_commit_async(ctx);
 		reiser4_exit_context(ctx);
 		return RETERR(-ENOSPC);
 	}
-
 	/*
 	 * Subtle race handling: sys_link() doesn't take i_mutex on @parent. It
 	 * means that link(2) can race against unlink(2) or rename(2), and
@@ -182,7 +181,7 @@ int reiser4_link_common(struct dentry *existing, struct inode *parent,
 	 * reiser4_unlink() viz. creation of safe-link.
 	 */
 	if (unlikely(object->i_nlink == 0)) {
-		result = safe_link_del(reiser4_tree_by_inode(object),
+		result = safe_link_del(subvol_for_meta(object),
 				       get_inode_oid(object), SAFE_UNLINK);
 		if (result != 0) {
 			context_set_commit_async(ctx);
@@ -433,7 +432,7 @@ int reiser4_permission_common(struct inode *inode, int mask)
 	return generic_permission(inode, mask);
 }
 
-static int setattr_reserve(reiser4_tree *);
+static int setattr_reserve(struct inode *);
 
 /* this is common implementation of vfs's setattr method of struct
    inode_operations
@@ -460,7 +459,7 @@ int reiser4_setattr_common(struct dentry *dentry, struct iattr *attr)
 	 * setattr_copy();
 	 * mark_inode_dirty().
 	 */
-	result = setattr_reserve(reiser4_tree_by_inode(inode));
+	result = setattr_reserve(inode);
 	if (!result) {
 		setattr_copy(inode, attr);
 		mark_inode_dirty(inode);
@@ -530,32 +529,32 @@ static reiser4_block_nr estimate_create_vfs_object(struct inode *parent,
 	    inode_dir_plugin(parent)->estimate.rem_entry(parent);
 }
 
-/* Create child in directory.
-
-   . get object's plugin
-   . get fresh inode
-   . initialize inode
-   . add object's stat-data
-   . initialize object's directory
-   . add entry to the parent
-   . instantiate dentry
-
-*/
-static int do_create_vfs_child(reiser4_object_create_data * data,/* parameters
-								    of new
-								    object */
+/**
+ * Create child in a directory.
+ *
+ * . get object's plugin
+ * . get fresh inode
+ * . initialize inode
+ * . add object's stat-data
+ * . initialize object's directory
+ * . add entry to the parent
+ * . instantiate dentry
+ *
+ * @data - parameters of new object
+ */
+static int do_create_vfs_child(reiser4_object_create_data *data,
 			       struct inode **retobj)
 {
 	int result;
 
 	struct dentry *dentry;	/* parent object */
 	struct inode *parent;	/* new name */
+	oid_t oid;              /* new object id */
 
 	dir_plugin *par_dir;	/* directory plugin on the parent */
 	dir_plugin *obj_dir;	/* directory plugin on the new object */
 	file_plugin *obj_plug;	/* object plugin on the new object */
 	struct inode *object;	/* new object */
-	reiser4_block_nr reserve;
 
 	reiser4_dir_entry_desc entry;	/* new directory entry */
 
@@ -580,13 +579,22 @@ static int do_create_vfs_child(reiser4_object_create_data * data,/* parameters
 		warning("nikita-430", "Cannot find plugin %i", data->id);
 		return RETERR(-ENOENT);
 	}
+	/*
+	 * allocate object id for the new object
+	 */
+	oid = oid_allocate(parent->i_sb);
+	if (oid == ABSOLUTE_MAX_OID)
+		return RETERR(-EOVERFLOW);
+
 	object = new_inode(parent->i_sb);
 	if (object == NULL)
 		return RETERR(-ENOMEM);
-	/* new_inode() initializes i_ino to "arbitrary" value. Reset it to 0,
+	/*
+	 * new_inode() initializes i_ino to "arbitrary" value. Reset it to 0,
 	 * to simplify error handling: if some error occurs before i_ino is
 	 * initialized with oid, i_ino should already be set to some
-	 * distinguished value. */
+	 * distinguished value
+	 */
 	object->i_ino = 0;
 
 	/* So that on error iput will be called. */
@@ -597,23 +605,24 @@ static int do_create_vfs_child(reiser4_object_create_data * data,/* parameters
 
 	set_plugin(&reiser4_inode_data(object)->pset, PSET_FILE,
 		   file_plugin_to_plugin(obj_plug));
+
 	result = obj_plug->set_plug_in_inode(object, parent, data);
 	if (result) {
 		warning("nikita-431", "Cannot install plugin %i on %llx",
 			data->id, (unsigned long long)get_inode_oid(object));
 		return result;
 	}
-
-	/* reget plugin after installation */
+	/*
+	 * reget plugin after installation
+	 */
 	obj_plug = inode_file_plugin(object);
 
-	if (obj_plug->create_object == NULL) {
+	if (obj_plug->create_object == NULL)
 		return RETERR(-EPERM);
-	}
-
-	/* if any of hash, tail, sd or permission plugins for newly created
-	   object are not set yet set them here inheriting them from parent
-	   directory
+	/*
+	 * if any of hash, tail, sd or permission plugins for newly created
+	 * object are not set yet set them here inheriting them from parent
+	 * directory
 	 */
 	assert("nikita-2070", obj_plug->adjust_to_parent != NULL);
 	result = obj_plug->adjust_to_parent(object,
@@ -627,37 +636,37 @@ static int do_create_vfs_child(reiser4_object_create_data * data,/* parameters
 			(unsigned long long)get_inode_oid(object));
 		return result;
 	}
-
-	/* setup inode and file-operations for this inode */
+	/*
+	 * setup inode and file-operations for this inode
+	 */
 	setup_inode_ops(object, data);
-
-	/* call file plugin's method to initialize plugin specific part of
-	 * inode */
+	/*
+	 * call file plugin's method to initialize plugin specific part of
+	 * inode
+	 */
 	if (obj_plug->init_inode_data)
 		obj_plug->init_inode_data(object, data, 1/*create */);
-
-	/* obtain directory plugin (if any) for new object. */
+	/*
+	 * obtain directory plugin (if any) for new object
+	 */
 	obj_dir = inode_dir_plugin(object);
-	if (obj_dir != NULL && obj_dir->init == NULL) {
+	if (obj_dir != NULL && obj_dir->init == NULL)
 		return RETERR(-EPERM);
-	}
-
 	reiser4_inode_data(object)->locality_id = get_inode_oid(parent);
 
-	reserve = estimate_create_vfs_object(parent, object);
-	if (reiser4_grab_space(reserve, BA_CAN_COMMIT)) {
+	if (reiser4_grab_space(estimate_create_vfs_object(parent, object),
+			       BA_CAN_COMMIT, __subvol_for_meta(oid)))
 		return RETERR(-ENOSPC);
-	}
-
-	/* mark inode `immutable'. We disable changes to the file being
-	   created until valid directory entry for it is inserted. Otherwise,
-	   if file were expanded and insertion of directory entry fails, we
-	   have to remove file, but we only alloted enough space in
-	   transaction to remove _empty_ file. 3.x code used to remove stat
-	   data in different transaction thus possibly leaking disk space on
-	   crash. This all only matters if it's possible to access file
-	   without name, for example, by inode number
-	 */
+	/*
+	  mark inode `immutable'. We disable changes to the file being
+	  created until valid directory entry for it is inserted. Otherwise,
+	  if file were expanded and insertion of directory entry fails, we
+	  have to remove file, but we only alloted enough space in
+	  transaction to remove _empty_ file. 3.x code used to remove stat
+	  data in different transaction thus possibly leaking disk space on
+	  crash. This all only matters if it's possible to access file
+	  without name, for example, by inode number
+	*/
 	reiser4_inode_set_flag(object, REISER4_IMMUTABLE);
 
 	/* create empty object, this includes allocation of new objectid. For
@@ -668,7 +677,7 @@ static int do_create_vfs_child(reiser4_object_create_data * data,/* parameters
 	   reiser4_delete_inode() will try to remove its stat-data. */
 	reiser4_inode_set_flag(object, REISER4_LOADED);
 
-	result = obj_plug->create_object(object, parent, data);
+	result = obj_plug->create_object(object, parent, data, &oid);
 	if (result != 0) {
 		reiser4_inode_clr_flag(object, REISER4_IMMUTABLE);
 		if (result != -ENAMETOOLONG && result != -ENOMEM)
@@ -834,7 +843,9 @@ static reiser4_block_nr estimate_unlink(struct inode *parent /* parent
 	return res;
 }
 
-/* helper for reiser4_unlink_common. Estimate and grab space for unlink. */
+/**
+ * helper for reiser4_unlink_common. Estimate and grab space for unlink
+ */
 static int unlink_check_and_grab(struct inode *parent, struct dentry *victim)
 {
 	file_plugin *fplug;
@@ -859,15 +870,23 @@ static int unlink_check_and_grab(struct inode *parent, struct dentry *victim)
 	if (result < 0)
 		return result;
 
-	return reiser4_grab_reserved(child->i_sb, result, BA_CAN_COMMIT);
+	return reiser4_grab_reserved(child->i_sb, result,
+				     BA_CAN_COMMIT, subvol_for_meta(child));
 }
 
-/* helper for reiser4_setattr_common */
-static int setattr_reserve(reiser4_tree * tree)
+/**
+ * Helper for reiser4_setattr_common;
+ * Reserve space for stat-data update
+ */
+static int setattr_reserve(struct inode *inode)
 {
+	reiser4_subvol *subv = subvol_for_meta(inode);
+
+	assert("edward-xxx", subv != NULL);
 	assert("vs-1096", is_grab_enabled(get_current_context()));
-	return reiser4_grab_space(estimate_one_insert_into_item(tree),
-				  BA_CAN_COMMIT);
+
+	return reiser4_grab_space(estimate_one_insert_into_item(&subv->tree),
+				  BA_CAN_COMMIT, subv);
 }
 
 /* helper function. Standards require that for many file-system operations
@@ -881,12 +900,12 @@ int reiser4_update_dir(struct inode *dir)
 }
 
 /*
-  Local variables:
-  c-indentation-style: "K&R"
-  mode-name: "LC"
-  c-basic-offset: 8
-  tab-width: 8
-  fill-column: 80
-  scroll-step: 1
-  End:
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 80
+   scroll-step: 1
+   End:
 */

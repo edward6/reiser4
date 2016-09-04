@@ -9,29 +9,34 @@
  * but... */
 #define DEF_SPACE_ALLOCATOR(allocator)											\
 															\
-static inline int sa_init_allocator (reiser4_space_allocator * al, struct super_block *s, void * opaque)		\
+static inline int sa_init_allocator (reiser4_space_allocator * al, struct super_block *s, 				\
+				     reiser4_subvol *subv, void * opaque) 						\
 {															\
-	return reiser4_init_allocator_##allocator (al, s, opaque);	                                                \
+	return reiser4_init_allocator_##allocator (al, s, subv, opaque);						\
 }															\
 															\
-static inline void sa_destroy_allocator (reiser4_space_allocator *al, struct super_block *s)				\
+static inline void sa_destroy_allocator (reiser4_space_allocator *al, struct super_block *s, 				\
+					 reiser4_subvol *subv)								\
 {															\
-	reiser4_destroy_allocator_##allocator (al, s);									\
+	reiser4_destroy_allocator_##allocator (al, s, subv);								\
 }															\
 															\
 static inline int sa_alloc_blocks (reiser4_space_allocator *al, reiser4_blocknr_hint * hint, 				\
-				   int needed, reiser4_block_nr * start, reiser4_block_nr * len)			\
+				   int needed, reiser4_block_nr * start, reiser4_block_nr * len, 			\
+				   reiser4_subvol *subv)								\
 {															\
-	return reiser4_alloc_blocks_##allocator (al, hint, needed, start, len);						\
+	return reiser4_alloc_blocks_##allocator (al, hint, needed, start, len, subv);					\
 }															\
-static inline void sa_dealloc_blocks (reiser4_space_allocator * al, reiser4_block_nr start, reiser4_block_nr len)	\
+static inline void sa_dealloc_blocks (reiser4_space_allocator * al, reiser4_block_nr start, reiser4_block_nr len,	\
+				      reiser4_subvol *subv)								\
 {															\
-	reiser4_dealloc_blocks_##allocator (al, start, len);								\
+	reiser4_dealloc_blocks_##allocator (al, start, len, subv);							\
 }															\
 															\
-static inline int sa_check_blocks (const reiser4_block_nr * start, const reiser4_block_nr * end, int desired) 		\
+static inline int sa_check_blocks (const reiser4_block_nr * start, const reiser4_block_nr * end, int desired, 		\
+				   reiser4_subvol *subv)								\
 {															\
-	return reiser4_check_blocks_##allocator (start, end, desired);							        \
+	return reiser4_check_blocks_##allocator (start, end, desired, subv); 						\
 }															\
 															\
 static inline void sa_pre_commit_hook (void)										\

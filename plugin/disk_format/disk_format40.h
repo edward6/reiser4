@@ -1,13 +1,9 @@
 /* Copyright 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
-/* this file contains:
-   - definition of ondisk super block of standart disk layout for
-     reiser 4.0 (layout 40)
-   - definition of layout 40 specific portion of in-core super block
-   - declarations of functions implementing methods of layout plugin
-     for layout 40
-   - declarations of functions used to get/set fields in layout 40 super block
-*/
+/*
+ * Objects of Standard Disk Layout for simple volumes (i.e. volumes
+ * associated with a single physical, or logical (RAID, LVM) device.
+ */
 
 #ifndef __DISK_FORMAT40_H__
 #define __DISK_FORMAT40_H__
@@ -17,8 +13,7 @@
 #define FORMAT40_OFFSET (REISER4_MASTER_OFFSET + PAGE_SIZE)
 
 #include "../../dformat.h"
-
-#include <linux/fs.h>		/* for struct super_block  */
+#include <linux/fs.h>
 
 typedef enum {
 	FORMAT40_LARGE_KEYS
@@ -58,8 +53,31 @@ typedef struct format40_disk_super_block {
 	   Is used by fsck to catch possible corruption and
 	   for various compatibility issues */
 	/*  84 */ d32 node_pid;
-	/* node plugin id */
-	/*  88 */ char not_used[424];
+	/* formatted node plugin id */
+
+	/* Reiser5 fields */
+	d64 subvol_id;
+	/* internal ID: serial (ordered) number of the subvolume
+	   in the logical volume */
+	d64 num_subvols;
+	/* total number of subvolumes in the logical volume */
+	d16 num_mirrors;
+	/* number of mirrors (excluding the original) in the logical volume */
+	d64 fiber_len;
+	/* number of segments in a per-subvolume fiber */
+	d64 fiber_loc;
+	/* location of the first fiber block */
+	d8 num_sgs_bits;
+	/* logarithm of total number of the hash-space segments */
+	d64 num_meta_subvols;
+	/* number of meta-data subvolumes in the logical volume */
+	d64 num_mixed_subvols;
+	/* number of subvolumes of mixed type (meta-data subvolumes
+	   with a room for data) in the logical volume */
+	d64 room_for_data;
+	/* number of data blocks (for subvolumes of mixed type.
+	   for other subvolumes this is zero) */
+	/*  147 */ char not_used[365];
 } format40_disk_super_block;
 
 /* format 40 specific part of reiser4_super_info_data */
@@ -72,14 +90,17 @@ typedef struct format40_super_info {
 } format40_super_info;
 
 /* Defines for journal header and footer respectively. */
-#define FORMAT40_JOURNAL_HEADER_BLOCKNR \
+#define FORMAT40_JOURNAL_HEADER_BLOCKNR			\
 	((REISER4_MASTER_OFFSET / PAGE_SIZE) + 3)
 
-#define FORMAT40_JOURNAL_FOOTER_BLOCKNR \
+#define FORMAT40_JOURNAL_FOOTER_BLOCKNR			\
 	((REISER4_MASTER_OFFSET / PAGE_SIZE) + 4)
 
-#define FORMAT40_STATUS_BLOCKNR \
+#define FORMAT40_STATUS_BLOCKNR				\
 	((REISER4_MASTER_OFFSET / PAGE_SIZE) + 5)
+
+#define FORMAT40_FIBER_FIRST_BLOCKNR			\
+	((REISER4_MASTER_OFFSET / PAGE_SIZE) + 6)
 
 /* Diskmap declarations */
 #define FORMAT40_PLUGIN_DISKMAP_ID ((REISER4_FORMAT_PLUGIN_TYPE<<16) | (FORMAT40_ID))
@@ -87,14 +108,18 @@ typedef struct format40_super_info {
 #define FORMAT40_JH 2
 #define FORMAT40_JF 3
 
-/* declarations of functions implementing methods of layout plugin for
-   format 40. The functions theirself are in disk_format40.c */
-extern int init_format_format40(struct super_block *, void *data);
+/*
+ * declarations of functions implementing methods of layout plugin
+ * for format 40. The functions theirself are in disk_format40.c
+ */
+extern int init_format_format40(struct super_block *, reiser4_subvol *);
 extern const reiser4_key *root_dir_key_format40(const struct super_block *);
-extern int release_format40(struct super_block *s);
-extern jnode *log_super_format40(struct super_block *s);
+extern int release_format40(struct super_block *s, reiser4_subvol *);
+extern jnode *log_super_format40(struct super_block *s, reiser4_subvol *);
 extern int check_open_format40(const struct inode *object);
-extern int version_update_format40(struct super_block *super);
+extern int version_update_format40(struct super_block *super, reiser4_subvol *);
+
+extern void update_sb4replica_format41(reiser4_subvol*, u64);
 
 /* __DISK_FORMAT40_H__ */
 #endif

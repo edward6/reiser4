@@ -149,7 +149,7 @@ struct reiser4_inode {
 	/* number of unformatted node jnodes of this file in jnode hash table */
 	unsigned long nr_jnodes;
 #endif
-
+	__u64 subvol_id; /* id of subvolume where stat-data is located */
 	/* block number of virtual root for this object. See comment above
 	 * fs/reiser4/search.c:handle_vroot() */
 	reiser4_block_nr vroot;

@@ -92,14 +92,17 @@ static int __discard_extent(struct block_device *bdev, sector_t start,
 static int discard_extent(txn_atom *atom UNUSED_ARG,
                           const reiser4_block_nr* start,
                           const reiser4_block_nr* len,
+			  __u32 subvol_id,
                           void *data UNUSED_ARG)
 {
 	struct super_block *sb = reiser4_get_current_sb();
-	struct block_device *bdev = sb->s_bdev;
-
+	reiser4_subvol *subv = super_subvol(sb, subvol_id);
+	struct block_device *bdev = subv->bdev;
 	sector_t extent_start_sec, extent_len_sec;
-
 	const int sec_per_blk = sb->s_blocksize >> 9;
+
+	if (!subvol_is_set(subv, SUBVOL_IS_NONROT_DEVICE))
+		return 0;
 
 	/* we assume block = N * sector */
 	assert("intelfx-7", sec_per_blk > 0);

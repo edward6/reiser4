@@ -125,12 +125,13 @@
 
 static struct kmem_cache *_jnode_slab = NULL;
 
-static void jnode_set_type(jnode * node, jnode_type type);
-static int jdelete(jnode * node);
-static int jnode_try_drop(jnode * node);
+static void jnode_set_type(jnode *node, jnode_type type);
+static int jdelete(jnode *node);
+static int jnode_try_drop(jnode *node);
+static int jnode_start_read(jnode *node, struct page *page);
 
 #if REISER4_DEBUG
-static int jnode_invariant(jnode * node, int tlocked, int jlocked);
+static int jnode_invariant(jnode *node, int tlocked, int jlocked);
 #endif
 
 /* true if valid page is attached to jnode */
@@ -169,6 +170,22 @@ TYPE_SAFE_HASH_DEFINE(j, jnode, struct jnode_key, key.j, link.j,
 		      jnode_key_hashfn, jnode_key_eq);
 #undef KFREE
 #undef KMALLOC
+
+reiser4_tree *jnode_get_tree(const jnode *node)
+{
+	assert("nikita-2691", node != NULL);
+	assert("edward-xxx", node->subvol != NULL);
+
+	return &node->subvol->tree;
+}
+
+struct super_block *jnode_get_super(const jnode *node)
+{
+	assert("edward-xxx", node != NULL);
+	assert("edward-xxx", node->subvol != NULL);
+
+	return node->subvol->super;
+}
 
 /* call this to initialise jnode hash table */
 int jnodes_tree_init(reiser4_tree * tree/* tree to initialise jnodes for */)
@@ -230,7 +247,7 @@ void done_jnodes(void)
 }
 
 /* Initialize a jnode. */
-void jnode_init(jnode * node, reiser4_tree * tree, jnode_type type)
+void jnode_init(jnode *node, reiser4_subvol *subv, jnode_type type)
 {
 	assert("umka-175", node != NULL);
 
@@ -242,7 +259,7 @@ void jnode_init(jnode * node, reiser4_tree * tree, jnode_type type)
 	spin_lock_init(&node->guard);
 	spin_lock_init(&node->load);
 	node->atom = NULL;
-	node->tree = tree;
+	node->subvol = subv;
 	INIT_LIST_HEAD(&node->capture_link);
 
 	ASSIGN_NODE_LIST(node, NOT_CAPTURED);
@@ -251,7 +268,7 @@ void jnode_init(jnode * node, reiser4_tree * tree, jnode_type type)
 	{
 		reiser4_super_info_data *sbinfo;
 
-		sbinfo = get_super_private(tree->super);
+		sbinfo = get_super_private(subv->super);
 		spin_lock_irq(&sbinfo->all_guard);
 		list_add(&node->jnodes, &sbinfo->all_jnodes);
 		spin_unlock_irq(&sbinfo->all_guard);
@@ -263,11 +280,11 @@ void jnode_init(jnode * node, reiser4_tree * tree, jnode_type type)
 /*
  * Remove jnode from ->all_jnodes list.
  */
-static void jnode_done(jnode * node, reiser4_tree * tree)
+static void jnode_done(jnode *node)
 {
 	reiser4_super_info_data *sbinfo;
 
-	sbinfo = get_super_private(tree->super);
+	sbinfo = get_super_private(node->subvol->super);
 
 	spin_lock_irq(&sbinfo->all_guard);
 	assert("nikita-2422", !list_empty(&node->jnodes));
@@ -320,7 +337,7 @@ static void jnode_free_actor(struct rcu_head *head)
 	node = container_of(head, jnode, rcu);
 	jtype = jnode_get_type(node);
 
-	ON_DEBUG(jnode_done(node, jnode_get_tree(node)));
+	ON_DEBUG(jnode_done(node));
 
 	switch (jtype) {
 	case JNODE_IO_HEAD:
@@ -351,7 +368,7 @@ static inline void jnode_free(jnode * node, jnode_type jtype)
 }
 
 /* allocate new unformatted jnode */
-static jnode *jnew_unformatted(void)
+static jnode *jnew_unformatted(struct reiser4_subvol *subvol)
 {
 	jnode *jal;
 
@@ -359,7 +376,7 @@ static jnode *jnew_unformatted(void)
 	if (jal == NULL)
 		return NULL;
 
-	jnode_init(jal, current_tree, JNODE_UNFORMATTED_BLOCK);
+	jnode_init(jal, subvol, JNODE_UNFORMATTED_BLOCK);
 	jal->key.j.mapping = NULL;
 	jal->key.j.index = (unsigned long)-1;
 	jal->key.j.objectid = 0;
@@ -510,7 +527,7 @@ static void unhash_unformatted_node_nolock(jnode * node)
 	       get_inode_oid(node->key.j.mapping->host));
 
 	/* remove jnode from hash-table */
-	j_hash_remove_rcu(&node->tree->jhash_table, node);
+	j_hash_remove_rcu(&jnode_get_tree(node)->jhash_table, node);
 	inode_detach_jnode(node);
 	node->key.j.mapping = NULL;
 	node->key.j.index = (unsigned long)-1;
@@ -525,9 +542,9 @@ void unhash_unformatted_jnode(jnode * node)
 {
 	assert("vs-1445", jnode_is_unformatted(node));
 
-	write_lock_tree(node->tree);
+	write_lock_tree(jnode_get_tree(node));
 	unhash_unformatted_node_nolock(node);
-	write_unlock_tree(node->tree);
+	write_unlock_tree(jnode_get_tree(node));
 }
 
 /*
@@ -535,15 +552,17 @@ void unhash_unformatted_jnode(jnode * node)
  * allocate new jnode, insert it, and also insert into radix tree for the
  * given inode/mapping.
  */
-static jnode *find_get_jnode(reiser4_tree * tree,
+static jnode *find_get_jnode(struct reiser4_subvol *subvol,
 			     struct address_space *mapping,
 			     oid_t oid, unsigned long index)
 {
 	jnode *result;
 	jnode *shadow;
 	int preload;
+	reiser4_tree *tree;
 
-	result = jnew_unformatted();
+	tree = &subvol->tree;
+	result = jnew_unformatted(subvol);
 
 	if (unlikely(result == NULL))
 		return ERR_PTR(RETERR(-ENOMEM));
@@ -577,7 +596,7 @@ static jnode *find_get_jnode(reiser4_tree * tree,
 /* jget() (a la zget() but for unformatted nodes). Returns (and possibly
    creates) jnode corresponding to page @pg. jnode is attached to page and
    inserted into jnode hash-table. */
-static jnode *do_jget(reiser4_tree * tree, struct page *pg)
+static jnode *do_jget(struct reiser4_subvol *subvol, struct page *pg)
 {
 	/*
 	 * There are two ways to create jnode: starting with pre-existing page
@@ -602,8 +621,6 @@ static jnode *do_jget(reiser4_tree * tree, struct page *pg)
 	if (likely(result != NULL))
 		return jref(result);
 
-	tree = reiser4_tree_by_page(pg);
-
 	/* check hash-table first */
 	result = jfind(pg->mapping, pg->index);
 	if (unlikely(result != NULL)) {
@@ -616,7 +633,7 @@ static jnode *do_jget(reiser4_tree * tree, struct page *pg)
 
 	/* since page is locked, jnode should be allocated with GFP_NOFS flag */
 	reiser4_ctx_gfp_mask_force(GFP_NOFS);
-	result = find_get_jnode(tree, pg->mapping, oid, pg->index);
+	result = find_get_jnode(subvol, pg->mapping, oid, pg->index);
 	if (unlikely(IS_ERR(result)))
 		return result;
 	/* attach jnode to page */
@@ -626,17 +643,27 @@ static jnode *do_jget(reiser4_tree * tree, struct page *pg)
 	return result;
 }
 
-/*
+/**
  * return jnode for @pg, creating it if necessary.
+ * @for_io: true, if jnode is supposed to participate in IO;
+ * false otherwise - in this case jnode is only to participate
+ * in transaction.
  */
-jnode *jnode_of_page(struct page *pg)
+jnode *jnode_of_page(struct page *pg, int for_io)
 {
 	jnode *result;
+	reiser4_subvol *subv;
 
 	assert("umka-176", pg != NULL);
 	assert("nikita-2394", PageLocked(pg));
 
-	result = do_jget(reiser4_tree_by_page(pg), pg);
+	if (for_io)
+		subv = subvol_for_data(pg->mapping->host,
+				       (loff_t)(pg->index) << PAGE_SHIFT);
+	else
+		subv = subvol_for_meta(pg->mapping->host);
+
+	result = do_jget(subv, pg);
 
 	if (REISER4_DEBUG && !IS_ERR(result)) {
 		assert("nikita-3210", result == jprivate(pg));
@@ -766,11 +793,59 @@ static struct page *jnode_lock_page(jnode * node)
 	return page;
 }
 
-/*
- * is JNODE_PARSED bit is not set, call ->parse() method of jnode, to verify
- * validness of jnode content.
+static int __jparse(jnode *node, int do_kmap)
+{
+	int ret;
+	u32 subv_id;
+	reiser4_subvol *orig;
+
+	assert("edward-1647", do_kmap != 0);
+
+	ret = jnode_ops(node)->parse(node);
+	if (likely(ret != -EIO))
+		return ret;
+	/*
+	 * restart IO against mirrors and parse replicas
+	 */
+	orig = jnode_get_subvol(node);
+	/*
+	 * Here we should unlock jnode before acquiring
+	 * page lock (to comply lock ordering).
+	 * Also jnode_start_read() takes the jnode lock
+	 */
+	spin_unlock_jnode(node);
+	for_each_mirror(subv_id) {
+		struct page *page = jnode_page(node);
+
+		node->subvol = current_subvol(subv_id);
+
+		kunmap(page);
+		lock_page(page);
+		ClearPageUptodate(page);
+		ret = jnode_start_read(node, page);
+		if (unlikely(ret != 0))
+			break;
+
+		wait_on_page_locked(page);
+		if (unlikely(!PageUptodate(page))) {
+			ret = RETERR(-EIO);
+			break;
+		}
+		kmap(page);
+		ret = jnode_ops(node)->parse(node);
+		if (likely(ret == 0))
+			break;
+	}
+	spin_lock_jnode(node);
+
+	node->subvol = orig;
+	return ret;
+}
+
+/**
+ * Verify validness of jnode content.
  */
-static inline int jparse(jnode * node)
+static inline int jparse(jnode *node, int do_kmap)
 {
 	int result;
 
@@ -778,7 +853,7 @@ static inline int jparse(jnode * node)
 
 	spin_lock_jnode(node);
 	if (likely(!jnode_is_parsed(node))) {
-		result = jnode_ops(node)->parse(node);
+		result = __jparse(node, do_kmap);
 		if (likely(result == 0))
 			JF_SET(node, JNODE_PARSED);
 	} else
@@ -908,7 +983,7 @@ int jload_gfp(jnode * node /* node to load */ ,
 		if (do_kmap)
 			node->data = kmap(page);
 
-		result = jparse(node);
+		result = jparse(node, do_kmap);
 		if (unlikely(result != 0)) {
 			if (do_kmap)
 				kunmap(page);
@@ -967,7 +1042,6 @@ int jinit_new(jnode * node, gfp_t gfp_flags)
 		result = PTR_ERR(page);
 		goto failed;
 	}
-
 	SetPageUptodate(page);
 	unlock_page(page);
 
@@ -984,9 +1058,7 @@ int jinit_new(jnode * node, gfp_t gfp_flags)
 		}
 		JF_SET(node, JNODE_PARSED);
 	}
-
 	return 0;
-
 failed:
 	jrelse(node);
 	return result;
@@ -1180,7 +1252,7 @@ static inline void remove_jnode(jnode * node, reiser4_tree * tree)
 static struct address_space *mapping_znode(const jnode * node)
 {
 	/* all znodes belong to fake inode */
-	return reiser4_get_super_fake(jnode_get_tree(node)->super)->i_mapping;
+	return reiser4_get_super_fake(jnode_get_super(node))->i_mapping;
 }
 
 /* ->index() method for znodes */
@@ -1198,8 +1270,7 @@ static unsigned long index_znode(const jnode * node)
 static struct address_space *mapping_bitmap(const jnode * node)
 {
 	/* all bitmap blocks belong to special bitmap inode */
-	return get_super_private(jnode_get_tree(node)->super)->bitmap->
-	    i_mapping;
+	return get_super_private(jnode_get_super(node))->bitmap->i_mapping;
 }
 
 /* ->index() method for jnodes that are indexed by address */
@@ -1331,40 +1402,6 @@ static int init_znode(jnode * node)
 	return z->nplug->init(z);
 }
 
-/* ->clone() method for formatted nodes */
-static jnode *clone_formatted(jnode * node)
-{
-	znode *clone;
-
-	assert("vs-1430", jnode_is_znode(node));
-	clone = zalloc(reiser4_ctx_gfp_mask_get());
-	if (clone == NULL)
-		return ERR_PTR(RETERR(-ENOMEM));
-	zinit(clone, NULL, current_tree);
-	jnode_set_block(ZJNODE(clone), jnode_get_block(node));
-	/* ZJNODE(clone)->key.z is not initialized */
-	clone->level = JZNODE(node)->level;
-
-	return ZJNODE(clone);
-}
-
-/* jplug->clone for unformatted nodes */
-static jnode *clone_unformatted(jnode * node)
-{
-	jnode *clone;
-
-	assert("vs-1431", jnode_is_unformatted(node));
-	clone = jalloc();
-	if (clone == NULL)
-		return ERR_PTR(RETERR(-ENOMEM));
-
-	jnode_init(clone, current_tree, JNODE_UNFORMATTED_BLOCK);
-	jnode_set_block(clone, jnode_get_block(node));
-
-	return clone;
-
-}
-
 /*
  * Setup jnode plugin methods for various jnode types.
  */
@@ -1381,8 +1418,7 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 		.init = init_noinit,
 		.parse = parse_noparse,
 		.mapping = mapping_jnode,
-		.index = index_jnode,
-		.clone = clone_unformatted
+		.index = index_jnode
 	},
 	[JNODE_FORMATTED_BLOCK] = {
 		.h = {
@@ -1396,8 +1432,7 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 		.init = init_znode,
 		.parse = parse_znode,
 		.mapping = mapping_znode,
-		.index = index_znode,
-		.clone = clone_formatted
+		.index = index_znode
 	},
 	[JNODE_BITMAP] = {
 		.h = {
@@ -1411,8 +1446,7 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 		.init = init_noinit,
 		.parse = parse_noparse,
 		.mapping = mapping_bitmap,
-		.index = index_is_address,
-		.clone = NULL
+		.index = index_is_address
 	},
 	[JNODE_IO_HEAD] = {
 		.h = {
@@ -1426,8 +1460,7 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 		.init = init_noinit,
 		.parse = parse_noparse,
 		.mapping = mapping_bitmap,
-		.index = index_is_address,
-		.clone = NULL
+		.index = index_is_address
 	},
 	[JNODE_INODE] = {
 		.h = {
@@ -1441,8 +1474,7 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 		.init = NULL,
 		.parse = NULL,
 		.mapping = NULL,
-		.index = NULL,
-		.clone = NULL
+		.index = NULL
 	}
 };
 
@@ -1549,7 +1581,7 @@ void jnode_list_remove(jnode * node)
 {
 	reiser4_super_info_data *sbinfo;
 
-	sbinfo = get_super_private(jnode_get_tree(node)->super);
+	sbinfo = get_super_private(jnode_get_super(node));
 
 	spin_lock_irq(&sbinfo->all_guard);
 	assert("nikita-2422", !list_empty(&node->jnodes));
@@ -1727,12 +1759,13 @@ void jdrop(jnode * node)
    functionality (these j-nodes are not in any hash table) just for reading
    from and writing to disk. */
 
-jnode *reiser4_alloc_io_head(const reiser4_block_nr * block)
+jnode *reiser4_alloc_io_head(const reiser4_block_nr *block,
+			     reiser4_subvol *subv)
 {
 	jnode *jal = jalloc();
 
 	if (jal != NULL) {
-		jnode_init(jal, current_tree, JNODE_IO_HEAD);
+		jnode_init(jal, subv, JNODE_IO_HEAD);
 		jnode_set_block(jal, block);
 	}
 

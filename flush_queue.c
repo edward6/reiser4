@@ -190,16 +190,17 @@ static void done_fq(flush_queue_t *fq)
 	kmem_cache_free(fq_slab, fq);
 }
 
-/* */
 static void mark_jnode_queued(flush_queue_t *fq, jnode * node)
 {
 	JF_SET(node, JNODE_FLUSH_QUEUED);
 	count_enqueued_node(fq);
 }
 
-/* Putting jnode into the flush queue. Both atom and jnode should be
-   spin-locked. */
-void queue_jnode(flush_queue_t *fq, jnode * node)
+/**
+ * Move jnode to the flush queue.
+ * Both atom and jnode should be spin-locked
+ */
+void queue_jnode(flush_queue_t *fq, jnode *node)
 {
 	assert_spin_locked(&(node->guard));
 	assert("zam-713", node->atom != NULL);
@@ -220,7 +221,9 @@ void queue_jnode(flush_queue_t *fq, jnode * node)
 			     FQ_LIST, 1));
 }
 
-/* repeatable process for waiting io completion on a flush queue object */
+/**
+ * Repeatable process for waiting io completion on a flush queue object
+ */
 static int wait_io(flush_queue_t *fq, int *nr_io_errors)
 {
 	assert("zam-738", fq->atom != NULL);
@@ -237,24 +240,26 @@ static int wait_io(flush_queue_t *fq, int *nr_io_errors)
 
 		super = reiser4_get_current_sb();
 
-		/* FIXME: this is instead of blk_run_queues() */
+		//blk_run_queues();
 		//blk_flush_plug(current);
 
 		if (!(super->s_flags & MS_RDONLY))
 			wait_event(fq->wait,
 				   atomic_read(&fq->nr_submitted) == 0);
-
-		/* Ask the caller to re-acquire the locks and call this
-		   function again. Note: this technique is commonly used in
-		   the txnmgr code. */
+		/*
+		 * Ask the caller to re-acquire the locks and call this
+		 * function again. Note: this technique is commonly used
+		 * in the txnmgr code
+		 */
 		return -E_REPEAT;
 	}
-
 	*nr_io_errors += atomic_read(&fq->nr_errors);
 	return 0;
 }
 
-/* wait on I/O completion, re-submit dirty nodes to write */
+/**
+ * Wait on I/O completion, re-submit dirty nodes to write
+ */
 static int finish_fq(flush_queue_t *fq, int *nr_io_errors)
 {
 	int ret;
@@ -276,8 +281,11 @@ static int finish_fq(flush_queue_t *fq, int *nr_io_errors)
 	return 0;
 }
 
-/* wait for all i/o for given atom to be completed, actually do one iteration
-   on that and return -E_REPEAT if there more iterations needed */
+/**
+ * Wait for all IOs for given atom to be completed.
+ * Actually do one iteration on that and return -E_REPEAT,
+ * if there more iterations needed
+ */
 static int finish_all_fq(txn_atom * atom, int *nr_io_errors)
 {
 	flush_queue_t *fq;
@@ -303,18 +311,20 @@ static int finish_all_fq(txn_atom * atom, int *nr_io_errors)
 				reiser4_fq_put(fq);
 				return ret;
 			}
-
 			spin_unlock_atom(atom);
 
 			return -E_REPEAT;
 		}
 	}
-
-	/* All flush queues are in use; atom remains locked */
+	/*
+	 * All flush queues are in use; atom remains locked
+	 */
 	return -EBUSY;
 }
 
-/* wait all i/o for current atom */
+/**
+ * Wait all IOs for current atom
+ */
 int current_atom_finish_all_fq(void)
 {
 	txn_atom *atom;
@@ -330,10 +340,11 @@ int current_atom_finish_all_fq(void)
 			reiser4_atom_wait_event(atom);
 		}
 	} while (ret == -E_REPEAT);
-
-	/* we do not need locked atom after this function finishes, SUCCESS or
-	   -EBUSY are two return codes when atom remains locked after
-	   finish_all_fq */
+	/*
+	 * we do not need locked atom after this function finishes,
+	 * SUCCESS or -EBUSY are two return codes when atom remains
+	 * locked after finish_all_fq
+	 */
 	if (!ret)
 		spin_unlock_atom(atom);
 
@@ -348,9 +359,11 @@ int current_atom_finish_all_fq(void)
 	return 0;
 }
 
-/* change node->atom field for all jnode from given list */
-static void
-scan_fq_and_update_atom_ref(struct list_head *list, txn_atom *atom)
+/**
+ * Change node->atom field for all jnode from given list
+ */
+static void scan_fq_and_update_atom_ref(struct list_head *list,
+					txn_atom *atom)
 {
 	jnode *cur;
 
@@ -361,7 +374,9 @@ scan_fq_and_update_atom_ref(struct list_head *list, txn_atom *atom)
 	}
 }
 
-/* support for atom fusion operation */
+/**
+ * Support for atom fusion operation
+ */
 void reiser4_fuse_fq(txn_atom *to, txn_atom *from)
 {
 	flush_queue_t *fq;
@@ -393,7 +408,7 @@ int atom_fq_parts_are_clean(txn_atom * atom)
 }
 #endif
 
-/*
+/**
  * Bio i/o completion routine for reiser4 write operations
  */
 static void end_io_handler(struct bio *bio)
@@ -403,11 +418,15 @@ static void end_io_handler(struct bio *bio)
 	flush_queue_t *fq;
 
 	assert("zam-958", bio->bi_rw & WRITE);
-
-	/* we expect that bio->private is set to NULL or fq object which is used
-	 * for synchronization and error counting. */
+	/*
+	 * We expect that bio->private is set to NULL, or
+	 * to fq object which is used for synchronization
+	 * and error counting
+	 */
 	fq = bio->bi_private;
-	/* Check all elements of io_vec for correct write completion. */
+	/*
+	 * Check all elements of io_vec for correct write completion
+	 */
 	for (i = 0; i < bio->bi_vcnt; i += 1) {
 		struct page *pg = bio->bi_io_vec[i].bv_page;
 
@@ -427,26 +446,28 @@ static void end_io_handler(struct bio *bio)
 
 			JF_CLR(node, JNODE_WRITEBACK);
 		}
-
 		end_page_writeback(pg);
 		put_page(pg);
 	}
-
 	if (fq) {
-		/* count i/o error in fq object */
+		/*
+		 * count i/o error in fq object
+		 */
 		atomic_add(nr_errors, &fq->nr_errors);
-
-		/* If all write requests registered in this "fq" are done we up
-		 * the waiter. */
+		/*
+		 * If all write requests registered in this "fq" are done
+		 * we up the waiter
+		 */
 		if (atomic_sub_and_test(bio->bi_vcnt, &fq->nr_submitted))
 			wake_up(&fq->wait);
 	}
-
 	bio_put(bio);
 }
 
-/* Count I/O requests which will be submitted by @bio in given flush queues
-   @fq */
+/**
+ * Count I/O requests which will be submitted by @bio
+ * in the given flush queue @fq
+ */
 void add_fq_to_bio(flush_queue_t *fq, struct bio *bio)
 {
 	bio->bi_private = fq;
@@ -456,7 +477,9 @@ void add_fq_to_bio(flush_queue_t *fq, struct bio *bio)
 		atomic_add(bio->bi_vcnt, &fq->nr_submitted);
 }
 
-/* Move all queued nodes out from @fq->prepped list. */
+/**
+ * Move all queued nodes out from @fq->prepped list
+ */
 static void release_prepped_list(flush_queue_t *fq)
 {
 	txn_atom *atom;
@@ -499,22 +522,27 @@ static void release_prepped_list(flush_queue_t *fq)
 	spin_unlock_atom(atom);
 }
 
-/* Submit write requests for nodes on the already filled flush queue @fq.
-
-   @fq: flush queue object which contains jnodes we can (and will) write.
-   @return: number of submitted blocks (>=0) if success, otherwise -- an error
-	    code (<0). */
+/**
+ * Submit write requests for nodes on the already filled flush queue @fq.
+ *
+ * @fq: flush queue object which contains jnodes we can (and will) write.
+ * @return: number of submitted blocks (>=0) if success, otherwise -- an
+ * error code (<0)
+ */
 int reiser4_write_fq(flush_queue_t *fq, long *nr_submitted, int flags)
 {
 	int ret;
+	u32 subv_id;
 	txn_atom *atom;
 
 	while (1) {
 		atom = atom_locked_by_fq(fq);
 		assert("zam-924", atom);
-		/* do not write fq in parallel. */
-		if (atom->nr_running_queues == 0
-		    || !(flags & WRITEOUT_SINGLE_STREAM))
+		/*
+		 * do not write fq in parallel
+		 */
+		if (atom->nr_running_queues == 0 ||
+		    !(flags & WRITEOUT_SINGLE_STREAM))
 			break;
 		reiser4_atom_wait_event(atom);
 	}
@@ -522,19 +550,34 @@ int reiser4_write_fq(flush_queue_t *fq, long *nr_submitted, int flags)
 	atom->nr_running_queues++;
 	spin_unlock_atom(atom);
 
-	ret = write_jnode_list(ATOM_FQ_LIST(fq), fq, nr_submitted, flags);
-	release_prepped_list(fq);
+	ret = write_jnode_list(ATOM_FQ_LIST(fq), fq, nr_submitted, flags, NULL);
+	if (ret)
+		goto exit;
+	/*
+	 * ... and immediately submit the same requests for the mirrors
+	 */
+	for_each_mirror(subv_id) {
+		reiser4_subvol *subv = current_subvol(subv_id);
 
+		ret = write_jnode_list(ATOM_FQ_LIST(fq),
+				       fq, nr_submitted, flags, subv);
+		if (ret)
+			return ret;
+	}
+ exit:
+	release_prepped_list(fq);
 	return ret;
 }
 
-/* Getting flush queue object for exclusive use by one thread. May require
-   several iterations which is indicated by -E_REPEAT return code.
-
-   This function does not contain code for obtaining an atom lock because an
-   atom lock is obtained by different ways in different parts of reiser4,
-   usually it is current atom, but we need a possibility for getting fq for the
-   atom of given jnode. */
+/**
+ * Getting flush queue object for exclusive use by one thread. May require
+ * several iterations which is indicated by -E_REPEAT return code.
+ *
+ * This function does not contain code for obtaining an atom lock because an
+ * atom lock is obtained by different ways in different parts of reiser4,
+ * usually it is current atom, but we need a possibility for getting fq for
+ * the atom of given jnode.
+ */
 static int fq_by_atom_gfp(txn_atom *atom, flush_queue_t **new_fq, gfp_t gfp)
 {
 	flush_queue_t *fq;
@@ -553,34 +596,32 @@ static int fq_by_atom_gfp(txn_atom *atom, flush_queue_t **new_fq, gfp_t gfp)
 
 			if (*new_fq)
 				done_fq(*new_fq);
-
 			*new_fq = fq;
-
 			return 0;
 		}
-
 		spin_unlock(&(fq->guard));
 
 		fq = list_entry(fq->alink.next, flush_queue_t, alink);
 	}
-
-	/* Use previously allocated fq object */
+	/*
+	 * Use previously allocated fq object
+	 */
 	if (*new_fq) {
 		mark_fq_in_use(*new_fq);
 		assert("vs-1248", (*new_fq)->owner == 0);
 		ON_DEBUG((*new_fq)->owner = current);
 		attach_fq(atom, *new_fq);
-
 		return 0;
 	}
-
 	spin_unlock_atom(atom);
 
 	*new_fq = create_fq(gfp);
 
 	if (*new_fq == NULL)
 		return RETERR(-ENOMEM);
-
+	/*
+	 * caller should re-acquire atom lock and call this function again
+	 */
 	return RETERR(-E_REPEAT);
 }
 
@@ -589,8 +630,10 @@ int reiser4_fq_by_atom(txn_atom * atom, flush_queue_t **new_fq)
 	return fq_by_atom_gfp(atom, new_fq, reiser4_ctx_gfp_mask_get());
 }
 
-/* A wrapper around reiser4_fq_by_atom for getting a flush queue
-   object for current atom, if success fq->atom remains locked. */
+/**
+ * A wrapper around reiser4_fq_by_atom for getting a flush queue
+ * object for current atom, if success fq->atom remains locked
+ */
 flush_queue_t *get_fq_for_current_atom(void)
 {
 	flush_queue_t *fq = NULL;
@@ -607,7 +650,9 @@ flush_queue_t *get_fq_for_current_atom(void)
 	return fq;
 }
 
-/* Releasing flush queue object after exclusive use */
+/**
+ * Releasing flush queue object after exclusive use
+ */
 void reiser4_fq_put_nolock(flush_queue_t *fq)
 {
 	assert("zam-747", fq->atom != NULL);
@@ -633,37 +678,38 @@ void reiser4_fq_put(flush_queue_t *fq)
 	spin_unlock_atom(atom);
 }
 
-/* A part of atom object initialization related to the embedded flush queue
-   list head */
-
+/**
+ * A part of atom object initialization related to the
+ * embedded flush queue list head
+ */
 void init_atom_fq_parts(txn_atom *atom)
 {
 	INIT_LIST_HEAD(&atom->flush_queues);
 }
 
 #if REISER4_DEBUG
-
 void reiser4_check_fq(const txn_atom *atom)
 {
-	/* check number of nodes on all atom's flush queues */
 	flush_queue_t *fq;
 	int count;
 	struct list_head *pos;
-
+	/*
+	 * check number of nodes on all atom's flush queues
+	 */
 	count = 0;
 	list_for_each_entry(fq, &atom->flush_queues, alink) {
 		spin_lock(&(fq->guard));
-		/* calculate number of jnodes on fq' list of prepped jnodes */
+		/*
+		 * calculate number of jnodes on fq' list of prepped jnodes
+		 */
 		list_for_each(pos, ATOM_FQ_LIST(fq))
 			count++;
 		spin_unlock(&(fq->guard));
 	}
 	if (count != atom->fq)
 		warning("", "fq counter %d, real %d\n", atom->fq, count);
-
 }
-
-#endif
+#endif /* REISER4_DEBUG */
 
 /*
  * Local variables:

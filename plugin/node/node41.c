@@ -74,9 +74,10 @@ int parse_node41(znode *node /* node to parse */)
 	ret = csum_node41(node, 1/* check */);
 	if (!ret) {
 		warning("edward-1645",
-			"block %llu: bad checksum. FSCK?",
-			*jnode_get_block(ZJNODE(node)));
-		reiser4_handle_error();
+		     "block %llu (%s): bad checksum. Please, scrub the volume.",
+			*jnode_get_block(ZJNODE(node)),
+			ZJNODE(node)->subvol->name);
+
 		return RETERR(-EIO);
 	}
 	return parse_node40_common(node, REISER4_NODE41_MAGIC);

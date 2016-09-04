@@ -644,20 +644,19 @@ znode *child_znode(const coord_t * parent_coord	/* coord of pointer to
 	if (item_is_internal(parent_coord)) {
 		reiser4_block_nr addr;
 		item_plugin *iplug;
-		reiser4_tree *tree;
+		struct reiser4_subvol *subv;
 
 		iplug = item_plugin_by_coord(parent_coord);
 		assert("vs-512", iplug->s.internal.down_link);
 		iplug->s.internal.down_link(parent_coord, NULL, &addr);
 
-		tree = znode_get_tree(parent);
+		subv = znode_get_subvol(parent);
 		if (incore_p)
-			child = zlook(tree, &addr);
+			child = zlook(&subv->tree, &addr);
 		else
-			child =
-			    zget(tree, &addr, parent,
-				 znode_get_level(parent) - 1,
-				 reiser4_ctx_gfp_mask_get());
+			child = zget(subv, &addr, parent,
+				     znode_get_level(parent) - 1,
+				     reiser4_ctx_gfp_mask_get());
 		if ((child != NULL) && !IS_ERR(child) && setup_dkeys_p)
 			set_child_delimiting_keys(parent, parent_coord, child);
 	} else {
@@ -668,7 +667,7 @@ znode *child_znode(const coord_t * parent_coord	/* coord of pointer to
 }
 
 /* remove znode from transaction */
-static void uncapture_znode(znode * node)
+static void uncapture_znode(znode *node)
 {
 	struct page *page;
 
@@ -676,11 +675,13 @@ static void uncapture_znode(znode * node)
 
 	if (!reiser4_blocknr_is_fake(znode_get_block(node))) {
 		int ret;
-
-		/* An already allocated block goes right to the atom's delete set. */
-		ret =
-		    reiser4_dealloc_block(znode_get_block(node), 0,
-					  BA_DEFER | BA_FORMATTED);
+		/*
+		 * An already allocated block goes right to the atom's
+		 * delete set
+		 */
+		ret = reiser4_dealloc_block(znode_get_block(node), 0,
+					    BA_DEFER | BA_FORMATTED,
+					    znode_get_subvol(node));
 		if (ret)
 			warning("zam-942",
 				"can\'t add a block (%llu) number to atom's delete set\n",
@@ -696,16 +697,19 @@ static void uncapture_znode(znode * node)
 			atom = jnode_get_atom(ZJNODE(node));
 			assert("zam-939", atom != NULL);
 			spin_unlock_znode(node);
-			flush_reserved2grabbed(atom, (__u64) 1);
+			flush_reserved2grabbed(atom, (__u64) 1,
+					       znode_get_subvol(node));
 			spin_unlock_atom(atom);
 		} else
 			spin_unlock_znode(node);
 	} else {
-		/* znode has assigned block which is counted as "fake
-		   allocated". Return it back to "free blocks") */
-		fake_allocated2free((__u64) 1, BA_FORMATTED);
+		/*
+		 * znode has assigned block which is counted as "fake
+		 * allocated". Return it back to "free blocks"
+		 */
+		fake_allocated2free((__u64) 1,
+				    BA_FORMATTED, znode_get_subvol(node));
 	}
-
 	/*
 	 * uncapture page from transaction. There is a possibility of a race
 	 * with ->releasepage(): reiser4_releasepage() detaches page from this
@@ -1428,7 +1432,7 @@ fake_kill_hook_tail(struct inode *inode, loff_t start, loff_t end, int truncate)
  * cut_worker() iteration.  This is needed for proper accounting of
  * "i_blocks" and "i_bytes" fields of the @object.
  */
-int reiser4_delete_node(znode * node, reiser4_key * smallest_removed,
+int reiser4_delete_node(znode *node, reiser4_key *smallest_removed,
 			struct inode *object, int truncate)
 {
 	lock_handle parent_lock;
@@ -1484,7 +1488,6 @@ int reiser4_delete_node(znode * node, reiser4_key * smallest_removed,
 		goto failed;
 
 	{
-		reiser4_tree *tree = current_tree;
 		__u64 start_offset = 0, end_offset = 0;
 
 		read_lock_tree(tree);
@@ -1529,10 +1532,11 @@ int reiser4_delete_node(znode * node, reiser4_key * smallest_removed,
 static int can_delete(const reiser4_key *key, znode *node)
 {
 	int result;
+	reiser4_tree *tree = znode_get_tree(node);
 
-	read_lock_dk(current_tree);
+	read_lock_dk(tree);
 	result = keyle(key, znode_get_ld_key(node));
-	read_unlock_dk(current_tree);
+	read_unlock_dk(tree);
 	return result;
 }
 
@@ -1750,7 +1754,8 @@ int reiser4_cut_tree_object(reiser4_tree * tree, const reiser4_key * from_key,
 
 	do {
 		/* Find rightmost item to cut away from the tree. */
-		result = reiser4_object_lookup(object, to_key, &right_coord,
+		result = reiser4_object_lookup(tree,
+					       object, to_key, &right_coord,
 					       &lock, ZNODE_WRITE_LOCK,
 					       FIND_MAX_NOT_MORE_THAN,
 					       TWIG_LEVEL, LEAF_LEVEL,
@@ -1812,21 +1817,31 @@ int reiser4_cut_tree(reiser4_tree * tree, const reiser4_key * from,
 	return result;
 }
 
-/* finishing reiser4 initialization */
-int reiser4_init_tree(reiser4_tree * tree	/* pointer to structure being
-					 * initialized */ ,
-	      const reiser4_block_nr * root_block	/* address of a root block
-							 * on a disk */ ,
-	      tree_level height /* height of a tree */ ,
-	      node_plugin * nplug /* default node plugin */ )
+int reiser4_subvol_init_tree(struct super_block *super,
+			     struct reiser4_subvol *subv,
+			     const reiser4_block_nr *root_block,
+			     tree_level height, node_plugin *nplug)
 {
 	int result;
+	reiser4_tree *tree = &subv->tree;
 
-	assert("nikita-306", tree != NULL);
 	assert("nikita-307", root_block != NULL);
 	assert("nikita-308", height > 0);
 	assert("nikita-309", nplug != NULL);
-	assert("zam-587", tree->super != NULL);
+	assert("zam-587", super != NULL);
+
+	tree->subvol = subv;
+	/*
+	 * Set default tree options (came from init_super)
+	 */
+	tree->cbk_cache.nr_slots = CBK_CACHE_SLOTS;
+	tree->carry.new_node_flags = REISER4_NEW_NODE_FLAGS;
+	tree->carry.new_extent_flags = REISER4_NEW_EXTENT_FLAGS;
+	tree->carry.paste_flags = REISER4_PASTE_FLAGS;
+	tree->carry.insert_flags = REISER4_INSERT_FLAGS;
+
+	rwlock_init(&(tree->tree_lock));
+	spin_lock_init(&(tree->epoch_lock));
 
 	tree->root_block = *root_block;
 	tree->height = height;
@@ -1841,7 +1856,7 @@ int reiser4_init_tree(reiser4_tree * tree	/* pointer to structure being
 	if (result == 0)
 		result = jnodes_tree_init(tree);
 	if (result == 0) {
-		tree->uber = zget(tree, &UBER_TREE_ADDR, NULL, 0,
+		tree->uber = zget(subv, &UBER_TREE_ADDR, NULL, 0,
 				  reiser4_ctx_gfp_mask_get());
 		if (IS_ERR(tree->uber)) {
 			result = PTR_ERR(tree->uber);

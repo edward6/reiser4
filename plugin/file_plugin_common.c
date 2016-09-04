@@ -9,35 +9,49 @@
 #include "object.h"
 #include "../safe_link.h"
 
-static int insert_new_sd(struct inode *inode);
+static int insert_new_sd(struct inode *inode, oid_t oid);
 static int update_sd(struct inode *inode);
 
-/* this is common implementation of write_sd_by_inode method of file plugin
-   either insert stat data or update it
+/**
+ * Common implementation of ->write_sd_by_inode() of file plugins.
+ * Either insert stat-data or update it.
+ * @inode: object to write stat-data of
  */
-int write_sd_by_inode_common(struct inode *inode/* object to save */)
+int write_sd_by_inode_common(struct inode *inode, oid_t *oid)
 {
 	int result;
 
 	assert("nikita-730", inode != NULL);
 
-	if (reiser4_inode_get_flag(inode, REISER4_NO_SD))
-		/* object doesn't have stat-data yet */
-		result = insert_new_sd(inode);
+	if (reiser4_inode_get_flag(inode, REISER4_NO_SD)) {
+		/*
+		 * object doesn't have stat-data yet
+		 */
+		assert("edward-xxx", oid != NULL);
+		result = insert_new_sd(inode, *oid);
+	}
 	else
+		assert("edward-xxx", oid == NULL);
 		result = update_sd(inode);
-	if (result != 0 && result != -ENAMETOOLONG && result != -ENOMEM)
-		/* Don't issue warnings about "name is too long" */
-		warning("nikita-2221", "Failed to save sd for %llu: %i",
-			(unsigned long long)get_inode_oid(inode), result);
-	return result;
+
+		if (result != 0 &&
+		    result != -ENAMETOOLONG &&
+		    result != -ENOMEM)
+			/*
+			 * Don't issue warnings about "name is too long"
+			 */
+			warning("nikita-2221",
+				"Failed to save sd for %llu: %i",
+				(unsigned long long)get_inode_oid(inode),
+				result);
+		return result;
 }
 
-/* this is common implementation of key_by_inode method of file plugin
+/**
+ * Common implementation of ->key_by_inode() of file plugin
  */
-int
-key_by_inode_and_offset_common(struct inode *inode, loff_t off,
-			       reiser4_key * key)
+int key_by_inode_and_offset_common(struct inode *inode,
+				   loff_t off, reiser4_key *key)
 {
 	reiser4_key_init(key);
 	set_key_locality(key, reiser4_inode_data(inode)->locality_id);
@@ -160,21 +174,49 @@ int adjust_to_parent_cryptcompress(struct inode *object /* new object */ ,
 	return 0;
 }
 
-/* this is common implementation of create_object method of file plugin
+/*
+ * this is common implementation of ->create_object() of file plugins
  */
 int reiser4_create_object_common(struct inode *object, struct inode *parent,
-				 reiser4_object_create_data * data)
+				 reiser4_object_create_data *data, oid_t *oid)
 {
-	reiser4_block_nr reserve;
 	assert("nikita-744", object != NULL);
 	assert("nikita-745", parent != NULL);
 	assert("nikita-747", data != NULL);
 	assert("nikita-748", reiser4_inode_get_flag(object, REISER4_NO_SD));
 
-	reserve = estimate_create_common(object);
-	if (reiser4_grab_space(reserve, BA_CAN_COMMIT))
-		return RETERR(-ENOSPC);
-	return write_sd_by_inode_common(object);
+	return write_sd_by_inode_common(object, oid);
+}
+
+/**
+ * Reserve disk space to update stat-data item
+ */
+int reserve_update_sd_common(struct inode *inode)
+{
+	reiser4_block_nr amount;
+
+	assert("vs-1249",
+	       inode_file_plugin(inode)->estimate.update ==
+	       estimate_update_common);
+
+	amount = inode_file_plugin(inode)->estimate.update(inode);
+
+	return reiser4_grab_space_force(amount, BA_CAN_COMMIT,
+					subvol_for_meta(inode));
+}
+
+/**
+ * grab space which is needed to remove 2 items from the tree:
+ * stat data and safe-link
+ * @inode: object to be deleted
+ */
+static int reserve_delete_object(struct inode *inode)
+{
+	reiser4_subvol *subv = subvol_for_meta(inode);
+
+	return reiser4_grab_space_force(2 *
+					estimate_one_item_removal(&subv->tree),
+					BA_RESERVED | BA_CAN_COMMIT, subv);
 }
 
 static int common_object_delete_no_reserve(struct inode *inode);
@@ -183,34 +225,28 @@ static int common_object_delete_no_reserve(struct inode *inode);
  * reiser4_delete_object_common - delete_object of file_plugin
  * @inode: inode to be deleted
  *
- * This is common implementation of delete_object method of file_plugin. It
- * applies to object its deletion consists of removing two items - stat data
+ * Common implementation of ->delete_object() of file_plugin.
+ * It applies to object its deletion consists of removing two items - stat data
  * and safe-link.
  */
 int reiser4_delete_object_common(struct inode *inode)
 {
-	int result;
+	int ret;
 
 	assert("nikita-1477", inode != NULL);
-	/* FIXME: if file body deletion failed (i/o error, for instance),
-	   inode->i_size can be != 0 here */
+	/*
+	 * FIXME: if file body deletion failed (i/o error, for instance),
+	 * inode->i_size can be != 0 here
+	 */
 	assert("nikita-3420", inode->i_size == 0 || S_ISLNK(inode->i_mode));
 	assert("nikita-3421", inode->i_nlink == 0);
 
-	if (!reiser4_inode_get_flag(inode, REISER4_NO_SD)) {
-		reiser4_block_nr reserve;
-
-		/* grab space which is needed to remove 2 items from the tree:
-		   stat data and safe-link */
-		reserve = 2 *
-		  estimate_one_item_removal(reiser4_tree_by_inode(inode));
-		if (reiser4_grab_space_force(reserve,
-					     BA_RESERVED | BA_CAN_COMMIT))
-			return RETERR(-ENOSPC);
-		result = common_object_delete_no_reserve(inode);
-	} else
-		result = 0;
-	return result;
+	if (reiser4_inode_get_flag(inode, REISER4_NO_SD))
+		return 0;
+	ret = reserve_delete_object(inode);
+	if (ret)
+		return ret;
+	return common_object_delete_no_reserve(inode);
 }
 
 /**
@@ -231,20 +267,17 @@ int reiser4_delete_dir_common(struct inode *inode)
 
 	dplug = inode_dir_plugin(inode);
 	assert("vs-1101", dplug && dplug->done);
-
-	/* kill cursors which might be attached to inode */
+	/*
+	 * kill cursors which might be attached to inode
+	 */
 	reiser4_kill_cursors(inode);
-
-	/* grab space enough for removing two items */
-	if (reiser4_grab_space
-	    (2 * estimate_one_item_removal(reiser4_tree_by_inode(inode)),
-	     BA_RESERVED | BA_CAN_COMMIT))
-		return RETERR(-ENOSPC);
-
+	result = reserve_delete_object(inode);
+	if (result)
+		return result;
 	result = dplug->done(inode);
-	if (!result)
-		result = common_object_delete_no_reserve(inode);
-	return result;
+	if (result)
+		return result;
+	return common_object_delete_no_reserve(inode);
 }
 
 /* this is common implementation of add_link method of file plugin
@@ -552,9 +585,13 @@ static void check_sd_coord(coord_t *coord, const reiser4_key * key)
 #define check_sd_coord(coord, key) noop
 #endif
 
-/* insert new stat-data into tree. Called with inode state
-    locked. Return inode state locked. */
-static int insert_new_sd(struct inode *inode/* inode to create sd for */)
+/**
+ * insert new stat-data into tree. Called with inode state
+ * locked. Return inode state locked.
+ * @inode - inode to create stat-data for;
+ * @oid - pre-allocated object id.
+ */
+static int insert_new_sd(struct inode *inode, oid_t oid)
 {
 	int result;
 	reiser4_key key;
@@ -563,7 +600,6 @@ static int insert_new_sd(struct inode *inode/* inode to create sd for */)
 	char *area;
 	reiser4_inode *ref;
 	lock_handle lh;
-	oid_t oid;
 
 	assert("nikita-723", inode != NULL);
 	assert("nikita-3406", reiser4_inode_get_flag(inode, REISER4_NO_SD));
@@ -584,20 +620,31 @@ static int insert_new_sd(struct inode *inode/* inode to create sd for */)
 
 	data.data = NULL;
 	data.user = 0;
-/* could be optimized for case where there is only one node format in
- * use in the filesystem, probably there are lots of such
- * places we could optimize for only one node layout.... -Hans */
-	if (data.length > reiser4_tree_by_inode(inode)->nplug->max_item_size()) {
-		/* This is silly check, but we don't know actual node where
-		   insertion will go into. */
+	/*
+	 * could be optimized for case where there is only one node
+	 * format in use in the filesystem, probably there are lots
+	 * of such places we could optimize for only one node layout.
+	 * -Hans
+	 */
+	if (data.length >
+	    reiser4_tree_by_inode(inode)->nplug->max_item_size()) {
+		/*
+		 * This is silly check, but we don't know actual node
+		 * where insertion will go into
+		 */
 		return RETERR(-ENAMETOOLONG);
 	}
-	oid = oid_allocate(inode->i_sb);
-/* NIKITA-FIXME-HANS: what is your opinion on whether this error check should be
- * encapsulated into oid_allocate? */
-	if (oid == ABSOLUTE_MAX_OID)
-		return RETERR(-EOVERFLOW);
-
+	/*
+	 * oid = oid_allocate(inode->i_sb);
+	 * NIKITA-FIXME-HANS: what is your opinion on whether this error
+	 * check should be encapsulated into oid_allocate?
+	 * if (oid == ABSOLUTE_MAX_OID)
+	 *        return RETERR(-EOVERFLOW);
+	 *
+	 * oid had been allocated before grabbing space for the
+	 * new stat-data as we need to know id of the subvolume
+	 * where this stat-data will be written to. - Edward.
+	 */
 	set_inode_oid(inode, oid);
 
 	coord_init_zero(&coord);
@@ -707,9 +754,8 @@ int lookup_sd(struct inode *inode /* inode to look sd for */ ,
 	return result;
 }
 
-static int
-locate_inode_sd(struct inode *inode,
-		reiser4_key * key, coord_t *coord, lock_handle * lh)
+static int locate_inode_sd(struct inode *inode,
+			   reiser4_key *key, coord_t *coord, lock_handle *lh)
 {
 	reiser4_inode *state;
 	seal_t seal;
@@ -728,6 +774,7 @@ locate_inode_sd(struct inode *inode,
 	/* first, try to use seal */
 	if (reiser4_seal_is_set(&seal)) {
 		result = reiser4_seal_validate(&seal,
+					       &subvol_for_meta(inode)->tree,
 					       coord,
 					       key,
 					       lh, ZNODE_WRITE_LOCK,
@@ -930,11 +977,13 @@ static int update_sd(struct inode *inode/* inode to update sd for */)
 	return result;
 }
 
-/* helper for reiser4_delete_object_common and reiser4_delete_dir_common.
-   Remove object stat data. Space for that must be reserved by caller before
-*/
-static int
-common_object_delete_no_reserve(struct inode *inode/* object to remove */)
+/**
+ * Helper for reiser4_delete_object_common and reiser4_delete_dir_common.
+ * Remove object's body, stat data and safe link from the tree.
+ * Space for that must be reserved by caller before
+ * @inode: object to be deleted
+ */
+static int common_object_delete_no_reserve(struct inode *inode)
 {
 	int result;
 
@@ -953,7 +1002,7 @@ common_object_delete_no_reserve(struct inode *inode/* object to remove */)
 			if (result == 0) {
 				oid_count_released();
 
-				result = safe_link_del(reiser4_tree_by_inode(inode),
+				result = safe_link_del(subvol_for_meta(inode),
 						       get_inode_oid(inode),
 						       SAFE_UNLINK);
 			}

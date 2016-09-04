@@ -24,3 +24,5 @@ obj-$(CONFIG_REISER4_FS) += compress/
 obj-$(CONFIG_REISER4_FS) += space/
 obj-$(CONFIG_REISER4_FS) += disk_format/
 obj-$(CONFIG_REISER4_FS) += security/
+obj-$(CONFIG_REISER4_FS) += volume/
+obj-$(CONFIG_REISER4_FS) += distribution/
