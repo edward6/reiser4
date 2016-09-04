@@ -250,6 +250,11 @@ typedef enum {
 	OVRWR_LIST
 } atom_list;
 
+typedef enum {
+	REISER4_VG_ALL = 0,
+	REISER4_VG_MIRRORS = 1
+} reiser4_vg_id;
+
 /* __REISER4_FORWARD_H__ */
 #endif
 

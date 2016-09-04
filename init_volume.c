@@ -238,7 +238,8 @@ struct file_system_type *get_reiser4_fs_type(void);
  * Initialize disk format 4.X.Y for a subvolume
  * Pre-condition: subvolume @sub is registered
  */
-static int reiser4_activate_subvol(struct super_block *super, reiser4_subvol *subv)
+static int reiser4_activate_subvol(struct super_block *super,
+				   reiser4_subvol *subv, reiser4_vg_id vgid)
 {
 	int ret;
 	fmode_t mode = FMODE_READ | FMODE_EXCL;
@@ -264,7 +265,7 @@ static int reiser4_activate_subvol(struct super_block *super, reiser4_subvol *su
 		subv->flags |= (1 << SUBVOL_IS_NONROT_DEVICE);
 		subv->txmod = WA_TXMOD_ID;
 	}
-	ret = subv->df_plug->init_format(super, subv);
+	ret = subv->df_plug->init_format(super, subv, vgid);
 	if (ret) {
 		blkdev_put(subv->bdev, subv->mode);
 		return ret;
@@ -376,13 +377,22 @@ static int set_activated_subvol(reiser4_subvol ***dst, u64 dst_pos,
 	return ret;
 }
 
-static int __reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
+/**
+ * Activate all subvolumes of the volume group @vgid
+ *
+ * This function is an "idempotent of high order". The order
+ * of that idempotent is equal to the number of volume groups
+ */
+static int reiser4_activate_volume_group(struct super_block *super,
+					 u8 *vol_uuid, reiser4_vg_id vgid,
+					 u32 *nr_activated)
 {
 	int ret;
 	struct reiser4_volume *vol;
 	struct reiser4_subvol *subv;
 	reiser4_super_info_data *info;
 
+	*nr_activated = 0;
 	info = get_super_private(super);
 
 	vol = reiser4_search_volume(vol_uuid);
@@ -395,15 +405,26 @@ static int __reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 	assert("edward-xxx", vol->aib == NULL);
 
 	list_for_each_entry(subv, &vol->subvols_list, list) {
-		ret = reiser4_activate_subvol(super, subv);
+		if (subvol_is_set(subv, SUBVOL_ACTIVATED))
+			continue;
+		ret = reiser4_activate_subvol(super, subv, vgid);
+		if (ret == -E_NOTEXP) {
+			/*
+			 * this subvolume will be activated later
+			 */
+			break;
+		}
 		if (ret)
 			goto error;
+		assert("edward-xxx", subvol_is_set(subv, SUBVOL_ACTIVATED));
+
 		ret = set_activated_subvol(&vol->subvols,
 					   subv->id,
 					   subv,
 					   vol->num_subvols);
 		if (ret)
 			goto error;
+		(*nr_activated) ++;
 	}
 	if (vol->num_subvols == 1) {
 		/*
@@ -416,23 +437,24 @@ static int __reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 	/*
 	 * initialize aib descriptor after activating all subvolumes
 	 */
-	if (vol->dist_plug->init != NULL)
+	if (vol->dist_plug->init != NULL) {
 		ret = vol->dist_plug->init(vol,
 					   vol->num_subvols,
 					   vol->num_sgs_bits,
 					   &vol->vol_plug->aib_ops,
 					   &vol->aib);
+		if (ret) {
+			warning("edward-xxx",
+				"(%s): failed to init distribution (%d)\n",
+				super->s_id, ret);
+			goto error;
+		}
+	}
 	/*
 	 * release fibers, which are not needed for regular operations
 	 */
 	list_for_each_entry(subv, &vol->subvols_list, list)
 		reiser4_fiber_done(subv);
-
-	if (ret) {
-		printk("reiser4 (%s): failed to init distribution (%d)\n",
-		       super->s_id, ret);
-		goto error;
-	}
 	return 0;
  error:
 	__reiser4_deactivate_volume(super);
@@ -445,8 +467,25 @@ static int __reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 int reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 {
 	int ret;
+	u32 nr;
+
 	mutex_lock(&reiser4_volumes_mutex);
-	ret = __reiser4_activate_volume(super, vol_uuid);
+	/*
+	 * First we activate mirrors to have a complete set
+	 * of active mirrors before the journal replay procedure
+	 * invoked for non-mirrors.
+	 */
+	ret = reiser4_activate_volume_group(super, vol_uuid,
+					    REISER4_VG_MIRRORS, &nr);
+	if (ret)
+		goto out;
+	if (nr)
+		notice("", "activated %u mirrors of %s",
+		       nr, super_origin(super)->name);
+
+	ret = reiser4_activate_volume_group(super, vol_uuid,
+					    REISER4_VG_ALL, &nr);
+ out:
 	mutex_unlock(&reiser4_volumes_mutex);
 	return ret;
 }
