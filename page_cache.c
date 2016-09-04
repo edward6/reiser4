@@ -312,13 +312,6 @@ void reiser4_wait_page_writeback(struct page *page)
 	} while (PageWriteback(page));
 }
 
-/* return tree @page is in */
-reiser4_tree *reiser4_tree_by_page(const struct page *page/* page to query */)
-{
-	assert("nikita-2461", page != NULL);
-	return &get_super_private(page->mapping->host->i_sb)->tree;
-}
-
 /* completion handler for single page bio-based read.
 
    mpage_end_io_read() would also do. But it's static.
@@ -408,19 +401,20 @@ int reiser4_page_io(struct page *page, jnode *node, int rw, gfp_t gfp)
 	return result;
 }
 
-/* helper function to construct bio for page */
-static struct bio *page_bio(struct page *page, jnode * node, int rw, gfp_t gfp)
+/**
+ * Helper function to construct bio for page
+ */
+static struct bio *page_bio(struct page *page, jnode *node, int rw, gfp_t gfp)
 {
 	struct bio *bio;
 	assert("nikita-2092", page != NULL);
 	assert("nikita-2633", node != NULL);
-
-	/* Simple implementation in the assumption that blocksize == pagesize.
-
-	   We only have to submit one block, but submit_bh() will allocate bio
-	   anyway, so lets use all the bells-and-whistles of bio code.
+	/*
+	 * Simple implementation in the assumption that blocksize == pagesize.
+	 *
+	 * We only have to submit one block, but submit_bh() will allocate bio
+	 * anyway, so lets use all the bells-and-whistles of bio code.
 	 */
-
 	bio = bio_alloc(gfp, 1);
 	if (bio != NULL) {
 		int blksz;
@@ -439,10 +433,12 @@ static struct bio *page_bio(struct page *page, jnode * node, int rw, gfp_t gfp)
 		assert("nikita-2275", blocknr != (reiser4_block_nr) 0);
 		assert("nikita-2276", !reiser4_blocknr_is_fake(&blocknr));
 
-		bio->bi_bdev = super->s_bdev;
-		/* fill bio->bi_iter.bi_sector before calling bio_add_page(), because
-		 * q->merge_bvec_fn may want to inspect it (see
-		 * drivers/md/linear.c:linear_mergeable_bvec() for example. */
+		bio->bi_bdev = jnode_get_subvol(node)->bdev;
+		/*
+		 * fill bio->bi_iter.bi_sector before calling bio_add_page(),
+		 * because q->merge_bvec_fn may want to inspect it (see
+		 * drivers/md/linear.c:linear_mergeable_bvec() for example.
+		 */
 		bio->bi_iter.bi_sector = blocknr * (blksz >> 9);
 
 		if (!bio_add_page(bio, page, blksz, 0)) {
@@ -450,11 +446,11 @@ static struct bio *page_bio(struct page *page, jnode * node, int rw, gfp_t gfp)
 				"Single page bio cannot be constructed");
 			return ERR_PTR(RETERR(-EINVAL));
 		}
-
-		/* bio -> bi_idx is filled by bio_init() */
+		/*
+		 * bio -> bi_idx is filled by bio_init()
+		 */
 		bio->bi_end_io = (rw == READ) ?
-		    end_bio_single_page_read : end_bio_single_page_write;
-
+			end_bio_single_page_read : end_bio_single_page_write;
 		return bio;
 	} else
 		return ERR_PTR(RETERR(-ENOMEM));

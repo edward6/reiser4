@@ -43,7 +43,7 @@
 #include "znode.h"
 #include "super.h"
 
-static znode *seal_node(const seal_t *seal);
+static znode *seal_node(const seal_t *seal, reiser4_tree *tree);
 static int seal_matches(const seal_t *seal, znode * node);
 
 /* initialise seal. This can be called several times on the same seal. @coord
@@ -135,6 +135,7 @@ static int should_repeat(int return_code)
 
 */
 int reiser4_seal_validate(seal_t *seal /* seal to validate */,
+			  reiser4_tree *tree,
 			  coord_t *coord /* coord to validate against */,
 			  const reiser4_key * key /* key to validate against */,
 			  lock_handle * lh /* resulting lock handle */,
@@ -153,7 +154,7 @@ int reiser4_seal_validate(seal_t *seal /* seal to validate */,
 	assert("nikita-1989", coords_equal(&seal->coord1, coord));
 
 	/* obtain znode by block number */
-	node = seal_node(seal);
+	node = seal_node(seal, tree);
 	if (!node)
 		/* znode wasn't in cache */
 		return RETERR(-E_REPEAT);
@@ -186,10 +187,12 @@ int reiser4_seal_validate(seal_t *seal /* seal to validate */,
 /* helpers functions */
 
 /* obtain reference to znode seal points to, if in cache */
-static znode *seal_node(const seal_t *seal/* seal to query */)
+static znode *seal_node(const seal_t *seal, reiser4_tree *tree)
 {
 	assert("nikita-1891", seal != NULL);
-	return zlook(current_tree, &seal->block);
+	assert("edward-xxx", tree != NULL);
+
+	return zlook(tree, &seal->block);
 }
 
 /* true if @seal version and @node version coincide */

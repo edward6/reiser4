@@ -36,12 +36,6 @@ typedef enum {
 	 * This is used by reiser4_link().
 	 */
 	REISER4_ADG = 0,
-	/*
-	 * set if all nodes in internal tree have the same node layout plugin.
-	 * If so, znode_guess_plugin() will return tree->node_plugin in stead
-	 * of guessing plugin by plugin id stored in the node.
-	 */
-	REISER4_ONE_NODE_PLUGIN = 1,
 	/* if set, bsd gid assignment is supported. */
 	REISER4_BSD_GID = 2,
 	/* [mac]_time are 32 bit in inode */
@@ -55,6 +49,20 @@ typedef enum {
 	/* disable hole punching at flush time */
 	REISER4_DONT_PUNCH_HOLES = 9
 } reiser4_fs_flag;
+
+typedef enum {
+	/* set if all nodes in internal tree have the same
+	 * node layout plugin. See znode_guess_plugin() */
+	SUBVOL_ONE_NODE_PLUGIN = 0,
+	/* set if subvolume lives on a solid state drive */
+	SUBVOL_IS_NONROT_DEVICE = 1,
+	/* set if subvol is registered */
+	SUBVOL_REGISTERED = 2,
+	/* set if subvol is activated */
+	SUBVOL_ACTIVATED = 3,
+	/* set if subvol is a replica */
+	SUBVOL_IS_MIRROR = 4
+} reiser4_subvol_flag;
 
 /*
  * VFS related operation vectors.
@@ -85,13 +93,8 @@ struct object_ops {
     ->u (bad name)
     ->txnmgr
     ->ra_params
-    ->fsuid
     ->journal_header
     ->journal_footer
-
-   Fields protected by ->lnode_guard
-
-    ->lnode_htable
 
    Fields protected by per-super block spin lock
 
@@ -118,178 +121,159 @@ struct object_ops {
       [sb-grabbed]
       [sb-fake-allocated]
 */
-struct reiser4_super_info_data {
-	/*
-	 * guard spinlock which protects reiser4 super block fields (currently
-	 * blocks_free, blocks_free_committed)
-	 */
-	spinlock_t guard;
 
-	/* next oid that will be returned by oid_allocate() */
-	oid_t next_to_use;
-	/* total number of used oids */
-	oid_t oids_in_use;
+/**
+ * Per-atom and per-subvolume commit info.
+ * This structure is accessed at atom commit time under commit_mutex.
+ * See also definition of per-logical-volume struct commit_handle.
+ */
+struct commit_handle_subvol
+{
+	struct list_head overwrite_set;
+	__u32 overwrite_set_size;
+	struct list_head tx_list; /* jnodes for wander record blocks */
+	__u32 tx_size; /* number of wander records for this subvolume */
+	struct list_head wander_map; /* The atom's wandered_block mapping.
+				      * Earlier it was ->wandered_map of struct
+				      * txn_atom. Edward moved it here, as
+				      * wandered map is always constructed at
+				      * commit time under commit_mutex, so
+				      * actually there is nothing to do for this
+				      * map in the struct txn_atom.
+				      */
+	reiser4_block_nr nr_bitmap; /* counter of modified bitmaps */
+	u64 free_blocks; /*'committed' sb counters are saved here until
+			   atom is completely flushed */
+};
 
-	/* space manager plugin */
-	reiser4_space_allocator space_allocator;
+/*
+ * In-memory subvolume header.
+ * It is always associated with a physical or logical (LVM) block device.
+ */
+struct reiser4_subvol {
+	struct list_head list; /* all registered subvolumes are linked */
+	u8 uuid[16]; /* uuid of physical, or logical (LMV) drive */
+	char *name;
+	fmode_t mode;
+	struct block_device *bdev;
+	u64 id; /* index in the array of subvolumes (internal id) */
+	u32 dev_cap; /* capacity of subvolume */
+	u64 fiber_len; /* number of segments in the fiber */
+	u64 room_for_data; /* number of data block (for meta-data subvolumes) */
+	void *fiber; /* array of segments (cpu fiber) */
+	jnode **fiber_nodes; /* array of jnodes which represent on-disk fiber */
 
-	/* transaction model */
-	reiser4_txmod_id txmod;
-
-	/* reiser4 internal tree */
-	reiser4_tree tree;
-
-	/*
-	 * default user id used for light-weight files without their own
-	 * stat-data.
-	 */
-	__u32 default_uid;
-
-	/*
-	 * default group id used for light-weight files without their own
-	 * stat-data.
-	 */
-	__u32 default_gid;
-
-	/* mkfs identifier generated at mkfs time. */
-	__u32 mkfs_id;
-	/* amount of blocks in a file system */
-	__u64 block_count;
-
-	/* inviolable reserve */
-	__u64 blocks_reserved;
-
-	/* amount of blocks used by file system data and meta-data. */
-	__u64 blocks_used;
-
-	/*
-	 * amount of free blocks. This is "working" free blocks counter. It is
-	 * like "working" bitmap, please see block_alloc.c for description.
-	 */
-	__u64 blocks_free;
-
-	/*
-	 * free block count for fs committed state. This is "commit" version of
-	 * free block counter.
-	 */
-	__u64 blocks_free_committed;
-
-	/*
-	 * number of blocks reserved for further allocation, for all
-	 * threads.
-	 */
-	__u64 blocks_grabbed;
-
-	/* number of fake allocated unformatted blocks in tree. */
-	__u64 blocks_fake_allocated_unformatted;
-
-	/* number of fake allocated formatted blocks in tree. */
-	__u64 blocks_fake_allocated;
-
-	/* number of blocks reserved for flush operations. */
-	__u64 blocks_flush_reserved;
-
-	/* number of blocks reserved for cluster operations. */
-	__u64 blocks_clustered;
-
-	/* unique file-system identifier */
-	__u32 fsuid;
-
-	/* On-disk format version. If does not equal to the disk_format
-	   plugin version, some format updates (e.g. enlarging plugin
-	   set, etc) may have place on mount. */
-	int version;
-
-	/* file-system wide flags. See reiser4_fs_flag enum */
-	unsigned long fs_flags;
-
-	/* transaction manager */
-	txn_mgr tmgr;
-
-	/* ent thread */
-	entd_context entd;
-
-	/* fake inode used to bind formatted nodes */
-	struct inode *fake;
-	/* inode used to bind bitmaps (and journal heads) */
-	struct inode *bitmap;
-	/* inode used to bind copied on capture nodes */
-	struct inode *cc;
-
-	/* disk layout plugin */
-	disk_format_plugin *df_plug;
-
-	/* disk layout specific part of reiser4 super info data */
+	unsigned long flags; /* subvolume-wide flags, see subvol_flags enum */
+	disk_format_plugin *df_plug; /* disk format of this subvolume */
 	union {
 		format40_super_info format40;
-	} u;
+	} u; /* disk layout specific part */
+	reiser4_space_allocator space_allocator; /* space manager plugin */
+	reiser4_txmod_id txmod; /* transaction model for this subvolume */
+	struct flush_params flush; /* parameters for the flush algorithm */
+	reiser4_tree tree; /* internal tree */
+	__u32 mkfs_id; /* mkfs identifier generated at mkfs time. */
 
-	/* value we return in st_blksize on stat(2) */
-	unsigned long optimal_io_size;
+	__u64 block_count; /* amount of blocks in a subvolume */
+	__u64 blocks_free; /* amount of free blocks. This is a "working" version
+			      of free blocks counter. It is like "working"
+			      bitmap, see block_alloc.c for description */
+	__u64 blocks_reserved; /* inviolable reserve */
+	__u64 blocks_used; /* amount of blocks used by file system data and
+			      meta-data. */
+	__u64 blocks_grabbed; /* number of blocks reserved for further
+				 allocation, for all threads */
+	__u64 blocks_fake_allocated_unformatted;/* number of fake allocated
+						   unformatted blocks in tree */
+	__u64 blocks_fake_allocated; /* number of fake allocated formatted
+					blocks in tree */
+	__u64 blocks_flush_reserved; /* number of blocks reserved for flush
+					operations */
+	__u64 blocks_clustered; /* number of blocks reserved for cluster
+				   operations */
 
-	/* parameters for the flush algorithm */
-	struct flush_params flush;
-
-	/* pointers to jnodes for journal header and footer */
-	jnode *journal_header;
-	jnode *journal_footer;
-
+	int version; /* On-disk format version. May be upgraded at mount time */
+	jnode *journal_header; /* jnode of hournal header */
+	jnode *journal_footer; /* jnode of journal footer */
 	journal_location jloc;
+	__u64 last_committed_tx; /* head block number of last committed
+				    transaction */
+	__u64 blocknr_hint_default; /* we remember last written location
+				       for using as a hint for new block
+				       allocation */
+	__u64 diskmap; /* diskmap's blocknumber */
 
-	/* head block number of last committed transaction */
-	__u64 last_committed_tx;
-
-	/*
-	 * we remember last written location for using as a hint for new block
-	 * allocation
-	 */
-	__u64 blocknr_hint_default;
-
-	/* committed number of files (oid allocator state variable ) */
-	__u64 nr_files_committed;
-
-	struct formatted_ra_params ra_params;
-
-	/*
-	 * A mutex for serializing cut tree operation if out-of-free-space:
-	 * the only one cut_tree thread is allowed to grab space from reserved
-	 * area (it is 5% of disk space)
-	 */
-	struct mutex delete_mutex;
-	/* task owning ->delete_mutex */
-	struct task_struct *delete_mutex_owner;
-
-	/* Diskmap's blocknumber */
-	__u64 diskmap_block;
-
-	/* What to do in case of error */
-	int onerror;
-
-	/* operations for objects on this file system */
-	struct object_ops ops;
-
-	/*
-	 * structure to maintain d_cursors. See plugin/file_ops_readdir.c for
-	 * more details
-	 */
-	struct d_cursor_info d_info;
-	struct crypto_shash *csum_tfm;
-
-#ifdef CONFIG_REISER4_BADBLOCKS
-	/* Alternative master superblock offset (in bytes) */
-	unsigned long altsuper;
-#endif
 	struct repacker *repacker;
 	struct page *status_page;
 	struct bio *status_bio;
-
 #if REISER4_DEBUG
+	__u64 min_blocks_used; /* minimum used blocks value (includes super
+				  blocks, bitmap blocks and other fs reserved
+				  areas), depends on fs format and fs size. */
+#endif
 	/*
-	 * minimum used blocks value (includes super blocks, bitmap blocks and
-	 * other fs reserved areas), depends on fs format and fs size.
+	 * Per-subvolume fields of commit handle.
+	 * Access to them requires to acquire the commit_mutex.
 	 */
-	__u64 min_blocks_used;
+	__u64 blocks_freed; /* number of blocks freed by the actor
+			       apply_dset_to_commit_bmap */
+	__u64 blocks_free_committed; /* "commit" version of free
+					block counter */
+	struct commit_handle_subvol ch;
+	struct super_block *super; /* associated super-block */
+};
 
+static inline int subvol_is_set(const reiser4_subvol *subv,
+				reiser4_subvol_flag f)
+{
+	return test_bit((int)f, &subv->flags);
+}
+
+/*
+ * In-memory superblock
+ */
+struct reiser4_super_info_data {
+	spinlock_t guard; /* protects fields blocks_free,
+			     blocks_free_committed, etc  */
+	oid_t next_to_use;/* next oid that will be returned by oid_allocate() */
+	oid_t oids_in_use; /* total number of used oids */
+	__u32 default_uid; /* default user id used for light-weight files
+			      without their own stat-data */
+	__u32 default_gid; /* default group id used for light-weight files
+			      without their own stat-data */
+	unsigned long fs_flags; /* file-system wide flags. See reiser4_fs_flag
+				   enum */
+	txn_mgr tmgr; 	/* transaction manager */
+	entd_context entd; /* ent thread */
+	struct inode *fake; /* fake inode used to bind formatted nodes */
+	/* inode used to bind bitmaps (and journal heads) */
+	struct inode *bitmap; /* fake inode used to bind bitmaps (and journal
+				 heads) */
+	struct inode *cc; /* fake inode used to bind copied on capture nodes */
+	unsigned long optimal_io_size; /* value we return in st_blksize on
+					  stat(2) */
+	__u64 nr_files_committed; /* committed number of files (oid allocator
+				     state variable ) */
+	__u64 vol_block_count; /* amount of blocks in a (logical) volume */
+	struct formatted_ra_params ra_params;
+	int onerror; /* What to do in case of IO error. Specified by a mount
+			option */
+	struct object_ops ops; /* operations for objects on this volume */
+	struct d_cursor_info d_info; /* structure to maintain d_cursors.
+					See plugin/file_ops_readdir.c for more
+					details */
+	struct crypto_shash *csum_tfm;
+	struct mutex delete_mutex;/* a mutex for serializing cut tree operation
+				     if out-of-free-space: the only one cut_tree
+				     thread is allowed to grab space from
+				     reserved area (it is 5% of disk space) */
+	struct task_struct *delete_mutex_owner; /* task owning ->delete_mutex */
+#ifdef CONFIG_REISER4_BADBLOCKS
+	unsigned long altsuper; /* Alternative master superblock offset
+				   (in bytes). Specified by a mount option */
+#endif
+	struct dentry *debugfs_root;
+#if REISER4_DEBUG
 	/*
 	 * when debugging is on, all jnodes (including znodes, bitmaps, etc.)
 	 * are kept on a list anchored at sbinfo->all_jnodes. This list is
@@ -298,10 +282,30 @@ struct reiser4_super_info_data {
 	 * contexts (by RCU).
 	 */
 	spinlock_t all_guard;
-	/* list of all jnodes */
-	struct list_head all_jnodes;
+	struct list_head all_jnodes; /* list of all jnodes */
 #endif
-	struct dentry *debugfs_root;
+	struct reiser4_volume *vol; /* accociated volume header */
+	reiser4_context *ctx;
+};
+
+/*
+ * In-memory header of compound (logical) volume.
+ */
+struct reiser4_volume {
+	struct list_head list;
+	u8 uuid[16]; /* volume id */
+	int num_sgs_bits; /* logarithm of number of hash space segments */
+	int stripe_size_bits; /* logarithm of stripe size */
+	int num_meta_subvols;
+	int num_mixed_subvols;
+	distribution_plugin *dist_plug;
+	volume_plugin *vol_plug;
+	reiser4_aib *aib; /* storage array descriptor */
+	u64 num_subvols; /* number of subvolumes in the logical volume */
+	u64 num_mirrors; /* number of replicas (excluding the original) */
+	struct list_head subvols_list;  /* list of registered subvolumes */
+	struct reiser4_subvol **subvols; /* activated subvolumes */
+	struct reiser4_super_info_data *info; /* accociated super-block */
 };
 
 extern reiser4_super_info_data *get_super_private_nocheck(const struct
@@ -316,22 +320,74 @@ static inline reiser4_super_info_data *get_super_private(const struct
 	return (reiser4_super_info_data *) super->s_fs_info;
 }
 
+static inline reiser4_volume *get_super_volume(struct super_block *super)
+{
+	return get_super_private(super)->vol;
+}
+
+static inline reiser4_subvol *sbinfo_subvol(reiser4_super_info_data *info,
+					    __u32 subv_id)
+{
+	assert("edward-xxx", info != NULL);
+	assert("edward-xxx", info->vol != NULL);
+	assert("edward-xxx", info->vol->subvols[subv_id] != NULL);
+	assert("edward-xxx", info->vol->subvols[subv_id]->id == subv_id);
+
+	return info->vol->subvols[subv_id];
+}
+
+static inline __u32 sbinfo_num_mirrors(reiser4_super_info_data *info)
+{
+	assert("edward-xxx", info != NULL);
+	assert("edward-xxx", info->vol != NULL);
+
+	return info->vol->num_mirrors;
+}
+
+static inline __u32 sbinfo_num_notmirr(reiser4_super_info_data *info)
+{
+	assert("edward-xxx", info != NULL);
+	assert("edward-xxx", info->vol != NULL);
+
+	return info->vol->num_subvols - info->vol->num_mirrors;
+}
+
+static inline reiser4_subvol *super_subvol(const struct super_block *super,
+					   __u32 subv_id)
+{
+	return sbinfo_subvol(get_super_private(super), subv_id);
+}
+
+/**
+ * get original subvolume
+ * FIXME-EDWARD: This should go to format specifications
+ */
+static inline reiser4_subvol *super_origin(const struct super_block *super)
+{
+	return sbinfo_subvol(get_super_private(super),
+			     sbinfo_num_mirrors(get_super_private(super)));
+}
+
 /* get ent context for the @super */
 static inline entd_context *get_entd_context(struct super_block *super)
 {
 	return &get_super_private(super)->entd;
 }
 
-/* "Current" super-block: main super block used during current system
-   call. Reference to this super block is stored in reiser4_context. */
+/**
+ * Get the super block used during current system call.
+ * Reference to this super block is stored in reiser4_context
+ */
 static inline struct super_block *reiser4_get_current_sb(void)
 {
 	return get_current_context()->super;
 }
 
-/* Reiser4-specific part of "current" super-block: main super block used
-   during current system call. Reference to this super block is stored in
-   reiser4_context. */
+/**
+ * Reiser4-specific part of "current" super-block: main super block used
+ * during current system call. Reference to this super block is stored in
+ * reiser4_context
+ */
 static inline reiser4_super_info_data *get_current_super_private(void)
 {
 	return get_super_private(reiser4_get_current_sb());
@@ -342,20 +398,97 @@ static inline struct formatted_ra_params *get_current_super_ra_params(void)
 	return &(get_current_super_private()->ra_params);
 }
 
+static inline struct distribution_plugin *private_dist_plug(reiser4_super_info_data *info)
+{
+	return info->vol->dist_plug;
+}
+
+static inline struct distribution_plugin *super_dist_plug(struct super_block *s)
+{
+	return get_super_private(s)->vol->dist_plug;
+}
+
+static inline struct distribution_plugin *current_dist_plug(void)
+{
+	return get_current_super_private()->vol->dist_plug;
+}
+
+static inline int current_stripe_size_bits(void)
+{
+	return current_volume->stripe_size_bits;
+}
+
+static inline __u64 current_stripe_size(void)
+{
+	return 1 << current_stripe_size_bits();
+}
+
+static inline struct reiser4_subvol *current_subvol(__u32 subv_id)
+{
+	return sbinfo_subvol(get_current_super_private(), subv_id);
+}
+
+static inline __u32 current_num_mirrors(void)
+{
+	return get_current_context()->ctx_num_mirrors;
+}
+
+static inline int have_mirrors(void)
+{
+	return current_num_mirrors();
+}
+
+static inline __u32 current_num_notmirr(void)
+{
+	return get_current_context()->ctx_num_notmirr;
+}
+
+static inline int current_is_last_commit(void)
+{
+	return get_current_context()->exit_mount_session;
+}
+
+#define for_each_notmirr(_subv_id)					\
+	for (_subv_id = current_num_mirrors();				\
+	     _subv_id < current_num_mirrors() + current_num_notmirr();	\
+	     _subv_id ++)
+
+#define for_each_mirror(_subv_id)					\
+	for (_subv_id = 0;						\
+	     _subv_id < current_num_mirrors(); _subv_id ++)
+
+#define for_each_subvol(_subv_id)					\
+	for (_subv_id = 0;						\
+	     _subv_id < current_num_mirrors() + current_num_notmirr();	\
+	     _subv_id ++)
+
+static inline int is_mirror(struct reiser4_subvol *subv)
+{
+	assert("edward-xxx", subv != NULL);
+	assert("edward-xxx", subv->super != NULL);
+	assert("edward-xxx", get_super_volume(subv->super) != NULL);
+	assert("edward-xxx",
+	       ergo(subvol_is_set(subv, SUBVOL_ACTIVATED) &&
+		    subvol_is_set(subv, SUBVOL_IS_MIRROR),
+		    subv->id < get_super_volume(subv->super)->num_mirrors));
+
+	return subvol_is_set(subv, SUBVOL_IS_MIRROR);
+}
+
+static inline int is_mirror_id(u32 subv_id)
+{
+	assert("edward-xxx",
+	       subvol_is_set(current_subvol(subv_id), SUBVOL_ACTIVATED));
+
+	return subv_id < current_num_mirrors();
+}
+
 /*
  * true, if file system on @super is read-only
  */
 static inline int rofs_super(struct super_block *super)
 {
 	return super->s_flags & MS_RDONLY;
-}
-
-/*
- * true, if @tree represents read-only file system
- */
-static inline int rofs_tree(reiser4_tree * tree)
-{
-	return rofs_super(tree->super);
 }
 
 /*
@@ -369,12 +502,10 @@ static inline int rofs_inode(struct inode *inode)
 /*
  * true, if file system where @node lives on, is read-only
  */
-static inline int rofs_jnode(jnode * node)
+static inline int rofs_jnode(jnode *node)
 {
-	return rofs_tree(jnode_get_tree(node));
+	return rofs_super(node->subvol->super);
 }
-
-extern __u64 reiser4_current_block_count(void);
 
 extern void build_object_ops(struct super_block *super, struct object_ops *ops);
 
@@ -391,51 +522,115 @@ static inline void spin_unlock_reiser4_super(reiser4_super_info_data *sbinfo)
 	spin_unlock(&(sbinfo->guard));
 }
 
-extern __u64 reiser4_flush_reserved(const struct super_block *);
+/* FIXME-EDWARD: Below is implementation of trivial volume plugin */
+
+static inline reiser4_subvol *sbinfo_subvol_for_system(reiser4_super_info_data *sbinfo)
+{
+	return sbinfo_subvol(sbinfo, sbinfo->vol->num_mirrors);
+}
+
+/* subvolume for system records: status records, blackbox items, etc */
+static inline reiser4_subvol *subvol_for_system(void)
+{
+	reiser4_subvol *subv;
+	subv = current_volume->subvols[current_num_mirrors()];
+	assert("edward-xxx", !is_mirror(subv));
+
+	return subv;
+}
+
+/**
+ * @offset: offset of the data stripe in the file.
+ */
+static inline reiser4_subvol *subvol_for_data(const struct inode *inode,
+					      loff_t offset)
+{
+	return current_volume->subvols[current_num_mirrors()];
+}
+
+static inline reiser4_subvol *__subvol_for_meta(oid_t oid)
+{
+	return current_volume->subvols[current_num_mirrors()];
+}
+
+static inline reiser4_subvol *subvol_for_meta(const struct inode *inode)
+{
+	return current_volume->subvols[current_num_mirrors()];
+}
+
+static inline reiser4_subvol *subvol_by_coord(const coord_t *coord)
+{
+	return ZJNODE(coord->node)->subvol;
+}
+
+static inline reiser4_tree *tree_by_coord(const coord_t *coord)
+{
+	return &subvol_by_coord(coord)->tree;
+}
+
+static inline void __init_ch_sub(struct commit_handle_subvol *ch_sub)
+{
+	memset(ch_sub, 0, sizeof(*ch_sub));
+	INIT_LIST_HEAD(&ch_sub->overwrite_set);
+	INIT_LIST_HEAD(&ch_sub->tx_list);
+	INIT_LIST_HEAD(&ch_sub->wander_map);
+}
+
+extern __u64 reiser4_flush_reserved(const reiser4_subvol *);
 extern int reiser4_is_set(const struct super_block *super, reiser4_fs_flag f);
 extern long reiser4_statfs_type(const struct super_block *super);
-extern __u64 reiser4_block_count(const struct super_block *super);
-extern void reiser4_set_block_count(const struct super_block *super, __u64 nr);
-extern __u64 reiser4_data_blocks(const struct super_block *super);
-extern void reiser4_set_data_blocks(const struct super_block *super, __u64 nr);
-extern __u64 reiser4_free_blocks(const struct super_block *super);
-extern void reiser4_set_free_blocks(const struct super_block *super, __u64 nr);
-extern __u32 reiser4_mkfs_id(const struct super_block *super);
+extern __u64 reiser4_subvol_block_count(const reiser4_subvol *);
+extern __u64 reiser4_volume_block_count(const struct super_block *);
+extern void reiser4_subvol_set_block_count(reiser4_subvol *subv, __u64 nr);
+extern __u64 reiser4_subvol_blocks_reserved(const reiser4_subvol *subv);
+extern __u64 reiser4_volume_blocks_reserved(const struct super_block *super);
+extern __u64 reiser4_subvol_used_blocks(const reiser4_subvol *);
+extern void reiser4_subvol_set_used_blocks(reiser4_subvol *, __u64 nr);
+extern __u64 reiser4_subvol_free_blocks(const reiser4_subvol *);
+extern void reiser4_subvol_set_free_blocks(reiser4_subvol *, __u64 nr);
+extern __u64 reiser4_subvol_fiber_len(reiser4_subvol *);
+extern void reiser4_subvol_set_fiber_len(reiser4_subvol *, __u64 len);
 
-extern __u64 reiser4_free_committed_blocks(const struct super_block *super);
+extern __u64 reiser4_volume_free_blocks(const struct super_block *super);
+extern __u32 reiser4_mkfs_id(const struct super_block *super, __u32 subv_id);
+extern __u64 reiser4_subvol_free_committed_blocks(const reiser4_subvol *);
+extern __u64 reiser4_grabbed_blocks(const reiser4_subvol *);
+extern __u64 reiser4_fake_allocated(const reiser4_subvol *);
+extern __u64 reiser4_fake_allocated_unformatted(const reiser4_subvol *);
+extern __u64 reiser4_clustered_blocks(const reiser4_subvol *);
 
-extern __u64 reiser4_grabbed_blocks(const struct super_block *);
-extern __u64 reiser4_fake_allocated(const struct super_block *);
-extern __u64 reiser4_fake_allocated_unformatted(const struct super_block *);
-extern __u64 reiser4_clustered_blocks(const struct super_block *);
-
-extern long reiser4_reserved_blocks(const struct super_block *super, uid_t uid,
-				    gid_t gid);
-
-extern reiser4_space_allocator *
-reiser4_get_space_allocator(const struct super_block *super);
+extern long reiser4_subvol_reserved4user(const reiser4_subvol *,
+					 uid_t uid, gid_t gid);
+extern long reiser4_volume_reserved4user(const struct super_block *,
+					 uid_t uid, gid_t gid);
+extern reiser4_space_allocator * reiser4_get_space_allocator(reiser4_subvol *);
 extern reiser4_oid_allocator *
 reiser4_get_oid_allocator(const struct super_block *super);
 extern struct inode *reiser4_get_super_fake(const struct super_block *super);
 extern struct inode *reiser4_get_cc_fake(const struct super_block *super);
 extern struct inode *reiser4_get_bitmap_fake(const struct super_block *super);
-extern reiser4_tree *reiser4_get_tree(const struct super_block *super);
 extern int is_reiser4_super(const struct super_block *super);
 
-extern int reiser4_blocknr_is_sane(const reiser4_block_nr * blk);
-extern int reiser4_blocknr_is_sane_for(const struct super_block *super,
-				       const reiser4_block_nr * blk);
-extern int reiser4_fill_super(struct super_block *s, void *data, int silent);
+extern int reiser4_blocknr_is_sane(const reiser4_subvol *subv,
+				   const reiser4_block_nr * blk);
+extern int reiser4_blocknr_is_sane_for(const reiser4_subvol *subv,
+				       const reiser4_block_nr *blk);
 extern int reiser4_done_super(struct super_block *s);
+extern int reiser4_scan_device(const char *path, fmode_t flags, void *holder);
 
 /* step of fill super */
 extern int reiser4_init_fs_info(struct super_block *);
 extern void reiser4_done_fs_info(struct super_block *);
 extern int reiser4_init_super_data(struct super_block *, char *opt_string);
-extern int reiser4_init_read_super(struct super_block *, int silent);
+extern int reiser4_activate_volume(struct super_block *, u8 *vol_uuid);
+extern void reiser4_deactivate_volume(struct super_block *);
+extern void reiser4_unregister_volumes(void);
+extern struct reiser4_volume *reiser4_search_volume(u8 *vol_uuid);
+extern int reiser4_read_master(struct super_block *, int silent, u8 *vol_uuid);
 extern int reiser4_init_root_inode(struct super_block *);
 extern reiser4_plugin *get_default_plugin(pset_member memb);
 
+#define INVALID_OID ((oid_t)0)
 /* Maximal possible object id. */
 #define  ABSOLUTE_MAX_OID ((oid_t)~0)
 

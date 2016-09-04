@@ -74,13 +74,13 @@ int reiser4_sync_common(struct file *file, loff_t start,
  */
 int reiser4_sync_file_common(struct file *file, loff_t start, loff_t end, int datasync)
 {
+	int ret;
 	reiser4_context *ctx;
 	txn_atom *atom;
-	reiser4_block_nr reserve;
 	struct dentry *dentry = file->f_path.dentry;
 	struct inode *inode = file->f_mapping->host;
 
-	int err = filemap_write_and_wait_range(file->f_mapping->host->i_mapping, start, end);
+	int err = filemap_write_and_wait_range(inode->i_mapping, start, end);
 	if (err)
 		return err;
 
@@ -90,13 +90,13 @@ int reiser4_sync_file_common(struct file *file, loff_t start, loff_t end, int da
 
 	inode_lock(inode);
 
-	reserve = estimate_update_common(dentry->d_inode);
-	if (reiser4_grab_space(reserve, BA_CAN_COMMIT)) {
+	ret = reserve_update_sd_common(inode);
+	if (ret) {
 		reiser4_exit_context(ctx);
 		inode_unlock(inode);
 		return RETERR(-ENOSPC);
 	}
-	write_sd_by_inode_common(dentry->d_inode);
+	write_sd_by_inode_common(dentry->d_inode, NULL);
 
 	atom = get_current_atom_locked();
 	spin_lock_txnh(ctx->trans);

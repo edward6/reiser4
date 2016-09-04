@@ -42,11 +42,32 @@
 #include <linux/writeback.h> /* for current_is_pdflush() */
 #include <linux/hardirq.h>
 
-static void _reiser4_init_context(reiser4_context * context,
-				  struct super_block *super)
+/**
+ * Allocate per-subvolume sets of grabbed blocks
+ * FIXME-EDWARD: This set is not optimal. Replace it with RB-tree,
+ * which provides better scalability
+ */
+int reiser4_init_context_tail(reiser4_context *ctx,
+			      reiser4_super_info_data *sbinfo)
 {
-	memset(context, 0, sizeof(*context));
+	assert("edward-xxx", sbinfo != NULL);
+	assert("edward-xxx", sbinfo->vol != NULL);
+	assert("edward-xxx", ctx->ctx_grabbed_blocks == NULL);
 
+	ctx->ctx_num_mirrors = sbinfo_num_mirrors(sbinfo);
+	ctx->ctx_num_notmirr = sbinfo_num_notmirr(sbinfo);
+
+	ctx->ctx_grabbed_blocks =
+		kzalloc((ctx->ctx_num_notmirr + ctx->ctx_num_mirrors) *
+			sizeof(*ctx->ctx_grabbed_blocks), GFP_KERNEL);
+	if (!ctx->ctx_grabbed_blocks)
+		return RETERR(-ENOMEM);
+	return 0;
+}
+
+static int _reiser4_init_context(reiser4_context *context,
+				 struct super_block *super)
+{
 	context->super = super;
 	context->magic = context_magic;
 	context->outer = current->journal_info;
@@ -64,15 +85,24 @@ static void _reiser4_init_context(reiser4_context * context,
 	context->task = current;
 #endif
 	grab_space_enable();
+
+	if (get_super_private(super) == NULL ||
+	    get_super_private(super)->vol == NULL)
+		/*
+		 * initialization has to be completed later
+		 */
+		return 0;
+	return reiser4_init_context_tail(context,
+					 get_super_private(super));
 }
 
-/* initialize context and bind it to the current thread
-
-   This function should be called at the beginning of reiser4 part of
-   syscall.
-*/
-reiser4_context * reiser4_init_context(struct super_block *super)
+/**
+ * initialize context and bind it to the current thread
+ * This function should be called at the beginning of reiser4 part of syscall.
+ */
+reiser4_context *reiser4_init_context(struct super_block *super)
 {
+	int ret;
 	reiser4_context *context;
 
 	assert("nikita-2662", !in_interrupt() && !in_irq());
@@ -85,27 +115,34 @@ reiser4_context * reiser4_init_context(struct super_block *super)
 		context->nr_children++;
 		return context;
 	}
-
-	context = kmalloc(sizeof(*context), GFP_KERNEL);
+	context = kzalloc(sizeof(*context), GFP_KERNEL);
 	if (context == NULL)
 		return ERR_PTR(RETERR(-ENOMEM));
-
-	_reiser4_init_context(context, super);
+	ret = _reiser4_init_context(context, super);
+	if (ret) {
+		kfree(context);
+		return ERR_PTR(RETERR(ret));
+	}
 	return context;
 }
 
-/* this is used in scan_mgr which is called with spinlock held and in
-   reiser4_fill_super magic */
-void init_stack_context(reiser4_context *context, struct super_block *super)
+/**
+ * This is used in scan_mgr which is called with spinlock held and in
+ * reiser4_fill_super magic.
+ *
+ * FIXME-EDWARD: This function is called in critical places where it is not
+ * allowed to fail.
+ */
+int init_stack_context(reiser4_context *context, struct super_block *super)
 {
 	assert("nikita-2662", !in_interrupt() && !in_irq());
 	assert("nikita-3357", super != NULL);
 	assert("nikita-3358", super->s_op == NULL || is_reiser4_super(super));
 	assert("vs-12", !is_in_reiser4_context());
 
-	_reiser4_init_context(context, super);
+	memset(context, 0, sizeof(*context));
 	context->on_stack = 1;
-	return;
+	return _reiser4_init_context(context, super);
 }
 
 /* cast lock stack embedded into reiser4 context up to its container */
@@ -184,11 +221,10 @@ static void reiser4_done_context(reiser4_context * context)
 		assert("zam-1004", ergo(get_super_private(context->super),
 					get_super_private(context->super)->delete_mutex_owner !=
 					current));
-
-		/* release all grabbed but as yet unused blocks */
-		if (context->grabbed_blocks != 0)
-			all_grabbed2free();
-
+		/*
+		 * release all grabbed but as yet unused blocks
+		 */
+		all_grabbed2free();
 		/*
 		 * synchronize against longterm_unlock_znode():
 		 * wake_up_requestor() wakes up requestors without holding
@@ -206,8 +242,12 @@ static void reiser4_done_context(reiser4_context * context)
 		spin_unlock_stack(&context->stack);
 
 		assert("zam-684", context->nr_children == 0);
-		/* restore original ->fs_context value */
+		/*
+		 * restore original ->fs_context value
+		 */
 		current->journal_info = context->outer;
+		if (context->ctx_grabbed_blocks)
+			kfree(context->ctx_grabbed_blocks);
 		if (context->on_stack == 0)
 			kfree(context);
 	} else {

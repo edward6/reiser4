@@ -66,7 +66,7 @@ void reiser4_update_internal(const coord_t * coord,
 			     const reiser4_block_nr * blocknr)
 {
 	internal_item_layout *item = internal_at(coord);
-	assert("nikita-2959", reiser4_blocknr_is_sane(blocknr));
+	//assert("nikita-2959", reiser4_blocknr_is_sane(blocknr));
 
 	put_unaligned(cpu_to_le64(*blocknr), &item->pointer);
 }
@@ -102,7 +102,7 @@ void down_link_internal(const coord_t * coord /* coord of item */ ,
 	       || keyle(item_key_by_coord(coord, &item_key), key));
 
 	*block = pointer_at(coord);
-	assert("nikita-2960", reiser4_blocknr_is_sane(block));
+	//assert("nikita-2960", reiser4_blocknr_is_sane(block));
 }
 
 /* Get the child's block number, or 0 if the block is unallocated. */
@@ -113,7 +113,7 @@ utmost_child_real_block_internal(const coord_t * coord, sideof side UNUSED_ARG,
 	assert("jmacd-2059", coord != NULL);
 
 	*block = pointer_at(coord);
-	assert("nikita-2961", reiser4_blocknr_is_sane(block));
+	//assert("nikita-2961", reiser4_blocknr_is_sane(block));
 
 	if (reiser4_blocknr_is_fake(block)) {
 		*block = 0;
@@ -131,7 +131,7 @@ utmost_child_internal(const coord_t * coord, sideof side UNUSED_ARG,
 	znode *child;
 
 	assert("jmacd-2059", childp != NULL);
-	assert("nikita-2962", reiser4_blocknr_is_sane(&block));
+	//assert("nikita-2962", reiser4_blocknr_is_sane(&block));
 
 	child = zlook(znode_get_tree(coord->node), &block);
 
@@ -174,10 +174,12 @@ int check__internal(const coord_t * coord, const char **error)
 	coord_t cpy;
 
 	blk = pointer_at(coord);
+#if 0
 	if (!reiser4_blocknr_is_sane(&blk)) {
 		*error = "Invalid pointer";
 		return -1;
 	}
+#endif
 	coord_dup(&cpy, coord);
 	child = znode_at(&cpy, cpy.node);
 	if (child != NULL) {

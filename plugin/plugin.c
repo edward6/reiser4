@@ -555,6 +555,24 @@ struct reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.builtin = txmod_plugins,
 		.plugins_list = {NULL, NULL},
 		.size = sizeof(txmod_plugin)
+	},
+	[REISER4_DISTRIBUTION_PLUGIN_TYPE] = {
+		.type_id = REISER4_DISTRIBUTION_PLUGIN_TYPE,
+		.label = "distrib",
+		.desc = "Defines distribution of named objects",
+		.builtin_num = sizeof_array(distribution_plugins),
+		.builtin = distribution_plugins,
+		.plugins_list = {NULL, NULL},
+		.size = sizeof(distribution_plugin)
+	},
+	[REISER4_VOLUME_PLUGIN_TYPE] = {
+		.type_id = REISER4_VOLUME_PLUGIN_TYPE,
+		.label = "volume",
+		.desc = "Manages logical volumes",
+		.builtin_num = sizeof_array(volume_plugins),
+		.builtin = volume_plugins,
+		.plugins_list = {NULL, NULL},
+		.size = sizeof(volume_plugin)
 	}
 };
 

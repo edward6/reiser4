@@ -131,7 +131,7 @@ int flow_by_inode_cryptcompress(struct inode *, const char __user *buf,
 				int user, loff_t, loff_t, rw_op, flow_t *);
 int key_by_inode_cryptcompress(struct inode *, loff_t off, reiser4_key *);
 int create_object_cryptcompress(struct inode *, struct inode *,
-				reiser4_object_create_data *);
+				reiser4_object_create_data *, oid_t *);
 int delete_object_cryptcompress(struct inode *);
 void init_inode_data_cryptcompress(struct inode *, reiser4_object_create_data *,
 				   int create);
@@ -147,7 +147,7 @@ void destroy_inode_cryptcompress(struct inode *);
  * (SYMLINK_FILE_PLUGIN_ID)
  */
 int reiser4_create_symlink(struct inode *symlink, struct inode *dir,
-			   reiser4_object_create_data *);
+			   reiser4_object_create_data *, oid_t *);
 void destroy_inode_symlink(struct inode *);
 
 /*

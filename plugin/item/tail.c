@@ -573,7 +573,7 @@ static ssize_t append_tail(struct inode *inode,
  * Estimates and reserves space which may be required for writing one flow to a
  * file
  */
-static int write_extent_reserve_space(struct inode *inode)
+static int write_tail_reserve_space(struct inode *inode)
 {
 	__u64 count;
 	reiser4_tree *tree;
@@ -595,7 +595,8 @@ static int write_extent_reserve_space(struct inode *inode)
 		estimate_insert_flow(tree->height) +
 		estimate_one_insert_item(tree);
 	grab_space_enable();
-	return reiser4_grab_space(count, 0 /* flags */);
+	return reiser4_grab_space(count, 0 /* flags */,
+				  subvol_for_meta(inode));
 }
 
 #define PAGE_PER_FLOW 4
@@ -694,7 +695,7 @@ ssize_t reiser4_write_tail(struct file *file,
 			   const char __user *buf,
 			   size_t count, loff_t *pos)
 {
-	if (write_extent_reserve_space(inode))
+	if (write_tail_reserve_space(inode))
 		return RETERR(-ENOSPC);
 	return reiser4_write_tail_noreserve(file, inode, buf, count, pos);
 }

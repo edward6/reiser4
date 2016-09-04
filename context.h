@@ -33,15 +33,20 @@ struct reiser4_context {
 	 * here by default. */
 	txn_handle trans_in_ctx;
 
-	/* super block we are working with.  To get the current tree
-	   use &get_super_private (reiser4_get_current_sb ())->tree. */
+	/* super block we are working with */
 	struct super_block *super;
 
 	/* parent fs activation */
 	struct fs_activation *outer;
-
-	/* per-thread grabbed (for further allocation) blocks counter */
-	reiser4_block_nr grabbed_blocks;
+	/*
+	 * per-thread grabbed (for further allocation) blocks counter
+	 * FIXME-EDWARD: RB-tree should be here for mapping
+	 * subvolume <-> grabbed_blocks. Once it is fixed, ctx_num_notmirr
+	 * is not needed.
+	 */
+	reiser4_block_nr *ctx_grabbed_blocks;
+	u32 ctx_num_mirrors;
+	u32 ctx_num_notmirr;
 
 	/* list of taps currently monitored. See tap.c */
 	struct list_head taps;
@@ -62,6 +67,7 @@ struct reiser4_context {
 	/* this bit is used on reiser4_done_context to decide whether context is
 	   kmalloc-ed and has to be kfree-ed */
 	unsigned int on_stack:1;
+	unsigned int exit_mount_session:1;
 
 	/* count non-trivial jnode_set_dirty() calls */
 	unsigned long nr_marked_dirty;
@@ -79,22 +85,12 @@ struct reiser4_context {
 				   * a longterm lock (to not violate
 				   * reiser4 lock ordering) */
 #if REISER4_DEBUG
-	/* debugging information about reiser4 locks held by the current
-	 * thread */
-	reiser4_lock_cnt_info locks;
-	struct task_struct *task;	/* so we can easily find owner of the stack */
-
-	/*
-	 * disk space grabbing debugging support
-	 */
-	/* how many disk blocks were grabbed by the first call to
-	 * reiser4_grab_space() in this context */
-	reiser4_block_nr grabbed_initially;
-
-	/* list of all threads doing flush currently */
-	struct list_head flushers_link;
-	/* information about last error encountered by reiser4 */
-	err_site err;
+	reiser4_lock_cnt_info locks; /* debugging information about reiser4
+					locks held by the current thread */
+	struct task_struct *task; /* so we can easily find owner of the stack */
+	struct list_head flushers_link; /* list of all threads doing
+					   flush currently */
+	err_site err; /* information about last error encountered by reiser4 */
 #endif
 	void *vp;
 	gfp_t gfp_mask;
@@ -107,12 +103,22 @@ extern reiser4_context *get_context_by_lock_stack(lock_stack *);
 extern void print_contexts(void);
 #endif
 
-#define current_tree (&(get_super_private(reiser4_get_current_sb())->tree))
 #define current_blocksize reiser4_get_current_sb()->s_blocksize
 #define current_blocksize_bits reiser4_get_current_sb()->s_blocksize_bits
 
+#define current_stripe_bits \
+	get_super_private(reiser4_get_current_sb())->vol->stripe_bits
+#define current_volume (get_current_super_private()->vol)
+#define current_stripe_bits \
+	get_super_private(reiser4_get_current_sb())->vol->stripe_bits
+#define current_aib \
+	get_super_private(reiser4_get_current_sb())->vol->aib
+#define current_tree(subvol_id) (&(current_subvol(subvol_id)->tree))
+
 extern reiser4_context *reiser4_init_context(struct super_block *);
-extern void init_stack_context(reiser4_context *, struct super_block *);
+extern int reiser4_init_context_tail(reiser4_context *,
+				     reiser4_super_info_data *);
+extern int init_stack_context(reiser4_context *, struct super_block *);
 extern void reiser4_exit_context(reiser4_context *);
 
 /* magic constant we store in reiser4_context allocated at the stack. Used to

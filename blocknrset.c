@@ -152,7 +152,7 @@ bse_put_pair(blocknr_set_entry * bse, const reiser4_block_nr * a,
    used during the call, it will be freed automatically. */
 static int blocknr_set_add(txn_atom *atom, struct list_head *bset,
 			   blocknr_set_entry **new_bsep, const reiser4_block_nr *a,
-			   const reiser4_block_nr *b)
+			   const reiser4_block_nr *b, __u32 subvol_id)
 {
 	blocknr_set_entry *bse;
 	unsigned entries_needed;
@@ -199,17 +199,18 @@ static int blocknr_set_add(txn_atom *atom, struct list_head *bset,
 /* Audited by: green(2002.06.11) */
 /* Auditor note: Entire call chain cannot hold any spinlocks, because
    kmalloc might schedule. The only exception is atom spinlock, which is
-   properly freed. */
-int
-blocknr_set_add_extent(txn_atom * atom,
-		       struct list_head *bset,
-		       blocknr_set_entry ** new_bsep,
-		       const reiser4_block_nr * start,
-		       const reiser4_block_nr * len)
+   properly freed.
+*/
+int blocknr_set_add_extent(txn_atom * atom,
+			   struct list_head *bset,
+			   blocknr_set_entry **new_bsep,
+			   const reiser4_block_nr *start,
+			   const reiser4_block_nr *len,
+			   const __u32 subvol_id)
 {
 	assert("jmacd-5102", start != NULL && len != NULL && *len > 0);
 	return blocknr_set_add(atom, bset, new_bsep, start,
-			       *len == 1 ? NULL : len);
+			       *len == 1 ? NULL : len, subvol_id);
 }
 
 /* Add a block pair to the block set. It adds exactly a pair, which is checked
@@ -217,15 +218,15 @@ blocknr_set_add_extent(txn_atom * atom,
 /* Audited by: green(2002.06.11) */
 /* Auditor note: Entire call chain cannot hold any spinlocks, because
    kmalloc might schedule. The only exception is atom spinlock, which is
-   properly freed. */
-int
-blocknr_set_add_pair(txn_atom * atom,
-		     struct list_head *bset,
-		     blocknr_set_entry ** new_bsep, const reiser4_block_nr * a,
-		     const reiser4_block_nr * b)
+   properly freed
+*/
+int blocknr_set_add_pair(txn_atom * atom,
+			 struct list_head *bset, blocknr_set_entry **new_bsep,
+			 const reiser4_block_nr *a, const reiser4_block_nr *b,
+			 __u32 subvol_id)
 {
 	assert("jmacd-5103", a != NULL && b != NULL);
-	return blocknr_set_add(atom, bset, new_bsep, a, b);
+	return blocknr_set_add(atom, bset, new_bsep, a, b, subvol_id);
 }
 
 /* Initialize slab cache of blocknr_set_entry objects. */
@@ -341,7 +342,8 @@ void blocknr_set_merge(struct list_head *from, struct list_head *into)
 
 /* Iterate over all blocknr set elements. */
 int blocknr_set_iterator(txn_atom *atom, struct list_head *bset,
-			 blocknr_set_actor_f actor, void *data, int delete)
+			 blocknr_set_actor_f actor, void *data, int delete,
+			 u32 subv_id)
 {
 
 	blocknr_set_entry *entry;
@@ -358,7 +360,7 @@ int blocknr_set_iterator(txn_atom *atom, struct list_head *bset,
 		int ret;
 
 		for (i = 0; i < entry->nr_singles; i++) {
-			ret = actor(atom, &entry->entries[i], NULL, data);
+			ret = actor(atom, &entry->entries[i], NULL, 0, data);
 
 			/* We can't break a loop if delete flag is set. */
 			if (ret != 0 && !delete)
@@ -370,7 +372,7 @@ int blocknr_set_iterator(txn_atom *atom, struct list_head *bset,
 
 			ab = bse_get_pair(entry, i);
 
-			ret = actor(atom, &ab->a, &ab->b, data);
+			ret = actor(atom, &ab->a, &ab->b, subv_id, data);
 
 			if (ret != 0 && !delete)
 				return ret;

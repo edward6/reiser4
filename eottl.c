@@ -125,6 +125,7 @@ is_next_item_internal(coord_t *coord, const reiser4_key * key,
 	coord_t next;
 	lock_handle rn;
 	int result;
+	reiser4_tree *tree = znode_get_tree(coord->node);
 
 	coord_dup(&next, coord);
 	if (coord_next_unit(&next) == 0) {
@@ -143,9 +144,9 @@ is_next_item_internal(coord_t *coord, const reiser4_key * key,
 	 * concurrent thread could get their first and insert item with a key
 	 * smaller than @key
 	 */
-	read_lock_dk(current_tree);
+	read_lock_dk(tree);
 	result = keycmp(key, znode_get_rd_key(coord->node));
-	read_unlock_dk(current_tree);
+	read_unlock_dk(tree);
 	assert("vs-6", result != EQUAL_TO);
 	if (result == GREATER_THAN)
 		return 2;
@@ -172,9 +173,9 @@ is_next_item_internal(coord_t *coord, const reiser4_key * key,
 	 * check whether concurrent thread managed to insert item with a key
 	 * smaller than @key
 	 */
-	read_lock_dk(current_tree);
+	read_lock_dk(tree);
 	result = keycmp(key, znode_get_ld_key(rn.node));
-	read_unlock_dk(current_tree);
+	read_unlock_dk(tree);
 	assert("vs-6", result != EQUAL_TO);
 	if (result == GREATER_THAN) {
 		done_lh(&rn);
@@ -223,8 +224,11 @@ is_next_item_internal(coord_t *coord, const reiser4_key * key,
 static reiser4_key *rd_key(const coord_t *coord, reiser4_key *key)
 {
 	coord_t dup;
+	reiser4_tree *tree;
 
 	assert("nikita-2281", coord_is_between_items(coord));
+
+	tree = znode_get_tree(coord->node);
 	coord_dup(&dup, coord);
 
 	if (coord_set_to_right(&dup) == 0)
@@ -235,9 +239,9 @@ static reiser4_key *rd_key(const coord_t *coord, reiser4_key *key)
 		 * next item either does not exist or is in right
 		 * neighbor. Return znode's right delimiting key.
 		 */
-		read_lock_dk(current_tree);
+		read_lock_dk(tree);
 		*key = *znode_get_rd_key(coord->node);
-		read_unlock_dk(current_tree);
+		read_unlock_dk(tree);
 	}
 	return key;
 }

@@ -105,9 +105,8 @@ int build_readdir_key_common(struct file *dir /* directory being read */ ,
 		return PTR_ERR(fdata);
 	assert("nikita-1364", fdata != NULL);
 	return extract_key_from_de_id(get_inode_oid(inode),
-				      &fdata->dir.readdir.position.
-				      dir_entry_key, result);
-
+				     &fdata->dir.readdir.position.dir_entry_key,
+				     result);
 }
 
 void reiser4_adjust_dir_file(struct inode *, const struct dentry *, int offset,
@@ -138,7 +137,8 @@ int reiser4_add_entry_common(struct inode *object, /* directory to add new name
 		return PTR_ERR(fsdata);
 
 	reserve = inode_dir_plugin(object)->estimate.add_entry(object);
-	if (reiser4_grab_space(reserve, BA_CAN_COMMIT))
+	if (reiser4_grab_space(reserve, BA_CAN_COMMIT,
+			       subvol_for_meta(object)))
 		return RETERR(-ENOSPC);
 
 	init_lh(&lh);
@@ -236,7 +236,8 @@ int reiser4_rem_entry_common(struct inode *dir,
 	assert("nikita-1125", dentry != NULL);
 
 	tograb = inode_dir_plugin(dir)->estimate.rem_entry(dir);
-	result = reiser4_grab_space(tograb, BA_CAN_COMMIT | BA_RESERVED);
+	result = reiser4_grab_space(tograb, BA_CAN_COMMIT | BA_RESERVED,
+				    subvol_for_meta(dir));
 	if (result != 0)
 		return RETERR(-ENOSPC);
 
@@ -312,7 +313,8 @@ int reiser4_dir_init_common(struct inode *object,	/* new directory */
 	assert("nikita-687", object->i_mode & S_IFDIR);
 
 	reserve = estimate_init(parent, object);
-	if (reiser4_grab_space(reserve, BA_CAN_COMMIT))
+	if (reiser4_grab_space(reserve, BA_CAN_COMMIT,
+			       subvol_for_meta(parent)))
 		return RETERR(-ENOSPC);
 
 	return create_dot_dotdot(object, parent);
@@ -340,7 +342,8 @@ int reiser4_dir_done_common(struct inode *object/* object being deleted */)
 	/* FIXME: this done method is called from reiser4_delete_dir_common
 	 * which reserved space already */
 	reserve = inode_dir_plugin(object)->estimate.rem_entry(object);
-	if (reiser4_grab_space(reserve, BA_CAN_COMMIT | BA_RESERVED))
+	if (reiser4_grab_space(reserve, BA_CAN_COMMIT | BA_RESERVED,
+			       subvol_for_meta(object)))
 		return RETERR(-ENOSPC);
 
 	memset(&goodby_dots, 0, sizeof goodby_dots);
@@ -778,7 +781,9 @@ int reiser4_find_entry(struct inode *dir,	/* directory to scan */
 
 	if (reiser4_seal_is_set(seal)) {
 		/* check seal */
-		result = reiser4_seal_validate(seal, coord, &entry->key,
+		result = reiser4_seal_validate(seal,
+					       &subvol_for_meta(dir)->tree,
+					       coord, &entry->key,
 					       lh, mode, ZNODE_LOCK_LOPRI);
 		if (result == 0) {
 			/* key was found. Check that it is really item we are
@@ -792,7 +797,8 @@ int reiser4_find_entry(struct inode *dir,	/* directory to scan */
 	/*
 	 * find place in the tree where directory item should be located.
 	 */
-	result = reiser4_object_lookup(dir, &entry->key, coord, lh, mode,
+	result = reiser4_object_lookup(&subvol_for_meta(dir)->tree,
+				       dir, &entry->key, coord, lh, mode,
 				       FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL,
 				       flags, NULL/*ra_info */);
 	if (result == CBK_COORD_FOUND) {

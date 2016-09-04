@@ -299,12 +299,13 @@ int create_hook_extent(const coord_t * coord, void *arg)
 #define ITEM_HEAD_KILLED 1
 #define ITEM_KILLED 2
 
-/* item_plugin->b.kill_hook
-   this is called when @count units starting from @from-th one are going to be removed
-   */
-int
-kill_hook_extent(const coord_t * coord, pos_in_node_t from, pos_in_node_t count,
-		 struct carry_kill_data *kdata)
+/**
+ * item_plugin->b.kill_hook
+ * this is called when @count units starting from @from-th
+ * one are going to be removed
+ */
+int kill_hook_extent(const coord_t *coord, pos_in_node_t from,
+		     pos_in_node_t count, struct carry_kill_data *kdata)
 {
 	reiser4_extent *ext;
 	reiser4_block_nr start, length;
@@ -321,6 +322,8 @@ kill_hook_extent(const coord_t * coord, pos_in_node_t from, pos_in_node_t count,
 	assert("zam-811", znode_is_write_locked(coord->node));
 	assert("nikita-3315", kdata != NULL);
 	assert("vs-34", kdata->buf != NULL);
+
+	tree = tree_by_coord(coord);
 
 	/* map structures to kdata->buf */
 	min_item_key = (reiser4_key *) (kdata->buf);
@@ -359,7 +362,6 @@ kill_hook_extent(const coord_t * coord, pos_in_node_t from, pos_in_node_t count,
 			left = kdata->left->node;
 			right = kdata->right->node;
 
-			tree = current_tree;
 			/* we have to do two things:
 			 *
 			 *     1. link left and right formatted neighbors of
@@ -425,9 +427,9 @@ kill_hook_extent(const coord_t * coord, pos_in_node_t from, pos_in_node_t count,
 			*key = *pto_key;
 			set_key_offset(key, get_key_offset(pto_key) + 1);
 
-			write_lock_dk(current_tree);
+			write_lock_dk(tree);
 			znode_set_rd_key(kdata->left->node, key);
-			write_unlock_dk(current_tree);
+			write_unlock_dk(tree);
 		}
 
 		from_off = get_key_offset(pfrom_key) >> PAGE_SHIFT;
@@ -438,11 +440,13 @@ kill_hook_extent(const coord_t * coord, pos_in_node_t from, pos_in_node_t count,
 	inode = kdata->inode;
 	assert("vs-1545", inode != NULL);
 	if (inode != NULL)
-		/* take care of pages and jnodes corresponding to part of item being killed */
+		/*
+		 * take care of pages and jnodes corresponding
+		 * to the part of item being killed
+		 */
 		reiser4_invalidate_pages(inode->i_mapping, from_off,
 					 to_off - from_off,
 					 kdata->params.truncate);
-
 	ext = extent_item(coord) + from;
 	offset =
 	    (get_key_offset(min_item_key) +
@@ -469,9 +473,11 @@ kill_hook_extent(const coord_t * coord, pos_in_node_t from, pos_in_node_t count,
 		inode_sub_blocks(inode, length);
 
 		if (state_of_extent(ext) == UNALLOCATED_EXTENT) {
-			/* some jnodes corresponding to this unallocated extent */
-			fake_allocated2free(length, 0 /* unformatted */ );
-
+			/*
+			 * some jnodes corresponding to this unallocated extent
+			 */
+			fake_allocated2free(length, 0 /* unformatted */,
+					    subvol_for_data(inode, offset));
 			skip = 0;
 			offset += length;
 			ext++;
@@ -482,13 +488,14 @@ kill_hook_extent(const coord_t * coord, pos_in_node_t from, pos_in_node_t count,
 
 		if (length != 0) {
 			start = extent_get_start(ext) + skip;
-
-			/* BA_DEFER bit parameter is turned on because blocks which get freed are not safe to be freed
-			   immediately */
+			/*
+			 * BA_DEFER bit parameter is turned on because blocks
+			 * which get freed are not safe to be freed immediately
+			 */
 			reiser4_dealloc_blocks(&start, &length,
-					       0 /* not used */ ,
-					       BA_DEFER
-					       /* unformatted with defer */ );
+					       0, /* not used */
+					       BA_DEFER, /* unformatted with defer */
+					       subvol_for_data(inode, offset));
 		}
 		skip = 0;
 		offset += length;
@@ -795,6 +802,7 @@ int reiser4_check_extent(const coord_t * coord /* coord of item to check */,
 	oid_t oid;
 	reiser4_key key;
 	coord_t scan;
+	reiser4_subvol *subv = subvol_by_coord(coord);
 
 	assert("vs-933", REISER4_DEBUG);
 
@@ -807,7 +815,7 @@ int reiser4_check_extent(const coord_t * coord /* coord of item to check */,
 		return -1;
 	}
 	ext = first = extent_item(coord);
-	blk_cnt = reiser4_block_count(reiser4_get_current_sb());
+	blk_cnt = reiser4_subvol_block_count(subv);
 	num_units = coord_num_units(coord);
 	tree = znode_get_tree(coord->node);
 	item_key_by_coord(coord, &key);
@@ -819,7 +827,6 @@ int reiser4_check_extent(const coord_t * coord /* coord of item to check */,
 
 		scan.unit_pos = i;
 		index = extent_unit_index(&scan);
-
 #if 0
 		/* check that all jnodes are present for the unallocated
 		 * extent */

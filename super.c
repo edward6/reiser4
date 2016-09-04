@@ -17,9 +17,9 @@
 #include <linux/types.h>	/* for __u??  */
 #include <linux/fs.h>		/* for struct super_block  */
 
-static __u64 reserved_for_gid(const struct super_block *super, gid_t gid);
-static __u64 reserved_for_uid(const struct super_block *super, uid_t uid);
-static __u64 reserved_for_root(const struct super_block *super);
+static __u64 reserved_for_gid(const reiser4_subvol *subv, gid_t gid);
+static __u64 reserved_for_uid(const reiser4_subvol *subv, uid_t uid);
+static __u64 reserved_for_root(const reiser4_subvol *subv);
 
 /* Return reiser4-specific part of super block */
 reiser4_super_info_data *get_super_private_nocheck(const struct super_block *super)
@@ -38,31 +38,36 @@ long reiser4_statfs_type(const struct super_block *super UNUSED_ARG)
 
 /* functions to read/modify fields of reiser4_super_info_data */
 
-/* get number of blocks in file system */
-__u64 reiser4_block_count(const struct super_block *super	/* super block
-								   queried */ )
+/* get number of blocks in subvolume */
+__u64 reiser4_subvol_block_count(const reiser4_subvol *subv)
 {
-	assert("vs-494", super != NULL);
-	assert("vs-495", is_reiser4_super(super));
-	return get_super_private(super)->block_count;
+	assert("vs-494", subv != NULL);
+	return subv->block_count;
 }
 
-#if REISER4_DEBUG
+/* get number of blocks in logical volume */
+__u64 reiser4_volume_block_count(const struct super_block *super)
+{
+	__u32 subv_id;
+	__u64 result = 0;
+
+	assert("edward-xxx", super != NULL);
+
+	for_each_notmirr(subv_id)
+		result += reiser4_subvol_block_count(super_subvol(super,
+								  subv_id));
+	return result;
+}
+
 /*
- * number of blocks in the current file system
+ * Set number of blocks and reserved space for a logical volume.
+ * Pre-condition: @nr is total number of blocks of all its subvolumes.
  */
-__u64 reiser4_current_block_count(void)
+void reiser4_subvol_set_block_count(reiser4_subvol *subv, __u64 nr)
 {
-	return get_current_super_private()->block_count;
-}
-#endif  /*  REISER4_DEBUG  */
+	assert("vs-501", subv != NULL);
 
-/* set number of block in filesystem */
-void reiser4_set_block_count(const struct super_block *super, __u64 nr)
-{
-	assert("vs-501", super != NULL);
-	assert("vs-502", is_reiser4_super(super));
-	get_super_private(super)->block_count = nr;
+	subv->block_count = nr;
 	/*
 	 * The proper calculation of the reserved space counter (%5 of device
 	 * block counter) we need a 64 bit division which is missing in Linux
@@ -74,132 +79,174 @@ void reiser4_set_block_count(const struct super_block *super, __u64 nr)
 	 * reserved blocks must be not less than maximal number of blocks which
 	 * get grabbed with BA_RESERVED.
 	 */
-	get_super_private(super)->blocks_reserved = ((nr * 51) >> 10);
+	subv->blocks_reserved = ((nr * 51) >> 10);
 }
 
-/* amount of blocks used (allocated for data) in file system */
-__u64 reiser4_data_blocks(const struct super_block *super	/* super block
-								   queried */ )
+__u64 reiser4_subvol_blocks_reserved(const reiser4_subvol *subv)
 {
-	assert("nikita-452", super != NULL);
-	assert("nikita-453", is_reiser4_super(super));
-	return get_super_private(super)->blocks_used;
+	return subv->blocks_reserved;
 }
 
-/* set number of block used in filesystem */
-void reiser4_set_data_blocks(const struct super_block *super, __u64 nr)
+__u64 reiser4_volume_blocks_reserved(const struct super_block *super)
 {
-	assert("vs-503", super != NULL);
-	assert("vs-504", is_reiser4_super(super));
-	get_super_private(super)->blocks_used = nr;
+	__u32 subv_id;
+	__u64 result = 0;
+
+	assert("edward-xxx", super != NULL);
+
+	for_each_notmirr(subv_id)
+		result += reiser4_subvol_blocks_reserved(super_subvol(super,
+								      subv_id));
+	return result;
 }
 
-/* amount of free blocks in file system */
-__u64 reiser4_free_blocks(const struct super_block *super	/* super block
-								   queried */ )
+/* amount of blocks used (allocated for data or meta-data) in subvolume */
+__u64 reiser4_subvol_used_blocks(const reiser4_subvol *subv)
 {
-	assert("nikita-454", super != NULL);
-	assert("nikita-455", is_reiser4_super(super));
-	return get_super_private(super)->blocks_free;
+	assert("nikita-452", subv != NULL);
+	return subv->blocks_used;
 }
 
-/* set number of blocks free in filesystem */
-void reiser4_set_free_blocks(const struct super_block *super, __u64 nr)
+/* set number of blocks used */
+void reiser4_subvol_set_used_blocks(reiser4_subvol *subv, __u64 nr)
 {
-	assert("vs-505", super != NULL);
-	assert("vs-506", is_reiser4_super(super));
-	get_super_private(super)->blocks_free = nr;
+	assert("vs-503", subv != NULL);
+	subv->blocks_used = nr;
+}
+
+/* amount of free blocks in subvolume */
+__u64 reiser4_subvol_free_blocks(const reiser4_subvol *subv)
+{
+	assert("nikita-454", subv != NULL);
+	return subv->blocks_free;
+}
+
+/* set number of free blocks */
+void reiser4_subvol_set_free_blocks(reiser4_subvol *subv, __u64 nr)
+{
+	assert("vs-505", subv != NULL);
+	subv->blocks_free = nr;
+}
+
+__u64 reiser4_subvol_fiber_len(reiser4_subvol *subv)
+{
+	assert("edward-xxx", subv != NULL);
+	return subv->fiber_len;
+}
+
+void reiser4_subvol_set_fiber_len(reiser4_subvol *subv, __u64 len)
+{
+	assert("edward-xxx", subv != NULL);
+	subv->fiber_len = len;
+}
+
+/* amount of free blocks in logical volume */
+__u64 reiser4_volume_free_blocks(const struct super_block *super)
+{
+	__u32 subv_id;
+	__u64 result = 0;
+
+	assert("edward-xxx", super != NULL);
+
+	for_each_notmirr(subv_id)
+		result += reiser4_subvol_free_blocks(super_subvol(super,
+								  subv_id));
+	return result;
+
 }
 
 /* get mkfs unique identifier */
-__u32 reiser4_mkfs_id(const struct super_block *super	/* super block
-							   queried */ )
+__u32 reiser4_mkfs_id(const struct super_block *super, __u32 subv_id)
 {
 	assert("vpf-221", super != NULL);
-	assert("vpf-222", is_reiser4_super(super));
-	return get_super_private(super)->mkfs_id;
+	return super_subvol(super, subv_id)->mkfs_id;
 }
 
-/* amount of free blocks in file system */
-__u64 reiser4_free_committed_blocks(const struct super_block *super)
+/* amount of free blocks */
+__u64 reiser4_subvol_free_committed_blocks(const reiser4_subvol *subv)
 {
-	assert("vs-497", super != NULL);
-	assert("vs-498", is_reiser4_super(super));
-	return get_super_private(super)->blocks_free_committed;
+	return subv->blocks_free_committed;
 }
 
-/* amount of blocks in the file system reserved for @uid and @gid */
-long reiser4_reserved_blocks(const struct super_block *super	/* super block
-								   queried */ ,
-			     uid_t uid /* user id */ ,
-			     gid_t gid/* group id */)
+/* amount of blocks in subvolume reserved for @uid and @gid */
+long reiser4_subvol_reserved4user(const reiser4_subvol *subv,
+				  uid_t uid, /* user id */
+				  gid_t gid  /* group id */)
 {
-	long reserved;
+	long reserved = 0;
 
-	assert("nikita-456", super != NULL);
-	assert("nikita-457", is_reiser4_super(super));
+	assert("nikita-456", subv != NULL);
 
-	reserved = 0;
 	if (REISER4_SUPPORT_GID_SPACE_RESERVATION)
-		reserved += reserved_for_gid(super, gid);
+		reserved += reserved_for_gid(subv, gid);
 	if (REISER4_SUPPORT_UID_SPACE_RESERVATION)
-		reserved += reserved_for_uid(super, uid);
+		reserved += reserved_for_uid(subv, uid);
 	if (REISER4_SUPPORT_ROOT_SPACE_RESERVATION && (uid == 0))
-		reserved += reserved_for_root(super);
+		reserved += reserved_for_root(subv);
 	return reserved;
 }
 
-/* get/set value of/to grabbed blocks counter */
-__u64 reiser4_grabbed_blocks(const struct super_block * super)
+/* amount of blocks in volume reserved for @uid and @gid */
+long reiser4_volume_reserved4user(const struct super_block *super,
+				  uid_t uid, /* user id */
+				  gid_t gid  /* group id */)
 {
-	assert("zam-512", super != NULL);
-	assert("zam-513", is_reiser4_super(super));
+	__u32 subv_id;
+	__u64 result = 0;
 
-	return get_super_private(super)->blocks_grabbed;
+	assert("edward-xxx", super != NULL);
+
+	for_each_notmirr(subv_id)
+		result +=
+		reiser4_subvol_reserved4user(super_subvol(super, subv_id),
+					     uid, gid);
+	return result;
 }
 
-__u64 reiser4_flush_reserved(const struct super_block *super)
+/* get/set value of/to grabbed blocks counter */
+__u64 reiser4_grabbed_blocks(const reiser4_subvol *subv)
 {
-	assert("vpf-285", super != NULL);
-	assert("vpf-286", is_reiser4_super(super));
+	assert("zam-512", subv != NULL);
 
-	return get_super_private(super)->blocks_flush_reserved;
+	return subv->blocks_grabbed;
+}
+
+__u64 reiser4_flush_reserved(const reiser4_subvol *subv)
+{
+	assert("vpf-285", subv != NULL);
+
+	return subv->blocks_flush_reserved;
 }
 
 /* get/set value of/to counter of fake allocated formatted blocks */
-__u64 reiser4_fake_allocated(const struct super_block *super)
+__u64 reiser4_fake_allocated(const reiser4_subvol *subv)
 {
-	assert("zam-516", super != NULL);
-	assert("zam-517", is_reiser4_super(super));
+	assert("zam-516", subv != NULL);
 
-	return get_super_private(super)->blocks_fake_allocated;
+	return subv->blocks_fake_allocated;
 }
 
 /* get/set value of/to counter of fake allocated unformatted blocks */
-__u64 reiser4_fake_allocated_unformatted(const struct super_block *super)
+__u64 reiser4_fake_allocated_unformatted(const reiser4_subvol *subv)
 {
-	assert("zam-516", super != NULL);
-	assert("zam-517", is_reiser4_super(super));
+	assert("zam-516", subv != NULL);
 
-	return get_super_private(super)->blocks_fake_allocated_unformatted;
+	return subv->blocks_fake_allocated_unformatted;
 }
 
 /* get/set value of/to counter of clustered blocks */
-__u64 reiser4_clustered_blocks(const struct super_block *super)
+__u64 reiser4_clustered_blocks(const reiser4_subvol *subv)
 {
-	assert("edward-601", super != NULL);
-	assert("edward-602", is_reiser4_super(super));
+	assert("edward-601", subv != NULL);
 
-	return get_super_private(super)->blocks_clustered;
+	return subv->blocks_clustered;
 }
 
-/* space allocator used by this file system */
-reiser4_space_allocator * reiser4_get_space_allocator(const struct super_block
-						      *super)
+/* space allocator used by this subvolume */
+reiser4_space_allocator *reiser4_get_space_allocator(reiser4_subvol *subv)
 {
-	assert("nikita-1965", super != NULL);
-	assert("nikita-1966", is_reiser4_super(super));
-	return &get_super_private(super)->space_allocator;
+	assert("edward-xxx", subv != NULL);
+	return &subv->space_allocator;
 }
 
 /* return fake inode used to bind formatted nodes in the page cache */
@@ -223,22 +270,13 @@ struct inode *reiser4_get_bitmap_fake(const struct super_block *super)
 	return get_super_private(super)->bitmap;
 }
 
-/* tree used by this file system */
-reiser4_tree *reiser4_get_tree(const struct super_block *super)
-{
-	assert("nikita-460", super != NULL);
-	assert("nikita-461", is_reiser4_super(super));
-	return &get_super_private(super)->tree;
-}
-
 /* Check that @super is (looks like) reiser4 super block. This is mainly for
    use in assertions. */
 int is_reiser4_super(const struct super_block *super)
 {
-	return
-	    super != NULL &&
-	    get_super_private(super) != NULL &&
-	    super->s_op == &(get_super_private(super)->ops.super);
+	return super != NULL &&
+		get_super_private(super) != NULL &&
+		super->s_op == &(get_super_private(super)->ops.super);
 }
 
 int reiser4_is_set(const struct super_block *super, reiser4_fs_flag f)
@@ -247,21 +285,21 @@ int reiser4_is_set(const struct super_block *super, reiser4_fs_flag f)
 }
 
 /* amount of blocks reserved for given group in file system */
-static __u64 reserved_for_gid(const struct super_block *super UNUSED_ARG,
+static __u64 reserved_for_gid(const reiser4_subvol *subv UNUSED_ARG,
 			      gid_t gid UNUSED_ARG/* group id */)
 {
 	return 0;
 }
 
 /* amount of blocks reserved for given user in file system */
-static __u64 reserved_for_uid(const struct super_block *super UNUSED_ARG,
+static __u64 reserved_for_uid(const reiser4_subvol *subv UNUSED_ARG,
 			      uid_t uid UNUSED_ARG/* user id */)
 {
 	return 0;
 }
 
 /* amount of blocks reserved for super user in file system */
-static __u64 reserved_for_root(const struct super_block *super UNUSED_ARG)
+static __u64 reserved_for_root(const reiser4_subvol *subv UNUSED_ARG)
 {
 	return 0;
 }
@@ -269,31 +307,16 @@ static __u64 reserved_for_root(const struct super_block *super UNUSED_ARG)
 /*
  * true if block number @blk makes sense for the file system at @super.
  */
-int
-reiser4_blocknr_is_sane_for(const struct super_block *super,
-			    const reiser4_block_nr * blk)
+int reiser4_blocknr_is_sane_for(const reiser4_subvol *subv,
+				const reiser4_block_nr *blk)
 {
-	reiser4_super_info_data *sbinfo;
-
-	assert("nikita-2957", super != NULL);
+	assert("nikita-2957", subv != NULL);
 	assert("nikita-2958", blk != NULL);
 
 	if (reiser4_blocknr_is_fake(blk))
 		return 1;
-
-	sbinfo = get_super_private(super);
-	return *blk < sbinfo->block_count;
+	return *blk < reiser4_subvol_block_count(subv);
 }
-
-#if REISER4_DEBUG
-/*
- * true, if block number @blk makes sense for the current file system
- */
-int reiser4_blocknr_is_sane(const reiser4_block_nr * blk)
-{
-	return reiser4_blocknr_is_sane_for(reiser4_get_current_sb(), blk);
-}
-#endif  /*  REISER4_DEBUG  */
 
 /* Make Linus happy.
    Local variables:

@@ -33,6 +33,8 @@ reiser4-y := \
 		   ktxnmgrd.o \
 		   blocknrset.o \
 		   super.o \
+		   init_volume.o \
+		   ondisk_fiber.o \
 		   super_ops.o \
 		   fsdata.o \
 		   export_ops.o \
@@ -77,6 +79,11 @@ reiser4-y := \
            \
 		   plugin/compress/compress.o \
 		   plugin/compress/compress_mode.o \
+           \
+		   plugin/volume/volume.o \
+           \
+		   plugin/distribution/hash.o \
+		   plugin/distribution/distribution.o \
            \
 		   plugin/item/static_stat.o \
 		   plugin/item/sde.o \

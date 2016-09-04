@@ -11,27 +11,38 @@
 #include "../../jnode.h"
 #include "../../tree.h"
 #include "../../super.h"
+#include "../../ondisk_fiber.h"
 #include "../../wander.h"
 #include "../../inode.h"
 #include "../../ktxnmgrd.h"
 #include "../../status_flags.h"
 
-#include <linux/types.h>	/* for __u??  */
-#include <linux/fs.h>		/* for struct super_block  */
+#include <linux/types.h>
+#include <linux/fs.h>
 #include <linux/buffer_head.h>
 
-/* reiser 4.0 default disk layout */
+/*
+ * Methods of standard disk layout for simple volumes (i.e. volumes
+ * associated with a single physical, or logical (RAID, LVM) device.
+ */
 
-/* Amount of free blocks needed to perform release_format40 when fs gets
-   mounted RW: 1 for SB, 1 for non-leaves in overwrite set, 2 for tx header
-   & tx record. */
+/*
+ * Amount of free blocks needed to perform release_format40 when fs gets
+ * mounted RW:
+ * 1 for SB,
+ * 1 for non-leaves in overwrite set,
+ * 2 for tx header & tx record
+ */
 #define RELEASE_RESERVED 4
 
-/* This flag indicates that backup should be updated
-   (the update is performed by fsck) */
+/*
+ * This flag indicates that backup should be updated by fsck
+ */
 #define FORMAT40_UPDATE_BACKUP (1 << 31)
 
-/* functions to access fields of format40_disk_super_block */
+/*
+ * Functions to access fields of format40_disk_super_block
+ */
 static __u64 get_format40_block_count(const format40_disk_super_block * sb)
 {
 	return le64_to_cpu(get_unaligned(&sb->block_count));
@@ -77,10 +88,55 @@ static __u64 get_format40_flags(const format40_disk_super_block * sb)
 	return le64_to_cpu(get_unaligned(&sb->flags));
 }
 
+static __u64 get_format40_subvol_id(const format40_disk_super_block * sb)
+{
+	return le64_to_cpu(get_unaligned(&sb->subvol_id));
+}
+
+static __u64 get_format40_num_subvols(const format40_disk_super_block * sb)
+{
+	return le64_to_cpu(get_unaligned(&sb->num_subvols));
+}
+
+static int get_format40_num_sgs_bits(const format40_disk_super_block * sb)
+{
+	return sb->num_sgs_bits;
+}
+
+static __u64 get_format40_fiber_len(const format40_disk_super_block * sb)
+{
+	return le64_to_cpu(get_unaligned(&sb->fiber_len));
+}
+
+static __u64 get_format40_fiber_loc(const format40_disk_super_block * sb)
+{
+	return le64_to_cpu(get_unaligned(&sb->fiber_loc));
+}
+
 static __u32 get_format40_version(const format40_disk_super_block * sb)
 {
 	return le32_to_cpu(get_unaligned(&sb->version)) &
 		~FORMAT40_UPDATE_BACKUP;
+}
+
+static __u16 get_format40_num_mirrors(const format40_disk_super_block *sb)
+{
+	return le16_to_cpu(get_unaligned(&sb->num_mirrors));
+}
+
+static __u64 get_format40_num_meta_subvols(const format40_disk_super_block *sb)
+{
+	return le64_to_cpu(get_unaligned(&sb->num_meta_subvols));
+}
+
+static __u64 get_format40_num_mixed_subvols(const format40_disk_super_block *sb)
+{
+	return le64_to_cpu(get_unaligned(&sb->num_mixed_subvols));
+}
+
+static __u64 get_format40_room_for_data(const format40_disk_super_block *sb)
+{
+	return le64_to_cpu(get_unaligned(&sb->room_for_data));
 }
 
 static int update_backup_version(const format40_disk_super_block * sb)
@@ -99,83 +155,47 @@ static int incomplete_compatibility(const format40_disk_super_block * sb)
 	return (get_format40_version(sb) > get_release_number_minor());
 }
 
-static format40_super_info *get_sb_info(struct super_block *super)
+static format40_super_info *sb_format_info(reiser4_subvol *subv)
 {
-	return &get_super_private(super)->u.format40;
+	return &subv->u.format40;
 }
 
-static int consult_diskmap(struct super_block *s)
+/**
+ * Pre-condition: @super contains valid block size
+ */
+static int consult_diskmap(struct super_block *super, reiser4_subvol *subv)
 {
-	format40_super_info *info;
+	format40_super_info *finfo;
 	journal_location *jloc;
 
-	info = get_sb_info(s);
-	jloc = &get_super_private(s)->jloc;
-	/* Default format-specific locations, if there is nothing in
-	 * diskmap */
+	jloc = &subv->jloc;
+	finfo = sb_format_info(subv);
+	/*
+	 * Default format-specific locations,
+	 * if there is nothing in diskmap
+	 */
 	jloc->footer = FORMAT40_JOURNAL_FOOTER_BLOCKNR;
 	jloc->header = FORMAT40_JOURNAL_HEADER_BLOCKNR;
-	info->loc.super = FORMAT40_OFFSET / s->s_blocksize;
+	finfo->loc.super = FORMAT40_OFFSET / super->s_blocksize;
+
 #ifdef CONFIG_REISER4_BADBLOCKS
 	reiser4_get_diskmap_value(FORMAT40_PLUGIN_DISKMAP_ID, FORMAT40_JF,
 				  &jloc->footer);
 	reiser4_get_diskmap_value(FORMAT40_PLUGIN_DISKMAP_ID, FORMAT40_JH,
 				  &jloc->header);
 	reiser4_get_diskmap_value(FORMAT40_PLUGIN_DISKMAP_ID, FORMAT40_SUPER,
-				  &info->loc.super);
+				  &finfo->loc.super);
 #endif
 	return 0;
 }
 
-/* find any valid super block of disk_format40 (even if the first
-   super block is destroyed), will change block numbers of actual journal header/footer (jf/jh)
-   if needed */
-static struct buffer_head *find_a_disk_format40_super_block(struct super_block
-							    *s)
+static int get_sb_format_jnode(reiser4_subvol *subv)
 {
-	struct buffer_head *super_bh;
-	format40_disk_super_block *disk_sb;
-	format40_super_info *info;
-
-	assert("umka-487", s != NULL);
-
-	info = get_sb_info(s);
-
-	super_bh = sb_bread(s, info->loc.super);
-	if (super_bh == NULL)
-		return ERR_PTR(RETERR(-EIO));
-
-	disk_sb = (format40_disk_super_block *) super_bh->b_data;
-	if (strncmp(disk_sb->magic, FORMAT40_MAGIC, sizeof(FORMAT40_MAGIC))) {
-		brelse(super_bh);
-		return ERR_PTR(RETERR(-EINVAL));
-	}
-
-	reiser4_set_block_count(s, le64_to_cpu(get_unaligned(&disk_sb->block_count)));
-	reiser4_set_data_blocks(s, le64_to_cpu(get_unaligned(&disk_sb->block_count)) -
-				le64_to_cpu(get_unaligned(&disk_sb->free_blocks)));
-	reiser4_set_free_blocks(s, le64_to_cpu(get_unaligned(&disk_sb->free_blocks)));
-
-	return super_bh;
-}
-
-/* find the most recent version of super block. This is called after journal is
-   replayed */
-static struct buffer_head *read_super_block(struct super_block *s UNUSED_ARG)
-{
-	/* Here the most recent superblock copy has to be read. However, as
-	   journal replay isn't complete, we are using
-	   find_a_disk_format40_super_block() function. */
-	return find_a_disk_format40_super_block(s);
-}
-
-static int get_super_jnode(struct super_block *s)
-{
-	reiser4_super_info_data *sbinfo = get_super_private(s);
-	jnode *sb_jnode;
 	int ret;
+	jnode *sb_jnode;
+	format40_super_info *finfo = sb_format_info(subv);
 
-	sb_jnode = reiser4_alloc_io_head(&get_sb_info(s)->loc.super);
+	sb_jnode = reiser4_alloc_io_head(&finfo->loc.super, subv);
 
 	ret = jload(sb_jnode);
 
@@ -183,22 +203,23 @@ static int get_super_jnode(struct super_block *s)
 		reiser4_drop_io_head(sb_jnode);
 		return ret;
 	}
-
 	pin_jnode_data(sb_jnode);
 	jrelse(sb_jnode);
 
-	sbinfo->u.format40.sb_jnode = sb_jnode;
+	finfo->sb_jnode = sb_jnode;
 
 	return 0;
 }
 
-static void done_super_jnode(struct super_block *s)
+static void put_sb_format_jnode(reiser4_subvol *subv)
 {
-	jnode *sb_jnode = get_super_private(s)->u.format40.sb_jnode;
+	jnode *node;
 
-	if (sb_jnode) {
-		unpin_jnode_data(sb_jnode);
-		reiser4_drop_io_head(sb_jnode);
+	node = sb_format_info(subv)->sb_jnode;
+
+	if (node) {
+		unpin_jnode_data(node);
+		reiser4_drop_io_head(node);
 	}
 }
 
@@ -216,10 +237,11 @@ typedef enum format40_init_stage {
 	JOURNAL_RECOVER,
 	INIT_SA,
 	INIT_JNODE,
+	INIT_SYSTAB,
 	ALL_DONE
 } format40_init_stage;
 
-static format40_disk_super_block *copy_sb(const struct buffer_head *super_bh)
+static format40_disk_super_block *copy_sb(struct page *page)
 {
 	format40_disk_super_block *sb_copy;
 
@@ -227,8 +249,9 @@ static format40_disk_super_block *copy_sb(const struct buffer_head *super_bh)
 			  reiser4_ctx_gfp_mask_get());
 	if (sb_copy == NULL)
 		return ERR_PTR(RETERR(-ENOMEM));
-	memcpy(sb_copy, ((format40_disk_super_block *) super_bh->b_data),
-	       sizeof(format40_disk_super_block));
+
+	memcpy(sb_copy, kmap(page), sizeof(*sb_copy));
+	kunmap(page);
 	return sb_copy;
 }
 
@@ -244,215 +267,417 @@ static int check_key_format(const format40_disk_super_block *sb_copy)
 	return 0;
 }
 
-/**
- * try_init_format40
- * @super:
- * @stage:
- *
+/*
+ * Check number of subvolumes in the format super-block
+ * and number of registered subvolumes. They should coincide.
  */
-static int try_init_format40(struct super_block *super,
-			     format40_init_stage *stage)
+static int check_num_subvols(reiser4_subvol *subv,
+			     format40_disk_super_block *sb_format)
+{
+	reiser4_volume *vol;
+	u32 ondisk_num_subvols;
+
+	vol = get_super_volume(subv->super);
+	ondisk_num_subvols = get_format40_num_subvols(sb_format);
+
+	if (ondisk_num_subvols == 0)
+		/*
+		 * This is a subvolume of format 4.0.Y
+		 * We handle this special case for backward compatibility:
+		 * guess number of subvolumes
+		 */
+		ondisk_num_subvols = 1;
+
+	if (ondisk_num_subvols != vol->num_subvols) {
+		printk("reiser5 (%s): Number of registered subvolumes (%llu) "
+		       "differs from on-disk number of subvolumes (%u).\n",
+		       subv->super->s_id,
+		       (unsigned long long)vol->num_subvols,
+		       ondisk_num_subvols);
+		return -EINVAL;
+	}
+	if (subv->id >= vol->num_subvols) {
+		printk("reiser5 (%s): Bad subvolume ID (%llu): should be "
+		       "less than total number of subvolumes (%llu).",
+		       subv->super->s_id,
+		       subv->id,
+		       vol->num_subvols);
+		return -EINVAL;
+	}
+	return 0;
+}
+
+int set_check_common_vol_params(reiser4_volume *vol,
+				const format40_disk_super_block *sb_format)
+{
+	static char *wrong_is;
+
+	if (vol->num_sgs_bits == 0)
+		vol->num_sgs_bits = get_format40_num_sgs_bits(sb_format);
+	else if (vol->num_sgs_bits != get_format40_num_sgs_bits(sb_format)) {
+		wrong_is = "granularity params";
+		goto error;
+	}
+	if (vol->num_mirrors == 0)
+		vol->num_mirrors = get_format40_num_mirrors(sb_format);
+	else if (vol->num_mirrors != get_format40_num_mirrors(sb_format)) {
+		wrong_is = "numbers of mirrors";
+		goto error;
+	}
+	if (vol->num_meta_subvols == 0)
+		vol->num_meta_subvols = get_format40_num_meta_subvols(sb_format);
+	else if (vol->num_meta_subvols != get_format40_num_meta_subvols(sb_format)) {
+		wrong_is = "numbers of metadata subvolumes";
+		goto error;
+	}
+	if (vol->num_mixed_subvols == 0)
+		vol->num_mixed_subvols = get_format40_num_mixed_subvols(sb_format);
+	else if (vol->num_mixed_subvols != get_format40_num_mixed_subvols(sb_format)) {
+		wrong_is = "numbers of mixed subvolumes";
+		goto error;
+	}
+	return 0;
+ error:
+	printk("reiser5: different %s found in subvolumes "
+	       "of the same logical volume %s.\n",
+	       wrong_is, vol->subvols[0]->super->s_id);
+
+	return -EINVAL;
+}
+
+/**
+ * Find disk format super block at specified location (it is not
+ * guaranteed to be the most recent version). Perform sanity checks,
+ * set subvolume id.
+ */
+static struct page *find_disk_format40(reiser4_subvol *subv)
+{
+	int ret;
+	struct page *page;
+	format40_disk_super_block *disk_sb;
+	format40_super_info *finfo;
+	reiser4_volume *vol;
+
+	vol = get_super_volume(subv->super);
+	finfo = sb_format_info(subv);
+
+	page = read_cache_page_gfp(subv->bdev->bd_inode->i_mapping,
+				   finfo->loc.super,
+				   GFP_NOFS);
+	if (IS_ERR_OR_NULL(page))
+		return ERR_PTR(RETERR(-EIO));
+
+	disk_sb = kmap(page);
+	if (strncmp(disk_sb->magic, FORMAT40_MAGIC, sizeof(FORMAT40_MAGIC))) {
+		/*
+		 * there is no reiser4 on this device
+		 */
+		kunmap(page);
+		put_page(page);
+		return ERR_PTR(RETERR(-EINVAL));
+	}
+	subv->id = get_format40_subvol_id(disk_sb);
+	if (subv->id < get_format40_num_mirrors(disk_sb))
+		/*
+		 * FIXME-EDWARD: This belongs to specifications of format 5.0
+		 */
+		subv->flags |= (1 << SUBVOL_IS_MIRROR);
+
+	ret = check_num_subvols(subv, disk_sb);
+	if (ret) {
+		kunmap(page);
+		put_page(page);
+		return ERR_PTR(RETERR(-EINVAL));
+	}
+	if (subvol_is_set(subv, SUBVOL_IS_MIRROR))
+		goto exit;
+	reiser4_subvol_set_block_count(subv,
+			     le64_to_cpu(get_unaligned(&disk_sb->block_count)));
+	reiser4_subvol_set_free_blocks(subv,
+			     le64_to_cpu(get_unaligned(&disk_sb->free_blocks)));
+	/*
+	 * Set number of used blocks. The number of used blocks is stored
+	 * neither in on-disk super block nor in the journal footer blocks.
+	 * Instead we maintain it along with actual values of total blocks
+	 * and free block counters in the in-memory subvolume header
+	 */
+	reiser4_subvol_set_used_blocks(subv,
+				       reiser4_subvol_block_count(subv) -
+				       reiser4_subvol_free_blocks(subv));
+ exit:
+	kunmap(page);
+	return page;
+}
+
+/**
+ * Initialize in-memory subvolume header
+ */
+int try_init_format40(struct super_block *super,
+		      format40_init_stage *stage, reiser4_subvol *subv)
 {
 	int result;
-	struct buffer_head *super_bh;
+	struct page *page;
+	reiser4_volume *vol;
 	reiser4_super_info_data *sbinfo;
-	format40_disk_super_block *sb_copy;
+	format40_disk_super_block *sb_format;
 	tree_level height;
 	reiser4_block_nr root_block;
 	node_plugin *nplug;
+	u64 extended_status;
 
 	assert("vs-475", super != NULL);
-	assert("vs-474", get_super_private(super));
+	assert("vs-474", get_super_private(super) != NULL);
+	assert("edward-xxx", get_super_private(super)->vol != NULL);
 
 	*stage = NONE_DONE;
-
-	result = consult_diskmap(super);
+	/*
+	 * set journal location, etc
+	 */
+	result = consult_diskmap(super, subv);
 	if (result)
 		return result;
 	*stage = CONSULT_DISKMAP;
 
-	super_bh = find_a_disk_format40_super_block(super);
-	if (IS_ERR(super_bh))
-		return PTR_ERR(super_bh);
-	brelse(super_bh);
+	page = find_disk_format40(subv);
+	if (IS_ERR(page))
+		return PTR_ERR(page);
+	put_page(page);
+
+	if (is_mirror(subv))
+		/*
+		 * the subvolume is replica, so
+		 * it doesn't need to be fully activated
+		 */
+		return 0;
+
 	*stage = FIND_A_SUPER;
-
-	/* ok, we are sure that filesystem format is a format40 format */
-
-	/* map jnodes for journal control blocks (header, footer) to disk  */
-	result = reiser4_init_journal_info(super);
+	/*
+	 * OK, we are sure that subvolume format is format40
+	 */
+	result = reiser4_init_journal_info(subv);
 	if (result)
 		return result;
 	*stage = INIT_JOURNAL_INFO;
 
-	/* ok, we are sure that filesystem format is a format40 format */
-	/* Now check it's state */
-	result = reiser4_status_init(FORMAT40_STATUS_BLOCKNR);
+	result = reiser4_status_init(subv, FORMAT40_STATUS_BLOCKNR);
 	if (result != 0 && result != -EINVAL)
-		/* -EINVAL means there is no magic, so probably just old
-		 * fs. */
+		/*
+		 * -EINVAL means there is no magic, so probably just old fs
+		 */
 		return result;
 	*stage = INIT_STATUS;
 
-	result = reiser4_status_query(NULL, NULL);
+	result = reiser4_status_query(subv, NULL, &extended_status);
 	if (result == REISER4_STATUS_MOUNT_WARN)
 		notice("vpf-1363", "Warning: mounting %s with errors.",
 		       super->s_id);
+
 	if (result == REISER4_STATUS_MOUNT_RO)
-		notice("vpf-1364", "Warning: mounting %s with fatal errors,"
-		       " forcing read-only mount.", super->s_id);
-	result = reiser4_journal_replay(super);
+		notice("vpf-1364", "Warning: mounting %s with fatal errors. "
+		       "Forcing read-only mount.", super->s_id);
+
+	if (extended_status == REISER4_ESTATUS_MIRRORS_NOT_SYNCED)
+		notice("edward-xxx",
+		       "Warning: mounting %s with not synced mirrors. "
+		       "Scrub is required.", super->s_id);
+
+	result = reiser4_journal_replay(subv);
 	if (result)
 		return result;
 	*stage = JOURNAL_REPLAY;
-
-	super_bh = read_super_block(super);
-	if (IS_ERR(super_bh))
-		return PTR_ERR(super_bh);
+	/*
+	 * read the most recent version of format superblock
+	 * after journal replay
+	 */
+	page = find_disk_format40(subv);
+	if (IS_ERR(page))
+		return PTR_ERR(page);
 	*stage = READ_SUPER;
+	/*
+	 * allocate and make a copy of format40_disk_super_block
+	 */
+	sb_format = copy_sb(page);
+	put_page(page);
 
-	/* allocate and make a copy of format40_disk_super_block */
-	sb_copy = copy_sb(super_bh);
-	brelse(super_bh);
-
-	if (IS_ERR(sb_copy))
-		return PTR_ERR(sb_copy);
-	printk("reiser4: %s: found disk format 4.0.%u.\n",
+	if (IS_ERR(sb_format))
+		return PTR_ERR(sb_format);
+	printk("reiser4 (%s): found disk format 4.0.%u.\n",
 	       super->s_id,
-	       get_format40_version(sb_copy));
-	if (incomplete_compatibility(sb_copy))
-		printk("reiser4: %s: format version number (4.0.%u) is "
+	       get_format40_version(sb_format));
+	if (incomplete_compatibility(sb_format))
+		printk("reiser4 (%s): format version number (4.0.%u) is "
 		       "greater than release number (4.%u.%u) of reiser4 "
-		       "kernel module. Some objects of the volume can be "
-		       "inaccessible.\n",
+		       "kernel module. Some objects of the subvolume can "
+		       "be inaccessible.\n",
 		       super->s_id,
-		       get_format40_version(sb_copy),
+		       get_format40_version(sb_format),
 		       get_release_number_major(),
 		       get_release_number_minor());
-	/* make sure that key format of kernel and filesystem match */
-	result = check_key_format(sb_copy);
+	/*
+	 * make sure that key format of kernel and filesystem match
+	 */
+	result = check_key_format(sb_format);
 	if (result) {
-		kfree(sb_copy);
+		kfree(sb_format);
 		return result;
 	}
 	*stage = KEY_CHECK;
 
-	result = oid_init_allocator(super, get_format40_file_count(sb_copy),
-				    get_format40_oid(sb_copy));
+	result = oid_init_allocator(super, get_format40_file_count(sb_format),
+				    get_format40_oid(sb_format));
 	if (result) {
-		kfree(sb_copy);
+		kfree(sb_format);
 		return result;
 	}
 	*stage = INIT_OID;
-
-	/* get things necessary to init reiser4_tree */
-	root_block = get_format40_root_block(sb_copy);
-	height = get_format40_tree_height(sb_copy);
-	nplug = node_plugin_by_id(get_format40_node_plugin_id(sb_copy));
-
-	/* initialize reiser4_super_info_data */
+	/*
+	 * initialize in-memory subvolume info
+	 */
 	sbinfo = get_super_private(super);
-	assert("", sbinfo->tree.super == super);
-	/* init reiser4_tree for the filesystem */
-	result = reiser4_init_tree(&sbinfo->tree, &root_block, height, nplug);
+	vol = sbinfo->vol;
+	/*
+	 * get things necessary to init reiser4_tree
+	 */
+	root_block = get_format40_root_block(sb_format);
+	height = get_format40_tree_height(sb_format);
+	nplug = node_plugin_by_id(get_format40_node_plugin_id(sb_format));
+	/*
+	 * init reiser4_tree for this subvolume
+	 */
+	result = reiser4_subvol_init_tree(super, subv,
+					  &root_block, height, nplug);
 	if (result) {
-		kfree(sb_copy);
+		kfree(sb_format);
 		return result;
 	}
 	*stage = INIT_TREE;
-
 	/*
-	 * initialize reiser4_super_info_data with data from format40 super
-	 * block
+	 * For scalability reasons and just for reasons of common
+	 * sense we don't replicate common volume parameters on all
+	 * subvolumes. For now it resides only on master subvolume.
 	 */
-	sbinfo->default_uid = 0;
-	sbinfo->default_gid = 0;
-	sbinfo->mkfs_id = get_format40_mkfs_id(sb_copy);
-	/* number of blocks in filesystem and reserved space */
-	reiser4_set_block_count(super, get_format40_block_count(sb_copy));
-	sbinfo->blocks_free = get_format40_free_blocks(sb_copy);
-	sbinfo->version = get_format40_version(sb_copy);
-	kfree(sb_copy);
+	/*
+	 * read or check common volume parameters
+	 */
+	result = set_check_common_vol_params(vol, sb_format);
+	if (result) {
+		kfree(sb_format);
+		return result;
+	}
+	/*
+	 * set private subvolume parameters
+	 */
+	subv->mkfs_id = get_format40_mkfs_id(sb_format);
+	subv->block_count = get_format40_block_count(sb_format);
+	subv->blocks_free = get_format40_free_blocks(sb_format);
+	subv->version = get_format40_version(sb_format);
+	subv->room_for_data = get_format40_room_for_data(sb_format);
+	subv->blocks_free_committed = subv->blocks_free;
 
-	if (update_backup_version(sb_copy))
+	subv->flush.relocate_threshold = FLUSH_RELOCATE_THRESHOLD;
+	subv->flush.relocate_distance = FLUSH_RELOCATE_DISTANCE;
+	subv->flush.written_threshold = FLUSH_WRITTEN_THRESHOLD;
+	subv->flush.scan_maxnodes = FLUSH_SCAN_MAXNODES;
+
+	if (update_backup_version(sb_format))
 		printk("reiser4: %s: use 'fsck.reiser4 --fix' "
 		       "to complete disk format upgrade.\n", super->s_id);
+	/*
+	 * all formatted nodes in a subvolume managed by format40
+	 * are of one plugin
+	 */
+	subv->flags |= (1 << SUBVOL_ONE_NODE_PLUGIN);
 
-	sbinfo->fsuid = 0;
-	sbinfo->fs_flags |= (1 << REISER4_ADG);	/* hard links for directories
-						 * are not supported */
-	sbinfo->fs_flags |= (1 << REISER4_ONE_NODE_PLUGIN);	/* all nodes in
-								 * layout 40 are
-								 * of one
-								 * plugin */
 	/* sbinfo->tmgr is initialized already */
-
-	/* recover sb data which were logged separately from sb block */
-
-	/* NOTE-NIKITA: reiser4_journal_recover_sb_data() calls
+	/*
+	 * Recover sb data which were logged separately from sb block
+	 * NOTE-NIKITA: reiser4_journal_recover_sb_data() calls
 	 * oid_init_allocator() and reiser4_set_free_blocks() with new
-	 * data. What's the reason to call them above? */
-	result = reiser4_journal_recover_sb_data(super);
-	if (result != 0)
+	 * data. What's the reason to call them above?
+	 */
+	result = reiser4_journal_recover_sb_data(super, subv);
+	if (result != 0) {
+		kfree(sb_format);
 		return result;
+	}
 	*stage = JOURNAL_RECOVER;
 
-	/*
-	 * Set number of used blocks.  The number of used blocks is not stored
-	 * neither in on-disk super block nor in the journal footer blocks.  At
-	 * this moment actual values of total blocks and free block counters
-	 * are set in the reiser4 super block (in-memory structure) and we can
-	 * calculate number of used blocks from them.
-	 */
-	reiser4_set_data_blocks(super,
-				reiser4_block_count(super) -
-				reiser4_free_blocks(super));
+	assert("edward-xxx", reiser4_subvol_used_blocks(subv) ==
+	       reiser4_subvol_block_count(subv) -
+	       reiser4_subvol_free_blocks(subv));
 
 #if REISER4_DEBUG
-	sbinfo->min_blocks_used = 16 /* reserved area */  +
+	subv->min_blocks_used = 16 /* reserved area */  +
 		2 /* super blocks */  +
 		2 /* journal footer and header */ ;
 #endif
-
-	/* init disk space allocator */
-	result = sa_init_allocator(reiser4_get_space_allocator(super),
-				   super, NULL);
-	if (result)
+	/*
+	 * init disk space allocator
+	 */
+	result = sa_init_allocator(&subv->space_allocator, super, subv, NULL);
+	if (result) {
+		kfree(sb_format);
 		return result;
+	}
 	*stage = INIT_SA;
 
-	result = get_super_jnode(super);
-	if (result == 0)
-		*stage = ALL_DONE;
-	return result;
+	result = get_sb_format_jnode(subv);
+	if (result) {
+		kfree(sb_format);
+		return result;
+	}
+	*stage = INIT_JNODE;
+
+	reiser4_subvol_set_fiber_len(subv, get_format40_fiber_len(sb_format));
+	/*
+	 * load fiber for distribution plugin
+	 */
+	result = reiser4_fiber_load(subv,
+				    reiser4_subvol_fiber_len(subv),
+				    get_format40_fiber_loc(sb_format),
+				    0 /* don't pin jnodes */);
+	kfree(sb_format);
+	if (result)
+		return result;
+	*stage = ALL_DONE;
+
+	printk("reiser4 (%s): using %s.\n", subv->name,
+	       txmod_plugin_by_id(subv->txmod)->h.desc);
+
+	return 0;
 }
 
-/* plugin->u.format.get_ready */
-int init_format_format40(struct super_block *s, void *data UNUSED_ARG)
+/**
+ * ->init_format() method of disk_format40 plugin
+ */
+int init_format_format40(struct super_block *s, reiser4_subvol *subv)
 {
 	int result;
 	format40_init_stage stage;
 
-	result = try_init_format40(s, &stage);
+	result = try_init_format40(s, &stage, subv);
 	switch (stage) {
 	case ALL_DONE:
 		assert("nikita-3458", result == 0);
 		break;
+	case INIT_SYSTAB:
+		reiser4_fiber_done(subv);
 	case INIT_JNODE:
-		done_super_jnode(s);
+		put_sb_format_jnode(subv);
 	case INIT_SA:
-		sa_destroy_allocator(reiser4_get_space_allocator(s), s);
+		sa_destroy_allocator(reiser4_get_space_allocator(subv),
+				     s, subv);
 	case JOURNAL_RECOVER:
 	case INIT_TREE:
-		reiser4_done_tree(&get_super_private(s)->tree);
+		reiser4_done_tree(&subv->tree);
 	case INIT_OID:
 	case KEY_CHECK:
 	case READ_SUPER:
 	case JOURNAL_REPLAY:
 	case INIT_STATUS:
-		reiser4_status_finish();
+		reiser4_status_finish(subv);
 	case INIT_JOURNAL_INFO:
-		reiser4_done_journal_info(s);
+		reiser4_done_journal_info(subv);
 	case FIND_A_SUPER:
 	case CONSULT_DISKMAP:
 	case NONE_DONE:
@@ -460,77 +685,73 @@ int init_format_format40(struct super_block *s, void *data UNUSED_ARG)
 	default:
 		impossible("nikita-3457", "init stage: %i", stage);
 	}
-
-	if (!rofs_super(s) && reiser4_free_blocks(s) < RELEASE_RESERVED)
+	if (!rofs_super(s) && !is_mirror(subv) &&
+	    reiser4_subvol_free_blocks(subv) < RELEASE_RESERVED)
 		return RETERR(-ENOSPC);
-
 	return result;
 }
 
-static void pack_format40_super(const struct super_block *s, char *data)
+static void pack_format40_super(const struct super_block *s,
+				reiser4_subvol *subv, char *data)
 {
-	format40_disk_super_block *super_data =
-	    (format40_disk_super_block *) data;
-
-	reiser4_super_info_data *sbinfo = get_super_private(s);
+	format40_disk_super_block *format_sb =
+		(format40_disk_super_block *) data;
 
 	assert("zam-591", data != NULL);
 
-	put_unaligned(cpu_to_le64(reiser4_free_committed_blocks(s)),
-		      &super_data->free_blocks);
+	put_unaligned(cpu_to_le64(reiser4_subvol_free_committed_blocks(subv)),
+		      &format_sb->free_blocks);
 
-	put_unaligned(cpu_to_le64(sbinfo->tree.root_block),
-		      &super_data->root_block);
+	put_unaligned(cpu_to_le64(subv->tree.root_block),
+		      &format_sb->root_block);
 
-	put_unaligned(cpu_to_le64(oid_next(s)),
-		      &super_data->oid);
+	put_unaligned(cpu_to_le64(oid_next(s)), &format_sb->oid);
 
-	put_unaligned(cpu_to_le64(oids_used(s)),
-		      &super_data->file_count);
+	put_unaligned(cpu_to_le64(oids_used(s)), &format_sb->file_count);
 
-	put_unaligned(cpu_to_le16(sbinfo->tree.height),
-		      &super_data->tree_height);
+	put_unaligned(cpu_to_le16(subv->tree.height), &format_sb->tree_height);
 
-	if (update_disk_version_minor(super_data)) {
+	if (update_disk_version_minor(format_sb)) {
 		__u32 version = PLUGIN_LIBRARY_VERSION | FORMAT40_UPDATE_BACKUP;
 
-		put_unaligned(cpu_to_le32(version), &super_data->version);
+		put_unaligned(cpu_to_le32(version), &format_sb->version);
 	}
 }
 
-/* plugin->u.format.log_super
-   return a jnode which should be added to transaction when the super block
-   gets logged */
-jnode *log_super_format40(struct super_block *s)
+/**
+ * ->log_super() method of disk_format40 plugin.
+ * Return a jnode which should be added to a transaction when the super block
+ * gets logged
+ */
+jnode *log_super_format40(struct super_block *super, reiser4_subvol *subv)
 {
 	jnode *sb_jnode;
 
-	sb_jnode = get_super_private(s)->u.format40.sb_jnode;
+	sb_jnode = subv->u.format40.sb_jnode;
 
 	jload(sb_jnode);
 
-	pack_format40_super(s, jdata(sb_jnode));
+	pack_format40_super(super, subv, jdata(sb_jnode));
 
 	jrelse(sb_jnode);
 
 	return sb_jnode;
 }
 
-/* plugin->u.format.release */
-int release_format40(struct super_block *s)
+/**
+ * ->release() method of disk_format40 plugin
+ */
+int release_format40(struct super_block *s, reiser4_subvol *subv)
 {
 	int ret;
-	reiser4_super_info_data *sbinfo;
 
-	sbinfo = get_super_private(s);
-	assert("zam-579", sbinfo != NULL);
-
+	if (is_mirror(subv))
+		return 0;
 	if (!rofs_super(s)) {
 		ret = reiser4_capture_super_block(s);
 		if (ret != 0)
 			warning("vs-898",
-				"reiser4_capture_super_block failed: %d",
-				ret);
+				"Failed to capture superblock (%d)", ret);
 
 		ret = txnmgr_force_commit_all(s, 1);
 		if (ret != 0)
@@ -538,15 +759,17 @@ int release_format40(struct super_block *s)
 
 		all_grabbed2free();
 	}
-
-	sa_destroy_allocator(&sbinfo->space_allocator, s);
-	reiser4_done_journal_info(s);
-	done_super_jnode(s);
+	sa_destroy_allocator(&subv->space_allocator, s, subv);
+	reiser4_fiber_done(subv);
+	reiser4_done_journal_info(subv);
+	put_sb_format_jnode(subv);
 
 	rcu_barrier();
-	reiser4_done_tree(&sbinfo->tree);
-	/* call finish_rcu(), because some znode were "released" in
-	 * reiser4_done_tree(). */
+	reiser4_done_tree(&subv->tree);
+	/*
+	 * call finish_rcu(), because some znode
+	 * were "released" in reiser4_done_tree()
+	 */
 	rcu_barrier();
 
 	return 0;
@@ -555,13 +778,16 @@ int release_format40(struct super_block *s)
 #define FORMAT40_ROOT_LOCALITY 41
 #define FORMAT40_ROOT_OBJECTID 42
 
-/* plugin->u.format.root_dir_key */
+/**
+ * ->root_dir_key() method of disk_format40 plugin
+ */
 const reiser4_key *root_dir_key_format40(const struct super_block *super
 					 UNUSED_ARG)
 {
 	static const reiser4_key FORMAT40_ROOT_DIR_KEY = {
 		.el = {
-			__constant_cpu_to_le64((FORMAT40_ROOT_LOCALITY << 4) | KEY_SD_MINOR),
+			__constant_cpu_to_le64((FORMAT40_ROOT_LOCALITY << 4) |
+					       KEY_SD_MINOR),
 #if REISER4_LARGE_KEY
 			ON_LARGE_KEY(0ull,)
 #endif
@@ -569,21 +795,24 @@ const reiser4_key *root_dir_key_format40(const struct super_block *super
 			0ull
 		}
 	};
-
 	return &FORMAT40_ROOT_DIR_KEY;
 }
 
-/* plugin->u.format.check_open.
-   Check the opened object for validness. For now it checks for the valid oid &
-   locality only, can be improved later and it its work may depend on the mount
-   options. */
+/**
+ * ->check_open() method of disk_format40 plugin
+ * Check the opened object for validness.
+ * For now it checks for the valid oid & locality only,
+ * can be improved later and it its work may depend on
+ * the mount options
+ */
 int check_open_format40(const struct inode *object)
 {
 	oid_t max, oid;
 
 	max = oid_next(object->i_sb) - 1;
-
-	/* Check the oid. */
+	/*
+	 * Check the oid
+	 */
 	oid = get_inode_oid(object);
 	if (oid > max) {
 		warning("vpf-1360", "The object with the oid %llu "
@@ -592,8 +821,9 @@ int check_open_format40(const struct inode *object)
 
 		return RETERR(-EIO);
 	}
-
-	/* Check the locality. */
+	/*
+	 * Check the locality
+	 */
 	oid = reiser4_inode_data(object)->locality_id;
 	if (oid > max) {
 		warning("vpf-1361", "The object with the locality %llu "
@@ -602,36 +832,34 @@ int check_open_format40(const struct inode *object)
 
 		return RETERR(-EIO);
 	}
-
 	return 0;
 }
 
-/*
- * plugin->u.format.version_update
+/**
+ * ->version_update() method of disk_format40 plugin
  * Upgrade minor disk format version number
  */
-int version_update_format40(struct super_block *super) {
+int version_update_format40(struct super_block *super, reiser4_subvol *subv)
+{
 	txn_handle * trans;
 	lock_handle lh;
 	txn_atom *atom;
 	int ret;
 
-	/* Nothing to do if RO mount or the on-disk version is not less. */
-	if (super->s_flags & MS_RDONLY)
- 		return 0;
-
-	if (get_super_private(super)->version >= get_release_number_minor())
+	if (is_mirror(subv) ||
+	    super->s_flags & MS_RDONLY ||
+	    subv->version >= get_release_number_minor())
 		return 0;
 
-	printk("reiser4: %s: upgrading disk format to 4.0.%u.\n",
-	       super->s_id,
-	       get_release_number_minor());
-	printk("reiser4: %s: use 'fsck.reiser4 --fix' "
-	       "to complete disk format upgrade.\n", super->s_id);
-
-	/* Mark the uber znode dirty to call log_super on write_logs. */
+	printk("reiser4 (%s): upgrading disk format to 4.0.%u.\n",
+	       subv->name, get_release_number_minor());
+	printk("reiser4 (%s): use 'fsck.reiser4 --fix' "
+	       "to complete disk format upgrade.\n", subv->name);
+	/*
+	 * Mark the uber znode dirty to call ->log_super() on write_logs
+	 */
 	init_lh(&lh);
-	ret = get_uber_znode(reiser4_get_tree(super), ZNODE_WRITE_LOCK,
+	ret = get_uber_znode(&subv->tree, ZNODE_WRITE_LOCK,
 			     ZNODE_LOCK_HIPRI, &lh);
 	if (ret != 0)
 		return ret;
@@ -639,7 +867,7 @@ int version_update_format40(struct super_block *super) {
 	znode_make_dirty(lh.node);
 	done_lh(&lh);
 
-	/* Update the backup blocks. */
+	/* NOTE-EDWARD: Backup blocks stuff in fsck makes queasy */
 
 	/* Force write_logs immediately. */
 	trans = get_current_context()->trans;
@@ -650,13 +878,36 @@ int version_update_format40(struct super_block *super) {
 	return force_commit_atom(trans);
 }
 
-/* Make Linus happy.
-   Local variables:
-   c-indentation-style: "K&R"
-   mode-name: "LC"
-   c-basic-offset: 8
-   tab-width: 8
-   fill-column: 120
-   scroll-step: 1
-   End:
-*/
+
+/**
+ * Upadte original superblock to be written to replica device.
+ * @subv: original subvolume to be replicated.
+ * @replica_id: internal id of the subvolume-replica
+ */
+void update_sb4replica_format41(reiser4_subvol *orig, u64 replica_id)
+{
+	jnode *sb_jnode;
+	format40_disk_super_block *format_sb;
+	/*
+	 * get IO header of the original format super-block
+	 */
+	sb_jnode = orig->u.format40.sb_jnode;
+
+	assert("edward-xxx", sb_jnode->magic == JMAGIC);
+
+	jload(sb_jnode);
+	format_sb = (format40_disk_super_block *)jdata(sb_jnode);
+	put_unaligned(cpu_to_le64(replica_id), &format_sb->subvol_id);
+	jrelse(sb_jnode);
+}
+
+/*
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 120
+ * scroll-step: 1
+ * End:
+ */
