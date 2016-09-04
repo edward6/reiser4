@@ -921,6 +921,16 @@ static int write_jnodes_contig(jnode *first, int nr,
 					node_plugin_by_node(JZNODE(cur))->csum(JZNODE(cur), 0);
 				zrelse(JZNODE(cur));
 			}
+			if (have_mirrors()) {
+				reiser4_subvol *orig = super_origin(subv->super);
+				if (cur == orig->u.format40.sb_jnode)
+					/*
+					 * super-blocks of the original and
+					 * mirrors can differ in some fields,
+					 * so update it properly
+					 */
+					subv->df_plug->update_sb4replica(subv);
+			}
 			ClearPageError(pg);
 			set_page_writeback(pg);
 
@@ -1342,38 +1352,6 @@ static int play_tx_subv(struct commit_handle *ch, u32 subv_id)
 	return ret;
 }
 
-/**
- * Submit superblocks of all mirrors using buffer of the original
- * subvolume. Upon IO completion return original values.
- */
-static int update_submit_mirrors_sb(struct commit_handle *ch)
-{
-	int ret = 0;
-	u32 mirr_id;
-	reiser4_subvol *orig = super_origin(ch->super);
-	jnode *orig_sb_jnode = orig->u.format40.sb_jnode;
-
-	for_each_mirror(mirr_id) {
-		reiser4_subvol *mirror;
-		mirror = super_subvol(ch->super, mirr_id);
-
-		orig->df_plug->update_sb4replica(orig, mirr_id);
-		ret = write_jnodes_contig(orig_sb_jnode, 1,
-					  jnode_get_block(orig_sb_jnode),
-					  NULL, WRITEOUT_FLUSH_FUA, mirror);
-		if (ret)
-			break;
-		ret = jwait_io(orig_sb_jnode, WRITE);
-		if (ret)
-			break;
-	}
-	/*
-	 * Return original value(s)
-	 */
-	orig->df_plug->update_sb4replica(orig, orig->id);
-	return ret;
-}
-
 static int play_tx(struct commit_handle *ch)
 {
 	int ret;
@@ -1391,10 +1369,15 @@ static int play_tx(struct commit_handle *ch)
 	if (ret)
 		return ret;
 
-	if (have_mirrors() && current_is_last_commit()) {
-		ret = update_submit_mirrors_sb(ch);
-		if (ret)
-			return ret;
+	if (have_mirrors()) {
+		/*
+		 * Super-block could be updated when writing
+		 * mirrors (see write_jnodes_contig), so
+		 * we need to return its original value(s)
+		 */
+		reiser4_subvol *orig;
+		orig = super_origin(ch->super);
+		orig->df_plug->update_sb4replica(orig);
 	}
 
 	for_each_notmirr(subv_id) {
@@ -1614,6 +1597,44 @@ static int restore_commit_handle(struct commit_handle *ch,
 }
 
 /**
+ * Overwrite blocks on permanent location by the wandered set.
+ * and synchronize it with all mirrors (if any).
+ * Pre-condition: all mirrors should be already activated.
+ */
+static int replay_tx_subv(reiser4_subvol *subv)
+{
+	int ret;
+	struct commit_handle_subvol *ch_sub = &subv->ch;
+
+	write_jnode_list(&ch_sub->overwrite_set,
+			 NULL, NULL, 0, subv);
+	ret = wait_on_jnode_list(&ch_sub->overwrite_set);
+	if (ret)
+		goto error;
+
+	if (is_origin(subv)) {
+		/*
+		 * update also all its mirrors
+		 */
+		u32 mirror_id;
+		for_each_mirror(mirror_id) {
+			subv = super_subvol(subv->super, mirror_id);
+
+			write_jnode_list(&ch_sub->overwrite_set,
+					 NULL, NULL, 0, subv);
+			ret = wait_on_jnode_list(&ch_sub->overwrite_set);
+			if (ret)
+				goto error;
+		}
+	}
+	return 0;
+ error:
+	warning("edward-xxx", "transaction replay failed on %s (%d)",
+		subv->name, ret);
+	return RETERR(-EIO);
+}
+
+/**
  * This is an "offline" version of play_tx(). Called at mount time.
  * Replay one transaction: restore and write overwrite set in place
  */
@@ -1720,27 +1741,31 @@ static int replay_tx(jnode *tx_head,
 	}
 
 	if (nr_wander_records != 0) {
-		warning("zam-632", "number of wander records in the linked list"
-			" less than number stored in tx head.\n");
+		warning("zam-632",
+			"number of wander records in the linked list "
+			"is less than number stored in tx head.\n");
 		ret = RETERR(-EIO);
 		goto free_ow_set;
 	}
-	{
-		/*
-		 * write wandered set in place
-		 */
-		write_jnode_list(&ch_sub->overwrite_set, NULL, NULL, 0, subv);
-		ret = wait_on_jnode_list(&ch_sub->overwrite_set);
 
-		if (ret) {
-			ret = RETERR(-EIO);
-			goto free_ow_set;
-		}
+	ret = replay_tx_subv(subv);
+
+	if (have_mirrors()) {
+		/*
+		 * Super-block could be updated when writing
+		 * mirrors (see write_jnodes_contig), so
+		 * we need to return its original value(s)
+		 */
+		reiser4_subvol *orig;
+		orig = super_origin(subv->super);
+		orig->df_plug->update_sb4replica(orig);
 	}
+	if (ret)
+		goto free_ow_set;
 
 	ret = update_journal_footer(&ch, subv->id);
 
-      free_ow_set:
+ free_ow_set:
 
 	while (!list_empty(&ch_sub->overwrite_set)) {
 		jnode *cur = list_entry(ch_sub->overwrite_set.next,

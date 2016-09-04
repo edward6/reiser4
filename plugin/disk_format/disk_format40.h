@@ -110,16 +110,16 @@ typedef struct format40_super_info {
 
 /*
  * declarations of functions implementing methods of layout plugin
- * for format 40. The functions theirself are in disk_format40.c
+ * for format40. The functions theirself are in disk_format40.c
  */
-extern int init_format_format40(struct super_block *, reiser4_subvol *);
+extern int init_format_format40(struct super_block *, reiser4_subvol *,
+				reiser4_vg_id);
 extern const reiser4_key *root_dir_key_format40(const struct super_block *);
 extern int release_format40(struct super_block *s, reiser4_subvol *);
 extern jnode *log_super_format40(struct super_block *s, reiser4_subvol *);
 extern int check_open_format40(const struct inode *object);
 extern int version_update_format40(struct super_block *super, reiser4_subvol *);
-
-extern void update_sb4replica_format41(reiser4_subvol*, u64);
+extern void update_sb4replica_format41(reiser4_subvol *);
 
 /* __DISK_FORMAT40_H__ */
 #endif
