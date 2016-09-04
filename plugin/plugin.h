@@ -707,19 +707,22 @@ typedef struct disk_format_plugin {
 	/* generic fields */
 	plugin_header h;
 	/* replay journal, initialize super_info_data, etc */
-	int (*init_format) (struct super_block *, reiser4_subvol *);
+	int (*init_format) (struct super_block *, reiser4_subvol *,
+			    reiser4_vg_id);
 	/* key of root directory stat data */
 	const reiser4_key * (*root_dir_key) (const struct super_block *);
 	int (*release_format) (struct super_block *, reiser4_subvol *);
 	jnode * (*log_super) (struct super_block *, reiser4_subvol *);
 	int (*check_open) (const struct inode *object);
 	int (*version_update) (struct super_block *, reiser4_subvol *);
-	/* Update original superblock to be submited to mirror.
+	/* Update superblock before submission.
 	 * We don't allocate buffers for mirrors. Instead we use buffer
 	 * of the original subvolume. However, mirrors differ from the
-	 * original in some superblock's fields. So we update the original
-	 * then return original values after on-mirrors IO completion */
-	void (*update_sb4replica)(reiser4_subvol *orig, u64 replica_id);
+	 * original in some superblock's fields. So right before submission
+	 * we update those fields properly. After on-mirrors IO completion
+	 * we use this method to return back the original values of the
+	 * superblock */
+	void (*update_sb4replica)(reiser4_subvol *subv);
 } disk_format_plugin;
 
 struct jnode_plugin {
