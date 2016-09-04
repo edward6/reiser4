@@ -366,14 +366,11 @@ static int cut_disk_cluster(struct inode * inode, cloff_t idx)
 
 static int reserve_cryptcompress2unixfile(struct inode *inode)
 {
-	reiser4_block_nr unformatted_nodes;
-	reiser4_tree *tree;
-
-	tree = reiser4_tree_by_inode(inode);
-
-	/* number of unformatted nodes which will be created */
-	unformatted_nodes = cluster_nrpages(inode); /* N */
-
+	int ret;
+	reiser4_block_nr num_unformatted = cluster_nrpages(inode);
+	reiser4_subvol *subv_d = subvol_for_data(inode, 0);
+	reiser4_subvol *subv_m = subvol_for_meta(inode);
+	reiser4_tree *tree_m = &subv_m->tree;
 	/*
 	 * space required for one iteration of extent->tail conversion:
 	 *
@@ -388,15 +385,24 @@ static int reserve_cryptcompress2unixfile(struct inode *inode)
 	 *
 	 *     5. possible update of stat-data
 	 *
+	 * reserve for 2
 	 */
 	grab_space_enable();
-	return reiser4_grab_space
-		(2 * tree->height +
-		 unformatted_nodes  +
-		 unformatted_nodes * estimate_one_insert_into_item(tree) +
-		 1 + estimate_one_insert_item(tree) +
-		 inode_file_plugin(inode)->estimate.update(inode),
-		 BA_CAN_COMMIT);
+	ret = reiser4_grab_space(num_unformatted, BA_CAN_COMMIT, subv_d);
+	if (ret)
+		return ret;
+	/*
+	 * reserve for 1,3,4,5
+	 */
+	grab_space_enable();
+	ret = reiser4_grab_space(2 * tree_m->height +
+			       num_unformatted *
+			       estimate_one_insert_into_item(tree_m) +
+			       1 + estimate_one_insert_item(tree_m) +
+			       inode_file_plugin(inode)->estimate.update(inode),
+			       BA_CAN_COMMIT,
+			       subv_m);
+	return ret;
 }
 
 /**
@@ -685,11 +691,13 @@ int reiser4_write_begin_dispatch(struct file *file,
 		ret = PTR_ERR(ctx);
 		goto err2;
 	}
-	ret = reiser4_grab_space_force(/* for update_sd:
-					* one when updating file size and
-					* one when updating mtime/ctime */
-				       2 * estimate_update_common(inode),
-				       BA_CAN_COMMIT);
+	/*
+	 * reserve space to update stat-data:
+	 * one when updating file size and one when updating mtime/ctime
+	 */
+	ret = reiser4_grab_space_force(2 * estimate_update_common(inode),
+				       BA_CAN_COMMIT,
+				       subvol_for_meta(inode));
 	if (ret)
 		goto err1;
 	ret = PROT_PASSIVE(int, write_begin, (file, page, pos, len, fsdata));

@@ -29,15 +29,15 @@ static void reiser4_status_endio(struct bio *bio)
 
 /* Initialise status code. This is expected to be called from the disk format
    code. block paremeter is where status block lives. */
-int reiser4_status_init(reiser4_block_nr block)
+int reiser4_status_init(reiser4_subvol *subv, reiser4_block_nr block)
 {
 	struct super_block *sb = reiser4_get_current_sb();
 	struct reiser4_status *statuspage;
 	struct bio *bio;
 	struct page *page;
 
-	get_super_private(sb)->status_page = NULL;
-	get_super_private(sb)->status_bio = NULL;
+	subv->status_page = NULL;
+	subv->status_bio = NULL;
 
 	page = alloc_pages(reiser4_ctx_gfp_mask_get(), 0);
 	if (!page)
@@ -46,7 +46,7 @@ int reiser4_status_init(reiser4_block_nr block)
 	bio = bio_alloc(reiser4_ctx_gfp_mask_get(), 1);
 	if (bio != NULL) {
 		bio->bi_iter.bi_sector = block * (sb->s_blocksize >> 9);
-		bio->bi_bdev = sb->s_bdev;
+		bio->bi_bdev = subv->bdev;
 		bio->bi_io_vec[0].bv_page = page;
 		bio->bi_io_vec[0].bv_len = sb->s_blocksize;
 		bio->bi_io_vec[0].bv_offset = 0;
@@ -80,25 +80,27 @@ int reiser4_status_init(reiser4_block_nr block)
 	}
 	kunmap_atomic((char *)statuspage);
 
-	get_super_private(sb)->status_page = page;
-	get_super_private(sb)->status_bio = bio;
+	subv->status_page = page;
+	subv->status_bio = bio;
 	return 0;
 }
 
-/* Query the status of fs. Returns if the FS can be safely mounted.
-   Also if "status" and "extended" parameters are given, it will fill
-   actual parts of status from disk there. */
-int reiser4_status_query(u64 *status, u64 *extended)
+/**
+ * Query the status of fs. Returns if the FS can be safely mounted.
+ * Also if "status" and "extended" parameters are given, it will fill
+ * actual parts of status from disk there
+ */
+int reiser4_status_query(reiser4_subvol *subv, u64 *status, u64 *extended)
 {
-	struct super_block *sb = reiser4_get_current_sb();
 	struct reiser4_status *statuspage;
 	int retval;
 
-	if (!get_super_private(sb)->status_page)
+	if (!subv->status_page)
 	        /* No status page? */
 		return REISER4_STATUS_MOUNT_UNKNOWN;
-	statuspage = (struct reiser4_status *)
-	    kmap_atomic(get_super_private(sb)->status_page);
+
+	statuspage = (struct reiser4_status *)kmap_atomic(subv->status_page);
+
 	switch ((long)le64_to_cpu(get_unaligned(&statuspage->status))) {
 	/* FIXME: this cast is a hack for 32 bit arches to work. */
 	case REISER4_STATUS_OK:
@@ -128,17 +130,18 @@ int reiser4_status_query(u64 *status, u64 *extended)
 
 /* This function should be called when something bad happens (e.g. from
    reiser4_panic). It fills the status structure and tries to push it to disk.*/
-int reiser4_status_write(__u64 status, __u64 extended_status, char *message)
+int reiser4_status_write(reiser4_subvol *subv,
+			 __u64 status, __u64 extended_status, char *message)
 {
 	struct super_block *sb = reiser4_get_current_sb();
 	struct reiser4_status *statuspage;
-	struct bio *bio = get_super_private(sb)->status_bio;
+	struct bio *bio = subv->status_bio;
 
-	if (!get_super_private(sb)->status_page)
+	if (!subv->status_page)
 	        /* No status page? */
 		return -1;
-	statuspage = (struct reiser4_status *)
-	    kmap_atomic(get_super_private(sb)->status_page);
+
+	statuspage = (struct reiser4_status *)kmap_atomic(subv->status_page);
 
 	put_unaligned(cpu_to_le64(status), &statuspage->status);
 	put_unaligned(cpu_to_le64(extended_status), &statuspage->extended_status);
@@ -146,30 +149,28 @@ int reiser4_status_write(__u64 status, __u64 extended_status, char *message)
 
 	kunmap_atomic((char *)statuspage);
 	bio_reset(bio);
-	bio->bi_bdev = sb->s_bdev;
-	bio->bi_io_vec[0].bv_page = get_super_private(sb)->status_page;
+	bio->bi_bdev = subv->bdev;
+	bio->bi_io_vec[0].bv_page = subv->status_page;
 	bio->bi_io_vec[0].bv_len = sb->s_blocksize;
 	bio->bi_io_vec[0].bv_offset = 0;
 	bio->bi_vcnt = 1;
 	bio->bi_iter.bi_size = sb->s_blocksize;
 	bio->bi_end_io = reiser4_status_endio;
-	lock_page(get_super_private(sb)->status_page);	/* Safe as nobody should
-							 * touch our page. */
+	lock_page(subv->status_page); /* Safe as nobody should touch our page */
 	/* We can block now, but we have no other choice anyway */
 	submit_bio(WRITE, bio);
 	//blk_flush_plug(current);
-	return 0;		/* We do not wait for io to finish. */
+	/* We do not wait for io to finish. */
+	return 0;
 }
 
 /* Frees the page with status and bio structure. Should be called by disk format
  * at umount time */
-int reiser4_status_finish(void)
+int reiser4_status_finish(reiser4_subvol *subv)
 {
-	struct super_block *sb = reiser4_get_current_sb();
-
-	__free_pages(get_super_private(sb)->status_page, 0);
-	get_super_private(sb)->status_page = NULL;
-	bio_put(get_super_private(sb)->status_bio);
-	get_super_private(sb)->status_bio = NULL;
+	__free_pages(subv->status_page, 0);
+	subv->status_page = NULL;
+	bio_put(subv->status_bio);
+	subv->status_bio = NULL;
 	return 0;
 }

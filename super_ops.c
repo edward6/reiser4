@@ -173,12 +173,13 @@ static void reiser4_dirty_inode(struct inode *inode, int flags)
 
 	if (!is_in_reiser4_context())
 		return;
+	ctx = get_current_context();
+
 	assert("edward-1606", !IS_RDONLY(inode));
 	assert("edward-1607",
 	       (inode_file_plugin(inode)->estimate.update(inode) <=
-		get_current_context()->grabbed_blocks));
+		ctx->ctx_grabbed_blocks[subvol_for_meta(inode)->id]));
 
-	ctx = get_current_context();
 	if (ctx->locked_page)
 		unlock_page(ctx->locked_page);
 
@@ -244,11 +245,11 @@ static void reiser4_put_super(struct super_block *super)
 		warning("vs-17", "failed to init context");
 		return;
 	}
-
-	/* have disk format plugin to free its resources */
-	if (get_super_private(super)->df_plug->release)
-		get_super_private(super)->df_plug->release(super);
-
+	ctx->exit_mount_session = 1;
+	/*
+	 * release disk format related resources
+	 */
+	reiser4_deactivate_volume(super);
 	reiser4_done_formatted_fake(super);
 	reiser4_done_csum_tfm(sbinfo->csum_tfm);
 
@@ -301,11 +302,11 @@ static int reiser4_statfs(struct dentry *dentry, struct kstatfs *statfs)
 	 * letting user to see 5% of disk space to be used directly after
 	 * mkfs.
 	 */
-	total = reiser4_block_count(super);
-	reserved = get_super_private(super)->blocks_reserved;
+	total = reiser4_volume_block_count(super);
+	reserved = reiser4_volume_blocks_reserved(super);
 	deleted = txnmgr_count_deleted_blocks();
-	free = reiser4_free_blocks(super) + deleted;
-	forroot = reiser4_reserved_blocks(super, 0, 0);
+	free = reiser4_volume_free_blocks(super) + deleted;
+	forroot = reiser4_volume_reserved4user(super, 0, 0);
 
 	/*
 	 * These counters may be in inconsistent state because we take the
@@ -331,8 +332,9 @@ static int reiser4_statfs(struct dentry *dentry, struct kstatfs *statfs)
 
 	statfs->f_files = 0;
 	statfs->f_ffree = 0;
-
-	/* maximal acceptable name length depends on directory plugin. */
+	/*
+	 * maximal acceptable name length depends on directory plugin
+	 */
 	assert("nikita-3351", super->s_root->d_inode != NULL);
 	statfs->f_namelen = reiser4_max_filename_len(super->s_root->d_inode);
 	reiser4_exit_context(ctx);
@@ -398,7 +400,9 @@ static long reiser4_writeback_inodes(struct super_block *super,
 	return 0;
 }
 
-/* ->sync_fs() of super operations */
+/**
+ * ->sync_fs() of super operations
+ */
 static int reiser4_sync_fs(struct super_block *super, int wait)
 {
 	reiser4_context *ctx;
@@ -473,8 +477,7 @@ static int reiser4_show_options(struct seq_file *m, struct dentry *dentry)
 	seq_printf(m, ",atom_max_flushers=0x%x",
 		   sbinfo->tmgr.atom_max_flushers);
 	seq_printf(m, ",cbk_cache_slots=0x%x",
-		   sbinfo->tree.cbk_cache.nr_slots);
-
+		   sbinfo_subvol_for_system(sbinfo)->tree.cbk_cache.nr_slots);
 	return 0;
 }
 
@@ -492,25 +495,32 @@ struct super_operations reiser4_super_operations = {
 };
 
 /**
- * fill_super - initialize super block on mount
+ * fill_super - initialize super block on mount.
+ * All subvolumes of the volume should be already registered in the system
+ *
  * @super: super block to fill
  * @data: reiser4 specific mount option
  * @silent:
- *
- * This is to be called by reiser4_get_sb. Mounts filesystem.
  */
 static int fill_super(struct super_block *super, void *data, int silent)
 {
+	u32 subv_id;
 	reiser4_context ctx;
 	int result;
 	reiser4_super_info_data *sbinfo;
+	u8 vol_uuid[16];
 
 	assert("zam-989", super != NULL);
 
 	super->s_op = NULL;
+	/*
+	 * context initialization will be completed after init_volume(),
+	 * as we don't know number of subvolumes yet.
+	 */
 	init_stack_context(&ctx, super);
-
-	/* allocate reiser4 specific super block */
+	/*
+	 * allocate reiser4 private super info
+	 */
 	if ((result = reiser4_init_fs_info(super)) != 0)
 		goto failed_init_sinfo;
 
@@ -523,9 +533,9 @@ static int fill_super(struct super_block *super, void *data, int silent)
 	if ((result = reiser4_init_super_data(super, data)) != 0)
 		goto failed_init_super_data;
 
-	/* read reiser4 master super block, initialize disk format plugin */
-	if ((result = reiser4_init_read_super(super, silent)) != 0)
-		goto failed_init_read_super;
+	/* set filesystem blocksize */
+	if ((result = reiser4_read_master(super, silent, vol_uuid)) != 0)
+		goto failed_read_master;
 
 	/* initialize transaction manager */
 	reiser4_init_txnmgr(&sbinfo->tmgr);
@@ -542,27 +552,30 @@ static int fill_super(struct super_block *super, void *data, int silent)
 	if ((result = reiser4_init_formatted_fake(super)) != 0)
 		goto failed_init_formatted_fake;
 
-	/* initialize disk format plugin */
-	if ((result = get_super_private(super)->df_plug->init_format(super,
-								    data)) != 0)
-		goto failed_init_disk_format;
+	/* initialize disk formats of all subvolumes */
+	if ((result = reiser4_activate_volume(super, vol_uuid)) != 0)
+		goto failed_activate_volume;
 
-	/*
-	 * There are some 'committed' versions of reiser4 super block counters,
-	 * which correspond to reiser4 on-disk state. These counters are
-	 * initialized here
-	 */
-	sbinfo->blocks_free_committed = sbinfo->blocks_free;
+	/* complete context initialization */
+	if ((result = reiser4_init_context_tail(&ctx, sbinfo)) != 0)
+		goto failed_complete_init_context;
+
+	sbinfo->default_uid = 0;
+	sbinfo->default_gid = 0;
 	sbinfo->nr_files_committed = oids_used(super);
+
+	/* calculate total number of blocks in the logical volume */
+	for_each_notmirr(subv_id)
+		sbinfo->vol_block_count += current_subvol(subv_id)->block_count;
 
 	/* get inode of root directory */
 	if ((result = reiser4_init_root_inode(super)) != 0)
 		goto failed_init_root_inode;
 
-	if ((result = get_super_private(super)->df_plug->version_update(super)) != 0)
-		goto failed_update_format_version;
+	/* finish unfinished truncates */
+	if ((result = process_safelinks(super, subvol_for_system())) != 0)
+		goto failed_process_safelinks;
 
-	process_safelinks(super);
 	reiser4_exit_context(&ctx);
 
 	sbinfo->debugfs_root = debugfs_create_dir(super->s_id,
@@ -577,15 +590,13 @@ static int fill_super(struct super_block *super, void *data, int silent)
 					   sbinfo->debugfs_root,
 					   &sbinfo->tmgr.id_count);
 	}
-	printk("reiser4: %s: using %s.\n", super->s_id,
-	       txmod_plugin_by_id(sbinfo->txmod)->h.desc);
 	return 0;
-
- failed_update_format_version:
+ failed_process_safelinks:
+	dput(super->s_root);
  failed_init_root_inode:
-	if (sbinfo->df_plug->release)
-		sbinfo->df_plug->release(super);
- failed_init_disk_format:
+ failed_complete_init_context:
+	reiser4_deactivate_volume(super);
+ failed_activate_volume:
 	reiser4_done_formatted_fake(super);
  failed_init_formatted_fake:
 	reiser4_done_entd(super);
@@ -593,7 +604,7 @@ static int fill_super(struct super_block *super, void *data, int silent)
 	reiser4_done_ktxnmgrd(super);
  failed_init_ktxnmgrd:
 	reiser4_done_txnmgr(&sbinfo->tmgr);
- failed_init_read_super:
+ failed_read_master:
  failed_init_super_data:
  failed_init_csum_tfm:
 	reiser4_done_fs_info(super);
@@ -614,6 +625,14 @@ static int fill_super(struct super_block *super, void *data, int silent)
 static struct dentry *reiser4_mount(struct file_system_type *fs_type, int flags,
 				    const char *dev_name, void *data)
 {
+	int ret;
+	/*
+	 * the volume could be created by old version of reiser4progs,
+	 * so try to register it here.
+	 */
+	ret = reiser4_scan_device(dev_name, flags, fs_type);
+	if (ret)
+		return ERR_PTR(ret);
 	return mount_bdev(fs_type, flags, dev_name, data, fill_super);
 }
 
@@ -632,6 +651,11 @@ void destroy_reiser4_cache(struct kmem_cache **cachep)
 	BUG_ON(*cachep == NULL);
 	kmem_cache_destroy(*cachep);
 	*cachep = NULL;
+}
+
+struct file_system_type *get_reiser4_fs_type(void)
+{
+	return &reiser4_fs_type;
 }
 
 /**
@@ -756,6 +780,7 @@ static void __exit done_reiser4(void)
 	done_plugin_set();
 	done_znodes();
 	destroy_reiser4_cache(&inode_cache);
+	reiser4_unregister_volumes();
 }
 
 module_init(init_reiser4);

@@ -248,7 +248,7 @@ typedef struct file_plugin {
 	/* other private methods */
 	/* save inode cached stat-data onto disk. It was called
 	   reiserfs_update_sd() in 3.x */
-	int (*write_sd_by_inode) (struct inode *);
+	int (*write_sd_by_inode) (struct inode *, oid_t *oid);
 	/*
 	 * Construct flow into @flow according to user-supplied data.
 	 *
@@ -308,7 +308,7 @@ typedef struct file_plugin {
 	 * called by create of struct inode_operations.
 	 */
 	int (*create_object) (struct inode *object, struct inode *parent,
-			      reiser4_object_create_data *);
+			      reiser4_object_create_data *, oid_t *oid);
 	/*
 	 * this method should check REISER4_NO_SD and set REISER4_NO_SD on
 	 * success. Deletion of an object usually includes removal of items
@@ -540,6 +540,51 @@ typedef struct txmod_plugin {
 				reiser4_key *stop_key); // was_squalloc_extent
 } txmod_plugin;
 
+struct reiser4_aib_ops {
+	/* Capacity of a bucket of index @idx */
+	u64 (*bucket_cap)(void *buckets, u64 idx);
+	/* Add a @new bucket */
+	int (*bucket_add)(void *buckets, void *new);
+	/* Delete a bucket of index @idx */
+	int (*bucket_del)(void *buckets, u64 idx);
+	/* Get fiber of a bucket of index @idx */
+	void *(*bucket_fib)(void *buckets, u64 idx);
+	/* Set fiber @fib to a bucket of index @idx */
+	void (*bucket_fib_set)(void *buckets, u64 idx, void *fib);
+	/* Get a pointer to a variable which contains
+	   length of a bucket of index @idx */
+	u64 *(*bucket_fib_lenp)(void *buckets, u64 idx);
+};
+
+typedef struct distribution_plugin {
+	/* generic fields */
+	plugin_header h;
+	/* size of segment in the hash space */
+	u32 seg_size;
+	/* init aib descriptor */
+	int (*init)(void *buckets, u64 num_buckets, int num_sgs_bits,
+		    struct reiser4_aib_ops *ops, reiser4_aib **new);
+	/* release aib descriptor */
+	void (*done)(reiser4_aib *r);
+	/* return internal bucket id */
+	__u64 (*lookup_bucket)(reiser4_aib *r, const char *str,
+			       int len, u32 seed);
+	/* add bucket to the end of storage array */
+	int (*add_bucket)(reiser4_aib *r, void *new_one);
+	/* remove bucket from the storage array */
+	int (*remove_bucket)(reiser4_aib *r, __u64 victim_pos);
+	int (*split)(reiser4_aib *r, __u32 factor);
+	/* pack and unpack fiber */
+	void (*pack)(char *to, void *from, u64 count);
+	void (*unpack)(void *to, char *from, u64 count);
+} distribution_plugin;
+
+typedef struct volume_plugin {
+	/* generic fields */
+	plugin_header h;
+	struct reiser4_aib_ops aib_ops;
+} volume_plugin;
+
 typedef struct hash_plugin {
 	/* generic fields */
 	plugin_header h;
@@ -662,25 +707,29 @@ typedef struct disk_format_plugin {
 	/* generic fields */
 	plugin_header h;
 	/* replay journal, initialize super_info_data, etc */
-	int (*init_format) (struct super_block *, void *data);
-
+	int (*init_format) (struct super_block *, reiser4_subvol *);
 	/* key of root directory stat data */
 	const reiser4_key * (*root_dir_key) (const struct super_block *);
-
-	int (*release) (struct super_block *);
-	jnode * (*log_super) (struct super_block *);
+	int (*release_format) (struct super_block *, reiser4_subvol *);
+	jnode * (*log_super) (struct super_block *, reiser4_subvol *);
 	int (*check_open) (const struct inode *object);
-	int (*version_update) (struct super_block *);
+	int (*version_update) (struct super_block *, reiser4_subvol *);
+	/* Update original superblock to be submited to mirror.
+	 * We don't allocate buffers for mirrors. Instead we use buffer
+	 * of the original subvolume. However, mirrors differ from the
+	 * original in some superblock's fields. So we update the original
+	 * then return original values after on-mirrors IO completion */
+	void (*update_sb4replica)(reiser4_subvol *orig, u64 replica_id);
 } disk_format_plugin;
 
 struct jnode_plugin {
 	/* generic fields */
 	plugin_header h;
-	int (*init) (jnode * node);
-	int (*parse) (jnode * node);
-	struct address_space *(*mapping) (const jnode * node);
-	unsigned long (*index) (const jnode * node);
-	jnode * (*clone) (jnode * node);
+	int (*init) (jnode *node);
+	/* verify validness of node's content */
+	int (*parse) (jnode *node);
+	struct address_space *(*mapping) (const jnode *node);
+	unsigned long (*index) (const jnode *node);
 };
 
 /* plugin instance.                                                         */
@@ -735,6 +784,10 @@ union reiser4_plugin {
 	cluster_plugin clust;
 	/* transaction mode plugin */
 	txmod_plugin txmod;
+	/* distribution plugin */
+	distribution_plugin distribution;
+	/* volume plugin */
+	volume_plugin volume;
 	/* place-holder for new plugin types that can be registered
 	   dynamically, and used by other dynamically loaded plugins.  */
 	void *generic;
@@ -836,6 +889,18 @@ typedef enum {
 	LAST_TXMOD_ID
 } reiser4_txmod_id;
 
+/* builtin distribution plugins */
+typedef enum {
+	NONE_DISTRIB_ID, /* for simple volumes */
+	LAST_DISTRIB_ID
+} reiser4_distribution_id;
+
+/* builtin volume plugins */
+typedef enum {
+	TRIV_VOLUME_ID, /* for volumes 4.X.Y and simple volumes 5.X.Y */
+	ASYM_VOLUME_ID, /* for logical volumes 5.X.Y  */
+	LAST_VOLUME_ID
+} reiser4_volume_id;
 
 /* data type used to pack parameters that we pass to vfs object creation
    function create_object() */
@@ -886,9 +951,9 @@ static inline TYPE *TYPE ## _by_id(reiser4_plugin_id id)		\
 	reiser4_plugin *plugin = plugin_by_id(ID, id);			\
 	return plugin ? &plugin->FIELD : NULL;				\
 }									\
-static inline TYPE *TYPE ## _by_disk_id(reiser4_tree * tree, d16 *id)	\
+static inline TYPE *TYPE ## _by_disk_id(d16 *id)			\
 {									\
-	reiser4_plugin *plugin = plugin_by_disk_id(tree, ID, id);	\
+	reiser4_plugin *plugin = plugin_by_disk_id(ID, id);		\
 	return plugin ? &plugin->FIELD : NULL;				\
 }									\
 static inline TYPE *TYPE ## _by_unsafe_id(reiser4_plugin_id id)	        \
@@ -934,6 +999,9 @@ PLUGIN_BY_ID(compression_mode_plugin, REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
 	     compression_mode);
 PLUGIN_BY_ID(cluster_plugin, REISER4_CLUSTER_PLUGIN_TYPE, clust);
 PLUGIN_BY_ID(txmod_plugin, REISER4_TXMOD_PLUGIN_TYPE, txmod);
+PLUGIN_BY_ID(distribution_plugin, REISER4_DISTRIBUTION_PLUGIN_TYPE,
+	     distribution);
+PLUGIN_BY_ID(volume_plugin, REISER4_VOLUME_PLUGIN_TYPE, volume);
 
 extern int save_plugin_id(reiser4_plugin * plugin, d16 * area);
 
@@ -963,6 +1031,10 @@ extern hash_plugin hash_plugins[LAST_HASH_ID];
 extern fibration_plugin fibration_plugins[LAST_FIBRATION_ID];
 /* defined in fs/reiser4/plugin/txmod.c */
 extern txmod_plugin txmod_plugins[LAST_TXMOD_ID];
+/* defined in fs/reiser4/plugin/distribution.c */
+extern distribution_plugin distribution_plugins[LAST_DISTRIB_ID];
+/* defined in fs/reiser4/plugin/volume.c */
+extern volume_plugin volume_plugins[LAST_VOLUME_ID];
 /* defined in fs/reiser4/plugin/crypt.c */
 extern cipher_plugin cipher_plugins[LAST_CIPHER_ID];
 /* defined in fs/reiser4/plugin/digest.c */

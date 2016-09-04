@@ -20,15 +20,14 @@
 #include "super.h"
 #include "reiser4.h"
 
-#include <linux/fs.h>		/* for struct super_block,  address_space */
+#include <linux/fs.h>
 
-/* return reiser4 internal tree which inode belongs to */
-/* Audited by: green(2002.06.17) */
-reiser4_tree *reiser4_tree_by_inode(const struct inode *inode/* inode queried*/)
+/* return tree which inode belongs to */
+reiser4_tree *reiser4_tree_by_inode(const struct inode *inode)
 {
 	assert("nikita-256", inode != NULL);
 	assert("nikita-257", inode->i_sb != NULL);
-	return reiser4_get_tree(inode->i_sb);
+	return &subvol_for_meta(inode)->tree;
 }
 
 /* return reiser4-specific inode flags */
@@ -126,14 +125,11 @@ int setup_inode_ops(struct inode *inode /* inode to intialize */ ,
 		    reiser4_object_create_data * data	/* parameters to create
 							 * object */ )
 {
-	reiser4_super_info_data *sinfo;
 	file_plugin *fplug;
 	dir_plugin *dplug;
 
 	fplug = inode_file_plugin(inode);
 	dplug = inode_dir_plugin(inode);
-
-	sinfo = get_super_private(inode->i_sb);
 
 	switch (inode->i_mode & S_IFMT) {
 	case S_IFSOCK:
@@ -284,8 +280,7 @@ static int read_inode(struct inode *inode /* inode to read from disk */ ,
 
 			/* Check the opened inode for consistency. */
 			result =
-			    get_super_private(inode->i_sb)->df_plug->
-			    check_open(inode);
+			    subvol_for_meta(inode)->df_plug->check_open(inode);
 		}
 	}
 	/* lookup_sd() doesn't release coord because we want znode

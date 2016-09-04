@@ -52,27 +52,36 @@ static inline reiser4_block_nr extent_get_width(const reiser4_extent * ext)
 	return le64_to_cpu(ext->width);
 }
 
-extern __u64 reiser4_current_block_count(void);
-
-static inline void
-extent_set_start(reiser4_extent * ext, reiser4_block_nr start)
+static inline void extent_set_start(reiser4_extent *ext, reiser4_block_nr start)
 {
 	cassert(sizeof(ext->start) == 8);
+#if 0
+	/*
+	 * This useful check doesn't work for logical volumes:
+	 * It is impossible to determine a subvolume only by a
+	 * block number, as it should be "salted" with object id
+         * and other things, which are not known in some situations
+	 * (e.g. flush can move bodies of files, which are not
+	 * used at that moment by anybody, etc. - Edward.
+	 */
 	assert("nikita-2510",
-	       ergo(start > 1, start < reiser4_current_block_count()));
+	       ergo(start > 1, start < reiser4_subvol_block_count()));
+#endif
 	put_unaligned(cpu_to_le64(start), &ext->start);
 }
 
-static inline void
-extent_set_width(reiser4_extent * ext, reiser4_block_nr width)
+static inline void extent_set_width(reiser4_extent *ext, reiser4_block_nr width)
 {
 	cassert(sizeof(ext->width) == 8);
 	assert("", width > 0);
 	put_unaligned(cpu_to_le64(width), &ext->width);
+#if 0
+	/* see the comment above */
 	assert("nikita-2511",
 	       ergo(extent_get_start(ext) > 1,
 		    extent_get_start(ext) + width <=
-		    reiser4_current_block_count()));
+		    reiser4_subvol_block_count()));
+#endif
 }
 
 #define extent_item(coord) 					\

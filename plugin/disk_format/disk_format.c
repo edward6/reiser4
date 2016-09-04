@@ -14,15 +14,32 @@ disk_format_plugin format_plugins[LAST_FORMAT_ID] = {
 			.id = FORMAT40_ID,
 			.pops = NULL,
 			.label = "reiser40",
-			.desc = "standard disk layout for reiser40",
+			.desc = "standard disk layout for simple volumes",
 			.linkage = {NULL, NULL}
 		},
 		.init_format = init_format_format40,
 		.root_dir_key = root_dir_key_format40,
-		.release = release_format40,
+		.release_format = release_format40,
 		.log_super = log_super_format40,
 		.check_open = check_open_format40,
-		.version_update = version_update_format40
+		.version_update = version_update_format40,
+	},
+	[FORMAT41_ID] = {
+		.h = {
+			.type_id = REISER4_FORMAT_PLUGIN_TYPE,
+			.id = FORMAT41_ID,
+			.pops = NULL,
+			.label = "reiser40",
+			.desc = "standard disk layout for compound volumes",
+			.linkage = {NULL, NULL}
+		},
+		.init_format = init_format_format40,
+		.root_dir_key = root_dir_key_format40,
+		.release_format = release_format40,
+		.log_super = log_super_format40,
+		.check_open = check_open_format40,
+		.version_update = version_update_format40,
+		.update_sb4replica = update_sb4replica_format41
 	}
 };
 

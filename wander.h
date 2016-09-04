@@ -113,15 +113,17 @@ struct wander_entry {
 /* REISER4 JOURNAL WRITER FUNCTIONS   */
 
 extern int reiser4_write_logs(long *);
-extern int reiser4_journal_replay(struct super_block *);
-extern int reiser4_journal_recover_sb_data(struct super_block *);
+extern int reiser4_journal_replay(reiser4_subvol *);
+extern int reiser4_journal_recover_sb_data(struct super_block *,
+					   reiser4_subvol *);
 
-extern int reiser4_init_journal_info(struct super_block *);
-extern void reiser4_done_journal_info(struct super_block *);
+extern int reiser4_init_journal_info(reiser4_subvol *subv);
+extern void reiser4_done_journal_info(reiser4_subvol *subv);
 
-extern int write_jnode_list(struct list_head *, flush_queue_t *, long *, int);
+extern int write_jnode_list(struct list_head *, flush_queue_t *, long *, int,
+			    reiser4_subvol *);
 
-#endif				/* __FS_REISER4_WANDER_H__ */
+#endif /* __FS_REISER4_WANDER_H__ */
 
 /* Make Linus happy.
    Local variables:

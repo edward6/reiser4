@@ -306,9 +306,9 @@ static int append_last_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	 * assign fake block numbers to all jnodes. FIXME: make sure whether
 	 * twig node containing inserted extent item is locked
 	 */
-	block = fake_blocknr_unformatted(count);
-	for (i = 0; i < count; i ++, block ++) {
+	for (i = 0; i < count; i ++) {
 		node = jnodes[i];
+		block = fake_blocknr_unformatted(1, node->subvol);
 		spin_lock_jnode(node);
 		JF_SET(node, JNODE_CREATED);
 		jnode_set_block(node, &block);
@@ -377,6 +377,7 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	reiser4_block_nr block;
 	struct unix_file_info *uf_info;
 	jnode *node;
+	reiser4_subvol *subv = subvol_for_data(inode, get_key_offset(key));
 
 	/* first extent insertion starts at leaf level */
 	assert("vs-719", znode_get_level(uf_coord->coord.node) == LEAF_LEVEL);
@@ -428,7 +429,7 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	/*
 	 * assign fake block numbers to all jnodes, capture and mark them dirty
 	 */
-	block = fake_blocknr_unformatted(count);
+	block = fake_blocknr_unformatted(count, subv);
 	for (i = 0; i < count; i ++, block ++) {
 		node = jnodes[i];
 		spin_lock_jnode(node);
@@ -596,15 +597,18 @@ static int plug_hole(uf_coord_t *uf_coord, const reiser4_key *key, int *how)
  * assign fake block number. If @node corresponds to allocated extent - assign
  * block number of jnode
  */
-static int overwrite_one_block(uf_coord_t *uf_coord, const reiser4_key *key,
-			       jnode *node, int *hole_plugged)
+static int overwrite_one_block(struct inode *inode, uf_coord_t *uf_coord,
+			       const reiser4_key *key, jnode *node,
+			       int *hole_plugged)
 {
 	int result;
 	struct extent_coord_extension *ext_coord;
 	reiser4_extent *ext;
 	reiser4_block_nr block;
 	int how;
+	reiser4_subvol *subv = subvol_for_data(inode, get_key_offset(key));
 
+	assert("edward-xxx", subv == node->subvol);
 	assert("vs-1312", uf_coord->coord.between == AT_UNIT);
 
 	result = 0;
@@ -622,7 +626,7 @@ static int overwrite_one_block(uf_coord_t *uf_coord, const reiser4_key *key,
 		result = plug_hole(uf_coord, key, &how);
 		if (result)
 			return result;
-		block = fake_blocknr_unformatted(1);
+		block = fake_blocknr_unformatted(1, subv);
 		if (hole_plugged)
 			*hole_plugged = 1;
 		JF_SET(node, JNODE_CREATED);
@@ -681,8 +685,9 @@ static int move_coord(uf_coord_t *uf_coord)
  *
  * Returns number of handled jnodes.
  */
-static int overwrite_extent(uf_coord_t *uf_coord, const reiser4_key *key,
-			    jnode **jnodes, int count, int *plugged_hole)
+static int overwrite_extent(struct inode *inode, uf_coord_t *uf_coord,
+			    const reiser4_key *key, jnode **jnodes,
+			    int count, int *plugged_hole)
 {
 	int result;
 	reiser4_key k;
@@ -693,7 +698,8 @@ static int overwrite_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	for (i = 0; i < count; i ++) {
 		node = jnodes[i];
 		if (*jnode_get_block(node) == 0) {
-			result = overwrite_one_block(uf_coord, &k, node, plugged_hole);
+			result = overwrite_one_block(inode, uf_coord, &k, node,
+						     plugged_hole);
 			if (result)
 				return result;
 		}
@@ -784,7 +790,7 @@ int reiser4_update_extent(struct inode *inode, jnode *node, loff_t pos,
 		 */
 		init_coord_extension_extent(&uf_coord,
 					    get_key_offset(&key));
-		result = overwrite_extent(&uf_coord, &key,
+		result = overwrite_extent(inode, &uf_coord, &key,
 					  &node, 1, plugged_hole);
 	} else {
 		/*
@@ -861,7 +867,7 @@ static int update_extents(struct file *file, struct inode *inode,
 				/* NOTE: get statistics on this */
 				init_coord_extension_extent(&hint.ext_coord,
 							    get_key_offset(&key));
-			result = overwrite_extent(&hint.ext_coord, &key,
+			result = overwrite_extent(inode, &hint.ext_coord, &key,
 						  jnodes, count, NULL);
 		} else {
 			/*
@@ -897,37 +903,47 @@ static int update_extents(struct file *file, struct inode *inode,
 
 /**
  * write_extent_reserve_space - reserve space for extent write operation
- * @inode:
+ * @inode: inode of the file to write to;
+ * @offset: write position.
  *
  * Estimates and reserves space which may be required for writing
  * WRITE_GRANULARITY pages of file.
  */
-static int write_extent_reserve_space(struct inode *inode)
+static int reserve_write_extent(struct inode *inode, loff_t offset)
 {
-	__u64 count;
-	reiser4_tree *tree;
-
+	int ret;
+	reiser4_subvol *subv_m = subvol_for_meta(inode);
+	reiser4_tree *tree_m = &subv_m->tree;
+	reiser4_subvol *subv_d = subvol_for_data(inode, offset);
 	/*
 	 * to write WRITE_GRANULARITY pages to a file by extents we have to
 	 * reserve disk space for:
-
+	 *
 	 * 1. find_file_item may have to insert empty node to the tree (empty
-	 * leaf node between two extent items). This requires 1 block and
-	 * number of blocks which are necessary to perform insertion of an
+	 * leaf node between two extent items). This requires:
+	 * (a) 1 block;
+	 * (b) number of blocks which are necessary to perform insertion of an
 	 * internal item into twig level.
-
 	 * 2. for each of written pages there might be needed 1 block and
 	 * number of blocks which might be necessary to perform insertion of or
 	 * paste to an extent item.
-
+	 *
 	 * 3. stat data update
+	 *
+	 * reserve space for 1(a)
 	 */
-	tree = reiser4_tree_by_inode(inode);
-	count = estimate_one_insert_item(tree) +
-		WRITE_GRANULARITY * (1 + estimate_one_insert_into_item(tree)) +
-		estimate_one_insert_item(tree);
 	grab_space_enable();
-	return reiser4_grab_space(count, 0 /* flags */);
+	ret = reiser4_grab_space(WRITE_GRANULARITY, 0, subv_d);
+	if (ret)
+		return ret;
+	/*
+	 * reserve space for 1(b), 2, 3
+	 */
+	grab_space_enable();
+	ret = reiser4_grab_space(estimate_one_insert_item(tree_m) +
+		     WRITE_GRANULARITY * estimate_one_insert_into_item(tree_m) +
+		     estimate_one_insert_item(tree_m), 0, subv_m);
+	return ret;
 }
 
 /*
@@ -977,7 +993,7 @@ ssize_t reiser4_write_extent(struct file *file, struct inode * inode,
 	size_t left, written;
 	int result = 0;
 
-	if (write_extent_reserve_space(inode))
+	if (reserve_write_extent(inode, *pos))
 		return RETERR(-ENOSPC);
 
 	if (count == 0) {
@@ -1006,7 +1022,7 @@ ssize_t reiser4_write_extent(struct file *file, struct inode * inode,
 			goto out;
 		}
 
-		jnodes[i] = jnode_of_page(page);
+		jnodes[i] = jnode_of_page(page, 1 /* for IO */);
 		if (IS_ERR(jnodes[i])) {
 			unlock_page(page);
 			put_page(page);
@@ -1153,7 +1169,7 @@ int reiser4_do_readpage_extent(reiser4_extent * ext, reiser4_block_nr pos,
 		break;
 
 	case ALLOCATED_EXTENT:
-		j = jnode_of_page(page);
+		j = jnode_of_page(page, 1 /* for IO */);
 		if (IS_ERR(j))
 			return PTR_ERR(j);
 		if (*jnode_get_block(j) == 0) {
