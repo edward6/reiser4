@@ -338,11 +338,30 @@ static void __reiser4_deactivate_volume(struct super_block *super)
 }
 
 /**
- * Deactivate volume. Called during umount, or in error paths
+ * Deactivate all subvolumes except ones of the specified
+ * volume group @vgid
+ */
+static void deactivate_subvolumes_except(struct super_block *super,
+					 reiser4_vg_id vgid)
+{
+	struct reiser4_subvol *subv;
+	reiser4_volume *vol = get_super_private(super)->vol;
+
+	list_for_each_entry(subv, &vol->subvols_list, list)
+		if (subvol_is_set(subv, SUBVOL_ACTIVATED) &&
+		    subv->vgid != vgid) {
+			subvol_check_block_counters(subv);
+			deactivate_subvol(super, subv);
+		}
+}
+
+/**
+ * Deactivate volume starting from not mirrors
  */
 void reiser4_deactivate_volume(struct super_block *super)
 {
 	mutex_lock(&reiser4_volumes_mutex);
+	deactivate_subvolumes_except(super, REISER4_VG_MIRRORS);
 	__reiser4_deactivate_volume(super);
 	mutex_unlock(&reiser4_volumes_mutex);
 }
