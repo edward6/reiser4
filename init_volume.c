@@ -58,7 +58,7 @@ struct reiser4_subvol *reiser4_alloc_subvol(u8 *uuid, const char *path,
 	__init_ch_sub(&subv->ch);
 
 	subv->diskmap = diskmap;
-	subv->df_plug = disk_format_plugin_by_id(dformat_pid);
+	subv->df_plug = disk_format_plugin_by_unsafe_id(dformat_pid);
 	if (subv->df_plug == NULL) {
 		warning("edward-xxx",
 			"%s: unknown disk format plugin %d\n",
