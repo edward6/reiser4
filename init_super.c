@@ -639,7 +639,7 @@ int reiser4_init_read_super(struct super_block *super, int silent)
 		}
 
 		sbinfo->df_plug =
-			disk_format_plugin_by_id(
+			disk_format_plugin_by_unsafe_id(
 				le16_to_cpu(get_unaligned(&master_sb->disk_plugin_id)));
 		if (sbinfo->df_plug == NULL) {
 			if (!silent)
