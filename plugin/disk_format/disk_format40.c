@@ -688,6 +688,8 @@ int init_format_format40(struct super_block *s, reiser4_subvol *subv,
 	default:
 		impossible("nikita-3457", "init stage: %i", stage);
 	}
+	if (result == -EINVAL || result == -E_NOTEXP)
+		return result;
 	if (!rofs_super(s) && !is_mirror(subv) &&
 	    reiser4_subvol_free_blocks(subv) < RELEASE_RESERVED)
 		return RETERR(-ENOSPC);
