@@ -57,17 +57,62 @@ static inline int disk_addr_eq(const reiser4_block_nr * b1,
  */
 typedef struct reiser4_master_sb {
 	char magic[16];		/* "ReIsEr4" */
-	__le16 dformat_pid;	/* disk format plugin id (per subvolume) */
-	__le16 blocksize;       /* block size (per-volume) */
+	d16 dformat_pid;	/* disk format plugin id (per subvolume) */
+	d16 blocksize;          /* block size (per-volume) */
 	char uuid[16];		/* volume id (per volume) */
 	char label[16];		/* filesystem label (per volume) */
-	__le64 diskmap;		/* location of the diskmap. 0 if not present */
+	d64 diskmap_loc;	/* location of the diskmap. 0 if not present */
 	/* Reiser5  */
-	char sub_uuid[16];    /* subvolume's external id (per subolvume) */
-	__le16 volume_pid;    /* volume plugin id (per volume) */
-	__le16 distrib_pid;   /* distribution plugin id (per volume) */
-	char stripe_size_bits; /* logarithm of stripe size (per volume) */
+	char sub_uuid[16];      /* subvolume's external id (per subolvume) */
+	d16 volume_pid;         /* volume plugin id (per volume) */
+	d16 distrib_pid;        /* distribution plugin id (per volume) */
+	d16 mirror_id;          /* serial (ordered) number of the mirror
+				   (0 for original subvolumes) */
+	d16 num_replicas;       /* number of replicas of an original subvolume.
+				   Original is a mirror with id=0, other mirrors
+				   (if any) are called replicas */
+	char stripe_size_bits;  /* logarithm of stripe size (per volume) */
 } reiser4_master_sb;
+
+static inline u16 master_get_block_size(reiser4_master_sb *master)
+{
+	return le16_to_cpu(get_unaligned(&master->blocksize));
+}
+
+static inline u16 master_get_dformat_pid(reiser4_master_sb *master)
+{
+	return le16_to_cpu(get_unaligned(&master->dformat_pid));
+}
+
+static inline u16 master_get_volume_pid(reiser4_master_sb *master)
+{
+	return le16_to_cpu(get_unaligned(&master->volume_pid));
+}
+
+static inline u16 master_get_distrib_pid(reiser4_master_sb *master)
+{
+	return le16_to_cpu(get_unaligned(&master->distrib_pid));
+}
+
+static inline u16 master_get_mirror_id(reiser4_master_sb *master)
+{
+	return le16_to_cpu(get_unaligned(&master->mirror_id));
+}
+
+static inline u16 master_get_num_replicas(reiser4_master_sb *master)
+{
+	return le16_to_cpu(get_unaligned(&master->num_replicas));
+}
+
+static inline u64 master_get_diskmap_loc(reiser4_master_sb *master)
+{
+	return le64_to_cpu(get_unaligned(&master->diskmap_loc));
+}
+
+static inline char master_get_stripe_bits(reiser4_master_sb *master)
+{
+	return master->stripe_size_bits;
+}
 
 /* __FS_REISER4_DFORMAT_H__ */
 #endif

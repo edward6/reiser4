@@ -796,7 +796,7 @@ static struct page *jnode_lock_page(jnode * node)
 static int __jparse(jnode *node, int do_kmap)
 {
 	int ret;
-	u32 subv_id;
+	u32 rep_id;
 	reiser4_subvol *orig;
 
 	assert("edward-1647", do_kmap != 0);
@@ -805,7 +805,8 @@ static int __jparse(jnode *node, int do_kmap)
 	if (likely(ret != -EIO))
 		return ret;
 	/*
-	 * restart IO against mirrors and parse replicas
+	 * restart IO against replicas and parse the
+	 * results
 	 */
 	orig = jnode_get_subvol(node);
 	/*
@@ -814,10 +815,10 @@ static int __jparse(jnode *node, int do_kmap)
 	 * Also jnode_start_read() takes the jnode lock
 	 */
 	spin_unlock_jnode(node);
-	for_each_mirror(subv_id) {
+	for_each_replica(orig->id, rep_id) {
 		struct page *page = jnode_page(node);
 
-		node->subvol = current_subvol(subv_id);
+		node->subvol = current_mirror(orig->id, rep_id);
 
 		kunmap(page);
 		lock_page(page);

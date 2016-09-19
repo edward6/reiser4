@@ -608,7 +608,7 @@ int reiser4_read_master(struct super_block *super, int silent, u8 *vol_uuid)
 		/*
 		 * reiser4 master super block contains filesystem blocksize
 		 */
-		blocksize = le16_to_cpu(get_unaligned(&master_sb->blocksize));
+		blocksize = master_get_block_size(master_sb);
 
 		if (blocksize != PAGE_SIZE) {
 			/*

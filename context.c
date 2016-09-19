@@ -54,12 +54,11 @@ int reiser4_init_context_tail(reiser4_context *ctx,
 	assert("edward-xxx", sbinfo->vol != NULL);
 	assert("edward-xxx", ctx->ctx_grabbed_blocks == NULL);
 
-	ctx->ctx_num_mirrors = sbinfo_num_mirrors(sbinfo);
-	ctx->ctx_num_notmirr = sbinfo_num_notmirr(sbinfo);
+	ctx->ctx_num_origins = sbinfo_num_origins(sbinfo);
 
-	ctx->ctx_grabbed_blocks =
-		kzalloc((ctx->ctx_num_notmirr + ctx->ctx_num_mirrors) *
-			sizeof(*ctx->ctx_grabbed_blocks), GFP_KERNEL);
+	ctx->ctx_grabbed_blocks = kzalloc((ctx->ctx_num_origins) *
+					  sizeof(*ctx->ctx_grabbed_blocks),
+					  GFP_KERNEL);
 	if (!ctx->ctx_grabbed_blocks)
 		return RETERR(-ENOMEM);
 	return 0;

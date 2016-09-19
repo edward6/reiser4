@@ -41,12 +41,11 @@ struct reiser4_context {
 	/*
 	 * per-thread grabbed (for further allocation) blocks counter
 	 * FIXME-EDWARD: RB-tree should be here for mapping
-	 * subvolume <-> grabbed_blocks. Once it is fixed, ctx_num_notmirr
+	 * subvolume <-> grabbed_blocks. Once it is fixed, ctx_num_origins
 	 * is not needed.
 	 */
 	reiser4_block_nr *ctx_grabbed_blocks;
-	u32 ctx_num_mirrors;
-	u32 ctx_num_notmirr;
+	u32 ctx_num_origins;
 
 	/* list of taps currently monitored. See tap.c */
 	struct list_head taps;
@@ -113,7 +112,7 @@ extern void print_contexts(void);
 	get_super_private(reiser4_get_current_sb())->vol->stripe_bits
 #define current_aib \
 	get_super_private(reiser4_get_current_sb())->vol->aib
-#define current_tree(subvol_id) (&(current_subvol(subvol_id)->tree))
+#define current_tree(subvol_id) (&(current_origin(subvol_id)->tree))
 
 extern reiser4_context *reiser4_init_context(struct super_block *);
 extern int reiser4_init_context_tail(reiser4_context *,

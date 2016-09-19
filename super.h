@@ -146,7 +146,8 @@ struct commit_handle_subvol
 
 /*
  * In-memory subvolume header.
- * It is always associated with a physical or logical (LVM) block device.
+ * It is always associated with a physical or logical (built with LVM,
+ * etc means) block device.
  */
 struct reiser4_subvol {
 	struct list_head list; /* all registered subvolumes are linked */
@@ -154,14 +155,16 @@ struct reiser4_subvol {
 	char *name;
 	fmode_t mode;
 	struct block_device *bdev;
-	u64 id; /* index in the array of subvolumes (internal id) */
+	u64 id; /* index in the array of original subvolumes */
+	int mirror_id; /* index in the array of mirrors (0 indicates origin) */
+	int num_replicas; /* number of replicas, (mirrors excluding original) */
 	u32 dev_cap; /* capacity of subvolume */
 	u64 fiber_len; /* number of segments in the fiber */
-	u64 room_for_data; /* number of data block (for meta-data subvolumes) */
+	u64 room_for_data; /* number of data blocks (for meta-data subvolumes) */
 	void *fiber; /* array of segments (cpu fiber) */
 	jnode **fiber_nodes; /* array of jnodes which represent on-disk fiber */
 
-	reiser4_vg_id vgid; /* id of volume group this subvolume bolongs to */
+	reiser4_subv_type type; /* type of this subvolume */
 	unsigned long flags; /* subvolume-wide flags, see subvol_flags enum */
 	disk_format_plugin *df_plug; /* disk format of this subvolume */
 	union {
@@ -295,17 +298,35 @@ struct reiser4_volume {
 	u8 uuid[16]; /* volume id */
 	int num_sgs_bits; /* logarithm of number of hash space segments */
 	int stripe_size_bits; /* logarithm of stripe size */
-	int num_meta_subvols;
-	int num_mixed_subvols;
+	int num_meta_subvols; /* number of meta-data subvolumes */
 	distribution_plugin *dist_plug;
 	volume_plugin *vol_plug;
 	reiser4_aib *aib; /* storage array descriptor */
-	u64 num_subvols; /* number of subvolumes in the logical volume */
-	u64 num_mirrors; /* number of replicas (excluding the original) */
 	struct list_head subvols_list;  /* list of registered subvolumes */
-	struct reiser4_subvol **subvols; /* activated subvolumes */
+	struct reiser4_subvol ***subvols; /* pointer to a table of activated
+					   * subvolumes, where:
+					   * subvols[i] - i-th original;
+					   * subvols[i][j] - its j-th mirror,
+					   * see the picture below. */
+	u64 num_origins; /* number of original subvolumes (without mirrors) */
 	struct reiser4_super_info_data *info; /* accociated super-block */
 };
+
+/*
+ Table of activated subvolumes:
+
+ ******* <- @subvols
+ ooo o o
+ o o
+   o
+
+ * - original subvolumes
+ o - replicas
+
+ An original subvolume with all its replicas are called mirrors.
+ An original subvolume always have mirror_id = 0. Replicas have
+ mirror_id > 0.
+*/
 
 extern reiser4_super_info_data *get_super_private_nocheck(const struct
 							  super_block * super);
@@ -319,52 +340,49 @@ static inline reiser4_super_info_data *get_super_private(const struct
 	return (reiser4_super_info_data *) super->s_fs_info;
 }
 
-static inline reiser4_volume *get_super_volume(struct super_block *super)
+static inline reiser4_volume *super_volume(struct super_block *super)
 {
 	return get_super_private(super)->vol;
 }
 
-static inline reiser4_subvol *sbinfo_subvol(reiser4_super_info_data *info,
-					    __u32 subv_id)
+static inline reiser4_subvol *sbinfo_mirror(reiser4_super_info_data *info,
+					    u32 id, u32 mirror_id)
 {
 	assert("edward-xxx", info != NULL);
 	assert("edward-xxx", info->vol != NULL);
-	assert("edward-xxx", info->vol->subvols[subv_id] != NULL);
-	assert("edward-xxx", info->vol->subvols[subv_id]->id == subv_id);
+	assert("edward-xxx", info->vol->subvols[id] != NULL);
+	assert("edward-xxx", info->vol->subvols[id][mirror_id] != NULL);
 
-	return info->vol->subvols[subv_id];
+	return info->vol->subvols[id][mirror_id];
 }
 
-static inline __u32 sbinfo_num_mirrors(reiser4_super_info_data *info)
+static inline reiser4_subvol *super_mirror(struct super_block *super,
+					   u32 id, u32 mirror_id)
 {
-	assert("edward-xxx", info != NULL);
-	assert("edward-xxx", info->vol != NULL);
-
-	return info->vol->num_mirrors;
+	assert("edward-xxx", super != NULL);
+	return sbinfo_mirror(get_super_private(super), id, mirror_id);
 }
 
-static inline __u32 sbinfo_num_notmirr(reiser4_super_info_data *info)
+static inline reiser4_subvol *sbinfo_origin(reiser4_super_info_data *info,
+					    u32 id)
 {
-	assert("edward-xxx", info != NULL);
-	assert("edward-xxx", info->vol != NULL);
-
-	return info->vol->num_subvols - info->vol->num_mirrors;
+	return sbinfo_mirror(info, id, 0);
 }
 
-static inline reiser4_subvol *super_subvol(const struct super_block *super,
-					   __u32 subv_id)
+static inline u32 sbinfo_num_origins(reiser4_super_info_data *info)
 {
-	return sbinfo_subvol(get_super_private(super), subv_id);
+	return info->vol->num_origins;
 }
 
-/**
- * get original subvolume
- * FIXME-EDWARD: This should go to format specifications
- */
-static inline reiser4_subvol *super_origin(const struct super_block *super)
+static inline reiser4_subvol *super_origin(const struct super_block *super,
+					   u32 id)
 {
-	return sbinfo_subvol(get_super_private(super),
-			     sbinfo_num_mirrors(get_super_private(super)));
+	return sbinfo_origin(get_super_private(super), id);
+}
+
+static inline u32 super_num_origins(const struct super_block *super)
+{
+	return sbinfo_num_origins(get_super_private(super));
 }
 
 /* get ent context for the @super */
@@ -422,78 +440,69 @@ static inline __u64 current_stripe_size(void)
 	return 1 << current_stripe_size_bits();
 }
 
-static inline struct reiser4_subvol *current_subvol(__u32 subv_id)
+static inline struct reiser4_subvol *current_mirror(u32 id,
+						    u32 mirror_id)
 {
-	return sbinfo_subvol(get_current_super_private(), subv_id);
+	return sbinfo_mirror(get_current_super_private(), id, mirror_id);
 }
 
-static inline __u32 current_num_mirrors(void)
+static inline struct reiser4_subvol *current_origin(u32 id)
 {
-	return get_current_context()->ctx_num_mirrors;
+	return sbinfo_origin(get_current_super_private(), id);
 }
 
-static inline int have_mirrors(void)
+static inline u32 current_num_origins(void)
 {
-	return current_num_mirrors();
+	return sbinfo_num_origins(get_current_super_private());
 }
 
-static inline __u32 current_num_notmirr(void)
+static inline u32 current_num_replicas(u32 orig_id)
 {
-	return get_current_context()->ctx_num_notmirr;
+	assert("edward-xxx", current_origin(orig_id) != NULL);
+
+	return current_origin(orig_id)->num_replicas;
 }
 
-static inline int current_is_last_commit(void)
+static inline u32 current_num_mirrors(u32 orig_id)
 {
-	return get_current_context()->exit_mount_session;
+	return 1 + current_num_replicas(orig_id);
 }
 
-#define for_each_notmirr(_subv_id)					\
-	for (_subv_id = current_num_mirrors();				\
-	     _subv_id < current_num_mirrors() + current_num_notmirr();	\
+#define for_each_origin(_subv_id)					\
+	assert("edward-xxx", current_num_origins() != 0);		\
+	for (_subv_id = 0;						\
+	     _subv_id < current_num_origins();				\
 	     _subv_id ++)
 
-#define for_each_mirror(_subv_id)					\
-	for (_subv_id = 0;						\
-	     _subv_id < current_num_mirrors(); _subv_id ++)
+#define for_each_mirror(_orig_id, _mirr_id)				\
+	for (_mirr_id = 0;						\
+	     _mirr_id < current_num_mirrors(_orig_id);			\
+	     _mirr_id ++)
 
-#define for_each_subvol(_subv_id)					\
-	for (_subv_id = 0;						\
-	     _subv_id < current_num_mirrors() + current_num_notmirr();	\
-	     _subv_id ++)
+#define for_each_replica(_orig_id, _mirr_id)				\
+	for (_mirr_id = 1;						\
+	     _mirr_id < current_num_mirrors(_orig_id);			\
+	     _mirr_id ++)
 
-static inline int is_mirror(struct reiser4_subvol *subv)
+static inline int is_replica(struct reiser4_subvol *subv)
 {
 	assert("edward-xxx", subv != NULL);
-	assert("edward-xxx", subv->super != NULL);
-	assert("edward-xxx", get_super_volume(subv->super) != NULL);
-	assert("edward-xxx",
-	       ergo(subvol_is_set(subv, SUBVOL_ACTIVATED) &&
-		    subv->vgid == REISER4_VG_MIRRORS,
-		    subv->id < get_super_volume(subv->super)->num_mirrors));
 
-	return subv->vgid == REISER4_VG_MIRRORS;
-}
-
-static inline u32 super_num_mirrors(struct super_block *super)
-{
-	return get_super_volume(super)->num_mirrors;
+	return subv->mirror_id;
 }
 
 static inline int is_origin(struct reiser4_subvol *subv)
 {
 	assert("edward-xxx", subv != NULL);
-	assert("edward-xxx", subv->super != NULL);
-	assert("edward-xxx", get_super_volume(subv->super) != NULL);
 
-	return subv->id == super_num_mirrors(subv->super);
+	return !is_replica(subv);
 }
 
-static inline int is_mirror_id(u32 subv_id)
+static inline int has_replicas(struct reiser4_subvol *subv)
 {
-	assert("edward-xxx",
-	       subvol_is_set(current_subvol(subv_id), SUBVOL_ACTIVATED));
+	assert("edward-xxx", subv != NULL);
 
-	return subv_id < current_num_mirrors();
+	return subv->num_replicas;
 }
 
 /*
@@ -535,21 +544,14 @@ static inline void spin_unlock_reiser4_super(reiser4_super_info_data *sbinfo)
 	spin_unlock(&(sbinfo->guard));
 }
 
-/* FIXME-EDWARD: Below is implementation of trivial volume plugin */
-
 static inline reiser4_subvol *sbinfo_subvol_for_system(reiser4_super_info_data *sbinfo)
 {
-	return sbinfo_subvol(sbinfo, sbinfo->vol->num_mirrors);
+	return sbinfo_origin(sbinfo, sbinfo->vol->vol_plug->sys_subvol_id());
 }
 
-/* subvolume for system records: status records, blackbox items, etc */
 static inline reiser4_subvol *subvol_for_system(void)
 {
-	reiser4_subvol *subv;
-	subv = current_volume->subvols[current_num_mirrors()];
-	assert("edward-xxx", !is_mirror(subv));
-
-	return subv;
+	return sbinfo_subvol_for_system(get_current_super_private());
 }
 
 /**
@@ -558,17 +560,17 @@ static inline reiser4_subvol *subvol_for_system(void)
 static inline reiser4_subvol *subvol_for_data(const struct inode *inode,
 					      loff_t offset)
 {
-	return current_volume->subvols[current_num_mirrors()];
+	return current_origin(current_volume->vol_plug->data_subvol_id());
 }
 
 static inline reiser4_subvol *__subvol_for_meta(oid_t oid)
 {
-	return current_volume->subvols[current_num_mirrors()];
+	return current_origin(current_volume->vol_plug->meta_subvol_id());
 }
 
 static inline reiser4_subvol *subvol_for_meta(const struct inode *inode)
 {
-	return current_volume->subvols[current_num_mirrors()];
+	return current_origin(current_volume->vol_plug->meta_subvol_id());
 }
 
 static inline reiser4_subvol *subvol_by_coord(const coord_t *coord)

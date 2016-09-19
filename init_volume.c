@@ -16,12 +16,12 @@ DEFINE_MUTEX(reiser4_volumes_mutex);
 static LIST_HEAD(reiser4_volumes); /* list of registered volumes */
 
 /*
- * Reiser5 logical volume (5.X.Y) is a set of subvolumes.
- * Every subvolume represents a physical or logical (LVM) device
- * formatted by plugin of REISER4_FORMAT_PLUGIN_TYPE.
+ * Logical volume is a set of subvolumes.
+ * Every subvolume represents a physical or logical (built by LVM
+   means) device, formatted by a plugin of REISER4_FORMAT_PLUGIN_TYPE.
  * All subvolumes are combined in "volume groups".
- * Volume plugin defines distribution among the groups.
- * Distribution plugin defines distribution within single group.
+ * Volume plugin defines distribution among those groups.
+ * Distribution plugin defines distribution within a single group.
  */
 
 static struct reiser4_volume *reiser4_alloc_volume(u8 *uuid,
@@ -43,9 +43,11 @@ static struct reiser4_volume *reiser4_alloc_volume(u8 *uuid,
 	return vol;
 }
 
-struct reiser4_subvol *reiser4_alloc_subvol(u8 *uuid, const char *path,
+static struct reiser4_subvol *reiser4_alloc_subvol(u8 *uuid, const char *path,
 						   int dformat_pid,
-						   __u64 diskmap)
+						   u64 diskmap,
+						   u16 mirror_id,
+						   u16 num_replicas)
 {
 	struct reiser4_subvol *subv;
 
@@ -71,6 +73,18 @@ struct reiser4_subvol *reiser4_alloc_subvol(u8 *uuid, const char *path,
 		kfree(subv);
 		return NULL;
 	}
+	subv->mirror_id = mirror_id;
+	subv->num_replicas = num_replicas;
+	if (subv->mirror_id > subv->num_replicas) {
+		warning("edward-xxx",
+		     "%s: mirror id (%u) larger than number of replicas (%u)",
+		     path, subv->mirror_id, subv->num_replicas);
+		kfree(subv->name);
+		kfree(subv);
+		return NULL;
+	}
+	if (is_replica(subv))
+		subv->type = REISER4_SUBV_REPLICA;
 	return subv;
 }
 
@@ -104,10 +118,11 @@ static struct reiser4_subvol *reiser4_search_subvol(u8 *uuid,
  * 1   - subvolume already registered
  * < 0 - error
  */
-int reiser4_register_subvol(const char *path,
+static int reiser4_register_subvol(const char *path,
 				   u8 *vol_uuid, u8 *sub_uuid,
 				   int dformat_pid, int vol_pid, int dist_pid,
-				   __u64 diskmap, int stripe_bits)
+				   u64 diskmap, u16 mirror_id, u16 num_replicas,
+				   int stripe_bits)
 {
 	struct reiser4_volume *vol;
 	struct reiser4_subvol *sub;
@@ -118,7 +133,7 @@ int reiser4_register_subvol(const char *path,
 		if (sub)
 			return 1;
 		sub = reiser4_alloc_subvol(sub_uuid, path, dformat_pid,
-					   diskmap);
+					   diskmap, mirror_id, num_replicas);
 		if (!sub)
 			return -ENOMEM;
 	} else {
@@ -127,7 +142,7 @@ int reiser4_register_subvol(const char *path,
 		if (!vol)
 			return -ENOMEM;
 		sub = reiser4_alloc_subvol(sub_uuid, path, dformat_pid,
-					   diskmap);
+					   diskmap, mirror_id, num_replicas);
 		if (!sub) {
 			kfree(vol);
 			return -ENOMEM;
@@ -135,7 +150,6 @@ int reiser4_register_subvol(const char *path,
 		list_add(&vol->list, &reiser4_volumes);
 	}
 	list_add(&sub->list, &vol->subvols_list);
-	vol->num_subvols ++;
 	printk("reiser4: registered subvolume (%s)\n", path);
 	return 0;
 }
@@ -212,13 +226,15 @@ int reiser4_scan_device(const char *path, fmode_t flags, void *holder)
 		 */
 		goto unmap;
 	ret = reiser4_register_subvol(path,
-			 master->uuid,
-			 master->sub_uuid,
-			 le16_to_cpu(get_unaligned(&master->dformat_pid)),
-			 le16_to_cpu(get_unaligned(&master->volume_pid)),
-			 le16_to_cpu(get_unaligned(&master->distrib_pid)),
-			 le64_to_cpu(get_unaligned(&master->diskmap)),
-			 master->stripe_size_bits);
+				      master->uuid,
+				      master->sub_uuid,
+				      master_get_dformat_pid(master),
+				      master_get_volume_pid(master),
+				      master_get_distrib_pid(master),
+				      master_get_diskmap_loc(master),
+				      master_get_mirror_id(master),
+				      master_get_num_replicas(master),
+				      master_get_stripe_bits(master));
 	if (ret > 0)
 		/* ok, it was registered earlier */
 		ret = 0;
@@ -234,14 +250,46 @@ int reiser4_scan_device(const char *path, fmode_t flags, void *holder)
 
 struct file_system_type *get_reiser4_fs_type(void);
 
+int check_active_replicas(reiser4_subvol *subv)
+{
+	u32 repl_id;
+	assert("edward-xxx", !is_replica(subv));
+
+	if ((super_num_origins(subv->super) == 0) ||
+	    (super_volume(subv->super)->subvols == NULL) ||
+	    (super_volume(subv->super)->subvols[subv->id] == NULL)) {
+
+		warning("edward-xxx",
+			"%s requires replicas, which "
+			" are not registered.",
+			subv->name);
+		return -EINVAL;
+	}
+	assert("edward-xxx", super_volume(subv->super) != NULL);
+
+	for_each_replica(subv->id, repl_id) {
+		reiser4_subvol *repl;
+		repl = super_mirror(subv->super, subv->id, repl_id);
+		if (repl == NULL) {
+			warning("edward-xxx",
+				"%s requires replica No%u, which "
+				" is not registered.",
+				subv->name, repl_id);
+			return -EINVAL;
+		}
+	}
+	return 0;
+}
+
 /*
  * Initialize disk format 4.X.Y for a subvolume
  * Pre-condition: subvolume @sub is registered
  */
-static int reiser4_activate_subvol(struct super_block *super,
-				   reiser4_subvol *subv, reiser4_vg_id vgid)
+int reiser4_activate_subvol(struct super_block *super,
+				   reiser4_subvol *subv)
 {
 	int ret;
+	struct page *page;
 	fmode_t mode = FMODE_READ | FMODE_EXCL;
 
 	assert("edward-xxx", !subvol_is_set(subv, SUBVOL_ACTIVATED));
@@ -253,6 +301,7 @@ static int reiser4_activate_subvol(struct super_block *super,
 					mode, get_reiser4_fs_type());
 	if (IS_ERR(subv->bdev))
 		return PTR_ERR(subv->bdev);
+
 	subv->mode = mode;
 	subv->super = super;
 
@@ -265,7 +314,24 @@ static int reiser4_activate_subvol(struct super_block *super,
 		subv->flags |= (1 << SUBVOL_IS_NONROT_DEVICE);
 		subv->txmod = WA_TXMOD_ID;
 	}
-	ret = subv->df_plug->init_format(super, subv, vgid);
+	page = subv->df_plug->find_format(subv, 1);
+	if (IS_ERR(page)) {
+		blkdev_put(subv->bdev, subv->mode);
+		return PTR_ERR(page);
+	}
+	put_page(page);
+	if (is_replica(subv))
+		/*
+		 * nothing to do any more for replicas,
+		 */
+		goto exit;
+	/*
+	 * Make sure that all replicas were activated
+	 */
+	ret = check_active_replicas(subv);
+	if (ret)
+		return ret;
+	ret = subv->df_plug->init_format(super, subv);
 	if (ret) {
 		blkdev_put(subv->bdev, subv->mode);
 		return ret;
@@ -277,6 +343,7 @@ static int reiser4_activate_subvol(struct super_block *super,
 		subv->bdev = NULL;
 		return ret;
 	}
+ exit:
 	subv->flags |= (1 << SUBVOL_ACTIVATED);
 	return 0;
 }
@@ -289,11 +356,13 @@ static void *alloc_subvols_set(__u32 num_subvols)
 	return result;
 }
 
-static void free_subvols_set(reiser4_subvol ***set)
+static void free_subvols_set(reiser4_volume *vol)
 {
-	if (*set != NULL) {
-		kfree(*set);
-		*set = NULL;
+	assert("edward-xxx", vol != NULL);
+
+	if (vol->subvols != NULL) {
+		kfree(vol->subvols);
+		vol->subvols = NULL;
 	}
 }
 
@@ -305,10 +374,11 @@ static void deactivate_subvol(struct super_block *super, reiser4_subvol *subv)
 	assert("edward-xxx", subvol_is_set(subv, SUBVOL_ACTIVATED));
 	assert("edward-xxx", subv->bdev != NULL);
 	assert("edward-xxx", subv->super != NULL);
-	assert("edward-xxx", get_super_volume(super)->num_subvols != 0);
 
-	subv->df_plug->release_format(super, subv);
-
+	if (!is_replica(subv)) {
+		subvol_check_block_counters(subv);
+		subv->df_plug->release_format(super, subv);
+	}
 	assert("edward-xxx", list_empty_careful(&subv->ch.overwrite_set));
 	assert("edward-xxx", list_empty_careful(&subv->ch.tx_list));
 	assert("edward-xxx", list_empty_careful(&subv->ch.wander_map));
@@ -319,99 +389,117 @@ static void deactivate_subvol(struct super_block *super, reiser4_subvol *subv)
 	clear_bit((int)SUBVOL_ACTIVATED, &subv->flags);
 }
 
-static void __reiser4_deactivate_volume(struct super_block *super)
+static void deactivate_subvolumes_of_type(struct super_block *super,
+					  reiser4_subv_type type)
 {
 	struct reiser4_subvol *subv;
 	reiser4_volume *vol = get_super_private(super)->vol;
 
-	list_for_each_entry(subv, &vol->subvols_list, list)
-		if (subvol_is_set(subv, SUBVOL_ACTIVATED)) {
-			subvol_check_block_counters(subv);
-			deactivate_subvol(super, subv);
-		}
+	list_for_each_entry(subv, &vol->subvols_list, list) {
+		if (!subvol_is_set(subv, SUBVOL_ACTIVATED))
+			/*
+			 * subvolume is not active
+			 */
+			continue;
+		if (subv->type != type)
+			/*
+			 * subvolume will be deactivated later
+			 */
+			continue;
+		deactivate_subvol(super, subv);
+	}
+}
+
+/**
+ * First we deactivate all non-replicas, as we need to have
+ * a complete set of active replicas for journal replay when
+ * deactivating original subvolumes.
+ */
+void __reiser4_deactivate_volume(struct super_block *super)
+{
+	reiser4_volume *vol = super_volume(super);
+
+	deactivate_subvolumes_of_type(super, REISER4_SUBV_OTHER);
+	deactivate_subvolumes_of_type(super, REISER4_SUBV_REPLICA);
+
 	if (vol->aib) {
 		assert("edward-xxx", vol->dist_plug->done != NULL);
 		vol->dist_plug->done(vol->aib);
 		vol->aib = NULL;
 	}
-	free_subvols_set(&vol->subvols);
+	free_subvols_set(vol);
 }
 
 /**
- * Deactivate all subvolumes except ones of the specified
- * volume group @vgid
- */
-static void deactivate_subvolumes_except(struct super_block *super,
-					 reiser4_vg_id vgid)
-{
-	struct reiser4_subvol *subv;
-	reiser4_volume *vol = get_super_private(super)->vol;
-
-	list_for_each_entry(subv, &vol->subvols_list, list)
-		if (subvol_is_set(subv, SUBVOL_ACTIVATED) &&
-		    subv->vgid != vgid) {
-			subvol_check_block_counters(subv);
-			deactivate_subvol(super, subv);
-		}
-}
-
-/**
- * Deactivate volume starting from not mirrors
+ * Deactivate volume. Called during umount, or in error paths
  */
 void reiser4_deactivate_volume(struct super_block *super)
 {
 	mutex_lock(&reiser4_volumes_mutex);
-	deactivate_subvolumes_except(super, REISER4_VG_MIRRORS);
 	__reiser4_deactivate_volume(super);
 	mutex_unlock(&reiser4_volumes_mutex);
 }
 
 /**
- * Set a registered subvolume @src to the array
- * of activated subvolumes @dst at the position
- * @dst_pos. Allocate the array, if needed.
- *
+ * Set a registered subvolume @subv to the table
+ * of activated subvolumes of logical volume @vol.
+ * Allocate arrays of pointers, if needed.
  */
-static int set_activated_subvol(reiser4_subvol ***dst, u64 dst_pos,
-				reiser4_subvol *src, u64 num_total)
+static int set_activated_subvol(reiser4_volume *vol, reiser4_subvol *subv)
 {
 	int ret = 0;
+	u64 orig_id = subv->id;
+	u16 mirr_id = subv->mirror_id;
 
-	if (*dst == NULL) {
-		*dst = alloc_subvols_set(num_total);
-		if (*dst == NULL) {
+	if (vol->subvols == NULL) {
+		/*
+		 * allocate set for original subvolumes
+		 */
+		vol->subvols = alloc_subvols_set(vol->num_origins);
+		if (vol->subvols == NULL) {
 			ret = -ENOMEM;
 			goto out;
 		}
 	}
-	if ((*dst)[dst_pos] != NULL) {
+	if (vol->subvols[orig_id] == NULL) {
+		/*
+		 * allocate set for mirrors
+		 */
+		vol->subvols[orig_id] =
+			alloc_subvols_set(1 + subv->num_replicas);
+		if (vol->subvols[orig_id] == NULL) {
+			ret = -ENOMEM;
+			goto out;
+		}
+	}
+	if (vol->subvols[orig_id][mirr_id] != NULL) {
 		warning("edward-xxx",
-			"subvolumes %s and %s have the same id(%llu)",
-			(*dst)[dst_pos]->name, src->name, src->id);
+			"%s and %s have the same (id,mirror_id)=(%llu,%u)",
+			vol->subvols[orig_id][mirr_id]->name,
+			subv->name,
+			orig_id, mirr_id);
 		ret = -EINVAL;
 		goto out;
 	}
-	(*dst)[dst_pos] = src;
+	vol->subvols[orig_id][mirr_id] = subv;
  out:
 	return ret;
 }
 
 /**
- * Activate all subvolumes of the volume group @vgid
+ * Activate all subvolumes of the specified @type
  *
  * This function is an "idempotent of high order". The order
  * of that idempotent is equal to the number of volume groups
  */
-static int reiser4_activate_volume_group(struct super_block *super,
-					 u8 *vol_uuid, reiser4_vg_id vgid,
-					 u32 *nr_activated)
+static int activate_subvolumes_of_type(struct super_block *super,
+				       u8 *vol_uuid, reiser4_subv_type type)
 {
 	int ret;
 	struct reiser4_volume *vol;
 	struct reiser4_subvol *subv;
 	reiser4_super_info_data *info;
 
-	*nr_activated = 0;
 	info = get_super_private(super);
 
 	vol = reiser4_search_volume(vol_uuid);
@@ -426,26 +514,21 @@ static int reiser4_activate_volume_group(struct super_block *super,
 	list_for_each_entry(subv, &vol->subvols_list, list) {
 		if (subvol_is_set(subv, SUBVOL_ACTIVATED))
 			continue;
-		ret = reiser4_activate_subvol(super, subv, vgid);
-		if (ret == -E_NOTEXP) {
+		if (subv->type != type)
 			/*
 			 * this subvolume will be activated later
 			 */
-			break;
-		}
+			continue;
+		ret = reiser4_activate_subvol(super, subv);
 		if (ret)
 			goto error;
 		assert("edward-xxx", subvol_is_set(subv, SUBVOL_ACTIVATED));
 
-		ret = set_activated_subvol(&vol->subvols,
-					   subv->id,
-					   subv,
-					   vol->num_subvols);
+		ret = set_activated_subvol(vol, subv);
 		if (ret)
 			goto error;
-		(*nr_activated) ++;
 	}
-	if (vol->num_subvols == 1) {
+	if (vol->num_origins == 1) {
 		/*
 		 * this is a simple (not compound) volume,
 		 * therefore, managed by trivial plugins
@@ -458,7 +541,7 @@ static int reiser4_activate_volume_group(struct super_block *super,
 	 */
 	if (vol->dist_plug->init != NULL) {
 		ret = vol->dist_plug->init(vol,
-					   vol->num_subvols,
+					   vol->num_origins,
 					   vol->num_sgs_bits,
 					   &vol->vol_plug->aib_ops,
 					   &vol->aib);
@@ -480,35 +563,60 @@ static int reiser4_activate_volume_group(struct super_block *super,
 	return ret;
 }
 
-/*
- * Initialize disk formats of all subvolumes.
+/**
+ * Activate all subvolumes-components of a logical volume.
+ * Handle all cases of incomplete registration (when not all
+ * components were registered in the system).
+ *
+ * @super: super-block associated with the logical volume;
+ * @vol_uuid: uuid of the logical volume.
  */
 int reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 {
 	int ret;
-	u32 nr;
+	u32 orig_id;
 
 	mutex_lock(&reiser4_volumes_mutex);
 	/*
-	 * First we activate mirrors to have a complete set
-	 * of active mirrors before the journal replay procedure
-	 * invoked for non-mirrors.
+	 * First we activate all replicas, as we need to have a
+	 * complete set of active replicas for journal replay
+	 * when activating original subvolumes.
 	 */
-	ret = reiser4_activate_volume_group(super, vol_uuid,
-					    REISER4_VG_MIRRORS, &nr);
+	ret = activate_subvolumes_of_type(super, vol_uuid,
+					  REISER4_SUBV_REPLICA);
 	if (ret)
 		goto out;
-	if (nr)
-		notice("", "activated %u mirrors of %s",
-		       nr, super_origin(super)->name);
-
-	ret = reiser4_activate_volume_group(super, vol_uuid,
-					    REISER4_VG_ALL, &nr);
+	ret = activate_subvolumes_of_type(super, vol_uuid,
+					  REISER4_SUBV_OTHER);
+	if (ret)
+		goto out;
+	/*
+	 * Make sure that all origins were activated
+	 */
+	if (current_num_origins() == 0) {
+		warning("edward-xxx",
+			"%s requires at least one origin, which is not "
+			"registered.", super->s_id);
+		ret = -EINVAL;
+		goto out;
+	}
+	for_each_origin(orig_id) {
+		reiser4_subvol *orig;
+		orig = super_origin(super, orig_id);
+		if (orig == NULL) {
+			warning("edward-xxx",
+				"%s requires origin No%u, which is not "
+				"registered.", super->s_id, orig_id);
+			ret = -EINVAL;
+			goto out;
+		}
+		assert("edward-xxx",
+		       subvol_is_set(orig, SUBVOL_ACTIVATED));
+	}
  out:
 	mutex_unlock(&reiser4_volumes_mutex);
 	return ret;
 }
-
 
 /*
   Local variables:
