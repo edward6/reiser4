@@ -582,6 +582,11 @@ typedef struct distribution_plugin {
 typedef struct volume_plugin {
 	/* generic fields */
 	plugin_header h;
+	/* return id of subvolume for various system records:
+	   status records, blackbox items, etc */
+	u32 (*sys_subvol_id)(void);
+	u32 (*data_subvol_id)(void);
+	u32 (*meta_subvol_id)(void);
 	struct reiser4_aib_ops aib_ops;
 } volume_plugin;
 
@@ -706,23 +711,18 @@ typedef struct oid_allocator_plugin {
 typedef struct disk_format_plugin {
 	/* generic fields */
 	plugin_header h;
+	/* find format disk super-block and performs checks. On success
+	   a page (the image of format disk super-block) with incremented
+	   reference counter is returned */
+	struct page *(*find_format)(reiser4_subvol *subv, int consult);
 	/* replay journal, initialize super_info_data, etc */
-	int (*init_format) (struct super_block *, reiser4_subvol *,
-			    reiser4_vg_id);
+	int (*init_format) (struct super_block *, reiser4_subvol *);
 	/* key of root directory stat data */
 	const reiser4_key * (*root_dir_key) (const struct super_block *);
 	int (*release_format) (struct super_block *, reiser4_subvol *);
 	jnode * (*log_super) (struct super_block *, reiser4_subvol *);
 	int (*check_open) (const struct inode *object);
 	int (*version_update) (struct super_block *, reiser4_subvol *);
-	/* Update superblock before submission.
-	 * We don't allocate buffers for mirrors. Instead we use buffer
-	 * of the original subvolume. However, mirrors differ from the
-	 * original in some superblock's fields. So right before submission
-	 * we update those fields properly. After on-mirrors IO completion
-	 * we use this method to return back the original values of the
-	 * superblock */
-	void (*update_sb4replica)(reiser4_subvol *subv);
 } disk_format_plugin;
 
 struct jnode_plugin {

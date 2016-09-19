@@ -88,14 +88,14 @@ static __u64 get_format40_flags(const format40_disk_super_block * sb)
 	return le64_to_cpu(get_unaligned(&sb->flags));
 }
 
-static __u64 get_format40_subvol_id(const format40_disk_super_block * sb)
+static __u64 get_format40_origin_id(const format40_disk_super_block * sb)
 {
-	return le64_to_cpu(get_unaligned(&sb->subvol_id));
+	return le64_to_cpu(get_unaligned(&sb->origin_id));
 }
 
-static __u64 get_format40_num_subvols(const format40_disk_super_block * sb)
+static __u64 get_format40_num_origins(const format40_disk_super_block * sb)
 {
-	return le64_to_cpu(get_unaligned(&sb->num_subvols));
+	return le64_to_cpu(get_unaligned(&sb->num_origins));
 }
 
 static int get_format40_num_sgs_bits(const format40_disk_super_block * sb)
@@ -119,19 +119,9 @@ static __u32 get_format40_version(const format40_disk_super_block * sb)
 		~FORMAT40_UPDATE_BACKUP;
 }
 
-static __u16 get_format40_num_mirrors(const format40_disk_super_block *sb)
-{
-	return le16_to_cpu(get_unaligned(&sb->num_mirrors));
-}
-
 static __u64 get_format40_num_meta_subvols(const format40_disk_super_block *sb)
 {
 	return le64_to_cpu(get_unaligned(&sb->num_meta_subvols));
-}
-
-static __u64 get_format40_num_mixed_subvols(const format40_disk_super_block *sb)
-{
-	return le64_to_cpu(get_unaligned(&sb->num_mixed_subvols));
 }
 
 static __u64 get_format40_room_for_data(const format40_disk_super_block *sb)
@@ -267,81 +257,50 @@ static int check_key_format(const format40_disk_super_block *sb_copy)
 	return 0;
 }
 
-/*
- * Check number of subvolumes in the format super-block
- * and number of registered subvolumes. They should coincide.
- */
-static int check_num_subvols(reiser4_subvol *subv,
-			     format40_disk_super_block *sb_format)
+static int set_check_params(reiser4_subvol *subv,
+			    format40_disk_super_block *sb_format)
 {
 	reiser4_volume *vol;
-	u32 ondisk_num_subvols;
+	u32 ondisk_num_origins;
+	const char *what_is_wrong;
 
-	vol = get_super_volume(subv->super);
-	ondisk_num_subvols = get_format40_num_subvols(sb_format);
+	vol = super_volume(subv->super);
+	ondisk_num_origins = get_format40_num_origins(sb_format);
 
-	if (ondisk_num_subvols == 0)
+	if (ondisk_num_origins == 0)
 		/*
 		 * This is a subvolume of format 4.0.Y
 		 * We handle this special case for backward compatibility:
 		 * guess number of subvolumes
 		 */
-		ondisk_num_subvols = 1;
+		ondisk_num_origins = 1;
 
-	if (ondisk_num_subvols != vol->num_subvols) {
-		printk("reiser5 (%s): Number of registered subvolumes (%llu) "
-		       "differs from on-disk number of subvolumes (%u).\n",
-		       subv->super->s_id,
-		       (unsigned long long)vol->num_subvols,
-		       ondisk_num_subvols);
-		return -EINVAL;
-	}
-	if (subv->id >= vol->num_subvols) {
-		printk("reiser5 (%s): Bad subvolume ID (%llu): should be "
-		       "less than total number of subvolumes (%llu).",
-		       subv->super->s_id,
-		       subv->id,
-		       vol->num_subvols);
-		return -EINVAL;
-	}
-	return 0;
-}
-
-int set_check_common_vol_params(reiser4_volume *vol,
-				const format40_disk_super_block *sb_format)
-{
-	static char *wrong_is;
-
-	if (vol->num_sgs_bits == 0)
-		vol->num_sgs_bits = get_format40_num_sgs_bits(sb_format);
-	else if (vol->num_sgs_bits != get_format40_num_sgs_bits(sb_format)) {
-		wrong_is = "granularity params";
-		goto error;
-	}
-	if (vol->num_mirrors == 0)
-		vol->num_mirrors = get_format40_num_mirrors(sb_format);
-	else if (vol->num_mirrors != get_format40_num_mirrors(sb_format)) {
-		wrong_is = "numbers of mirrors";
+	if (vol->num_origins == 0)
+		vol->num_origins = ondisk_num_origins;
+	else if (vol->num_origins != ondisk_num_origins) {
+		what_is_wrong = "different numbers of original subvolumes";
 		goto error;
 	}
 	if (vol->num_meta_subvols == 0)
 		vol->num_meta_subvols = get_format40_num_meta_subvols(sb_format);
 	else if (vol->num_meta_subvols != get_format40_num_meta_subvols(sb_format)) {
-		wrong_is = "numbers of metadata subvolumes";
+		what_is_wrong = "different numbers of meta-data subvolumes";
 		goto error;
 	}
-	if (vol->num_mixed_subvols == 0)
-		vol->num_mixed_subvols = get_format40_num_mixed_subvols(sb_format);
-	else if (vol->num_mixed_subvols != get_format40_num_mixed_subvols(sb_format)) {
-		wrong_is = "numbers of mixed subvolumes";
+	if (vol->num_sgs_bits == 0)
+		vol->num_sgs_bits = get_format40_num_sgs_bits(sb_format);
+	else if (vol->num_sgs_bits != get_format40_num_sgs_bits(sb_format)) {
+		what_is_wrong = "different numbers of hash space segments";
+		goto error;
+	}
+	subv->id = get_format40_origin_id(sb_format);
+	if (subv->id >= vol->num_origins) {
+		what_is_wrong = "bad original subvolume ID";
 		goto error;
 	}
 	return 0;
  error:
-	printk("reiser5: different %s found in subvolumes "
-	       "of the same logical volume %s.\n",
-	       wrong_is, vol->subvols[0]->super->s_id);
-
+	warning("edward-xxx", "%s: Found %s", subv->super->s_id, what_is_wrong);
 	return -EINVAL;
 }
 
@@ -350,7 +309,7 @@ int set_check_common_vol_params(reiser4_volume *vol,
  * guaranteed to be the most recent version). Perform sanity checks,
  * set subvolume id.
  */
-static struct page *find_disk_format40(reiser4_subvol *subv)
+struct page *find_format_format40(reiser4_subvol *subv, int consult)
 {
 	int ret;
 	struct page *page;
@@ -358,9 +317,14 @@ static struct page *find_disk_format40(reiser4_subvol *subv)
 	format40_super_info *finfo;
 	reiser4_volume *vol;
 
-	vol = get_super_volume(subv->super);
+	vol = super_volume(subv->super);
 	finfo = sb_format_info(subv);
 
+	if (consult) {
+		ret = consult_diskmap(subv->super, subv);
+		if (ret)
+			return ERR_PTR(RETERR(ret));
+	}
 	page = read_cache_page_gfp(subv->bdev->bd_inode->i_mapping,
 				   finfo->loc.super,
 				   GFP_NOFS);
@@ -376,21 +340,12 @@ static struct page *find_disk_format40(reiser4_subvol *subv)
 		put_page(page);
 		return ERR_PTR(RETERR(-EINVAL));
 	}
-	subv->id = get_format40_subvol_id(disk_sb);
-	if (subv->id < get_format40_num_mirrors(disk_sb))
-		/*
-		 * FIXME-EDWARD: This belongs to specifications of format41
-		 */
-		subv->vgid = REISER4_VG_MIRRORS;
-
-	ret = check_num_subvols(subv, disk_sb);
+	ret = set_check_params(subv, disk_sb);
 	if (ret) {
 		kunmap(page);
 		put_page(page);
 		return ERR_PTR(RETERR(-EINVAL));
 	}
-	if (is_mirror(subv))
-		goto exit;
 	reiser4_subvol_set_block_count(subv,
 			     le64_to_cpu(get_unaligned(&disk_sb->block_count)));
 	reiser4_subvol_set_free_blocks(subv,
@@ -404,16 +359,17 @@ static struct page *find_disk_format40(reiser4_subvol *subv)
 	reiser4_subvol_set_used_blocks(subv,
 				       reiser4_subvol_block_count(subv) -
 				       reiser4_subvol_free_blocks(subv));
- exit:
 	kunmap(page);
 	return page;
 }
 
 /**
- * Initialize in-memory subvolume header
+ * Initialize in-memory subvolume header.
+ * Pre-condition: we are sure that subvolume is of format40
+ * (i.e. format superblock with correct magic was found).
  */
-int try_init_format40(struct super_block *super, format40_init_stage *stage,
-		      reiser4_subvol *subv, reiser4_vg_id vgid)
+int try_init_format40(struct super_block *super,
+		      format40_init_stage *stage, reiser4_subvol *subv)
 {
 	int result;
 	struct page *page;
@@ -428,34 +384,9 @@ int try_init_format40(struct super_block *super, format40_init_stage *stage,
 	assert("vs-475", super != NULL);
 	assert("vs-474", get_super_private(super) != NULL);
 	assert("edward-xxx", get_super_private(super)->vol != NULL);
+	assert("edward-xxx", !is_replica(subv));
 
 	*stage = NONE_DONE;
-	/*
-	 * set journal location, etc
-	 */
-	result = consult_diskmap(super, subv);
-	if (result)
-		return result;
-	*stage = CONSULT_DISKMAP;
-
-	page = find_disk_format40(subv);
-	if (IS_ERR(page))
-		return PTR_ERR(page);
-	put_page(page);
-
-	if (is_mirror(subv))
-		/*
-		 * subvolume doesn't need to be fully activated
-		 */
-		return 0;
-	*stage = FIND_A_SUPER;
-	/*
-	 * OK, we are sure that subvolume format is format40
-	 */
-	if (subv->vgid != vgid)
-		/* this subvolumes will be activated later */
-		return -E_NOTEXP;
-
 	result = reiser4_init_journal_info(subv);
 	if (result)
 		return result;
@@ -471,17 +402,18 @@ int try_init_format40(struct super_block *super, format40_init_stage *stage,
 
 	result = reiser4_status_query(subv, NULL, &extended_status);
 	if (result == REISER4_STATUS_MOUNT_WARN)
-		notice("vpf-1363", "Warning: mounting %s with errors.",
-		       super->s_id);
+		warning("vpf-1363", "Mounting %s with errors.",
+			super->s_id);
 
 	if (result == REISER4_STATUS_MOUNT_RO)
-		notice("vpf-1364", "Warning: mounting %s with fatal errors. "
-		       "Forcing read-only mount.", super->s_id);
+		warning("vpf-1364", "Mounting %s with fatal errors. "
+			"Forcing read-only mount.", super->s_id);
 
-	if (extended_status == REISER4_ESTATUS_MIRRORS_NOT_SYNCED)
-		notice("edward-xxx",
-		       "Warning: mounting %s with not synced mirrors. "
-		       "Scrub is required.", super->s_id);
+	if (has_replicas(subv) &&
+	    extended_status == REISER4_ESTATUS_MIRRORS_NOT_SYNCED)
+		warning("edward-xxx",
+			"Mounting %s with not synced mirrors. "
+			"Please, scrub the volume.", super->s_id);
 
 	result = reiser4_journal_replay(subv);
 	if (result)
@@ -491,7 +423,7 @@ int try_init_format40(struct super_block *super, format40_init_stage *stage,
 	 * read the most recent version of format superblock
 	 * after journal replay
 	 */
-	page = find_disk_format40(subv);
+	page = find_format_format40(subv, 0);
 	if (IS_ERR(page))
 		return PTR_ERR(page);
 	*stage = READ_SUPER;
@@ -553,19 +485,6 @@ int try_init_format40(struct super_block *super, format40_init_stage *stage,
 		return result;
 	}
 	*stage = INIT_TREE;
-	/*
-	 * For scalability reasons and just for reasons of common
-	 * sense we don't replicate common volume parameters on all
-	 * subvolumes. For now it resides only on master subvolume.
-	 */
-	/*
-	 * read or check common volume parameters
-	 */
-	result = set_check_common_vol_params(vol, sb_format);
-	if (result) {
-		kfree(sb_format);
-		return result;
-	}
 	/*
 	 * set private subvolume parameters
 	 */
@@ -652,13 +571,12 @@ int try_init_format40(struct super_block *super, format40_init_stage *stage,
 /**
  * ->init_format() method of disk_format40 plugin
  */
-int init_format_format40(struct super_block *s, reiser4_subvol *subv,
-			 reiser4_vg_id vgid)
+int init_format_format40(struct super_block *s, reiser4_subvol *subv)
 {
 	int result;
 	format40_init_stage stage;
 
-	result = try_init_format40(s, &stage, subv, vgid);
+	result = try_init_format40(s, &stage, subv);
 	switch (stage) {
 	case ALL_DONE:
 		assert("nikita-3458", result == 0);
@@ -681,16 +599,12 @@ int init_format_format40(struct super_block *s, reiser4_subvol *subv,
 		reiser4_status_finish(subv);
 	case INIT_JOURNAL_INFO:
 		reiser4_done_journal_info(subv);
-	case FIND_A_SUPER:
-	case CONSULT_DISKMAP:
 	case NONE_DONE:
 		break;
 	default:
 		impossible("nikita-3457", "init stage: %i", stage);
 	}
-	if (result == -EINVAL || result == -E_NOTEXP)
-		return result;
-	if (!rofs_super(s) && !is_mirror(subv) &&
+	if (!rofs_super(s) &&
 	    reiser4_subvol_free_blocks(subv) < RELEASE_RESERVED)
 		return RETERR(-ENOSPC);
 	return result;
@@ -750,8 +664,6 @@ int release_format40(struct super_block *s, reiser4_subvol *subv)
 {
 	int ret;
 
-	if (is_mirror(subv))
-		return 0;
 	if (!rofs_super(s)) {
 		ret = reiser4_capture_super_block(s);
 		if (ret != 0)
@@ -851,8 +763,7 @@ int version_update_format40(struct super_block *super, reiser4_subvol *subv)
 	txn_atom *atom;
 	int ret;
 
-	if (is_mirror(subv) ||
-	    super->s_flags & MS_RDONLY ||
+	if (super->s_flags & MS_RDONLY ||
 	    subv->version >= get_release_number_minor())
 		return 0;
 
@@ -881,31 +792,6 @@ int version_update_format40(struct super_block *super, reiser4_subvol *subv)
 
 	spin_lock_txnh(trans);
 	return force_commit_atom(trans);
-}
-
-/**
- * Upadte original superblock to be written to replica device.
- * @subv: original subvolume to be replicated.
- * @replica_id: internal id of the subvolume-replica
- */
-void update_sb4replica_format41(reiser4_subvol *subv)
-{
-	jnode *sb_jnode;
-	format40_disk_super_block *format_sb;
-
-	assert("edward-xxx", subv != NULL);
-	assert("edward-xxx", subv->super != NULL);
-	/*
-	 * get IO header of the original format super-block
-	 */
-	sb_jnode = super_origin(subv->super)->u.format40.sb_jnode;
-
-	assert("edward-xxx", sb_jnode->magic == JMAGIC);
-
-	jload(sb_jnode);
-	format_sb = (format40_disk_super_block *)jdata(sb_jnode);
-	put_unaligned(cpu_to_le64(subv->id), &format_sb->subvol_id);
-	jrelse(sb_jnode);
 }
 
 /*

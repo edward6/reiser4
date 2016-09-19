@@ -3,6 +3,10 @@
 
 /* Reiser4 Wandering Log */
 
+/*
+ * Modified by Edward Shishkin to support Heterogeneous Logical Volumes
+ */
+
 /* You should read http://www.namesys.com/txn-doc.html
 
    That describes how filesystem operations are performed as atomic
@@ -230,9 +234,9 @@ static void init_commit_handle(struct commit_handle *ch, txn_atom *atom,
 		/*
 		 * init ch of all subvolumes
 		 */
-		u32 subv_id;
-		for_each_notmirr(subv_id)
-			init_ch_sub(super_subvol(ch->super, subv_id));
+		u32 orig_id;
+		for_each_origin(orig_id)
+			init_ch_sub(super_origin(ch->super, orig_id));
 	}
 }
 
@@ -254,8 +258,8 @@ static void done_commit_handle(struct commit_handle *ch, reiser4_subvol *subv)
 		done_ch_sub(subv);
 	else {
 		u32 subv_id;
-		for_each_notmirr(subv_id)
-			done_ch_sub(super_subvol(ch->super, subv_id));
+		for_each_origin(subv_id)
+			done_ch_sub(super_origin(ch->super, subv_id));
 	}
 #endif
 }
@@ -268,7 +272,7 @@ static void format_journal_header(struct commit_handle *ch,
 	struct journal_header *header;
 	jnode *txhead;
 
-	subv = super_subvol(ch->super, subv_id);
+	subv = super_origin(ch->super, subv_id);
 	assert("zam-480", subv->journal_header != NULL);
 
 	txhead = list_entry(subv->ch.tx_list.next, jnode, capture_link);
@@ -292,7 +296,7 @@ static void format_journal_footer(struct commit_handle *ch, unsigned subv_id)
 	jnode *tx_head;
 	struct commit_handle_subvol *ch_sub;
 
-	subv = super_subvol(ch->super, subv_id);
+	subv = super_origin(ch->super, subv_id);
 	ch_sub = &subv->ch;
 
 	tx_head = list_entry(ch_sub->tx_list.next, jnode, capture_link);
@@ -333,7 +337,7 @@ static void format_tx_head(struct commit_handle *ch, unsigned subv_id)
 	struct commit_handle_subvol *ch_sub;
 	reiser4_subvol *subv;
 
-	subv = super_subvol(ch->super, subv_id);
+	subv = super_origin(ch->super, subv_id);
 	ch_sub = &subv->ch;
 
 	tx_head = list_entry(ch_sub->tx_list.next, jnode, capture_link);
@@ -371,7 +375,7 @@ static void format_wander_record(struct commit_handle *ch, unsigned subv_id,
 
 	assert("zam-464", node != NULL);
 
-	ch_sub = &super_subvol(ch->super, subv_id)->ch;
+	ch_sub = &super_origin(ch->super, subv_id)->ch;
 
 	LRH = (struct wander_record_header *)jdata(node);
 	next = list_entry(node->capture_link.next, jnode, capture_link);
@@ -418,11 +422,11 @@ static void get_tx_size(struct commit_handle *ch)
 {
 	u32 subv_id;
 
-	for_each_notmirr(subv_id) {
+	for_each_origin(subv_id) {
 
 		struct commit_handle_subvol *ch_sub;
 
-		ch_sub = &super_subvol(ch->super, subv_id)->ch;
+		ch_sub = &super_origin(ch->super, subv_id)->ch;
 
 		assert("zam-440", ch_sub->overwrite_set_size != 0);
 		assert("zam-695", ch_sub->tx_size == 0);
@@ -489,7 +493,7 @@ static int store_wmap_actor(txn_atom *atom UNUSED_ARG,
 static int update_journal_header(struct commit_handle *ch, u32 subv_id)
 {
 	int ret;
-	reiser4_subvol *subv = super_subvol(ch->super, subv_id);
+	reiser4_subvol *subv = super_origin(ch->super, subv_id);
 	jnode *jh = subv->journal_header;
 	jnode *head = list_entry(subv->ch.tx_list.next, jnode, capture_link);
 
@@ -516,7 +520,7 @@ static int update_journal_header(struct commit_handle *ch, u32 subv_id)
 static int update_journal_footer(struct commit_handle *ch, u32 subv_id)
 {
 	int ret;
-	reiser4_subvol *subv = super_subvol(ch->super, subv_id);
+	reiser4_subvol *subv = super_origin(ch->super, subv_id);
 	jnode *jf = subv->journal_footer;
 
 	format_journal_footer(ch, subv_id);
@@ -539,8 +543,8 @@ static void dealloc_tx_list(struct commit_handle *ch)
 {
 	u32 subv_id;
 
-	for_each_notmirr(subv_id) {
-		reiser4_subvol *subv = current_subvol(subv_id);
+	for_each_origin(subv_id) {
+		reiser4_subvol *subv = current_origin(subv_id);
 		struct commit_handle_subvol *ch_sub = &subv->ch;
 
 		while (!list_empty(&ch_sub->tx_list)) {
@@ -572,7 +576,7 @@ static int dealloc_wmap_actor(txn_atom *atom UNUSED_ARG,
 	assert("zam-501", !reiser4_blocknr_is_fake(b));
 
 	reiser4_dealloc_block(b, 0, BA_DEFER | BA_FORMATTED,
-			      current_subvol(subv_id));
+			      current_origin(subv_id));
 	return 0;
 }
 
@@ -587,11 +591,11 @@ static void dealloc_wmap(struct commit_handle *ch)
 
 	assert("zam-696", ch->atom != NULL);
 
-	for_each_notmirr(subv_id) {
+	for_each_origin(subv_id) {
 
 		struct commit_handle_subvol *ch_sub;
 
-		ch_sub = &super_subvol(ch->super, subv_id)->ch;
+		ch_sub = &super_origin(ch->super, subv_id)->ch;
 
 		blocknr_set_iterator(ch->atom,
 				     &ch_sub->wander_map,
@@ -651,10 +655,10 @@ static void put_overwrite_set(struct commit_handle *ch)
 	jnode *cur;
 	u32 subv_id;
 
-	for_each_notmirr(subv_id) {
+	for_each_origin(subv_id) {
 		struct commit_handle_subvol *ch_sub;
 
-		ch_sub = &super_subvol(ch->super, subv_id)->ch;
+		ch_sub = &super_origin(ch->super, subv_id)->ch;
 
 		list_for_each_entry(cur, &ch_sub->overwrite_set, capture_link)
 			jrelse_tail(cur);
@@ -674,8 +678,8 @@ void check_overwrite_set(void)
 {
 	u32 subv_id;
 
-	for_each_notmirr(subv_id)
-		check_overwrite_set_subv(current_subvol(subv_id));
+	for_each_origin(subv_id)
+		check_overwrite_set_subv(current_origin(subv_id));
 }
 
 /*
@@ -806,13 +810,13 @@ int get_overwrite_set(struct commit_handle *ch)
 	 * reserved as "flush reserved", move it to grabbed space counter
 	 */
 	spin_lock_atom(ch->atom);
-	for_each_notmirr(subv_id) {
+	for_each_origin(subv_id) {
 #if REISER4_DEBUG
 		flush_reserved += ch->atom->flush_reserved[subv_id];
 #endif
 		flush_reserved2grabbed(ch->atom,
 				       ch->atom->flush_reserved[subv_id],
-				       current_subvol(subv_id));
+				       current_origin(subv_id));
 	}
 	assert("zam-940",
 	       nr_formatted_leaves + nr_unformatted_leaves <= flush_reserved);
@@ -902,7 +906,7 @@ static int write_jnodes_contig(jnode *first, int nr,
 #if REISER4_DEBUG
 			spin_lock(&cur->load);
 			assert("nikita-3165",
-			       ergo(!is_mirror(subv), !jnode_is_releasable(cur)));
+			       ergo(is_origin(subv), !jnode_is_releasable(cur)));
 			spin_unlock(&cur->load);
 #endif
 			JF_SET(cur, JNODE_WRITEBACK);
@@ -915,21 +919,11 @@ static int write_jnodes_contig(jnode *first, int nr,
 			/*
 			 * update checksum
 			 */
-			if (jnode_is_znode(cur) && !is_mirror(subv)) {
+			if (jnode_is_znode(cur) && is_origin(subv)) {
 				zload(JZNODE(cur));
 				if (node_plugin_by_node(JZNODE(cur))->csum)
 					node_plugin_by_node(JZNODE(cur))->csum(JZNODE(cur), 0);
 				zrelse(JZNODE(cur));
-			}
-			if (have_mirrors()) {
-				reiser4_subvol *orig = super_origin(subv->super);
-				if (cur == orig->u.format40.sb_jnode)
-					/*
-					 * super-blocks of the original and
-					 * mirrors can differ in some fields,
-					 * so update it properly
-					 */
-					subv->df_plug->update_sb4replica(subv);
 			}
 			ClearPageError(pg);
 			set_page_writeback(pg);
@@ -997,7 +991,7 @@ static int write_jnodes_contig(jnode *first, int nr,
 			}
 
 			block += nr_used - 1;
-			if (!is_mirror(subv))
+			if (is_origin(subv))
 				update_blocknr_hint_default(super, subv, &block);
 			block += 1;
 		} else {
@@ -1115,7 +1109,7 @@ static int alloc_submit_wander_blocks(struct commit_handle *ch,
 	int len;
 	int ret;
 	jnode *cur;
-	reiser4_subvol *subv = super_subvol(ch->super, subv_id);
+	reiser4_subvol *subv = super_origin(ch->super, subv_id);
 	struct list_head *overw_set = &subv->ch.overwrite_set;
 
 	rest = subv->ch.overwrite_set_size;
@@ -1164,7 +1158,7 @@ static int alloc_submit_wander_records(struct commit_handle *ch,
 	jnode *txhead;
 	int ret;
 	reiser4_context *ctx;
-	reiser4_subvol *subv = super_subvol(ch->super, subv_id);
+	reiser4_subvol *subv = super_origin(ch->super, subv_id);
 	struct commit_handle_subvol *ch_sub = &subv->ch;
 	struct list_head *tx_list = &ch_sub->tx_list;
 	int tx_size = ch_sub->tx_size;
@@ -1279,7 +1273,7 @@ static int commit_tx_subv(struct commit_handle *ch, u32 subv_id)
 {
 	int ret;
 	flush_queue_t *fq;
-	reiser4_subvol *subv = super_subvol(ch->super, subv_id);
+	reiser4_subvol *subv = super_origin(ch->super, subv_id);
 	struct commit_handle_subvol *ch_sub = &subv->ch;
 	/*
 	 * Grab more space for wandered records
@@ -1308,7 +1302,7 @@ static int commit_tx(struct commit_handle *ch)
 	int ret;
 	u32 subv_id;
 
-	for_each_notmirr(subv_id) {
+	for_each_origin(subv_id) {
 		ret = commit_tx_subv(ch, subv_id);
 		if (ret)
 			return ret;
@@ -1317,7 +1311,7 @@ static int commit_tx(struct commit_handle *ch)
 	if (ret)
 		return ret;
 
-	for_each_notmirr(subv_id) {
+	for_each_origin(subv_id) {
 		ret = update_journal_header(ch, subv_id);
 		if (ret)
 			return ret;
@@ -1325,42 +1319,52 @@ static int commit_tx(struct commit_handle *ch)
 	return 0;
 }
 
-static int play_tx_subv(struct commit_handle *ch, u32 subv_id)
+/**
+ * Play (checkpoint) transaction on a simplest component of a compound volume.
+ * @mirror can be an original subvolume, or a replica.
+ */
+static int play_tx_mirror(struct commit_handle *ch, reiser4_subvol *mirror)
 {
 	int ret;
 	flush_queue_t *fq;
-	reiser4_subvol *subv = current_subvol(subv_id);
 	struct commit_handle_subvol *ch_sub;
-
-	if (is_mirror_id(subv_id))
-		/*
-		 * mirrors don't have their own commit handle,
-		 * so borrow it form the original subvolume
-		 */
-		ch_sub = &super_origin(ch->super)->ch;
-	else
-		ch_sub = &super_subvol(ch->super, subv_id)->ch;
-
+	/*
+	 * replicas don't have their own commit handle,
+	 * so borrow it form the original subvolume
+	 */
+	ch_sub = &super_origin(ch->super, mirror->id)->ch;
 	fq = get_fq_for_current_atom();
 	if (IS_ERR(fq))
 		return  PTR_ERR(fq);
 	spin_unlock_atom(fq->atom);
 
 	ret = write_jnode_list(&ch_sub->overwrite_set,
-			       fq, NULL, WRITEOUT_FOR_PAGE_RECLAIM, subv);
+			       fq, NULL, WRITEOUT_FOR_PAGE_RECLAIM, mirror);
 	reiser4_fq_put(fq);
 	return ret;
 }
 
+/**
+ * Play (checkpoint) transaction on a logical (compound) volume.
+ */
 static int play_tx(struct commit_handle *ch)
 {
 	int ret;
-	u32 subv_id;
+	u32 orig_id;
 
-	for_each_subvol(subv_id) {
-		ret = play_tx_subv(ch, subv_id);
-		if (ret)
-			return ret;
+	/*
+	 * First of all,
+	 * we issue per-component portions of IO requests in parallel.
+	 */
+	for_each_origin(orig_id) {
+		u32 mirr_id;
+		for_each_mirror(orig_id, mirr_id) {
+			reiser4_subvol *mirror;
+			mirror = current_mirror(orig_id, mirr_id);
+			ret = play_tx_mirror(ch, mirror);
+			if (ret)
+				return ret;
+		}
 	}
 	/*
 	 * comply with write barriers
@@ -1369,26 +1373,15 @@ static int play_tx(struct commit_handle *ch)
 	if (ret)
 		return ret;
 
-	if (have_mirrors()) {
-		/*
-		 * Super-block could be updated when writing
-		 * mirrors (see write_jnodes_contig), so
-		 * we need to return its original value(s)
-		 */
-		reiser4_subvol *orig;
-		orig = super_origin(ch->super);
-		orig->df_plug->update_sb4replica(orig);
-	}
-
-	for_each_notmirr(subv_id) {
-		ret = update_journal_footer(ch, subv_id);
+	for_each_origin(orig_id) {
+		ret = update_journal_footer(ch, orig_id);
 		if (ret)
 			return ret;
 	}
 	return 0;
 }
 
-/*
+/**
  * We assume that at this moment all captured blocks are marked as RELOC or
  * WANDER (belong to Relocate or Overwrite set), all nodes from Relocate set
  * are submitted to write.
@@ -1530,7 +1523,6 @@ static int wait_on_jnode_list(struct list_head *head)
 				ret++;
 		}
 	}
-
 	return ret;
 }
 
@@ -1549,7 +1541,6 @@ static int check_tx_head(const jnode * node)
 			sprint_address(jnode_get_block(node)));
 		return RETERR(-EIO);
 	}
-
 	return 0;
 }
 
@@ -1564,7 +1555,6 @@ static int check_wander_record(const jnode * node)
 			sprint_address(jnode_get_block(node)));
 		return RETERR(-EIO);
 	}
-
 	return 0;
 }
 
@@ -1598,39 +1588,36 @@ static int restore_commit_handle(struct commit_handle *ch,
 
 /**
  * Overwrite blocks on permanent location by the wandered set.
- * and synchronize it with all mirrors (if any).
+ * and synchronize it with all replicas (if any).
  * Pre-condition: all mirrors should be already activated.
  */
 static int replay_tx_subv(reiser4_subvol *subv)
 {
 	int ret;
+	u32 mirr_id;
+	const u32 orig_id = subv->id;
 	struct commit_handle_subvol *ch_sub = &subv->ch;
 
-	write_jnode_list(&ch_sub->overwrite_set,
-			 NULL, NULL, 0, subv);
-	ret = wait_on_jnode_list(&ch_sub->overwrite_set);
-	if (ret)
-		goto error;
+	assert("edward-xxx", is_origin(subv));
+	assert("edward-xxx", subvol_is_set(subv, SUBVOL_ACTIVATED));
 
-	if (is_origin(subv)) {
-		/*
-		 * update also all its mirrors
-		 */
-		u32 mirror_id;
-		for_each_mirror(mirror_id) {
-			subv = super_subvol(subv->super, mirror_id);
+	for_each_mirror(orig_id, mirr_id) {
+		assert("edward-xxx",
+		       subv->super ==
+		       super_mirror(subv->super, orig_id, mirr_id)->super);
 
-			write_jnode_list(&ch_sub->overwrite_set,
-					 NULL, NULL, 0, subv);
-			ret = wait_on_jnode_list(&ch_sub->overwrite_set);
-			if (ret)
-				goto error;
-		}
+		subv = super_mirror(subv->super, orig_id, mirr_id);
+		assert("edward-xxx", subvol_is_set(subv, SUBVOL_ACTIVATED));
+
+		write_jnode_list(&ch_sub->overwrite_set, NULL, NULL, 0, subv);
+		ret = wait_on_jnode_list(&ch_sub->overwrite_set);
+		if (ret)
+			goto error;
 	}
 	return 0;
  error:
-	warning("edward-xxx", "transaction replay failed on %s (%d)",
-		subv->name, ret);
+	warning("edward-xxx",
+		"transaction replay failed on %s (%d)", subv->name, ret);
 	return RETERR(-EIO);
 }
 
@@ -1649,6 +1636,8 @@ static int replay_tx(jnode *tx_head,
 	struct commit_handle ch;
 	struct commit_handle_subvol *ch_sub = &subv->ch;
 	reiser4_block_nr log_rec_block = *log_rec_block_p;
+
+	assert("edward-xxx", !is_replica(subv));
 
 	init_commit_handle(&ch, NULL, subv);
 	restore_commit_handle(&ch, subv, tx_head);
@@ -1747,22 +1736,7 @@ static int replay_tx(jnode *tx_head,
 		ret = RETERR(-EIO);
 		goto free_ow_set;
 	}
-
 	ret = replay_tx_subv(subv);
-
-	if (have_mirrors()) {
-		/*
-		 * Super-block could be updated when writing
-		 * mirrors (see write_jnodes_contig), so
-		 * we need to return its original value(s)
-		 */
-		reiser4_subvol *orig;
-		orig = super_origin(subv->super);
-		orig->df_plug->update_sb4replica(orig);
-	}
-	if (ret)
-		goto free_ow_set;
-
 	ret = update_journal_footer(&ch, subv->id);
 
  free_ow_set:
@@ -1940,8 +1914,8 @@ int reiser4_journal_replay(reiser4_subvol *subv)
 		 * support journal structures, we just warn about this
 		 */
 		warning("zam-583",
-			"journal control blocks were not loaded by disk layout plugin.  "
-			"journal replaying is not possible.\n");
+			"Journal control blocks were not loaded on %s. "
+			"Journal replay is not possible.\n", subv->name);
 		return 0;
 	}
 	/*

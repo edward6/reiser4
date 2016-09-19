@@ -971,12 +971,12 @@ void all_grabbed2free(void)
 	u32 subv_id;
 	reiser4_context *ctx = get_current_context();
 
-	for_each_notmirr(subv_id)
+	for_each_origin(subv_id)
 		if (ctx->ctx_grabbed_blocks[subv_id])
 			grabbed2free(ctx,
 				     get_super_private(ctx->super),
 				     ctx->ctx_grabbed_blocks[subv_id],
-				     current_subvol(subv_id));
+				     current_origin(subv_id));
 }
 
 /*
@@ -1158,7 +1158,7 @@ static int apply_dset(txn_atom *atom UNUSED_ARG, const reiser4_block_nr *a,
 	reiser4_super_info_data *sbinfo;
 
 	sbinfo = get_current_super_private();
-	subv = sbinfo_subvol(sbinfo, subv_id);
+	subv = sbinfo_origin(sbinfo, subv_id);
 
 	assert("zam-877", atom->stage >= ASTAGE_PRE_COMMIT);
 	assert("zam-552", sbinfo != NULL);

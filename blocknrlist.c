@@ -254,7 +254,6 @@ int blocknr_list_add_extent(txn_atom *atom,
 	assert("intelfx-30", new_entry != NULL);
 	assert("intelfx-31", start != NULL);
 	assert("intelfx-32", len != NULL && *len > 0);
-	assert("edward-xxx", !is_mirror_id(subv_id));
 
 	if (*new_entry == NULL) {
 		/*

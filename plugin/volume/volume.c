@@ -48,32 +48,33 @@ static u64 subvol_cap(void *data, u64 index)
 {
 	struct reiser4_volume *vol = data;
 
-	return vol->subvols[index]->dev_cap;
+	return vol->subvols[index][0]->dev_cap;
 }
 
 static void *subvol_fib(void *data, u64 index)
 {
 	struct reiser4_volume *vol = data;
 
-	return vol->subvols[index]->fiber;
+	return vol->subvols[index][0]->fiber;
 }
 
 static void subvol_fib_set(void *data, u64 index, void *fiber)
 {
 	struct reiser4_volume *vol = data;
 
-	vol->subvols[index]->fiber = fiber;
+	vol->subvols[index][0]->fiber = fiber;
 }
 
 static u64 *subvol_fib_lenp(void *data, u64 index)
 {
 	struct reiser4_volume *vol = data;
 
-	return &vol->subvols[index]->fiber_len;
+	return &vol->subvols[index][0]->fiber_len;
 }
 
 static int subvol_add(void *data, void *new)
 {
+#if 0
 	struct reiser4_volume *vol = data;
 	struct reiser4_subvol **new_subvols;
 
@@ -90,6 +91,7 @@ static int subvol_add(void *data, void *new)
 	kfree(vol->subvols);
 	vol->subvols = new_subvols;
 	vol->num_subvols ++;
+#endif
 	return 0;
 }
 
@@ -98,6 +100,7 @@ static int subvol_add(void *data, void *new)
  */
 static int subvol_del(void *data, u64 index)
 {
+#if 0
 	struct reiser4_volume *vol = data;
 	struct reiser4_subvol **new_subvols;
 
@@ -114,6 +117,22 @@ static int subvol_del(void *data, u64 index)
 	kfree(vol->subvols);
 	vol->subvols = new_subvols;
 	vol->num_subvols --;
+#endif
+	return 0;
+}
+
+static u32 sys_subvol_id_triv(void)
+{
+	return 0;
+}
+
+static u32 meta_subvol_id_triv(void)
+{
+	return 0;
+}
+
+static u32 data_subvol_id_triv(void)
+{
 	return 0;
 }
 
@@ -127,6 +146,9 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 			.desc = "Trivial Logical Volume",
 			.linkage = {NULL, NULL}
 		},
+		.sys_subvol_id = sys_subvol_id_triv,
+		.meta_subvol_id = meta_subvol_id_triv,
+		.data_subvol_id = data_subvol_id_triv,
 		.aib_ops = {
 			.bucket_cap = NULL,
 			.bucket_add = NULL,

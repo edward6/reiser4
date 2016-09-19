@@ -56,13 +56,11 @@ typedef struct format40_disk_super_block {
 	/* formatted node plugin id */
 
 	/* Reiser5 fields */
-	d64 subvol_id;
-	/* internal ID: serial (ordered) number of the subvolume
-	   in the logical volume */
-	d64 num_subvols;
-	/* total number of subvolumes in the logical volume */
-	d16 num_mirrors;
-	/* number of mirrors (excluding the original) in the logical volume */
+	d64 origin_id;
+	/* internal ID: serial (ordered) number of the subvolume in the logical
+	   volume */
+	d64 num_origins;
+	/* total number of original subvolumes in the logical volume */
 	d64 fiber_len;
 	/* number of segments in a per-subvolume fiber */
 	d64 fiber_loc;
@@ -112,14 +110,13 @@ typedef struct format40_super_info {
  * declarations of functions implementing methods of layout plugin
  * for format40. The functions theirself are in disk_format40.c
  */
-extern int init_format_format40(struct super_block *, reiser4_subvol *,
-				reiser4_vg_id);
+extern struct page *find_format_format40(reiser4_subvol *subv, int consult);
+extern int init_format_format40(struct super_block *, reiser4_subvol *);
 extern const reiser4_key *root_dir_key_format40(const struct super_block *);
 extern int release_format40(struct super_block *s, reiser4_subvol *);
 extern jnode *log_super_format40(struct super_block *s, reiser4_subvol *);
 extern int check_open_format40(const struct inode *object);
 extern int version_update_format40(struct super_block *super, reiser4_subvol *);
-extern void update_sb4replica_format41(reiser4_subvol *);
 
 /* __DISK_FORMAT40_H__ */
 #endif

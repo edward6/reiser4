@@ -406,14 +406,13 @@ static int atom_init(txn_atom * atom)
 	INIT_LIST_HEAD(&atom->fwaitfor_list);
 	INIT_LIST_HEAD(&atom->fwaiting_list);
 	atom_dset_init(atom);
-	atom->nr_blocks_allocated = kzalloc(2 *
-              		      (current_num_notmirr() + current_num_mirrors()) *
+	atom->nr_blocks_allocated = kzalloc(2 * current_num_origins() *
 					    sizeof(*atom->nr_blocks_allocated),
 					    GFP_KERNEL);
 	if (atom->nr_blocks_allocated == NULL)
 		return -ENOMEM;
-	atom->flush_reserved = atom->nr_blocks_allocated +
-		current_num_notmirr() + current_num_mirrors();
+	atom->flush_reserved =
+		atom->nr_blocks_allocated + current_num_origins();
 
 	init_atom_fq_parts(atom);
 	return 0;
@@ -1253,9 +1252,9 @@ int txnmgr_force_commit_all(struct super_block *super, int commit_all_atoms)
 		u32 subv_id;
 		reiser4_super_info_data *sbinfo = get_super_private(super);
 		spin_lock_reiser4_super(sbinfo);
-		for_each_notmirr(subv_id) {
+		for_each_origin(subv_id) {
 			reiser4_subvol *subv;
-			subv = super_subvol(super, subv_id);
+			subv = super_origin(super, subv_id);
 			assert("zam-813",
 			       subv->blocks_fake_allocated_unformatted == 0);
 			assert("zam-812", subv->blocks_fake_allocated == 0);
@@ -2903,7 +2902,7 @@ capture_fuse_txnh_lists(txn_atom *large, struct list_head *large_head,
 */
 static void capture_fuse_into(txn_atom * small, txn_atom * large)
 {
-	__u32 i;
+	u32 i;
 	int level;
 	unsigned zcount = 0;
 	unsigned tcount = 0;
@@ -3007,7 +3006,7 @@ static void capture_fuse_into(txn_atom * small, txn_atom * large)
 	 * FIXME-EDWARD: such arrays scale badly, replace them
 	 * with other data structures
 	 */
-	for_each_notmirr(i) {
+	for_each_origin(i) {
 		large->nr_blocks_allocated[i] += small->nr_blocks_allocated[i];
 		large->flush_reserved[i] += small->flush_reserved[i];
 		small->nr_blocks_allocated[i] = 0;

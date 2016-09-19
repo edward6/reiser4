@@ -1340,7 +1340,7 @@ static int apply_dset_to_commit_bmap(txn_atom *atom,
 	bmap_off_t offset;
 	struct bitmap_node *bnode;
 	struct super_block *sb = reiser4_get_current_sb();
-	reiser4_subvol *subv = current_subvol(subv_id);
+	reiser4_subvol *subv = current_origin(subv_id);
 
 	check_block_range(start, len, subv);
 
@@ -1473,8 +1473,8 @@ int reiser4_pre_commit_hook_bitmap(void)
 	/*
 	 * Initialize ->blocks_freed of every subvolume
 	 */
-	for_each_notmirr(subv_id)
-		current_subvol(subv_id)->blocks_freed = 0;
+	for_each_origin(subv_id)
+		current_origin(subv_id)->blocks_freed = 0;
 	/*
 	 * This will update ->blocks_freed of every subvolume
 	 */
@@ -1484,9 +1484,9 @@ int reiser4_pre_commit_hook_bitmap(void)
 	 */
 	spin_lock_reiser4_super(sbinfo);
 
-	for_each_notmirr(subv_id){
+	for_each_origin(subv_id){
 
-		reiser4_subvol *subv = current_subvol(subv_id);
+		reiser4_subvol *subv = current_origin(subv_id);
 
 		subv->blocks_free_committed +=
 			(subv->blocks_freed -

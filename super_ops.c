@@ -565,8 +565,8 @@ static int fill_super(struct super_block *super, void *data, int silent)
 	sbinfo->nr_files_committed = oids_used(super);
 
 	/* calculate total number of blocks in the logical volume */
-	for_each_notmirr(subv_id)
-		sbinfo->vol_block_count += current_subvol(subv_id)->block_count;
+	for_each_origin(subv_id)
+		sbinfo->vol_block_count += current_origin(subv_id)->block_count;
 
 	/* get inode of root directory */
 	if ((result = reiser4_init_root_inode(super)) != 0)

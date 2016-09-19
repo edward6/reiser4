@@ -53,8 +53,8 @@ __u64 reiser4_volume_block_count(const struct super_block *super)
 
 	assert("edward-xxx", super != NULL);
 
-	for_each_notmirr(subv_id)
-		result += reiser4_subvol_block_count(super_subvol(super,
+	for_each_origin(subv_id)
+		result += reiser4_subvol_block_count(super_origin(super,
 								  subv_id));
 	return result;
 }
@@ -94,8 +94,8 @@ __u64 reiser4_volume_blocks_reserved(const struct super_block *super)
 
 	assert("edward-xxx", super != NULL);
 
-	for_each_notmirr(subv_id)
-		result += reiser4_subvol_blocks_reserved(super_subvol(super,
+	for_each_origin(subv_id)
+		result += reiser4_subvol_blocks_reserved(super_origin(super,
 								      subv_id));
 	return result;
 }
@@ -148,8 +148,8 @@ __u64 reiser4_volume_free_blocks(const struct super_block *super)
 
 	assert("edward-xxx", super != NULL);
 
-	for_each_notmirr(subv_id)
-		result += reiser4_subvol_free_blocks(super_subvol(super,
+	for_each_origin(subv_id)
+		result += reiser4_subvol_free_blocks(super_origin(super,
 								  subv_id));
 	return result;
 
@@ -159,7 +159,7 @@ __u64 reiser4_volume_free_blocks(const struct super_block *super)
 __u32 reiser4_mkfs_id(const struct super_block *super, __u32 subv_id)
 {
 	assert("vpf-221", super != NULL);
-	return super_subvol(super, subv_id)->mkfs_id;
+	return super_origin(super, subv_id)->mkfs_id;
 }
 
 /* amount of free blocks */
@@ -196,9 +196,9 @@ long reiser4_volume_reserved4user(const struct super_block *super,
 
 	assert("edward-xxx", super != NULL);
 
-	for_each_notmirr(subv_id)
+	for_each_origin(subv_id)
 		result +=
-		reiser4_subvol_reserved4user(super_subvol(super, subv_id),
+		reiser4_subvol_reserved4user(super_origin(super, subv_id),
 					     uid, gid);
 	return result;
 }

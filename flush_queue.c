@@ -532,8 +532,9 @@ static void release_prepped_list(flush_queue_t *fq)
 int reiser4_write_fq(flush_queue_t *fq, long *nr_submitted, int flags)
 {
 	int ret;
-	u32 subv_id;
 	txn_atom *atom;
+	u32 mirr_id;
+	const u32 meta_id = current_volume->vol_plug->meta_subvol_id();
 
 	while (1) {
 		atom = atom_locked_by_fq(fq);
@@ -550,21 +551,14 @@ int reiser4_write_fq(flush_queue_t *fq, long *nr_submitted, int flags)
 	atom->nr_running_queues++;
 	spin_unlock_atom(atom);
 
-	ret = write_jnode_list(ATOM_FQ_LIST(fq), fq, nr_submitted, flags, NULL);
-	if (ret)
-		goto exit;
-	/*
-	 * ... and immediately submit the same requests for the mirrors
-	 */
-	for_each_mirror(subv_id) {
-		reiser4_subvol *subv = current_subvol(subv_id);
+	for_each_mirror(meta_id, mirr_id) {
+		reiser4_subvol *mirror = current_mirror(meta_id, mirr_id);
 
 		ret = write_jnode_list(ATOM_FQ_LIST(fq),
-				       fq, nr_submitted, flags, subv);
+				       fq, nr_submitted, flags, mirror);
 		if (ret)
-			return ret;
+			break;
 	}
- exit:
 	release_prepped_list(fq);
 	return ret;
 }

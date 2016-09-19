@@ -247,9 +247,6 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 /* wait some event (depends on context), then repeat */
 #define E_WAIT         (REISER4_ERROR_CODE_BASE + 6)
 
-/* object is not of extpected type */
-#define E_NOTEXP       (REISER4_ERROR_CODE_BASE + 7)
-
 #endif				/* __REISER4_H__ */
 
 /* Make Linus happy.
