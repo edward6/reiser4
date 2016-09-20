@@ -351,7 +351,6 @@ static inline reiser4_subvol *sbinfo_mirror(reiser4_super_info_data *info,
 	assert("edward-xxx", info != NULL);
 	assert("edward-xxx", info->vol != NULL);
 	assert("edward-xxx", info->vol->subvols[id] != NULL);
-	assert("edward-xxx", info->vol->subvols[id][mirror_id] != NULL);
 
 	return info->vol->subvols[id][mirror_id];
 }
