@@ -292,7 +292,8 @@ void reiser4_debugtrap(void)
 	/* do nothing. Put break point here. */
 #if defined(CONFIG_KGDB) && !defined(CONFIG_REISER4_FS_MODULE)
 	extern void kgdb_breakpoint(void);
-	kgdb_breakpoint();
+	//kgdb_breakpoint();
+	;
 #endif
 }
 #endif

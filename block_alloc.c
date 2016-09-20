@@ -971,12 +971,27 @@ void all_grabbed2free(void)
 	u32 subv_id;
 	reiser4_context *ctx = get_current_context();
 
-	for_each_origin(subv_id)
+	if (ctx->ctx_grabbed_blocks == NULL)
+		return;
+	if (get_super_private(ctx->super) == NULL) {
+		/*
+		 * this is exit_context() after reiser4_done_fs_info()
+		 * at put_super(), i.e. nothing to do any more
+		 */
+		assert("edward-xxx", ctx->ctx_grabbed_blocks[0] == 0);
+		return;
+	}
+	for_each_origin(subv_id) {
+		if (current_volume->subvols == NULL)
+			break;
+		if (current_origin(subv_id) == NULL)
+			continue;
 		if (ctx->ctx_grabbed_blocks[subv_id])
 			grabbed2free(ctx,
 				     get_super_private(ctx->super),
 				     ctx->ctx_grabbed_blocks[subv_id],
 				     current_origin(subv_id));
+	}
 }
 
 /*

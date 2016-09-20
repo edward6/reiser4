@@ -373,8 +373,6 @@ int try_init_format40(struct super_block *super,
 {
 	int result;
 	struct page *page;
-	reiser4_volume *vol;
-	reiser4_super_info_data *sbinfo;
 	format40_disk_super_block *sb_format;
 	tree_level height;
 	reiser4_block_nr root_block;
@@ -465,11 +463,6 @@ int try_init_format40(struct super_block *super,
 	}
 	*stage = INIT_OID;
 	/*
-	 * initialize in-memory subvolume info
-	 */
-	sbinfo = get_super_private(super);
-	vol = sbinfo->vol;
-	/*
 	 * get things necessary to init reiser4_tree
 	 */
 	root_block = get_format40_root_block(sb_format);
@@ -508,8 +501,6 @@ int try_init_format40(struct super_block *super,
 	 * are of one plugin
 	 */
 	subv->flags |= (1 << SUBVOL_ONE_NODE_PLUGIN);
-
-	/* sbinfo->tmgr is initialized already */
 	/*
 	 * Recover sb data which were logged separately from sb block
 	 * NOTE-NIKITA: reiser4_journal_recover_sb_data() calls

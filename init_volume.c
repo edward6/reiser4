@@ -43,7 +43,7 @@ static struct reiser4_volume *reiser4_alloc_volume(u8 *uuid,
 	return vol;
 }
 
-static struct reiser4_subvol *reiser4_alloc_subvol(u8 *uuid, const char *path,
+struct reiser4_subvol *reiser4_alloc_subvol(u8 *uuid, const char *path,
 						   int dformat_pid,
 						   u64 diskmap,
 						   u16 mirror_id,
@@ -267,8 +267,9 @@ int check_active_replicas(reiser4_subvol *subv)
 	}
 	assert("edward-xxx", super_volume(subv->super) != NULL);
 
-	for_each_replica(subv->id, repl_id) {
+	for (repl_id = 1; repl_id <= subv->num_replicas; repl_id ++) {
 		reiser4_subvol *repl;
+
 		repl = super_mirror(subv->super, subv->id, repl_id);
 		if (repl == NULL) {
 			warning("edward-xxx",
