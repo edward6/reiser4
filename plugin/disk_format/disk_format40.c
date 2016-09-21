@@ -347,9 +347,9 @@ struct page *find_format_format40(reiser4_subvol *subv, int consult)
 		return ERR_PTR(RETERR(-EINVAL));
 	}
 	reiser4_subvol_set_block_count(subv,
-			     le64_to_cpu(get_unaligned(&disk_sb->block_count)));
+				       get_format40_block_count(disk_sb));
 	reiser4_subvol_set_free_blocks(subv,
-			     le64_to_cpu(get_unaligned(&disk_sb->free_blocks)));
+				       get_format40_free_blocks(disk_sb));
 	/*
 	 * Set number of used blocks. The number of used blocks is stored
 	 * neither in on-disk super block nor in the journal footer blocks.
@@ -513,11 +513,13 @@ int try_init_format40(struct super_block *super,
 		return result;
 	}
 	*stage = JOURNAL_RECOVER;
-
-	assert("edward-xxx", reiser4_subvol_used_blocks(subv) ==
-	       reiser4_subvol_block_count(subv) -
-	       reiser4_subvol_free_blocks(subv));
-
+	/*
+	 * Update number of used blocks after recover_sb_data() set
+	 * actual data of free blocks
+	 */
+	reiser4_subvol_set_used_blocks(subv,
+				       reiser4_subvol_block_count(subv) -
+				       reiser4_subvol_free_blocks(subv));
 #if REISER4_DEBUG
 	subv->min_blocks_used = 16 /* reserved area */  +
 		2 /* super blocks */  +

@@ -418,6 +418,7 @@ static void deactivate_subvolumes_of_type(struct super_block *super,
  */
 void __reiser4_deactivate_volume(struct super_block *super)
 {
+	reiser4_subvol * subv;
 	reiser4_volume *vol = super_volume(super);
 
 	deactivate_subvolumes_of_type(super, REISER4_SUBV_OTHER);
@@ -429,6 +430,11 @@ void __reiser4_deactivate_volume(struct super_block *super)
 		vol->aib = NULL;
 	}
 	free_subvols_set(vol);
+	list_for_each_entry(subv, &vol->subvols_list, list) {
+		assert("edward-xxx", !subvol_is_set(subv, SUBVOL_ACTIVATED));
+		assert("edward-xxx", subv->super == NULL);
+		assert("edward-xxx", subv->bdev == NULL);
+	}
 }
 
 /**
