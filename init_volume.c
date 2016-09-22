@@ -282,6 +282,15 @@ int check_active_replicas(reiser4_subvol *subv)
 	return 0;
 }
 
+static void clear_subvol(reiser4_subvol *subv)
+{
+	subv->bdev = NULL;
+	subv->super = NULL;
+	subv->mode = 0;
+	subv->flags = 0;
+	subv->txmod = 0;
+}
+
 /*
  * Initialize disk format 4.X.Y for a subvolume
  * Pre-condition: subvolume @sub is registered
@@ -317,36 +326,38 @@ int reiser4_activate_subvol(struct super_block *super,
 	}
 	page = subv->df_plug->find_format(subv, 1);
 	if (IS_ERR(page)) {
-		blkdev_put(subv->bdev, subv->mode);
-		return PTR_ERR(page);
+		ret = PTR_ERR(page);
+		goto error;
 	}
 	put_page(page);
 	if (is_replica(subv))
 		/*
 		 * nothing to do any more for replicas,
 		 */
-		goto exit;
+		goto ok;
 	/*
-	 * Make sure that all replicas were activated
+	 * This is an original subvolume.
+	 * Before calling ->init_format() make sure that
+	 * all its replicas were activated.
 	 */
 	ret = check_active_replicas(subv);
 	if (ret)
-		return ret;
+		goto error;
 	ret = subv->df_plug->init_format(super, subv);
-	if (ret) {
-		blkdev_put(subv->bdev, subv->mode);
-		return ret;
-	}
+	if (ret)
+		goto error;
 	ret = subv->df_plug->version_update(super, subv);
 	if (ret) {
 		subv->df_plug->release_format(super, subv);
-		blkdev_put(subv->bdev, subv->mode);
-		subv->bdev = NULL;
-		return ret;
+		goto error;
 	}
- exit:
+ ok:
 	subv->flags |= (1 << SUBVOL_ACTIVATED);
 	return 0;
+ error:
+	blkdev_put(subv->bdev, subv->mode);
+	clear_subvol(subv);
+	return ret;
 }
 
 static void *alloc_subvols_set(__u32 num_subvols)
@@ -385,8 +396,7 @@ static void deactivate_subvol(struct super_block *super, reiser4_subvol *subv)
 	assert("edward-xxx", list_empty_careful(&subv->ch.wander_map));
 
 	blkdev_put(subv->bdev, subv->mode);
-	subv->bdev = NULL;
-	subv->super = NULL;
+	clear_subvol(subv);
 	clear_bit((int)SUBVOL_ACTIVATED, &subv->flags);
 }
 
@@ -397,11 +407,14 @@ static void deactivate_subvolumes_of_type(struct super_block *super,
 	reiser4_volume *vol = get_super_private(super)->vol;
 
 	list_for_each_entry(subv, &vol->subvols_list, list) {
-		if (!subvol_is_set(subv, SUBVOL_ACTIVATED))
+		if (!subvol_is_set(subv, SUBVOL_ACTIVATED)) {
 			/*
 			 * subvolume is not active
 			 */
+			assert("edward-xxx", subv->super == NULL);
+			
 			continue;
+		}
 		if (subv->type != type)
 			/*
 			 * subvolume will be deactivated later
@@ -418,7 +431,7 @@ static void deactivate_subvolumes_of_type(struct super_block *super,
  */
 void __reiser4_deactivate_volume(struct super_block *super)
 {
-	reiser4_subvol * subv;
+	reiser4_subvol *subv;
 	reiser4_volume *vol = super_volume(super);
 
 	deactivate_subvolumes_of_type(super, REISER4_SUBV_OTHER);
@@ -430,10 +443,18 @@ void __reiser4_deactivate_volume(struct super_block *super)
 		vol->aib = NULL;
 	}
 	free_subvols_set(vol);
+	vol->num_sgs_bits = 0;
+	vol->stripe_size_bits = 0;
+	vol->num_meta_subvols = 0;
+	vol->num_origins = 0;
+	vol->dist_plug = NULL;
+	vol->vol_plug = NULL;
+
 	list_for_each_entry(subv, &vol->subvols_list, list) {
 		assert("edward-xxx", !subvol_is_set(subv, SUBVOL_ACTIVATED));
 		assert("edward-xxx", subv->super == NULL);
 		assert("edward-xxx", subv->bdev == NULL);
+		assert("edward-xxx", subv->mode == 0);
 	}
 }
 
@@ -496,8 +517,8 @@ static int set_activated_subvol(reiser4_volume *vol, reiser4_subvol *subv)
 /**
  * Activate all subvolumes of the specified @type
  *
- * This function is an "idempotent of high order". The order
- * of that idempotent is equal to the number of volume groups
+ * This function is an idempotent: being called second
+ * time with the same @type it won't have any effect.
  */
 static int activate_subvolumes_of_type(struct super_block *super,
 				       u8 *vol_uuid, reiser4_subv_type type)
@@ -507,14 +528,11 @@ static int activate_subvolumes_of_type(struct super_block *super,
 	struct reiser4_subvol *subv;
 	reiser4_super_info_data *info;
 
-	info = get_super_private(super);
-
 	vol = reiser4_search_volume(vol_uuid);
 	if (!vol)
 		return -EINVAL;
-
+	info = get_super_private(super);
 	info->vol = vol;
-	vol->info = info;
 
 	assert("edward-xxx", vol->aib == NULL);
 
@@ -596,16 +614,20 @@ int reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 	ret = activate_subvolumes_of_type(super, vol_uuid,
 					  REISER4_SUBV_OTHER);
 	if (ret)
-		goto out;
+		goto deactivate;
 	/*
-	 * Make sure that all origins were activated
+	 * At this point all activated original subvolumes have
+	 * complete sets of active replicas (because of calling
+	 * check_active_replicas() for each one.
+	 * Now make sure that all originals were activated. Thus,
+ 	 * on success we'll have a complete set of active components.
 	 */
 	if (current_num_origins() == 0) {
 		warning("edward-xxx",
 			"%s requires at least one origin, which is not "
 			"registered.", super->s_id);
 		ret = -EINVAL;
-		goto out;
+		goto deactivate;
 	}
 	for_each_origin(orig_id) {
 		reiser4_subvol *orig;
@@ -615,11 +637,14 @@ int reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 				"%s requires origin No%u, which is not "
 				"registered.", super->s_id, orig_id);
 			ret = -EINVAL;
-			goto out;
+			goto deactivate;
 		}
 		assert("edward-xxx",
 		       subvol_is_set(orig, SUBVOL_ACTIVATED));
 	}
+	goto out;
+ deactivate:
+	__reiser4_deactivate_volume(super);
  out:
 	mutex_unlock(&reiser4_volumes_mutex);
 	return ret;

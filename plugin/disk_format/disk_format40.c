@@ -257,7 +257,7 @@ static int check_key_format(const format40_disk_super_block *sb_copy)
 	return 0;
 }
 
-static int set_check_params(reiser4_subvol *subv,
+int set_check_params(reiser4_subvol *subv,
 			    format40_disk_super_block *sb_format)
 {
 	reiser4_volume *vol;
@@ -295,7 +295,7 @@ static int set_check_params(reiser4_subvol *subv,
 	}
 	subv->id = get_format40_origin_id(sb_format);
 	if (subv->id >= vol->num_origins) {
-		what_is_wrong = "bad original subvolume ID";
+		what_is_wrong = "that subvolume ID is too large";
 		goto error;
 	}
 	return 0;
@@ -316,6 +316,9 @@ struct page *find_format_format40(reiser4_subvol *subv, int consult)
 	format40_disk_super_block *disk_sb;
 	format40_super_info *finfo;
 	reiser4_volume *vol;
+
+	assert("edward-xxx", subv != NULL);
+	assert("edward-xxx", subv->super != NULL);
 
 	vol = super_volume(subv->super);
 	finfo = sb_format_info(subv);
@@ -482,8 +485,6 @@ int try_init_format40(struct super_block *super,
 	 * set private subvolume parameters
 	 */
 	subv->mkfs_id = get_format40_mkfs_id(sb_format);
-	subv->block_count = get_format40_block_count(sb_format);
-	subv->blocks_free = get_format40_free_blocks(sb_format);
 	subv->version = get_format40_version(sb_format);
 	subv->room_for_data = get_format40_room_for_data(sb_format);
 	subv->blocks_free_committed = subv->blocks_free;
@@ -514,8 +515,8 @@ int try_init_format40(struct super_block *super,
 	}
 	*stage = JOURNAL_RECOVER;
 	/*
-	 * Update number of used blocks after recover_sb_data() set
-	 * actual data of free blocks
+	 * recover_sb_data() sets actual data of free blocks,
+	 * So we need to update the number of used blocks.
 	 */
 	reiser4_subvol_set_used_blocks(subv,
 				       reiser4_subvol_block_count(subv) -
@@ -557,7 +558,6 @@ int try_init_format40(struct super_block *super,
 
 	printk("reiser4 (%s): using %s.\n", subv->name,
 	       txmod_plugin_by_id(subv->txmod)->h.desc);
-
 	return 0;
 }
 

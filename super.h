@@ -299,6 +299,7 @@ struct reiser4_volume {
 	int num_sgs_bits; /* logarithm of number of hash space segments */
 	int stripe_size_bits; /* logarithm of stripe size */
 	int num_meta_subvols; /* number of meta-data subvolumes */
+	u64 num_origins; /* number of original subvolumes (without mirrors) */
 	distribution_plugin *dist_plug;
 	volume_plugin *vol_plug;
 	reiser4_aib *aib; /* storage array descriptor */
@@ -308,8 +309,6 @@ struct reiser4_volume {
 					   * subvols[i] - i-th original;
 					   * subvols[i][j] - its j-th mirror,
 					   * see the picture below. */
-	u64 num_origins; /* number of original subvolumes (without mirrors) */
-	struct reiser4_super_info_data *info; /* accociated super-block */
 };
 
 /*
@@ -468,7 +467,6 @@ static inline u32 current_num_mirrors(u32 orig_id)
 }
 
 #define for_each_origin(_subv_id)					\
-	assert("edward-xxx", current_num_origins() != 0);		\
 	for (_subv_id = 0;						\
 	     _subv_id < current_num_origins();				\
 	     _subv_id ++)
