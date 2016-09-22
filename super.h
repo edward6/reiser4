@@ -458,6 +458,12 @@ static inline u32 current_num_replicas(u32 orig_id)
 	return current_origin(orig_id)->num_replicas;
 }
 
+static inline u32 subvol_num_mirrors(reiser4_subvol *subv)
+{
+	assert("edward-xxx", subv != NULL);
+	return 1 + subv->num_replicas;
+}
+
 static inline u32 current_num_mirrors(u32 orig_id)
 {
 	return 1 + current_num_replicas(orig_id);
@@ -480,7 +486,7 @@ static inline u32 current_num_mirrors(u32 orig_id)
 
 #define __for_each_replica(_orig, _mirr_id)				\
 	for (_mirr_id = 1;						\
-	     _mirr_id < 1 + _orig->num_replicas;			\
+	     _mirr_id < subvol_num_mirrors(_orig);			\
 	     _mirr_id ++)
 
 static inline int is_replica(struct reiser4_subvol *subv)
