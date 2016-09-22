@@ -61,7 +61,6 @@ typedef struct reiser4_master_sb {
 	d16 blocksize;          /* block size (per-volume) */
 	char uuid[16];		/* volume id (per volume) */
 	char label[16];		/* filesystem label (per volume) */
-	d64 diskmap_loc;	/* location of the diskmap. 0 if not present */
 	/* Reiser5  */
 	char sub_uuid[16];      /* subvolume's external id (per subolvume) */
 	d16 volume_pid;         /* volume plugin id (per volume) */
@@ -102,11 +101,6 @@ static inline u16 master_get_mirror_id(reiser4_master_sb *master)
 static inline u16 master_get_num_replicas(reiser4_master_sb *master)
 {
 	return le16_to_cpu(get_unaligned(&master->num_replicas));
-}
-
-static inline u64 master_get_diskmap_loc(reiser4_master_sb *master)
-{
-	return le64_to_cpu(get_unaligned(&master->diskmap_loc));
 }
 
 static inline char master_get_stripe_bits(reiser4_master_sb *master)

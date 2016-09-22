@@ -78,15 +78,6 @@ typedef struct format40_disk_super_block {
 	/*  147 */ char not_used[365];
 } format40_disk_super_block;
 
-/* format 40 specific part of reiser4_super_info_data */
-typedef struct format40_super_info {
-/*	format40_disk_super_block actual_sb; */
-	jnode *sb_jnode;
-	struct {
-		reiser4_block_nr super;
-	} loc;
-} format40_super_info;
-
 /* Defines for journal header and footer respectively. */
 #define FORMAT40_JOURNAL_HEADER_BLOCKNR			\
 	((REISER4_MASTER_OFFSET / PAGE_SIZE) + 3)

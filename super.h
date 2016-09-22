@@ -167,9 +167,8 @@ struct reiser4_subvol {
 	reiser4_subv_type type; /* type of this subvolume */
 	unsigned long flags; /* subvolume-wide flags, see subvol_flags enum */
 	disk_format_plugin *df_plug; /* disk format of this subvolume */
-	union {
-		format40_super_info format40;
-	} u; /* disk layout specific part */
+	jnode *sb_jnode;
+	reiser4_block_nr loc_super; /* location of the format super-block */
 	reiser4_space_allocator space_allocator; /* space manager plugin */
 	reiser4_txmod_id txmod; /* transaction model for this subvolume */
 	struct flush_params flush; /* parameters for the flush algorithm */
@@ -203,10 +202,8 @@ struct reiser4_subvol {
 	__u64 blocknr_hint_default; /* we remember last written location
 				       for using as a hint for new block
 				       allocation */
-	__u64 diskmap; /* diskmap's blocknumber */
-
 	struct repacker *repacker;
-	struct page *status_page;
+	struct page *status_page; /* Image of the status block */
 	struct bio *status_bio;
 #if REISER4_DEBUG
 	__u64 min_blocks_used; /* minimum used blocks value (includes super
@@ -328,11 +325,11 @@ struct reiser4_volume {
 */
 
 extern reiser4_super_info_data *get_super_private_nocheck(const struct
-							  super_block * super);
+							  super_block *super);
 
 /* Return reiser4-specific part of super block */
 static inline reiser4_super_info_data *get_super_private(const struct
-							 super_block * super)
+							 super_block *super)
 {
 	assert("nikita-447", super != NULL);
 
@@ -479,6 +476,11 @@ static inline u32 current_num_mirrors(u32 orig_id)
 #define for_each_replica(_orig_id, _mirr_id)				\
 	for (_mirr_id = 1;						\
 	     _mirr_id < current_num_mirrors(_orig_id);			\
+	     _mirr_id ++)
+
+#define __for_each_replica(_orig, _mirr_id)				\
+	for (_mirr_id = 1;						\
+	     _mirr_id < 1 + _orig->num_replicas;			\
 	     _mirr_id ++)
 
 static inline int is_replica(struct reiser4_subvol *subv)

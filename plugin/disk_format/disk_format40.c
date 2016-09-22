@@ -145,47 +145,12 @@ static int incomplete_compatibility(const format40_disk_super_block * sb)
 	return (get_format40_version(sb) > get_release_number_minor());
 }
 
-static format40_super_info *sb_format_info(reiser4_subvol *subv)
-{
-	return &subv->u.format40;
-}
-
-/**
- * Pre-condition: @super contains valid block size
- */
-static int consult_diskmap(struct super_block *super, reiser4_subvol *subv)
-{
-	format40_super_info *finfo;
-	journal_location *jloc;
-
-	jloc = &subv->jloc;
-	finfo = sb_format_info(subv);
-	/*
-	 * Default format-specific locations,
-	 * if there is nothing in diskmap
-	 */
-	jloc->footer = FORMAT40_JOURNAL_FOOTER_BLOCKNR;
-	jloc->header = FORMAT40_JOURNAL_HEADER_BLOCKNR;
-	finfo->loc.super = FORMAT40_OFFSET / super->s_blocksize;
-
-#ifdef CONFIG_REISER4_BADBLOCKS
-	reiser4_get_diskmap_value(FORMAT40_PLUGIN_DISKMAP_ID, FORMAT40_JF,
-				  &jloc->footer);
-	reiser4_get_diskmap_value(FORMAT40_PLUGIN_DISKMAP_ID, FORMAT40_JH,
-				  &jloc->header);
-	reiser4_get_diskmap_value(FORMAT40_PLUGIN_DISKMAP_ID, FORMAT40_SUPER,
-				  &finfo->loc.super);
-#endif
-	return 0;
-}
-
 static int get_sb_format_jnode(reiser4_subvol *subv)
 {
 	int ret;
 	jnode *sb_jnode;
-	format40_super_info *finfo = sb_format_info(subv);
 
-	sb_jnode = reiser4_alloc_io_head(&finfo->loc.super, subv);
+	sb_jnode = reiser4_alloc_io_head(&subv->loc_super, subv);
 
 	ret = jload(sb_jnode);
 
@@ -196,20 +161,17 @@ static int get_sb_format_jnode(reiser4_subvol *subv)
 	pin_jnode_data(sb_jnode);
 	jrelse(sb_jnode);
 
-	finfo->sb_jnode = sb_jnode;
+	subv->sb_jnode = sb_jnode;
 
 	return 0;
 }
 
 static void put_sb_format_jnode(reiser4_subvol *subv)
 {
-	jnode *node;
-
-	node = sb_format_info(subv)->sb_jnode;
-
-	if (node) {
-		unpin_jnode_data(node);
-		reiser4_drop_io_head(node);
+	if (subv->sb_jnode) {
+		unpin_jnode_data(subv->sb_jnode);
+		reiser4_drop_io_head(subv->sb_jnode);
+		subv->sb_jnode = NULL;
 	}
 }
 
@@ -307,29 +269,29 @@ int set_check_params(reiser4_subvol *subv,
 /**
  * Find disk format super block at specified location (it is not
  * guaranteed to be the most recent version). Perform sanity checks,
- * set subvolume id.
+ * set subvolume id and some other fields in accordance with format40
+ * specifications.
+ *
+ * Pre-condition: @super contains valid block size
  */
 struct page *find_format_format40(reiser4_subvol *subv, int consult)
 {
 	int ret;
 	struct page *page;
 	format40_disk_super_block *disk_sb;
-	format40_super_info *finfo;
 	reiser4_volume *vol;
 
 	assert("edward-xxx", subv != NULL);
 	assert("edward-xxx", subv->super != NULL);
 
 	vol = super_volume(subv->super);
-	finfo = sb_format_info(subv);
 
-	if (consult) {
-		ret = consult_diskmap(subv->super, subv);
-		if (ret)
-			return ERR_PTR(RETERR(ret));
-	}
+	subv->jloc.footer = FORMAT40_JOURNAL_FOOTER_BLOCKNR;
+	subv->jloc.header = FORMAT40_JOURNAL_HEADER_BLOCKNR;
+	subv->loc_super   = FORMAT40_OFFSET / subv->super->s_blocksize;
+
 	page = read_cache_page_gfp(subv->bdev->bd_inode->i_mapping,
-				   finfo->loc.super,
+				   subv->loc_super,
 				   GFP_NOFS);
 	if (IS_ERR_OR_NULL(page))
 		return ERR_PTR(RETERR(-EIO));
@@ -637,17 +599,11 @@ static void pack_format40_super(const struct super_block *s,
  */
 jnode *log_super_format40(struct super_block *super, reiser4_subvol *subv)
 {
-	jnode *sb_jnode;
+	jload(subv->sb_jnode);
+	pack_format40_super(super, subv, jdata(subv->sb_jnode));
+	jrelse(subv->sb_jnode);
 
-	sb_jnode = subv->u.format40.sb_jnode;
-
-	jload(sb_jnode);
-
-	pack_format40_super(super, subv, jdata(sb_jnode));
-
-	jrelse(sb_jnode);
-
-	return sb_jnode;
+	return subv->sb_jnode;
 }
 
 /**
