@@ -45,7 +45,6 @@ static struct reiser4_volume *reiser4_alloc_volume(u8 *uuid,
 
 struct reiser4_subvol *reiser4_alloc_subvol(u8 *uuid, const char *path,
 						   int dformat_pid,
-						   u64 diskmap,
 						   u16 mirror_id,
 						   u16 num_replicas)
 {
@@ -59,7 +58,6 @@ struct reiser4_subvol *reiser4_alloc_subvol(u8 *uuid, const char *path,
 	INIT_LIST_HEAD(&subv->list);
 	__init_ch_sub(&subv->ch);
 
-	subv->diskmap = diskmap;
 	subv->df_plug = disk_format_plugin_by_unsafe_id(dformat_pid);
 	if (subv->df_plug == NULL) {
 		warning("edward-xxx",
@@ -121,7 +119,7 @@ static struct reiser4_subvol *reiser4_search_subvol(u8 *uuid,
 static int reiser4_register_subvol(const char *path,
 				   u8 *vol_uuid, u8 *sub_uuid,
 				   int dformat_pid, int vol_pid, int dist_pid,
-				   u64 diskmap, u16 mirror_id, u16 num_replicas,
+				   u16 mirror_id, u16 num_replicas,
 				   int stripe_bits)
 {
 	struct reiser4_volume *vol;
@@ -133,7 +131,7 @@ static int reiser4_register_subvol(const char *path,
 		if (sub)
 			return 1;
 		sub = reiser4_alloc_subvol(sub_uuid, path, dformat_pid,
-					   diskmap, mirror_id, num_replicas);
+					   mirror_id, num_replicas);
 		if (!sub)
 			return -ENOMEM;
 	} else {
@@ -142,7 +140,7 @@ static int reiser4_register_subvol(const char *path,
 		if (!vol)
 			return -ENOMEM;
 		sub = reiser4_alloc_subvol(sub_uuid, path, dformat_pid,
-					   diskmap, mirror_id, num_replicas);
+					   mirror_id, num_replicas);
 		if (!sub) {
 			kfree(vol);
 			return -ENOMEM;
@@ -231,7 +229,6 @@ int reiser4_scan_device(const char *path, fmode_t flags, void *holder)
 				      master_get_dformat_pid(master),
 				      master_get_volume_pid(master),
 				      master_get_distrib_pid(master),
-				      master_get_diskmap_loc(master),
 				      master_get_mirror_id(master),
 				      master_get_num_replicas(master),
 				      master_get_stripe_bits(master));
@@ -267,7 +264,7 @@ int check_active_replicas(reiser4_subvol *subv)
 	}
 	assert("edward-xxx", super_volume(subv->super) != NULL);
 
-	for (repl_id = 1; repl_id <= subv->num_replicas; repl_id ++) {
+	__for_each_replica(subv, repl_id) {
 		reiser4_subvol *repl;
 
 		repl = super_mirror(subv->super, subv->id, repl_id);
