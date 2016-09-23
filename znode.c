@@ -323,7 +323,7 @@ znode *zalloc(gfp_t gfp_flag /* allocation flag */ )
 void zinit(znode *node, const znode *parent, struct reiser4_subvol *subvol)
 {
 	assert("nikita-466", node != NULL);
-	assert("edward-xxx", subvol != NULL);
+	assert("edward-1801", subvol != NULL);
 
 	memset(node, 0, sizeof *node);
 	jnode_init(&node->zjnode, subvol, JNODE_FORMATTED_BLOCK);
@@ -569,7 +569,7 @@ static node_plugin *znode_guess_plugin(const znode *node)
 	assert("nikita-1055", zdata(node) != NULL);
 
 	subv = znode_get_subvol(node);
-	assert("edward-xxx", subv != NULL);
+	assert("edward-1802", subv != NULL);
 
 	if (subvol_is_set(subv, SUBVOL_ONE_NODE_PLUGIN)) {
 		return subv->tree.nplug;
@@ -777,7 +777,7 @@ int znode_above_root(const znode * node /* znode to query */ )
 static int znode_is_true_root(const znode *node)
 {
 	assert("umka-060", node != NULL);
-	assert("edward-xxx", znode_get_subvol(node) != NULL);
+	assert("edward-1803", znode_get_subvol(node) != NULL);
 
 	return disk_addr_eq(znode_get_block(node),
 			    &znode_get_tree(node)->root_block);
@@ -788,7 +788,7 @@ static int znode_is_true_root(const znode *node)
 int znode_is_root(const znode *node)
 {
 	assert("nikita-1206", node != NULL);
-	assert("edward-xxx", znode_get_subvol(node) != NULL);
+	assert("edward-1804", znode_get_subvol(node) != NULL);
 
 	return znode_get_level(node) == znode_get_tree(node)->height;
 }
@@ -996,7 +996,7 @@ int znode_invariant(znode *node)
 	int result;
 
 	assert("umka-063", node != NULL);
-	assert("edward-xxx", znode_get_subvol(node) != NULL);
+	assert("edward-1805", znode_get_subvol(node) != NULL);
 
 	spin_lock_znode(node);
 	read_lock_tree(znode_get_tree(node));

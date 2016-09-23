@@ -608,7 +608,7 @@ static int overwrite_one_block(struct inode *inode, uf_coord_t *uf_coord,
 	int how;
 	reiser4_subvol *subv = subvol_for_data(inode, get_key_offset(key));
 
-	assert("edward-xxx", subv == node->subvol);
+	assert("edward-1784", subv == node->subvol);
 	assert("vs-1312", uf_coord->coord.between == AT_UNIT);
 
 	result = 0;

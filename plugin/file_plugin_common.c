@@ -27,11 +27,11 @@ int write_sd_by_inode_common(struct inode *inode, oid_t *oid)
 		/*
 		 * object doesn't have stat-data yet
 		 */
-		assert("edward-xxx", oid != NULL);
+		assert("edward-1785", oid != NULL);
 		result = insert_new_sd(inode, *oid);
 	}
 	else
-		assert("edward-xxx", oid == NULL);
+		assert("edward-1786", oid == NULL);
 		result = update_sd(inode);
 
 		if (result != 0 &&

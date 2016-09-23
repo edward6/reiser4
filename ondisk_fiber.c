@@ -38,7 +38,7 @@ static jnode *fiber_node_alloc(reiser4_block_nr *loc, reiser4_subvol *subv)
 
 static void fiber_node_drop(jnode *node)
 {
-	assert("edward-xxx", jnode_get_type(node) == JNODE_IO_HEAD);
+	assert("edward-1715", jnode_get_type(node) == JNODE_IO_HEAD);
 
 	jput(node);
 	jdrop(node);
@@ -58,7 +58,7 @@ static int check_fiber40(const jnode *node)
 	struct fiber_head40 *header = (struct fiber_head40 *)jdata(node);
 
 	if (memcmp(header->magic, FIBER40_MAGIC, FIBER40_MAGIC_SIZE) != 0) {
-		warning("edward-xxx",
+		warning("edward-1716",
 			"Fiber head at block %s corrupted\n",
 			sprint_address(jnode_get_block(node)));
 		return RETERR(-EIO);
@@ -117,7 +117,7 @@ static int fiber_block_unpack(u32 idx, /* serial number of fiber's node */
 	to_node = block_size - sizeof(*header);
 	*loc = le64_to_cpu(get_unaligned(&header->next));
 
-	assert("edward-xxx", to_node % dplug->seg_size == 0);
+	assert("edward-1717", to_node % dplug->seg_size == 0);
 
  unpack:
 	dplug->unpack(result, header->body, to_node/dplug->seg_size);
@@ -152,7 +152,7 @@ int reiser4_fiber_load(reiser4_subvol *subv, u64 len,
 		 * it may indicate foirmat 4.X.Y
 		 */
 		return 0;
-	assert("edward-xxx", len > 0);
+	assert("edward-1718", len > 0);
 
 	dplug = current_dist_plug();
 	fib = kzalloc(len * dplug->seg_size, reiser4_ctx_gfp_mask_get());

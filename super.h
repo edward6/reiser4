@@ -344,9 +344,9 @@ static inline reiser4_volume *super_volume(struct super_block *super)
 static inline reiser4_subvol *sbinfo_mirror(reiser4_super_info_data *info,
 					    u32 id, u32 mirror_id)
 {
-	assert("edward-xxx", info != NULL);
-	assert("edward-xxx", info->vol != NULL);
-	assert("edward-xxx", info->vol->subvols[id] != NULL);
+	assert("edward-1719", info != NULL);
+	assert("edward-1720", info->vol != NULL);
+	assert("edward-1721", info->vol->subvols[id] != NULL);
 
 	return info->vol->subvols[id][mirror_id];
 }
@@ -354,7 +354,7 @@ static inline reiser4_subvol *sbinfo_mirror(reiser4_super_info_data *info,
 static inline reiser4_subvol *super_mirror(struct super_block *super,
 					   u32 id, u32 mirror_id)
 {
-	assert("edward-xxx", super != NULL);
+	assert("edward-1722", super != NULL);
 	return sbinfo_mirror(get_super_private(super), id, mirror_id);
 }
 
@@ -453,14 +453,14 @@ static inline u32 current_num_origins(void)
 
 static inline u32 current_num_replicas(u32 orig_id)
 {
-	assert("edward-xxx", current_origin(orig_id) != NULL);
+	assert("edward-1723", current_origin(orig_id) != NULL);
 
 	return current_origin(orig_id)->num_replicas;
 }
 
 static inline u32 subvol_num_mirrors(reiser4_subvol *subv)
 {
-	assert("edward-xxx", subv != NULL);
+	assert("edward-1724", subv != NULL);
 	return 1 + subv->num_replicas;
 }
 
@@ -491,21 +491,21 @@ static inline u32 current_num_mirrors(u32 orig_id)
 
 static inline int is_replica(struct reiser4_subvol *subv)
 {
-	assert("edward-xxx", subv != NULL);
+	assert("edward-1725", subv != NULL);
 
 	return subv->mirror_id;
 }
 
 static inline int is_origin(struct reiser4_subvol *subv)
 {
-	assert("edward-xxx", subv != NULL);
+	assert("edward-1726", subv != NULL);
 
 	return !is_replica(subv);
 }
 
 static inline int has_replicas(struct reiser4_subvol *subv)
 {
-	assert("edward-xxx", subv != NULL);
+	assert("edward-1727", subv != NULL);
 
 	return subv->num_replicas;
 }

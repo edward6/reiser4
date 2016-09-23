@@ -2448,7 +2448,7 @@ static int unpack(struct file *filp, struct inode *inode, int forever)
 		result = reiser4_grab_space(tograb, BA_CAN_COMMIT,
 					    subvol_for_meta(inode));
 		if (result) {
-			warning("edward-xxx",
+			warning("edward-1781",
 				"Can not update sd (%d)", result);
 			return result;
 		}

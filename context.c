@@ -50,9 +50,9 @@
 int reiser4_init_context_tail(reiser4_context *ctx,
 			      reiser4_super_info_data *sbinfo)
 {
-	assert("edward-xxx", sbinfo != NULL);
-	assert("edward-xxx", sbinfo->vol != NULL);
-	assert("edward-xxx", ctx->ctx_grabbed_blocks == NULL);
+	assert("edward-1731", sbinfo != NULL);
+	assert("edward-1732", sbinfo->vol != NULL);
+	assert("edward-1733", ctx->ctx_grabbed_blocks == NULL);
 
 	ctx->ctx_num_origins = sbinfo_num_origins(sbinfo);
 

@@ -1311,7 +1311,7 @@ static void cond_add_to_overwrite_set(txn_atom *atom, jnode *node)
 	assert("zam-546", atom != NULL);
 	assert("zam-547", atom->stage == ASTAGE_PRE_COMMIT);
 	assert("zam-548", node != NULL);
-	assert("edward-xxx", node->subvol != NULL);
+	assert("edward-1782", node->subvol != NULL);
 
 	spin_lock_atom(atom);
 	spin_lock_jnode(node);

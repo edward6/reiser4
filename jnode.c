@@ -174,15 +174,15 @@ TYPE_SAFE_HASH_DEFINE(j, jnode, struct jnode_key, key.j, link.j,
 reiser4_tree *jnode_get_tree(const jnode *node)
 {
 	assert("nikita-2691", node != NULL);
-	assert("edward-xxx", node->subvol != NULL);
+	assert("edward-1778", node->subvol != NULL);
 
 	return &node->subvol->tree;
 }
 
 struct super_block *jnode_get_super(const jnode *node)
 {
-	assert("edward-xxx", node != NULL);
-	assert("edward-xxx", node->subvol != NULL);
+	assert("edward-1779", node != NULL);
+	assert("edward-1780", node->subvol != NULL);
 
 	return node->subvol->super;
 }

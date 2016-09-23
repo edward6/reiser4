@@ -1127,7 +1127,7 @@ static int commit_current_atom(long *nr_submitted, txn_atom ** atom)
 	 * capture_fuse_wait() as a capturing of other nodes does -- the commit
 	 * mutex is used for transaction isolation instead
 	 */
-	assert("edward-xxx", list_empty(ATOM_OVRWR_LIST(*atom)));
+	assert("edward-1774", list_empty(ATOM_OVRWR_LIST(*atom)));
 
 	mutex_unlock(&sbinfo->tmgr.commit_mutex);
 
@@ -3096,7 +3096,7 @@ void insert_into_atom_ovrwr_list(txn_atom *atom, jnode *node)
 void insert_into_subv_ovrwr_list(reiser4_subvol *subv, jnode *node,
 				 txn_atom *atom)
 {
-	assert("edward-xxx", node->subvol == subv);
+	assert("edward-1775", node->subvol == subv);
 
 	list_add(&node->capture_link, &subv->ch.overwrite_set);
 	jref(node);
