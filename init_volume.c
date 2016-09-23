@@ -60,7 +60,7 @@ struct reiser4_subvol *reiser4_alloc_subvol(u8 *uuid, const char *path,
 
 	subv->df_plug = disk_format_plugin_by_unsafe_id(dformat_pid);
 	if (subv->df_plug == NULL) {
-		warning("edward-xxx",
+		warning("edward-1738",
 			"%s: unknown disk format plugin %d\n",
 			path, dformat_pid);
 		kfree(subv);
@@ -74,7 +74,7 @@ struct reiser4_subvol *reiser4_alloc_subvol(u8 *uuid, const char *path,
 	subv->mirror_id = mirror_id;
 	subv->num_replicas = num_replicas;
 	if (subv->mirror_id > subv->num_replicas) {
-		warning("edward-xxx",
+		warning("edward-1739",
 		     "%s: mirror id (%u) larger than number of replicas (%u)",
 		     path, subv->mirror_id, subv->num_replicas);
 		kfree(subv->name);
@@ -154,19 +154,19 @@ static int reiser4_register_subvol(const char *path,
 
 static void reiser4_put_volume(struct reiser4_volume *vol)
 {
-	assert("edward-xxx", vol->aib == NULL);
-	assert("edward-xxx", vol->subvols == NULL);
+	assert("edward-1740", vol->aib == NULL);
+	assert("edward-1741", vol->subvols == NULL);
 	kfree(vol);
 }
 
 static void reiser4_put_subvol(struct reiser4_subvol *subv)
 {
-	assert("edward-xxx", subv->bdev == NULL);
-	assert("edward-xxx", subv->fiber == NULL);
-	assert("edward-xxx", !subvol_is_set(subv, SUBVOL_ACTIVATED));
-	assert("edward-xxx", list_empty_careful(&subv->ch.overwrite_set));
-	assert("edward-xxx", list_empty_careful(&subv->ch.tx_list));
-	assert("edward-xxx", list_empty_careful(&subv->ch.wander_map));
+	assert("edward-1742", subv->bdev == NULL);
+	assert("edward-1743", subv->fiber == NULL);
+	assert("edward-1744", !subvol_is_set(subv, SUBVOL_ACTIVATED));
+	assert("edward-1745", list_empty_careful(&subv->ch.overwrite_set));
+	assert("edward-1746", list_empty_careful(&subv->ch.tx_list));
+	assert("edward-1747", list_empty_careful(&subv->ch.wander_map));
 
 	if (subv->name)
 		kfree(subv->name);
@@ -255,27 +255,27 @@ struct file_system_type *get_reiser4_fs_type(void);
 int check_active_replicas(reiser4_subvol *subv)
 {
 	u32 repl_id;
-	assert("edward-xxx", !is_replica(subv));
-	assert("edward-xxx", super_num_origins(subv->super) != 0);
+	assert("edward-1748", !is_replica(subv));
+	assert("edward-1749", super_num_origins(subv->super) != 0);
 
 	if (has_replicas(subv) &&
 	    ((super_volume(subv->super)->subvols == NULL) ||
 	     (super_volume(subv->super)->subvols[subv->id] == NULL))) {
 
-		warning("edward-xxx",
+		warning("edward-1750",
 			"%s requires replicas, which "
 			" are not registered.",
 			subv->name);
 		return -EINVAL;
 	}
-	assert("edward-xxx", super_volume(subv->super) != NULL);
+	assert("edward-1751", super_volume(subv->super) != NULL);
 
 	__for_each_replica(subv, repl_id) {
 		reiser4_subvol *repl;
 
 		repl = super_mirror(subv->super, subv->id, repl_id);
 		if (repl == NULL) {
-			warning("edward-xxx",
+			warning("edward-1752",
 				"%s requires replica No%u, which "
 				" is not registered.",
 				subv->name, repl_id);
@@ -305,7 +305,7 @@ int reiser4_activate_subvol(struct super_block *super,
 	struct page *page;
 	fmode_t mode = FMODE_READ | FMODE_EXCL;
 
-	assert("edward-xxx", !subvol_is_set(subv, SUBVOL_ACTIVATED));
+	assert("edward-1753", !subvol_is_set(subv, SUBVOL_ACTIVATED));
 
 	if (!(super->s_flags & MS_RDONLY))
 		mode |= FMODE_WRITE;
@@ -373,7 +373,7 @@ static void *alloc_subvols_set(__u32 num_subvols)
 
 static void free_subvols_set(reiser4_volume *vol)
 {
-	assert("edward-xxx", vol != NULL);
+	assert("edward-1754", vol != NULL);
 
 	if (vol->subvols != NULL) {
 		kfree(vol->subvols);
@@ -386,17 +386,17 @@ static void free_subvols_set(reiser4_volume *vol)
  */
 static void deactivate_subvol(struct super_block *super, reiser4_subvol *subv)
 {
-	assert("edward-xxx", subvol_is_set(subv, SUBVOL_ACTIVATED));
-	assert("edward-xxx", subv->bdev != NULL);
-	assert("edward-xxx", subv->super != NULL);
+	assert("edward-1755", subvol_is_set(subv, SUBVOL_ACTIVATED));
+	assert("edward-1756", subv->bdev != NULL);
+	assert("edward-1757", subv->super != NULL);
 
 	if (!is_replica(subv)) {
 		subvol_check_block_counters(subv);
 		subv->df_plug->release_format(super, subv);
 	}
-	assert("edward-xxx", list_empty_careful(&subv->ch.overwrite_set));
-	assert("edward-xxx", list_empty_careful(&subv->ch.tx_list));
-	assert("edward-xxx", list_empty_careful(&subv->ch.wander_map));
+	assert("edward-1758", list_empty_careful(&subv->ch.overwrite_set));
+	assert("edward-1759", list_empty_careful(&subv->ch.tx_list));
+	assert("edward-1760", list_empty_careful(&subv->ch.wander_map));
 
 	blkdev_put(subv->bdev, subv->mode);
 	clear_subvol(subv);
@@ -414,7 +414,7 @@ static void deactivate_subvolumes_of_type(struct super_block *super,
 			/*
 			 * subvolume is not active
 			 */
-			assert("edward-xxx", subv->super == NULL);
+			assert("edward-1761", subv->super == NULL);
 			
 			continue;
 		}
@@ -441,7 +441,7 @@ void __reiser4_deactivate_volume(struct super_block *super)
 	deactivate_subvolumes_of_type(super, REISER4_SUBV_REPLICA);
 
 	if (vol->aib) {
-		assert("edward-xxx", vol->dist_plug->done != NULL);
+		assert("edward-1762", vol->dist_plug->done != NULL);
 		vol->dist_plug->done(vol->aib);
 		vol->aib = NULL;
 	}
@@ -454,10 +454,10 @@ void __reiser4_deactivate_volume(struct super_block *super)
 	vol->vol_plug = NULL;
 
 	list_for_each_entry(subv, &vol->subvols_list, list) {
-		assert("edward-xxx", !subvol_is_set(subv, SUBVOL_ACTIVATED));
-		assert("edward-xxx", subv->super == NULL);
-		assert("edward-xxx", subv->bdev == NULL);
-		assert("edward-xxx", subv->mode == 0);
+		assert("edward-1763", !subvol_is_set(subv, SUBVOL_ACTIVATED));
+		assert("edward-1764", subv->super == NULL);
+		assert("edward-1765", subv->bdev == NULL);
+		assert("edward-1766", subv->mode == 0);
 	}
 }
 
@@ -504,7 +504,7 @@ static int set_activated_subvol(reiser4_volume *vol, reiser4_subvol *subv)
 		}
 	}
 	if (vol->subvols[orig_id][mirr_id] != NULL) {
-		warning("edward-xxx",
+		warning("edward-1767",
 			"%s and %s have the same (id,mirror_id)=(%llu,%u)",
 			vol->subvols[orig_id][mirr_id]->name,
 			subv->name,
@@ -537,7 +537,7 @@ static int activate_subvolumes_of_type(struct super_block *super,
 	info = get_super_private(super);
 	info->vol = vol;
 
-	assert("edward-xxx", vol->aib == NULL);
+	assert("edward-1768", vol->aib == NULL);
 
 	list_for_each_entry(subv, &vol->subvols_list, list) {
 		if (subvol_is_set(subv, SUBVOL_ACTIVATED))
@@ -550,7 +550,7 @@ static int activate_subvolumes_of_type(struct super_block *super,
 		ret = reiser4_activate_subvol(super, subv);
 		if (ret)
 			goto error;
-		assert("edward-xxx", subvol_is_set(subv, SUBVOL_ACTIVATED));
+		assert("edward-1769", subvol_is_set(subv, SUBVOL_ACTIVATED));
 
 		ret = set_activated_subvol(vol, subv);
 		if (ret)
@@ -574,7 +574,7 @@ static int activate_subvolumes_of_type(struct super_block *super,
 					   &vol->vol_plug->aib_ops,
 					   &vol->aib);
 		if (ret) {
-			warning("edward-xxx",
+			warning("edward-1770",
 				"(%s): failed to init distribution (%d)\n",
 				super->s_id, ret);
 			goto error;
@@ -626,7 +626,7 @@ int reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
  	 * on success we'll have a complete set of active components.
 	 */
 	if (current_num_origins() == 0) {
-		warning("edward-xxx",
+		warning("edward-1771",
 			"%s requires at least one origin, which is not "
 			"registered.", super->s_id);
 		ret = -EINVAL;
@@ -636,13 +636,13 @@ int reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 		reiser4_subvol *orig;
 		orig = super_origin(super, orig_id);
 		if (orig == NULL) {
-			warning("edward-xxx",
+			warning("edward-1772",
 				"%s requires origin No%u, which is not "
 				"registered.", super->s_id, orig_id);
 			ret = -EINVAL;
 			goto deactivate;
 		}
-		assert("edward-xxx",
+		assert("edward-1773",
 		       subvol_is_set(orig, SUBVOL_ACTIVATED));
 	}
 	goto out;

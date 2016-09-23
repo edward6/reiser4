@@ -1449,7 +1449,7 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t *pos)
 	txmod_plugin *txmod_plug;
 
 	assert("jmacd-2008", !node_is_empty(right));
-	assert("edward-xxx", ZJNODE(right)->subvol == ZJNODE(left)->subvol);
+	assert("edward-1728", ZJNODE(right)->subvol == ZJNODE(left)->subvol);
 
 	subv = ZJNODE(left)->subvol;
 	txmod_plug = get_txmod_plugin(subv);
@@ -2556,9 +2556,9 @@ static int squeeze_right_non_twig(znode * left, znode * right)
 	carry_level *todo;
 	reiser4_subvol *subv = znode_get_subvol(left);
 
-	assert("edward-xxx", subv != NULL);
+	assert("edward-1729", subv != NULL);
 	assert("nikita-2246", znode_get_level(left) == znode_get_level(right));
-	assert("edward-xxx", znode_get_subvol(left) == znode_get_subvol(right));
+	assert("edward-1730", znode_get_subvol(left) == znode_get_subvol(right));
 
 	if (!JF_ISSET(ZJNODE(left), JNODE_DIRTY) ||
 	    !JF_ISSET(ZJNODE(right), JNODE_DIRTY))

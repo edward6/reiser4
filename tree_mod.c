@@ -52,7 +52,7 @@ znode *reiser4_new_node(znode *brother, /* existing left neighbor of new node */
 	assert("umka-264", level < REAL_MAX_ZTREE_HEIGHT);
 
 	subv = znode_get_subvol(brother);
-	assert("edward-xxx", subv != NULL);
+	assert("edward-1735", subv != NULL);
 
 	retcode = assign_fake_blocknr_formatted(&blocknr, subv);
 	if (retcode == 0) {
@@ -358,7 +358,7 @@ int reiser4_kill_tree_root(znode * old_root /* tree root that we are
 	znode *new_root;
 	reiser4_tree *tree;
 
-	assert("edward-xxx", znode_get_subvol(old_root) != NULL);
+	assert("edward-1736", znode_get_subvol(old_root) != NULL);
 	assert("nikita-1194", old_root != NULL);
 	assert("nikita-1196", znode_is_root(old_root));
 	assert("nikita-1200", node_num_items(old_root) == 1);

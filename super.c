@@ -51,7 +51,7 @@ __u64 reiser4_volume_block_count(const struct super_block *super)
 	__u32 subv_id;
 	__u64 result = 0;
 
-	assert("edward-xxx", super != NULL);
+	assert("edward-1794", super != NULL);
 
 	for_each_origin(subv_id)
 		result += reiser4_subvol_block_count(super_origin(super,
@@ -92,7 +92,7 @@ __u64 reiser4_volume_blocks_reserved(const struct super_block *super)
 	__u32 subv_id;
 	__u64 result = 0;
 
-	assert("edward-xxx", super != NULL);
+	assert("edward-1795", super != NULL);
 
 	for_each_origin(subv_id)
 		result += reiser4_subvol_blocks_reserved(super_origin(super,
@@ -130,13 +130,13 @@ void reiser4_subvol_set_free_blocks(reiser4_subvol *subv, __u64 nr)
 
 __u64 reiser4_subvol_fiber_len(reiser4_subvol *subv)
 {
-	assert("edward-xxx", subv != NULL);
+	assert("edward-1796", subv != NULL);
 	return subv->fiber_len;
 }
 
 void reiser4_subvol_set_fiber_len(reiser4_subvol *subv, __u64 len)
 {
-	assert("edward-xxx", subv != NULL);
+	assert("edward-1797", subv != NULL);
 	subv->fiber_len = len;
 }
 
@@ -146,7 +146,7 @@ __u64 reiser4_volume_free_blocks(const struct super_block *super)
 	__u32 subv_id;
 	__u64 result = 0;
 
-	assert("edward-xxx", super != NULL);
+	assert("edward-1798", super != NULL);
 
 	for_each_origin(subv_id)
 		result += reiser4_subvol_free_blocks(super_origin(super,
@@ -194,7 +194,7 @@ long reiser4_volume_reserved4user(const struct super_block *super,
 	__u32 subv_id;
 	__u64 result = 0;
 
-	assert("edward-xxx", super != NULL);
+	assert("edward-1799", super != NULL);
 
 	for_each_origin(subv_id)
 		result +=
@@ -245,7 +245,7 @@ __u64 reiser4_clustered_blocks(const reiser4_subvol *subv)
 /* space allocator used by this subvolume */
 reiser4_space_allocator *reiser4_get_space_allocator(reiser4_subvol *subv)
 {
-	assert("edward-xxx", subv != NULL);
+	assert("edward-1800", subv != NULL);
 	return &subv->space_allocator;
 }
 

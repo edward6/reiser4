@@ -700,7 +700,7 @@ int reiser4_alloc_blocks(reiser4_blocknr_hint *hint, reiser4_block_nr *blk,
 	int ret;
 
 	assert("zam-986", hint != NULL);
-	assert("edward-xxx", subv != NULL);
+	assert("edward-1776", subv != NULL);
 
 	ctx = get_current_context();
 	sbinfo = get_super_private(ctx->super);
@@ -978,7 +978,7 @@ void all_grabbed2free(void)
 		 * this is exit_context() after reiser4_done_fs_info()
 		 * at put_super(), i.e. nothing to do any more
 		 */
-		assert("edward-xxx", ctx->ctx_grabbed_blocks[0] == 0);
+		assert("edward-1777", ctx->ctx_grabbed_blocks[0] == 0);
 		return;
 	}
 	for_each_origin(subv_id) {

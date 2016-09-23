@@ -209,9 +209,9 @@ static void init_ch_sub(reiser4_subvol *subv)
 {
 	struct commit_handle_subvol *ch_sub = &subv->ch;
 
-	assert("edward-xxx", list_empty(&ch_sub->overwrite_set));
-	assert("edward-xxx", list_empty(&ch_sub->tx_list));
-	assert("edward-xxx", list_empty(&ch_sub->wander_map));
+	assert("edward-1700", list_empty(&ch_sub->overwrite_set));
+	assert("edward-1701", list_empty(&ch_sub->tx_list));
+	assert("edward-1702", list_empty(&ch_sub->wander_map));
 
 	__init_ch_sub(ch_sub);
 	ch_sub->free_blocks = subv->blocks_free_committed;
@@ -245,9 +245,9 @@ static void done_ch_sub(reiser4_subvol *subv)
 {
 	struct commit_handle_subvol *ch_sub = &subv->ch;
 
-	assert("edward-xxx", list_empty(&ch_sub->overwrite_set));
-	assert("edward-xxx", list_empty(&ch_sub->tx_list));
-	assert("edward-xxx", list_empty(&ch_sub->wander_map));
+	assert("edward-1703", list_empty(&ch_sub->overwrite_set));
+	assert("edward-1704", list_empty(&ch_sub->tx_list));
+	assert("edward-1705", list_empty(&ch_sub->wander_map));
 }
 #endif
 
@@ -671,7 +671,7 @@ void check_overwrite_set_subv(reiser4_subvol *subv)
 	jnode *cur;
 
 	list_for_each_entry(cur, &subv->ch.overwrite_set, capture_link)
-		assert("edward-xxx", cur->subvol == subv);
+		assert("edward-1706", cur->subvol == subv);
 }
 
 void check_overwrite_set(void)
@@ -1021,7 +1021,7 @@ int write_jnode_list(struct list_head *head, flush_queue_t *fq,
 		struct list_head *cur = beg->next;
 
 		while (head != cur) {
-			assert("edward-xxx",
+			assert("edward-1707",
 			       jnode_by_link(beg)->subvol ==
 			       jnode_by_link(cur)->subvol);
 
@@ -1598,16 +1598,16 @@ static int replay_tx_subv(reiser4_subvol *subv)
 	const u32 orig_id = subv->id;
 	struct commit_handle_subvol *ch_sub = &subv->ch;
 
-	assert("edward-xxx", is_origin(subv));
-	assert("edward-xxx", subvol_is_set(subv, SUBVOL_ACTIVATED));
+	assert("edward-1708", is_origin(subv));
+	assert("edward-1709", subvol_is_set(subv, SUBVOL_ACTIVATED));
 
 	for_each_mirror(orig_id, mirr_id) {
-		assert("edward-xxx",
+		assert("edward-1710" ,
 		       subv->super ==
 		       super_mirror(subv->super, orig_id, mirr_id)->super);
 
 		subv = super_mirror(subv->super, orig_id, mirr_id);
-		assert("edward-xxx", subvol_is_set(subv, SUBVOL_ACTIVATED));
+		assert("edward-1711", subvol_is_set(subv, SUBVOL_ACTIVATED));
 
 		write_jnode_list(&ch_sub->overwrite_set, NULL, NULL, 0, subv);
 		ret = wait_on_jnode_list(&ch_sub->overwrite_set);
@@ -1616,7 +1616,7 @@ static int replay_tx_subv(reiser4_subvol *subv)
 	}
 	return 0;
  error:
-	warning("edward-xxx",
+	warning("edward-1712",
 		"transaction replay failed on %s (%d)", subv->name, ret);
 	return RETERR(-EIO);
 }
@@ -1637,7 +1637,7 @@ static int replay_tx(jnode *tx_head,
 	struct commit_handle_subvol *ch_sub = &subv->ch;
 	reiser4_block_nr log_rec_block = *log_rec_block_p;
 
-	assert("edward-xxx", !is_replica(subv));
+	assert("edward-1713", !is_replica(subv));
 
 	init_commit_handle(&ch, NULL, subv);
 	restore_commit_handle(&ch, subv, tx_head);
@@ -1903,7 +1903,7 @@ int reiser4_journal_replay(reiser4_subvol *subv)
 	int nr_tx_replayed = 0;
 	int ret;
 
-	assert("edward-xxx", subv != NULL);
+	assert("edward-1714", subv != NULL);
 
 	jh = subv->journal_header;
 	jf = subv->journal_footer;

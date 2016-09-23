@@ -104,7 +104,7 @@ static int subvol_del(void *data, u64 index)
 	struct reiser4_volume *vol = data;
 	struct reiser4_subvol **new_subvols;
 
-	assert("edward-xxx", index < vol->num_subvols);
+	assert("edward-1783", index < vol->num_subvols);
 
 	new_subvols = kmalloc(sizeof(reiser4_subvol) *
 			      (vol->num_subvols - 1),

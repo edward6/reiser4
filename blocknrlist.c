@@ -76,8 +76,8 @@ static int blocknr_list_entry_merge(blocknr_list_entry *to,
 
 	assert("intelfx-16", to->len > 0);
 	assert("intelfx-17", len > 0);
-	assert("edward-xxx", subv_id != INVALID_SUBVOL_ID);
-	assert("edward-xxx", to->subv_id != INVALID_SUBVOL_ID);
+	assert("edward-1806", subv_id != INVALID_SUBVOL_ID);
+	assert("edward-1807", to->subv_id != INVALID_SUBVOL_ID);
 
 	end = start + len;
 	to_end = to->start + to->len;
@@ -124,8 +124,8 @@ static int blocknr_list_entry_compare(void* priv UNUSED_ARG,
 	entry_a = blocknr_list_entry(a);
 	entry_b = blocknr_list_entry(b);
 
-	assert("edward-xxx", entry_a->subv_id != INVALID_SUBVOL_ID);
-	assert("edward-xxx", entry_b->subv_id != INVALID_SUBVOL_ID);
+	assert("edward-1808", entry_a->subv_id != INVALID_SUBVOL_ID);
+	assert("edward-1809", entry_b->subv_id != INVALID_SUBVOL_ID);
 
 	entry_a_end = entry_a->start + entry_a->len;
 	entry_b_end = entry_b->start + entry_b->len;

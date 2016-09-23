@@ -262,7 +262,7 @@ int set_check_params(reiser4_subvol *subv,
 	}
 	return 0;
  error:
-	warning("edward-xxx", "%s: Found %s", subv->super->s_id, what_is_wrong);
+	warning("edward-1787", "%s: Found %s", subv->super->s_id, what_is_wrong);
 	return -EINVAL;
 }
 
@@ -281,8 +281,8 @@ struct page *find_format_format40(reiser4_subvol *subv, int consult)
 	format40_disk_super_block *disk_sb;
 	reiser4_volume *vol;
 
-	assert("edward-xxx", subv != NULL);
-	assert("edward-xxx", subv->super != NULL);
+	assert("edward-1788", subv != NULL);
+	assert("edward-1789", subv->super != NULL);
 
 	vol = super_volume(subv->super);
 
@@ -346,8 +346,8 @@ int try_init_format40(struct super_block *super,
 
 	assert("vs-475", super != NULL);
 	assert("vs-474", get_super_private(super) != NULL);
-	assert("edward-xxx", get_super_private(super)->vol != NULL);
-	assert("edward-xxx", !is_replica(subv));
+	assert("edward-1790", get_super_private(super)->vol != NULL);
+	assert("edward-1791", !is_replica(subv));
 
 	*stage = NONE_DONE;
 	result = reiser4_init_journal_info(subv);
@@ -374,7 +374,7 @@ int try_init_format40(struct super_block *super,
 
 	if (has_replicas(subv) &&
 	    extended_status == REISER4_ESTATUS_MIRRORS_NOT_SYNCED)
-		warning("edward-xxx",
+		warning("edward-1792",
 			"Mounting %s with not synced mirrors. "
 			"Please, scrub the volume.", super->s_id);
 

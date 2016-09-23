@@ -190,7 +190,7 @@ int reiser4_seal_validate(seal_t *seal /* seal to validate */,
 static znode *seal_node(const seal_t *seal, reiser4_tree *tree)
 {
 	assert("nikita-1891", seal != NULL);
-	assert("edward-xxx", tree != NULL);
+	assert("edward-1734", tree != NULL);
 
 	return zlook(tree, &seal->block);
 }

@@ -882,7 +882,7 @@ static int setattr_reserve(struct inode *inode)
 {
 	reiser4_subvol *subv = subvol_for_meta(inode);
 
-	assert("edward-xxx", subv != NULL);
+	assert("edward-1793", subv != NULL);
 	assert("vs-1096", is_grab_enabled(get_current_context()));
 
 	return reiser4_grab_space(estimate_one_insert_into_item(&subv->tree),

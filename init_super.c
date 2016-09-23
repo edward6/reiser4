@@ -638,7 +638,7 @@ int reiser4_read_master(struct super_block *super, int silent, u8 *vol_uuid)
 		 */
 		vol = reiser4_search_volume(master_sb->uuid);
 		if (!vol) {
-			warning("edward-xxx",
+			warning("edward-1737",
 				"%s: volume is not registered", super->s_id);
 			goto error;
 		}
