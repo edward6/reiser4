@@ -247,14 +247,20 @@ int reiser4_scan_device(const char *path, fmode_t flags, void *holder)
 
 struct file_system_type *get_reiser4_fs_type(void);
 
+/**
+ * Pre-conditions:
+ * @subv: original subvolume to check replicas of.
+ * Disk format superblock of the subvolume was found
+ */
 int check_active_replicas(reiser4_subvol *subv)
 {
 	u32 repl_id;
 	assert("edward-xxx", !is_replica(subv));
+	assert("edward-xxx", super_num_origins(subv->super) != 0);
 
-	if ((super_num_origins(subv->super) == 0) ||
-	    (super_volume(subv->super)->subvols == NULL) ||
-	    (super_volume(subv->super)->subvols[subv->id] == NULL)) {
+	if (has_replicas(subv) &&
+	    ((super_volume(subv->super)->subvols == NULL) ||
+	     (super_volume(subv->super)->subvols[subv->id] == NULL))) {
 
 		warning("edward-xxx",
 			"%s requires replicas, which "
