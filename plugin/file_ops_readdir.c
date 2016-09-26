@@ -487,7 +487,7 @@ loff_t reiser4_llseek_dir_common(struct file *file, loff_t off, int origin)
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 
-	mutex_lock(&inode->i_mutex);
+	inode_lock(inode);
 
 	/* update ->f_pos */
 	result = default_llseek_unlocked(file, off, origin);
@@ -509,7 +509,7 @@ loff_t reiser4_llseek_dir_common(struct file *file, loff_t off, int origin)
 		reiser4_tap_done(&tap);
 	}
 	reiser4_detach_fsdata(file);
-	mutex_unlock(&inode->i_mutex);
+	inode_unlock(inode);
 
 	reiser4_exit_context(ctx);
 	return result;

@@ -88,12 +88,12 @@ int reiser4_sync_file_common(struct file *file, loff_t start, loff_t end, int da
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 
-	mutex_lock(&inode->i_mutex);
+	inode_lock(inode);
 
 	reserve = estimate_update_common(dentry->d_inode);
 	if (reiser4_grab_space(reserve, BA_CAN_COMMIT)) {
 		reiser4_exit_context(ctx);
-		mutex_unlock(&inode->i_mutex);
+		inode_unlock(inode);
 		return RETERR(-ENOSPC);
 	}
 	write_sd_by_inode_common(dentry->d_inode);
@@ -102,7 +102,7 @@ int reiser4_sync_file_common(struct file *file, loff_t start, loff_t end, int da
 	spin_lock_txnh(ctx->trans);
 	force_commit_atom(ctx->trans);
 	reiser4_exit_context(ctx);
-	mutex_unlock(&inode->i_mutex);
+	inode_unlock(inode);
 
 	return 0;
 }
