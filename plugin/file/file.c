@@ -2446,7 +2446,7 @@ int ioctl_unix_file(struct file *filp, unsigned int cmd,
 		break;
 
 	default:
-		result = RETERR(-ENOSYS);
+		result = RETERR(-ENOTTY);
 		break;
 	}
 	reiser4_exit_context(ctx);
