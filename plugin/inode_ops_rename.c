@@ -289,7 +289,7 @@ int reiser4_find_entry(struct inode *, struct dentry *, lock_handle * ,
 	       znode_lock_mode, reiser4_dir_entry_desc *);
 int reiser4_update_dir(struct inode *);
 
-/* this is common implementation of vfs's rename method of struct
+/* this is common implementation of vfs's rename2 method of struct
    inode_operations
    See comments in the body.
 
@@ -300,12 +300,13 @@ int reiser4_update_dir(struct inode *);
    entry. This should be re-considered when more than one different
    directory plugin will be implemented.
 */
-int reiser4_rename_common(struct inode *old_dir /* directory where @old
-						 * is located */ ,
-			  struct dentry *old_name /* old name */ ,
-			  struct inode *new_dir /* directory where @new
-						 * is located */ ,
-			  struct dentry *new_name/* new name */)
+int reiser4_rename2_common(struct inode *old_dir /* directory where @old
+						  * is located */ ,
+			   struct dentry *old_name /* old name */ ,
+			   struct inode *new_dir /* directory where @new
+						  * is located */ ,
+			   struct dentry *new_name /* new name */ ,
+			   unsigned flags /* specific flags */)
 {
 	/* From `The Open Group Base Specifications Issue 6'
 
@@ -385,6 +386,26 @@ int reiser4_rename_common(struct inode *old_dir /* directory where @old
 	   [N/A]
 
 	 */
+
+	/* From Documentation/filesystems/vfs.txt:
+
+	   rename2: this has an additional flags argument compared to rename.
+		f no flags are supported by the filesystem then this method
+		need not be implemented.  If some flags are supported then the
+		filesystem must return -EINVAL for any unsupported or unknown
+		flags.  Currently the following flags are implemented:
+		(1) RENAME_NOREPLACE: this flag indicates that if the target
+		of the rename exists the rename should fail with -EEXIST
+		instead of replacing the target.  The VFS already checks for
+		existence, so for local filesystems the RENAME_NOREPLACE
+		implementation is equivalent to plain rename.
+		(2) RENAME_EXCHANGE: exchange source and target.  Both must
+		exist; this is checked by the VFS.  Unlike plain rename,
+		source and target may be of different type.
+	 */
+
+	static const unsigned supported_flags = RENAME_NOREPLACE;
+
 	reiser4_context *ctx;
 	int result;
 	int is_dir;		/* is @old_name directory */
@@ -405,6 +426,18 @@ int reiser4_rename_common(struct inode *old_dir /* directory where @old
 	ctx = reiser4_init_context(old_dir->i_sb);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
+
+	/*
+	 * Check rename2() flags.
+	 *
+	 * "If some flags are supported then the filesystem must return
+	 * -EINVAL for any unsupported or unknown flags."
+	 *
+	 * We support:
+	 * - RENAME_NOREPLACE (no-op)
+	 */
+	if ((flags & supported_flags) != flags)
+		return RETERR(-EINVAL);
 
 	old_entry = kzalloc(3 * sizeof(*old_entry) + 2 * sizeof(*new_lh) +
 			    sizeof(*dotdot_name) + sizeof(*dataonstack),
