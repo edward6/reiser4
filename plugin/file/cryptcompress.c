@@ -3562,7 +3562,7 @@ int writepages_cryptcompress(struct address_space *mapping,
 int ioctl_cryptcompress(struct file *filp, unsigned int cmd,
 			unsigned long arg)
 {
-	return RETERR(-ENOSYS);
+	return RETERR(-ENOTTY);
 }
 
 /* plugin->mmap */
