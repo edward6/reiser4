@@ -3613,8 +3613,6 @@ int delete_object_cryptcompress(struct inode *inode)
 			(unsigned long long)get_inode_oid(inode),
 			result);
 	}
-	truncate_inode_pages(inode->i_mapping, 0);
-	assert("edward-1487", pages_truncate_ok(inode, 0));
 	/* and remove stat data */
 	return reiser4_delete_object_common(inode);
 }
