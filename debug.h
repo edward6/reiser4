@@ -9,10 +9,12 @@
 #include "forward.h"
 #include "reiser4.h"
 
-/* generic function to produce formatted output, decorating it with
-   whatever standard prefixes/postfixes we want. "Fun" is a function
-   that will be actually called, can be printk, panic etc.
-   This is for use by other debugging macros, not by users. */
+/**
+ * generic function to produce formatted output, decorating it with
+ * whatever standard prefixes/postfixes we want. "Fun" is a function
+ * that will be actually called, can be printk, panic etc.
+ * This is for use by other debugging macros, not by users.
+ */
 #define DCALL(lev, fun, reperr, label, format, ...)			\
 ({									\
 	fun(lev "reiser4[%.16s(%i)]: %s (%s:%i)[%s]:\n" format "\n" ,	\

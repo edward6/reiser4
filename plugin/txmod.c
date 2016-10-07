@@ -112,7 +112,6 @@ void jnode_make_wander_nolock(jnode * node)
 {
 	txn_atom *atom;
 
-	assert("nikita-2431", node != NULL);
 	assert("nikita-2432", !JF_ISSET(node, JNODE_RELOC));
 	assert("nikita-3153", JF_ISSET(node, JNODE_DIRTY));
 	assert("zam-897", !JF_ISSET(node, JNODE_FLUSH_QUEUED));
