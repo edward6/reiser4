@@ -249,8 +249,6 @@ void done_jnodes(void)
 /* Initialize a jnode. */
 void jnode_init(jnode *node, reiser4_subvol *subv, jnode_type type)
 {
-	assert("umka-175", node != NULL);
-
 	memset(node, 0, sizeof(jnode));
 	ON_DEBUG(node->magic = JMAGIC);
 	jnode_set_type(node, type);
@@ -296,7 +294,6 @@ static void jnode_done(jnode *node)
 /* return already existing jnode of page */
 jnode *jnode_by_page(struct page *pg)
 {
-	assert("nikita-2066", pg != NULL);
 	assert("nikita-2400", PageLocked(pg));
 	assert("nikita-2068", PagePrivate(pg));
 	assert("nikita-2067", jprivate(pg) != NULL);
@@ -313,8 +310,6 @@ jnode *jalloc(void)
 /* return jnode back to the slab allocator */
 inline void jfree(jnode * node)
 {
-	assert("zam-449", node != NULL);
-
 	assert("nikita-2663", (list_empty_careful(&node->capture_link) &&
 			       NODE_LIST(node) == NOT_CAPTURED));
 	assert("nikita-3222", list_empty(&node->jnodes));
@@ -388,8 +383,6 @@ jnode *jlookup(reiser4_tree * tree, oid_t objectid, unsigned long index)
 {
 	struct jnode_key jkey;
 	jnode *node;
-
-	assert("nikita-2353", tree != NULL);
 
 	jkey.objectid = objectid;
 	jkey.index = index;
@@ -654,7 +647,6 @@ jnode *jnode_of_page(struct page *pg, int for_io)
 	jnode *result;
 	reiser4_subvol *subv;
 
-	assert("umka-176", pg != NULL);
 	assert("nikita-2394", PageLocked(pg));
 
 	if (for_io)
@@ -710,9 +702,7 @@ void jnode_attach_page(jnode * node, struct page *pg)
 /* Dual to jnode_attach_page: break a binding between page and jnode */
 void page_clear_jnode(struct page *page, jnode * node)
 {
-	assert("nikita-2424", page != NULL);
 	assert("nikita-2425", PageLocked(page));
-	assert("nikita-2426", node != NULL);
 	assert_spin_locked(&(node->guard));
 	assert("nikita-2428", PagePrivate(page));
 
@@ -1156,7 +1146,6 @@ int jwait_io(jnode * node, int rw)
 	struct page *page;
 	int result;
 
-	assert("zam-447", node != NULL);
 	assert("zam-448", jnode_page(node) != NULL);
 
 	page = jnode_page(node);
@@ -1799,7 +1788,6 @@ void unpin_jnode_data(jnode * node)
 
 struct address_space *jnode_get_mapping(const jnode * node)
 {
-	assert("nikita-3162", node != NULL);
 	return jnode_ops(node)->mapping(node);
 }
 

@@ -787,7 +787,6 @@ static int znode_is_true_root(const znode *node)
 /* check that @node is root */
 int znode_is_root(const znode *node)
 {
-	assert("nikita-1206", node != NULL);
 	assert("edward-1804", znode_get_subvol(node) != NULL);
 
 	return znode_get_level(node) == znode_get_tree(node)->height;
