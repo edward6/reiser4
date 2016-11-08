@@ -171,7 +171,8 @@ struct jnode {
 	 * offset => key conversion.  */
 	/* NOTE: this parent_item_id looks like jnode type. */
 	/*   88 */ reiser4_plugin_id parent_item_id;
-	/*   92 */
+	/* wait on JNODE_LOADING_IN_PROGRESS flag */
+	/*   92 */ wait_queue_head_t wait_jload;
 #if REISER4_DEBUG
 	/* list of all jnodes for debugging purposes. */
 	struct list_head jnodes;
@@ -247,8 +248,9 @@ typedef enum {
 	/* write is in progress */
 	JNODE_WRITEBACK = 18,
 
-	/* unused flag */
-	JNODE_NEW = 19,
+	/* indicates that someone has already started to load jnode,
+	   so that other processes should wait on this flag */
+	JNODE_LOADING_IN_PROGRESS = 19,
 
 	/* delimiting keys are already set for this znode. */
 	JNODE_DKSET = 20,
@@ -262,6 +264,8 @@ typedef enum {
 	JNODE_REPACK = 23,
 	/* node should be converted by flush in squalloc phase */
 	JNODE_CONVERTIBLE = 24,
+	/* jnode parsing failed */
+	JNODE_PARSING_FAILED = 25,
 	/*
 	 * When jnode is dirtied for the first time in given transaction,
 	 * do_jnode_make_dirty() checks whether this jnode can possible became

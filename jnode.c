@@ -259,6 +259,7 @@ void jnode_init(jnode *node, reiser4_subvol *subv, jnode_type type)
 	node->atom = NULL;
 	node->subvol = subv;
 	INIT_LIST_HEAD(&node->capture_link);
+	init_waitqueue_head(&node->wait_jload);
 
 	ASSIGN_NODE_LIST(node, NOT_CAPTURED);
 
@@ -783,109 +784,167 @@ static struct page *jnode_lock_page(jnode * node)
 	return page;
 }
 
-static int __jparse(jnode *node, int do_kmap)
+static struct page *__jnode_get_page_locked(jnode * node, gfp_t gfp_flags);
+
+/**
+ * Load jnode's data into memory and parse it.
+ * In the case of IO errors (original device has died, etc), or if
+ * parsing failed for some reasons (bitrot, etc), restart IO against
+ * replica devices and parse the results.
+ *
+ * Pre- and post-conditions: @node is spin-locked
+ */
+static int __jload_gfp_failover(jnode *node,
+				gfp_t gfp_flags,
+				int do_kmap /* true if page should be
+					       kmap-ped on success */)
 {
-	int ret;
-	u32 rep_id;
-	reiser4_subvol *orig;
+	int ret = 0;
+	u32 mirr_id;
+	struct page *page;
+	int first_iter = 1;
+	reiser4_subvol *orig = jnode_get_subvol(node);
 
-	assert("edward-1647", do_kmap != 0);
+	page = __jnode_get_page_locked(node, gfp_flags);
+	if (unlikely(IS_ERR(page)))
+		return PTR_ERR(page);
 
-	ret = jnode_ops(node)->parse(node);
-	if (likely(ret != -EIO))
-		return ret;
-	/*
-	 * restart IO against replicas and parse the
-	 * results
-	 */
-	orig = jnode_get_subvol(node);
-	/*
-	 * Here we should unlock jnode before acquiring
-	 * page lock (to comply lock ordering).
-	 * Also jnode_start_read() takes the jnode lock
-	 */
 	spin_unlock_jnode(node);
-	for_each_replica(orig->id, rep_id) {
-		struct page *page = jnode_page(node);
 
-		node->subvol = current_mirror(orig->id, rep_id);
-
-		kunmap(page);
-		lock_page(page);
-		ClearPageUptodate(page);
+	for_each_mirror(orig->id, mirr_id) {
+		node->subvol = current_mirror(orig->id, mirr_id);
+		if (!first_iter)
+			lock_page(page);
+		first_iter = 0;
 		ret = jnode_start_read(node, page);
 		if (unlikely(ret != 0))
 			break;
-
 		wait_on_page_locked(page);
 		if (unlikely(!PageUptodate(page))) {
+			warning("edward-1810", "Can't load block %llu on %s.",
+				*jnode_get_block(node),
+				node->subvol->name);
 			ret = RETERR(-EIO);
-			break;
+			goto load_from_replica;
 		}
-		kmap(page);
+		node->data = kmap(page);
 		ret = jnode_ops(node)->parse(node);
 		if (likely(ret == 0))
 			break;
+		ret = RETERR(-EIO);
+		warning("edward-1811", "Block %llu on %s looks corrupted.\n",
+		       *jnode_get_block(node),
+		       node->subvol->name);
+		ClearPageUptodate(page);
+		kunmap(page);
+	load_from_replica:
+		if (mirr_id < current_num_replicas(orig->id))
+			notice("edward-1812",
+			       "Loading from replica device %s.",
+			       current_mirror(orig->id,
+					      mirr_id + 1)->name);
 	}
+	/*
+	 * TODO: Correct "fixable" errors here (the case of failed parsing).
+	 * That is, issue read IOs with correct content against devices with
+	 * "problematic" blocks.
+	 */
 	spin_lock_jnode(node);
-
+	/*
+	 * set back the original subvolume
+	 */
 	node->subvol = orig;
+	if (ret == 0 && !do_kmap)
+		kunmap(page);
 	return ret;
 }
 
 /**
- * Verify validness of jnode content.
+ * Check if someone has already started to load @node.
+ * If so, then wait for completion and return the result of that attempt
+ * of loading. Otherwise, try to load it by yourself.
  */
-static inline int jparse(jnode *node, int do_kmap)
+static int jload_gfp_failover(jnode *node, gfp_t gfp_flags, int do_kmap)
 {
 	int result;
 
 	assert("nikita-2466", node != NULL);
 
 	spin_lock_jnode(node);
-	if (likely(!jnode_is_parsed(node))) {
-		result = __jparse(node, do_kmap);
+
+	if (JF_ISSET(node, JNODE_LOADING_IN_PROGRESS)) {
+		spin_unlock_jnode(node);
+		wait_event(node->wait_jload,
+			   !JF_ISSET(node, JNODE_LOADING_IN_PROGRESS));
+		spin_lock_jnode(node);
+
+		if (likely(JF_ISSET(node, JNODE_PARSED)))
+			result = 0;
+		else {
+			BUG_ON(!JF_ISSET(node, JNODE_PARSING_FAILED));
+			result = RETERR(-EIO);
+		}
+	}
+	else if (JF_ISSET(node, JNODE_PARSED))
+		result = 0;
+	else if (JF_ISSET(node, JNODE_PARSING_FAILED))
+		result = RETERR(-EIO);
+	else {
+		JF_SET(node, JNODE_LOADING_IN_PROGRESS);
+		result = __jload_gfp_failover(node, gfp_flags, do_kmap);
 		if (likely(result == 0))
 			JF_SET(node, JNODE_PARSED);
-	} else
-		result = 0;
+		else
+			JF_SET(node, JNODE_PARSING_FAILED);
+		JF_CLR(node, JNODE_LOADING_IN_PROGRESS);
+		wake_up(&node->wait_jload);
+	}
+
 	spin_unlock_jnode(node);
 	return result;
 }
 
-/* Lock a page attached to jnode, create and attach page to jnode if it had no
- * one. */
-static struct page *jnode_get_page_locked(jnode * node, gfp_t gfp_flags)
+/**
+ * Lock a page attached to jnode, create and attach page to jnode
+ * if it had no one.
+ *
+ * Pre-condition: @node is spin-locked
+ */
+static struct page *__jnode_get_page_locked(jnode * node, gfp_t gfp_flags)
 {
-	struct page *page;
-
-	spin_lock_jnode(node);
-	page = jnode_page(node);
+	struct page *page = jnode_page(node);
 
 	if (page == NULL) {
 		spin_unlock_jnode(node);
 		page = find_or_create_page(jnode_get_mapping(node),
 					   jnode_get_index(node), gfp_flags);
-		if (page == NULL)
+		if (page == NULL) {
+			spin_lock_jnode(node);
 			return ERR_PTR(RETERR(-ENOMEM));
-	} else {
-		if (trylock_page(page)) {
-			spin_unlock_jnode(node);
-			return page;
 		}
+	} else {
+		if (trylock_page(page))
+			return page;
 		get_page(page);
 		spin_unlock_jnode(node);
 		lock_page(page);
 		assert("nikita-3134", page->mapping == jnode_get_mapping(node));
 	}
-
 	spin_lock_jnode(node);
 	if (!jnode_page(node))
 		jnode_attach_page(node, page);
-	spin_unlock_jnode(node);
-
 	put_page(page);
 	assert("zam-894", jnode_page(node) == page);
+	return page;
+}
+
+static struct page *jnode_get_page_locked(jnode *node, gfp_t gfp_flags)
+{
+	struct page *page;
+
+	spin_lock_jnode(node);
+	page = __jnode_get_page_locked(node, gfp_flags);
+	spin_unlock_jnode(node);
 	return page;
 }
 
@@ -920,18 +979,22 @@ static void check_jload(jnode * node, struct page *page)
 #define check_jload(node, page) noop
 #endif
 
-/* prefetch jnode to speed up next call to jload. Call this when you are going
+/**
+ * prefetch jnode to speed up next call to jload. Call this when you are going
  * to call jload() shortly. This will bring appropriate portion of jnode into
- * CPU cache. */
+ * CPU cache
+ */
 void jload_prefetch(jnode * node)
 {
 	prefetchw(&node->x_count);
 }
 
-/* load jnode's data into memory */
-int jload_gfp(jnode * node /* node to load */ ,
+/**
+ * Load jnode's data into memory
+ */
+int jload_gfp(jnode *node /* node to load */ ,
 	      gfp_t gfp_flags /* allocation flags */ ,
-	      int do_kmap/* true if page should be kmapped */)
+	      int do_kmap /* true if page should be kmapped */)
 {
 	struct page *page;
 	int result = 0;
@@ -940,10 +1003,10 @@ int jload_gfp(jnode * node /* node to load */ ,
 	assert("nikita-3010", reiser4_schedulable());
 
 	prefetchw(&node->pg);
-
-	/* taking d-reference implies taking x-reference. */
+	/*
+	 * taking d-reference implies taking x-reference
+	 */
 	jref(node);
-
 	/*
 	 * acquiring d-reference to @jnode and check for JNODE_PARSED bit
 	 * should be atomic, otherwise there is a race against
@@ -955,51 +1018,29 @@ int jload_gfp(jnode * node /* node to load */ ,
 	spin_unlock(&(node->load));
 
 	if (unlikely(!parsed)) {
-		page = jnode_get_page_locked(node, gfp_flags);
-		if (unlikely(IS_ERR(page))) {
-			result = PTR_ERR(page);
-			goto failed;
-		}
-
-		result = jnode_start_read(node, page);
+		result = jload_gfp_failover(node, gfp_flags, do_kmap);
 		if (unlikely(result != 0))
 			goto failed;
-
-		wait_on_page_locked(page);
-		if (unlikely(!PageUptodate(page))) {
-			result = RETERR(-EIO);
-			goto failed;
-		}
-
-		if (do_kmap)
-			node->data = kmap(page);
-
-		result = jparse(node, do_kmap);
-		if (unlikely(result != 0)) {
-			if (do_kmap)
-				kunmap(page);
-			goto failed;
-		}
-		check_jload(node, page);
+		page = jnode_page(node);
 	} else {
 		page = jnode_page(node);
-		check_jload(node, page);
 		if (do_kmap)
 			node->data = kmap(page);
 	}
+	check_jload(node, page);
 
 	if (!is_writeout_mode())
-		/* We do not mark pages active if jload is called as a part of
+		/*
+		 * We do not mark pages active if jload is called as a part of
 		 * jnode_flush() or reiser4_write_logs().  Both jnode_flush()
 		 * and write_logs() add no value to cached data, there is no
 		 * sense to mark pages as active when they go to disk, it just
 		 * confuses vm scanning routines because clean page could be
 		 * moved out from inactive list as a result of this
-		 * mark_page_accessed() call. */
+		 * mark_page_accessed() call.
+		 */
 		mark_page_accessed(page);
-
 	return 0;
-
 failed:
 	jrelse_tail(node);
 	return result;
