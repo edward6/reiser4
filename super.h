@@ -484,6 +484,11 @@ static inline u32 current_num_mirrors(u32 orig_id)
 	     _mirr_id < current_num_mirrors(_orig_id);			\
 	     _mirr_id ++)
 
+#define __for_each_mirror(_orig, _mirr_id)				\
+	for (_mirr_id = 0;						\
+	     _mirr_id < subvol_num_mirrors(_orig);			\
+	     _mirr_id ++)
+
 #define __for_each_replica(_orig, _mirr_id)				\
 	for (_mirr_id = 1;						\
 	     _mirr_id < subvol_num_mirrors(_orig);			\

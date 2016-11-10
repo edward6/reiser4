@@ -811,10 +811,11 @@ static int __jload_gfp_failover(jnode *node,
 
 	spin_unlock_jnode(node);
 
-	for_each_mirror(orig->id, mirr_id) {
-		node->subvol = current_mirror(orig->id, mirr_id);
-		if (!first_iter)
+	__for_each_mirror(orig, mirr_id) {
+		if (!first_iter) {
 			lock_page(page);
+			node->subvol = current_mirror(orig->id, mirr_id);
+		}
 		first_iter = 0;
 		ret = jnode_start_read(node, page);
 		if (unlikely(ret != 0))
@@ -838,7 +839,7 @@ static int __jload_gfp_failover(jnode *node,
 		ClearPageUptodate(page);
 		kunmap(page);
 	load_from_replica:
-		if (mirr_id < current_num_replicas(orig->id))
+		if (mirr_id < orig->num_replicas)
 			notice("edward-1812",
 			       "Loading from replica device %s.",
 			       current_mirror(orig->id,
