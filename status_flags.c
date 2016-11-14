@@ -58,8 +58,8 @@ int reiser4_status_init(reiser4_subvol *subv, reiser4_block_nr block)
 		return -ENOMEM;
 	}
 	lock_page(page);
-	submit_bio(READ, bio);
-	//blk_flush_plug(current);
+	bio_set_op_attrs(bio, READ, 0);
+	submit_bio(bio);
 	wait_on_page_locked(page);
 	if (!PageUptodate(page)) {
 		warning("green-2007",
@@ -157,11 +157,15 @@ int reiser4_status_write(reiser4_subvol *subv,
 	bio->bi_iter.bi_size = sb->s_blocksize;
 	bio->bi_end_io = reiser4_status_endio;
 	lock_page(subv->status_page); /* Safe as nobody should touch our page */
-	/* We can block now, but we have no other choice anyway */
-	submit_bio(WRITE, bio);
-	//blk_flush_plug(current);
-	/* We do not wait for io to finish. */
-	return 0;
+	/*
+	 * We can block now, but we have no other choice anyway
+	 */
+	bio_set_op_attrs(bio, WRITE, 0);
+	submit_bio(bio);
+	/*
+	 * We do not wait for IO completon
+	 */
+	return 0;	
 }
 
 /* Frees the page with status and bio structure. Should be called by disk format

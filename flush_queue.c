@@ -417,7 +417,7 @@ static void end_io_handler(struct bio *bio)
 	int nr_errors = 0;
 	flush_queue_t *fq;
 
-	assert("zam-958", bio->bi_rw & WRITE);
+	assert("zam-958", bio_op(bio) == WRITE);
 	/*
 	 * We expect that bio->private is set to NULL, or
 	 * to fq object which is used for synchronization

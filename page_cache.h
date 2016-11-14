@@ -16,8 +16,6 @@
 extern int reiser4_init_formatted_fake(struct super_block *);
 extern void reiser4_done_formatted_fake(struct super_block *);
 
-#define reiser4_submit_bio(rw, bio) submit_bio((rw), (bio))
-
 extern void reiser4_wait_page_writeback(struct page *);
 static inline void lock_and_wait_page_writeback(struct page *page)
 {
