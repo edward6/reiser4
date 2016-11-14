@@ -398,7 +398,8 @@ int reiser4_page_io(struct page *page, jnode *node, int rw, gfp_t gfp)
 			set_page_writeback(page);
 			unlock_page(page);
 		}
-		reiser4_submit_bio(rw, bio);
+		bio_set_op_attrs(bio, rw, 0);
+		submit_bio(bio);
 		result = 0;
 	} else {
 		unlock_page(page);
