@@ -447,11 +447,8 @@ void __reiser4_deactivate_volume(struct super_block *super)
 	}
 	free_subvols_set(vol);
 	vol->num_sgs_bits = 0;
-	vol->stripe_size_bits = 0;
 	vol->num_meta_subvols = 0;
 	vol->num_origins = 0;
-	vol->dist_plug = NULL;
-	vol->vol_plug = NULL;
 
 	list_for_each_entry(subv, &vol->subvols_list, list) {
 		assert("edward-1763", !subvol_is_set(subv, SUBVOL_ACTIVATED));
