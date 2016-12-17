@@ -444,7 +444,7 @@ int reiser4_setattr_common(struct dentry *dentry, struct iattr *attr)
 	int result;
 
 	inode = dentry->d_inode;
-	setattr_prepare(dentry, attr);
+	result = setattr_prepare(dentry, attr);
 	if (result)
 		return result;
 
