@@ -244,7 +244,7 @@ year old --- define all technical terms used.
 #include <linux/writeback.h>
 #include <linux/swap.h>		/* for totalram_pages */
 
-static void atom_free(txn_atom * atom);
+static void free_atom(txn_atom * atom);
 
 static int commit_txnh(txn_handle * txnh);
 
@@ -380,13 +380,12 @@ static int txnh_isclean(txn_handle * txnh)
 #endif
 
 /* Initialize an atom. */
-static int atom_init(txn_atom * atom)
+static void init_atom(txn_atom * atom)
 {
 	int level;
 
 	assert("umka-173", atom != NULL);
-
-	memset(atom, 0, sizeof(txn_atom));
+	assert("edward-1813", atom->nr_blocks_allocated != NULL);
 
 	atom->stage = ASTAGE_FREE;
 	atom->start_time = jiffies;
@@ -406,16 +405,9 @@ static int atom_init(txn_atom * atom)
 	INIT_LIST_HEAD(&atom->fwaitfor_list);
 	INIT_LIST_HEAD(&atom->fwaiting_list);
 	atom_dset_init(atom);
-	atom->nr_blocks_allocated = kzalloc(2 * current_num_origins() *
-					    sizeof(*atom->nr_blocks_allocated),
-					    GFP_KERNEL);
-	if (atom->nr_blocks_allocated == NULL)
-		return -ENOMEM;
 	atom->flush_reserved =
 		atom->nr_blocks_allocated + current_num_origins();
-
 	init_atom_fq_parts(atom);
-	return 0;
 }
 
 #if REISER4_DEBUG
@@ -690,11 +682,36 @@ void atom_dec_and_unlock(txn_atom * atom)
 			}
 		}
 		assert_spin_locked(&(mgr->tmgr_lock));
-		atom_free(atom);
+		free_atom(atom);
 		spin_unlock_txnmgr(mgr);
 	} else
 		spin_unlock_atom(atom);
 }
+
+static txn_atom *__alloc_atom(void)
+{
+	txn_atom *atom;
+
+	atom = kmem_cache_alloc(_atom_slab, reiser4_ctx_gfp_mask_get());
+	if (atom == NULL)
+		return NULL;
+	memset(atom, 0, sizeof(txn_atom));
+	atom->nr_blocks_allocated = kzalloc(2 * current_num_origins() *
+					    sizeof(*atom->nr_blocks_allocated),
+					    GFP_KERNEL);
+	if (atom->nr_blocks_allocated == NULL) {
+		kmem_cache_free(_atom_slab, atom);
+		return NULL;
+	}
+	return atom;
+}
+
+static void __free_atom(txn_atom *atom)
+{
+	kfree(atom->nr_blocks_allocated);
+	kmem_cache_free(_atom_slab, atom);
+}
+
 
 /* Create new atom and connect it to given transaction handle.  This adds the
    atom to the transaction manager's list and sets its reference count to 1, an
@@ -703,7 +720,6 @@ void atom_dec_and_unlock(txn_atom * atom)
 
 static int atom_begin_and_assign_to_txnh(txn_atom ** atom_alloc, txn_handle * txnh)
 {
-	int ret;
 	txn_atom *atom;
 	txn_mgr *mgr;
 
@@ -711,17 +727,16 @@ static int atom_begin_and_assign_to_txnh(txn_atom ** atom_alloc, txn_handle * tx
 		warning("nikita-3366", "Creating atom on rofs");
 		dump_stack();
 	}
-
 	if (*atom_alloc == NULL) {
-		(*atom_alloc) = kmem_cache_alloc(_atom_slab,
-						 reiser4_ctx_gfp_mask_get());
+		*atom_alloc = __alloc_atom();
 
 		if (*atom_alloc == NULL)
 			return RETERR(-ENOMEM);
 	}
-
-	/* and, also, txnmgr spin lock should be taken before jnode and txnh
-	   locks. */
+	/*
+	 * and, also, txnmgr spin lock should be taken
+	 * before jnode and txnh locks
+	 */
 	mgr = &get_super_private(reiser4_get_current_sb())->tmgr;
 	spin_lock_txnmgr(mgr);
 	spin_lock_txnh(txnh);
@@ -740,13 +755,8 @@ static int atom_begin_and_assign_to_txnh(txn_atom ** atom_alloc, txn_handle * tx
 	atom = *atom_alloc;
 	*atom_alloc = NULL;
 
-	ret = atom_init(atom);
-	if (ret) {
-		kmem_cache_free(_atom_slab, atom);
-		return RETERR(-ENOMEM);
-	}
+	init_atom(atom);
 	assert("jmacd-17", atom_isclean(atom));
-
         /*
 	 * lock ordering is broken here. It is ok, as long as @atom is new
 	 * and inaccessible for others. We can't use spin_lock_atom or
@@ -803,7 +813,7 @@ static int atom_pointer_count(const txn_atom * atom)
  * Called holding the atom lock, this removes the atom
  * from the transaction manager list and frees it
  */
-static void atom_free(txn_atom * atom)
+static void free_atom(txn_atom * atom)
 {
 	txn_mgr *mgr = &get_super_private(reiser4_get_current_sb())->tmgr;
 
@@ -826,8 +836,7 @@ static void atom_free(txn_atom * atom)
 
 	spin_unlock_atom(atom);
 
-	kfree(atom->nr_blocks_allocated);
-	kmem_cache_free(_atom_slab, atom);
+	__free_atom(atom);
 }
 
 static int atom_is_dotard(const txn_atom * atom)
@@ -2067,16 +2076,15 @@ int reiser4_try_capture(jnode *node, znode_lock_mode lock_mode,
 		 */
 		goto repeat;
 	}
-
-	/* free extra atom object that was possibly allocated by
-	   try_capture_block().
-
-	   Do this before acquiring jnode spin lock to
-	   minimize time spent under lock. --nikita */
-	if (atom_alloc != NULL) {
-		kmem_cache_free(_atom_slab, atom_alloc);
-	}
-
+	/*
+	 * free extra atom object that was possibly allocated by
+	 * try_capture_block().
+	 *
+	 * Do this before acquiring jnode spin lock to
+	 * minimize time spent under lock. --nikita
+	 */
+	if (atom_alloc != NULL)
+		__free_atom(atom_alloc);
 	if (ret != 0) {
 		if (ret == -E_BLOCK) {
 			assert("nikita-3360",
