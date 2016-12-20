@@ -298,9 +298,11 @@ static int try_init_format40(struct super_block *super,
 	if (result == REISER4_STATUS_MOUNT_WARN)
 		notice("vpf-1363", "Warning: mounting %s with errors.",
 		       super->s_id);
-	if (result == REISER4_STATUS_MOUNT_RO)
+	if (result == REISER4_STATUS_MOUNT_RO) {
 		notice("vpf-1364", "Warning: mounting %s with fatal errors,"
 		       " forcing read-only mount.", super->s_id);
+		super->s_flags |= MS_RDONLY;
+	}
 	result = reiser4_journal_replay(super);
 	if (result)
 		return result;
@@ -372,11 +374,11 @@ static int try_init_format40(struct super_block *super,
 	reiser4_set_block_count(super, get_format40_block_count(sb_copy));
 	sbinfo->blocks_free = get_format40_free_blocks(sb_copy);
 	sbinfo->version = get_format40_version(sb_copy);
-	kfree(sb_copy);
 
 	if (update_backup_version(sb_copy))
 		printk("reiser4: %s: use 'fsck.reiser4 --fix' "
 		       "to complete disk format upgrade.\n", super->s_id);
+	kfree(sb_copy);
 
 	sbinfo->fsuid = 0;
 	sbinfo->fs_flags |= (1 << REISER4_ADG);	/* hard links for directories
