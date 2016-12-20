@@ -368,10 +368,11 @@ int try_init_format40(struct super_block *super,
 		warning("vpf-1363", "Mounting %s with errors.",
 			super->s_id);
 
-	if (result == REISER4_STATUS_MOUNT_RO)
+	if (result == REISER4_STATUS_MOUNT_RO) {
 		warning("vpf-1364", "Mounting %s with fatal errors. "
 			"Forcing read-only mount.", super->s_id);
-
+		super->s_flags |= MS_RDONLY;
+	}
 	if (has_replicas(subv) &&
 	    extended_status == REISER4_ESTATUS_MIRRORS_NOT_SYNCED)
 		warning("edward-1792",
