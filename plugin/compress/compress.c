@@ -214,7 +214,7 @@ static int lzo1_init(void)
 
 static int lzo1_overrun(unsigned in_len)
 {
-	return in_len / 64 + 16 + 3;
+	return in_len / 16 + 64 + 3;
 }
 
 static coa_t lzo1_alloc(tfm_action act)
