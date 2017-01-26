@@ -1829,6 +1829,12 @@ int reiser4_subvol_init_tree(struct super_block *super,
 	assert("nikita-308", height > 0);
 	assert("nikita-309", nplug != NULL);
 	assert("zam-587", super != NULL);
+	assert("edward-171", get_current_context() != NULL);
+	/*
+	 * We'll perform costly memory allocations for znode hash table, etc.
+	 * So, set proper allocation flags
+	 */
+	get_current_context()->gfp_mask |= (__GFP_NOWARN | __GFP_REPEAT);
 
 	tree->subvol = subv;
 	/*
