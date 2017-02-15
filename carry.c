@@ -198,6 +198,7 @@ int reiser4_carry(carry_level * doing /* set of carry operations to be
 				       * NULL in most cases */)
 {
 	int result = 0;
+	gfp_t old_mask;
 	/* queue of new requests */
 	carry_level *todo;
 	ON_DEBUG(STORE_COUNTERS);
@@ -211,6 +212,14 @@ int reiser4_carry(carry_level * doing /* set of carry operations to be
 	/* queue of requests preformed on the previous level */
 	done = todo + 1;
 	init_carry_level(done, doing->pool);
+	/*
+	 * NOTE: We are not allowed to fail in the loop below.
+	 * Incomplete carry (even if carry_on_level is complete)
+	 * can leave the tree in an inconsistent state (broken
+	 * order of keys in a node, etc).
+	 */
+	old_mask = get_current_context()->gfp_mask;
+	get_current_context()->gfp_mask |= __GFP_NOFAIL;
 
 	/* iterate until there is nothing more to do */
 	while (result == 0 && doing->ops_num > 0) {
@@ -271,6 +280,7 @@ int reiser4_carry(carry_level * doing /* set of carry operations to be
 		/* give other threads chance to run */
 		reiser4_preempt_point();
 	}
+	get_current_context()->gfp_mask = old_mask;
 	done_carry_level(done);
 
 	/* all counters, but x_refs should remain the same. x_refs can change
