@@ -708,7 +708,7 @@ static int write_jnodes_to_disk_extent(
 	flush_queue_t *fq, int flags)
 {
 	struct super_block *super = reiser4_get_current_sb();
-	int op_flags = (flags & WRITEOUT_FLUSH_FUA) ? WRITE_FLUSH_FUA : 0;
+	int op_flags = (flags & WRITEOUT_FLUSH_FUA) ? REQ_PREFLUSH | REQ_FUA : 0;
 	jnode *cur = first;
 	reiser4_block_nr block;
 
