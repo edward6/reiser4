@@ -24,22 +24,31 @@ static LIST_HEAD(reiser4_volumes); /* list of registered volumes */
  * Distribution plugin defines distribution within a single group.
  */
 
+#define MAX_STRIPE_BITS (63)
+
 static struct reiser4_volume *reiser4_alloc_volume(u8 *uuid,
 						   int vol_pid,
 						   int dist_pid,
-						   int stripe_size_bits)
+						   int stripe_bits)
 {
 	struct reiser4_volume *vol;
 
+	if (stripe_bits != 0 &&
+	    stripe_bits < PAGE_SHIFT &&
+	    stripe_bits > MAX_STRIPE_BITS) {
+		warning("edward-1814",
+			"bad stripe_bits (%d)n", stripe_bits);
+		return NULL;
+	}
 	vol = kzalloc(sizeof(*vol), GFP_NOFS);
 	if (!vol)
 		return NULL;
 	memcpy(vol->uuid, uuid, 16);
 	INIT_LIST_HEAD(&vol->list);
 	INIT_LIST_HEAD(&vol->subvols_list);
-	vol->vol_plug = volume_plugin_by_id(vol_pid);
-	vol->dist_plug = distribution_plugin_by_id(dist_pid);
-	vol->stripe_size_bits = stripe_size_bits;
+	vol->vol_plug = volume_plugin_by_unsafe_id(vol_pid);
+	vol->dist_plug = distribution_plugin_by_unsafe_id(dist_pid);
+	vol->stripe_bits = stripe_bits;
 	return vol;
 }
 

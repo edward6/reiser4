@@ -104,12 +104,6 @@ extern void print_contexts(void);
 
 #define current_blocksize reiser4_get_current_sb()->s_blocksize
 #define current_blocksize_bits reiser4_get_current_sb()->s_blocksize_bits
-
-#define current_stripe_bits \
-	get_super_private(reiser4_get_current_sb())->vol->stripe_bits
-#define current_volume (get_current_super_private()->vol)
-#define current_stripe_bits \
-	get_super_private(reiser4_get_current_sb())->vol->stripe_bits
 #define current_aib \
 	get_super_private(reiser4_get_current_sb())->vol->aib
 #define current_tree(subvol_id) (&(current_origin(subvol_id)->tree))

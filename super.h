@@ -294,7 +294,7 @@ struct reiser4_volume {
 	struct list_head list;
 	u8 uuid[16]; /* volume id */
 	int num_sgs_bits; /* logarithm of number of hash space segments */
-	int stripe_size_bits; /* logarithm of stripe size */
+	int stripe_bits; /* logarithm of stripe size */
 	int num_meta_subvols; /* number of meta-data subvolumes */
 	u64 num_origins; /* number of original subvolumes (without mirrors) */
 	distribution_plugin *dist_plug;
@@ -405,6 +405,11 @@ static inline reiser4_super_info_data *get_current_super_private(void)
 	return get_super_private(reiser4_get_current_sb());
 }
 
+static inline reiser4_volume *current_volume(void)
+{
+	return get_current_super_private()->vol;
+}
+
 static inline struct formatted_ra_params *get_current_super_ra_params(void)
 {
 	return &(get_current_super_private()->ra_params);
@@ -423,16 +428,6 @@ static inline struct distribution_plugin *super_dist_plug(struct super_block *s)
 static inline struct distribution_plugin *current_dist_plug(void)
 {
 	return get_current_super_private()->vol->dist_plug;
-}
-
-static inline int current_stripe_size_bits(void)
-{
-	return current_volume->stripe_size_bits;
-}
-
-static inline __u64 current_stripe_size(void)
-{
-	return 1 << current_stripe_size_bits();
 }
 
 static inline struct reiser4_subvol *current_mirror(u32 id,
@@ -468,6 +463,13 @@ static inline u32 current_num_mirrors(u32 orig_id)
 {
 	return 1 + current_num_replicas(orig_id);
 }
+
+#define current_stripe_bits (current_volume()->stripe_bits)
+#define current_stripe_size (1 << current_stripe_bits)
+#define current_stripe_blocks \
+	(1 << (current_stripe_bits - current_blocksize_bits))
+#define is_stripe_boundary(off)	\
+	((current_stripe_bits != 0) && (off & (current_stripe_size - 1)) == 0)
 
 #define for_each_origin(_subv_id)					\
 	for (_subv_id = 0;						\
@@ -570,17 +572,17 @@ static inline reiser4_subvol *subvol_for_system(void)
 static inline reiser4_subvol *subvol_for_data(const struct inode *inode,
 					      loff_t offset)
 {
-	return current_origin(current_volume->vol_plug->data_subvol_id());
+	return current_origin(current_volume()->vol_plug->data_subvol_id());
 }
 
 static inline reiser4_subvol *__subvol_for_meta(oid_t oid)
 {
-	return current_origin(current_volume->vol_plug->meta_subvol_id());
+	return current_origin(current_volume()->vol_plug->meta_subvol_id());
 }
 
 static inline reiser4_subvol *subvol_for_meta(const struct inode *inode)
 {
-	return current_origin(current_volume->vol_plug->meta_subvol_id());
+	return current_origin(current_volume()->vol_plug->meta_subvol_id());
 }
 
 static inline reiser4_subvol *subvol_by_coord(const coord_t *coord)

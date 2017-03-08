@@ -982,7 +982,7 @@ void all_grabbed2free(void)
 		return;
 	}
 	for_each_origin(subv_id) {
-		if (current_volume->subvols == NULL)
+		if (current_volume()->subvols == NULL)
 			break;
 		if (current_origin(subv_id) == NULL)
 			continue;

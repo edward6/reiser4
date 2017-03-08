@@ -281,7 +281,7 @@ int item_is_statdata(const coord_t * item)
 
 int item_is_ctail(const coord_t * item)
 {
-	assert("edward-xx", coord_is_existing_item(item));
+	assert("edward-1816", coord_is_existing_item(item));
 	return item_id_by_coord(item) == CTAIL_ID;
 }
 

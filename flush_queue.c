@@ -534,7 +534,7 @@ int reiser4_write_fq(flush_queue_t *fq, long *nr_submitted, int flags)
 	int ret;
 	txn_atom *atom;
 	u32 mirr_id;
-	const u32 meta_id = current_volume->vol_plug->meta_subvol_id();
+	const u32 meta_id = current_volume()->vol_plug->meta_subvol_id();
 
 	while (1) {
 		atom = atom_locked_by_fq(fq);

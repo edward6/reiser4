@@ -70,7 +70,7 @@ typedef struct reiser4_master_sb {
 	d16 num_replicas;       /* number of replicas of an original subvolume.
 				   Original is a mirror with id=0, other mirrors
 				   (if any) are called replicas */
-	char stripe_size_bits;  /* logarithm of stripe size (per volume) */
+	char stripe_bits;       /* logarithm of stripe size (per volume) */
 } reiser4_master_sb;
 
 static inline u16 master_get_block_size(reiser4_master_sb *master)
@@ -105,7 +105,7 @@ static inline u16 master_get_num_replicas(reiser4_master_sb *master)
 
 static inline char master_get_stripe_bits(reiser4_master_sb *master)
 {
-	return master->stripe_size_bits;
+	return master->stripe_bits;
 }
 
 /* __FS_REISER4_DFORMAT_H__ */

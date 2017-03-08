@@ -389,12 +389,21 @@ int split_allocated_extent(coord_t *coord, reiser4_block_nr pos_in_unit)
 static int try_to_merge_with_left(coord_t *coord, reiser4_extent *ext,
 		       reiser4_extent *replace)
 {
+	reiser4_key key;
+
 	assert("vs-1415", extent_by_coord(coord) == ext);
 
 	if (coord->unit_pos == 0 ||
 	    state_of_extent(ext - 1) != ALLOCATED_EXTENT)
 		/*
-		 * @ext either does not exist or is not allocated extent
+		 * left neighbor of @ext either does not exist
+		 * or is not allocated extent
+		 */
+		return 0;
+	unit_key_by_coord(coord, &key);
+	if (is_stripe_boundary(get_key_offset(&key)))
+		/*
+		 * can not merge at stripe boundary
 		 */
 		return 0;
 	if (extent_get_start(ext - 1) + extent_get_width(ext - 1) !=
@@ -465,11 +474,12 @@ int convert_extent(coord_t *coord, reiser4_extent *replace)
 	assert("vs-1459", width >= new_width);
 
 	if (try_to_merge_with_left(coord, ext, replace)) {
-		/* merged @replace with left neighbor. Current unit is either
-		   removed or narrowed */
+		/*
+		 * @replace was merged with left neighbor.
+		 * Current unit is either removed or narrowed
+		 */
 		return 0;
 	}
-
 	if (width == new_width) {
 		/* replace current extent with @replace */
 		*ext = *replace;
@@ -651,11 +661,13 @@ int put_unit_to_end(znode *node,
 		result =
 		    insert_by_coord(&coord, init_new_extent(&data, copy_ext, 1),
 				    key, NULL /*lh */ , flags);
-
 	} else {
-		/* try to glue with last unit */
+		/*
+		 * try to glue with last unit
+		 */
 		last_ext = extent_by_coord(&coord);
-		if (state_of_extent(last_ext) &&
+		if (!is_stripe_boundary(get_key_offset(key)) &&
+		    state_of_extent(last_ext) &&
 		    extent_get_start(last_ext) + extent_get_width(last_ext) ==
 		    extent_get_start(copy_ext)) {
 			/* widen last unit of node */
@@ -665,14 +677,14 @@ int put_unit_to_end(znode *node,
 			znode_make_dirty(node);
 			return 0;
 		}
-
-		/* FIXME: put an assertion here that we can not merge last unit in @node and new unit */
-		result =
-		    insert_into_item(&coord, NULL /*lh */ , key,
-				     init_new_extent(&data, copy_ext, 1),
-				     flags);
+		/*
+		 * FIXME: put an assertion here that we can not
+		 * merge last unit in @node and new unit
+		 */
+		result = insert_into_item(&coord, NULL /*lh */, key,
+					  init_new_extent(&data, copy_ext, 1),
+					  flags);
 	}
-
 	assert("vs-438", result == 0 || result == -E_NODE_FULL);
 	return result;
 }
