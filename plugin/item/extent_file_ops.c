@@ -161,7 +161,7 @@ static int append_hole(coord_t *coord, lock_handle *lh,
 	hole_width = ((get_key_offset(key) - get_key_offset(&append_key) +
 		       current_blocksize - 1) >> current_blocksize_bits);
 
-	if (current_stripe_bits) {
+	if (0) {
 		/*
 		 * respect stripes
 		 */
@@ -387,7 +387,7 @@ static int insert_first_hole(coord_t *coord, lock_handle *lh,
 	hole_width = ((get_key_offset(key) + current_blocksize - 1) >>
 		      current_blocksize_bits);
 	/* respect stripes */
-	if (current_stripe_bits && hole_width > current_stripe_blocks)
+	if (0 && hole_width > current_stripe_blocks)
 		hole_width = current_stripe_blocks;
 	assert("vs-710", hole_width > 0);
 	/*
@@ -499,6 +499,14 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	return count;
 }
 
+#define BLOCK_LEFT_MERGEABLE(__off)					\
+	((current_stripe_bits == 0) ||					\
+	 ((__off & (current_stripe_size - 1)) != 0))
+
+#define BLOCK_RIGHT_MERGEABLE(__off)					\
+	((current_stripe_bits == 0) ||					\
+	 (((__off + current_blocksize) & (current_stripe_size - 1)) != 0))
+
 /**
  * plug_hole - replace hole extent with unallocated and holes
  * @uf_coord:
@@ -543,7 +551,8 @@ static int plug_hole(uf_coord_t *uf_coord, const reiser4_key *key, int *how)
 		/* we deal with first element of extent */
 		if (coord->unit_pos) {
 			/* there is an extent to the left */
-			if (state_of_extent(ext - 1) == UNALLOCATED_EXTENT) {
+			if ((state_of_extent(ext - 1) == UNALLOCATED_EXTENT) &&
+			    BLOCK_LEFT_MERGEABLE(get_key_offset(key))) {
 				/*
 				 * left neighboring unit is an unallocated
 				 * extent. Increase its width and decrease
@@ -580,7 +589,8 @@ static int plug_hole(uf_coord_t *uf_coord, const reiser4_key *key, int *how)
 		/* we deal with last element of extent */
 		if (coord->unit_pos < nr_units_extent(coord) - 1) {
 			/* there is an extent unit to the right */
-			if (state_of_extent(ext + 1) == UNALLOCATED_EXTENT) {
+			if ((state_of_extent(ext + 1) == UNALLOCATED_EXTENT) &&
+			    BLOCK_RIGHT_MERGEABLE(get_key_offset(key))) {
 				/*
 				 * right neighboring unit is an unallocated
 				 * extent. Increase its width and decrease
