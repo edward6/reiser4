@@ -10,6 +10,7 @@
 #include "../../debug.h"
 #include "../../super.h"
 #include "../plugin.h"
+#include "volume.h"
 
 /*
  * This file describes format of Reiser5 Asymmetric Logical Volumes
@@ -44,14 +45,14 @@
  * . number of subvolumes of mixed type (w/ room for data).
  */
 
-static u64 subvol_cap(void *data, u64 index)
+static u64 subvol_cap_get(void *data, u64 index)
 {
 	struct reiser4_volume *vol = data;
 
 	return vol->subvols[index][0]->dev_cap;
 }
 
-static void *subvol_fib(void *data, u64 index)
+static void *subvol_fib_get(void *data, u64 index)
 {
 	struct reiser4_volume *vol = data;
 
@@ -121,19 +122,37 @@ static int subvol_del(void *data, u64 index)
 	return 0;
 }
 
-static u32 sys_subvol_id_triv(void)
+static u64 sys_subvol_id_triv(void)
 {
-	return 0;
+	return METADATA_SUBVOL_ID;
 }
 
-static u32 meta_subvol_id_triv(void)
+static u64 meta_subvol_id_triv(void)
 {
-	return 0;
+	return METADATA_SUBVOL_ID;
 }
 
-static u32 data_subvol_id_triv(void)
+static u64 data_subvol_id_triv(const struct inode *inode,
+			       loff_t stripe_idx)
 {
-	return 0;
+	return METADATA_SUBVOL_ID;
+}
+
+static u64 data_subvol_id_asym(const struct inode *inode,
+			       loff_t data_offset)
+{
+	reiser4_volume *vol;
+	distribution_plugin *dist_plug;
+	u64 stripe_idx;
+
+	vol = current_volume();
+	dist_plug = current_dist_plug();
+	stripe_idx = data_offset >> current_stripe_bits;
+
+	return dist_plug->lookup_bucket(vol->aid,
+					(const char *)&stripe_idx,
+					sizeof(stripe_idx),
+					(u32)(inode->i_ino));
 }
 
 volume_plugin volume_plugins[LAST_VOLUME_ID] = {
@@ -149,11 +168,11 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		.sys_subvol_id = sys_subvol_id_triv,
 		.meta_subvol_id = meta_subvol_id_triv,
 		.data_subvol_id = data_subvol_id_triv,
-		.aib_ops = {
-			.bucket_cap = NULL,
+		.aid_ops = {
 			.bucket_add = NULL,
 			.bucket_del = NULL,
-			.bucket_fib = NULL,
+			.bucket_cap_get = NULL,
+			.bucket_fib_get = NULL,
 			.bucket_fib_set = NULL,
 			.bucket_fib_lenp = NULL
 		}
@@ -167,11 +186,14 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 			.desc = "Asymmetric Logical Volume",
 			.linkage = {NULL, NULL}
 		},
-		.aib_ops = {
-			.bucket_cap = subvol_cap,
+		.sys_subvol_id = sys_subvol_id_triv,
+		.meta_subvol_id = meta_subvol_id_triv,
+		.data_subvol_id = data_subvol_id_asym,
+		.aid_ops = {
 			.bucket_add = subvol_add,
 			.bucket_del = subvol_del,
-			.bucket_fib = subvol_fib,
+			.bucket_cap_get = subvol_cap_get,
+			.bucket_fib_get = subvol_fib_get,
 			.bucket_fib_set = subvol_fib_set,
 			.bucket_fib_lenp = subvol_fib_lenp
 		}

@@ -540,19 +540,19 @@ typedef struct txmod_plugin {
 				reiser4_key *stop_key); // was_squalloc_extent
 } txmod_plugin;
 
-struct reiser4_aib_ops {
-	/* Capacity of a bucket of index @idx */
-	u64 (*bucket_cap)(void *buckets, u64 idx);
+struct reiser4_aid_ops {
 	/* Add a @new bucket */
 	int (*bucket_add)(void *buckets, void *new);
 	/* Delete a bucket of index @idx */
 	int (*bucket_del)(void *buckets, u64 idx);
+	/* Get capacity of a bucket of index @idx */
+	u64 (*bucket_cap_get)(void *buckets, u64 idx);
 	/* Get fiber of a bucket of index @idx */
-	void *(*bucket_fib)(void *buckets, u64 idx);
+	void *(*bucket_fib_get)(void *buckets, u64 idx);
 	/* Set fiber @fib to a bucket of index @idx */
 	void (*bucket_fib_set)(void *buckets, u64 idx, void *fib);
 	/* Get a pointer to a variable which contains
-	   length of a bucket of index @idx */
+	   length of a fiber of index @idx */
 	u64 *(*bucket_fib_lenp)(void *buckets, u64 idx);
 };
 
@@ -561,19 +561,19 @@ typedef struct distribution_plugin {
 	plugin_header h;
 	/* size of segment in the hash space */
 	u32 seg_size;
-	/* init aib descriptor */
+	/* init aid descriptor */
 	int (*init)(void *buckets, u64 num_buckets, int num_sgs_bits,
-		    struct reiser4_aib_ops *ops, reiser4_aib **new);
-	/* release aib descriptor */
-	void (*done)(reiser4_aib *r);
+		    struct reiser4_aid_ops *ops, reiser4_aid **new);
+	/* release aid descriptor */
+	void (*done)(reiser4_aid *r);
 	/* return internal bucket id */
-	__u64 (*lookup_bucket)(reiser4_aib *r, const char *str,
+	__u64 (*lookup_bucket)(reiser4_aid *aid, const char *str,
 			       int len, u32 seed);
 	/* add bucket to the end of storage array */
-	int (*add_bucket)(reiser4_aib *r, void *new_one);
+	int (*add_bucket)(reiser4_aid *r, void *new_one);
 	/* remove bucket from the storage array */
-	int (*remove_bucket)(reiser4_aib *r, __u64 victim_pos);
-	int (*split)(reiser4_aib *r, __u32 factor);
+	int (*remove_bucket)(reiser4_aid *r, __u64 victim_pos);
+	int (*split)(reiser4_aid *r, __u32 factor);
 	/* pack and unpack fiber */
 	void (*pack)(char *to, void *from, u64 count);
 	void (*unpack)(void *to, char *from, u64 count);
@@ -584,10 +584,11 @@ typedef struct volume_plugin {
 	plugin_header h;
 	/* return id of subvolume for various system records:
 	   status records, blackbox items, etc */
-	u32 (*sys_subvol_id)(void);
-	u32 (*data_subvol_id)(void);
-	u32 (*meta_subvol_id)(void);
-	struct reiser4_aib_ops aib_ops;
+	u64 (*sys_subvol_id)(void);
+	u64 (*data_subvol_id)(const struct inode *inode,
+			      loff_t data_offset);
+	u64 (*meta_subvol_id)(void);
+	struct reiser4_aid_ops aid_ops;
 } volume_plugin;
 
 typedef struct hash_plugin {
@@ -895,6 +896,7 @@ typedef enum {
 /* builtin distribution plugins */
 typedef enum {
 	NONE_DISTRIB_ID, /* for simple volumes */
+	FSW32M_DISTRIB_ID,
 	LAST_DISTRIB_ID
 } reiser4_distribution_id;
 

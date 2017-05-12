@@ -61,7 +61,7 @@ typedef struct uf_coord uf_coord_t;
 typedef struct hint hint_t;
 
 typedef struct ktxnmgrd_context ktxnmgrd_context;
-typedef union reiser4_aib reiser4_aib;
+typedef union reiser4_aid reiser4_aid;
 typedef struct fnode fnode;
 
 struct inode;

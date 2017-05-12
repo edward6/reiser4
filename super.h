@@ -299,7 +299,7 @@ struct reiser4_volume {
 	u64 num_origins; /* number of original subvolumes (without mirrors) */
 	distribution_plugin *dist_plug;
 	volume_plugin *vol_plug;
-	reiser4_aib *aib; /* storage array descriptor */
+	reiser4_aid *aid; /* storage array descriptor */
 	struct list_head subvols_list;  /* list of registered subvolumes */
 	struct reiser4_subvol ***subvols; /* pointer to a table of activated
 					   * subvolumes, where:
@@ -572,7 +572,7 @@ static inline reiser4_subvol *subvol_for_system(void)
 static inline reiser4_subvol *subvol_for_data(const struct inode *inode,
 					      loff_t offset)
 {
-	return current_origin(current_volume()->vol_plug->data_subvol_id());
+	return current_origin(current_volume()->vol_plug->data_subvol_id(inode, offset));
 }
 
 static inline reiser4_subvol *__subvol_for_meta(oid_t oid)

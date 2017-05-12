@@ -163,7 +163,7 @@ static int reiser4_register_subvol(const char *path,
 
 static void reiser4_put_volume(struct reiser4_volume *vol)
 {
-	assert("edward-1740", vol->aib == NULL);
+	assert("edward-1740", vol->aid == NULL);
 	assert("edward-1741", vol->subvols == NULL);
 	kfree(vol);
 }
@@ -449,10 +449,10 @@ void __reiser4_deactivate_volume(struct super_block *super)
 	deactivate_subvolumes_of_type(super, REISER4_SUBV_OTHER);
 	deactivate_subvolumes_of_type(super, REISER4_SUBV_REPLICA);
 
-	if (vol->aib) {
+	if (vol->aid) {
 		assert("edward-1762", vol->dist_plug->done != NULL);
-		vol->dist_plug->done(vol->aib);
-		vol->aib = NULL;
+		vol->dist_plug->done(vol->aid);
+		vol->aid = NULL;
 	}
 	free_subvols_set(vol);
 	vol->num_sgs_bits = 0;
@@ -543,7 +543,7 @@ static int activate_subvolumes_of_type(struct super_block *super,
 	info = get_super_private(super);
 	info->vol = vol;
 
-	assert("edward-1768", vol->aib == NULL);
+	assert("edward-1768", vol->aid == NULL);
 
 	list_for_each_entry(subv, &vol->subvols_list, list) {
 		if (subvol_is_set(subv, SUBVOL_ACTIVATED))
@@ -571,14 +571,14 @@ static int activate_subvolumes_of_type(struct super_block *super,
 		vol->vol_plug = volume_plugin_by_id(TRIV_VOLUME_ID);
 	}
 	/*
-	 * initialize aib descriptor after activating all subvolumes
+	 * initialize aid descriptor after activating all subvolumes
 	 */
 	if (vol->dist_plug->init != NULL) {
 		ret = vol->dist_plug->init(vol,
 					   vol->num_origins,
 					   vol->num_sgs_bits,
-					   &vol->vol_plug->aib_ops,
-					   &vol->aib);
+					   &vol->vol_plug->aid_ops,
+					   &vol->aid);
 		if (ret) {
 			warning("edward-1770",
 				"(%s): failed to init distribution (%d)\n",
