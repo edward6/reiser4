@@ -15,7 +15,6 @@ struct fsw32_aid {
 	u32 nums_bits; /* logarithm of number of segments in the hash space) */
 	u32 *tab; /* system table */
 	u32 *weights; /* array of weights */
-	u64 *caps; /* array of capacities */
 	void *buckets; /* array of abstract buckets, i.e. the AID itself */
 	struct reiser4_aid_ops *ops;
 };

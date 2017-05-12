@@ -100,7 +100,7 @@ u32 *init_tab_from_scratch(u32 *weights, u32 numb, u32 nums_bits)
  */
 void normalize_vector(u32 num,
 		      void *vec,
-		      u64 (*vec_el_at)(void *vec, u32 idx),
+		      u64 (*vec_el_at)(void *vec, u64 idx),
 		      u32 sum, u32 *result)
 {
 	u32 i;
@@ -425,14 +425,13 @@ int fsw32_init(void *buckets,
 
 	aid = fsw32_private(*new);
 
-	aid->weights = mem_alloc(numb * 3 * WORDSIZE);
+	aid->weights = mem_alloc(numb * WORDSIZE);
 	if (!aid->weights)
 		goto error;
-	aid->caps = (u64 *)(aid->weights + numb);
 
 	/* set weights */
-	normalize_vector(numb, aid->caps,
-			 array64_el_at, nums, aid->weights);
+	normalize_vector(numb, aid->buckets,
+			 aid->ops->bucket_cap_get, nums, aid->weights);
 
 	for (i = 0; i < numb; i++)
 		assert("edward-1907",
@@ -475,7 +474,6 @@ int fsw32_add_bucket(reiser4_aid *data, void *bucket)
 {
 	int ret = 0;
 	u32 *new_weights;
-	u64 *new_caps;
 	u32 nums;
 	struct fsw32_aid *aid = fsw32_private(data);
 
@@ -491,12 +489,11 @@ int fsw32_add_bucket(reiser4_aid *data, void *bucket)
 		 */
 		return EINVAL;
 
-	new_weights = mem_alloc((aid->numb + 1) * 3 * WORDSIZE);
+	new_weights = mem_alloc((aid->numb + 1) * WORDSIZE);
 	if (!new_weights) {
 		ret = ENOMEM;
 		goto error;
 	}
-	new_caps = (u64 *)(new_weights + (aid->numb + 1));
 	/*
 	 * release old fibers
 	 */
@@ -509,10 +506,11 @@ int fsw32_add_bucket(reiser4_aid *data, void *bucket)
 	if (ret)
 		goto error;
 	/*
-	 * calculate new weights
+	 * calculate new weights.
+	 * Buckets set should be already updated
 	 */
-	normalize_vector(aid->numb + 1, new_caps,
-			 array64_el_at, nums, new_weights);
+	normalize_vector(aid->numb + 1, aid->buckets,
+			 aid->ops->bucket_cap_get, nums, new_weights);
 	/*
 	 * update system table
 	 */
@@ -534,7 +532,6 @@ int fsw32_add_bucket(reiser4_aid *data, void *bucket)
 
 	mem_free(aid->weights);
 	aid->weights = new_weights;
-	aid->caps = new_caps;
 	aid->numb += 1;
 	return 0;
 
@@ -552,7 +549,6 @@ int fsw32_remove_bucket(reiser4_aid *data, u64 victim_pos)
 	int ret = 0;
 	u32 nums;
 	u32 *new_weights;
-	u64 *new_caps;
 	struct fsw32_aid *aid = fsw32_private(data);
 
 	assert("edward-1908", aid->numb >= 1);
@@ -566,12 +562,11 @@ int fsw32_remove_bucket(reiser4_aid *data, u64 victim_pos)
 		return EINVAL;
 
 	nums = 1 << aid->nums_bits;
-	new_weights = mem_alloc((aid->numb - 1) * 3 * WORDSIZE);
+	new_weights = mem_alloc((aid->numb - 1) * WORDSIZE);
 	if (!new_weights) {
 		ret = ENOMEM;
 		goto error;
 	}
-	new_caps = (u64 *)(new_weights + (aid->numb - 1));
 	/*
 	 * release old fibers
 	 */
@@ -584,10 +579,11 @@ int fsw32_remove_bucket(reiser4_aid *data, u64 victim_pos)
 	if (ret)
 		goto error;
 	/*
-	 * calculate new weights
+	 * calculate new weights.
+	 * The set of buckets should be already updated
 	 */
-	normalize_vector(aid->numb - 1, new_caps,
-			 array64_el_at, nums, new_weights);
+	normalize_vector(aid->numb - 1, aid->buckets,
+			 aid->ops->bucket_cap_get, nums, new_weights);
 	/*
 	 * update system table
 	 */
@@ -609,7 +605,6 @@ int fsw32_remove_bucket(reiser4_aid *data, u64 victim_pos)
 
 	mem_free(aid->weights);
 	aid->weights = new_weights;
-	aid->caps = new_caps;
 	aid->numb -= 1;
 	return 0;
 
@@ -626,7 +621,6 @@ int fsw32_split(reiser4_aid *data, u32 fact_bits)
 {
 	int ret = 0;
 	u32 *new_weights;
-	u64 *new_caps;
 	u32 new_nums;
 	struct fsw32_aid *aid = fsw32_private(data);
 
@@ -635,22 +629,17 @@ int fsw32_split(reiser4_aid *data, u32 fact_bits)
 
 	new_nums = 1 << (aid->nums_bits + fact_bits);
 
-	new_weights = mem_alloc(WORDSIZE * 3 * aid->numb);
+	new_weights = mem_alloc(WORDSIZE * aid->numb);
 	if (!new_weights) {
 		ret = ENOMEM;
 		goto error;
 	}
 	/*
-	 * FIXME-EDWARD: Split procedure doesn't change
-	 * capacities, so this is suboptimal
-	 */
-	new_caps = (u64 *)(new_weights + aid->numb);
-	memcpy(new_caps, aid->caps, aid->numb);
-	/*
 	 * Calculate new weights
+	 * The set of buckets should be already updated
 	 */
-	normalize_vector(aid->numb, aid->caps,
-			 array64_el_at, new_nums, new_weights);
+	normalize_vector(aid->numb, aid->buckets,
+			 aid->ops->bucket_cap_get, new_nums, new_weights);
 	/*
 	 * Update table of partitions
 	 */
@@ -667,7 +656,6 @@ int fsw32_split(reiser4_aid *data, u32 fact_bits)
 		goto error;
 	mem_free(aid->weights);
 	aid->weights = new_weights;
-	aid->caps = new_caps;
 	aid->nums_bits += fact_bits;
 	return 0;
  error:
