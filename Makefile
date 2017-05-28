@@ -34,7 +34,6 @@ reiser4-y := \
 		   blocknrset.o \
 		   super.o \
 		   init_volume.o \
-		   ondisk_fiber.o \
 		   super_ops.o \
 		   fsdata.o \
 		   export_ops.o \

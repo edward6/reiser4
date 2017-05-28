@@ -192,7 +192,8 @@ typedef enum {
 	JNODE_BITMAP,		/* bitmap */
 	JNODE_IO_HEAD,		/* jnode representing a block in the
 				 * wandering log */
-	JNODE_INODE,		/* jnode embedded into inode */
+	JNODE_VOLINFO_HEAD,	/* jnode representing a block of logical
+				   volume system information */
 	LAST_JNODE_TYPE
 } jnode_type;
 
@@ -519,6 +520,8 @@ void jload_prefetch(jnode *);
 
 extern jnode *reiser4_alloc_io_head(const reiser4_block_nr *block,
 				    reiser4_subvol *subv) NONNULL;
+extern jnode *reiser4_alloc_volinfo_head(const reiser4_block_nr *block,
+					 reiser4_subvol *subv) NONNULL;
 extern void reiser4_drop_io_head(jnode * node) NONNULL;
 extern reiser4_tree *jnode_get_tree(const jnode *node);
 extern struct reiser4_subvol *jnode_get_subvol(const jnode *node);
@@ -544,7 +547,7 @@ static inline jnode_type jnode_get_type(const jnode * node)
 		/* 011 */
 		[3] = LAST_JNODE_TYPE,	/*invalid */
 		/* 100 */
-		[4] = JNODE_INODE,
+		[4] = JNODE_VOLINFO_HEAD,
 		/* 101 */
 		[5] = LAST_JNODE_TYPE,
 		/* 110 */
@@ -601,10 +604,10 @@ static inline int jnode_is_cluster_page(const jnode * node)
 }
 
 /* returns true is node is builtin inode's jnode */
-static inline int jnode_is_inode(const jnode * node)
+static inline int jnode_is_volinfo_head(const jnode * node)
 {
 	assert("vs-1240", node != NULL);
-	return jnode_get_type(node) == JNODE_INODE;
+	return jnode_get_type(node) == JNODE_VOLINFO_HEAD;
 }
 
 static inline jnode_plugin *jnode_ops_of(const jnode_type type)

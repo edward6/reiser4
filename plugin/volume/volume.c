@@ -13,113 +13,843 @@
 #include "volume.h"
 
 /*
- * This file describes format of Reiser5 Asymmetric Logical Volumes
- * (see the comment about Reiser5 volumes at the beginning of init_volume.c)
+ * Reiser4 Logical Volume (LV) is a matrix of subvolumes.
+ * The first column always represents meta-data suvolume and its replicas.
+ * Other columns represent data subvolumes.
  *
- * We define 2 volume groups:
+ * In asymmetric LV extent pointers are on the meta-data subvolume.
+ * In symmetric LV extent pointers are on respective data subvolumes.
  *
- * . meta-data volumes
- * . data volumes
- *
- * Some subvolumes can be of "mixed type" (we'll also use to say that a
- * meta-data subvolume contains a room for data).
- *
- * Every subvolume of an asymmetric logical volume has an "internal id", a
- * unique serial number from the set [0, N-1], wherte N is number of all
- * subvolumes in the asymmetric volume. The set of subvolumes is implemented
- * as an array of the following format (in ascending internal IDs):
- *
- * . meta-data subvolumes;
- * . subvolumes of mixed type (meta-data subvolumes with rooms for data);
- * . data subvolumes.
- *
- * Every asymmetric volume has at least one meta-data subvolume, which can be
- * of mixed type (i.e. with a room for data). So the first subvolume in the
- * array is always a meta-data subvolume.
- *
- * Every subvolume of asymmetric logical volume has the following important
- * parameters:
- *
- * . total number of subvolumes;
- * . number of meta-data subvolumes w/o room for data;
- * . number of subvolumes of mixed type (w/ room for data).
+ * For asymmetric LV any data search procedure is performed only on its
+ * meta-data subvolume. For symmetric LV any data search procedure is
+ * launched on a respective data subvolume. Method ->data_subvol_id() of
+ * volume plugin calculates that ID by data stripe offset.
  */
 
-static u64 subvol_cap_get(void *data, u64 index)
-{
-	struct reiser4_volume *vol = data;
+#define VOLMAP_MAGIC "R4VoLMaP"
+#define VOLMAP_MAGIC_SIZE (8)
 
-	return vol->subvols[index][0]->dev_cap;
+struct voltab_entry {
+	reiser4_block_nr block; /* address of the unformatted voltab block */
+	u32 csum;  /* checksum of the voltab block */
+}PACKED;
+
+struct volmap {
+	u32 csum; /* checksum of this volmap block */
+	char magic[8];
+	reiser4_block_nr next; /* disk address of the next volmap block */
+	struct voltab_entry entries [0];
+}PACKED;
+
+static reiser4_block_nr get_next_volmap(struct volmap *volmap)
+{
+	return le64_to_cpu(get_unaligned(&volmap->next));
 }
 
-static void *subvol_fib_get(void *data, u64 index)
+static void set_next_volmap(struct volmap *volmap, reiser4_block_nr cpu_value)
 {
-	struct reiser4_volume *vol = data;
-
-	return vol->subvols[index][0]->fiber;
+	put_unaligned(cpu_to_le64(cpu_value), &volmap->next);
 }
 
-static void subvol_fib_set(void *data, u64 index, void *fiber)
+static int voltab_nodes_per_block(void)
 {
-	struct reiser4_volume *vol = data;
-
-	vol->subvols[index][0]->fiber = fiber;
+	return (current_blocksize - sizeof (struct volmap)) /
+		sizeof(struct voltab_entry);
 }
 
-static u64 *subvol_fib_lenp(void *data, u64 index)
+static int segments_per_block(reiser4_volume *vol)
 {
-	struct reiser4_volume *vol = data;
+	distribution_plugin *dist_plug = vol->dist_plug;
 
-	return &vol->subvols[index][0]->fiber_len;
+	return 1 << (current_blocksize_bits - dist_plug->seg_bits);
 }
 
-static int subvol_add(void *data, void *new)
+static int num_voltab_nodes(reiser4_volume *vol, int nums_bits)
 {
-#if 0
-	struct reiser4_volume *vol = data;
-	struct reiser4_subvol **new_subvols;
+	distribution_plugin *dist_plug = vol->dist_plug;
 
-	new_subvols = kmalloc(sizeof(reiser4_subvol) *
-			      (vol->num_subvols + 1),
-			      reiser4_ctx_gfp_mask_get());
-	if (!new_subvols)
+	assert("edward-1818",
+	       nums_bits + dist_plug->seg_bits >= current_blocksize_bits);
+
+	return 1 << (nums_bits + dist_plug->seg_bits - current_blocksize_bits);
+}
+
+static int num_volmap_nodes(reiser4_volume *vol, int nums_bits)
+{
+	int result;
+
+	result = num_voltab_nodes(vol, nums_bits) / voltab_nodes_per_block();
+	if (num_voltab_nodes(vol, nums_bits) % voltab_nodes_per_block())
+		result ++;
+	return result;
+}
+
+static int volinfo_absent(void)
+{
+	return current_origin(METADATA_SUBVOL_ID)->volmap_loc == 0;
+}
+
+static void release_volinfo_nodes(reiser4_volume *vol)
+{
+	u64 i;
+	for (i = 0; i < vol->num_volmaps + vol->num_voltabs; i++)
+		if (vol->volmap_nodes[i]) {
+			jput(vol->volmap_nodes[i]);
+			jdrop(vol->volmap_nodes[i]);
+			vol->volmap_nodes[i] = NULL;
+		}
+	kfree(vol->volmap_nodes);
+	vol->volmap_nodes = NULL;
+	vol->voltab_nodes = NULL;
+}
+
+static void done_volume_asym(reiser4_subvol *subv)
+{
+	reiser4_volume *vol = super_volume(subv->super);
+
+	if (subv->volmap_loc != 0)
+		release_volinfo_nodes(vol);
+}
+
+/**
+ * Load system volume information to memory
+ */
+static int load_volume_info(reiser4_subvol *subv)
+{
+	int ret;
+	int i, j;
+	u64 segments_loaded = 0;
+	u64 voltab_nodes_loaded = 0;
+	reiser4_volume *vol = super_volume(subv->super);
+	distribution_plugin *dist_plug = vol->dist_plug;
+	reiser4_block_nr volmap_loc = subv->volmap_loc;
+
+	if (volmap_loc == 0)
+		return 0;
+
+	vol->num_volmaps = num_volmap_nodes(vol, vol->num_sgs_bits);
+	vol->num_voltabs = num_voltab_nodes(vol, vol->num_sgs_bits);
+
+	vol->volmap_nodes =
+		kzalloc((vol->num_volmaps + vol->num_voltabs) *
+			sizeof(*vol->volmap_nodes), GFP_KERNEL);
+
+	if (!vol->volmap_nodes)
 		return -ENOMEM;
 
-	memcpy(new_subvols, vol->subvols,
-	       sizeof(*new_subvols) * vol->num_subvols);
-	new_subvols[vol->num_subvols] = new;
+	vol->voltab_nodes = vol->volmap_nodes + vol->num_volmaps;
 
-	kfree(vol->subvols);
-	vol->subvols = new_subvols;
-	vol->num_subvols ++;
-#endif
+	for (i = 0; i < vol->num_volmaps; i++) {
+		jnode *volmapj;
+		struct volmap *volmap;
+
+		assert("edward-1819", volmap_loc != 0);
+
+		volmapj = vol->volmap_nodes[i] =
+			reiser4_alloc_volinfo_head(&volmap_loc, subv);
+		if (!volmapj) {
+			ret = -ENOMEM;
+			goto unpin;
+		}
+		ret = jload(volmapj);
+		if (ret)
+			goto unpin;
+		volmap = (struct volmap *)jdata(volmapj);
+		/*
+		 * load all voltabs pointed by current volmap
+		 */
+		for (j = 0; j < voltab_nodes_per_block(); j++) {
+			jnode *voltabj;
+			reiser4_block_nr voltab_loc;
+
+			voltab_loc = volmap->entries[j].block;
+			voltabj = vol->voltab_nodes[voltab_nodes_loaded] =
+				reiser4_alloc_volinfo_head(&voltab_loc, subv);
+			if (!voltabj) {
+				ret = -ENOMEM;
+				goto unpin;
+			}
+			ret = jload(voltabj);
+			if (ret)
+				goto unpin;
+			dist_plug->v.unpack(&vol->aid,
+					    jdata(voltabj),
+					    segments_loaded,
+					    segments_per_block(vol));
+			jrelse(voltabj);
+			segments_loaded += segments_per_block(vol);
+			voltab_nodes_loaded ++;
+		}
+		volmap_loc = get_next_volmap(volmap);
+		jrelse(volmapj);
+	}
+ unpin:
+	done_volume_asym(subv);
+	return ret;
+}
+
+/**
+ * pin volinfo nodes;
+ * pack in-memory volume system info to voltab nopes.
+ * Volinfo nodes don't change their location.
+ */
+static int update_voltab_nodes(reiser4_volume *vol)
+{
+	int ret;
+	int i, j;
+	u64 segments_loaded = 0;
+	u64 voltab_nodes_loaded = 0;
+	distribution_plugin *dist_plug = vol->dist_plug;
+	reiser4_subvol *mtd_subv = current_origin(METADATA_SUBVOL_ID);
+	reiser4_block_nr volmap_loc = mtd_subv->volmap_loc;
+
+	assert("edward-1835", volmap_loc != 0);
+	assert("edward-1836", vol->num_volmaps != 0);
+	assert("edward-1837", vol->num_voltabs != 0);
+
+	vol->volmap_nodes =
+		kzalloc((vol->num_volmaps + vol->num_voltabs) *
+			sizeof(*vol->volmap_nodes), GFP_KERNEL);
+
+	if (!vol->volmap_nodes)
+		return -ENOMEM;
+
+	vol->voltab_nodes = vol->volmap_nodes + vol->num_volmaps;
+
+	for (i = 0; i < vol->num_volmaps; i++) {
+		jnode *volmapj;
+		struct volmap *volmap;
+
+		assert("edward-1819", volmap_loc != 0);
+
+		volmapj = vol->volmap_nodes[i] =
+			reiser4_alloc_volinfo_head(&volmap_loc, mtd_subv);
+		if (!volmapj) {
+			ret = -ENOMEM;
+			goto unpin;
+		}
+		ret = jload(volmapj);
+		if (ret)
+			goto unpin;
+		volmap = (struct volmap *)jdata(volmapj);
+		/*
+		 * upate all voltabs pointed by current volmap
+		 */
+		for (j = 0; j < voltab_nodes_per_block(); j++) {
+			jnode *voltabj;
+			reiser4_block_nr voltab_loc;
+
+			voltab_loc = volmap->entries[j].block;
+			voltabj = vol->voltab_nodes[voltab_nodes_loaded] =
+				reiser4_alloc_volinfo_head(&voltab_loc,
+							   mtd_subv);
+			if (!voltabj) {
+				ret = -ENOMEM;
+				goto unpin;
+			}
+			/*
+			 * we don't want to read voltab block,
+			 * as it will be completely overwritten
+			 * with new data
+			 */
+			ret = jinit_new(voltabj, GFP_KERNEL);
+			if (ret)
+				return ret;
+			ret = jload(voltabj);
+			if (ret)
+				goto unpin;
+			dist_plug->v.pack(&vol->aid,
+					  jdata(voltabj),
+					  segments_loaded,
+					  segments_per_block(vol));
+			jrelse(voltabj);
+			segments_loaded += segments_per_block(vol);
+			voltab_nodes_loaded ++;
+		}
+		volmap_loc = get_next_volmap(volmap);
+		jrelse(volmapj);
+	}
+	return 0;
+ unpin:
+	release_volinfo_nodes(vol);
+	return ret;
+}
+
+static int alloc_volinfo_block(reiser4_block_nr *block, reiser4_subvol *subv)
+{
+	reiser4_blocknr_hint hint;
+
+	reiser4_blocknr_hint_init(&hint);
+	hint.block_stage = BLOCK_NOT_COUNTED;
+
+	return reiser4_alloc_block(&hint, block,
+				   BA_FORMATTED | BA_USE_DEFAULT_SEARCH_START,
+				   subv);
+}
+
+/**
+ * Create and pin volinfo nodes, allocate disk addresses for them,
+ * and pack in-memory volume system information to those nodes
+ */
+static int create_volinfo_nodes(reiser4_volume *vol)
+{
+	int ret;
+	int i, j;
+	u64 segments_loaded = 0;
+	u64 voltab_nodes_loaded = 0;
+	reiser4_subvol *meta_subv = current_origin(METADATA_SUBVOL_ID);
+
+	distribution_plugin *dist_plug = vol->dist_plug;
+	reiser4_block_nr volmap_loc;
+	/*
+	 * allocate disk address of the first volmap block
+	 */
+	ret = alloc_volinfo_block(&volmap_loc, meta_subv);
+	if (ret)
+		return ret;
+	meta_subv->volmap_loc = volmap_loc;
+
+	vol->num_volmaps = num_volmap_nodes(vol, vol->num_sgs_bits);
+	vol->num_voltabs = num_voltab_nodes(vol, vol->num_sgs_bits);
+
+	vol->volmap_nodes =
+		kzalloc((vol->num_volmaps + vol->num_voltabs) *
+			sizeof(*vol->volmap_nodes), GFP_KERNEL);
+
+	if (!vol->volmap_nodes)
+		return -ENOMEM;
+
+	vol->voltab_nodes = vol->volmap_nodes + vol->num_volmaps;
+
+	for (i = 0; i < vol->num_volmaps; i++) {
+		jnode *volmapj;
+		struct volmap *volmap;
+		reiser4_block_nr voltab_loc;
+
+		volmapj = vol->volmap_nodes[i] =
+			reiser4_alloc_volinfo_head(&voltab_loc, meta_subv);
+		if (!volmapj) {
+			ret = -ENOMEM;
+			goto unpin;
+		}
+		ret = jinit_new(volmapj, GFP_KERNEL);
+		if (ret)
+			goto unpin;
+		ret = jload(volmapj);
+		if (ret)
+			goto unpin;
+		volmap = (struct volmap *)jdata(volmapj);
+		/*
+		 * load all voltabs pointed by current volmap
+		 */
+		for (j = 0; j < voltab_nodes_per_block(); j++) {
+			jnode *voltabj;
+			reiser4_block_nr voltab_loc;
+			/*
+			 * allocate disk address for voltab node
+			 */
+			ret = alloc_volinfo_block(&voltab_loc, meta_subv);
+			if (ret)
+				goto unpin;
+			assert("edward-1838", voltab_loc != 0);
+
+			volmap->entries[j].block = voltab_loc;
+
+			voltabj = vol->voltab_nodes[voltab_nodes_loaded] =
+				reiser4_alloc_volinfo_head(&voltab_loc,
+							   meta_subv);
+			if (!voltabj) {
+				ret = -ENOMEM;
+				goto unpin;
+			}
+			ret = jinit_new(voltabj, GFP_KERNEL);
+			if (ret)
+				goto unpin;
+			ret = jload(voltabj);
+			if (ret)
+				goto unpin;
+			dist_plug->v.pack(&vol->aid,
+					  jdata(voltabj),
+					  segments_loaded,
+					  segments_per_block(vol));
+			jrelse(voltabj);
+
+			segments_loaded += segments_per_block(vol);
+			voltab_nodes_loaded ++;
+		}
+		if (i == vol->num_volmaps - 1)
+			/*
+			 * current volmap node is the last one
+			 */
+			set_next_volmap(volmap, 0);
+		else {
+			/*
+			 * allocate disk address of the next volmap block
+			 * and store it in the current volmap block
+			 */
+			ret = alloc_volinfo_block(&volmap_loc, meta_subv);
+			if (ret)
+				goto unpin;
+			set_next_volmap(volmap, volmap_loc);
+		}
+		jrelse(volmapj);
+	}
+	return 0;
+ unpin:
+	release_volinfo_nodes(vol);
+	return ret;
+}
+
+/*
+ * Write array of jnodes in atomic manner
+ */
+static int write_array_nodes(jnode **start, u64 count)
+{
+	u64 i;
+	int ret;
+
+	for (i = 0; i < count; i++) {
+		jnode *node;
+		node = start[i];
+
+		spin_lock_jnode(node);
+		ret = reiser4_try_capture(node, ZNODE_WRITE_LOCK, 0);
+		BUG_ON(ret != 0);
+		jnode_make_dirty_locked(node);
+		spin_unlock_jnode(node);
+	}
+	reiser4_txn_restart_current();
+	return 0;
+}
+
+static int write_volinfo_nodes(reiser4_volume *vol)
+{
+	int ret;
+	/*
+	 * Format superblock to be overwritten with
+	 * correct location of the first volmap block.
+	 * Put it to the transaction.
+	 */
+	ret = reiser4_capture_super_block(reiser4_get_current_sb());
+	if (ret)
+		return ret;
+	return write_array_nodes(vol->volmap_nodes,
+				 vol->num_volmaps + vol->num_voltabs);
+}
+
+static int write_voltab_nodes(reiser4_volume *vol)
+{
+	return write_array_nodes(vol->voltab_nodes, vol->num_voltabs);
+}
+
+static int write_volume_info(reiser4_volume *vol)
+{
+	int ret;
+
+	if (volinfo_absent()) {
+		ret = create_volinfo_nodes(vol);
+		if (ret)
+			return ret;
+		ret = write_volinfo_nodes(vol);
+	} else {
+		ret = update_voltab_nodes(vol);
+		if (ret)
+			return ret;
+		ret = write_voltab_nodes(vol);
+	}
+	release_volinfo_nodes(vol);
+	return ret;
+}
+
+static int load_volume_asym(reiser4_subvol *subv)
+{
+	if (subv->id != 0)
+		/*
+		 * Nothing to load:
+		 * Asymmetric LV stores system info only
+		 * on meta-data subvolume with id = 0
+		 */
+		return 0;
+	return load_volume_info(subv);
+}
+
+static u64 default_data_room(reiser4_subvol *subv)
+{
+	/* 70% of block_count */
+	return (90 * subv->block_count) >> 7;
+}
+
+/*
+ * Init volume system info, which has been already loaded
+ * diring disk formats inialization of subvolumes (components).
+ */
+static int init_volume_asym(reiser4_volume *vol)
+{
+	distribution_plugin *dist_plug = vol->dist_plug;
+
+	if (vol->num_origins == 1) {
+		/*
+		 * volume contains only meta-data subvolume
+		 */
+		reiser4_subvol *mtd_subv;
+		mtd_subv = current_meta_subvol();
+		if (mtd_subv->data_room == 0)
+			mtd_subv->data_room =
+				default_data_room(mtd_subv);
+	}
+	if (dist_plug->r.init)
+		return dist_plug->r.init(&vol->aid, vol->num_sgs_bits);
+	return 0;
+}
+
+static u64 cap_at_asym(void *buckets, u64 index)
+{
+	return current_aid_subvols()[index][0]->data_room;
+}
+
+static void *fib_of_asym(void *bucket)
+{
+	struct reiser4_subvol *subv = bucket;
+
+	return subv->fiber;
+}
+
+static void *fib_at_asym(void *buckets, u64 index)
+{
+	return current_aid_subvols()[index][0]->fiber;
+}
+
+static void fib_set_at_asym(void *buckets, u64 index, void *fiber)
+{
+	current_aid_subvols()[index][0]->fiber = fiber;
+}
+
+static u64 *fib_lenp_at_asym(void *buckets, u64 index)
+{
+	return &current_aid_subvols()[index][0]->fiber_len;
+}
+
+static int expand_subvol(reiser4_volume *vol, u64 pos, u64 delta)
+{
+	int ret;
+	distribution_plugin *dist_plug = vol->dist_plug;
+
+	current_aid_subvols()[pos][0]->data_room += delta;
+
+	ret = dist_plug->v.expand(&vol->aid, pos, 0);
+	if (ret)
+		/* roll back */
+		current_aid_subvols()[pos][0]->data_room -= delta;
+	return ret;
+}
+
+/*
+ * Insert a meta-data subvolume to AID
+ */
+static int add_meta_subvol(reiser4_volume *vol, void *new)
+{
+	int ret;
+	distribution_plugin *dist_plug = vol->dist_plug;
+
+	assert("edward-1820", new == current_meta_subvol());
+
+	if (meta_subvol_is_aid_subvol())
+		/*
+		 * Can not add a subvolume, which is already
+		 * present in the array
+		 */
+		return -EINVAL;
+
+	ret = dist_plug->v.expand(&vol->aid, METADATA_SUBVOL_ID, 1);
+	assert("edward-1822",
+	       ergo(ret == 0, meta_subvol_is_aid_subvol()));
+	return ret;
+}
+
+/*
+ * Insert a data subvolume to AID at position @pos
+ */
+static int add_data_subvol(reiser4_volume *vol, u64 pos, void *new_member)
+{
+	int ret;
+	reiser4_aid *raid = &vol->aid;
+	distribution_plugin *dist_plug = vol->dist_plug;
+
+	struct reiser4_subvol ***new;
+	struct reiser4_subvol ***old = vol->subvols;
+	u64 old_num_subvols = vol->num_origins;
+	u64 pos_in_vol;
+
+	pos_in_vol = pos;
+	if (!meta_subvol_is_aid_subvol())
+		pos_in_vol ++;
+
+	new = kmalloc(sizeof(reiser4_subvol) * (1 + old_num_subvols),
+		      reiser4_ctx_gfp_mask_get());
+	if (!new)
+		return -ENOMEM;
+
+	memcpy(new, old, sizeof(*new) * pos_in_vol);
+	new[pos_in_vol] = new_member;
+	memcpy(new + pos_in_vol + 1, old + pos_in_vol,
+	       sizeof(*new) * (old_num_subvols - pos_in_vol));
+
+	vol->subvols = new;
+	vol->num_origins ++;
+
+	ret = dist_plug->v.expand(raid, pos, 1);
+	if (ret) {
+		vol->subvols = old;
+		vol->num_origins --;
+		kfree(new);
+		return ret;
+	}
+	kfree(old);
+	return 0;
+}
+
+/*
+ * Insert a new subvolume to AID at position @pos
+ */
+static int add_subvol(reiser4_volume *vol, u64 pos, void *new)
+{
+	if (new == current_meta_subvol())
+		return add_meta_subvol(vol, new);
+	else
+		return add_data_subvol(vol, pos, new);
+}
+
+/*
+ * Check position in LV, and convert it to the position in AID
+ */
+static int check_convert_pos_for_expand(reiser4_volume *vol,
+					u64 *pos, void *new)
+{
+	if (new) {
+		/*
+		 * insert a new subvolume
+		 */
+		if (*pos == 0 && meta_subvol_is_aid_subvol())
+			return -EINVAL;
+		if (*pos == 0 && new != current_meta_subvol())
+			return -EINVAL;
+		if (*pos > 0 && new == current_meta_subvol())
+			return -EINVAL;
+		if (*pos > vol->num_origins)
+			return -EINVAL;
+	} else {
+		/*
+		 * expand existing subvolume
+		 */
+		if (*pos == 0 && !meta_subvol_is_aid_subvol())
+			return -EINVAL;
+		if (*pos >= vol->num_origins)
+			return -EINVAL;
+	}
+	/*
+	 * Convert @pos to the position in AID
+	 */
+	if (meta_subvol_is_aid_subvol())
+		/*
+		 * position in volume coincides with position in AID,
+		 * nothing to convert
+		 */
+		return 0;
+	/*
+	 * meda-data subvolume is not in AID
+	 */
+	if (pos == 0)
+		/*
+		 * meta-data subvolume is to be inserted, or expanded,
+		 * so that position in AID is also 0 */
+		return 0;
+	/*
+	 * pos > 0
+	 * data subvolume is to be inserted to AID, whish
+	 * doesn't contain meta-data subvolume
+	 */
+	(*pos) --;
+
 	return 0;
 }
 
 /**
- * @index: serial number (internal ID) of subvolume to be deleted
+ * Increase capacity of asymmetric LV.
  */
-static int subvol_del(void *data, u64 index)
+static int expand_asym(reiser4_volume *vol, u64 pos, u64 delta, void *new)
 {
-#if 0
-	struct reiser4_volume *vol = data;
-	struct reiser4_subvol **new_subvols;
+	int ret;
+	reiser4_aid *raid = &vol->aid;
+	distribution_plugin *dist_plug = vol->dist_plug;
 
-	assert("edward-1783", index < vol->num_subvols);
+	assert("edward-1824", raid != NULL);
+	assert("edward-1825", dist_plug != NULL);
 
-	new_subvols = kmalloc(sizeof(reiser4_subvol) *
-			      (vol->num_subvols - 1),
-			      reiser4_ctx_gfp_mask_get());
+	ret = check_convert_pos_for_expand(vol, &pos, new);
+	if (ret)
+		return RETERR(ret);
 
-	memcpy(new_subvols, vol->subvols, index * sizeof(*new_subvols));
-	memcpy(new_subvols + index * sizeof(*new_subvols),
-	       vol->subvols + (index + 1),
-	       sizeof(*new_subvols)*(vol->num_subvols - index - 1));
-	kfree(vol->subvols);
-	vol->subvols = new_subvols;
-	vol->num_subvols --;
-#endif
+	ret = dist_plug->v.init(vol,
+				num_aid_subvols(vol), vol->num_sgs_bits,
+				&vol->vol_plug->aid_ops, raid);
+	if (ret)
+		return RETERR(ret);
+	if (new)
+		ret = add_subvol(vol, pos, new);
+	else
+		ret = expand_subvol(vol, pos, delta);
+	if (ret)
+		goto error;
+	/*
+	 * Wake up balancing thread.
+	 * After balancing is finished it will call dist_plug->v.done()
+	 */
+	ret = write_volume_info(vol);
+	if (ret)
+		goto error;
 	return 0;
+ error:
+	dist_plug->v.done(raid);
+	return ret;
+}
+
+static int shrink_subvol(reiser4_volume *vol, u64 pos, u64 delta)
+{
+	int ret;
+	distribution_plugin *dist_plug = vol->dist_plug;
+
+	current_aid_subvols()[pos][0]->data_room -= delta;
+
+	ret = dist_plug->v.shrink(&vol->aid, pos, NULL);
+	if (ret)
+		current_aid_subvols()[pos][0]->data_room += delta;
+	return ret;
+}
+
+/*
+ * Remove meta-data subvolume from AID
+ */
+static int remove_meta_subvol(reiser4_volume *vol)
+{
+	int ret;
+	distribution_plugin *dist_plug = vol->dist_plug;
+
+	assert("edward-1826", meta_subvol_is_aid_subvol());
+
+	ret = dist_plug->v.shrink(&vol->aid, METADATA_SUBVOL_ID,
+				  current_meta_subvol());
+	assert("edward-1827",
+	       ergo(ret == 0, !meta_subvol_is_aid_subvol()));
+	return ret;
+}
+
+/*
+ * Remove a data subvolume from AID at position @pos
+ */
+static int remove_data_subvol(reiser4_volume *vol, u64 pos)
+{
+	int ret;
+	reiser4_subvol *victim;
+	distribution_plugin *dist_plug = vol->dist_plug;
+
+	struct reiser4_subvol ***new;
+	struct reiser4_subvol ***old = vol->subvols;
+	u64 old_num_subvols = vol->num_origins;
+	u64 pos_in_vol;
+
+	pos_in_vol = pos;
+	if (!meta_subvol_is_aid_subvol())
+		pos_in_vol ++;
+
+	new = kmalloc(sizeof(reiser4_subvol) * (old_num_subvols - 1),
+		      reiser4_ctx_gfp_mask_get());
+	if (!new)
+		return RETERR(-ENOMEM);
+
+	memcpy(new, old, pos_in_vol * sizeof(*new));
+	victim = old[pos_in_vol][0];
+	memcpy(new + pos_in_vol, old + pos_in_vol + 1,
+	       sizeof(*new) * (old_num_subvols - pos_in_vol - 1));
+
+	vol->subvols = new;
+	vol->num_origins --;
+
+	ret = dist_plug->v.shrink(&vol->aid, pos, victim);
+	if (ret) {
+		vol->subvols = old;
+		vol->num_origins ++;
+		kfree(new);
+		return ret;
+	}
+	deactivate_subvol(reiser4_get_current_sb(), victim);
+	kfree(old);
+
+	return 0;
+}
+
+static int remove_subvol(reiser4_volume *vol, u64 pos)
+{
+	if (pos == 0 && meta_subvol_is_aid_subvol())
+		return remove_meta_subvol(vol);
+	else
+		return remove_data_subvol(vol, pos);
+}
+
+/*
+ * Check and convert position @pos in volume to the position in AID
+ */
+static int check_convert_pos_for_shrink(reiser4_volume *vol, u64 *pos)
+{
+	if (*pos == 0 && !meta_subvol_is_aid_subvol())
+		return -EINVAL;
+
+	if (*pos >= vol->num_origins)
+		return -EINVAL;
+
+	if (!meta_subvol_is_aid_subvol())
+		(*pos) --;
+	return 0;
+}
+
+/**
+ * Decrease capacity of asymmetric LV
+ */
+static int shrink_asym(reiser4_volume *vol, u64 pos, u64 delta, int remove)
+{
+	int ret;
+	distribution_plugin *dist_plug = vol->dist_plug;
+
+	assert("edward-1830", vol != NULL);
+	assert("edward-1831", vol->subvols != NULL);
+	assert("edward-1832", pos < num_aid_subvols(vol));
+	assert("edward-1833", vol->subvols[pos] != NULL);
+
+	ret = check_convert_pos_for_shrink(vol, &pos);
+	if (ret)
+		return ret;
+
+	ret = dist_plug->v.init(vol,
+				num_aid_subvols(vol), vol->num_sgs_bits,
+				&vol->vol_plug->aid_ops, &vol->aid);
+	if (ret)
+		return ret;
+	if (remove)
+		ret = remove_subvol(vol, pos);
+	else
+		ret = shrink_subvol(vol, pos, delta);
+	if (ret)
+		goto error;
+	/*
+	 * Wake up balancing thread.
+	 * After balancing is finished it will call dist_plug->v.done()
+	 */
+	ret = write_volume_info(vol);
+	if (ret)
+		goto error;
+	return 0;
+ error:
+	dist_plug->v.done(&vol->aid);
+	return ret;
 }
 
 static u64 sys_subvol_id_triv(void)
@@ -149,10 +879,10 @@ static u64 data_subvol_id_asym(const struct inode *inode,
 	dist_plug = current_dist_plug();
 	stripe_idx = data_offset >> current_stripe_bits;
 
-	return dist_plug->lookup_bucket(vol->aid,
-					(const char *)&stripe_idx,
-					sizeof(stripe_idx),
-					(u32)(inode->i_ino));
+	return dist_plug->r.lookup(&vol->aid,
+				   (const char *)&stripe_idx,
+				   sizeof(stripe_idx),
+				   (u32)(inode->i_ino));
 }
 
 volume_plugin volume_plugins[LAST_VOLUME_ID] = {
@@ -168,13 +898,17 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		.sys_subvol_id = sys_subvol_id_triv,
 		.meta_subvol_id = meta_subvol_id_triv,
 		.data_subvol_id = data_subvol_id_triv,
+		.load = NULL,
+		.done = NULL,
+		.init = NULL,
+		.expand = NULL,
+		.shrink = NULL,
 		.aid_ops = {
-			.bucket_add = NULL,
-			.bucket_del = NULL,
-			.bucket_cap_get = NULL,
-			.bucket_fib_get = NULL,
-			.bucket_fib_set = NULL,
-			.bucket_fib_lenp = NULL
+			.cap_at = NULL,
+			.fib_of = NULL,
+			.fib_at = NULL,
+			.fib_set_at = NULL,
+			.fib_lenp_at = NULL
 		}
 	},
 	[ASYM_VOLUME_ID] = {
@@ -183,19 +917,23 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 			.id = ASYM_VOLUME_ID,
 			.pops = NULL,
 			.label = "asym",
-			.desc = "Asymmetric Logical Volume",
+			.desc = "Asymmetric Heterogeneous Logical Volume",
 			.linkage = {NULL, NULL}
 		},
 		.sys_subvol_id = sys_subvol_id_triv,
 		.meta_subvol_id = meta_subvol_id_triv,
 		.data_subvol_id = data_subvol_id_asym,
+		.load = load_volume_asym,
+		.done = done_volume_asym,
+		.init = init_volume_asym,
+		.expand = expand_asym,
+		.shrink = shrink_asym,
 		.aid_ops = {
-			.bucket_add = subvol_add,
-			.bucket_del = subvol_del,
-			.bucket_cap_get = subvol_cap_get,
-			.bucket_fib_get = subvol_fib_get,
-			.bucket_fib_set = subvol_fib_set,
-			.bucket_fib_lenp = subvol_fib_lenp
+			.cap_at = cap_at_asym,
+			.fib_of = fib_of_asym,
+			.fib_at = fib_at_asym,
+			.fib_set_at = fib_set_at_asym,
+			.fib_lenp_at = fib_lenp_at_asym
 		}
 	}
 };

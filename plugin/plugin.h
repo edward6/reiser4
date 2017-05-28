@@ -541,42 +541,53 @@ typedef struct txmod_plugin {
 } txmod_plugin;
 
 struct reiser4_aid_ops {
-	/* Add a @new bucket */
-	int (*bucket_add)(void *buckets, void *new);
-	/* Delete a bucket of index @idx */
-	int (*bucket_del)(void *buckets, u64 idx);
-	/* Get capacity of a bucket of index @idx */
-	u64 (*bucket_cap_get)(void *buckets, u64 idx);
-	/* Get fiber of a bucket of index @idx */
-	void *(*bucket_fib_get)(void *buckets, u64 idx);
-	/* Set fiber @fib to a bucket of index @idx */
-	void (*bucket_fib_set)(void *buckets, u64 idx, void *fib);
-	/* Get a pointer to a variable which contains
-	   length of a fiber of index @idx */
-	u64 *(*bucket_fib_lenp)(void *buckets, u64 idx);
+	/* Get capacity of a bucket with serial number @idx
+	   in the array @buckets */
+	u64 (*cap_at)(void *buckets, u64 idx);
+	/* Get fiber of specified @bucket */
+	void *(*fib_of)(void *bucket);
+	/* Get fiber of a bucket with serial number @idx
+	   in the array @buckets */
+	void *(*fib_at)(void *buckets, u64 idx);
+	/* Set fiber @fib of a bucket with serial number @idx
+	   in the array @buckets*/
+	void (*fib_set_at)(void *buckets, u64 idx, void *fib);
+	/* Get a pointer to fiber length of a bucket with
+	   serial number @idx in the array @buckets */
+	u64 *(*fib_lenp_at)(void *buckets, u64 idx);
+};
+
+struct dist_regular_ops {
+	int (*init)(reiser4_aid *aid, int nums_bits);
+	u64 (*lookup)(reiser4_aid *aid, const char *str,
+		      int len, u32 seed);
+	void (*done)(reiser4_aid *raid);
+};
+
+struct dist_volume_ops {
+	/* is called at the beginning of any volume operation */
+	int (*init)(void *buckets, u64 num_buckets, int num_sgs_bits,
+		    struct reiser4_aid_ops *ops, reiser4_aid *new);
+	/* is called at the end of any volume operation */
+	void (*done)(reiser4_aid *raid);
+	/* increase capacity of a storage array */
+	int (*expand)(reiser4_aid *raid, u64 target_pos, int new);
+	/* decrease capacity of a storage array */
+	int (*shrink)(reiser4_aid *raid, u64 target_pos, void *victim);
+	/* increase maximal capacity of a storage array */
+	int (*split)(reiser4_aid *raid, u32 fact_bits);
+	/* pack system information to a set of blocks */
+	void (*pack)(reiser4_aid *raid, char *to, u64 src_off, u64 count);
+	/* extract system information from a set of blocks */
+	void (*unpack)(reiser4_aid *raid, char *from, u64 dst_off, u64 count);
 };
 
 typedef struct distribution_plugin {
 	/* generic fields */
 	plugin_header h;
-	/* size of segment in the hash space */
-	u32 seg_size;
-	/* init aid descriptor */
-	int (*init)(void *buckets, u64 num_buckets, int num_sgs_bits,
-		    struct reiser4_aid_ops *ops, reiser4_aid **new);
-	/* release aid descriptor */
-	void (*done)(reiser4_aid *r);
-	/* return internal bucket id */
-	__u64 (*lookup_bucket)(reiser4_aid *aid, const char *str,
-			       int len, u32 seed);
-	/* add bucket to the end of storage array */
-	int (*add_bucket)(reiser4_aid *r, void *new_one);
-	/* remove bucket from the storage array */
-	int (*remove_bucket)(reiser4_aid *r, __u64 victim_pos);
-	int (*split)(reiser4_aid *r, __u32 factor);
-	/* pack and unpack fiber */
-	void (*pack)(char *to, void *from, u64 count);
-	void (*unpack)(void *to, char *from, u64 count);
+	u32 seg_bits; /* logarithm of segment size */
+	struct dist_regular_ops r;
+	struct dist_volume_ops v;
 } distribution_plugin;
 
 typedef struct volume_plugin {
@@ -588,6 +599,21 @@ typedef struct volume_plugin {
 	u64 (*data_subvol_id)(const struct inode *inode,
 			      loff_t data_offset);
 	u64 (*meta_subvol_id)(void);
+	/* Load a system LV info stored in a subvolume @subv.
+	   Normally is called at mount time */
+	int (*load)(reiser4_subvol *subv);
+	/* Release LV system info associated with a subvolume @subv.
+	   Normally is called at umount time */
+	void (*done)(reiser4_subvol *subv);
+	/* Init LV after loading LV system info from all subvolumes */
+	int (*init)(reiser4_volume *vol);
+	/* Increase capacity of a volume. Insert, or expand
+	   a subvolume at the position @pos in the array of subvolumes */
+	int (*expand)(reiser4_volume *vol, u64 pos, u64 delta, void *new);
+	/* Decrease capacity of a volume. Remove, or shrink
+	   a subvolume at the position @pos in the array of subvolumes */
+	int (*shrink)(reiser4_volume *vol, u64 pos, u64 delta, int remove);
+
 	struct reiser4_aid_ops aid_ops;
 } volume_plugin;
 

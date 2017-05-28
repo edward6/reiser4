@@ -163,7 +163,6 @@ static int reiser4_register_subvol(const char *path,
 
 static void reiser4_put_volume(struct reiser4_volume *vol)
 {
-	assert("edward-1740", vol->aid == NULL);
 	assert("edward-1741", vol->subvols == NULL);
 	kfree(vol);
 }
@@ -393,7 +392,7 @@ static void free_subvols_set(reiser4_volume *vol)
 /**
  * Deactivate subvolume. Called during umount, or in error paths
  */
-static void deactivate_subvol(struct super_block *super, reiser4_subvol *subv)
+void deactivate_subvol(struct super_block *super, reiser4_subvol *subv)
 {
 	assert("edward-1755", subvol_is_set(subv, SUBVOL_ACTIVATED));
 	assert("edward-1756", subv->bdev != NULL);
@@ -449,11 +448,9 @@ void __reiser4_deactivate_volume(struct super_block *super)
 	deactivate_subvolumes_of_type(super, REISER4_SUBV_OTHER);
 	deactivate_subvolumes_of_type(super, REISER4_SUBV_REPLICA);
 
-	if (vol->aid) {
-		assert("edward-1762", vol->dist_plug->done != NULL);
-		vol->dist_plug->done(vol->aid);
-		vol->aid = NULL;
-	}
+	if (vol->dist_plug->r.done)
+		vol->dist_plug->r.done(&vol->aid);
+
 	free_subvols_set(vol);
 	vol->num_sgs_bits = 0;
 	vol->num_meta_subvols = 0;
@@ -543,8 +540,6 @@ static int activate_subvolumes_of_type(struct super_block *super,
 	info = get_super_private(super);
 	info->vol = vol;
 
-	assert("edward-1768", vol->aid == NULL);
-
 	list_for_each_entry(subv, &vol->subvols_list, list) {
 		if (subvol_is_set(subv, SUBVOL_ACTIVATED))
 			continue;
@@ -565,32 +560,11 @@ static int activate_subvolumes_of_type(struct super_block *super,
 	if (vol->num_origins == 1) {
 		/*
 		 * this is a simple (not compound) volume,
-		 * therefore, managed by trivial plugins
+		 * so we assign trivial plugins to manage it
 		 */
 		vol->dist_plug = distribution_plugin_by_id(NONE_DISTRIB_ID);
 		vol->vol_plug = volume_plugin_by_id(TRIV_VOLUME_ID);
 	}
-	/*
-	 * initialize aid descriptor after activating all subvolumes
-	 */
-	if (vol->dist_plug->init != NULL) {
-		ret = vol->dist_plug->init(vol,
-					   vol->num_origins,
-					   vol->num_sgs_bits,
-					   &vol->vol_plug->aid_ops,
-					   &vol->aid);
-		if (ret) {
-			warning("edward-1770",
-				"(%s): failed to init distribution (%d)\n",
-				super->s_id, ret);
-			goto error;
-		}
-	}
-	/*
-	 * release fibers, which are not needed for regular operations
-	 */
-	list_for_each_entry(subv, &vol->subvols_list, list)
-		reiser4_fiber_done(subv);
 	return 0;
  error:
 	__reiser4_deactivate_volume(super);
@@ -609,6 +583,7 @@ int reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 {
 	int ret;
 	u32 orig_id;
+	reiser4_volume *vol;
 
 	mutex_lock(&reiser4_volumes_mutex);
 	/*
@@ -650,6 +625,20 @@ int reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 		}
 		assert("edward-1773",
 		       subvol_is_set(orig, SUBVOL_ACTIVATED));
+	}
+	/*
+	 * initialize logical volume after activating all subvolumes
+	 */
+	vol = get_super_private(super)->vol;
+
+	if (vol->vol_plug->init != NULL) {
+		ret = vol->vol_plug->init(vol);
+		if (ret) {
+			warning("edward-1770",
+				"(%s): failed to init logical volume (%d)\n",
+				super->s_id, ret);
+			goto deactivate;
+		}
 	}
 	goto out;
  deactivate:

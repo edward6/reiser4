@@ -24,15 +24,21 @@ distribution_plugin distribution_plugins[LAST_DISTRIB_ID] = {
 			.desc = "None Distribution",
 			.linkage = {NULL, NULL}
 		},
-		.seg_size = 0,
-		.init = NULL,
-		.done = NULL,
-		.lookup_bucket = NULL,
-		.add_bucket = NULL,
-		.remove_bucket = NULL,
-		.split = NULL,
-		.pack = NULL,
-		.unpack = NULL
+		.seg_bits = 0,
+		.r = {
+			.init = NULL,
+			.lookup = NULL,
+			.done = NULL,
+		},
+		.v = {
+			.init = NULL,
+			.done = NULL,
+			.expand = NULL,
+			.shrink = NULL,
+			.split = NULL,
+			.pack = NULL,
+			.unpack = NULL
+		},
 	},
 	[FSW32M_DISTRIB_ID] = {
 		.h = {
@@ -43,15 +49,21 @@ distribution_plugin distribution_plugins[LAST_DISTRIB_ID] = {
 			.desc = "Fiber-Striping over 32-bit Murmur hash",
 			.linkage = {NULL, NULL}
 		},
-		.seg_size = sizeof(u32),
-		.init = fsw32_init,
-		.done = fsw32_done,
-		.lookup_bucket = fsw32m_lookup_bucket,
-		.add_bucket = fsw32_add_bucket,
-		.remove_bucket = fsw32_remove_bucket,
-		.split = fsw32_split,
-		.pack = tab32_pack,
-		.unpack = tab32_unpack
+		.seg_bits = 2, /* (log(sizeof u32)) */
+		.r = {
+			.init = initr_fsw32,
+			.lookup = lookup_fsw32m,
+			.done = doner_fsw32
+		},
+		.v = {
+			.init = initv_fsw32,
+			.done = donev_fsw32,
+			.expand = expand_fsw32,
+			.shrink = shrink_fsw32,
+			.split = split_fsw32,
+			.pack = pack_fsw32,
+			.unpack = unpack_fsw32
+		}
 	}
 };
 

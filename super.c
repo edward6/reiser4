@@ -128,16 +128,18 @@ void reiser4_subvol_set_free_blocks(reiser4_subvol *subv, __u64 nr)
 	subv->blocks_free = nr;
 }
 
-__u64 reiser4_subvol_fiber_len(reiser4_subvol *subv)
+__u64 reiser4_subvol_data_room(reiser4_subvol *subv)
 {
 	assert("edward-1796", subv != NULL);
-	return subv->fiber_len;
+	assert("edward-1839",
+	       subv->data_room <= reiser4_subvol_block_count(subv));
+	return subv->data_room;
 }
 
-void reiser4_subvol_set_fiber_len(reiser4_subvol *subv, __u64 len)
+void reiser4_subvol_set_data_room(reiser4_subvol *subv, __u64 value)
 {
 	assert("edward-1797", subv != NULL);
-	subv->fiber_len = len;
+	subv->data_room = value;
 }
 
 /* amount of free blocks in logical volume */

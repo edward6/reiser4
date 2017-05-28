@@ -103,30 +103,20 @@ static int get_format40_num_sgs_bits(const format40_disk_super_block * sb)
 	return sb->num_sgs_bits;
 }
 
-static __u64 get_format40_fiber_len(const format40_disk_super_block * sb)
+static __u64 get_format40_data_room(const format40_disk_super_block * sb)
 {
-	return le64_to_cpu(get_unaligned(&sb->fiber_len));
+	return le64_to_cpu(get_unaligned(&sb->data_room));
 }
 
-static __u64 get_format40_fiber_loc(const format40_disk_super_block * sb)
+static __u64 get_format40_volinfo_loc(const format40_disk_super_block * sb)
 {
-	return le64_to_cpu(get_unaligned(&sb->fiber_loc));
+	return le64_to_cpu(get_unaligned(&sb->volinfo_loc));
 }
 
 static __u32 get_format40_version(const format40_disk_super_block * sb)
 {
 	return le32_to_cpu(get_unaligned(&sb->version)) &
 		~FORMAT40_UPDATE_BACKUP;
-}
-
-static __u64 get_format40_num_meta_subvols(const format40_disk_super_block *sb)
-{
-	return le64_to_cpu(get_unaligned(&sb->num_meta_subvols));
-}
-
-static __u64 get_format40_room_for_data(const format40_disk_super_block *sb)
-{
-	return le64_to_cpu(get_unaligned(&sb->room_for_data));
 }
 
 static int update_backup_version(const format40_disk_super_block * sb)
@@ -243,12 +233,6 @@ int set_check_params(reiser4_subvol *subv,
 		what_is_wrong = "different numbers of original subvolumes";
 		goto error;
 	}
-	if (vol->num_meta_subvols == 0)
-		vol->num_meta_subvols = get_format40_num_meta_subvols(sb_format);
-	else if (vol->num_meta_subvols != get_format40_num_meta_subvols(sb_format)) {
-		what_is_wrong = "different numbers of meta-data subvolumes";
-		goto error;
-	}
 	if (vol->num_sgs_bits == 0)
 		vol->num_sgs_bits = get_format40_num_sgs_bits(sb_format);
 	else if (vol->num_sgs_bits != get_format40_num_sgs_bits(sb_format)) {
@@ -343,11 +327,14 @@ int try_init_format40(struct super_block *super,
 	reiser4_block_nr root_block;
 	node_plugin *nplug;
 	u64 extended_status;
+	reiser4_volume *vol;
 
 	assert("vs-475", super != NULL);
 	assert("vs-474", get_super_private(super) != NULL);
 	assert("edward-1790", get_super_private(super)->vol != NULL);
 	assert("edward-1791", !is_replica(subv));
+
+	vol = get_super_private(super)->vol;
 
 	*stage = NONE_DONE;
 	result = reiser4_init_journal_info(subv);
@@ -449,7 +436,6 @@ int try_init_format40(struct super_block *super,
 	 */
 	subv->mkfs_id = get_format40_mkfs_id(sb_format);
 	subv->version = get_format40_version(sb_format);
-	subv->room_for_data = get_format40_room_for_data(sb_format);
 	subv->blocks_free_committed = subv->blocks_free;
 
 	subv->flush.relocate_threshold = FLUSH_RELOCATE_THRESHOLD;
@@ -506,14 +492,14 @@ int try_init_format40(struct super_block *super,
 	}
 	*stage = INIT_JNODE;
 
-	reiser4_subvol_set_fiber_len(subv, get_format40_fiber_len(sb_format));
+	reiser4_subvol_set_data_room(subv, get_format40_data_room(sb_format));
 	/*
-	 * load fiber for distribution plugin
+	 * load volume system information, or its part, which was stored
+	 * on that subvolume
 	 */
-	result = reiser4_fiber_load(subv,
-				    reiser4_subvol_fiber_len(subv),
-				    get_format40_fiber_loc(sb_format),
-				    0 /* don't pin jnodes */);
+	subv->volmap_loc = get_format40_volinfo_loc(sb_format);
+	if (vol->vol_plug->load)
+		result = vol->vol_plug->load(subv);
 	kfree(sb_format);
 	if (result)
 		return result;
@@ -531,6 +517,9 @@ int init_format_format40(struct super_block *s, reiser4_subvol *subv)
 {
 	int result;
 	format40_init_stage stage;
+	reiser4_volume *vol;
+
+	vol = get_super_private(s)->vol;
 
 	result = try_init_format40(s, &stage, subv);
 	switch (stage) {
@@ -538,7 +527,7 @@ int init_format_format40(struct super_block *s, reiser4_subvol *subv)
 		assert("nikita-3458", result == 0);
 		break;
 	case INIT_SYSTAB:
-		reiser4_fiber_done(subv);
+		vol->vol_plug->done(subv);
 	case INIT_JNODE:
 		put_sb_format_jnode(subv);
 	case INIT_SA:
@@ -586,6 +575,10 @@ static void pack_format40_super(const struct super_block *s,
 
 	put_unaligned(cpu_to_le16(subv->tree.height), &format_sb->tree_height);
 
+	put_unaligned(cpu_to_le64(subv->volmap_loc), &format_sb->volinfo_loc);
+
+	put_unaligned(cpu_to_le64(subv->data_room), &format_sb->data_room);
+
 	if (update_disk_version_minor(format_sb)) {
 		__u32 version = PLUGIN_LIBRARY_VERSION | FORMAT40_UPDATE_BACKUP;
 
@@ -613,6 +606,7 @@ jnode *log_super_format40(struct super_block *super, reiser4_subvol *subv)
 int release_format40(struct super_block *s, reiser4_subvol *subv)
 {
 	int ret;
+	reiser4_volume *vol = super_volume(s);
 
 	if (!rofs_super(s)) {
 		ret = reiser4_capture_super_block(s);
@@ -627,7 +621,7 @@ int release_format40(struct super_block *s, reiser4_subvol *subv)
 		all_grabbed2free();
 	}
 	sa_destroy_allocator(&subv->space_allocator, s, subv);
-	reiser4_fiber_done(subv);
+	vol->vol_plug->done(subv);
 	reiser4_done_journal_info(subv);
 	put_sb_format_jnode(subv);
 

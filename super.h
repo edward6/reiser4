@@ -13,6 +13,7 @@
 #include "wander.h"
 #include "fsdata.h"
 #include "plugin/object.h"
+#include "plugin/distribution/aid.h"
 #include "plugin/space/space_allocator.h"
 
 /*
@@ -158,12 +159,11 @@ struct reiser4_subvol {
 	u64 id; /* index in the array of original subvolumes */
 	int mirror_id; /* index in the array of mirrors (0 indicates origin) */
 	int num_replicas; /* number of replicas, (mirrors excluding original) */
-	u32 dev_cap; /* capacity of subvolume */
-	u64 fiber_len; /* number of segments in the fiber */
-	u64 room_for_data; /* number of data blocks (for meta-data subvolumes) */
-	void *fiber; /* array of segments (cpu fiber) */
-	jnode **fiber_nodes; /* array of jnodes which represent on-disk fiber */
-
+	u64 data_room; /* number of data blocks (for data subvolumes) */
+	u64 fiber_len;
+	reiser4_block_nr volmap_loc; /* location of the first block containing
+					per-subvolume part of system volume info */
+	void *fiber; /* per-subvolume part of system volume info */
 	reiser4_subv_type type; /* type of this subvolume */
 	unsigned long flags; /* subvolume-wide flags, see subvol_flags enum */
 	disk_format_plugin *df_plug; /* disk format of this subvolume */
@@ -299,7 +299,11 @@ struct reiser4_volume {
 	u64 num_origins; /* number of original subvolumes (without mirrors) */
 	distribution_plugin *dist_plug;
 	volume_plugin *vol_plug;
-	reiser4_aid *aid; /* storage array descriptor */
+	reiser4_aid aid; /* storage array descriptor */
+	jnode **volmap_nodes;
+	int num_volmaps;
+	jnode **voltab_nodes;
+	int num_voltabs;
 	struct list_head subvols_list;  /* list of registered subvolumes */
 	struct reiser4_subvol ***subvols; /* pointer to a table of activated
 					   * subvolumes, where:
@@ -408,6 +412,11 @@ static inline reiser4_super_info_data *get_current_super_private(void)
 static inline reiser4_volume *current_volume(void)
 {
 	return get_current_super_private()->vol;
+}
+
+static inline reiser4_subvol ***current_subvols(void)
+{
+	return get_current_super_private()->vol->subvols;
 }
 
 static inline struct formatted_ra_params *get_current_super_ra_params(void)
@@ -615,8 +624,8 @@ extern __u64 reiser4_subvol_used_blocks(const reiser4_subvol *);
 extern void reiser4_subvol_set_used_blocks(reiser4_subvol *, __u64 nr);
 extern __u64 reiser4_subvol_free_blocks(const reiser4_subvol *);
 extern void reiser4_subvol_set_free_blocks(reiser4_subvol *, __u64 nr);
-extern __u64 reiser4_subvol_fiber_len(reiser4_subvol *);
-extern void reiser4_subvol_set_fiber_len(reiser4_subvol *, __u64 len);
+extern __u64 reiser4_subvol_data_room(reiser4_subvol *);
+extern void reiser4_subvol_set_data_room(reiser4_subvol *, __u64 len);
 
 extern __u64 reiser4_volume_free_blocks(const struct super_block *super);
 extern __u32 reiser4_mkfs_id(const struct super_block *super, __u32 subv_id);

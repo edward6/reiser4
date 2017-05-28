@@ -12,6 +12,44 @@
 
 #define METADATA_SUBVOL_ID  (0)
 
+static inline reiser4_subvol *current_meta_subvol(void)
+{
+	return current_origin(METADATA_SUBVOL_ID);
+}
+
+/*
+ * Returns true, if meta-data subvolume participates in AID.
+ * Otherwise, returns false
+ */
+static inline int meta_subvol_is_aid_subvol(void)
+{
+	return current_meta_subvol()->data_room != 0;
+}
+
+/*
+ * Returns number of subvolumes participating in AID
+ */
+static u64 num_aid_subvols(reiser4_volume *vol)
+{
+	if (meta_subvol_is_aid_subvol())
+		return vol->num_origins;
+	else
+		return vol->num_origins - 1;
+}
+
+/*
+ * Returns matrix of subvolumes participating in AID
+ */
+static inline reiser4_subvol ***current_aid_subvols(void)
+{
+	if (meta_subvol_is_aid_subvol())
+		return current_subvols();
+	else
+		return current_subvols() + 1;
+}
+
+extern void deactivate_subvol(struct super_block *super, reiser4_subvol *subv);
+
 /*
   Local variables:
   c-indentation-style: "K&R"

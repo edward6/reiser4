@@ -16,7 +16,7 @@
 #include <linux/fs.h>
 
 typedef enum {
-	FORMAT40_LARGE_KEYS
+	FORMAT40_LARGE_KEYS,
 } format40_flags;
 
 /* ondisk super block for format 40. It is 512 bytes long */
@@ -61,21 +61,14 @@ typedef struct format40_disk_super_block {
 	   volume */
 	d64 num_origins;
 	/* total number of original subvolumes in the logical volume */
-	d64 fiber_len;
-	/* number of segments in a per-subvolume fiber */
-	d64 fiber_loc;
-	/* location of the first fiber block */
+	d64 data_room;
+	/* number of data blocks (for data subvolumes).
+	   Should be not larger than block_count */
+	d64 volinfo_loc;
+	/* location of the first block of LV system information */
 	d8 num_sgs_bits;
 	/* logarithm of total number of the hash-space segments */
-	d64 num_meta_subvols;
-	/* number of meta-data subvolumes in the logical volume */
-	d64 num_mixed_subvols;
-	/* number of subvolumes of mixed type (meta-data subvolumes
-	   with a room for data) in the logical volume */
-	d64 room_for_data;
-	/* number of data blocks (for subvolumes of mixed type.
-	   for other subvolumes this is zero) */
-	/*  147 */ char not_used[365];
+	/*  123 */ char not_used[389];
 } format40_disk_super_block;
 
 /* Defines for journal header and footer respectively. */

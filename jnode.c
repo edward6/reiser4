@@ -338,13 +338,13 @@ static void jnode_free_actor(struct rcu_head *head)
 	switch (jtype) {
 	case JNODE_IO_HEAD:
 	case JNODE_BITMAP:
+	case JNODE_VOLINFO_HEAD:
 	case JNODE_UNFORMATTED_BLOCK:
 		jfree(node);
 		break;
 	case JNODE_FORMATTED_BLOCK:
 		zfree(JZNODE(node));
 		break;
-	case JNODE_INODE:
 	default:
 		wrong_return_value("nikita-3197", "Wrong jnode type");
 	}
@@ -356,11 +356,8 @@ static void jnode_free_actor(struct rcu_head *head)
  */
 static inline void jnode_free(jnode * node, jnode_type jtype)
 {
-	if (jtype != JNODE_INODE) {
-		/*assert("nikita-3219", list_empty(&node->rcu.list)); */
-		call_rcu(&node->rcu, jnode_free_actor);
-	} else
-		jnode_list_remove(node);
+	/*assert("nikita-3219", list_empty(&node->rcu.list)); */
+	call_rcu(&node->rcu, jnode_free_actor);
 }
 
 /* allocate new unformatted jnode */
@@ -1225,7 +1222,7 @@ static void jnode_set_type(jnode * node, jnode_type type)
 		[JNODE_FORMATTED_BLOCK] = 0,
 		[JNODE_BITMAP] = 2,
 		[JNODE_IO_HEAD] = 6,
-		[JNODE_INODE] = 4
+		[JNODE_VOLINFO_HEAD] = 4
 	};
 
 	assert("zam-647", type < LAST_JNODE_TYPE);
@@ -1494,13 +1491,13 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 		.mapping = mapping_bitmap,
 		.index = index_is_address
 	},
-	[JNODE_INODE] = {
+	[JNODE_VOLINFO_HEAD] = {
 		.h = {
 			.type_id = REISER4_JNODE_PLUGIN_TYPE,
-			.id = JNODE_INODE,
+			.id = JNODE_VOLINFO_HEAD,
 			.pops = NULL,
-			.label = "inode",
-			.desc = "inode's builtin jnode",
+			.label = "volinfo",
+			.desc = "volinfo head",
 			.linkage = {NULL, NULL}
 		},
 		.init = NULL,
@@ -1568,7 +1565,7 @@ jnode_remove(jnode * node, jnode_type jtype, reiser4_tree * tree)
 	case JNODE_IO_HEAD:
 	case JNODE_BITMAP:
 		break;
-	case JNODE_INODE:
+	case JNODE_VOLINFO_HEAD:
 		break;
 	case JNODE_FORMATTED_BLOCK:
 		remove_znode(node, tree);
@@ -1599,7 +1596,7 @@ jnode_delete(jnode * node, jnode_type jtype, reiser4_tree * tree UNUSED_ARG)
 	case JNODE_FORMATTED_BLOCK:
 		delete_znode(node, tree);
 		break;
-	case JNODE_INODE:
+	case JNODE_VOLINFO_HEAD:
 	default:
 		wrong_return_value("nikita-3195", "Wrong jnode type");
 	}
@@ -1814,6 +1811,29 @@ void reiser4_drop_io_head(jnode * node)
 	jdrop(node);
 }
 
+jnode *reiser4_alloc_volinfo_head(const reiser4_block_nr *block,
+				  reiser4_subvol *subv)
+{
+	jnode *jal = jalloc();
+
+	if (jal != NULL) {
+		jnode_init(jal, subv, JNODE_VOLINFO_HEAD);
+		jnode_set_block(jal, block);
+	}
+	jref(jal);
+
+	return jal;
+}
+
+void reiser4_drop_volinfo_head(jnode *node)
+{
+	assert("edward-1834",
+	       jnode_get_type(node) == JNODE_VOLINFO_HEAD);
+
+	jput(node);
+	jdrop(node);
+}
+
 /* protect keep jnode data from reiser4_releasepage()  */
 void pin_jnode_data(jnode * node)
 {
@@ -1882,8 +1902,8 @@ static const char *jnode_type_name(jnode_type type)
 		return "bitmap";
 	case JNODE_IO_HEAD:
 		return "io head";
-	case JNODE_INODE:
-		return "inode";
+	case JNODE_VOLINFO_HEAD:
+		return "volinfo";
 	case LAST_JNODE_TYPE:
 		return "last";
 	default:{
