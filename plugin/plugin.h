@@ -609,10 +609,12 @@ typedef struct volume_plugin {
 	int (*init)(reiser4_volume *vol);
 	/* Increase capacity of a volume. Insert, or expand
 	   a subvolume at the position @pos in the array of subvolumes */
-	int (*expand)(reiser4_volume *vol, u64 pos, u64 delta, void *new);
+	int (*expand)(reiser4_volume *vol, u64 pos, u64 delta,
+		      reiser4_subvol *new);
 	/* Decrease capacity of a volume. Remove, or shrink
 	   a subvolume at the position @pos in the array of subvolumes */
-	int (*shrink)(reiser4_volume *vol, u64 pos, u64 delta, int remove);
+	int (*shrink)(reiser4_volume *vol, u64 pos, u64 delta,
+		      int remove);
 
 	struct reiser4_aid_ops aid_ops;
 } volume_plugin;

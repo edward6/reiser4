@@ -26,6 +26,10 @@ struct flush_params {
 	unsigned scan_maxnodes;
 };
 
+/*
+ * Per volume flags.
+ * They are set up for (re)mount session and are not stored on disk
+ */
 typedef enum {
 	/*
 	 * True if this file system doesn't support hard-links (multiple names)

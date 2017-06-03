@@ -2636,10 +2636,9 @@ count_jnode(txn_atom * atom, jnode * node, atom_list old_list,
 
 #endif
 
-int reiser4_capture_super_block(struct super_block *super)
+int reiser4_capture_super_block(reiser4_subvol *subv)
 {
 	int result;
-	reiser4_subvol *subv = subvol_for_system();
 	/*
 	 * Grab space for a superblock copy update
 	 */

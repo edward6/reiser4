@@ -13,17 +13,17 @@
 #include "volume.h"
 
 /*
- * Reiser4 Logical Volume (LV) is a matrix of subvolumes.
+ * Reiser4 Logical Volume (LV) of format 5.X is a matrix of subvolumes.
  * The first column always represents meta-data suvolume and its replicas.
  * Other columns represent data subvolumes.
  *
- * In asymmetric LV extent pointers are on the meta-data subvolume.
- * In symmetric LV extent pointers are on respective data subvolumes.
+ * In asymmetric LV all extent pointers are on the meta-data subvolume.
+ * In symmetric LV every extent pointer is stored on a respective data
+ * subvolume.
  *
- * For asymmetric LV any data search procedure is performed only on its
- * meta-data subvolume. For symmetric LV any data search procedure is
- * launched on a respective data subvolume. Method ->data_subvol_id() of
- * volume plugin calculates that ID by data stripe offset.
+ * For asymmetric LV any data search procedure is performed only on the
+ * meta-data subvolume. For symmetric LV every data search procedure is
+ * launched on a respective data subvolume.
  */
 
 #define VOLMAP_MAGIC "R4VoLMaP"
@@ -424,15 +424,18 @@ static int write_array_nodes(jnode **start, u64 count)
 
 static int write_volinfo_nodes(reiser4_volume *vol)
 {
+	u64 i;
 	int ret;
 	/*
-	 * Format superblock to be overwritten with
-	 * correct location of the first volmap block.
-	 * Put it to the transaction.
+	 * Format superblocks of all subvolumes to be overwritten
+	 * with updated data room size and location of the first
+	 * volmap block. So, put them to the transaction.
 	 */
-	ret = reiser4_capture_super_block(reiser4_get_current_sb());
-	if (ret)
-		return ret;
+	for (i = 0; i < current_num_origins(); i++) {
+		ret = reiser4_capture_super_block(current_origin(i));
+		if (ret)
+			return ret;
+	}
 	return write_array_nodes(vol->volmap_nodes,
 				 vol->num_volmaps + vol->num_voltabs);
 }
@@ -475,8 +478,11 @@ static int load_volume_asym(reiser4_subvol *subv)
 
 static u64 default_data_room(reiser4_subvol *subv)
 {
-	/* 70% of block_count */
-	return (90 * subv->block_count) >> 7;
+	if (subv != current_meta_subvol())
+		return subv->block_count;
+	else
+		/* 70% of block_count */
+		return (90 * subv->block_count) >> 7;		
 }
 
 /*
@@ -487,16 +493,6 @@ static int init_volume_asym(reiser4_volume *vol)
 {
 	distribution_plugin *dist_plug = vol->dist_plug;
 
-	if (vol->num_origins == 1) {
-		/*
-		 * volume contains only meta-data subvolume
-		 */
-		reiser4_subvol *mtd_subv;
-		mtd_subv = current_meta_subvol();
-		if (mtd_subv->data_room == 0)
-			mtd_subv->data_room =
-				default_data_room(mtd_subv);
-	}
 	if (dist_plug->r.init)
 		return dist_plug->r.init(&vol->aid, vol->num_sgs_bits);
 	return 0;
@@ -536,6 +532,9 @@ static int expand_subvol(reiser4_volume *vol, u64 pos, u64 delta)
 
 	current_aid_subvols()[pos][0]->data_room += delta;
 
+	if (num_aid_subvols(vol) == 1)
+		return 0;
+
 	ret = dist_plug->v.expand(&vol->aid, pos, 0);
 	if (ret)
 		/* roll back */
@@ -546,30 +545,34 @@ static int expand_subvol(reiser4_volume *vol, u64 pos, u64 delta)
 /*
  * Insert a meta-data subvolume to AID
  */
-static int add_meta_subvol(reiser4_volume *vol, void *new)
+static int add_meta_subvol(reiser4_volume *vol, reiser4_subvol *new)
 {
-	int ret;
 	distribution_plugin *dist_plug = vol->dist_plug;
 
 	assert("edward-1820", new == current_meta_subvol());
 
-	if (meta_subvol_is_aid_subvol())
+	if (meta_subvol_is_in_aid())
 		/*
 		 * Can not add a subvolume, which is already
 		 * present in the array
 		 */
 		return -EINVAL;
 
-	ret = dist_plug->v.expand(&vol->aid, METADATA_SUBVOL_ID, 1);
-	assert("edward-1822",
-	       ergo(ret == 0, meta_subvol_is_aid_subvol()));
-	return ret;
+	assert("edward-1822", meta_subvol_is_in_aid());
+
+	if (vol->num_origins == 1)
+		/*
+		 *  nothing to do any more
+		 */
+		return 0;
+	return dist_plug->v.expand(&vol->aid, METADATA_SUBVOL_ID, 1);
 }
 
 /*
  * Insert a data subvolume to AID at position @pos
  */
-static int add_data_subvol(reiser4_volume *vol, u64 pos, void *new_member)
+static int add_data_subvol(reiser4_volume *vol, u64 pos,
+			   reiser4_subvol *new_subv)
 {
 	int ret;
 	reiser4_aid *raid = &vol->aid;
@@ -580,8 +583,13 @@ static int add_data_subvol(reiser4_volume *vol, u64 pos, void *new_member)
 	u64 old_num_subvols = vol->num_origins;
 	u64 pos_in_vol;
 
+	if (num_aid_subvols(vol) == 0) {
+		warning("edward-1840",
+			"Can not add data subvolume to empty AID");
+		return -EINVAL;
+	}
 	pos_in_vol = pos;
-	if (!meta_subvol_is_aid_subvol())
+	if (!meta_subvol_is_in_aid())
 		pos_in_vol ++;
 
 	new = kmalloc(sizeof(reiser4_subvol) * (1 + old_num_subvols),
@@ -590,7 +598,7 @@ static int add_data_subvol(reiser4_volume *vol, u64 pos, void *new_member)
 		return -ENOMEM;
 
 	memcpy(new, old, sizeof(*new) * pos_in_vol);
-	new[pos_in_vol] = new_member;
+	new[pos_in_vol][0] = new_subv;
 	memcpy(new + pos_in_vol + 1, old + pos_in_vol,
 	       sizeof(*new) * (old_num_subvols - pos_in_vol));
 
@@ -611,8 +619,18 @@ static int add_data_subvol(reiser4_volume *vol, u64 pos, void *new_member)
 /*
  * Insert a new subvolume to AID at position @pos
  */
-static int add_subvol(reiser4_volume *vol, u64 pos, void *new)
+static int add_subvol(reiser4_volume *vol, u64 pos, u64 cap, reiser4_subvol *new)
 {
+	assert("edward-1843", new->data_room == 0);
+
+	if (cap != 0)
+		new->data_room = cap;
+	else
+		new->data_room = default_data_room(new);
+
+	if (new->data_room == 0)
+		return -EINVAL;
+
 	if (new == current_meta_subvol())
 		return add_meta_subvol(vol, new);
 	else
@@ -623,13 +641,13 @@ static int add_subvol(reiser4_volume *vol, u64 pos, void *new)
  * Check position in LV, and convert it to the position in AID
  */
 static int check_convert_pos_for_expand(reiser4_volume *vol,
-					u64 *pos, void *new)
+					u64 *pos, reiser4_subvol *new)
 {
 	if (new) {
 		/*
 		 * insert a new subvolume
 		 */
-		if (*pos == 0 && meta_subvol_is_aid_subvol())
+		if (*pos == 0 && meta_subvol_is_in_aid())
 			return -EINVAL;
 		if (*pos == 0 && new != current_meta_subvol())
 			return -EINVAL;
@@ -641,7 +659,7 @@ static int check_convert_pos_for_expand(reiser4_volume *vol,
 		/*
 		 * expand existing subvolume
 		 */
-		if (*pos == 0 && !meta_subvol_is_aid_subvol())
+		if (*pos == 0 && !meta_subvol_is_in_aid())
 			return -EINVAL;
 		if (*pos >= vol->num_origins)
 			return -EINVAL;
@@ -649,7 +667,7 @@ static int check_convert_pos_for_expand(reiser4_volume *vol,
 	/*
 	 * Convert @pos to the position in AID
 	 */
-	if (meta_subvol_is_aid_subvol())
+	if (meta_subvol_is_in_aid())
 		/*
 		 * position in volume coincides with position in AID,
 		 * nothing to convert
@@ -676,7 +694,8 @@ static int check_convert_pos_for_expand(reiser4_volume *vol,
 /**
  * Increase capacity of asymmetric LV.
  */
-static int expand_asym(reiser4_volume *vol, u64 pos, u64 delta, void *new)
+static int expand_asym(reiser4_volume *vol, u64 pos, u64 delta,
+		       reiser4_subvol *new)
 {
 	int ret;
 	reiser4_aid *raid = &vol->aid;
@@ -695,7 +714,7 @@ static int expand_asym(reiser4_volume *vol, u64 pos, u64 delta, void *new)
 	if (ret)
 		return RETERR(ret);
 	if (new)
-		ret = add_subvol(vol, pos, new);
+		ret = add_subvol(vol, pos, delta, new);
 	else
 		ret = expand_subvol(vol, pos, delta);
 	if (ret)
@@ -720,6 +739,9 @@ static int shrink_subvol(reiser4_volume *vol, u64 pos, u64 delta)
 
 	current_aid_subvols()[pos][0]->data_room -= delta;
 
+	if (num_aid_subvols(vol) == 1)
+		return 0;
+
 	ret = dist_plug->v.shrink(&vol->aid, pos, NULL);
 	if (ret)
 		current_aid_subvols()[pos][0]->data_room += delta;
@@ -732,15 +754,23 @@ static int shrink_subvol(reiser4_volume *vol, u64 pos, u64 delta)
 static int remove_meta_subvol(reiser4_volume *vol)
 {
 	int ret;
+	reiser4_subvol *mtd_subv = current_meta_subvol();
 	distribution_plugin *dist_plug = vol->dist_plug;
 
-	assert("edward-1826", meta_subvol_is_aid_subvol());
+	assert("edward-1844", num_aid_subvols(vol) != 0);
+	assert("edward-1826", meta_subvol_is_in_aid());
 
-	ret = dist_plug->v.shrink(&vol->aid, METADATA_SUBVOL_ID,
-				  current_meta_subvol());
-	assert("edward-1827",
-	       ergo(ret == 0, !meta_subvol_is_aid_subvol()));
-	return ret;
+	if (num_aid_subvols(vol) == 1)
+		goto finish;
+
+	ret = dist_plug->v.shrink(&vol->aid, METADATA_SUBVOL_ID, mtd_subv);
+	if (ret)
+		return ret;
+ finish:
+	mtd_subv->data_room = 0;
+
+	assert("edward-1827", !meta_subvol_is_in_aid());
+	return 0;
 }
 
 /*
@@ -757,8 +787,15 @@ static int remove_data_subvol(reiser4_volume *vol, u64 pos)
 	u64 old_num_subvols = vol->num_origins;
 	u64 pos_in_vol;
 
+	assert("edward-1842", num_aid_subvols(vol) != 0);
+
+	if (num_aid_subvols(vol) == 1) {
+		warning("edward-1841",
+			"Can not remove single data subvolume");
+		return -EINVAL;
+	}
 	pos_in_vol = pos;
-	if (!meta_subvol_is_aid_subvol())
+	if (!meta_subvol_is_in_aid())
 		pos_in_vol ++;
 
 	new = kmalloc(sizeof(reiser4_subvol) * (old_num_subvols - 1),
@@ -789,7 +826,7 @@ static int remove_data_subvol(reiser4_volume *vol, u64 pos)
 
 static int remove_subvol(reiser4_volume *vol, u64 pos)
 {
-	if (pos == 0 && meta_subvol_is_aid_subvol())
+	if (pos == 0 && meta_subvol_is_in_aid())
 		return remove_meta_subvol(vol);
 	else
 		return remove_data_subvol(vol, pos);
@@ -800,13 +837,13 @@ static int remove_subvol(reiser4_volume *vol, u64 pos)
  */
 static int check_convert_pos_for_shrink(reiser4_volume *vol, u64 *pos)
 {
-	if (*pos == 0 && !meta_subvol_is_aid_subvol())
+	if (*pos == 0 && !meta_subvol_is_in_aid())
 		return -EINVAL;
 
 	if (*pos >= vol->num_origins)
 		return -EINVAL;
 
-	if (!meta_subvol_is_aid_subvol())
+	if (!meta_subvol_is_in_aid())
 		(*pos) --;
 	return 0;
 }

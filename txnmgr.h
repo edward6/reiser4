@@ -475,7 +475,7 @@ extern void insert_into_atom_ovrwr_list(txn_atom *atom, jnode *node);
 extern void insert_into_subv_ovrwr_list(reiser4_subvol *subv, jnode *node,
 					txn_atom *atom);
 
-extern int reiser4_capture_super_block(struct super_block *s);
+extern int reiser4_capture_super_block(reiser4_subvol *subv);
 int capture_bulk(jnode **, int count);
 
 /* See the comment on the function blocknrset.c:blocknr_set_add for the

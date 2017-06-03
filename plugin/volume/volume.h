@@ -21,7 +21,7 @@ static inline reiser4_subvol *current_meta_subvol(void)
  * Returns true, if meta-data subvolume participates in AID.
  * Otherwise, returns false
  */
-static inline int meta_subvol_is_aid_subvol(void)
+static inline int meta_subvol_is_in_aid(void)
 {
 	return current_meta_subvol()->data_room != 0;
 }
@@ -31,7 +31,7 @@ static inline int meta_subvol_is_aid_subvol(void)
  */
 static u64 num_aid_subvols(reiser4_volume *vol)
 {
-	if (meta_subvol_is_aid_subvol())
+	if (meta_subvol_is_in_aid())
 		return vol->num_origins;
 	else
 		return vol->num_origins - 1;
@@ -42,7 +42,7 @@ static u64 num_aid_subvols(reiser4_volume *vol)
  */
 static inline reiser4_subvol ***current_aid_subvols(void)
 {
-	if (meta_subvol_is_aid_subvol())
+	if (meta_subvol_is_in_aid())
 		return current_subvols();
 	else
 		return current_subvols() + 1;

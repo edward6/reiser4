@@ -609,7 +609,7 @@ int release_format40(struct super_block *s, reiser4_subvol *subv)
 	reiser4_volume *vol = super_volume(s);
 
 	if (!rofs_super(s)) {
-		ret = reiser4_capture_super_block(s);
+		ret = reiser4_capture_super_block(subv);
 		if (ret != 0)
 			warning("vs-898",
 				"Failed to capture superblock (%d)", ret);
