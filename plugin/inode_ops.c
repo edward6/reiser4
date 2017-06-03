@@ -473,16 +473,15 @@ int reiser4_setattr_common(struct dentry *dentry, struct iattr *attr)
 /* this is common implementation of vfs's getattr method of struct
    inode_operations
 */
-int reiser4_getattr_common(struct vfsmount *mnt UNUSED_ARG,
-			   struct dentry *dentry, struct kstat *stat)
+int reiser4_getattr_common(const struct path *path, struct kstat *stat,
+			   u32 request_mask, unsigned int flags)
 {
 	struct inode *obj;
 
-	assert("nikita-2298", dentry != NULL);
+	assert("nikita-2298", path != NULL);
 	assert("nikita-2299", stat != NULL);
-	assert("nikita-2300", dentry->d_inode != NULL);
 
-	obj = dentry->d_inode;
+	obj = d_inode(path->dentry);
 
 	stat->dev = obj->i_sb->s_dev;
 	stat->ino = oid_to_uino(get_inode_oid(obj));

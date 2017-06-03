@@ -249,7 +249,7 @@ static void entd_flush(struct super_block *super, struct wbq *rq)
 			.sync_mode	= WB_SYNC_NONE,
 			.nr_pages	= LONG_MAX,
 			.range_cyclic	= 0,
-			.reason		= WB_REASON_TRY_TO_FREE_PAGES,
+			.reason		= WB_REASON_VMSCAN,
 		};
 		rq->wbc->sync_mode = work.sync_mode,
 		rq->wbc->range_cyclic = work.range_cyclic,
