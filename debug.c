@@ -39,6 +39,7 @@
 #include <linux/ctype.h>
 #include <linux/sysctl.h>
 #include <linux/hardirq.h>
+#include <linux/sched/signal.h>  /* signal_pending() */
 
 #if 0
 #if REISER4_DEBUG

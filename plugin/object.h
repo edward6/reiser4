@@ -29,8 +29,8 @@ const char *reiser4_get_link_common(struct dentry *, struct inode *inode,
 				    struct delayed_call *done);
 int reiser4_permission_common(struct inode *, int mask);
 int reiser4_setattr_common(struct dentry *, struct iattr *);
-int reiser4_getattr_common(struct vfsmount *mnt, struct dentry *,
-			   struct kstat *);
+int reiser4_getattr_common(const struct path *path, struct kstat *stat,
+			   u32 request_mask, unsigned int flags);
 
 /* common implementations of file operations */
 loff_t reiser4_llseek_dir_common(struct file *, loff_t off, int origin);
