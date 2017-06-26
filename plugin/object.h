@@ -40,7 +40,8 @@ int reiser4_sync_common(struct file *, loff_t, loff_t, int datasync);
 
 /* file plugin operations: common implementations */
 int write_sd_by_inode_common(struct inode *, oid_t *oid);
-int key_by_inode_and_offset_common(struct inode *, loff_t, reiser4_key *);
+int key_by_inode_and_offset(struct inode *, loff_t, reiser4_key *);
+int key_by_inode_offset_ordering(struct inode *, loff_t, u64, reiser4_key *);
 int set_plug_in_inode_common(struct inode *object, struct inode *parent,
 			     reiser4_object_create_data *);
 int adjust_to_parent_common(struct inode *object, struct inode *parent,

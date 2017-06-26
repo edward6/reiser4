@@ -250,10 +250,8 @@ static int hashed_rename_estimate_and_grab(struct inode *old_dir,  /* directory
 
 	reserve = estimate_rename(old_dir, old_name, new_dir, new_name);
 
-	if (reiser4_grab_space(reserve, BA_CAN_COMMIT,
-			       subvol_for_meta(old_name->d_inode)))
+	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, get_meta_subvol()))
 		return RETERR(-ENOSPC);
-
 	return 0;
 }
 

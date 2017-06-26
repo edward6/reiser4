@@ -372,11 +372,11 @@ int split_allocated_extent(coord_t *coord, reiser4_block_nr pos_in_unit)
 	h->paste_key = h->key;
 
 	/* reserve space for extent unit paste, @grabbed is reserved before */
-	grabbed = reserve_replace(subvol_by_coord(coord));
+	grabbed = reserve_replace(get_meta_subvol());
 	result = reiser4_replace_extent(h, 0 /* leave @coord set to overwritten
 						extent */);
 	/* restore reserved */
-	free_reserved_replace(grabbed, subvol_by_coord(coord));
+	free_reserved_replace(grabbed, get_meta_subvol());
 	kfree(h);
 	return result;
 }
@@ -509,11 +509,11 @@ int convert_extent(coord_t *coord, reiser4_extent *replace)
 	h->paste_key = h->key;
 
 	/* reserve space for extent unit paste, @grabbed is reserved before */
-	grabbed = reserve_replace(subvol_by_coord(coord));
+	grabbed = reserve_replace(get_meta_subvol());
 	result = reiser4_replace_extent(h, 0 /* leave @coord set to overwritten
 						extent */);
 	/* restore reserved */
-	free_reserved_replace(grabbed, subvol_by_coord(coord));
+	free_reserved_replace(grabbed, get_meta_subvol());
 	kfree(h);
 	return result;
 }
@@ -691,7 +691,7 @@ int put_unit_to_end(znode *node,
 
 int key_by_offset_extent(struct inode *inode, loff_t off, reiser4_key * key)
 {
-	return key_by_inode_and_offset_common(inode, off, key);
+	return key_by_inode_and_offset(inode, off, key);
 }
 
 /*

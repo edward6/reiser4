@@ -225,7 +225,7 @@ int find_file_item_nohint(coord_t *coord, lock_handle *lh,
 			  const reiser4_key *key, znode_lock_mode lock_mode,
 			  struct inode *inode)
 {
-	return reiser4_object_lookup(&subvol_for_meta(inode)->tree,
+	return reiser4_object_lookup(meta_subvol_tree(),
 				     inode, key, coord, lh, lock_mode,
 				     FIND_MAX_NOT_MORE_THAN,
 				     TWIG_LEVEL, LEAF_LEVEL,
@@ -262,7 +262,7 @@ int find_file_item(hint_t *hint, const reiser4_key *key,
 	init_lh(lh);
 
 	result = hint_validate(hint,
-			       &subvol_for_meta(inode)->tree,
+			       meta_subvol_tree(),
 			       key, 1 /* check key */, lock_mode);
 	if (!result) {
 		if (coord->between == AFTER_UNIT &&
@@ -313,7 +313,7 @@ static int find_file_state(struct inode *inode, struct unix_file_info *uf_info)
 	assert("vs-1628", ea_obtained(uf_info));
 
 	if (uf_info->container == UF_CONTAINER_UNKNOWN) {
-		key_by_inode_and_offset_common(inode, 0, &key);
+		key_by_inode_and_offset(inode, 0, &key);
 		init_lh(&lh);
 		result = find_file_item_nohint(&coord, &lh, &key,
 					       ZNODE_READ_LOCK, inode);
@@ -342,8 +342,8 @@ static int find_file_state(struct inode *inode, struct unix_file_info *uf_info)
 static int reserve_partial_page(struct inode *inode, pgoff_t index)
 {
 	int ret;
-	reiser4_subvol *subv_m = subvol_for_meta(inode);
-	reiser4_subvol *subv_d = subvol_for_data(inode,
+	reiser4_subvol *subv_m = get_meta_subvol();
+	reiser4_subvol *subv_d = get_data_subvol(inode,
 						 index << PAGE_SHIFT);
 	grab_space_enable();
 	ret = reiser4_grab_reserved(reiser4_get_current_sb(),
@@ -366,7 +366,7 @@ static int reserve_partial_page(struct inode *inode, pgoff_t index)
  */
 static int reserve_cut_iteration(struct inode *inode, loff_t off)
 {
-	reiser4_subvol *subv = subvol_for_meta(inode);
+	reiser4_subvol *subv = get_meta_subvol();
 
 	assert("nikita-3172", lock_stack_isclean(get_current_lock_stack()));
 	/*
@@ -414,7 +414,7 @@ int cut_file_items(struct inode *inode, loff_t new_size,
 	       fplug == file_plugin_by_id(UNIX_FILE_PLUGIN_ID) ||
 	       fplug == file_plugin_by_id(CRYPTCOMPRESS_FILE_PLUGIN_ID));
 
-	tree = &subvol_for_meta(inode)->tree;
+	tree = meta_subvol_tree();
 	fplug->key_by_inode(inode, new_size, &from_key);
 	to_key = from_key;
 	set_key_offset(&to_key, cur_size - 1 /*get_key_offset(reiser4_max_key()) */ );
@@ -891,7 +891,7 @@ static int has_anonymous_pages(struct inode *inode)
  */
 static int reserve_capture_page_and_create_extent(struct page *page)
 {
-	reiser4_subvol *subv = subvol_for_meta(page->mapping->host);
+	reiser4_subvol *subv = get_meta_subvol();
 	/*
 	 * page capture may require extent creation (if it does not exist yet)
 	 * and stat data's update (number of blocks changes on extent creation)
@@ -1432,7 +1432,7 @@ int readpage_unix_file(struct file *file, struct page *page)
 	lh = &hint->lh;
 
 	/* get key of first byte of the page */
-	key_by_inode_and_offset_common(inode, page_offset(page), &key);
+	key_by_inode_and_offset(inode, page_offset(page), &key);
 
 	/* look for file metadata corresponding to first byte of page */
 	get_page(page);
@@ -1585,9 +1585,9 @@ static int readpages_filler(void * data, struct page * page)
 		reiser4_key key;
 	repeat:
 		unlock_page(page);
-		key_by_inode_and_offset_common(mapping->host,
-					       page_offset(page), &key);
-		ret = coord_by_key(&subvol_for_meta(mapping->host)->tree,
+		key_by_inode_and_offset(mapping->host,
+					page_offset(page), &key);
+		ret = coord_by_key(meta_subvol_tree(),
 				   &key, &rc->coord, &rc->lh,
 				   ZNODE_READ_LOCK, FIND_EXACT,
 				   TWIG_LEVEL, TWIG_LEVEL, CBK_UNIQUE, NULL);
@@ -2445,8 +2445,8 @@ static int unpack(struct file *filp, struct inode *inode, int forever)
 
 		grab_space_enable();
 		tograb = inode_file_plugin(inode)->estimate.update(inode);
-		result = reiser4_grab_space(tograb, BA_CAN_COMMIT,
-					    subvol_for_meta(inode));
+		result = reiser4_grab_space(tograb,
+					    BA_CAN_COMMIT, get_meta_subvol());
 		if (result) {
 			warning("edward-1781",
 				"Can not update sd (%d)", result);
@@ -2506,10 +2506,9 @@ sector_t bmap_unix_file(struct address_space * mapping, sector_t lblock)
 	ctx = reiser4_init_context(inode->i_sb);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
-	key_by_inode_and_offset_common(inode,
-				       (loff_t) lblock * current_blocksize,
-				       &key);
-
+	key_by_inode_and_offset(inode,
+				(loff_t) lblock * current_blocksize,
+				&key);
 	init_lh(&lh);
 	result =
 	    find_file_item_nohint(&coord, &lh, &key, ZNODE_READ_LOCK, inode);
@@ -2566,9 +2565,9 @@ int flow_by_inode_unix_file(struct inode *inode,
 	assert("nikita-1931", inode_file_plugin(inode) != NULL);
 	assert("nikita-1932",
 	       inode_file_plugin(inode)->key_by_inode ==
-	       key_by_inode_and_offset_common);
+	       key_by_inode_and_offset);
 	/* calculate key of write position and insert it into flow->key */
-	return key_by_inode_and_offset_common(inode, off, &flow->key);
+	return key_by_inode_and_offset(inode, off, &flow->key);
 }
 
 /* plugin->u.file.set_plug_in_sd = NULL
@@ -2606,7 +2605,7 @@ static int setattr_truncate(struct inode *inode, struct iattr *attr)
 	int s_result;
 	loff_t old_size;
 	struct super_block *super = reiser4_get_current_sb();
-	reiser4_subvol *subv = subvol_for_meta(inode);
+	reiser4_subvol *subv = get_meta_subvol();
 
 	inode_check_scale(inode, inode->i_size, attr->ia_size);
 
@@ -2762,8 +2761,8 @@ static int reserve_write_begin_unix_file(const struct inode *inode,
 					 pgoff_t index)
 {
 	int ret;
-	reiser4_subvol *subv_m = subvol_for_meta(inode);
-	reiser4_subvol *subv_d = subvol_for_data(inode,
+	reiser4_subvol *subv_m = get_meta_subvol();
+	reiser4_subvol *subv_d = get_data_subvol(inode,
 						 index << PAGE_SHIFT);
 	grab_space_enable();
 	ret = reiser4_grab_space(1, BA_CAN_COMMIT, subv_d);

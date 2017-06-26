@@ -477,7 +477,7 @@ int kill_hook_extent(const coord_t *coord, pos_in_node_t from,
 			 * some jnodes corresponding to this unallocated extent
 			 */
 			fake_allocated2free(length, 0 /* unformatted */,
-					    subvol_for_data(inode, offset));
+					    get_data_subvol(inode, offset));
 			skip = 0;
 			offset += length;
 			ext++;
@@ -495,7 +495,7 @@ int kill_hook_extent(const coord_t *coord, pos_in_node_t from,
 			reiser4_dealloc_blocks(&start, &length,
 					       0, /* not used */
 					       BA_DEFER, /* unformatted with defer */
-					       subvol_for_data(inode, offset));
+					       get_data_subvol(inode, offset));
 		}
 		skip = 0;
 		offset += length;
@@ -781,9 +781,6 @@ reiser4_key *max_unit_key_extent(const coord_t * coord, reiser4_key * key)
 	return key;
 }
 
-/* item_plugin->b.estimate
-   item_plugin->b.item_data_by_flow */
-
 #if REISER4_DEBUG
 
 /* item_plugin->b.check
@@ -791,18 +788,18 @@ reiser4_key *max_unit_key_extent(const coord_t * coord, reiser4_key * key)
    possible check of the consistency of the item that the inventor can
    construct
 */
-int reiser4_check_extent(const coord_t * coord /* coord of item to check */,
+int reiser4_check_extent(const coord_t *coord /* coord of item to check */,
 			 const char **error /* where to store error message */)
 {
 	reiser4_extent *ext, *first;
 	unsigned i, j;
-	reiser4_block_nr start, width, blk_cnt;
+	reiser4_block_nr blk_cnt;
 	unsigned num_units;
 	reiser4_tree *tree;
 	oid_t oid;
 	reiser4_key key;
 	coord_t scan;
-	reiser4_subvol *subv = subvol_by_coord(coord);
+	reiser4_subvol *subv;
 
 	assert("vs-933", REISER4_DEBUG);
 
@@ -815,21 +812,27 @@ int reiser4_check_extent(const coord_t * coord /* coord of item to check */,
 		return -1;
 	}
 	ext = first = extent_item(coord);
-	blk_cnt = reiser4_subvol_block_count(subv);
 	num_units = coord_num_units(coord);
 	tree = znode_get_tree(coord->node);
 	item_key_by_coord(coord, &key);
 	oid = get_key_objectid(&key);
 	coord_dup(&scan, coord);
+	/*
+	 * subvolume where the extent blocks are located
+	 */
+	subv = current_origin(current_vol_plug()->data_subvol_id_by_key(&key));
+	blk_cnt = reiser4_subvol_block_count(subv);
 
 	for (i = 0; i < num_units; ++i, ++ext) {
 		__u64 index;
+		reiser4_block_nr start, width;
 
 		scan.unit_pos = i;
 		index = extent_unit_index(&scan);
-#if 0
-		/* check that all jnodes are present for the unallocated
-		 * extent */
+		/*
+		 * check that all jnodes are present for the unallocated
+		 * extent and that subvolumes are set properly
+		 */
 		if (state_of_extent(ext) == UNALLOCATED_EXTENT) {
 			for (j = 0; j < extent_get_width(ext); j++) {
 				jnode *node;
@@ -840,15 +843,19 @@ int reiser4_check_extent(const coord_t * coord /* coord of item to check */,
 					*error = "Jnode missing";
 					return -1;
 				}
+				if (node->subvol != subv) {
+					*error = "Bad subvolume";
+					return -1;
+				}
 				jput(node);
 			}
 		}
-#endif
-
 		start = extent_get_start(ext);
 		if (start < 2)
 			continue;
-		/* extent is allocated one */
+		/*
+		 * extent is allocated one
+		 */
 		width = extent_get_width(ext);
 		if (start >= blk_cnt) {
 			*error = "Start too large";
@@ -858,29 +865,28 @@ int reiser4_check_extent(const coord_t * coord /* coord of item to check */,
 			*error = "End too large";
 			return -1;
 		}
-		/* make sure that this extent does not overlap with other
-		   allocated extents extents */
+		/*
+		 * make sure that this extent does not overlap
+		 * with other allocated extents extents
+		 */
 		for (j = 0; j < i; j++) {
 			if (state_of_extent(first + j) != ALLOCATED_EXTENT)
 				continue;
-			if (!
-			    ((extent_get_start(ext) >=
-			      extent_get_start(first + j) +
-			      extent_get_width(first + j))
-			     || (extent_get_start(ext) +
-				 extent_get_width(ext) <=
-				 extent_get_start(first + j)))) {
+			if (!((extent_get_start(ext) >=
+			       extent_get_start(first + j) +
+			       extent_get_width(first + j)) ||
+			      (extent_get_start(ext) +
+			       extent_get_width(ext) <=
+			       extent_get_start(first + j)))) {
 				*error = "Extent overlaps with others";
 				return -1;
 			}
 		}
-
 	}
-
 	return 0;
 }
 
-#endif				/* REISER4_DEBUG */
+#endif	/* REISER4_DEBUG */
 
 /*
    Local variables:

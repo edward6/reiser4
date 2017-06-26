@@ -987,8 +987,7 @@ int rem_entry_cde(struct inode *dir /* directory of item */ ,
 /* ->s.dir.max_name_len() method for this item plugin */
 int max_name_len_cde(const struct inode *dir /* directory */ )
 {
-	return
-		reiser4_tree_by_inode(dir)->nplug->max_item_size() -
+	return meta_subvol_tree()->nplug->max_item_size() -
 		sizeof(directory_entry_format) - sizeof(cde_item_format) -
 		sizeof(cde_unit_header) - 2;
 }

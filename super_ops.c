@@ -178,7 +178,7 @@ static void reiser4_dirty_inode(struct inode *inode, int flags)
 	assert("edward-1606", !IS_RDONLY(inode));
 	assert("edward-1607",
 	       (inode_file_plugin(inode)->estimate.update(inode) <=
-		ctx->ctx_grabbed_blocks[subvol_for_meta(inode)->id]));
+		ctx->ctx_grabbed_blocks[get_meta_subvol()->id]));
 
 	if (ctx->locked_page)
 		unlock_page(ctx->locked_page);

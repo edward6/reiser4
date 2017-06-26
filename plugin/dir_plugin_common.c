@@ -137,8 +137,7 @@ int reiser4_add_entry_common(struct inode *object, /* directory to add new name
 		return PTR_ERR(fsdata);
 
 	reserve = inode_dir_plugin(object)->estimate.add_entry(object);
-	if (reiser4_grab_space(reserve, BA_CAN_COMMIT,
-			       subvol_for_meta(object)))
+	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, get_meta_subvol()))
 		return RETERR(-ENOSPC);
 
 	init_lh(&lh);
@@ -237,7 +236,7 @@ int reiser4_rem_entry_common(struct inode *dir,
 
 	tograb = inode_dir_plugin(dir)->estimate.rem_entry(dir);
 	result = reiser4_grab_space(tograb, BA_CAN_COMMIT | BA_RESERVED,
-				    subvol_for_meta(dir));
+				    get_meta_subvol());
 	if (result != 0)
 		return RETERR(-ENOSPC);
 
@@ -313,8 +312,7 @@ int reiser4_dir_init_common(struct inode *object,	/* new directory */
 	assert("nikita-687", object->i_mode & S_IFDIR);
 
 	reserve = estimate_init(parent, object);
-	if (reiser4_grab_space(reserve, BA_CAN_COMMIT,
-			       subvol_for_meta(parent)))
+	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, get_meta_subvol()))
 		return RETERR(-ENOSPC);
 
 	return create_dot_dotdot(object, parent);
@@ -343,7 +341,7 @@ int reiser4_dir_done_common(struct inode *object/* object being deleted */)
 	 * which reserved space already */
 	reserve = inode_dir_plugin(object)->estimate.rem_entry(object);
 	if (reiser4_grab_space(reserve, BA_CAN_COMMIT | BA_RESERVED,
-			       subvol_for_meta(object)))
+			       get_meta_subvol()))
 		return RETERR(-ENOSPC);
 
 	memset(&goodby_dots, 0, sizeof goodby_dots);
@@ -421,7 +419,7 @@ int reiser4_detach_common(struct inode *object, struct inode *parent)
 */
 reiser4_block_nr estimate_add_entry_common(const struct inode *inode)
 {
-	return estimate_one_insert_into_item(reiser4_tree_by_inode(inode));
+	return estimate_one_insert_into_item(meta_subvol_tree());
 }
 
 /* this is common implementation of estimate.rem_entry method of dir
@@ -429,7 +427,7 @@ reiser4_block_nr estimate_add_entry_common(const struct inode *inode)
 */
 reiser4_block_nr estimate_rem_entry_common(const struct inode *inode)
 {
-	return estimate_one_item_removal(reiser4_tree_by_inode(inode));
+	return estimate_one_item_removal(meta_subvol_tree());
 }
 
 /* this is common implementation of estimate.unlink method of dir
@@ -782,7 +780,7 @@ int reiser4_find_entry(struct inode *dir,	/* directory to scan */
 	if (reiser4_seal_is_set(seal)) {
 		/* check seal */
 		result = reiser4_seal_validate(seal,
-					       &subvol_for_meta(dir)->tree,
+					       meta_subvol_tree(),
 					       coord, &entry->key,
 					       lh, mode, ZNODE_LOCK_LOPRI);
 		if (result == 0) {
@@ -797,7 +795,7 @@ int reiser4_find_entry(struct inode *dir,	/* directory to scan */
 	/*
 	 * find place in the tree where directory item should be located.
 	 */
-	result = reiser4_object_lookup(&subvol_for_meta(dir)->tree,
+	result = reiser4_object_lookup(meta_subvol_tree(),
 				       dir, &entry->key, coord, lh, mode,
 				       FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL,
 				       flags, NULL/*ra_info */);
@@ -824,10 +822,10 @@ int reiser4_find_entry(struct inode *dir,	/* directory to scan */
 			coord_init_zero(&arg.last_coord);
 			init_lh(&arg.last_lh);
 
-			result = reiser4_iterate_tree
-				(reiser4_tree_by_inode(dir),
-				 coord, lh,
-				 entry_actor, &arg, mode, 1);
+			result = reiser4_iterate_tree(meta_subvol_tree(),
+						      coord, lh,
+						      entry_actor,
+						      &arg, mode, 1);
 			/* if end of the tree or extent was reached during
 			   scanning. */
 			if (arg.not_found || (result == -E_NO_NEIGHBOR)) {

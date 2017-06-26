@@ -423,7 +423,7 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	reiser4_block_nr block;
 	struct unix_file_info *uf_info;
 	jnode *node;
-	reiser4_subvol *subv = subvol_for_data(inode, get_key_offset(key));
+	reiser4_subvol *subv = get_data_subvol(inode, get_key_offset(key));
 
 	/* first extent insertion starts at leaf level */
 	assert("vs-719", znode_get_level(uf_coord->coord.node) == LEAF_LEVEL);
@@ -666,9 +666,10 @@ static int overwrite_one_block(struct inode *inode, uf_coord_t *uf_coord,
 	reiser4_extent *ext;
 	reiser4_block_nr block;
 	int how;
-	reiser4_subvol *subv = subvol_for_data(inode, get_key_offset(key));
+	reiser4_subvol *subv = node->subvol;
 
-	assert("edward-1784", subv == node->subvol);
+	assert("edward-1784",
+	       subv == get_data_subvol(inode, get_key_offset(key)));
 	assert("vs-1312", uf_coord->coord.between == AT_UNIT);
 
 	result = 0;
@@ -818,7 +819,7 @@ int reiser4_update_extent(struct inode *inode, jnode *node, loff_t pos,
 
 	assert("", reiser4_lock_counters()->d_refs == 0);
 
-	key_by_inode_and_offset_common(inode, pos, &key);
+	key_by_inode_and_offset(inode, pos, &key);
 
 	init_uf_coord(&uf_coord, &lh);
 	coord = &uf_coord.coord;
@@ -891,7 +892,7 @@ static int update_extents(struct file *file, struct inode *inode,
 		 * count == 0 is special case: expanding truncate
 		 */
 		pos = (loff_t)index_jnode(jnodes[0]) << PAGE_SHIFT;
-	key_by_inode_and_offset_common(inode, pos, &key);
+	key_by_inode_and_offset(inode, pos, &key);
 
 	assert("", reiser4_lock_counters()->d_refs == 0);
 
@@ -972,9 +973,9 @@ static int update_extents(struct file *file, struct inode *inode,
 static int reserve_write_extent(struct inode *inode, loff_t offset)
 {
 	int ret;
-	reiser4_subvol *subv_m = subvol_for_meta(inode);
+	reiser4_subvol *subv_m = get_meta_subvol();
 	reiser4_tree *tree_m = &subv_m->tree;
-	reiser4_subvol *subv_d = subvol_for_data(inode, offset);
+	reiser4_subvol *subv_d = get_data_subvol(inode, offset);
 	/*
 	 * to write WRITE_GRANULARITY pages to a file by extents we have to
 	 * reserve disk space for:

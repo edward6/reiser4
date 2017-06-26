@@ -166,8 +166,7 @@ int reiser4_link_common(struct dentry *existing, struct inode *parent,
 		reiser4_exit_context(ctx);
 		return reserve;
 	}
-	if (reiser4_grab_space(reserve,
-			       BA_CAN_COMMIT, subvol_for_meta(object))) {
+	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, get_meta_subvol())) {
 		context_set_commit_async(ctx);
 		reiser4_exit_context(ctx);
 		return RETERR(-ENOSPC);
@@ -181,7 +180,7 @@ int reiser4_link_common(struct dentry *existing, struct inode *parent,
 	 * reiser4_unlink() viz. creation of safe-link.
 	 */
 	if (unlikely(object->i_nlink == 0)) {
-		result = safe_link_del(subvol_for_meta(object),
+		result = safe_link_del(get_meta_subvol(),
 				       get_inode_oid(object), SAFE_UNLINK);
 		if (result != 0) {
 			context_set_commit_async(ctx);
@@ -654,7 +653,7 @@ static int do_create_vfs_child(reiser4_object_create_data *data,
 	reiser4_inode_data(object)->locality_id = get_inode_oid(parent);
 
 	if (reiser4_grab_space(estimate_create_vfs_object(parent, object),
-			       BA_CAN_COMMIT, __subvol_for_meta(oid)))
+			       BA_CAN_COMMIT, get_meta_subvol()))
 		return RETERR(-ENOSPC);
 	/*
 	  mark inode `immutable'. We disable changes to the file being
@@ -803,7 +802,7 @@ static reiser4_block_nr common_estimate_link(struct inode *parent /* parent
 	/* update_dir(parent) */
 	res += inode_file_plugin(parent)->estimate.update(parent);
 	/* safe-link */
-	res += estimate_one_item_removal(reiser4_tree_by_inode(object));
+	res += estimate_one_item_removal(meta_subvol_tree());
 
 	return res;
 }
@@ -837,7 +836,7 @@ static reiser4_block_nr estimate_unlink(struct inode *parent /* parent
 	/* fplug->unlink */
 	res += fplug->estimate.unlink(object, parent);
 	/* safe-link */
-	res += estimate_one_insert_item(reiser4_tree_by_inode(object));
+	res += estimate_one_insert_item(meta_subvol_tree());
 
 	return res;
 }
@@ -870,7 +869,7 @@ static int unlink_check_and_grab(struct inode *parent, struct dentry *victim)
 		return result;
 
 	return reiser4_grab_reserved(child->i_sb, result,
-				     BA_CAN_COMMIT, subvol_for_meta(child));
+				     BA_CAN_COMMIT, get_meta_subvol());
 }
 
 /**
@@ -879,7 +878,7 @@ static int unlink_check_and_grab(struct inode *parent, struct dentry *victim)
  */
 static int setattr_reserve(struct inode *inode)
 {
-	reiser4_subvol *subv = subvol_for_meta(inode);
+	reiser4_subvol *subv = get_meta_subvol();
 
 	assert("edward-1793", subv != NULL);
 	assert("vs-1096", is_grab_enabled(get_current_context()));

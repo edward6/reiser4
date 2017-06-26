@@ -23,11 +23,9 @@
 #include <linux/fs.h>
 
 /* return tree which inode belongs to */
-reiser4_tree *reiser4_tree_by_inode(const struct inode *inode)
+reiser4_tree *meta_subvol_tree(void)
 {
-	assert("nikita-256", inode != NULL);
-	assert("nikita-257", inode->i_sb != NULL);
-	return &subvol_for_meta(inode)->tree;
+	return &get_meta_subvol()->tree;
 }
 
 /* return reiser4-specific inode flags */
@@ -279,8 +277,7 @@ static int read_inode(struct inode *inode /* inode to read from disk */ ,
 			reiser4_load_cursors(inode);
 
 			/* Check the opened inode for consistency. */
-			result =
-			    subvol_for_meta(inode)->df_plug->check_open(inode);
+			result = get_meta_subvol()->df_plug->check_open(inode);
 		}
 	}
 	/* lookup_sd() doesn't release coord because we want znode
@@ -656,7 +653,7 @@ znode *inode_get_vroot(struct inode *inode)
 	blk = reiser4_inode_data(inode)->vroot;
 	spin_unlock_inode(inode);
 	if (!disk_addr_eq(&UBER_TREE_ADDR, &blk))
-		result = zlook(reiser4_tree_by_inode(inode), &blk);
+		result = zlook(meta_subvol_tree(), &blk);
 	else
 		result = NULL;
 	return result;

@@ -589,7 +589,7 @@ truncate_jnodes_range(struct inode *inode, pgoff_t from, pgoff_t count)
 	truncated_jnodes = 0;
 
 	info = reiser4_inode_data(inode);
-	tree = reiser4_tree_by_inode(inode);
+	tree = meta_subvol_tree();
 
 	index = from;
 	end = from + count;

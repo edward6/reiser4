@@ -9,7 +9,7 @@
 
 #include "../../debug.h"
 #include "../../super.h"
-#include "../plugin.h"
+#include "../../inode.h"
 #include "volume.h"
 
 /*
@@ -124,9 +124,13 @@ static int load_volume_info(reiser4_subvol *subv)
 	distribution_plugin *dist_plug = vol->dist_plug;
 	reiser4_block_nr volmap_loc = subv->volmap_loc;
 
-	if (volmap_loc == 0)
+	if (volmap_loc == 0) {
+		/*
+		 * It can happen only for simple volumes
+		 */
+		assert("edward-1847", vol->num_origins == 1);
 		return 0;
-
+	}
 	vol->num_volmaps = num_volmap_nodes(vol, vol->num_sgs_bits);
 	vol->num_voltabs = num_voltab_nodes(vol, vol->num_sgs_bits);
 
@@ -691,6 +695,15 @@ static int check_convert_pos_for_expand(reiser4_volume *vol,
 	return 0;
 }
 
+static int can_expand(reiser4_volume *vol, reiser4_subvol *new)
+{
+	if (vol->dist_plug->h.id == TRIV_DISTRIB_ID ||
+	    get_meta_subvol()->df_plug->h.id == FORMAT40_ID ||
+	    (new && (get_meta_subvol()->df_plug->h.id != new->df_plug->h.id)))
+		return 0;
+	return 1;
+}
+
 /**
  * Increase capacity of asymmetric LV.
  */
@@ -704,6 +717,8 @@ static int expand_asym(reiser4_volume *vol, u64 pos, u64 delta,
 	assert("edward-1824", raid != NULL);
 	assert("edward-1825", dist_plug != NULL);
 
+	if (!can_expand(vol, new))
+		return -EINVAL;
 	ret = check_convert_pos_for_expand(vol, &pos, new);
 	if (ret)
 		return RETERR(ret);
@@ -857,9 +872,13 @@ static int shrink_asym(reiser4_volume *vol, u64 pos, u64 delta, int remove)
 	distribution_plugin *dist_plug = vol->dist_plug;
 
 	assert("edward-1830", vol != NULL);
+	assert("edward-1846", dist_plug != NULL);
 	assert("edward-1831", vol->subvols != NULL);
 	assert("edward-1832", pos < num_aid_subvols(vol));
 	assert("edward-1833", vol->subvols[pos] != NULL);
+
+	if (dist_plug->h.id == TRIV_DISTRIB_ID)
+		return -EINVAL;
 
 	ret = check_convert_pos_for_shrink(vol, &pos);
 	if (ret)
@@ -889,24 +908,51 @@ static int shrink_asym(reiser4_volume *vol, u64 pos, u64 delta, int remove)
 	return ret;
 }
 
-static u64 sys_subvol_id_triv(void)
+static u64 sys_subvol_id_simple(void)
 {
 	return METADATA_SUBVOL_ID;
 }
 
-static u64 meta_subvol_id_triv(void)
+static u64 meta_subvol_id_simple(void)
 {
 	return METADATA_SUBVOL_ID;
 }
 
-static u64 data_subvol_id_triv(const struct inode *inode,
-			       loff_t stripe_idx)
+static u64 data_subvol_id_simple(oid_t oid, loff_t offset)
 {
 	return METADATA_SUBVOL_ID;
 }
 
-static u64 data_subvol_id_asym(const struct inode *inode,
-			       loff_t data_offset)
+static u64 data_subvol_id_by_key_simple(reiser4_key *key)
+{
+	return METADATA_SUBVOL_ID;
+}
+
+static int shrink_simple(reiser4_volume *vol, u64 pos, u64 delta, int remove)
+{
+	return -EINVAL;
+}
+
+static int expand_simple(reiser4_volume *vol, u64 pos, u64 delta,
+		       reiser4_subvol *new)
+{
+	return -EINVAL;
+}
+
+static int build_body_key_simple(struct inode *inode,
+				 loff_t offset, reiser4_key *key)
+{
+	/*
+	 * For simple volumes body key's ordering is
+	 * inherited from inode
+	 */
+	return key_by_inode_offset_ordering(inode,
+					    offset,
+					    get_inode_ordering(inode),
+					    key);
+}
+
+static u64 data_subvol_id_asym(oid_t oid, loff_t offset)
 {
 	reiser4_volume *vol;
 	distribution_plugin *dist_plug;
@@ -914,32 +960,63 @@ static u64 data_subvol_id_asym(const struct inode *inode,
 
 	vol = current_volume();
 	dist_plug = current_dist_plug();
-	stripe_idx = data_offset >> current_stripe_bits;
+	stripe_idx = offset >> current_stripe_bits;
 
 	return dist_plug->r.lookup(&vol->aid,
 				   (const char *)&stripe_idx,
-				   sizeof(stripe_idx),
-				   (u32)(inode->i_ino));
+				   sizeof(stripe_idx), (u32)oid);
+}
+
+static int build_body_key_asym(struct inode *inode,
+			       loff_t offset, reiser4_key *key)
+{
+	oid_t oid;
+
+	oid = get_inode_oid(inode);
+	/*
+	 * For compound volumes body key's ordering is a subvolume ID
+	 */
+	return key_by_inode_offset_ordering(inode,
+					    offset,
+					    data_subvol_id_asym(oid, offset),
+					    key);
+}
+
+static u64 data_subvol_id_by_key_asym(reiser4_key *key)
+{
+	return get_key_ordering(key);
+}
+
+reiser4_subvol *get_meta_subvol(void)
+{
+	return current_origin(current_vol_plug()->meta_subvol_id());
+}
+
+reiser4_subvol *get_data_subvol(const struct inode *inode, loff_t offset)
+{
+	return current_origin(current_vol_plug()->data_subvol_id(get_inode_oid(inode), offset));
 }
 
 volume_plugin volume_plugins[LAST_VOLUME_ID] = {
-	[TRIV_VOLUME_ID] = {
+	[SIMPLE_VOLUME_ID] = {
 		.h = {
 			.type_id = REISER4_VOLUME_PLUGIN_TYPE,
-			.id = TRIV_VOLUME_ID,
+			.id = SIMPLE_VOLUME_ID,
 			.pops = NULL,
-			.label = "triv",
-			.desc = "Trivial Logical Volume",
+			.label = "simple",
+			.desc = "Simple Logical Volume",
 			.linkage = {NULL, NULL}
 		},
-		.sys_subvol_id = sys_subvol_id_triv,
-		.meta_subvol_id = meta_subvol_id_triv,
-		.data_subvol_id = data_subvol_id_triv,
+		.sys_subvol_id = sys_subvol_id_simple,
+		.meta_subvol_id = meta_subvol_id_simple,
+		.data_subvol_id = data_subvol_id_simple,
+		.data_subvol_id_by_key = data_subvol_id_by_key_simple,
+		.build_body_key = build_body_key_simple,
 		.load = NULL,
 		.done = NULL,
 		.init = NULL,
-		.expand = NULL,
-		.shrink = NULL,
+		.expand = expand_simple,
+		.shrink = shrink_simple,
 		.aid_ops = {
 			.cap_at = NULL,
 			.fib_of = NULL,
@@ -957,9 +1034,11 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 			.desc = "Asymmetric Heterogeneous Logical Volume",
 			.linkage = {NULL, NULL}
 		},
-		.sys_subvol_id = sys_subvol_id_triv,
-		.meta_subvol_id = meta_subvol_id_triv,
+		.sys_subvol_id = sys_subvol_id_simple,
+		.meta_subvol_id = meta_subvol_id_simple,
 		.data_subvol_id = data_subvol_id_asym,
+		.data_subvol_id_by_key = data_subvol_id_by_key_asym,
+		.build_body_key = build_body_key_asym,
 		.load = load_volume_asym,
 		.done = done_volume_asym,
 		.init = init_volume_asym,

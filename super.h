@@ -291,6 +291,11 @@ struct reiser4_super_info_data {
 	reiser4_context *ctx;
 };
 
+static inline struct reiser4_super_info_data *sbinfo_by_vol(struct reiser4_volume *vol)
+{
+	return container_of(&vol, struct reiser4_super_info_data, vol);
+}
+
 /*
  * In-memory header of compound (logical) volume.
  */
@@ -416,6 +421,16 @@ static inline reiser4_super_info_data *get_current_super_private(void)
 static inline reiser4_volume *current_volume(void)
 {
 	return get_current_super_private()->vol;
+}
+
+static inline volume_plugin *current_vol_plug(void)
+{
+	return current_volume()->vol_plug;
+}
+
+static inline int current_volume_is_simple(void)
+{
+	return current_vol_plug() == volume_plugin_by_id(SIMPLE_VOLUME_ID);
 }
 
 static inline reiser4_subvol ***current_subvols(void)
@@ -579,25 +594,6 @@ static inline reiser4_subvol *subvol_for_system(void)
 	return sbinfo_subvol_for_system(get_current_super_private());
 }
 
-/**
- * @offset: offset of the data stripe in the file.
- */
-static inline reiser4_subvol *subvol_for_data(const struct inode *inode,
-					      loff_t offset)
-{
-	return current_origin(current_volume()->vol_plug->data_subvol_id(inode, offset));
-}
-
-static inline reiser4_subvol *__subvol_for_meta(oid_t oid)
-{
-	return current_origin(current_volume()->vol_plug->meta_subvol_id());
-}
-
-static inline reiser4_subvol *subvol_for_meta(const struct inode *inode)
-{
-	return current_origin(current_volume()->vol_plug->meta_subvol_id());
-}
-
 static inline reiser4_subvol *subvol_by_coord(const coord_t *coord)
 {
 	return ZJNODE(coord->node)->subvol;
@@ -615,6 +611,9 @@ static inline void __init_ch_sub(struct commit_handle_subvol *ch_sub)
 	INIT_LIST_HEAD(&ch_sub->tx_list);
 	INIT_LIST_HEAD(&ch_sub->wander_map);
 }
+
+extern reiser4_subvol *get_meta_subvol(void);
+extern reiser4_subvol *get_data_subvol(const struct inode *inode, loff_t offset);
 
 extern __u64 reiser4_flush_reserved(const reiser4_subvol *);
 extern int reiser4_is_set(const struct super_block *super, reiser4_fs_flag f);

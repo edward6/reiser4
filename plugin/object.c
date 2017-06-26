@@ -242,7 +242,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		 */
 		.write_sd_by_inode = write_sd_by_inode_common,
 		.flow_by_inode = flow_by_inode_unix_file,
-		.key_by_inode = key_by_inode_and_offset_common,
+		.key_by_inode = key_by_inode_and_offset,
 		.set_plug_in_inode = set_plug_in_inode_common,
 		.adjust_to_parent = adjust_to_parent_common,
 		.create_object = reiser4_create_object_common,

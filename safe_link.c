@@ -159,7 +159,7 @@ int safe_link_add(struct inode *inode, reiser4_safe_link_t link)
 	safelink_t sl;
 	int length;
 	int result;
-	reiser4_subvol *subv = subvol_for_meta(inode);
+	reiser4_subvol *subv = get_meta_subvol();
 
 	build_sd_key(inode, &sl.sdkey);
 	length = sizeof sl.sdkey;

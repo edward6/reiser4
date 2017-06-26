@@ -590,13 +590,12 @@ static int write_tail_reserve_space(struct inode *inode)
 	 *
 	 * 3. stat data update
 	 */
-	tree = reiser4_tree_by_inode(inode);
+	tree = meta_subvol_tree();
 	count = estimate_one_insert_item(tree) +
 		estimate_insert_flow(tree->height) +
 		estimate_one_insert_item(tree);
 	grab_space_enable();
-	return reiser4_grab_space(count, 0 /* flags */,
-				  subvol_for_meta(inode));
+	return reiser4_grab_space(count, 0 , get_meta_subvol());
 }
 
 #define PAGE_PER_FLOW 4
@@ -641,7 +640,7 @@ ssize_t reiser4_write_tail_noreserve(struct file *file,
 	flow.user = 1;
 	memcpy(&flow.data, &buf, sizeof(buf));
 	flow.op = WRITE_OP;
-	key_by_inode_and_offset_common(inode, *pos, &flow.key);
+	key_by_inode_and_offset(inode, *pos, &flow.key);
 
 	result = find_file_item(&hint, &flow.key, ZNODE_WRITE_LOCK, inode);
 	if (IS_CBKERR(result))

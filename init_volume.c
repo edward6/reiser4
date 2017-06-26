@@ -557,14 +557,6 @@ static int activate_subvolumes_of_type(struct super_block *super,
 		if (ret)
 			goto error;
 	}
-	if (vol->num_origins == 1) {
-		/*
-		 * this is a simple (not compound) volume,
-		 * so we assign trivial plugins to manage it
-		 */
-		vol->dist_plug = distribution_plugin_by_id(NONE_DISTRIB_ID);
-		vol->vol_plug = volume_plugin_by_id(TRIV_VOLUME_ID);
-	}
 	return 0;
  error:
 	__reiser4_deactivate_volume(super);

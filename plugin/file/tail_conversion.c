@@ -132,7 +132,7 @@ static int cut_formatting_items(struct inode *inode, loff_t offset, int count)
 	/*
 	 * cut everything between those keys
 	 */
-	return reiser4_cut_tree(reiser4_tree_by_inode(inode), &from, &to,
+	return reiser4_cut_tree(meta_subvol_tree(), &from, &to,
 				inode, 0);
 }
 
@@ -216,8 +216,8 @@ static int replace(struct inode *inode, struct page **pages, unsigned nr_pages, 
 static int reserve_tail2extent_iteration(struct inode *inode, loff_t offset)
 {
 	int ret;
-	reiser4_subvol *subv_d = subvol_for_data(inode, offset);
-	reiser4_subvol *subv_m = subvol_for_meta(inode);
+	reiser4_subvol *subv_d = get_data_subvol(inode, offset);
+	reiser4_subvol *subv_m = get_meta_subvol();
 	reiser4_tree *tree_m = &subv_m->tree;
 	/*
 	 * space required for one iteration of extent->tail conversion:
@@ -265,8 +265,7 @@ static int complete_conversion(struct inode *inode)
 	grab_space_enable();
 	result =
 	    reiser4_grab_space(inode_file_plugin(inode)->estimate.update(inode),
-			       BA_CAN_COMMIT,
-			       subvol_for_meta(inode));
+			       BA_CAN_COMMIT, get_meta_subvol());
 	if (result) {
 		warning("vs-1696", "Failed to clear converting bit of %llu: %i",
 			(unsigned long long)get_inode_oid(inode), result);
@@ -571,7 +570,7 @@ int tail2extent(struct unix_file_info *uf_info)
 
 static int reserve_extent2tail_iteration(struct inode *inode)
 {
-	reiser4_subvol *subv = subvol_for_meta(inode);
+	reiser4_subvol *subv = get_meta_subvol();
 	reiser4_tree *tree = &subv->tree;
 	/*
 	 * reserve blocks for (in this order):
@@ -685,8 +684,8 @@ int extent2tail(struct file * file, struct unix_file_info *uf_info)
 		 * extent->tail conversion should be performed in one
 		 * transaction.
 		 */
-		result = reiser4_cut_tree(reiser4_tree_by_inode(inode), &from,
-					  &to, inode, 0);
+		result = reiser4_cut_tree(meta_subvol_tree(),
+					  &from, &to, inode, 0);
 		if (result) {
 			put_page(page);
 			warning("edward-1570",

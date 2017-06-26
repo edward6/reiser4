@@ -52,22 +52,16 @@ typedef struct format40_disk_super_block {
 	   version number supported by kernel.
 	   Is used by fsck to catch possible corruption and
 	   for various compatibility issues */
-	/*  84 */ d32 node_pid;
-	/* formatted node plugin id */
+	/*  84 */ d32 node_pid; /* formatted node plugin id */
 
 	/* Reiser5 fields */
-	d64 origin_id;
-	/* internal ID: serial (ordered) number of the subvolume in the logical
-	   volume */
-	d64 num_origins;
-	/* total number of original subvolumes in the logical volume */
-	d64 data_room;
-	/* number of data blocks (for data subvolumes).
-	   Should be not larger than block_count */
-	d64 volinfo_loc;
-	/* location of the first block of LV system information */
-	d8 num_sgs_bits;
-	/* logarithm of total number of the hash-space segments */
+	d64 origin_id;    /* internal ID: serial (ordered) number of the
+			     subvolume in the logical volume */
+	d64 num_origins;  /* total number of original subvolumes in LV */
+	d64 data_room;    /* data capacity of the subvolume */
+	d64 volinfo_loc;  /* location of the first block of system LV info */
+	d8  num_sgs_bits; /* logarithm of total number of the hash-space
+			     segments */
 	/*  123 */ char not_used[389];
 } format40_disk_super_block;
 

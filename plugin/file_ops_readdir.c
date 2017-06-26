@@ -140,7 +140,7 @@ static int dir_go_to(struct file *dir, struct readdir_pos *pos, tap_t *tap)
 	result = inode_dir_plugin(inode)->build_readdir_key(dir, &key);
 	if (result != 0)
 		return result;
-	result = reiser4_object_lookup(&subvol_for_meta(inode)->tree,
+	result = reiser4_object_lookup(meta_subvol_tree(),
 				       inode,
 				       &key,
 				       tap->coord,
@@ -599,8 +599,7 @@ repeat:
 			assert("nikita-2572", coord_is_existing_unit(coord));
 			assert("nikita-3227", is_valid_dir_coord(inode, coord));
 
-			result = feed_entry(&tap, &subvol_for_meta(inode)->tree,
-					    context);
+			result = feed_entry(&tap, meta_subvol_tree(), context);
 			if (result > 0) {
 				break;
 			} else if (result == 0) {

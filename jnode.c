@@ -416,7 +416,7 @@ jnode *jfind(struct address_space *mapping, unsigned long index)
 	jnode *node;
 
 	assert("vs-1694", mapping->host != NULL);
-	tree = reiser4_tree_by_inode(mapping->host);
+	tree = meta_subvol_tree();
 
 	read_lock_tree(tree);
 	node = jfind_nolock(mapping, index);
@@ -648,10 +648,10 @@ jnode *jnode_of_page(struct page *pg, int for_io)
 	assert("nikita-2394", PageLocked(pg));
 
 	if (for_io)
-		subv = subvol_for_data(pg->mapping->host,
+		subv = get_data_subvol(pg->mapping->host,
 				       (loff_t)(pg->index) << PAGE_SHIFT);
 	else
-		subv = subvol_for_meta(pg->mapping->host);
+		subv = get_meta_subvol();
 
 	result = do_jget(subv, pg);
 

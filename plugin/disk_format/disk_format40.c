@@ -621,7 +621,8 @@ int release_format40(struct super_block *s, reiser4_subvol *subv)
 		all_grabbed2free();
 	}
 	sa_destroy_allocator(&subv->space_allocator, s, subv);
-	vol->vol_plug->done(subv);
+	if (vol->vol_plug->done)
+		vol->vol_plug->done(subv);
 	reiser4_done_journal_info(subv);
 	put_sb_format_jnode(subv);
 

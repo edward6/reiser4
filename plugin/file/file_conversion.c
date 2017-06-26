@@ -360,16 +360,15 @@ static int cut_disk_cluster(struct inode * inode, cloff_t idx)
 	to = from;
 	set_key_offset(&to,
 		       get_key_offset(&from) + inode_cluster_size(inode) - 1);
-	return reiser4_cut_tree(reiser4_tree_by_inode(inode),
-				&from, &to, inode, 0);
+	return reiser4_cut_tree(meta_subvol_tree(), &from, &to, inode, 0);
 }
 
 static int reserve_cryptcompress2unixfile(struct inode *inode)
 {
 	int ret;
 	reiser4_block_nr num_unformatted = cluster_nrpages(inode);
-	reiser4_subvol *subv_d = subvol_for_data(inode, 0);
-	reiser4_subvol *subv_m = subvol_for_meta(inode);
+	reiser4_subvol *subv_d = get_data_subvol(inode, 0);
+	reiser4_subvol *subv_m = get_meta_subvol();
 	reiser4_tree *tree_m = &subv_m->tree;
 	/*
 	 * space required for one iteration of extent->tail conversion:
@@ -696,8 +695,7 @@ int reiser4_write_begin_dispatch(struct file *file,
 	 * one when updating file size and one when updating mtime/ctime
 	 */
 	ret = reiser4_grab_space_force(2 * estimate_update_common(inode),
-				       BA_CAN_COMMIT,
-				       subvol_for_meta(inode));
+				       BA_CAN_COMMIT, get_meta_subvol());
 	if (ret)
 		goto err1;
 	ret = PROT_PASSIVE(int, write_begin, (file, page, pos, len, fsdata));

@@ -14,20 +14,26 @@
 #include "../plugin.h"
 #include "aid.h"
 
+static u64 lookup_triv(reiser4_aid *raid, const char *str,
+		       int len, u32 seed)
+{
+	return 0;
+}
+
 distribution_plugin distribution_plugins[LAST_DISTRIB_ID] = {
-	[NONE_DISTRIB_ID] = {
+	[TRIV_DISTRIB_ID] = {
 		.h = {
 			.type_id = REISER4_DISTRIBUTION_PLUGIN_TYPE,
-			.id = NONE_DISTRIB_ID,
+			.id = TRIV_DISTRIB_ID,
 			.pops = NULL,
-			.label = "none",
-			.desc = "None Distribution",
+			.label = "triv",
+			.desc = "Trivial Distribution",
 			.linkage = {NULL, NULL}
 		},
 		.seg_bits = 0,
 		.r = {
 			.init = NULL,
-			.lookup = NULL,
+			.lookup = lookup_triv,
 			.done = NULL,
 		},
 		.v = {

@@ -50,16 +50,23 @@ int write_sd_by_inode_common(struct inode *inode, oid_t *oid)
 /**
  * Common implementation of ->key_by_inode() of file plugin
  */
-int key_by_inode_and_offset_common(struct inode *inode,
-				   loff_t off, reiser4_key *key)
+int key_by_inode_offset_ordering(struct inode *inode,
+				 loff_t off, __u64 ordering,
+				 reiser4_key *key)
 {
 	reiser4_key_init(key);
 	set_key_locality(key, reiser4_inode_data(inode)->locality_id);
-	set_key_ordering(key, get_inode_ordering(inode));
+	set_key_ordering(key, ordering);
 	set_key_objectid(key, get_inode_oid(inode));	/*FIXME: inode->i_ino */
 	set_key_type(key, KEY_BODY_MINOR);
 	set_key_offset(key, (__u64) off);
 	return 0;
+}
+
+int key_by_inode_and_offset(struct inode *inode,
+			    loff_t off, reiser4_key *key)
+{
+	return current_vol_plug()->build_body_key(inode, off, key);
 }
 
 /* this is common implementation of set_plug_in_inode method of file plugin
@@ -202,7 +209,7 @@ int reserve_update_sd_common(struct inode *inode)
 	amount = inode_file_plugin(inode)->estimate.update(inode);
 
 	return reiser4_grab_space_force(amount, BA_CAN_COMMIT,
-					subvol_for_meta(inode));
+					get_meta_subvol());
 }
 
 /**
@@ -212,7 +219,7 @@ int reserve_update_sd_common(struct inode *inode)
  */
 static int reserve_delete_object(struct inode *inode)
 {
-	reiser4_subvol *subv = subvol_for_meta(inode);
+	reiser4_subvol *subv = get_meta_subvol();
 
 	return reiser4_grab_space_force(2 *
 					estimate_one_item_removal(&subv->tree),
@@ -438,7 +445,7 @@ int safelink_common(struct inode *object, reiser4_safe_link_t link, __u64 value)
 */
 reiser4_block_nr estimate_create_common(const struct inode *object)
 {
-	return estimate_one_insert_item(reiser4_tree_by_inode(object));
+	return estimate_one_insert_item(meta_subvol_tree());
 }
 
 /* this is common implementation of estimate.create method of file plugin for
@@ -448,7 +455,7 @@ reiser4_block_nr estimate_create_common(const struct inode *object)
 */
 reiser4_block_nr estimate_create_common_dir(const struct inode *object)
 {
-	return 2 * estimate_one_insert_item(reiser4_tree_by_inode(object));
+	return 2 * estimate_one_insert_item(meta_subvol_tree());
 }
 
 /* this is common implementation of estimate.update method of file plugin
@@ -457,7 +464,7 @@ reiser4_block_nr estimate_create_common_dir(const struct inode *object)
 */
 reiser4_block_nr estimate_update_common(const struct inode *inode)
 {
-	return estimate_one_insert_into_item(reiser4_tree_by_inode(inode));
+	return estimate_one_insert_into_item(meta_subvol_tree());
 }
 
 /* this is common implementation of estimate.unlink method of file plugin
@@ -626,8 +633,7 @@ static int insert_new_sd(struct inode *inode, oid_t oid)
 	 * of such places we could optimize for only one node layout.
 	 * -Hans
 	 */
-	if (data.length >
-	    reiser4_tree_by_inode(inode)->nplug->max_item_size()) {
+	if (data.length > meta_subvol_tree()->nplug->max_item_size()) {
 		/*
 		 * This is silly check, but we don't know actual node
 		 * where insertion will go into
@@ -650,7 +656,7 @@ static int insert_new_sd(struct inode *inode, oid_t oid)
 	coord_init_zero(&coord);
 	init_lh(&lh);
 
-	result = insert_by_key(reiser4_tree_by_inode(inode),
+	result = insert_by_key(meta_subvol_tree(),
 			       build_sd_key(inode, &key), &data, &coord, &lh,
 			       /* stat data lives on a leaf level */
 			       LEAF_LEVEL, CBK_UNIQUE);
@@ -740,7 +746,7 @@ int lookup_sd(struct inode *inode /* inode to look sd for */ ,
 	 * it only covers _body_ of the file, and stat data don't belong
 	 * there.
 	 */
-	result = coord_by_key(reiser4_tree_by_inode(inode),
+	result = coord_by_key(meta_subvol_tree(),
 			      key,
 			      coord,
 			      lh,
@@ -774,7 +780,7 @@ static int locate_inode_sd(struct inode *inode,
 	/* first, try to use seal */
 	if (reiser4_seal_is_set(&seal)) {
 		result = reiser4_seal_validate(&seal,
-					       &subvol_for_meta(inode)->tree,
+					       meta_subvol_tree(),
 					       coord,
 					       key,
 					       lh, ZNODE_WRITE_LOCK,
@@ -993,16 +999,15 @@ static int common_object_delete_no_reserve(struct inode *inode)
 		reiser4_key sd_key;
 
 		build_sd_key(inode, &sd_key);
-		result =
-		    reiser4_cut_tree(reiser4_tree_by_inode(inode),
-				     &sd_key, &sd_key, NULL, 0);
+		result = reiser4_cut_tree(meta_subvol_tree(),
+					  &sd_key, &sd_key, NULL, 0);
 		if (result == 0) {
 			reiser4_inode_set_flag(inode, REISER4_NO_SD);
 			result = oid_release(inode->i_sb, get_inode_oid(inode));
 			if (result == 0) {
 				oid_count_released();
 
-				result = safe_link_del(subvol_for_meta(inode),
+				result = safe_link_del(get_meta_subvol(),
 						       get_inode_oid(inode),
 						       SAFE_UNLINK);
 			}

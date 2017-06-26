@@ -596,9 +596,12 @@ typedef struct volume_plugin {
 	/* return id of subvolume for various system records:
 	   status records, blackbox items, etc */
 	u64 (*sys_subvol_id)(void);
-	u64 (*data_subvol_id)(const struct inode *inode,
-			      loff_t data_offset);
+	u64 (*data_subvol_id)(oid_t oid, loff_t data_offset_in_bytes);
 	u64 (*meta_subvol_id)(void);
+
+	u64 (*data_subvol_id_by_key)(reiser4_key *key);
+	int (*build_body_key)(struct inode *inode,
+			      loff_t off, reiser4_key *key);
 	/* Load a system LV info stored in a subvolume @subv.
 	   Normally is called at mount time */
 	int (*load)(reiser4_subvol *subv);
@@ -923,14 +926,14 @@ typedef enum {
 
 /* builtin distribution plugins */
 typedef enum {
-	NONE_DISTRIB_ID, /* for simple volumes */
+	TRIV_DISTRIB_ID, /* for simple volumes */
 	FSW32M_DISTRIB_ID,
 	LAST_DISTRIB_ID
 } reiser4_distribution_id;
 
 /* builtin volume plugins */
 typedef enum {
-	TRIV_VOLUME_ID, /* for volumes 4.X.Y and simple volumes 5.X.Y */
+	SIMPLE_VOLUME_ID, /* for volumes 4.X.Y and simple volumes 5.X.Y */
 	ASYM_VOLUME_ID, /* for logical volumes 5.X.Y  */
 	LAST_VOLUME_ID
 } reiser4_volume_id;

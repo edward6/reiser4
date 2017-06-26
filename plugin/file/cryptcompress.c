@@ -603,7 +603,7 @@ int key_by_inode_cryptcompress(struct inode *inode, loff_t off,
 	if (inode_crypto_info(inode))
 		off = inode_scaled_offset(inode, off);
 
-	key_by_inode_and_offset_common(inode, 0, key);
+	key_by_inode_and_offset(inode, 0, key);
 	set_key_offset(key, (__u64)off);
 	return 0;
 }
@@ -663,7 +663,7 @@ static int cryptcompress_hint_validate(hint_t *hint, reiser4_tree *tree,
 static int reserve4cluster(struct inode *inode, struct cluster_handle *clust)
 {
 	int result = 0;
-	reiser4_subvol *subv = subvol_for_meta(inode);
+	reiser4_subvol *subv = get_meta_subvol();
 
 	assert("edward-965", reiser4_schedulable());
 	assert("edward-439", inode != NULL);
@@ -700,7 +700,7 @@ static void free_reserved4cluster(struct inode *inode,
 {
 	assert("edward-967", ch->reserved == 1);
 
-	cluster_reserved2free(count, subvol_for_meta(inode));
+	cluster_reserved2free(count, get_meta_subvol());
 	ch->reserved = 0;
 }
 
@@ -1599,7 +1599,7 @@ static int update_sd_cryptcompress(struct inode *inode)
 	 */
 	result = reiser4_grab_space_force(estimate_update_common(inode),
 					  BA_CAN_COMMIT,
-					  subvol_for_meta(inode));
+					  get_meta_subvol());
 	if (result)
 		return result;
 	if (!IS_NOCMTIME(inode))
@@ -2001,7 +2001,7 @@ int checkout_logical_cluster(struct cluster_handle * clust,
  		return RETERR(-E_REPEAT);
  	}
 	cluster_reserved2grabbed(estimate_update_cluster(inode),
-				 subvol_for_meta(inode));
+				 get_meta_subvol());
 
 	/* this will unlock cluster */
 	checkout_page_cluster(clust, node, inode);
@@ -2171,7 +2171,7 @@ int find_disk_cluster(struct cluster_handle * clust,
 	item_plugin *iplug;
 	struct tfm_cluster *tc;
 	struct cryptcompress_info *info;
-	reiser4_subvol *subv = subvol_for_meta(inode);
+	reiser4_subvol *subv = get_meta_subvol();
 
 	assert("edward-138", clust != NULL);
 	assert("edward-728", clust->hint != NULL);
@@ -2322,7 +2322,7 @@ int get_disk_cluster_locked(struct cluster_handle * clust, struct inode *inode,
 	set_key_offset(&ra_info.key_to_stop, get_key_offset(reiser4_max_key()));
 
 	return find_cluster_item(clust->hint, &key, lock_mode, NULL, FIND_EXACT,
-				 CBK_FOR_INSERT, subvol_for_meta(inode));
+				 CBK_FOR_INSERT, get_meta_subvol());
 }
 
 /* Read needed cluster pages before modifying.
@@ -2470,7 +2470,7 @@ static int cryptcompress_make_unprepped_cluster(struct cluster_handle * clust,
 						struct inode *inode)
 {
 	int result;
-	reiser4_subvol *subv = subvol_for_meta(inode);
+	reiser4_subvol *subv = get_meta_subvol();
 
 	assert("edward-1123", reiser4_schedulable());
 	assert("edward-737", clust != NULL);
@@ -2538,7 +2538,7 @@ void truncate_complete_page_cluster(struct inode *inode, cloff_t index,
 	int nr_pages;
 	jnode *node;
 	struct page *pages[MAX_CLUSTER_NRPAGES];
-	reiser4_subvol *subv = subvol_for_meta(inode);
+	reiser4_subvol *subv = get_meta_subvol();
 
 	node = jlookup(&subv->tree,
 		       get_inode_oid(inode),
@@ -3004,8 +3004,7 @@ ssize_t read_cryptcompress(struct file * file, char __user *buf, size_t size,
 	info = cryptcompress_inode_data(inode);
 	needed = cryptcompress_estimate_read(inode);
 
-	result = reiser4_grab_space(needed, BA_CAN_COMMIT,
-				    subvol_for_meta(inode));
+	result = reiser4_grab_space(needed, BA_CAN_COMMIT, get_meta_subvol());
 	if (result != 0) {
 		reiser4_exit_context(ctx);
 		return result;
@@ -3582,7 +3581,7 @@ int mmap_cryptcompress(struct file *file, struct vm_area_struct *vma)
 	 */
 	result = reiser4_grab_space_force
 		(inode_file_plugin(inode)->estimate.update(inode),
-		 BA_CAN_COMMIT, subvol_for_meta(inode));
+		 BA_CAN_COMMIT, get_meta_subvol());
 	if (result) {
 		reiser4_exit_context(ctx);
 		return result;
