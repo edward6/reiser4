@@ -633,7 +633,6 @@ int same_slum_check(jnode *node, jnode *check, int alloc_check, int alloc_value)
 	 * different objects, but the atom is the same.
 	 */
 	spin_lock_jnode(check);
-
 	atom = jnode_get_atom(check);
 
 	if (atom == NULL)

@@ -41,7 +41,11 @@ int utmost_child_extent(const coord_t * coord, sideof side, jnode ** childp)
 {
 	reiser4_extent *ext;
 	reiser4_block_nr pos_in_unit;
+	reiser4_subvol *data_subv;
 
+	assert("edward-1851", item_is_extent(coord));
+
+	data_subv = subvol_by_coord(coord);
 	ext = extent_utmost_ext(coord, side, &pos_in_unit);
 
 	switch (state_of_extent(ext)) {
@@ -78,7 +82,7 @@ int utmost_child_extent(const coord_t * coord, sideof side, jnode ** childp)
 		if (side == RIGHT_SIDE)
 			index--;
 
-		tree = tree_by_coord(coord);
+		tree = &data_subv->tree;
 		*childp = jlookup(tree, get_key_objectid(&key), index);
 	}
 
@@ -139,29 +143,32 @@ int reiser4_scan_extent(flush_scan * scan)
 	reiser4_tree *tree;
 
 	if (!JF_ISSET(scan->node, JNODE_DIRTY)) {
+		/*
+		 * Race with truncate, this node is already truncated
+		 */
 		scan->stop = 1;
-		return 0;	/* Race with truncate, this node is already
-				 * truncated. */
+		return 0;
 	}
-
 	coord_dup(&coord, &scan->parent_coord);
 
 	assert("jmacd-1404", !reiser4_scan_finished(scan));
 	assert("jmacd-1405", jnode_get_level(scan->node) == LEAF_LEVEL);
 	assert("jmacd-1406", jnode_is_unformatted(scan->node));
-
-	/* The scan_index variable corresponds to the current page index of the
-	   unformatted block scan position. */
+	/*
+	 * The scan_index variable corresponds to the current page index
+	 * of the unformatted block scan position
+	 */
 	scan_index = index_jnode(scan->node);
 
 	assert("jmacd-7889", item_is_extent(&coord));
-
-      repeat:
-	/* objectid of file */
+	assert("edward-1870", scan->data_subv == subvol_by_coord(&coord));
+ repeat:
 	oid = get_key_objectid(item_key_by_coord(&coord, &key));
 
 	allocated = !extent_is_unallocated(&coord);
-	/* Get the values of this extent unit: */
+	/*
+	 * Get the values of this extent unit:
+	 */
 	unit_index = extent_unit_index(&coord);
 	unit_width = extent_unit_width(&coord);
 	unit_start = extent_unit_start(&coord);
@@ -169,11 +176,12 @@ int reiser4_scan_extent(flush_scan * scan)
 	assert("jmacd-7187", unit_width > 0);
 	assert("jmacd-7188", scan_index >= unit_index);
 	assert("jmacd-7189", scan_index <= unit_index + unit_width - 1);
-
-	/* Depending on the scan direction, we set different maximum values for scan_index
-	   (scan_max) and the number of nodes that would be passed if the scan goes the
-	   entire way (scan_dist).  Incr is an integer reflecting the incremental
-	   direction of scan_index. */
+	/*
+	 * Depending on the scan direction, we set different maximum values
+	 * for scan_index (scan_max) and the number of nodes that would be
+	 * passed if the scan goes the entire way (scan_dist). Incr is an
+	 * integer reflecting the incremental direction of scan_index
+	 */
 	if (reiser4_scanning_left(scan)) {
 		scan_max = unit_index;
 		scan_dist = scan_index - unit_index;
@@ -183,102 +191,111 @@ int reiser4_scan_extent(flush_scan * scan)
 		scan_dist = scan_max - unit_index;
 		incr = +1;
 	}
-
-	tree = tree_by_coord(&coord);
-
-	/* If the extent is allocated we have to check each of its blocks.  If the extent
-	   is unallocated we can skip to the scan_max. */
+	tree = &scan->data_subv->tree;
+	/*
+	 * If the extent is allocated we have to check each of its blocks.
+	 * If the extent is unallocated we can skip to the scan_max
+	 */
 	if (allocated) {
 		do {
 			neighbor = jlookup(tree, oid, scan_index);
 			if (neighbor == NULL)
 				goto stop_same_parent;
 
-			if (scan->node != neighbor
-			    && !reiser4_scan_goto(scan, neighbor)) {
-				/* @neighbor was jput() by reiser4_scan_goto */
+			if (scan->node != neighbor &&
+			    !reiser4_scan_goto(scan, neighbor)) {
+				/*
+				 * @neighbor was jput() by reiser4_scan_goto
+				 */
 				goto stop_same_parent;
 			}
-
-			ret = scan_set_current(scan, neighbor, 1, &coord);
+			ret = move_scan_pos(scan, neighbor, 1, &coord);
 			if (ret != 0) {
 				goto exit;
 			}
-
-			/* reference to @neighbor is stored in @scan, no need
-			   to jput(). */
+			/*
+			 * reference to @neighbor is stored in @scan, no need
+			 * to jput()
+			 */
 			scan_index += incr;
-
 		} while (incr + scan_max != scan_index);
-
 	} else {
-		/* Optimized case for unallocated extents, skip to the end. */
-		neighbor = jlookup(tree, oid, scan_max /*index */ );
+		/*
+		 * Optimized case for unallocated extents, skip to the end
+		 */
+		neighbor = jlookup(tree, oid, scan_max /*index */);
 		if (neighbor == NULL) {
-			/* Race with truncate */
+			/*
+			 * Race with truncate
+			 */
 			scan->stop = 1;
 			ret = 0;
 			goto exit;
 		}
-
 		assert("zam-1043",
 		       reiser4_blocknr_is_fake(jnode_get_block(neighbor)));
 
-		ret = scan_set_current(scan, neighbor, scan_dist, &coord);
+		ret = move_scan_pos(scan, neighbor, scan_dist, &coord);
 		if (ret != 0) {
 			goto exit;
 		}
 	}
-
-	if (coord_sideof_unit(&coord, scan->direction) == 0
-	    && item_is_extent(&coord)) {
-		/* Continue as long as there are more extent units. */
-
-		scan_index =
-		    extent_unit_index(&coord) +
-		    (reiser4_scanning_left(scan) ?
-		     extent_unit_width(&coord) - 1 : 0);
+	if (coord_sideof_unit(&coord, scan->direction) == 0 &&
+	    item_is_extent(&coord)) {
+		/*
+		 * Continue as long as there are more extent units
+		 */
+		scan_index = extent_unit_index(&coord) +
+			(reiser4_scanning_left(scan) ?
+			 extent_unit_width(&coord) - 1 : 0);
 		goto repeat;
 	}
-
 	if (0) {
-	      stop_same_parent:
-
-		/* If we are scanning left and we stop in the middle of an allocated
-		   extent, we know the preceder immediately.. */
-		/* middle of extent is (scan_index - unit_index) != 0. */
+	stop_same_parent:
+		/*
+		 * If we are scanning left and we stop in the middle of an
+		 * allocated extent, we know the preceder immediately..
+		 *
+		 * middle of extent is (scan_index - unit_index) != 0
+		 */
 		if (reiser4_scanning_left(scan) &&
 		    (scan_index - unit_index) != 0) {
-			/* FIXME(B): Someone should step-through and verify that this preceder
-			   calculation is indeed correct. */
-			/* @unit_start is starting block (number) of extent
-			   unit. Flush stopped at the @scan_index block from
-			   the beginning of the file, which is (scan_index -
-			   unit_index) block within extent.
+			/*
+			 * FIXME(B): Someone should step-through and verify
+			 * that this preceder calculation is indeed correct
+			 *
+			 * @unit_start is starting block (number) of extent
+			 * unit. Flush stopped at the @scan_index block from
+			 * the beginning of the file, which is (scan_index -
+			 * unit_index) block within extent.
 			 */
 			if (unit_start) {
-				/* skip preceder update when we are at hole */
-				scan->preceder_blk =
-				    unit_start + scan_index - unit_index;
-				check_preceder(scan->preceder_blk,
-					       subvol_by_coord(&scan->parent_coord));
+				/*
+				 * skip preceder update when we are at hole
+				 */
+				scan->data_preceder_blk =
+					unit_start + scan_index - unit_index;
+				check_preceder(scan->data_preceder_blk,
+					       scan->data_subv);
 			}
 		}
-
-		/* In this case, we leave coord set to the parent of scan->node. */
+		/*
+		 * In this case, we leave coord set to the parent of scan->node
+		 */
 		scan->stop = 1;
-
 	} else {
-		/* In this case, we are still scanning, coord is set to the next item which is
-		   either off-the-end of the node or not an extent. */
+		/*
+		 * scan to be continued,
+		 * coord is set to the next item which is either off-the-end
+		 * of the node or not an extent
+		 */
 		assert("jmacd-8912", scan->stop == 0);
 		assert("jmacd-7812",
-		       (coord_is_after_sideof_unit(&coord, scan->direction)
-			|| !item_is_extent(&coord)));
+		       (coord_is_after_sideof_unit(&coord, scan->direction) ||
+			!item_is_extent(&coord)));
 	}
-
 	ret = 0;
-      exit:
+ exit:
 	return ret;
 }
 
@@ -531,7 +548,7 @@ int convert_extent(coord_t *coord, reiser4_extent *replace)
  */
 void assign_real_blocknrs(flush_pos_t *flush_pos, oid_t oid,
 			  unsigned long index, reiser4_block_nr count,
-			  reiser4_block_nr first)
+			  reiser4_block_nr first, reiser4_subvol *subv)
 {
 	unsigned long i;
 	reiser4_tree *tree;
@@ -543,7 +560,7 @@ void assign_real_blocknrs(flush_pos_t *flush_pos, oid_t oid,
 	BUG_ON(atom == NULL);
 
 	nr = 0;
-	tree = tree_by_coord(&flush_pos->coord);
+	tree = &subv->tree;
 	for (i = 0; i < count; ++i, ++index) {
 		jnode *node;
 
@@ -589,11 +606,14 @@ int allocated_extent_slum_size(flush_pos_t *flush_pos, oid_t oid,
 	txn_atom *atom;
 	int nr;
 
+	assert("edward-1869", flush_pos->data_subv != NULL);
+
 	atom = atom_locked_by_fq(reiser4_pos_fq(flush_pos));
 	assert("vs-1468", atom);
 
 	nr = 0;
-	tree = tree_by_coord(&flush_pos->coord);
+	tree = &flush_pos->data_subv->tree;
+
 	for (i = 0; i < count; ++i, ++index) {
 		jnode *node;
 
@@ -605,7 +625,6 @@ int allocated_extent_slum_size(flush_pos_t *flush_pos, oid_t oid,
 			atomic_dec(&node->x_count);
 			break;
 		}
-
 		if (node->atom != atom) {
 			/*
 			 * this is possible on overwrite: extent_write may
@@ -615,12 +634,10 @@ int allocated_extent_slum_size(flush_pos_t *flush_pos, oid_t oid,
 			atomic_dec(&node->x_count);
 			break;
 		}
-
 		assert("vs-1476", atomic_read(&node->x_count) > 1);
 		atomic_dec(&node->x_count);
 		nr ++;
 	}
-
 	spin_unlock_atom(atom);
 	return nr;
 }

@@ -997,6 +997,26 @@ reiser4_subvol *get_data_subvol(const struct inode *inode, loff_t offset)
 	return current_origin(current_vol_plug()->data_subvol_id(get_inode_oid(inode), offset));
 }
 
+
+reiser4_subvol *subvol_by_extent(const coord_t *coord)
+{
+	reiser4_key key;
+	volume_plugin *vol_plug = current_vol_plug();
+
+	item_key_by_coord(coord, &key);
+	return current_origin(vol_plug->data_subvol_id_by_key(&key));
+}
+
+reiser4_subvol *subvol_by_coord(const coord_t *coord)
+{
+	if (item_is_extent(coord))
+		return subvol_by_extent(coord);
+	else if (item_is_internal(coord))
+		return get_meta_subvol();
+	else
+		return NULL;
+}
+
 volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 	[SIMPLE_VOLUME_ID] = {
 		.h = {

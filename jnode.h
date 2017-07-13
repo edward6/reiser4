@@ -370,8 +370,8 @@ extern struct address_space *jnode_get_mapping(const jnode * node) NONNULL;
 
 static inline reiser4_subvol *jnode_get_subvol(const jnode *node)
 {
-	assert("edard-xxx", node != NULL);
-	assert("edard-xxx", node->subvol != NULL);
+	assert("edard-1871", node != NULL);
+	assert("edard-1872", node->subvol != NULL);
 
 	return node->subvol;
 }
@@ -404,7 +404,6 @@ static inline const reiser4_block_nr *jnode_get_io_block(jnode * node)
 }
 
 /* Jnode flush interface. */
-extern reiser4_blocknr_hint *reiser4_pos_hint(flush_pos_t *pos);
 extern flush_queue_t *reiser4_pos_fq(flush_pos_t *pos);
 
 /* FIXME-VS: these are used in plugin/item/extent.c */

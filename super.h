@@ -594,16 +594,6 @@ static inline reiser4_subvol *subvol_for_system(void)
 	return sbinfo_subvol_for_system(get_current_super_private());
 }
 
-static inline reiser4_subvol *subvol_by_coord(const coord_t *coord)
-{
-	return ZJNODE(coord->node)->subvol;
-}
-
-static inline reiser4_tree *tree_by_coord(const coord_t *coord)
-{
-	return &subvol_by_coord(coord)->tree;
-}
-
 static inline void __init_ch_sub(struct commit_handle_subvol *ch_sub)
 {
 	memset(ch_sub, 0, sizeof(*ch_sub));
@@ -614,6 +604,7 @@ static inline void __init_ch_sub(struct commit_handle_subvol *ch_sub)
 
 extern reiser4_subvol *get_meta_subvol(void);
 extern reiser4_subvol *get_data_subvol(const struct inode *inode, loff_t offset);
+extern reiser4_subvol *subvol_by_coord(const coord_t *coord);
 
 extern __u64 reiser4_flush_reserved(const reiser4_subvol *);
 extern int reiser4_is_set(const struct super_block *super, reiser4_fs_flag f);

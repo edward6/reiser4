@@ -314,16 +314,19 @@ int kill_hook_extent(const coord_t *coord, pos_in_node_t from,
 	reiser4_tree *tree;
 	pgoff_t from_off, to_off, offset, skip;
 	int retval;
+	reiser4_subvol *subv;
 
 	/* these are located in memory kmalloc-ed by kill_node_content */
 	reiser4_key *min_item_key, *max_item_key, *from_key, *to_key, *key;
 	coord_t *dup, *next;
 
+	assert("edward-1850", item_is_extent(coord));
 	assert("zam-811", znode_is_write_locked(coord->node));
 	assert("nikita-3315", kdata != NULL);
 	assert("vs-34", kdata->buf != NULL);
 
-	tree = tree_by_coord(coord);
+	subv = subvol_by_coord(coord);
+	tree = &subv->tree;
 
 	/* map structures to kdata->buf */
 	min_item_key = (reiser4_key *) (kdata->buf);

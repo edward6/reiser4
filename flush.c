@@ -399,12 +399,11 @@ static void scan_init(flush_scan * scan);
 static void scan_done(flush_scan * scan);
 
 /* Flush-scan algorithm. */
-static int scan_left(flush_scan * scan, flush_scan * right, jnode * node,
-		     unsigned limit);
-static int scan_right(flush_scan * scan, jnode * node, unsigned limit);
-static int scan_common(flush_scan * scan, flush_scan * other);
+static int scan_left(flush_scan *scan, flush_scan *right, jnode *node);
+static int scan_right(flush_scan *scan, jnode *node);
+static int do_scan(flush_scan * scan, flush_scan * other);
 static int scan_formatted(flush_scan * scan);
-static int scan_unformatted(flush_scan * scan, flush_scan * other);
+static int lock_parent_and_scan_upper_level(flush_scan * scan, flush_scan * other);
 static int scan_by_coord(flush_scan * scan);
 
 /* Initial flush-point ancestor allocation. */
@@ -420,10 +419,10 @@ static int squalloc(flush_pos_t *pos);
 static int squeeze_right_non_twig(znode * left, znode * right);
 static int shift_one_internal_unit(znode * left, znode * right);
 
-/* Flush reverse parent-first relocation routines. */
-static int reverse_allocate_parent(jnode * node,
-				   const coord_t *parent_coord,
-				   flush_pos_t *pos);
+/* Parent re-allocation policy */
+static int check_parent_for_realloc(jnode * node,
+				    const coord_t *parent_coord,
+				    flush_pos_t *pos);
 
 /* Flush allocate write-queueing functions: */
 static int allocate_znode(znode * node, const coord_t *parent_coord,
@@ -533,12 +532,20 @@ static int delete_empty_node(znode * node)
 	return reiser4_delete_node(node, &smallest_removed, NULL, 1);
 }
 
+static void set_data_subvol_ifnull(flush_pos_t *pos, const coord_t *coord)
+{
+	if (pos->data_subv == NULL)
+		pos->data_subv = subvol_by_coord(coord);
+}
+
 /* Prepare flush position for alloc_pos_and_ancestors() and squalloc() */
 static int prepare_flush_pos(flush_pos_t *pos, jnode * org)
 {
 	int ret;
 	load_count load;
 	lock_handle lock;
+
+	assert("edward-1859", pos->data_subv == NULL);
 
 	init_lh(&lock);
 	init_load_count(&load);
@@ -564,15 +571,19 @@ static int prepare_flush_pos(flush_pos_t *pos, jnode * org)
 		if (ret)
 			goto done;
 		if (!item_is_extent(&parent_coord)) {
-			/* file was converted to tail, org became HB, we found
-			   internal item */
+			/*
+			 * file was converted to tail,
+			 * @org became HEARD_BANSHEE,
+			 * we found internal item
+			 */
 			ret = -EAGAIN;
 			goto done;
 		}
-
 		pos->state = POS_ON_EPOINT;
+		set_data_subvol_ifnull(pos, &parent_coord);
 		move_flush_pos(pos, &lock, &load, &parent_coord);
 		pos->child = jref(org);
+
 		if (extent_is_unallocated(&parent_coord)
 		    && extent_unit_index(&parent_coord) != index_jnode(org)) {
 			/* @org is not first child of its parent unit. This may
@@ -592,6 +603,54 @@ done:
 static txmod_plugin *get_txmod_plugin(reiser4_subvol *subv)
 {
 	return txmod_plugin_by_id(subv->txmod);
+}
+
+/*
+ * Return relocation decision for data subvolume
+ */
+static int data_leaf_should_relocate(jnode *node, flush_scan *left_scan,
+			      flush_scan *right_scan)
+{
+	if ((node->subvol == right_scan->data_subv) &&
+	    JF_ISSET(node, JNODE_REPACK))
+		/*
+		 * data subvolume is marked for re-packing
+		 */
+		return 1;
+	/*
+	 * relocate leaf nodes if at least FLUSH_RELOCATE_THRESHOLD
+	 * nodes were found by left and right scan
+	 */
+	if (right_scan->data_subv &&
+	    (left_scan->data_count + right_scan->data_count >=
+	     right_scan->data_subv->flush.relocate_threshold))
+		return 1;
+
+	return 0;
+}
+
+/*
+ * Return relocation decision for meta-data subvolume
+ */
+static int meta_leaf_should_relocate(jnode *node, flush_scan *left_scan,
+				     flush_scan *right_scan)
+{
+	if ((node->subvol == right_scan->meta_subv) &&
+	    JF_ISSET(node, JNODE_REPACK))
+		/*
+		 * meta-data subvolume is marked for re-packing
+		 */
+		return 1;
+	/*
+	 * relocate leaf nodes if at least FLUSH_RELOCATE_THRESHOLD
+	 * nodes were found by left and right scan
+	 */
+	if (right_scan->meta_subv &&
+	    (left_scan->meta_count + right_scan->meta_count >=
+	     right_scan->meta_subv->flush.relocate_threshold))
+		return 1;
+
+	return 0;
 }
 
 /* TODO LIST (no particular order): */
@@ -681,19 +740,24 @@ static txmod_plugin *get_txmod_plugin(reiser4_subvol *subv)
    them to start over. E_DEADLOCK is one example.
    FIXME:(C) EINVAL, E_NO_NEIGHBOR, ENOENT: these should probably be handled
    properly rather than restarting, but there are a bunch of cases to audit.
+
+   We process not more than one meta-data and one data subvolume in one
+   jnode_flush() call. This is optimal, because all file bodies in the tree
+   are sorted by subvolume IDs due to special key assignment policy (see method
+   ->build_body_key() of asymmetric volume plugin). We store pointer to the
+   data subvolume in flush position (field data_subv). We don't keep a track of
+   meta-data subvolume, as there is only single one per asymmetric LV (other
+   LV types are not supported for now).
 */
 
-static int
-jnode_flush(jnode * node, long nr_to_write, long *nr_written,
-	    flush_queue_t *fq, int flags)
+static int jnode_flush(jnode *node, long nr_to_write, long *nr_written,
+		       flush_queue_t *fq, int flags)
 {
 	long ret = 0;
 	flush_scan *right_scan;
 	flush_scan *left_scan;
 	flush_pos_t *flush_pos;
-	int todo;
 	struct super_block *sb;
-	reiser4_subvol *subv;
 	reiser4_super_info_data *sbinfo;
 	jnode *leftmost_in_slum = NULL;
 
@@ -714,7 +778,6 @@ jnode_flush(jnode * node, long nr_to_write, long *nr_written,
 
 	sb = reiser4_get_current_sb();
 	sbinfo = get_super_private(sb);
-	subv = node->subvol;
 
 	/* Flush-concurrency debug code */
 #if REISER4_DEBUG
@@ -746,8 +809,7 @@ jnode_flush(jnode * node, long nr_to_write, long *nr_written,
 	   and, hence, is kept during leftward scan. As a result, we have to
 	   use try-lock when taking long term locks during the leftward scan.
 	 */
-	ret = scan_left(left_scan, right_scan,
-			node, subv->flush.scan_maxnodes);
+	ret = scan_left(left_scan, right_scan, node);
 	if (ret != 0)
 		goto failed;
 
@@ -761,25 +823,35 @@ jnode_flush(jnode * node, long nr_to_write, long *nr_written,
 	   FLUSH_RELOCATE_THRESHOLD number of nodes are being flushed. The scan
 	   limit is the difference between left_scan.count and the threshold. */
 
-	todo = subv->flush.relocate_threshold - left_scan->count;
-	/* scan right is inherently deadlock prone, because we are
+	right_scan->meta_subv = left_scan->meta_subv;
+	right_scan->max_meta_count =
+		left_scan->max_meta_count - left_scan->meta_count;
+
+	right_scan->data_subv = left_scan->data_subv;
+	right_scan->max_data_count =
+		left_scan->max_data_count - left_scan->data_count;
+	/*
+	 * scan right is inherently deadlock prone, because we are
 	 * (potentially) holding a lock on the twig node at this moment.
-	 * FIXME: this is incorrect comment: lock is not held */
-	if (todo > 0) {
-		ret = scan_right(right_scan, node, (unsigned)todo);
+	 * FIXME: this is incorrect comment: lock is not held
+	 */
+	if (right_scan->max_meta_count > 0 || right_scan->max_data_count > 0) {
+		ret = scan_right(right_scan, node);
 		if (ret != 0)
 			goto failed;
 	}
-
-	/* Only the right-scan count is needed, release any rightward locks
-	   right away. */
+	/*
+	 * Only the right-scan count is needed, release any rightward locks
+	 * right away
+	 */
 	scan_done(right_scan);
-
-	/* ... and the answer is: we should relocate leaf nodes if at least
-	   FLUSH_RELOCATE_THRESHOLD nodes were found. */
-	flush_pos->leaf_relocate = JF_ISSET(node, JNODE_REPACK) ||
-	    (left_scan->count + right_scan->count >=
-	     subv->flush.relocate_threshold);
+	/*
+	 * set statictics calculated by leftward and rightward scan procedures
+	 */
+	flush_pos->data_leaf_relocate =
+		data_leaf_should_relocate(node, left_scan, right_scan);
+	flush_pos->meta_leaf_relocate =
+		meta_leaf_should_relocate(node, left_scan, right_scan);
 
 	/* Funny business here.  We set the 'point' in the flush_position at
 	   prior to starting squalloc regardless of whether the first point is
@@ -1115,13 +1187,13 @@ int flush_current_atom(int flags, long nr_to_write, long *nr_submitted,
 }
 
 /**
- * This function calls txmod->reverse_alloc_formatted() to make a
- * reverse-parent-first relocation decision and then, if yes, it marks
+ * This function calls txmod->reverse_should_realloc_formatted() to make
+ * a reverse-parent-first relocation decision and then, if yes, it marks
  * the parent dirty.
  */
-static int reverse_allocate_parent(jnode * node,
-				   const coord_t *parent_coord,
-				   flush_pos_t *pos)
+static int check_parent_for_realloc(jnode * node,
+				    const coord_t *parent_coord,
+				    flush_pos_t *pos)
 {
 	int ret;
 	reiser4_subvol *subv = node->subvol;
@@ -1129,10 +1201,11 @@ static int reverse_allocate_parent(jnode * node,
 	if (!JF_ISSET(ZJNODE(parent_coord->node), JNODE_DIRTY)) {
 		txmod_plugin *txmod_plug = get_txmod_plugin(subv);
 
-		if (!txmod_plug->reverse_alloc_formatted)
+		if (!txmod_plug->reverse_should_realloc_formatted)
 			return 0;
-		ret = txmod_plug->reverse_alloc_formatted(node,
-							  parent_coord, pos);
+		ret = txmod_plug->reverse_should_realloc_formatted(node,
+								   parent_coord,
+								   pos);
 		if (ret < 0)
 			return ret;
 		/*
@@ -1206,7 +1279,7 @@ static int alloc_pos_and_ancestors(flush_pos_t *pos)
 		/* The parent may not be dirty, in which case we should decide
 		   whether to relocate the child now. If decision is made to
 		   relocate the child, the parent is marked dirty. */
-		ret = reverse_allocate_parent(pos->child, &pos->coord, pos);
+		ret = check_parent_for_realloc(pos->child, &pos->coord, pos);
 		if (ret)
 			goto exit;
 
@@ -1221,10 +1294,11 @@ static int alloc_pos_and_ancestors(flush_pos_t *pos)
 
 	} else {
 		if (!znode_is_root(pos->lock.node)) {
-			/* all formatted nodes except tree root */
-			ret =
-			    reiser4_get_parent(&plock, pos->lock.node,
-					       ZNODE_WRITE_LOCK);
+			/*
+			 * all formatted nodes except tree root
+			 */
+			ret = reiser4_get_parent(&plock, pos->lock.node,
+						 ZNODE_WRITE_LOCK);
 			if (ret)
 				goto exit;
 
@@ -1232,14 +1306,13 @@ static int alloc_pos_and_ancestors(flush_pos_t *pos)
 			if (ret)
 				goto exit;
 
-			ret =
-			    find_child_ptr(plock.node, pos->lock.node, &pcoord);
+			ret = find_child_ptr(plock.node, pos->lock.node, &pcoord);
 			if (ret)
 				goto exit;
 
-			ret = reverse_allocate_parent(ZJNODE(pos->lock.node),
-						      &pcoord,
-						      pos);
+			ret = check_parent_for_realloc(ZJNODE(pos->lock.node),
+						       &pcoord,
+						       pos);
 			if (ret)
 				goto exit;
 
@@ -1247,7 +1320,6 @@ static int alloc_pos_and_ancestors(flush_pos_t *pos)
 			if (ret)
 				goto exit;
 		}
-
 		ret = allocate_znode(pos->lock.node, &pcoord, pos);
 	}
 exit:
@@ -1271,17 +1343,18 @@ static int alloc_one_ancestor(const coord_t *coord, flush_pos_t *pos)
 	/* As we ascend at the left-edge of the region to flush, take this
 	   opportunity at the twig level to find our parent-first preceder
 	   unless we have already set it. */
-	if (pos->preceder.blk == 0) {
+	if (pos->meta_preceder.blk == 0 && pos->data_preceder.blk == 0) {
 		ret = set_preceder(coord, pos);
 		if (ret != 0)
 			return ret;
 	}
-
-	/* If the ancestor is clean or already allocated, or if the child is not
-	   a leftmost child, stop going up, even leaving coord->node not
-	   flushprepped. */
-	if (znode_check_flushprepped(coord->node)
-	    || !coord_is_leftmost_unit(coord))
+	/*
+	 * If the ancestor is clean or already allocated, or
+	 * if the child is not a leftmost child, stop going up,
+	 * even leaving coord->node not flushprepped
+	 */
+	if (znode_check_flushprepped(coord->node) ||
+	    !coord_is_leftmost_unit(coord))
 		return 0;
 
 	init_lh(&alock);
@@ -1301,8 +1374,8 @@ static int alloc_one_ancestor(const coord_t *coord, flush_pos_t *pos)
 			goto exit;
 		}
 
-		ret = reverse_allocate_parent(ZJNODE(coord->node),
-					      &acoord, pos);
+		ret = check_parent_for_realloc(ZJNODE(coord->node),
+					       &acoord, pos);
 		if (ret != 0)
 			goto exit;
 
@@ -1323,6 +1396,100 @@ exit:
 	done_load_count(&aload);
 	done_lh(&alock);
 	return ret;
+}
+
+static void set_meta_preceder(flush_pos_t *pos,
+			      const coord_t *parent_of_prec,
+			      const coord_t *parent_of_curr,
+			      reiser4_block_nr blk)
+{
+	assert("edward-1860", item_is_internal(parent_of_prec));
+
+	pos->meta_preceder.blk = blk;
+	check_preceder(blk, get_meta_subvol());
+
+	if (pos->data_subv == get_meta_subvol())
+		/*
+		 * found preceder also works for data
+		 * subvolume
+		 */
+		pos->data_preceder = pos->meta_preceder;
+	else
+		/*
+		 * FIXME:
+		 * alternatively we can also find and set
+		 * a meta-data preceder here.
+		 */
+		;
+}
+
+static void set_data_preceder(flush_pos_t *pos,
+			      const coord_t *parent_of_prec,
+			      const coord_t *parent_of_curr,
+			      reiser4_block_nr blk)
+{
+	assert("edward-1861", item_is_extent(parent_of_prec));
+	assert("edward-1862",
+	       ergo(pos->data_subv == NULL, !item_is_extent(parent_of_curr)));
+
+	set_data_subvol_ifnull(pos, parent_of_prec);
+	if (pos->data_subv != subvol_by_coord(parent_of_prec))
+		/*
+		 * previous extent points to different subvolume,
+		 * there is no preceder
+		 */
+		return;
+
+	pos->data_preceder.blk = blk;
+	check_preceder(blk, pos->data_subv);
+
+	if (pos->data_subv == get_meta_subvol())
+		/*
+		 * found preceder also works for meta-data
+		 * subvolume
+		 */
+		pos->meta_preceder.blk = blk;
+	else
+		/*
+		 * FIXME:
+		 * alternatively we can also find and set
+		 * a meta-data preceder here.
+		 */
+		;
+}
+
+/**
+ * Update preceder in meta-data subvolume.
+ * This happens e.g. after allocation a formatted node in flush time
+ */
+void update_meta_preceder(flush_pos_t *pos, reiser4_block_nr blk)
+{
+	pos->meta_preceder.blk = blk;
+	check_preceder(blk, get_meta_subvol());
+
+	if (get_meta_subvol() == pos->data_subv)
+		/*
+		 * update also data preceder
+		 */
+		pos->data_preceder.blk = blk;
+}
+
+/**
+ * Update preceder in data subvolume.
+ * This happens e.g. after allocation a formatted node in flush time
+ */
+void update_data_preceder(flush_pos_t *pos, reiser4_block_nr blk)
+{
+	assert("edward-1848", pos->data_subv != NULL);
+
+	pos->data_preceder.blk = blk;
+	check_preceder(blk, pos->data_subv);
+
+	if (pos->data_subv == get_meta_subvol())
+		/*
+		 * update also meta-data preceder
+		 */
+		pos->meta_preceder.blk = blk;
 }
 
 /* During the reverse parent-first alloc_pos_and_ancestors process described
@@ -1347,43 +1514,56 @@ static int set_preceder(const coord_t *coord_in, flush_pos_t *pos)
 	coord_t coord;
 	lock_handle left_lock;
 	load_count left_load;
+	reiser4_block_nr blk;
 
 	coord_dup(&coord, coord_in);
 
 	init_lh(&left_lock);
 	init_load_count(&left_load);
 
-	/* FIXME(B): Same FIXME as in "Find the preceder" in
-	   reverse_allocate. coord_is_leftmost_unit is not the right test
-	   if the unformatted child is in the middle of the first extent unit.*/
-	if (!coord_is_leftmost_unit(&coord)) {
+	/*
+	 * FIXME(B): Same FIXME as in "Find the preceder" in
+	 * reverse_allocate. coord_is_leftmost_unit is not the
+	 * right test if the unformatted child is in the middle
+	 * of the first extent unit
+	 */
+	if (!coord_is_leftmost_unit(&coord))
 		coord_prev_unit(&coord);
-	} else {
-		ret =
-		    reiser4_get_left_neighbor(&left_lock, coord.node,
-					      ZNODE_READ_LOCK, GN_SAME_ATOM);
+	else {
+		ret = reiser4_get_left_neighbor(&left_lock, coord.node,
+						ZNODE_READ_LOCK,
+						GN_SAME_ATOM);
 		if (ret) {
-			/* If we fail for any reason it doesn't matter because
-			   the preceder is only a hint. We are low-priority at
-			   this point, so this must be the case. */
-			if (ret == -E_REPEAT || ret == -E_NO_NEIGHBOR ||
-			    ret == -ENOENT || ret == -EINVAL
-			    || ret == -E_DEADLOCK)
+			/*
+			 * If we fail for any reason it doesn't matter because
+			 * the preceder is only a hint. We are low-priority at
+			 * this point, so this must be the case
+			 */
+			if (ret == -E_REPEAT ||
+			    ret == -E_NO_NEIGHBOR ||
+			    ret == -ENOENT ||
+			    ret == -EINVAL ||
+			    ret == -E_DEADLOCK)
 				ret = 0;
 			goto exit;
 		}
-
 		ret = incr_load_count_znode(&left_load, left_lock.node);
 		if (ret)
 			goto exit;
 
 		coord_init_last_unit(&coord, left_lock.node);
 	}
+	assert("edward-1849",
+	       item_is_extent(&coord) || item_is_internal(&coord));
 
-	ret = item_utmost_child_real_block(&coord, RIGHT_SIDE,
-					   &pos->preceder.blk);
-exit:
-	check_preceder(pos->preceder.blk, subvol_by_coord(coord_in));
+	ret = item_utmost_child_real_block(&coord, RIGHT_SIDE, &blk);
+	if (ret)
+		goto exit;
+	if (item_is_extent(&coord))
+		set_data_preceder(pos, &coord, coord_in, blk);
+	else
+		set_meta_preceder(pos, &coord, coord_in, blk);
+ exit:
 	done_load_count(&left_load);
 	done_lh(&left_lock);
 	return ret;
@@ -1460,14 +1640,34 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t *pos)
 	txmod_plug = get_txmod_plugin(subv);
 	coord_init_first_unit(&coord, right);
 
-	/* FIXME: can be optimized to cut once */
+	if (item_is_extent(&coord)) {
+		/*
+		 * at this point data subvolume is still
+		 * unknown when flushing by the following scenario:
+		 * handle_pos_on_internal->handle_pos_on_formatted->
+		 * squeeze_right_neighbor->squeeze_right_twig
+		 */
+		set_data_subvol_ifnull(pos, &coord);
+
+		if (pos->data_subv != subvol_by_coord(&coord)) {
+			ret = -E_OUTSTEP;
+			pos_stop(pos);
+			goto out;
+		}
+	}
+	/*
+	 * FIXME: can be optimized to cut once
+	 */
 	while (!node_is_empty(coord.node) && item_is_extent(&coord)) {
 		ON_DEBUG(void *vp);
 
 		assert("vs-1468", coord_is_leftmost_unit(&coord));
 		ON_DEBUG(vp = shift_check_prepare(left, coord.node));
-
-		/* stop_key is used to find what was copied and what to cut */
+		/*
+		 * Allocate extent in "squeeze context" and append it
+		 * to the @left.
+		 * stop_key is used to find what was copied and what to cut
+		 */
 		stop_key = *reiser4_min_key();
 		ret = txmod_plug->squeeze_alloc_unformatted(left,
 							    &coord, pos,
@@ -1477,8 +1677,9 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t *pos)
 			break;
 		}
 		assert("vs-1465", !keyeq(&stop_key, reiser4_min_key()));
-
-		/* Helper function to do the cutting. */
+		/*
+		 * cut the original units from @right (to complete shifting)
+		 */
 		set_key_offset(&stop_key, get_key_offset(&stop_key) - 1);
 		check_me("vs-1466",
 			 squalloc_right_twig_cut(&coord, &stop_key, left) == 0);
@@ -1489,7 +1690,7 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t *pos)
 	 * @left and @right nodes participated in the
 	 * implicit shift, determined by the pair of
 	 * functions:
-	 * . squalloc_extent() - append units to the @left
+	 * . squeeze_alloc_unformatted() - append units to the @left
 	 * . squalloc_right_twig_cut() - cut the units from @right
 	 * so update their delimiting keys
 	 */
@@ -1805,27 +2006,25 @@ static int squalloc_upper_levels(flush_pos_t *pos, znode * left, znode * right)
 		goto out;
 
 	if (znode_check_flushprepped(right_parent_lock.node)) {
-		/* Keep parent-first order.  In the order, the right parent node
-		   stands before the @right node.  If it is already allocated,
-		   we set the preceder (next block search start point) to its
-		   block number, @right node should be allocated after it.
-
-		   However, preceder is set only if the right parent is on twig
-		   level. The explanation is the following: new branch nodes are
-		   allocated over already allocated children while the tree
-		   grows, it is difficult to keep tree ordered, we assume that
-		   only leaves and twings are correctly allocated. So, only
-		   twigs are used as a preceder for allocating of the rest of
-		   the slum. */
-		if (znode_get_level(right_parent_lock.node) == TWIG_LEVEL) {
-			pos->preceder.blk =
-				*znode_get_block(right_parent_lock.node);
-			check_preceder(pos->preceder.blk,
-				       znode_get_subvol(right));
-		}
+		/*
+		 * Keep parent-first order.  In the order, the right parent node
+		 * stands before the @right node.  If it is already allocated,
+		 * we set the preceder (next block search start point) to its
+		 * block number, @right node should be allocated after it.
+		 *
+		 * However, preceder is set only if the right parent is on twig
+		 * level. The explanation is the following: new branch nodes are
+		 * allocated over already allocated children while the tree
+		 * grows, it is difficult to keep tree ordered, we assume that
+		 * only leaves and twings are correctly allocated. So, only
+		 * twigs are used as a preceder for allocating of the rest of
+		 * the slum
+		 */
+		if (znode_get_level(right_parent_lock.node) == TWIG_LEVEL)
+			update_meta_preceder(pos,
+				      *znode_get_block(right_parent_lock.node));
 		goto out;
 	}
-
 	ret = incr_load_count_znode(&left_parent_load, left_parent_lock.node);
 	if (ret)
 		goto out;
@@ -2180,14 +2379,13 @@ static int squalloc_extent_should_stop(flush_pos_t *pos)
 static int handle_pos_on_twig(flush_pos_t *pos)
 {
 	int ret;
-	reiser4_subvol *subv;
 	txmod_plugin *txmod_plug;
 
 	assert("zam-844", pos->state == POS_ON_EPOINT);
 	assert("zam-843", item_is_extent(&pos->coord));
+	assert("edward-1849", pos->data_subv == subvol_by_coord(&pos->coord));
 
-	subv = flush_pos_subvol(pos);
-	txmod_plug = get_txmod_plugin(subv);
+	txmod_plug = get_txmod_plugin(pos->data_subv);
 
 	/* We decide should we continue slum processing with current extent
 	   unit: if leftmost child of current extent unit is flushprepped
@@ -2201,15 +2399,18 @@ static int handle_pos_on_twig(flush_pos_t *pos)
 		pos_stop(pos);
 		return ret;
 	}
+	/*
+	 * loop on the whole connected set of extents
+	 */
+	while (pos_valid(pos) &&
+	       coord_is_existing_unit(&pos->coord) &&
+	       item_is_extent(&pos->coord)) {
 
-	while (pos_valid(pos) && coord_is_existing_unit(&pos->coord)
-	       && item_is_extent(&pos->coord)) {
 		ret = txmod_plug->forward_alloc_unformatted(pos);
 		if (ret)
 			break;
 		coord_next_unit(&pos->coord);
 	}
-
 	if (coord_is_after_rightmost(&pos->coord)) {
 		pos->state = POS_END_OF_TWIG;
 		return 0;
@@ -2226,9 +2427,12 @@ static int handle_pos_on_twig(flush_pos_t *pos)
 	return 0;
 }
 
-/* When we about to return flush position from twig to leaf level we can process
- * the right twig node or move position to the leaf.  This processes right twig
- * if it is possible and jump to leaf level if not. */
+/**
+ * When we about to return flush position from twig to leaf level
+ * we can process the right twig node or move position to the leaf.
+ * This function processes right twig if it is possible and jumps
+ * to leaf level if not
+ */
 static int handle_pos_end_of_twig(flush_pos_t *pos)
 {
 	int ret;
@@ -2242,13 +2446,13 @@ static int handle_pos_end_of_twig(flush_pos_t *pos)
 
 	init_lh(&right_lock);
 	init_load_count(&right_load);
-
-	/* We get a lock on the right twig node even it is not dirty because
+	/*
+	 * We get a lock on the right twig node even it is not dirty because
 	 * slum continues or discontinues on leaf level not on next twig. This
-	 * lock on the right twig is needed for getting its leftmost child. */
-	ret =
-	    reiser4_get_right_neighbor(&right_lock, pos->lock.node,
-				       ZNODE_WRITE_LOCK, GN_SAME_ATOM);
+	 * lock on the right twig is needed for getting its leftmost child
+	 */
+	ret = reiser4_get_right_neighbor(&right_lock, pos->lock.node,
+					 ZNODE_WRITE_LOCK, GN_SAME_ATOM);
 	if (ret)
 		goto out;
 
@@ -2256,87 +2460,107 @@ static int handle_pos_end_of_twig(flush_pos_t *pos)
 	if (ret)
 		goto out;
 
-	/* right twig could be not dirty */
+	coord_init_first_unit(&at_right, right_lock.node);
+
+	if (!node_is_empty(right_lock.node) && item_is_extent(&at_right)) {
+		set_data_subvol_ifnull(pos, &at_right);
+		if (pos->data_subv != subvol_by_coord(&at_right)) {
+			/*
+			 * first item of the right neighbor
+			 * points to different data subvolume.
+			 * Stop flushing here.
+			 */
+			ret = -E_OUTSTEP;
+			pos_stop(pos);
+			goto out;
+		}
+	}
 	if (JF_ISSET(ZJNODE(right_lock.node), JNODE_DIRTY)) {
-		/* If right twig node is dirty we always attempt to squeeze it
-		 * content to the left... */
-became_dirty:
-		ret =
-		    squeeze_right_twig_and_advance_coord(pos, right_lock.node);
+		/*
+		 * If right twig node is dirty we always attempt to squeeze it
+		 * content to the left...
+		 */
+	became_dirty:
+		ret = squeeze_right_twig_and_advance_coord(pos, right_lock.node);
 		if (ret <= 0) {
-			/* pos->coord is on internal item, go to leaf level, or
+			/*
+			 * pos->coord is on internal item, go to leaf level, or
 			 * we have an error which will be caught in squalloc()
 			 */
 			pos->state = POS_TO_LEAF;
 			goto out;
 		}
-
-		/* If right twig was squeezed completely we wave to re-lock
-		 * right twig. now it is done through the top-level squalloc
-		 * routine. */
+		/*
+		 * If right twig was squeezed completely we have to re-lock
+		 * right twig. Now it is done through the top-level squalloc
+		 * routine
+		 */
 		if (node_is_empty(right_lock.node))
 			goto out;
-
-		/* ... and prep it if it is not yet prepped */
+		/*
+		 * ... and prep it if it is not yet prepped
+		 */
 		if (!znode_check_flushprepped(right_lock.node)) {
-			/* As usual, process parent before ... */
-			ret =
-			    check_parents_and_squalloc_upper_levels(pos,
-								    pos->lock.
-								    node,
-								    right_lock.
-								    node);
+			/*
+			 * As usual, process parent before ...
+			 */
+			ret = check_parents_and_squalloc_upper_levels(pos,
+							       pos->lock.
+							       node,
+							       right_lock.node);
 			if (ret)
 				goto out;
-
-			/* ... processing the child */
-			ret =
-			    lock_parent_and_allocate_znode(right_lock.node,
-							   pos);
+			/*
+			 * ... processing the child
+			 */
+			ret = lock_parent_and_allocate_znode(right_lock.node,
+							     pos);
 			if (ret)
 				goto out;
 		}
 	} else {
+		/*
+		 * right twig node is not dirty
+		 */
 		coord_init_first_unit(&at_right, right_lock.node);
-
-		/* check first child of next twig, should we continue there ? */
+		/*
+		 * check first child of next twig, should we continue there ?
+		 */
 		ret = get_leftmost_child_of_unit(&at_right, &child);
 		if (ret || child == NULL || jnode_check_flushprepped(child)) {
 			pos_stop(pos);
 			goto out;
 		}
-
-		/* check clean twig for possible relocation */
+		/*
+		 * check clean twig for possible relocation
+		 */
 		if (!znode_check_flushprepped(right_lock.node)) {
-			ret = reverse_allocate_parent(child, &at_right, pos);
+			ret = check_parent_for_realloc(child, &at_right, pos);
 			if (ret)
 				goto out;
 			if (JF_ISSET(ZJNODE(right_lock.node), JNODE_DIRTY))
 				goto became_dirty;
 		}
 	}
-
 	assert("zam-875", znode_check_flushprepped(right_lock.node));
-
-	/* Update the preceder by a block number of just processed right twig
-	 * node. The code above could miss the preceder updating because
-	 * allocate_znode() could not be called for this node. */
-	pos->preceder.blk = *znode_get_block(right_lock.node);
-	check_preceder(pos->preceder.blk, subvol_by_coord(&pos->coord));
+	/*
+	 * Update the preceder by a block number of just processed right
+	 * twig node. The code above could miss the preceder updating
+	 * because allocate_znode() could not be called for this node
+	 */
+	update_meta_preceder(pos, *znode_get_block(right_lock.node));
 
 	coord_init_first_unit(&at_right, right_lock.node);
 	assert("zam-868", coord_is_existing_unit(&at_right));
 
 	pos->state = item_is_extent(&at_right) ? POS_ON_EPOINT : POS_TO_LEAF;
 	move_flush_pos(pos, &right_lock, &right_load, &at_right);
-
-out:
+ out:
 	done_load_count(&right_load);
 	done_lh(&right_lock);
 
 	if (child)
 		jput(child);
-
 	return ret;
 }
 
@@ -2413,8 +2637,8 @@ static int handle_pos_to_twig(flush_pos_t *pos)
 	init_lh(&parent_lock);
 	init_load_count(&parent_load);
 
-	ret =
-	    reiser4_get_parent(&parent_lock, pos->lock.node, ZNODE_WRITE_LOCK);
+	ret = reiser4_get_parent(&parent_lock,
+				 pos->lock.node, ZNODE_WRITE_LOCK);
 	if (ret)
 		goto out;
 
@@ -2431,22 +2655,32 @@ static int handle_pos_to_twig(flush_pos_t *pos)
 
 	if (coord_is_after_rightmost(&pcoord))
 		pos->state = POS_END_OF_TWIG;
-	else if (item_is_extent(&pcoord))
-		pos->state = POS_ON_EPOINT;
-	else {
-		/* Here we understand that getting -E_NO_NEIGHBOR in
-		 * handle_pos_on_leaf() was because of just a reaching edge of
-		 * slum */
+	else if (item_is_extent(&pcoord)) {
+		set_data_subvol_ifnull(pos, &pcoord);
+		if (pos->data_subv == subvol_by_coord(&pcoord))
+			pos->state = POS_ON_EPOINT;
+		else {
+			/*
+			 * extent item points to different subvolume,
+			 * stop flushing
+			 */
+			ret = -E_OUTSTEP;
+			pos_stop(pos);
+			goto out;
+		}
+	} else {
+		/*
+		 * Here we understand that getting -E_NO_NEIGHBOR in
+		 * handle_pos_on_leaf() was because of just a reaching
+		 * edge of slum
+		 */
 		pos_stop(pos);
 		goto out;
 	}
-
 	move_flush_pos(pos, &parent_lock, &parent_load, &pcoord);
-
 out:
 	done_load_count(&parent_load);
 	done_lh(&parent_lock);
-
 	return ret;
 }
 
@@ -2463,8 +2697,10 @@ static pos_state_handle_t flush_pos_handlers[] = {
 	/* move a lock from twig to leaf level when a processing of unformatted
 	 * nodes finishes, pos->coord points to the leaf node we jump to */
 	[POS_TO_LEAF] = handle_pos_to_leaf,
-	/* after processing last extent in the twig node, attempting to shift
-	 * items from the twigs right neighbor and process them while shifting*/
+	/* this is called after processing last extent in the twig node.
+	 * This handler attempts to shift items from the right neighbor (on the
+	 * twig level) and process them while shifting. Specifically, for extent
+	 * items extent allocation in the "squeeze context" is performed */
 	[POS_END_OF_TWIG] = handle_pos_end_of_twig,
 	/* process formatted nodes on internal level, keep lock on an internal
 	   node */
@@ -2967,52 +3203,151 @@ static void scan_done(flush_scan * scan)
 	done_lh(&scan->node_lock);
 }
 
-/* Returns true if flush scanning is finished. */
-int reiser4_scan_finished(flush_scan * scan)
+/**
+ * Returns true if flush scanning has to be finished
+ */
+int reiser4_scan_finished(flush_scan *scan)
 {
-	return scan->stop || (scan->direction == RIGHT_SIDE &&
-			      scan->count >= scan->max_count);
+	if (scan->stop)
+		return 1;
+	switch (scan->direction) {
+	case LEFT_SIDE:
+		return 0;
+	case RIGHT_SIDE:
+		if (scan->max_data_count &&
+		    (scan->data_count >= scan->max_data_count))
+			return 1;
+		if (scan->max_meta_count &&
+		    (scan->meta_count >= scan->max_meta_count))
+			return 1;
+		return 0;
+	default:
+		impossible("edward-1865",
+			   "bad scan direction %d", scan->direction);
+	}
 }
 
-/* Return true if the scan should continue to the @tonode. True if the node
-   meets the same_slum_check condition. If not, deref the "left" node and stop
-   the scan. */
-int reiser4_scan_goto(flush_scan * scan, jnode * tonode)
+/**
+ * Return true if the scan should continue to the @tonode.
+ * True if the node meets the same_slum_check condition.
+ * If not, deref the "left" node and stop the scan
+ */
+int reiser4_scan_goto(flush_scan *scan, jnode *tonode)
 {
-	int go = same_slum_check(scan->node, tonode, 1, 0);
+	int go;
+
+	if (jnode_is_unformatted(tonode) &&
+	    (scan->data_subv != NULL) && (tonode->subvol != scan->data_subv))
+		/*
+		 * tonode belongs to different data subvolume.
+		 * Stop scan, as we don't handle more than one
+		 * data subvolume per one scan_left-scan_right
+		 * pair
+		 */
+		go = 0;
+	else
+		go = same_slum_check(scan->node, tonode, 1, 0);
 
 	if (!go) {
 		scan->stop = 1;
 		jput(tonode);
 	}
-
 	return go;
 }
 
-/* Set the current scan->node, refcount it, increment count by the @add_count
-   (number to count, e.g., skipped unallocated nodes), deref previous current,
-   and copy the current parent coordinate. */
-int
-scan_set_current(flush_scan * scan, jnode * node, unsigned add_count,
-		 const coord_t *parent)
+static void init_scan_data_counters(flush_scan *scan, jnode *node)
 {
-	/* Release the old references, take the new reference. */
+	assert("edward-1866", jnode_is_unformatted(node));
+
+	scan->data_subv = node->subvol;
+	scan->max_data_count = scan->data_subv->flush.scan_maxnodes;
+
+	if (scan->data_subv == get_meta_subvol()) {
+		/*
+		 * init also meta-data counters
+		 */
+		scan->meta_subv	= scan->data_subv;
+		scan->max_meta_count = scan->meta_subv->flush.scan_maxnodes;
+	}
+}
+
+static void init_scan_meta_counters(flush_scan *scan, jnode *node)
+{
+	assert("edward-1864", jnode_is_znode(node));
+
+	scan->meta_subv = node->subvol;
+	scan->max_meta_count = scan->meta_subv->flush.scan_maxnodes;
+
+	if (scan->data_subv == get_meta_subvol()) {
+		/*
+		 * init also data counters
+		 */
+		scan->data_subv	= scan->meta_subv;
+		scan->max_data_count = scan->data_subv->flush.scan_maxnodes;
+	}
+}
+
+static void update_scan_counters(flush_scan *scan, jnode *node,
+				 unsigned add_count)
+{
+	if (jnode_is_unformatted(node)) {
+		if (scan->data_subv == NULL)
+			init_scan_data_counters(scan, node);
+		else
+			assert("edward-1867",
+			       scan->data_subv == node->subvol);
+		scan->data_count += add_count;
+		if (scan->data_subv == get_meta_subvol())
+			/*
+			 * update also counter of meta-data subvolume
+			 */
+			scan->meta_count += add_count;
+	} else {
+		if (scan->meta_subv == NULL)
+			init_scan_meta_counters(scan, node);
+		else
+			assert("edward-1868",
+			       scan->meta_subv == node->subvol);
+		scan->meta_count += add_count;
+		if (scan->data_subv == get_meta_subvol())
+			/*
+			 * update also counter of data subvolume
+			 */
+			scan->data_count += add_count;
+	}
+}
+
+/**
+ * Move scan position to @node:
+ * set scan->node to @node, refcount it, deref node at previous position,
+ * optionally copy the parent coordinate, increment count by the @add_count,
+ * which indicates number of processed nodes
+ */
+int move_scan_pos(flush_scan *scan, jnode *node,
+		  unsigned add_count, const coord_t *parent)
+{
+	/*
+	 * Release the old references, take the new reference
+	 */
 	done_load_count(&scan->node_load);
 
 	if (scan->node != NULL)
 		jput(scan->node);
+
 	scan->node = node;
-	scan->count += add_count;
+	update_scan_counters(scan, node, add_count);
 
 	/* This next stmt is somewhat inefficient.  The reiser4_scan_extent()
 	   code could delay this update step until it finishes and update the
 	   parent_coord only once. It did that before, but there was a bug and
-	   this was the easiest way to make it correct. */
+	   this was the easiest way to make it correct
+	*/
 	if (parent != NULL)
 		coord_dup(&scan->parent_coord, parent);
-
-	/* Failure may happen at the incr_load_count call, but the caller can
-	   assume the reference is safely taken. */
+	/*
+	 * Failure may happen at the incr_load_count call, but the caller can
+	 * assume the reference is safely taken
+	 */
 	return incr_load_count_jnode(&scan->node_load, node);
 }
 
@@ -3060,19 +3395,17 @@ int reiser4_scanning_left(flush_scan * scan)
 
    For now we implement the first policy.
 */
-static int
-scan_left(flush_scan * scan, flush_scan * right, jnode * node, unsigned limit)
+static int scan_left(flush_scan *scan, flush_scan *right, jnode *node)
 {
 	int ret = 0;
 
-	scan->max_count = limit;
 	scan->direction = LEFT_SIDE;
 
-	ret = scan_set_current(scan, jref(node), 1, NULL);
+	ret = move_scan_pos(scan, jref(node), 1, NULL);
 	if (ret != 0)
 		return ret;
 
-	ret = scan_common(scan, right);
+	ret = do_scan(scan, right);
 	if (ret != 0)
 		return ret;
 
@@ -3097,62 +3430,74 @@ scan_left(flush_scan * scan, flush_scan * right, jnode * node, unsigned limit)
    FLUSH_RELOCATE_THRESHOLD nodes for flushing.  Otherwise, the limit parameter
    is set to the difference between scan-left's count and
    FLUSH_RELOCATE_THRESHOLD, meaning scan-right counts as high as
-   FLUSH_RELOCATE_THRESHOLD and then stops. */
-static int scan_right(flush_scan * scan, jnode * node, unsigned limit)
+   FLUSH_RELOCATE_THRESHOLD and then stops
+*/
+static int scan_right(flush_scan *scan, jnode *node)
 {
 	int ret;
 
-	scan->max_count = limit;
 	scan->direction = RIGHT_SIDE;
 
-	ret = scan_set_current(scan, jref(node), 0, NULL);
+	ret = move_scan_pos(scan, jref(node), 0, NULL);
 	if (ret != 0)
 		return ret;
 
-	return scan_common(scan, NULL);
+	return do_scan(scan, NULL);
 }
 
-/* Common code to perform left or right scanning. */
-static int scan_common(flush_scan * scan, flush_scan * other)
+/**
+ * Perform scan in a given direction
+ */
+static int do_scan(flush_scan *scan, flush_scan *other)
 {
 	int ret;
 
 	assert("nikita-2376", scan->node != NULL);
-	assert("edward-54", jnode_is_unformatted(scan->node)
-	       || jnode_is_znode(scan->node));
-
-	/* Special case for starting at an unformatted node. Optimization: we
-	   only want to search for the parent (which requires a tree traversal)
-	   once. Obviously, we shouldn't have to call it once for the left scan
-	   and once for the right scan. For this reason, if we search for the
-	   parent during scan-left we then duplicate the coord/lock/load into
-	   the scan-right object. */
+	assert("edward-54",
+	       jnode_is_unformatted(scan->node) || jnode_is_znode(scan->node));
+	/*
+	 * Special case for starting at an unformatted node. Optimization: we
+	 * only want to search for the parent (which requires a tree traversal)
+	 * once. Obviously, we shouldn't have to call it once for the left scan
+	 * and once for the right scan. For this reason, if we search for the
+	 * parent during scan-left we then duplicate the coord/lock/load into
+	 * the scan-right object
+	 */
 	if (jnode_is_unformatted(scan->node)) {
-		ret = scan_unformatted(scan, other);
+		ret = lock_parent_and_scan_upper_level(scan, other);
 		if (ret != 0)
 			return ret;
 	}
-	/* This loop expects to start at a formatted position and performs
-	   chaining of formatted regions */
+	/*
+	 * scan formatted nodes starting at current position
+	 */
 	while (!reiser4_scan_finished(scan)) {
 
 		ret = scan_formatted(scan);
 		if (ret != 0)
 			return ret;
 	}
-
 	return 0;
 }
 
-static int scan_unformatted(flush_scan * scan, flush_scan * other)
+/*
+ * Set up parent coord (if needed), jump one level up
+ * and scan formatted nodes on the upper level
+ */
+static int lock_parent_and_scan_upper_level(flush_scan *scan, flush_scan *other)
 {
 	int ret = 0;
 	int try = 0;
 
 	if (!coord_is_invalid(&scan->parent_coord))
+		/*
+		 * parent has been set already by
+		 * previous scan session (scan_left)
+		 */
 		goto scan;
-
-	/* set parent coord from */
+	/*
+	 * set parent coord
+	 */
 	if (!jnode_is_unformatted(scan->node)) {
 		/* formatted position */
 
@@ -3226,6 +3571,9 @@ static int scan_unformatted(flush_scan * scan, flush_scan * other)
 		copy_load_count(&other->parent_load, &scan->parent_load);
 	}
 scan:
+	/*
+	 * proceed with scanning formatted nodes on the upper level
+	 */
 	return scan_by_coord(scan);
 }
 
@@ -3246,13 +3594,13 @@ static int scan_formatted(flush_scan * scan)
 
 	do {
 		znode *node = JZNODE(scan->node);
-
-		/* Node should be connected, but if not stop the scan. */
+		/*
+		 * node should be connected, but if not stop the scan
+		 */
 		if (!znode_is_connected(node)) {
 			scan->stop = 1;
 			break;
 		}
-
 		/* Lock the tree, check-for and reference the next sibling. */
 		read_lock_tree(znode_get_tree(node));
 
@@ -3267,47 +3615,55 @@ static int scan_formatted(flush_scan * scan)
 			zref(neighbor);
 
 		read_unlock_tree(znode_get_tree(node));
-
-		/* If neighbor is NULL at the leaf level, need to check for an
-		   unformatted sibling using the parent--break in any case. */
+		/*
+		 * If neighbor is NULL at the leaf level, need to check for an
+		 * unformatted sibling using the parent--break in any case
+		 */
 		if (neighbor == NULL)
 			break;
-
-		/* Check the condition for going left, break if it is not met.
-		   This also releases (jputs) the neighbor if false. */
+		/*
+		 * Check the condition for going left, break if it is not met.
+		 * This also releases (jputs) the neighbor if false
+		 */
 		if (!reiser4_scan_goto(scan, ZJNODE(neighbor)))
 			break;
-
-		/* Advance the flush_scan state to the left, repeat. */
-		ret = scan_set_current(scan, ZJNODE(neighbor), 1, NULL);
+		/*
+		 * Advance the flush_scan state to the left, repeat
+		 */
+		ret = move_scan_pos(scan, ZJNODE(neighbor), 1, NULL);
 		if (ret != 0)
 			return ret;
 
 	} while (!reiser4_scan_finished(scan));
+	/*
+	 * If neighbor is NULL then we reached the end of a formatted region,
+	 * or else the sibling is out of memory, now check for an extent to the
+	 * left (as long as LEAF_LEVEL)
+	 */
+	if (neighbor != NULL ||
+	    jnode_get_level(scan->node) != LEAF_LEVEL ||
+	    reiser4_scan_finished(scan)) {
 
-	/* If neighbor is NULL then we reached the end of a formatted region, or
-	   else the sibling is out of memory, now check for an extent to the
-	   left (as long as LEAF_LEVEL). */
-	if (neighbor != NULL || jnode_get_level(scan->node) != LEAF_LEVEL
-	    || reiser4_scan_finished(scan)) {
 		scan->stop = 1;
 		return 0;
 	}
-	/* Otherwise, calls scan_by_coord for the right(left)most item of the
-	   left(right) neighbor on the parent level, then possibly continue. */
-
+	/*
+	 * otherwise, calls scan_by_coord for the right(left)most item of the
+	 * left(right) neighbor on the parent level, then possibly continue
+	 */
 	coord_init_invalid(&scan->parent_coord, NULL);
-	return scan_unformatted(scan, NULL);
+	return lock_parent_and_scan_upper_level(scan, NULL);
 }
 
-/* NOTE-EDWARD:
-   This scans adjacent items of the same type and calls scan flush plugin for
-   each one. Performs left(right)ward scanning starting from a (possibly)
-   unformatted node. If we start from unformatted node, then we continue only if
-   the next neighbor is also unformatted. When called from scan_formatted, we
-   skip first iteration (to make sure that right(left)most item of the
-   left(right) neighbor on the parent level is of the same type and set
-   appropriate coord). */
+/**
+ * This scans adjacent items of the same type and calls scan flush plugin for
+ * each one. Performs left(right)ward scanning starting from a (possibly)
+ * unformatted node. If we start from unformatted node, then we continue only if
+ * the next neighbor is also unformatted. When called from scan_formatted, we
+ * skip first iteration (to make sure that right(left)most item of the
+ * left(right) neighbor on the parent level is of the same type and set
+ * appropriate coord)
+ */
 static int scan_by_coord(flush_scan * scan)
 {
 	int ret = 0;
@@ -3327,15 +3683,17 @@ static int scan_by_coord(flush_scan * scan)
 
 	for (; !reiser4_scan_finished(scan); scan_this_coord = 1) {
 		if (scan_this_coord) {
-			/* Here we expect that unit is scannable. it would not
-			 * be so due to race with extent->tail conversion.  */
+			/*
+			 * Here we expect that unit is scannable.
+			 * It would not be so due to race with extent->tail
+			 * conversion
+			 */
 			if (iplug->f.scan == NULL) {
 				scan->stop = 1;
 				ret = -E_REPEAT;
 				/* skip the check at the end. */
 				goto race;
 			}
-
 			ret = iplug->f.scan(scan);
 			if (ret != 0)
 				goto exit;
@@ -3345,35 +3703,43 @@ static int scan_by_coord(flush_scan * scan)
 				break;
 			}
 		} else {
-			/* the same race against truncate as above is possible
-			 * here, it seems */
-
-			/* NOTE-JMACD: In this case, apply the same end-of-node
-			   logic but don't scan the first coordinate. */
+			/*
+			 * the same race against truncate as above is possible
+			 * here, it seems.
+			 *
+			 * NOTE-JMACD: In this case, apply the same end-of-node
+			 * logic but don't scan the first coordinate
+			 */
 			assert("jmacd-1231",
 			       item_is_internal(&scan->parent_coord));
 		}
-
-		if (iplug->f.utmost_child == NULL
-		    || znode_get_level(scan->parent_coord.node) != TWIG_LEVEL) {
-			/* stop this coord and continue on parrent level */
-			ret = scan_set_current(scan,
+		if (iplug->f.utmost_child == NULL ||
+		    znode_get_level(scan->parent_coord.node) != TWIG_LEVEL) {
+			/*
+			 * stop this coord and continue on parrent level
+			 * (see the function do_scan)
+			 */
+			ret = move_scan_pos(scan,
 					  ZJNODE(zref(scan->parent_coord.node)),
 					  1, NULL);
 			if (ret != 0)
 				goto exit;
 			break;
 		}
-
-		/* Either way, the invariant is that scan->parent_coord is set
-		   to the parent of scan->node. Now get the next unit. */
+		/*
+		 * Either way, the invariant is that scan->parent_coord is set
+		 * to the parent of scan->node. Now get the next unit
+		 */
 		coord_dup(&next_coord, &scan->parent_coord);
 		coord_sideof_unit(&next_coord, scan->direction);
-
-		/* If off-the-end of the twig, try the next twig. */
+		/*
+		 * If off-the-end of the twig, try the next twig
+		 */
 		if (coord_is_after_sideof_unit(&next_coord, scan->direction)) {
-			/* We take the write lock because we may start flushing
-			 * from this coordinate. */
+			/*
+			 * We take the write lock because we may start
+			 * flushing from this coordinate
+			 */
 			ret = neighbor_in_slum(next_coord.node,
 					       &next_lock,
 					       scan->direction,
@@ -3386,73 +3752,83 @@ static int scan_by_coord(flush_scan * scan)
 				ret = 0;
 				break;
 			}
-
 			if (ret != 0)
 				goto exit;
-
 			ret = incr_load_count_znode(&next_load, next_lock.node);
 			if (ret != 0)
 				goto exit;
-
 			coord_init_sideof_unit(&next_coord, next_lock.node,
 					       sideof_reverse(scan->direction));
 		}
-
+		if ((scan->data_subv != NULL) &&
+		    (subvol_by_coord(&next_coord) != scan->data_subv)) {
+			/*
+			 * we have jumped to different data subvolume.
+			 * stop scanning here, as we don't handle more
+			 * than one data subvolume per one scan_left -
+			 * scan_right pair)
+			 */
+			scan->stop = 1;
+			break;
+		}
 		iplug = item_plugin_by_coord(&next_coord);
-
-		/* Get the next child. */
-		ret =
-		    iplug->f.utmost_child(&next_coord,
-					  sideof_reverse(scan->direction),
-					  &child);
+		/*
+		 * Get the next child
+		 */
+		ret = iplug->f.utmost_child(&next_coord,
+					    sideof_reverse(scan->direction),
+					    &child);
 		if (ret != 0)
 			goto exit;
-		/* If the next child is not in memory, or, item_utmost_child
-		   failed (due to race with unlink, most probably), stop
-		   here. */
+		/*
+		 * If the next child is not in memory, or, item_utmost_child
+		 * failed (due to race with unlink, most probably), stop here
+		 */
 		if (child == NULL || IS_ERR(child)) {
 			scan->stop = 1;
 			checkchild(scan);
 			break;
 		}
-
-		assert("nikita-2374", jnode_is_unformatted(child)
-		       || jnode_is_znode(child));
-
-		/* See if it is dirty, part of the same atom. */
+		assert("nikita-2374",
+		       jnode_is_unformatted(child) || jnode_is_znode(child));
+		/*
+		 * See if it is dirty, part of the same atom
+		 */
 		if (!reiser4_scan_goto(scan, child)) {
 			checkchild(scan);
 			break;
 		}
-
-		/* If so, make this child current. */
-		ret = scan_set_current(scan, child, 1, &next_coord);
+		/*
+		 * If so, make this child current
+		 */
+		ret = move_scan_pos(scan, child, 1, &next_coord);
 		if (ret != 0)
 			goto exit;
-
-		/* Now continue.  If formatted we release the parent lock and
-		   return, then proceed. */
+		/*
+		 * Now continue.
+		 * If formatted we release the parent lock and return,
+		 * then proceed
+		 */
 		if (jnode_is_znode(child))
 			break;
-
-		/* Otherwise, repeat the above loop with next_coord. */
+		/*
+		 * Otherwise, repeat the above loop with next_coord
+		 */
 		if (next_load.node != NULL) {
 			done_lh(&scan->parent_lock);
 			move_lh(&scan->parent_lock, &next_lock);
 			move_load_count(&scan->parent_load, &next_load);
 		}
 	}
-
 	assert("jmacd-6233",
 	       reiser4_scan_finished(scan) || jnode_is_znode(scan->node));
-exit:
+ exit:
 	checkchild(scan);
-race:			/* skip the above check  */
+ race:
 	if (jnode_is_znode(scan->node)) {
 		done_lh(&scan->parent_lock);
 		done_load_count(&scan->parent_load);
 	}
-
 	done_load_count(&next_load);
 	done_lh(&next_lock);
 	return ret;
@@ -3470,7 +3846,8 @@ static void pos_init(flush_pos_t *pos)
 	init_lh(&pos->lock);
 	init_load_count(&pos->load);
 
-	reiser4_blocknr_hint_init(&pos->preceder);
+	reiser4_blocknr_hint_init(&pos->meta_preceder);
+	reiser4_blocknr_hint_init(&pos->data_preceder);
 }
 
 /* The flush loop inside squalloc periodically checks pos_valid to determine
@@ -3495,7 +3872,8 @@ static int pos_valid(flush_pos_t *pos)
 static void pos_done(flush_pos_t *pos)
 {
 	pos_stop(pos);
-	reiser4_blocknr_hint_done(&pos->preceder);
+	reiser4_blocknr_hint_done(&pos->meta_preceder);
+	reiser4_blocknr_hint_done(&pos->data_preceder);
 	if (convert_data(pos))
 		free_convert_data(pos);
 }
@@ -3515,12 +3893,6 @@ static int pos_stop(flush_pos_t *pos)
 	}
 
 	return 0;
-}
-
-/* Return the flush_position's block allocator hint. */
-reiser4_blocknr_hint *reiser4_pos_hint(flush_pos_t *pos)
-{
-	return &pos->preceder;
 }
 
 flush_queue_t *reiser4_pos_fq(flush_pos_t *pos)

@@ -19,20 +19,24 @@
 struct flush_scan {
 
 	/* The current number of nodes scanned on this level. */
-	unsigned count;
-
-	/* There may be a maximum number of nodes for a scan on any single
-	   level. When going leftward, max_count is determined by
-	   FLUSH_SCAN_MAXNODES (see reiser4.h) */
-	unsigned max_count;
-
-	/* Direction: Set to one of the sideof enumeration:
-	   { LEFT_SIDE, RIGHT_SIDE }. */
+	int meta_count;
+	int data_count;
+	/*
+	 * There is a maximum number of nodes for a scan on any
+	 * single level. When going leftward, then both counts are
+	 * restricted by FLUSH_SCAN_MAXNODES (see reiser4.h)
+	 */
+	int max_meta_count;
+	int max_data_count;
+	/*
+	 * One of the sideof enumeration: {LEFT_SIDE, RIGHT_SIDE}
+	 */
 	sideof direction;
-
-	/* Initially @stop is set to false then set true once some condition
-	   stops the search (e.g., we found a clean node before reaching
-	   max_count or we found a node belonging to another atom). */
+	/*
+	 * Initially @stop is set to false then set true once some condition
+	 * stops the search (e.g., we found a clean node before reaching
+	 * max_count or we found a node belonging to another atom)
+	 */
 	int stop;
 
 	/* The current scan position.  If @node is non-NULL then its reference
@@ -53,12 +57,16 @@ struct flush_scan {
 	lock_handle parent_lock;
 	coord_t parent_coord;
 	load_count parent_load;
-
-	/* The block allocator preceder hint.  Sometimes flush_scan determines
-	   what the preceder is and if so it sets it here, after which it is
-	   copied into the flush_position. Otherwise, the preceder is computed
-	   later. */
-	reiser4_block_nr preceder_blk;
+	/*
+	 * The block allocator preceder hint. Sometimes flush_scan determines
+	 * what the preceder is and if so it sets it here, after which it is
+	 * copied into the flush_position. Otherwise, the preceder is computed
+	 * later
+	 */
+	reiser4_block_nr data_preceder_blk;
+	reiser4_block_nr meta_preceder_blk;
+	reiser4_subvol *meta_subv;
+	reiser4_subvol *data_subv;
 };
 
 struct convert_item_info {
@@ -107,9 +115,16 @@ struct flush_position {
 	jnode *child;		/* for passing a reference to unformatted child
 				 * across pos state changes */
 
-	reiser4_blocknr_hint preceder;	/* The flush 'hint' state. */
-	int leaf_relocate;	/* True if enough leaf-level nodes were
-				 * found to suggest a relocate policy. */
+	reiser4_blocknr_hint meta_preceder; /* The flush 'hint' state for
+					       meta-data subvolume */
+	reiser4_blocknr_hint data_preceder; /* The flush 'hint' state for data
+					       subvolume */
+	reiser4_subvol *data_subv; /* data subvolume where extent allocation
+				      against the hint above happens */
+	int data_leaf_relocate;	/* True if enough nodes were found in data volume
+				   to suggest a relocation policy. */
+	int meta_leaf_relocate; /* True if enough nodes were found in meta-data
+				   volume to suggest a relocation policy. */
 	int alloc_cnt;		/* The number of nodes allocated during squeeze
 				   and allococate. */
 	int prep_or_free_cnt;	/* The number of nodes prepared for write
@@ -128,11 +143,6 @@ struct flush_position {
 	long nr_to_write;	/* number of unformatted nodes to handle on
 				   flush */
 };
-
-static inline reiser4_subvol *flush_pos_subvol(flush_pos_t *pos)
-{
-	return ZJNODE(pos->coord.node)->subvol;
-}
 
 static inline int item_convert_count(flush_pos_t *pos)
 {
@@ -229,6 +239,17 @@ static inline void update_chaining_state(flush_pos_t *pos,
 	}
 }
 
+/* Return the flush_position's block allocator hint. */
+static inline reiser4_blocknr_hint *flush_pos_meta_hint(flush_pos_t *pos)
+{
+	return &pos->meta_preceder;
+}
+
+static inline reiser4_blocknr_hint *flush_pos_data_hint(flush_pos_t *pos)
+{
+	return &pos->data_preceder;
+}
+
 #define SQUALLOC_THRESHOLD 256
 
 static inline int should_terminate_squalloc(flush_pos_t *pos)
@@ -255,8 +276,8 @@ do {							        	\
 
 void free_convert_data(flush_pos_t *pos);
 /* used in extent.c */
-int scan_set_current(flush_scan * scan, jnode * node, unsigned add_size,
-		     const coord_t *parent);
+int move_scan_pos(flush_scan *scan, jnode *node, unsigned add_size,
+		  const coord_t *parent);
 int reiser4_scan_finished(flush_scan * scan);
 int reiser4_scanning_left(flush_scan * scan);
 int reiser4_scan_goto(flush_scan * scan, jnode * tonode);
@@ -266,6 +287,8 @@ squeeze_result squalloc_extent(znode *left, const coord_t *, flush_pos_t *,
 			       reiser4_key *stop_key);
 extern int reiser4_init_fqs(void);
 extern void reiser4_done_fqs(void);
+extern void update_meta_preceder(flush_pos_t *pos, reiser4_block_nr blk);
+extern void update_data_preceder(flush_pos_t *pos, reiser4_block_nr blk);
 
 #if REISER4_DEBUG
 

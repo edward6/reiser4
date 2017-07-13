@@ -68,8 +68,6 @@ static void check_uf_coord(const uf_coord_t *uf_coord, const reiser4_key *key)
 
 static inline reiser4_extent *ext_by_ext_coord(const uf_coord_t *uf_coord)
 {
-	check_uf_coord(uf_coord, NULL);
-
 	return ext_by_offset(uf_coord->coord.node,
 			     uf_coord->extension.extent.ext_offset);
 }
@@ -674,6 +672,7 @@ static int overwrite_one_block(struct inode *inode, uf_coord_t *uf_coord,
 
 	result = 0;
 	ext_coord = ext_coord_by_uf_coord(uf_coord);
+	check_uf_coord(uf_coord, NULL);
 	ext = ext_by_ext_coord(uf_coord);
 	assert("", state_of_extent(ext) != UNALLOCATED_EXTENT);
 
@@ -1402,9 +1401,9 @@ int reiser4_readpage_extent(void *vp, struct page *page)
 	       get_key_objectid(item_key_by_coord(coord, &key)));
 	check_uf_coord(uf_coord, NULL);
 
-	return reiser4_do_readpage_extent(
-		ext_by_ext_coord(uf_coord),
-		uf_coord->extension.extent.pos_in_unit, page);
+	return reiser4_do_readpage_extent(ext_by_ext_coord(uf_coord),
+				uf_coord->extension.extent.pos_in_unit,
+				page);
 }
 
 int get_block_address_extent(const coord_t *coord, sector_t block,

@@ -508,18 +508,22 @@ typedef struct txmod_plugin {
 	/* generic fields */
 	plugin_header h;
 	/**
-	 * allocate blocks in the FORWARD PARENT-FIRST context
-	 * for formatted nodes
+	 * Allocate a formatted node in the FORWARD PARENT-FIRST context.
+	 * It can check and re-allocate locality of the formatted node in
+	 * the tree.
+	 * Was allocate_znode_loaded().
 	 */
 	int (*forward_alloc_formatted)(znode *node, const coord_t *parent_coord,
-			       flush_pos_t *pos); //was allocate_znode_loaded
+			       flush_pos_t *pos);
 	/**
-	 * allocate blocks in the REVERSE PARENT-FIRST context
-	 * for formatted nodes
+	 * Check if a formatted node should be re-allocated in the
+	 * REVERSE PARENT-FIRST context.
+	 * If it should be re-allocated, then return 1. Otherwise, return 0.
+	 * Was reverse_relocate_test().
 	 */
-	int (*reverse_alloc_formatted)(jnode * node,
-				       const coord_t *parent_coord,
-				       flush_pos_t *pos); // was reverse_relocate_test
+	int (*reverse_should_realloc_formatted)(jnode * node,
+						const coord_t *parent_coord,
+						flush_pos_t *pos);
 	/**
 	 * allocate blocks in the FORWARD PARENT-FIRST context
 	 * for unformatted nodes.
