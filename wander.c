@@ -1005,14 +1005,16 @@ static int write_jnodes_contig(jnode *first, int nr,
 }
 
 /**
+ * Submit a list of jnodes against specified subvolume @subv (it can be
+ * original subvolume, or replica).
  * This procedure recovers extents (contiguous sequences of disk block
  * numbers) in a given list of jnodes and submits write requests on this
  * per-extent basis.
  *
- * @head: the list of jnodes to write
+ * @head: the list of jnodes to submit
  */
-int write_jnode_list(struct list_head *head, flush_queue_t *fq,
-		     long *nr_submitted, int flags, reiser4_subvol *subv)
+int write_jnode_list_subv(struct list_head *head, flush_queue_t *fq,
+			  long *nr_submitted, int flags, reiser4_subvol *subv)
 {
 	int ret;
 	struct list_head *beg = head->next;
@@ -1022,6 +1024,9 @@ int write_jnode_list(struct list_head *head, flush_queue_t *fq,
 		struct list_head *cur = beg->next;
 
 		while (head != cur) {
+			assert("edward-1876",
+			       jnode_by_link(beg)->subvol ==
+			       subv);
 			assert("edward-1707",
 			       jnode_by_link(beg)->subvol ==
 			       jnode_by_link(cur)->subvol);
@@ -1037,6 +1042,67 @@ int write_jnode_list(struct list_head *head, flush_queue_t *fq,
 					  fq, flags, subv);
 		if (ret)
 			return ret;
+		if (nr_submitted)
+			*nr_submitted += nr;
+		beg = cur;
+	}
+	return 0;
+}
+
+/**
+ * Submit a list of jnodes.
+ * Every jnode is submitted against an origimal subvolume and all its
+ * replicas.
+ * This procedure recovers extents (contiguous sequences of disk block
+ * numbers) in a given list of jnodes and submits write requests on this
+ * per-extent basis.
+ *
+ * @head: list of jnodes to submit.
+ */
+int write_jnode_list(struct list_head *head, flush_queue_t *fq,
+		     long *nr_submitted, int flags)
+{
+	int ret;
+	struct list_head *beg = head->next;
+
+	while (head != beg) {
+		int nr = 1;
+		u32 mirr_id;
+		struct list_head *cur = beg->next;
+		reiser4_subvol *subv = jnode_get_subvol(jnode_by_link(beg));
+
+		while (head != cur) {
+			if (jnode_get_subvol(jnode_by_link(cur)) !=
+			    jnode_get_subvol(jnode_by_link(beg)))
+				break;
+			if (*jnode_get_block(jnode_by_link(cur)) !=
+			    *jnode_get_block(jnode_by_link(beg)) + nr)
+				break;
+			++nr;
+			cur = cur->next;
+		}
+		/*
+		 * submit recovered extent against original subvolume
+		 * and all its replicas
+		 */
+		for_each_mirror(subv->id, mirr_id) {
+			reiser4_subvol *mirror;
+
+			mirror = current_mirror(subv->id, mirr_id);
+
+			ret = write_jnodes_contig(jnode_by_link(beg), nr,
+					    jnode_get_block(jnode_by_link(beg)),
+					    fq, flags, mirror);
+			if (ret)
+				return ret;
+		}
+#if 0
+		notice("edward-1875",
+		       "subvol %llu: written extent (%llu, %llu)",
+		       (unsigned long long)subv->id,
+		       (unsigned long long)*jnode_get_block(jnode_by_link(beg)),
+		       (unsigned long long)nr);
+#endif
 		if (nr_submitted)
 			*nr_submitted += nr;
 		beg = cur;
@@ -1256,7 +1322,7 @@ static int alloc_submit_wander_records(struct commit_handle *ch,
 	/*
 	 * submit wander records
 	 */
-	ret = write_jnode_list(tx_list, fq, NULL, 0, subv);
+	ret = write_jnode_list_subv(tx_list, fq, NULL, 0, subv);
 
 	return ret;
 
@@ -1339,8 +1405,8 @@ static int play_tx_mirror(struct commit_handle *ch, reiser4_subvol *mirror)
 		return  PTR_ERR(fq);
 	spin_unlock_atom(fq->atom);
 
-	ret = write_jnode_list(&ch_sub->overwrite_set,
-			       fq, NULL, WRITEOUT_FOR_PAGE_RECLAIM, mirror);
+	ret = write_jnode_list_subv(&ch_sub->overwrite_set, fq,
+				    NULL, WRITEOUT_FOR_PAGE_RECLAIM, mirror);
 	reiser4_fq_put(fq);
 	return ret;
 }
@@ -1610,7 +1676,8 @@ static int replay_tx_subv(reiser4_subvol *subv)
 		subv = super_mirror(subv->super, orig_id, mirr_id);
 		assert("edward-1711", subvol_is_set(subv, SUBVOL_ACTIVATED));
 
-		write_jnode_list(&ch_sub->overwrite_set, NULL, NULL, 0, subv);
+		write_jnode_list_subv(&ch_sub->overwrite_set,
+				      NULL, NULL, 0, subv);
 		ret = wait_on_jnode_list(&ch_sub->overwrite_set);
 		if (ret)
 			goto error;

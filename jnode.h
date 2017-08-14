@@ -370,8 +370,8 @@ extern struct address_space *jnode_get_mapping(const jnode * node) NONNULL;
 
 static inline reiser4_subvol *jnode_get_subvol(const jnode *node)
 {
-	assert("edard-1871", node != NULL);
-	assert("edard-1872", node->subvol != NULL);
+	assert("edward-1871", node != NULL);
+	assert("edward-1872", node->subvol != NULL);
 
 	return node->subvol;
 }

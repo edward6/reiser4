@@ -16,6 +16,7 @@
 #include <linux/mm.h>
 #include <linux/pagemap.h>
 #include <linux/blkdev.h>
+#include <linux/list_sort.h>
 #include <linux/writeback.h>
 
 /* A flush queue object is an accumulator for keeping jnodes prepared
@@ -522,6 +523,26 @@ static void release_prepped_list(flush_queue_t *fq)
 	spin_unlock_atom(atom);
 }
 
+static int fq_compare_jnode(void* priv UNUSED_ARG,
+			    struct list_head *a, struct list_head *b)
+{
+	jnode *ja, *jb;
+
+	assert("edward-1873", a != NULL);
+	assert("edward-1874", b != NULL);
+
+	ja = jnode_by_link(a);
+	jb = jnode_by_link(b);
+
+	if (jnode_get_subvol(ja)->id < jnode_get_subvol(jb)->id)
+		return -1;
+	if (jnode_get_subvol(ja)->id > jnode_get_subvol(jb)->id)
+		return 1;
+	if (jnode_get_block(ja) < jnode_get_block(jb))
+		return -1;
+	return 1;
+}
+
 /**
  * Submit write requests for nodes on the already filled flush queue @fq.
  *
@@ -533,8 +554,6 @@ int reiser4_write_fq(flush_queue_t *fq, long *nr_submitted, int flags)
 {
 	int ret;
 	txn_atom *atom;
-	u32 mirr_id;
-	const u32 meta_id = current_volume()->vol_plug->meta_subvol_id();
 
 	while (1) {
 		atom = atom_locked_by_fq(fq);
@@ -547,18 +566,11 @@ int reiser4_write_fq(flush_queue_t *fq, long *nr_submitted, int flags)
 			break;
 		reiser4_atom_wait_event(atom);
 	}
-
 	atom->nr_running_queues++;
 	spin_unlock_atom(atom);
 
-	for_each_mirror(meta_id, mirr_id) {
-		reiser4_subvol *mirror = current_mirror(meta_id, mirr_id);
-
-		ret = write_jnode_list(ATOM_FQ_LIST(fq),
-				       fq, nr_submitted, flags, mirror);
-		if (ret)
-			break;
-	}
+	list_sort(NULL, ATOM_FQ_LIST(fq), fq_compare_jnode);
+	ret = write_jnode_list(ATOM_FQ_LIST(fq), fq, nr_submitted, flags);
 	release_prepped_list(fq);
 	return ret;
 }
