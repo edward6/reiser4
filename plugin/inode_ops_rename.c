@@ -80,7 +80,7 @@ static int replace_name(struct inode *to_inode,	/* inode where @from_coord is
 
 		/* NOTE-NIKITA consider calling plugin method in stead of
 		   accessing inode fields directly. */
-		from_dir->i_mtime = CURRENT_TIME;
+		from_dir->i_mtime = current_time(from_dir);
 	} else {
 		warning("nikita-2326", "Unexpected item type");
 		result = RETERR(-EIO);

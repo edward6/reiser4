@@ -388,7 +388,7 @@ int reiser4_update_file_size(struct inode *inode, loff_t new_size,
 
 	INODE_SET_SIZE(inode, new_size);
 	if (update_sd) {
-		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
+		inode->i_ctime = inode->i_mtime = current_time(inode);
 		result = reiser4_update_sd(inode);
 	}
 	return result;
@@ -2266,7 +2266,7 @@ ssize_t write_unix_file(struct file *file,
 			update_sd = 1;
 		}
 		if (!IS_NOCMTIME(inode)) {
-			inode->i_ctime = inode->i_mtime = CURRENT_TIME;
+			inode->i_ctime = inode->i_mtime = current_time(inode);
 			update_sd = 1;
 		}
 		if (update_sd) {

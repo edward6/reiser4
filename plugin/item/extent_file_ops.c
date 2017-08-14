@@ -1019,13 +1019,13 @@ filemap_copy_from_user(struct page *page, unsigned long offset,
 	int left;
 
 	kaddr = kmap_atomic(page);
-	left = __copy_from_user_inatomic_nocache(kaddr + offset, buf, bytes);
+	left = __copy_from_user_inatomic(kaddr + offset, buf, bytes);
 	kunmap_atomic(kaddr);
 
 	if (left != 0) {
 		/* Do it the slow way */
 		kaddr = kmap(page);
-		left = __copy_from_user_nocache(kaddr + offset, buf, bytes);
+		left = __copy_from_user(kaddr + offset, buf, bytes);
 		kunmap(page);
 	}
 	return bytes - left;

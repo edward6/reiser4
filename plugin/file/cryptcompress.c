@@ -1603,7 +1603,7 @@ static int update_sd_cryptcompress(struct inode *inode)
 	if (result)
 		return result;
 	if (!IS_NOCMTIME(inode))
-		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
+		inode->i_ctime = inode->i_mtime = current_time(inode);
 
 	result = reiser4_update_sd(inode);
 
