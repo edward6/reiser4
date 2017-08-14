@@ -60,7 +60,7 @@ int set_plug_in_inode_common(struct inode *object /* inode to set plugin on */ ,
 	object->i_mode = data->mode;
 	/* this should be plugin decision */
 	object->i_uid = current_fsuid();
-	object->i_mtime = object->i_atime = object->i_ctime = CURRENT_TIME;
+	object->i_mtime = object->i_atime = object->i_ctime = current_time(object);
 
 	/* support for BSD style group-id assignment. See mount's manual page
 	   description of bsdgroups ext2 mount options for more details */
@@ -256,7 +256,7 @@ int reiser4_add_link_common(struct inode *object, struct inode *parent)
 	 */
 
 	INODE_INC_NLINK(object);
-	object->i_ctime = CURRENT_TIME;
+	object->i_ctime = current_time(object);
 	return 0;
 }
 
@@ -272,7 +272,7 @@ int reiser4_rem_link_common(struct inode *object, struct inode *parent)
 	 */
 
 	INODE_DROP_NLINK(object);
-	object->i_ctime = CURRENT_TIME;
+	object->i_ctime = current_time(object);
 	return 0;
 }
 
@@ -292,7 +292,7 @@ int rem_link_common_dir(struct inode *object, struct inode *parent UNUSED_ARG)
 
 	else
 		INODE_DROP_NLINK(object);
-	object->i_ctime = CURRENT_TIME;
+	object->i_ctime = current_time(object);
 	return 0;
 }
 

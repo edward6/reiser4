@@ -346,7 +346,7 @@ static int absent_unix_sd(struct inode *inode /* object being processed */ )
 {
 	i_uid_write(inode, get_super_private(inode->i_sb)->default_uid);
 	i_gid_write(inode, get_super_private(inode->i_sb)->default_gid);
-	inode->i_atime = inode->i_mtime = inode->i_ctime = CURRENT_TIME;
+	inode->i_atime = inode->i_mtime = inode->i_ctime = current_time(inode);
 	inode_set_bytes(inode, inode->i_size);
 	/* mark inode as lightweight, so that caller (lookup_common) will
 	   complete initialisation by copying [ug]id from a parent. */

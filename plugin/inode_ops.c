@@ -693,7 +693,7 @@ static int do_create_vfs_child(reiser4_object_create_data * data,/* parameters
 			   st_mtime fields of the file and the st_ctime and
 			   st_mtime fields of the parent directory. --SUS
 			 */
-			object->i_ctime = CURRENT_TIME;
+			object->i_ctime = current_time(object);
 			reiser4_update_dir(parent);
 		}
 		if (result != 0)
@@ -875,7 +875,7 @@ int reiser4_update_dir(struct inode *dir)
 {
 	assert("nikita-2525", dir != NULL);
 
-	dir->i_ctime = dir->i_mtime = CURRENT_TIME;
+	dir->i_ctime = dir->i_mtime = current_time(dir);
 	return reiser4_update_sd(dir);
 }
 
