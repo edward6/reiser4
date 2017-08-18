@@ -282,19 +282,16 @@ void reiser4_done_formatted_fake(struct super_block *super)
 	sinfo = get_super_private_nocheck(super);
 
 	if (sinfo->fake != NULL) {
-		inode_detach_wb(sinfo->fake);
 		iput(sinfo->fake);
 		sinfo->fake = NULL;
 	}
 
 	if (sinfo->bitmap != NULL) {
-		inode_detach_wb(sinfo->bitmap);
 		iput(sinfo->bitmap);
 		sinfo->bitmap = NULL;
 	}
 
 	if (sinfo->cc != NULL) {
-		inode_detach_wb(sinfo->cc);
 		iput(sinfo->cc);
 		sinfo->cc = NULL;
 	}

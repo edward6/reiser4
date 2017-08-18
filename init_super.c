@@ -38,22 +38,16 @@ int reiser4_init_fs_info(struct super_block *super)
 }
 
 /**
- * reiser4_done_fs_info - free reiser4 specific super block
- * @super: super block of filesystem
+ * Release reiser4 specific super block
  *
- * Performs some sanity checks, releases structures maintaining d_cursor-s,
- * frees reiser4_super_info_data.
+ * release per-super-block d_cursor resources
+ * free reiser4_super_info_data
  */
 void reiser4_done_fs_info(struct super_block *super)
 {
 	assert("zam-990", super->s_fs_info != NULL);
 
-	/* release per-super-block d_cursor resources */
 	reiser4_done_super_d_info(super);
-
-	/* make sure that there are not jnodes already */
-	assert("", list_empty(&get_super_private(super)->all_jnodes));
-	assert("", get_current_context()->trans->atom == NULL);
 	kfree(super->s_fs_info);
 	super->s_fs_info = NULL;
 }

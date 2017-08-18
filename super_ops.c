@@ -258,8 +258,11 @@ static void reiser4_put_super(struct super_block *super)
 	reiser4_done_ktxnmgrd(super);
 	reiser4_done_txnmgr(&sbinfo->tmgr);
 
-	reiser4_done_fs_info(super);
+	assert("edward-1890", list_empty(&get_super_private(super)->all_jnodes));
+	assert("edward-1891", get_current_context()->trans->atom == NULL);
+
 	reiser4_exit_context(ctx);
+	reiser4_done_fs_info(super);
 }
 
 /**
