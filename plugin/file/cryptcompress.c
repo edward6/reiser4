@@ -1103,12 +1103,12 @@ int reiser4_deflate_cluster(struct cluster_handle * clust, struct inode * inode)
 		assert("edward-1423", coplug->compress != NULL);
 
 		result = grab_coa(tc, coplug);
-		if (result) {
-		    warning("edward-1424",
-			    "alloc_coa failed with ret=%d, skipped compression",
-			    result);
-		    goto cipher;
-		}
+		if (result)
+			/*
+			 * can not allocate memory to perform
+			 * compression, leave data uncompressed
+			 */
+			goto cipher;
 		result = grab_tfm_stream(inode, tc, OUTPUT_STREAM);
 		if (result) {
 		    warning("edward-1425",

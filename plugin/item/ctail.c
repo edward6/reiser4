@@ -1252,7 +1252,6 @@ static int attach_convert_idata(flush_pos_t * pos, struct inode *inode)
 	struct convert_item_info *info;
 	struct cluster_handle *clust;
 	file_plugin *fplug = inode_file_plugin(inode);
-	compression_plugin *cplug = inode_compression_plugin(inode);
 
 	assert("edward-248", pos != NULL);
 	assert("edward-249", pos->child != NULL);
@@ -1273,9 +1272,7 @@ static int attach_convert_idata(flush_pos_t * pos, struct inode *inode)
 		reset_convert_data(pos->sq);
 
 	clust = &pos->sq->clust;
-	ret = grab_coa(&clust->tc, cplug);
-	if (ret)
-		goto err;
+
 	ret = set_cluster_by_page(clust,
 				  jnode_page(pos->child),
 				  MAX_CLUSTER_NRPAGES);
@@ -1565,6 +1562,7 @@ static int assign_conversion_mode(flush_pos_t * pos, ctail_convert_mode_t *mode)
 	if (!convert_data_attached(pos)) {
 		if (should_attach_convert_idata(pos)) {
 			struct inode *inode;
+			gfp_t old_mask = get_current_context()->gfp_mask;
 
 			assert("edward-264", pos->child != NULL);
 			assert("edward-265", jnode_page(pos->child) != NULL);
@@ -1577,7 +1575,9 @@ static int assign_conversion_mode(flush_pos_t * pos, ctail_convert_mode_t *mode)
 			/*
 			 * attach new convert item info
 			 */
+			get_current_context()->gfp_mask |= __GFP_NOFAIL;
 			ret = attach_convert_idata(pos, inode);
+			get_current_context()->gfp_mask = old_mask;
 			pos->child = NULL;
 			if (ret == -E_REPEAT) {
 				/*

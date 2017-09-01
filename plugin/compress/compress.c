@@ -80,15 +80,10 @@ static coa_t gzip1_alloc(tfm_action act)
 		}
 		break;
 	default:
-		impossible("edward-767",
-			   "trying to alloc workspace for unknown tfm action");
+		impossible("edward-767", "unknown tfm action");
 	}
-	if (ret) {
-		warning("edward-768",
-			"alloc workspace for gzip1 (tfm action = %d) failed\n",
-			act);
+	if (ret)
 		return ERR_PTR(ret);
-	}
 	return coa;
 }
 
@@ -232,15 +227,10 @@ static coa_t lzo1_alloc(tfm_action act)
 	case TFMA_READ:		/* decompress */
 		break;
 	default:
-		impossible("edward-877",
-			   "trying to alloc workspace for unknown tfm action");
+		impossible("edward-877", "unknown tfm action");
 	}
-	if (ret) {
-		warning("edward-878",
-			"alloc workspace for lzo1 (tfm action = %d) failed\n",
-			act);
+	if (ret)
 		return ERR_PTR(ret);
-	}
 	return coa;
 }
 
