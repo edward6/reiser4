@@ -327,7 +327,7 @@ static void end_bio_single_page_read(struct bio *bio)
 
 	page = bio->bi_io_vec[0].bv_page;
 
-	if (!bio->bi_error)
+	if (!bio->bi_status)
 		SetPageUptodate(page);
 	else {
 		ClearPageUptodate(page);
@@ -348,7 +348,7 @@ static void end_bio_single_page_write(struct bio *bio)
 
 	page = bio->bi_io_vec[0].bv_page;
 
-	if (bio->bi_error)
+	if (bio->bi_status)
 		SetPageError(page);
 	end_page_writeback(page);
 	bio_put(bio);

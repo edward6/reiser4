@@ -411,7 +411,7 @@ static void end_io_handler(struct bio *bio)
 	for (i = 0; i < bio->bi_vcnt; i += 1) {
 		struct page *pg = bio->bi_io_vec[i].bv_page;
 
-		if (bio->bi_error) {
+		if (bio->bi_status) {
 			SetPageError(pg);
 			nr_errors++;
 		}

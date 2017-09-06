@@ -1832,7 +1832,7 @@ int reiser4_init_tree(reiser4_tree * tree	/* pointer to structure being
 	 * We'll perform costly memory allocations for znode hash table, etc.
 	 * So, set proper allocation flags
 	 */
-	get_current_context()->gfp_mask |= (__GFP_NOWARN | __GFP_REPEAT);
+	get_current_context()->gfp_mask |= (__GFP_NOWARN);
 
 	tree->root_block = *root_block;
 	tree->height = height;
