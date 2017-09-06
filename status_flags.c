@@ -18,7 +18,7 @@
    We do not free bio, because we hope to reuse that. */
 static void reiser4_status_endio(struct bio *bio)
 {
-	if (!bio->bi_error)
+	if (!bio->bi_status)
 		SetPageUptodate(bio->bi_io_vec->bv_page);
 	else {
 		ClearPageUptodate(bio->bi_io_vec->bv_page);

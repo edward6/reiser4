@@ -1834,7 +1834,7 @@ int reiser4_subvol_init_tree(struct super_block *super,
 	 * We'll perform costly memory allocations for znode hash table, etc.
 	 * So, set proper allocation flags
 	 */
-	get_current_context()->gfp_mask |= (__GFP_NOWARN | __GFP_REPEAT);
+	get_current_context()->gfp_mask |= (__GFP_NOWARN);
 
 	tree->subvol = subv;
 	/*
