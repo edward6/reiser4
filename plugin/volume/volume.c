@@ -1017,6 +1017,216 @@ reiser4_subvol *subvol_by_coord(const coord_t *coord)
 		return NULL;
 }
 
+/**
+ * Check if @coord is an extent item.
+ * If yes, then store its key in @arg.
+ */
+static int iter_check_extent(reiser4_tree *tree, coord_t *coord,
+			lock_handle *lh, void *arg)
+{
+	assert("edward-1877", arg != NULL);
+
+	if (!item_is_extent(coord)) {
+		assert("edward-1878", item_is_internal(coord));
+		return 1;
+	}
+	item_key_by_coord(coord, (reiser4_key *)arg);
+	return 0;
+}
+
+struct reiser4_iterate_context {
+	reiser4_key *curr;
+	reiser4_key *next;
+};
+
+/**
+ * Check if @coord is an extent item of the next file.
+ * If yes, then store its key.
+ */
+static int iter_check_extent_next_file(reiser4_tree *tree, coord_t *coord,
+				       lock_handle *lh, void *arg)
+{
+	struct reiser4_iterate_context *iter_ctx = arg;
+
+	assert("edward-1879", iter_ctx != NULL);
+
+	if (!item_is_extent(coord)) {
+		assert("edward-1880", item_is_internal(coord));
+		return 1;
+	}
+	item_key_by_coord(coord, iter_ctx->next);
+
+	if (get_key_objectid(iter_ctx->next) ==
+	    get_key_objectid(iter_ctx->curr))
+		return 1;
+	return 0;
+}
+
+/**
+ * Online balancing of asymmetric logical volume.
+ * This procedure is to complete any volume operations above.
+ * If it returns 0, then the volume is fully balanced. Otherwise, the
+ * procedure should be repeated in some context.
+ *
+ * NOTE: correctness of this balancing procedure is guaranteed by our
+ * single stupid objectid allocator. If you want to add another one,
+ * then please prove the correctness, or write another balancing which
+ * works for that new allocator.
+ *
+ * @super: super-block of the volume that we want to balance
+ *
+ * FIXME: use hint/seal to not traverse tree every time
+ */
+int balance_volume_asym(struct super_block *super)
+{
+	int ret;
+	int err = 0;
+	coord_t coord;
+	lock_handle lh;
+
+	reiser4_key k1, k2;
+	reiser4_key *curr = &k1; /* key of current extent */
+	reiser4_key *next = &k2; /* key of next file extent */
+
+	assert("edward-1881", super != NULL);
+
+ restart:
+	init_lh(&lh);
+	/*
+	 * Prepare start position:
+	 * find leftmost item of the leftmost node on the twig level.
+	 * Such item always exists, even in the case of empty volume
+	 */
+	ret = coord_by_key(meta_subvol_tree(), reiser4_min_key(),
+			   &coord, &lh, ZNODE_READ_LOCK,
+			   FIND_EXACT, TWIG_LEVEL, TWIG_LEVEL,
+			   0, NULL /* FIXME: set proper read-ahead info */);
+
+	if (ret != CBK_COORD_NOTFOUND) {
+		err = 1;
+		goto exit;
+	}
+	assert("edward-1882", coord.item_pos == 0);
+	assert("edward-1883", coord.unit_pos == 0);
+	assert("edward-1884", coord.between == BEFORE_UNIT);
+	/*
+	 * find leftmost extent on the twig level,
+	 * and store its key in @curr
+	 */
+	coord.between = AT_UNIT;
+	ret = reiser4_iterate_tree(meta_subvol_tree(), &coord, &lh,
+				   iter_check_extent, curr, ZNODE_READ_LOCK, 0);
+	done_lh(&lh);
+	if (ret < 0) {
+		if (ret != -E_NO_NEIGHBOR)
+			err = 1;
+		/*
+		 * leftmost extent not found,
+		 * so nothing to do any more
+		 */
+		goto exit;
+	}
+	/*
+	 * leftmost extent found
+	 */
+	assert("edward-1885", get_key_offset(curr) == 0);
+
+	while(1) {
+		int last_iter = 0;
+		reiser4_key *temp;
+		struct inode *inode;
+		struct reiser4_iterate_context iter_ctx;
+
+		ret = coord_by_key(meta_subvol_tree(), curr,
+				   &coord, &lh, ZNODE_READ_LOCK,
+				   FIND_EXACT, TWIG_LEVEL, TWIG_LEVEL,
+				   0, NULL /* FIXME: set proper
+					      read-ahead info */);
+		if (ret == CBK_COORD_NOTFOUND) {
+			/*
+			 * Payment for the "onliness". We have lost scan
+			 * position, because someone deleted extent that
+			 * we found in the previous iteraton.
+			 * If the file still exists, then it doesn't have
+			 * a body, so its system table will be updated by
+			 * insert_first_extent().
+			 */
+			done_lh(&lh);
+			notice("edward-1886",
+			       "Online balancing restarted on %s", super->s_id);
+			goto restart;
+		}
+		else if (ret != CBK_COORD_FOUND) {
+			done_lh(&lh);
+			err = 1;
+			goto exit;
+		}
+		/*
+		 * find leftmost extent of the next file,
+		 * store its key in @next
+		 */
+		assert("edward-1887", coord_is_existing_item(&coord));
+
+		iter_ctx.curr = curr;
+		iter_ctx.next = next;
+
+		ret = reiser4_iterate_tree(meta_subvol_tree(), &coord,
+					   &lh, iter_check_extent_next_file,
+					   &iter_ctx, ZNODE_READ_LOCK, 0);
+		done_lh(&lh);
+
+		if (ret == -E_NO_NEIGHBOR)
+			/*
+			 * next extent not found
+			 */
+			last_iter = 1;
+		else if (ret < 0) {
+			err = 1;
+			goto exit;
+		}
+		else
+			assert("edward-1888", get_key_offset(next) == 0);
+		/*
+		 * Construct stat-data key from @curr and get the inode.
+		 * reiser4_iget() wants @curr to be a precise stat-data key.
+		 * However, we don't know ordering of that stat-data, so we
+		 * set maximal possible value.
+		 */
+		set_key_ordering(curr, KEY_ORDERING_MASK);
+		set_key_offset(curr, 0);
+
+		inode = reiser4_iget(super, curr, 0);
+
+		if (!IS_ERR(inode) && inode_file_plugin(inode)->balance) {
+			reiser4_iget_complete(inode);
+			/*
+			 * Relocate data of this file.
+			 */
+			ret = inode_file_plugin(inode)->balance(inode);
+			if (ret) {
+				err = 1;
+				warning("edward-1889",
+				      "Inode %lli: data migration failed (%d)",
+				      (unsigned long long)get_inode_oid(inode),
+				      ret);
+			}
+			iput(inode);
+		}
+		if (last_iter)
+			break;
+
+		temp = curr;
+		curr = next;
+		next = temp;
+	}
+ exit:
+	/*
+	 * if (!err)
+	 *         clear REBALANCING_IN_PROGRESS flag in super-block
+	 */
+	return err;
+}
+
 volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 	[SIMPLE_VOLUME_ID] = {
 		.h = {

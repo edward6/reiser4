@@ -387,7 +387,11 @@ typedef struct file_plugin {
 
 	/* called from ->destroy_inode() */
 	void (*destroy_inode) (struct inode *);
-
+	/*
+	 * Redistribute file's data by subvolumes in accordance with a new
+	 * LV configuration
+	 */
+	int (*balance)(struct inode *object);
 	/*
 	 * methods to serialize object identify. This is used, for example, by
 	 * reiser4_{en,de}code_fh().
