@@ -41,6 +41,8 @@ struct volmap {
 	struct voltab_entry entries [0];
 }PACKED;
 
+int balance_volume_asym(struct super_block *sb);
+
 static reiser4_block_nr get_next_volmap(struct volmap *volmap)
 {
 	return le64_to_cpu(get_unaligned(&volmap->next));
@@ -405,9 +407,9 @@ static int create_volinfo_nodes(reiser4_volume *vol)
 }
 
 /*
- * Write array of jnodes in atomic manner
+ * Capture an array of jnodes and make them dirty
  */
-static int write_array_nodes(jnode **start, u64 count)
+static int capture_array_nodes(jnode **start, u64 count)
 {
 	u64 i;
 	int ret;
@@ -422,11 +424,10 @@ static int write_array_nodes(jnode **start, u64 count)
 		jnode_make_dirty_locked(node);
 		spin_unlock_jnode(node);
 	}
-	reiser4_txn_restart_current();
 	return 0;
 }
 
-static int write_volinfo_nodes(reiser4_volume *vol)
+static int capture_volinfo_nodes(reiser4_volume *vol)
 {
 	u64 i;
 	int ret;
@@ -440,16 +441,16 @@ static int write_volinfo_nodes(reiser4_volume *vol)
 		if (ret)
 			return ret;
 	}
-	return write_array_nodes(vol->volmap_nodes,
-				 vol->num_volmaps + vol->num_voltabs);
+	return capture_array_nodes(vol->volmap_nodes,
+				   vol->num_volmaps + vol->num_voltabs);
 }
 
-static int write_voltab_nodes(reiser4_volume *vol)
+static int capture_voltab_nodes(reiser4_volume *vol)
 {
-	return write_array_nodes(vol->voltab_nodes, vol->num_voltabs);
+	return capture_array_nodes(vol->voltab_nodes, vol->num_voltabs);
 }
 
-static int write_volume_info(reiser4_volume *vol)
+static int capture_volume_info(reiser4_volume *vol)
 {
 	int ret;
 
@@ -457,12 +458,12 @@ static int write_volume_info(reiser4_volume *vol)
 		ret = create_volinfo_nodes(vol);
 		if (ret)
 			return ret;
-		ret = write_volinfo_nodes(vol);
+		ret = capture_volinfo_nodes(vol);
 	} else {
 		ret = update_voltab_nodes(vol);
 		if (ret)
 			return ret;
-		ret = write_voltab_nodes(vol);
+		ret = capture_voltab_nodes(vol);
 	}
 	release_volinfo_nodes(vol);
 	return ret;
@@ -713,6 +714,7 @@ static int expand_asym(reiser4_volume *vol, u64 pos, u64 delta,
 	int ret;
 	reiser4_aid *raid = &vol->aid;
 	distribution_plugin *dist_plug = vol->dist_plug;
+	struct super_block *sb = reiser4_get_current_sb();
 
 	assert("edward-1824", raid != NULL);
 	assert("edward-1825", dist_plug != NULL);
@@ -733,16 +735,12 @@ static int expand_asym(reiser4_volume *vol, u64 pos, u64 delta,
 	else
 		ret = expand_subvol(vol, pos, delta);
 	if (ret)
-		goto error;
-	/*
-	 * Wake up balancing thread.
-	 * After balancing is finished it will call dist_plug->v.done()
-	 */
-	ret = write_volume_info(vol);
+		goto out;
+	ret = capture_volume_info(vol);
 	if (ret)
-		goto error;
-	return 0;
- error:
+		goto out;
+	ret = balance_volume_asym(sb);
+ out:
 	dist_plug->v.done(raid);
 	return ret;
 }
@@ -870,6 +868,7 @@ static int shrink_asym(reiser4_volume *vol, u64 pos, u64 delta, int remove)
 {
 	int ret;
 	distribution_plugin *dist_plug = vol->dist_plug;
+	struct super_block *sb = reiser4_get_current_sb();
 
 	assert("edward-1830", vol != NULL);
 	assert("edward-1846", dist_plug != NULL);
@@ -894,16 +893,12 @@ static int shrink_asym(reiser4_volume *vol, u64 pos, u64 delta, int remove)
 	else
 		ret = shrink_subvol(vol, pos, delta);
 	if (ret)
-		goto error;
-	/*
-	 * Wake up balancing thread.
-	 * After balancing is finished it will call dist_plug->v.done()
-	 */
-	ret = write_volume_info(vol);
+		goto out;
+	ret = capture_volume_info(vol);
 	if (ret)
-		goto error;
-	return 0;
- error:
+		goto out;
+	ret = balance_volume_asym(sb);
+ out:
 	dist_plug->v.done(&vol->aid);
 	return ret;
 }
@@ -1064,16 +1059,11 @@ static int iter_check_extent_next_file(reiser4_tree *tree, coord_t *coord,
 
 /**
  * Online balancing of asymmetric logical volume.
- * This procedure is to complete any volume operations above.
- * If it returns 0, then the volume is fully balanced. Otherwise, the
- * procedure should be repeated in some context.
  *
  * NOTE: correctness of this balancing procedure is guaranteed by our
  * single stupid objectid allocator. If you want to add another one,
  * then please prove the correctness, or write another balancing which
  * works for that new allocator.
- *
- * @super: super-block of the volume that we want to balance
  *
  * FIXME: use hint/seal to not traverse tree every time
  */
@@ -1274,6 +1264,7 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		.init = init_volume_asym,
 		.expand = expand_asym,
 		.shrink = shrink_asym,
+		.balance = balance_volume_asym,
 		.aid_ops = {
 			.cap_at = cap_at_asym,
 			.fib_of = fib_of_asym,

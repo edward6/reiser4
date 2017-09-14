@@ -388,8 +388,7 @@ typedef struct file_plugin {
 	/* called from ->destroy_inode() */
 	void (*destroy_inode) (struct inode *);
 	/*
-	 * Redistribute file's data by subvolumes in accordance with a new
-	 * LV configuration
+	 * Migrate file's data stripes in accordance with a new LV configuration
 	 */
 	int (*balance)(struct inode *object);
 	/*
@@ -626,7 +625,12 @@ typedef struct volume_plugin {
 	   a subvolume at the position @pos in the array of subvolumes */
 	int (*shrink)(reiser4_volume *vol, u64 pos, u64 delta,
 		      int remove);
-
+	/* Online balancing of a logical volume specified by @super.
+	 * This procedure is supposed to complete any volume operations
+	 * above. If it returns 0, then the volume is fully balanced.
+	 * Otherwise, the procedure should be repeated in some context.
+	 */
+	int (*balance)(struct super_block *super);
 	struct reiser4_aid_ops aid_ops;
 } volume_plugin;
 

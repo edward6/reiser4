@@ -140,6 +140,7 @@ int cut_tree_worker_cryptcompress(tap_t *, const reiser4_key * from_key,
 				  reiser4_key * smallest_removed,
 				  struct inode *object, int truncate,
 				  int *progress);
+int balance_unix_file(struct inode *);
 void destroy_inode_cryptcompress(struct inode *);
 
 /*

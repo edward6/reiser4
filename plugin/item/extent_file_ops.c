@@ -134,8 +134,7 @@ static int can_append(const reiser4_key *key, const coord_t *coord)
  * @key:
  *
  */
-static int append_hole(coord_t *coord, lock_handle *lh,
-		       const reiser4_key *key)
+int append_hole(coord_t *coord, lock_handle *lh, const reiser4_key *key)
 {
 	reiser4_key append_key;
 	reiser4_block_nr hole_width;

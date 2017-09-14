@@ -261,6 +261,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		},
 		.init_inode_data = init_inode_data_unix_file,
 		.cut_tree_worker = cut_tree_worker_common,
+		.balance = balance_unix_file,
 		.wire = {
 			.write = wire_write_common,
 			.read = wire_read_common,

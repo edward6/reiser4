@@ -254,6 +254,11 @@ struct file_iops{
 	void (*init_coord_extension) (uf_coord_t *, loff_t);
 };
 
+
+struct volume_iops{
+	int (*migrate)(coord_t *, lock_handle *, struct inode *, u64);
+};
+
 /* operations specific to items of stat data type */
 struct sd_iops {
 	int (*init_inode) (struct inode * inode, char *sd, int len);
@@ -283,6 +288,7 @@ struct item_plugin {
 	union {
 		struct dir_entry_iops dir;
 		struct      file_iops file;
+		struct    volume_iops vol;
 		struct        sd_iops sd;
 		struct  internal_iops internal;
 	} s;

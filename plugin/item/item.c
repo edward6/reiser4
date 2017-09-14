@@ -560,6 +560,9 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				.append_key = append_key_extent,
 				.init_coord_extension =
 				init_coord_extension_extent
+			},
+			.vol = {
+				.migrate = reiser4_migrate_extent
 			}
 		}
 	},

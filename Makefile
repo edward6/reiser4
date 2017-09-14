@@ -64,6 +64,7 @@ reiser4-y := \
 		   plugin/file_plugin_common.o \
 		   plugin/file/file.o \
 		   plugin/file/tail_conversion.o \
+		   plugin/file/file_balance.o \
 		   plugin/file/file_conversion.o \
 		   plugin/file/symlink.o \
 		   plugin/file/cryptcompress.o \
@@ -96,6 +97,7 @@ reiser4-y := \
 		   plugin/item/extent_item_ops.o \
 		   plugin/item/extent_file_ops.o \
 		   plugin/item/extent_flush_ops.o \
+		   plugin/item/extent_volume_ops.o \
            \
 		   plugin/hash.o \
 		   plugin/fibration.o \
