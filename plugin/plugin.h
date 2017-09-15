@@ -600,13 +600,16 @@ typedef struct distribution_plugin {
 typedef struct volume_plugin {
 	/* generic fields */
 	plugin_header h;
-	/* return id of subvolume for various system records:
-	   status records, blackbox items, etc */
-	u64 (*sys_subvol_id)(void);
-	u64 (*data_subvol_id)(oid_t oid, loff_t data_offset_in_bytes);
-	u64 (*meta_subvol_id)(void);
 
-	u64 (*data_subvol_id_by_key)(reiser4_key *key);
+	/* Return ID of mata-data subvolume */
+	u64 (*meta_subvol_id)(void);
+	/* Calculate ID of data subvolume */
+	u64 (*data_subvol_id_calc)(oid_t oid, loff_t data_offset_in_bytes);
+	/* Return cached value of data subvolume ID */
+	u64 (*data_subvol_id_find)(reiser4_key *key);
+	/* Construct a key for a chunk of data. That key should
+	   contain encoded ID of the subvolume where that chunk of data
+	   is to be located */
 	int (*build_body_key)(struct inode *inode,
 			      loff_t off, reiser4_key *key);
 	/* Load a system LV info stored in a subvolume @subv.

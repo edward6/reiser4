@@ -480,7 +480,7 @@ static int reiser4_show_options(struct seq_file *m, struct dentry *dentry)
 	seq_printf(m, ",atom_max_flushers=0x%x",
 		   sbinfo->tmgr.atom_max_flushers);
 	seq_printf(m, ",cbk_cache_slots=0x%x",
-		   sbinfo_subvol_for_system(sbinfo)->tree.cbk_cache.nr_slots);
+		   get_meta_subvol()->tree.cbk_cache.nr_slots);
 	return 0;
 }
 
@@ -576,7 +576,7 @@ static int fill_super(struct super_block *super, void *data, int silent)
 		goto failed_init_root_inode;
 
 	/* finish unfinished truncates */
-	if ((result = process_safelinks(super, subvol_for_system())) != 0)
+	if ((result = process_safelinks(super, get_meta_subvol()) != 0))
 		goto failed_process_safelinks;
 
 	reiser4_exit_context(&ctx);

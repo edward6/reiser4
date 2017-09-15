@@ -108,7 +108,7 @@ static int migrate_data_stripe(struct inode *inode, pgoff_t stripe_off)
 		mctx.stripe_off = stripe_off;
 		mctx.iplug = item_plugin_by_coord(&coord);
 		mctx.new_subvol_id =
-			current_vol_plug()->data_subvol_id(get_inode_oid(inode),
+		   current_vol_plug()->data_subvol_id_calc(get_inode_oid(inode),
 							   stripe_off);
 
 		ret = reiser4_iterate_tree(meta_subvol_tree(), &coord,

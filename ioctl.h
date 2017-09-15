@@ -24,7 +24,20 @@
  * and its stat-data will be updated so that it will never be converted back
  * into tails again.
  */
+
+typedef enum {
+	REISER4_SHRINK_VOLUME,
+	REISER4_EXPAND_VOLUME,
+	REISER4_BALANCE_VOLUME
+} reiser4_vol_op;
+
+struct reiser4_vol_op_args
+{
+	reiser4_vol_op opcode;
+};
+
 #define REISER4_IOC_UNPACK _IOW(0xCD, 1, long)
+#define REISER4_IOC_VOLUME _IOWR(0xCD, 2, struct reiser4_vol_op_args)
 
 /* __REISER4_IOCTL_H__ */
 #endif

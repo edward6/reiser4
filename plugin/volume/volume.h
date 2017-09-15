@@ -12,18 +12,13 @@
 
 #define METADATA_SUBVOL_ID  (0)
 
-static inline reiser4_subvol *current_meta_subvol(void)
-{
-	return current_origin(METADATA_SUBVOL_ID);
-}
-
 /*
  * Returns true, if meta-data subvolume participates in AID.
  * Otherwise, returns false
  */
 static inline int meta_subvol_is_in_aid(void)
 {
-	return current_meta_subvol()->data_room != 0;
+	return get_meta_subvol()->data_room != 0;
 }
 
 /*

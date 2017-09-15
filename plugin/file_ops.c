@@ -7,6 +7,7 @@
 
 #include "../inode.h"
 #include "object.h"
+#include "../ioctl.h"
 
 /* file operations */
 
@@ -19,6 +20,8 @@ loff_t reiser4_llseek_dir_common(struct file *, loff_t, int origin);
    typical directory can be found in file_ops_readdir.c
 */
 int reiser4_iterate_common(struct file *, struct dir_context *);
+
+int reiser4_volume_op(struct super_block *, struct reiser4_vol_op_args *);
 
 /**
  * reiser4_release_dir_common - release of struct file_operations
@@ -105,6 +108,49 @@ int reiser4_sync_file_common(struct file *file, loff_t start, loff_t end, int da
 	inode_unlock(inode);
 
 	return 0;
+}
+
+long reiser4_ioctl_dir_common(struct file *file, unsigned int cmd, unsigned long arg)
+{
+	int ret;
+	reiser4_context *ctx;
+	struct inode *inode = file_inode(file);
+	struct super_block *super = inode->i_sb;
+
+	ctx = reiser4_init_context(super);
+	if (IS_ERR(ctx))
+		return PTR_ERR(ctx);
+
+	switch (cmd) {
+	case REISER4_IOC_VOLUME: {
+		struct reiser4_vol_op_args op_args;
+
+		if (!capable(CAP_SYS_ADMIN)) {
+			ret = RETERR(-EPERM);
+			break;
+		}
+		if (copy_from_user(&op_args,
+				   (struct reiser4_vol_op_args __user *)arg,
+				   sizeof(op_args))) {
+			ret = RETERR(-EFAULT);
+			break;
+		}
+		ret = reiser4_volume_op(super, &op_args);
+		if (ret)
+			warning("edward-1899",
+				"volume operation failed (%d)", ret);
+		if (copy_to_user((struct reiser4_vol_op_args __user *)arg,
+				 &op_args,
+				 sizeof(op_args)))
+			ret = RETERR(-EFAULT);
+		break;
+	}
+	default:
+		ret = RETERR(-ENOTTY);
+		break;
+	}
+	reiser4_exit_context(ctx);
+	return ret;
 }
 
 /*

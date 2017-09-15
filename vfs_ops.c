@@ -227,7 +227,7 @@ void reiser4_handle_error(void)
 
 	if (!sb)
 		return;
-	reiser4_status_write(subvol_for_system(),
+	reiser4_status_write(get_meta_subvol(),
 			     REISER4_STATUS_DAMAGED, 0,
 			     "Filesystem error occured");
 	switch (get_super_private(sb)->onerror) {

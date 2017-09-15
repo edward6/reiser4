@@ -584,16 +584,6 @@ static inline void spin_unlock_reiser4_super(reiser4_super_info_data *sbinfo)
 	spin_unlock(&(sbinfo->guard));
 }
 
-static inline reiser4_subvol *sbinfo_subvol_for_system(reiser4_super_info_data *sbinfo)
-{
-	return sbinfo_origin(sbinfo, sbinfo->vol->vol_plug->sys_subvol_id());
-}
-
-static inline reiser4_subvol *subvol_for_system(void)
-{
-	return sbinfo_subvol_for_system(get_current_super_private());
-}
-
 static inline void __init_ch_sub(struct commit_handle_subvol *ch_sub)
 {
 	memset(ch_sub, 0, sizeof(*ch_sub));

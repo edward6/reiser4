@@ -730,7 +730,7 @@ int reiser4_init_root_inode(struct super_block *super)
 	int result = 0;
 	struct inode *inode;
 	reiser4_super_info_data *sbinfo = get_super_private(super);
-	reiser4_subvol *root_subv = subvol_for_system();
+	reiser4_subvol *root_subv = get_meta_subvol();
 
 	inode = reiser4_iget(super,
 			     root_subv->df_plug->root_dir_key(super), 0);

@@ -41,7 +41,7 @@ struct volmap {
 	struct voltab_entry entries [0];
 }PACKED;
 
-int balance_volume_asym(struct super_block *sb);
+static int balance_asym(struct super_block *sb);
 
 static reiser4_block_nr get_next_volmap(struct volmap *volmap)
 {
@@ -483,7 +483,7 @@ static int load_volume_asym(reiser4_subvol *subv)
 
 static u64 default_data_room(reiser4_subvol *subv)
 {
-	if (subv != current_meta_subvol())
+	if (subv != get_meta_subvol())
 		return subv->block_count;
 	else
 		/* 70% of block_count */
@@ -554,7 +554,7 @@ static int add_meta_subvol(reiser4_volume *vol, reiser4_subvol *new)
 {
 	distribution_plugin *dist_plug = vol->dist_plug;
 
-	assert("edward-1820", new == current_meta_subvol());
+	assert("edward-1820", new == get_meta_subvol());
 
 	if (meta_subvol_is_in_aid())
 		/*
@@ -636,7 +636,7 @@ static int add_subvol(reiser4_volume *vol, u64 pos, u64 cap, reiser4_subvol *new
 	if (new->data_room == 0)
 		return -EINVAL;
 
-	if (new == current_meta_subvol())
+	if (new == get_meta_subvol())
 		return add_meta_subvol(vol, new);
 	else
 		return add_data_subvol(vol, pos, new);
@@ -654,9 +654,9 @@ static int check_convert_pos_for_expand(reiser4_volume *vol,
 		 */
 		if (*pos == 0 && meta_subvol_is_in_aid())
 			return -EINVAL;
-		if (*pos == 0 && new != current_meta_subvol())
+		if (*pos == 0 && new != get_meta_subvol())
 			return -EINVAL;
-		if (*pos > 0 && new == current_meta_subvol())
+		if (*pos > 0 && new == get_meta_subvol())
 			return -EINVAL;
 		if (*pos > vol->num_origins)
 			return -EINVAL;
@@ -739,7 +739,7 @@ static int expand_asym(reiser4_volume *vol, u64 pos, u64 delta,
 	ret = capture_volume_info(vol);
 	if (ret)
 		goto out;
-	ret = balance_volume_asym(sb);
+	ret = balance_asym(sb);
  out:
 	dist_plug->v.done(raid);
 	return ret;
@@ -767,7 +767,7 @@ static int shrink_subvol(reiser4_volume *vol, u64 pos, u64 delta)
 static int remove_meta_subvol(reiser4_volume *vol)
 {
 	int ret;
-	reiser4_subvol *mtd_subv = current_meta_subvol();
+	reiser4_subvol *mtd_subv = get_meta_subvol();
 	distribution_plugin *dist_plug = vol->dist_plug;
 
 	assert("edward-1844", num_aid_subvols(vol) != 0);
@@ -897,15 +897,10 @@ static int shrink_asym(reiser4_volume *vol, u64 pos, u64 delta, int remove)
 	ret = capture_volume_info(vol);
 	if (ret)
 		goto out;
-	ret = balance_volume_asym(sb);
+	ret = balance_asym(sb);
  out:
 	dist_plug->v.done(&vol->aid);
 	return ret;
-}
-
-static u64 sys_subvol_id_simple(void)
-{
-	return METADATA_SUBVOL_ID;
 }
 
 static u64 meta_subvol_id_simple(void)
@@ -913,12 +908,12 @@ static u64 meta_subvol_id_simple(void)
 	return METADATA_SUBVOL_ID;
 }
 
-static u64 data_subvol_id_simple(oid_t oid, loff_t offset)
+static u64 data_subvol_id_calc_simple(oid_t oid, loff_t offset)
 {
 	return METADATA_SUBVOL_ID;
 }
 
-static u64 data_subvol_id_by_key_simple(reiser4_key *key)
+static u64 data_subvol_id_find_simple(reiser4_key *key)
 {
 	return METADATA_SUBVOL_ID;
 }
@@ -930,6 +925,12 @@ static int shrink_simple(reiser4_volume *vol, u64 pos, u64 delta, int remove)
 
 static int expand_simple(reiser4_volume *vol, u64 pos, u64 delta,
 		       reiser4_subvol *new)
+{
+	return -EINVAL;
+}
+
+
+static int balance_simple(struct super_block *sb)
 {
 	return -EINVAL;
 }
@@ -947,7 +948,7 @@ static int build_body_key_simple(struct inode *inode,
 					    key);
 }
 
-static u64 data_subvol_id_asym(oid_t oid, loff_t offset)
+static u64 data_subvol_id_calc_asym(oid_t oid, loff_t offset)
 {
 	reiser4_volume *vol;
 	distribution_plugin *dist_plug;
@@ -973,11 +974,11 @@ static int build_body_key_asym(struct inode *inode,
 	 */
 	return key_by_inode_offset_ordering(inode,
 					    offset,
-					    data_subvol_id_asym(oid, offset),
+					    data_subvol_id_calc_asym(oid, offset),
 					    key);
 }
 
-static u64 data_subvol_id_by_key_asym(reiser4_key *key)
+static u64 data_subvol_id_find_asym(reiser4_key *key)
 {
 	return get_key_ordering(key);
 }
@@ -989,9 +990,9 @@ reiser4_subvol *get_meta_subvol(void)
 
 reiser4_subvol *get_data_subvol(const struct inode *inode, loff_t offset)
 {
-	return current_origin(current_vol_plug()->data_subvol_id(get_inode_oid(inode), offset));
+	return current_origin(current_vol_plug()->
+			     data_subvol_id_calc(get_inode_oid(inode), offset));
 }
-
 
 reiser4_subvol *subvol_by_extent(const coord_t *coord)
 {
@@ -999,7 +1000,7 @@ reiser4_subvol *subvol_by_extent(const coord_t *coord)
 	volume_plugin *vol_plug = current_vol_plug();
 
 	item_key_by_coord(coord, &key);
-	return current_origin(vol_plug->data_subvol_id_by_key(&key));
+	return current_origin(vol_plug->data_subvol_id_find(&key));
 }
 
 reiser4_subvol *subvol_by_coord(const coord_t *coord)
@@ -1067,7 +1068,7 @@ static int iter_check_extent_next_file(reiser4_tree *tree, coord_t *coord,
  *
  * FIXME: use hint/seal to not traverse tree every time
  */
-int balance_volume_asym(struct super_block *super)
+int balance_asym(struct super_block *super)
 {
 	int ret;
 	int err = 0;
@@ -1227,16 +1228,16 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 			.desc = "Simple Logical Volume",
 			.linkage = {NULL, NULL}
 		},
-		.sys_subvol_id = sys_subvol_id_simple,
 		.meta_subvol_id = meta_subvol_id_simple,
-		.data_subvol_id = data_subvol_id_simple,
-		.data_subvol_id_by_key = data_subvol_id_by_key_simple,
+		.data_subvol_id_calc = data_subvol_id_calc_simple,
+		.data_subvol_id_find = data_subvol_id_find_simple,
 		.build_body_key = build_body_key_simple,
 		.load = NULL,
 		.done = NULL,
 		.init = NULL,
 		.expand = expand_simple,
 		.shrink = shrink_simple,
+		.balance = balance_simple,
 		.aid_ops = {
 			.cap_at = NULL,
 			.fib_of = NULL,
@@ -1254,17 +1255,16 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 			.desc = "Asymmetric Heterogeneous Logical Volume",
 			.linkage = {NULL, NULL}
 		},
-		.sys_subvol_id = sys_subvol_id_simple,
 		.meta_subvol_id = meta_subvol_id_simple,
-		.data_subvol_id = data_subvol_id_asym,
-		.data_subvol_id_by_key = data_subvol_id_by_key_asym,
+		.data_subvol_id_calc = data_subvol_id_calc_asym,
+		.data_subvol_id_find = data_subvol_id_find_asym,
 		.build_body_key = build_body_key_asym,
 		.load = load_volume_asym,
 		.done = done_volume_asym,
 		.init = init_volume_asym,
 		.expand = expand_asym,
 		.shrink = shrink_asym,
-		.balance = balance_volume_asym,
+		.balance = balance_asym,
 		.aid_ops = {
 			.cap_at = cap_at_asym,
 			.fib_of = fib_of_asym,

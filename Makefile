@@ -35,6 +35,7 @@ reiser4-y := \
 		   super.o \
 		   init_volume.o \
 		   super_ops.o \
+		   volume_ops.o \
 		   fsdata.o \
 		   export_ops.o \
 		   oid.o \
