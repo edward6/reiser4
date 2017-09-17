@@ -129,7 +129,7 @@ static int reiser4_register_subvol(const char *path,
 				   u8 *vol_uuid, u8 *sub_uuid,
 				   int dformat_pid, int vol_pid, int dist_pid,
 				   u16 mirror_id, u16 num_replicas,
-				   int stripe_bits)
+				   int stripe_bits, reiser4_subvol **result)
 {
 	struct reiser4_volume *vol;
 	struct reiser4_subvol *sub;
@@ -137,8 +137,11 @@ static int reiser4_register_subvol(const char *path,
 	vol = reiser4_search_volume(vol_uuid);
 	if (vol) {
 		sub = reiser4_search_subvol(sub_uuid, &vol->subvols_list);
-		if (sub)
+		if (sub) {
+			if (result)
+				*result = sub;
 			return 1;
+		}
 		sub = reiser4_alloc_subvol(sub_uuid, path, dformat_pid,
 					   mirror_id, num_replicas);
 		if (!sub)
@@ -157,7 +160,9 @@ static int reiser4_register_subvol(const char *path,
 		list_add(&vol->list, &reiser4_volumes);
 	}
 	list_add(&sub->list, &vol->subvols_list);
-	printk("reiser4: registered subvolume (%s)\n", path);
+	if (result)
+		*result = sub;
+	notice("edward-1932", "registered subvolume (%s)\n", path);
 	return 0;
 }
 
@@ -199,9 +204,11 @@ void reiser4_unregister_volumes(void)
 /*
  * Check for reiser4 signature on an off-line device specified by @path.
  * If found, then try to register a respective reiser4 subvolume.
+ * On success store pointer to registered subvolume in @result.
  * If reiser4 was found, then return 0. Otherwise return error.
  */
-int reiser4_scan_device(const char *path, fmode_t flags, void *holder)
+int reiser4_scan_device(const char *path, fmode_t flags, void *holder,
+			reiser4_subvol **result)
 {
 	int ret = -EINVAL;
 	struct block_device *bdev;
@@ -239,7 +246,8 @@ int reiser4_scan_device(const char *path, fmode_t flags, void *holder)
 				      master_get_distrib_pid(master),
 				      master_get_mirror_id(master),
 				      master_get_num_replicas(master),
-				      master_get_stripe_bits(master));
+				      master_get_stripe_bits(master),
+				      result);
 	if (ret > 0)
 		/* ok, it was registered earlier */
 		ret = 0;
@@ -252,8 +260,6 @@ int reiser4_scan_device(const char *path, fmode_t flags, void *holder)
 	mutex_unlock(&reiser4_volumes_mutex);
 	return ret;
 }
-
-struct file_system_type *get_reiser4_fs_type(void);
 
 /**
  * Pre-conditions:
@@ -313,8 +319,10 @@ int reiser4_activate_subvol(struct super_block *super,
 	struct page *page;
 	fmode_t mode = FMODE_READ | FMODE_EXCL;
 
-	assert("edward-1753", !subvol_is_set(subv, SUBVOL_ACTIVATED));
-
+	if (subvol_is_set(subv, SUBVOL_ACTIVATED)) {
+		warning("edward-1933", "Brick %s is busy", subv->name);
+		return -EINVAL;
+	}
 	if (!(super->s_flags & MS_RDONLY))
 		mode |= FMODE_WRITE;
 
@@ -392,7 +400,7 @@ static void free_subvols_set(reiser4_volume *vol)
 /**
  * Deactivate subvolume. Called during umount, or in error paths
  */
-void deactivate_subvol(struct super_block *super, reiser4_subvol *subv)
+void reiser4_deactivate_subvol(struct super_block *super, reiser4_subvol *subv)
 {
 	assert("edward-1755", subvol_is_set(subv, SUBVOL_ACTIVATED));
 	assert("edward-1756", subv->bdev != NULL);
@@ -431,7 +439,7 @@ static void deactivate_subvolumes_of_type(struct super_block *super,
 			 * subvolume will be deactivated later
 			 */
 			continue;
-		deactivate_subvol(super, subv);
+		reiser4_deactivate_subvol(super, subv);
 	}
 }
 

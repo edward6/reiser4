@@ -25,7 +25,7 @@
 
 static inline void *mem_alloc(u64 len)
 {
-	return kzalloc(len, reiser4_ctx_gfp_mask_get());
+	return reiser4_vmalloc(len);
 }
 
 static inline void mem_free(void *p)
@@ -190,11 +190,11 @@ static int replace_fibers(u32 nums_bits, u32 *tab,
 }
 
 /*
- * Fix up system table after expand.
+ * Fix up system when performing increase operation.
  * if @new is true, then a new bucket has been inserted at @target_pos.
  * @vec points to a new set of buckets
  */
-static int balance_tab_exp(u32 new_numb, u32 *tab,
+static int balance_tab_inc(u32 new_numb, u32 *tab,
 			   u32 *old_weights, u32 *new_weights,
 			   u32 target_pos,
 			   void *vec,
@@ -279,12 +279,12 @@ static int balance_tab_exp(u32 new_numb, u32 *tab,
 }
 
 /**
- * Fix up system table after shrinking.
+ * Fix up system table when performing decrease.
  * @removed (if not NULL) points to the bucket that has been
  * removed from @target_pos at AID;
  * @vec points to the new set of buckets.
  */
-static int balance_tab_shr(u32 old_numb, u32 *tab,
+static int balance_tab_dec(u32 old_numb, u32 *tab,
 			   u32 *old_weights, u32 *new_weights,
 			   u32 target_pos,
 			   void *vec,
@@ -617,7 +617,7 @@ u64 lookup_fsw32m(reiser4_aid *raid, const char *str,
  * If @new != NULL, then the whole bucket @new has been inserted
  * to the array at @target_pos
  */
-int expand_fsw32(reiser4_aid *raid, u64 target_pos, int new)
+int inc_fsw32(reiser4_aid *raid, u64 target_pos, int new)
 {
 	int ret = 0;
 	u32 *new_weights;
@@ -641,7 +641,7 @@ int expand_fsw32(reiser4_aid *raid, u64 target_pos, int new)
 	}
 	calibrate_vector(new_numb, aid->buckets,
 			 aid->ops->cap_at, nums, new_weights);
-	ret = balance_tab_exp(new_numb, aid->tab,
+	ret = balance_tab_inc(new_numb, aid->tab,
 			      aid->weights, new_weights, target_pos,
 			      aid->buckets, aid->ops->fib_at, new);
 	if (ret)
@@ -671,7 +671,7 @@ int expand_fsw32(reiser4_aid *raid, u64 target_pos, int new)
  * If @victim is not NULL, then the whole bucket has been removed
  * from @target_pos.
  */
-int shrink_fsw32(reiser4_aid *raid, u64 target_pos, void *victim)
+int dec_fsw32(reiser4_aid *raid, u64 target_pos, void *victim)
 {
 	int ret = 0;
 	u32 nums;
@@ -681,12 +681,7 @@ int shrink_fsw32(reiser4_aid *raid, u64 target_pos, void *victim)
 
 	assert("edward-1908", aid->numb >= 1);
 	assert("edward-1909", aid->numb <= MAX_BUCKETS);
-
-	if (unlikely(aid->numb == 1))
-		/*
-		 * Don't remove the single bucket from an array
-		 */
-		return EINVAL;
+	assert("edward-1927", aid->numb > 1);
 
 	new_numb = old_numb = aid->numb;
 	if (victim != NULL)
@@ -700,7 +695,7 @@ int shrink_fsw32(reiser4_aid *raid, u64 target_pos, void *victim)
 	}
 	calibrate_vector(new_numb, aid->buckets,
 			 aid->ops->cap_at, nums, new_weights);
-	ret = balance_tab_shr(old_numb, aid->tab,
+	ret = balance_tab_dec(old_numb, aid->tab,
 			      aid->weights, new_weights, target_pos,
 			      aid->buckets, aid->ops->fib_at, aid->ops->fib_of,
 			      victim);
@@ -728,7 +723,7 @@ int shrink_fsw32(reiser4_aid *raid, u64 target_pos, void *victim)
 	return ret;
 }
 
-int split_fsw32(reiser4_aid *raid, u32 fact_bits)
+int spl_fsw32(reiser4_aid *raid, u32 fact_bits)
 {
 	int ret = 0;
 	u32 *new_weights;

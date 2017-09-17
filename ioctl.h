@@ -25,15 +25,48 @@
  * into tails again.
  */
 
+#define REISER4_PATH_NAME_MAX 3900 /* FIXME: make it more precise */
+
 typedef enum {
-	REISER4_SHRINK_VOLUME,
-	REISER4_EXPAND_VOLUME,
+	REISER4_REGISTER_BRICK,
+	REISER4_PRINT_VOLUME,
+	REISER4_PRINT_BRICK,
+	REISER4_EXPAND_BRICK,
+	REISER4_SHRINK_BRICK,
+	REISER4_ADD_BRICK,
+	REISER4_REMOVE_BRICK,
 	REISER4_BALANCE_VOLUME
 } reiser4_vol_op;
+
+struct reiser4_volume_stat
+{
+	u8  id[16]; /* unique ID */
+	u64 nr_bricks; /* number of bricks in the array */
+	u16 pid; /* volume plugin ID */
+	u64 state; /* unbalanced, etc flags */
+};
+
+struct reiser4_brick_stat
+{
+	u64 int_id; /* ordered number, 0 means meta-data brick */
+	u8  ext_id[16]; /* external unique ID */
+	u16 nr_replicas; /* number of replicas */
+	u64 state; /* activated, etc flags */
+	u64 block_count; /* total number of blocks */
+	u64 data_room; /* number of data blocks */
+	u64 blocks_used; /* number of blocks used by data and meta-data */
+};
 
 struct reiser4_vol_op_args
 {
 	reiser4_vol_op opcode;
+	u64 delta;
+	u64 brick_id;
+	char name[REISER4_PATH_NAME_MAX + 1];
+	union {
+		struct reiser4_volume_stat vol;
+		struct reiser4_brick_stat brick;
+	}u;
 };
 
 #define REISER4_IOC_UNPACK _IOW(0xCD, 1, long)

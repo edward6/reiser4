@@ -596,6 +596,8 @@ extern reiser4_subvol *get_meta_subvol(void);
 extern reiser4_subvol *get_data_subvol(const struct inode *inode, loff_t offset);
 extern reiser4_subvol *subvol_by_coord(const coord_t *coord);
 
+struct file_system_type *get_reiser4_fs_type(void);
+
 extern __u64 reiser4_flush_reserved(const reiser4_subvol *);
 extern int reiser4_is_set(const struct super_block *super, reiser4_fs_flag f);
 extern long reiser4_statfs_type(const struct super_block *super);
@@ -636,12 +638,15 @@ extern int reiser4_blocknr_is_sane(const reiser4_subvol *subv,
 extern int reiser4_blocknr_is_sane_for(const reiser4_subvol *subv,
 				       const reiser4_block_nr *blk);
 extern int reiser4_done_super(struct super_block *s);
-extern int reiser4_scan_device(const char *path, fmode_t flags, void *holder);
+extern int reiser4_scan_device(const char *path, fmode_t flags, void *holder,
+			       reiser4_subvol **result);
 
 /* step of fill super */
 extern int reiser4_init_fs_info(struct super_block *);
 extern void reiser4_done_fs_info(struct super_block *);
 extern int reiser4_init_super_data(struct super_block *, char *opt_string);
+int reiser4_activate_subvol(struct super_block *super, reiser4_subvol *subv);
+void reiser4_deactivate_subvol(struct super_block *super, reiser4_subvol *subv);
 extern int reiser4_activate_volume(struct super_block *, u8 *vol_uuid);
 extern void reiser4_deactivate_volume(struct super_block *);
 extern void reiser4_unregister_volumes(void);

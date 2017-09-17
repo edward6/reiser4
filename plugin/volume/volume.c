@@ -530,7 +530,57 @@ static u64 *fib_lenp_at_asym(void *buckets, u64 index)
 	return &current_aid_subvols()[index][0]->fiber_len;
 }
 
-static int expand_subvol(reiser4_volume *vol, u64 pos, u64 delta)
+/**
+ * @id: internal ID of brick to resize
+ */
+static int check_brick_for_resize(reiser4_volume *vol, u64 id)
+{
+	if (is_meta_brick_id(id) && !meta_subvol_is_in_aid())
+		return -EINVAL;
+	if (id >= vol->num_origins)
+		return -EINVAL;
+	return 0;
+}
+
+/**
+ * @id: internal ID of brick to resize
+ * return position of brick in the AID
+ */
+static u64 aid_pos_for_resize(reiser4_volume *vol, u64 id)
+{
+	if (meta_subvol_is_in_aid())
+		return id;
+	else {
+		assert("edward-1928", id > 0);
+		return id - 1;
+	}
+}
+
+/**
+ * @new: brick to add
+ */
+static int check_brick_for_add(reiser4_volume *vol, reiser4_subvol *new)
+{
+	if (is_meta_brick(new) && meta_subvol_is_in_aid())
+		return -EINVAL;
+	if (is_data_brick(new))
+		return -EINVAL;
+	return 0;
+}
+
+/*
+ * get position in AID
+ */
+static u64 aid_pos_for_add(reiser4_volume *vol, reiser4_subvol *new)
+{
+	if (is_meta_brick(new))
+		return 0;
+	if (meta_subvol_is_in_aid())
+		return vol->num_origins;
+	return vol->num_origins - 1;
+}
+
+static int expand_brick(reiser4_volume *vol, u64 pos, u64 delta)
 {
 	int ret;
 	distribution_plugin *dist_plug = vol->dist_plug;
@@ -540,7 +590,7 @@ static int expand_subvol(reiser4_volume *vol, u64 pos, u64 delta)
 	if (num_aid_subvols(vol) == 1)
 		return 0;
 
-	ret = dist_plug->v.expand(&vol->aid, pos, 0);
+	ret = dist_plug->v.inc(&vol->aid, pos, 0);
 	if (ret)
 		/* roll back */
 		current_aid_subvols()[pos][0]->data_room -= delta;
@@ -550,67 +600,57 @@ static int expand_subvol(reiser4_volume *vol, u64 pos, u64 delta)
 /*
  * Insert a meta-data subvolume to AID
  */
-static int add_meta_subvol(reiser4_volume *vol, reiser4_subvol *new)
+static int add_meta_brick(reiser4_volume *vol, reiser4_subvol *new)
 {
-	distribution_plugin *dist_plug = vol->dist_plug;
-
-	assert("edward-1820", new == get_meta_subvol());
-
-	if (meta_subvol_is_in_aid())
-		/*
-		 * Can not add a subvolume, which is already
-		 * present in the array
-		 */
-		return -EINVAL;
-
-	assert("edward-1822", meta_subvol_is_in_aid());
+	assert("edward-1820", is_meta_brick(new));
 
 	if (vol->num_origins == 1)
 		/*
 		 *  nothing to do any more
 		 */
 		return 0;
-	return dist_plug->v.expand(&vol->aid, METADATA_SUBVOL_ID, 1);
+	return vol->dist_plug->v.inc(&vol->aid, 0, 1);
 }
 
 /*
- * Insert a data subvolume to AID at position @pos
+ * Add a data subvolume to LV
  */
-static int add_data_subvol(reiser4_volume *vol, u64 pos,
-			   reiser4_subvol *new_subv)
+static int add_data_brick(reiser4_volume *vol, reiser4_subvol *this)
 {
 	int ret;
 	reiser4_aid *raid = &vol->aid;
-	distribution_plugin *dist_plug = vol->dist_plug;
-
 	struct reiser4_subvol ***new;
 	struct reiser4_subvol ***old = vol->subvols;
 	u64 old_num_subvols = vol->num_origins;
 	u64 pos_in_vol;
+	u64 pos_in_aid;
+
+	assert("edward-1929", !is_meta_brick(this));
 
 	if (num_aid_subvols(vol) == 0) {
 		warning("edward-1840",
 			"Can not add data subvolume to empty AID");
 		return -EINVAL;
 	}
-	pos_in_vol = pos;
-	if (!meta_subvol_is_in_aid())
-		pos_in_vol ++;
+	/*
+	 * Currently we insert a new data brick at the very end.
+	 */
+	pos_in_vol = old_num_subvols;
+	pos_in_aid = aid_pos_for_add(vol, this);
 
-	new = kmalloc(sizeof(reiser4_subvol) * (1 + old_num_subvols),
-		      reiser4_ctx_gfp_mask_get());
+	new = reiser4_vmalloc(sizeof(reiser4_subvol) * (1 + old_num_subvols));
 	if (!new)
 		return -ENOMEM;
 
 	memcpy(new, old, sizeof(*new) * pos_in_vol);
-	new[pos_in_vol][0] = new_subv;
+	new[pos_in_vol][0] = this;
 	memcpy(new + pos_in_vol + 1, old + pos_in_vol,
 	       sizeof(*new) * (old_num_subvols - pos_in_vol));
 
 	vol->subvols = new;
 	vol->num_origins ++;
 
-	ret = dist_plug->v.expand(raid, pos, 1);
+	ret = vol->dist_plug->v.inc(raid, pos_in_aid, 1);
 	if (ret) {
 		vol->subvols = old;
 		vol->num_origins --;
@@ -622,94 +662,27 @@ static int add_data_subvol(reiser4_volume *vol, u64 pos,
 }
 
 /*
- * Insert a new subvolume to AID at position @pos
+ * Add a new brick to AID
  */
-static int add_subvol(reiser4_volume *vol, u64 pos, u64 cap, reiser4_subvol *new)
+static int add_brick(reiser4_volume *vol, reiser4_subvol *this)
 {
-	assert("edward-1843", new->data_room == 0);
+	assert("edward-1843", this->data_room == 0);
 
-	if (cap != 0)
-		new->data_room = cap;
-	else
-		new->data_room = default_data_room(new);
-
-	if (new->data_room == 0)
-		return -EINVAL;
-
-	if (new == get_meta_subvol())
-		return add_meta_subvol(vol, new);
-	else
-		return add_data_subvol(vol, pos, new);
-}
-
-/*
- * Check position in LV, and convert it to the position in AID
- */
-static int check_convert_pos_for_expand(reiser4_volume *vol,
-					u64 *pos, reiser4_subvol *new)
-{
-	if (new) {
-		/*
-		 * insert a new subvolume
-		 */
-		if (*pos == 0 && meta_subvol_is_in_aid())
-			return -EINVAL;
-		if (*pos == 0 && new != get_meta_subvol())
-			return -EINVAL;
-		if (*pos > 0 && new == get_meta_subvol())
-			return -EINVAL;
-		if (*pos > vol->num_origins)
-			return -EINVAL;
-	} else {
-		/*
-		 * expand existing subvolume
-		 */
-		if (*pos == 0 && !meta_subvol_is_in_aid())
-			return -EINVAL;
-		if (*pos >= vol->num_origins)
-			return -EINVAL;
+	if (is_meta_brick(this)) {
+		this->data_room = default_data_room(this);
+		return add_meta_brick(vol, this);
 	}
-	/*
-	 * Convert @pos to the position in AID
-	 */
-	if (meta_subvol_is_in_aid())
-		/*
-		 * position in volume coincides with position in AID,
-		 * nothing to convert
-		 */
-		return 0;
-	/*
-	 * meda-data subvolume is not in AID
-	 */
-	if (pos == 0)
-		/*
-		 * meta-data subvolume is to be inserted, or expanded,
-		 * so that position in AID is also 0 */
-		return 0;
-	/*
-	 * pos > 0
-	 * data subvolume is to be inserted to AID, whish
-	 * doesn't contain meta-data subvolume
-	 */
-	(*pos) --;
-
-	return 0;
-}
-
-static int can_expand(reiser4_volume *vol, reiser4_subvol *new)
-{
-	if (vol->dist_plug->h.id == TRIV_DISTRIB_ID ||
-	    get_meta_subvol()->df_plug->h.id == FORMAT40_ID ||
-	    (new && (get_meta_subvol()->df_plug->h.id != new->df_plug->h.id)))
-		return 0;
-	return 1;
+	else {
+		this->data_room = this->block_count;
+		return add_data_brick(vol, this);
+	}
 }
 
 /**
- * Increase capacity of asymmetric LV.
+ * Increase capacity of a specified brick
+ * @id: internal ID of the brick
  */
-static int expand_asym(reiser4_volume *vol, u64 pos, u64 delta,
-		       reiser4_subvol *new)
+static int expand_asym(reiser4_volume *vol, u64 id, u64 delta)
 {
 	int ret;
 	reiser4_aid *raid = &vol->aid;
@@ -719,21 +692,16 @@ static int expand_asym(reiser4_volume *vol, u64 pos, u64 delta,
 	assert("edward-1824", raid != NULL);
 	assert("edward-1825", dist_plug != NULL);
 
-	if (!can_expand(vol, new))
-		return -EINVAL;
-	ret = check_convert_pos_for_expand(vol, &pos, new);
+	ret = check_brick_for_resize(vol, id);
 	if (ret)
-		return RETERR(ret);
+		return ret;
 
 	ret = dist_plug->v.init(vol,
 				num_aid_subvols(vol), vol->num_sgs_bits,
 				&vol->vol_plug->aid_ops, raid);
 	if (ret)
-		return RETERR(ret);
-	if (new)
-		ret = add_subvol(vol, pos, delta, new);
-	else
-		ret = expand_subvol(vol, pos, delta);
+		return ret;
+	ret = expand_brick(vol, id, delta);
 	if (ret)
 		goto out;
 	ret = capture_volume_info(vol);
@@ -745,7 +713,43 @@ static int expand_asym(reiser4_volume *vol, u64 pos, u64 delta,
 	return ret;
 }
 
-static int shrink_subvol(reiser4_volume *vol, u64 pos, u64 delta)
+/**
+ * Add a specified brick to a volume
+ * @new: brick to add
+ */
+static int add_asym(reiser4_volume *vol, reiser4_subvol *new)
+{
+	int ret;
+	reiser4_aid *raid = &vol->aid;
+	distribution_plugin *dist_plug = vol->dist_plug;
+	struct super_block *sb = reiser4_get_current_sb();
+
+	assert("edward-1930", raid != NULL);
+	assert("edward-1931", dist_plug != NULL);
+
+	ret = check_brick_for_add(vol, new);
+	if (ret)
+		return ret;
+
+	ret = dist_plug->v.init(vol,
+				num_aid_subvols(vol), vol->num_sgs_bits,
+				&vol->vol_plug->aid_ops, raid);
+	if (ret)
+		return ret;
+
+	ret = add_brick(vol, new);
+	if (ret)
+		goto out;
+	ret = capture_volume_info(vol);
+	if (ret)
+		goto out;
+	ret = balance_asym(sb);
+ out:
+	dist_plug->v.done(raid);
+	return ret;
+}
+
+static int shrink_brick(reiser4_volume *vol, u64 pos, u64 delta)
 {
 	int ret;
 	distribution_plugin *dist_plug = vol->dist_plug;
@@ -755,7 +759,7 @@ static int shrink_subvol(reiser4_volume *vol, u64 pos, u64 delta)
 	if (num_aid_subvols(vol) == 1)
 		return 0;
 
-	ret = dist_plug->v.shrink(&vol->aid, pos, NULL);
+	ret = dist_plug->v.dec(&vol->aid, pos, NULL);
 	if (ret)
 		current_aid_subvols()[pos][0]->data_room += delta;
 	return ret;
@@ -764,7 +768,7 @@ static int shrink_subvol(reiser4_volume *vol, u64 pos, u64 delta)
 /*
  * Remove meta-data subvolume from AID
  */
-static int remove_meta_subvol(reiser4_volume *vol)
+static int remove_meta_brick(reiser4_volume *vol)
 {
 	int ret;
 	reiser4_subvol *mtd_subv = get_meta_subvol();
@@ -776,7 +780,7 @@ static int remove_meta_subvol(reiser4_volume *vol)
 	if (num_aid_subvols(vol) == 1)
 		goto finish;
 
-	ret = dist_plug->v.shrink(&vol->aid, METADATA_SUBVOL_ID, mtd_subv);
+	ret = dist_plug->v.dec(&vol->aid, 0, mtd_subv);
 	if (ret)
 		return ret;
  finish:
@@ -787,9 +791,10 @@ static int remove_meta_subvol(reiser4_volume *vol)
 }
 
 /*
- * Remove a data subvolume from AID at position @pos
+ * Remove a data subvolume from LV
+ * @id: intermal ID of a subvolume to be removed
  */
-static int remove_data_subvol(reiser4_volume *vol, u64 pos)
+static int remove_data_brick(reiser4_volume *vol, u64 id)
 {
 	int ret;
 	reiser4_subvol *victim;
@@ -799,6 +804,7 @@ static int remove_data_subvol(reiser4_volume *vol, u64 pos)
 	struct reiser4_subvol ***old = vol->subvols;
 	u64 old_num_subvols = vol->num_origins;
 	u64 pos_in_vol;
+	u64 pos_in_aid;
 
 	assert("edward-1842", num_aid_subvols(vol) != 0);
 
@@ -807,12 +813,9 @@ static int remove_data_subvol(reiser4_volume *vol, u64 pos)
 			"Can not remove single data subvolume");
 		return -EINVAL;
 	}
-	pos_in_vol = pos;
-	if (!meta_subvol_is_in_aid())
-		pos_in_vol ++;
-
-	new = kmalloc(sizeof(reiser4_subvol) * (old_num_subvols - 1),
-		      reiser4_ctx_gfp_mask_get());
+	pos_in_vol = id;
+	pos_in_aid = aid_pos_for_resize(vol, id);
+	new = reiser4_vmalloc(sizeof(reiser4_subvol) * (old_num_subvols - 1));
 	if (!new)
 		return RETERR(-ENOMEM);
 
@@ -824,47 +827,81 @@ static int remove_data_subvol(reiser4_volume *vol, u64 pos)
 	vol->subvols = new;
 	vol->num_origins --;
 
-	ret = dist_plug->v.shrink(&vol->aid, pos, victim);
+	ret = dist_plug->v.dec(&vol->aid, pos_in_aid, victim);
 	if (ret) {
 		vol->subvols = old;
 		vol->num_origins ++;
 		kfree(new);
 		return ret;
 	}
-	deactivate_subvol(reiser4_get_current_sb(), victim);
+	reiser4_deactivate_subvol(reiser4_get_current_sb(), victim);
+	/*
+	 * we don't unregister removed bricks
+	 */
 	kfree(old);
 
 	return 0;
 }
 
-static int remove_subvol(reiser4_volume *vol, u64 pos)
+static int remove_brick(reiser4_volume *vol, u64 id)
 {
-	if (pos == 0 && meta_subvol_is_in_aid())
-		return remove_meta_subvol(vol);
+	if (is_meta_brick_id(id))
+		return remove_meta_brick(vol);
 	else
-		return remove_data_subvol(vol, pos);
+		return remove_data_brick(vol, id);
 }
 
-/*
- * Check and convert position @pos in volume to the position in AID
- */
-static int check_convert_pos_for_shrink(reiser4_volume *vol, u64 *pos)
+static u64 get_free_space_volume(struct super_block *sb)
 {
-	if (*pos == 0 && !meta_subvol_is_in_aid())
-		return -EINVAL;
+	u64 subv_id;
+	u64 result = 0;
 
-	if (*pos >= vol->num_origins)
-		return -EINVAL;
-
-	if (!meta_subvol_is_in_aid())
-		(*pos) --;
-	return 0;
+	spin_lock_reiser4_super(get_super_private(sb));
+	for_each_origin(subv_id)
+		result += current_origin(subv_id)->blocks_free;
+	spin_unlock_reiser4_super(get_super_private(sb));
+	return result;
 }
 
 /**
- * Decrease capacity of asymmetric LV
+ * Check if there is enough free space on the volume
+ * to remove, or shrink a brick.
+ *
+ * @id: brick be shrinked, or removed.
+ * @delta: the value to be shrinked on. If @delta == 0,
+ * then brick is to be removed.
  */
-static int shrink_asym(reiser4_volume *vol, u64 pos, u64 delta, int remove)
+static int check_free_space(struct super_block *sb, u64 id, u64 delta)
+{
+	reiser4_subvol *victim;
+
+	victim = current_origin(id);
+
+	spin_lock_reiser4_super(get_super_private(sb));
+	if (delta) {
+		if (delta <= victim->blocks_free)
+			return 0;
+		else
+			delta -= victim->blocks_free;
+	} else
+		delta = victim->block_count - victim->blocks_free;
+	spin_unlock_reiser4_super(get_super_private(sb));
+	/*
+	 * check if there is enough space for @delta
+	 * on the rest of LV
+	 */
+	if (delta >= get_free_space_volume(sb))
+		return 0;
+	txnmgr_force_commit_all(sb, 0);
+	/*
+	 * check once again
+	 */
+	if (delta >= get_free_space_volume(sb))
+		return 0;
+	return RETERR(-ENOSPC);
+}
+
+static int remove_or_shrink_brick(reiser4_volume *vol, u64 id, u64 delta)
 {
 	int ret;
 	distribution_plugin *dist_plug = vol->dist_plug;
@@ -873,13 +910,12 @@ static int shrink_asym(reiser4_volume *vol, u64 pos, u64 delta, int remove)
 	assert("edward-1830", vol != NULL);
 	assert("edward-1846", dist_plug != NULL);
 	assert("edward-1831", vol->subvols != NULL);
-	assert("edward-1832", pos < num_aid_subvols(vol));
-	assert("edward-1833", vol->subvols[pos] != NULL);
+	assert("edward-1833", vol->subvols[id] != NULL);
 
 	if (dist_plug->h.id == TRIV_DISTRIB_ID)
 		return -EINVAL;
 
-	ret = check_convert_pos_for_shrink(vol, &pos);
+	ret = check_brick_for_resize(vol, id);
 	if (ret)
 		return ret;
 
@@ -888,10 +924,20 @@ static int shrink_asym(reiser4_volume *vol, u64 pos, u64 delta, int remove)
 				&vol->vol_plug->aid_ops, &vol->aid);
 	if (ret)
 		return ret;
-	if (remove)
-		ret = remove_subvol(vol, pos);
+	/*
+	 * make sure there is enough space on the rest
+	 * of LV to perform remove or shrink operation.
+	 * FIXME: this estimation can be not enough in
+	 * the case of intensive clients IO activity
+	 * diring rebalancing.
+	 */
+	ret = check_free_space(sb, id, delta);
+	if (ret)
+		goto out;
+	if (delta)
+		ret = shrink_brick(vol, id, delta);
 	else
-		ret = shrink_subvol(vol, pos, delta);
+		ret = remove_brick(vol, aid_pos_for_resize(vol, id));
 	if (ret)
 		goto out;
 	ret = capture_volume_info(vol);
@@ -901,6 +947,16 @@ static int shrink_asym(reiser4_volume *vol, u64 pos, u64 delta, int remove)
  out:
 	dist_plug->v.done(&vol->aid);
 	return ret;
+}
+
+static int remove_asym(reiser4_volume *vol, u64 id)
+{
+	return remove_or_shrink_brick(vol, id, 0);
+}
+
+static int shrink_asym(reiser4_volume *vol, u64 id, u64 delta)
+{
+	return remove_or_shrink_brick(vol, id, delta);
 }
 
 static u64 meta_subvol_id_simple(void)
@@ -918,17 +974,25 @@ static u64 data_subvol_id_find_simple(reiser4_key *key)
 	return METADATA_SUBVOL_ID;
 }
 
-static int shrink_simple(reiser4_volume *vol, u64 pos, u64 delta, int remove)
+static int shrink_simple(reiser4_volume *vol, u64 id, u64 delta)
 {
 	return -EINVAL;
 }
 
-static int expand_simple(reiser4_volume *vol, u64 pos, u64 delta,
-		       reiser4_subvol *new)
+static int remove_simple(reiser4_volume *vol, u64 id)
 {
 	return -EINVAL;
 }
 
+static int expand_simple(reiser4_volume *vol, u64 id, u64 delta)
+{
+	return -EINVAL;
+}
+
+static int add_simple(reiser4_volume *vol, reiser4_subvol *new)
+{
+	return -EINVAL;
+}
 
 static int balance_simple(struct super_block *sb)
 {
@@ -1236,7 +1300,9 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		.done = NULL,
 		.init = NULL,
 		.expand = expand_simple,
+		.add = add_simple,
 		.shrink = shrink_simple,
+		.remove = remove_simple,
 		.balance = balance_simple,
 		.aid_ops = {
 			.cap_at = NULL,
@@ -1263,7 +1329,9 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		.done = done_volume_asym,
 		.init = init_volume_asym,
 		.expand = expand_asym,
+		.add = add_asym,
 		.shrink = shrink_asym,
+		.remove = remove_asym,
 		.balance = balance_asym,
 		.aid_ops = {
 			.cap_at = cap_at_asym,

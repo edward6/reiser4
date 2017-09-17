@@ -123,26 +123,27 @@ long reiser4_ioctl_dir_common(struct file *file, unsigned int cmd, unsigned long
 
 	switch (cmd) {
 	case REISER4_IOC_VOLUME: {
-		struct reiser4_vol_op_args op_args;
+		struct reiser4_vol_op_args *op_args;
 
-		if (!capable(CAP_SYS_ADMIN)) {
-			ret = RETERR(-EPERM);
-			break;
-		}
-		if (copy_from_user(&op_args,
-				   (struct reiser4_vol_op_args __user *)arg,
-				   sizeof(op_args))) {
-			ret = RETERR(-EFAULT);
-			break;
-		}
-		ret = reiser4_volume_op(super, &op_args);
-		if (ret)
+		if (!capable(CAP_SYS_ADMIN))
+			return RETERR(-EPERM);
+
+		op_args = memdup_user((void __user *)arg, sizeof(*op_args));
+		if (IS_ERR(op_args))
+			return PTR_ERR(op_args);
+
+		ret = reiser4_volume_op(super, op_args);
+		if (ret) {
 			warning("edward-1899",
 				"volume operation failed (%d)", ret);
+			kfree(op_args);
+			break;
+		}
 		if (copy_to_user((struct reiser4_vol_op_args __user *)arg,
-				 &op_args,
+				 op_args,
 				 sizeof(op_args)))
 			ret = RETERR(-EFAULT);
+		kfree(op_args);
 		break;
 	}
 	default:

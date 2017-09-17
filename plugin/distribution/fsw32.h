@@ -30,9 +30,9 @@ extern int initv_fsw32(void *buckets,
 extern void donev_fsw32(reiser4_aid *raid);
 extern u64 lookup_fsw32m(reiser4_aid *raid, const char *str,
 			 int len, u32 seed);
-extern int expand_fsw32(reiser4_aid *raid, u64 pos, int new);
-extern int shrink_fsw32(reiser4_aid *raid, u64 pos, void *victim);
-extern int split_fsw32(reiser4_aid *raid, u32 fact_bits);
+extern int inc_fsw32(reiser4_aid *raid, u64 pos, int new);
+extern int dec_fsw32(reiser4_aid *raid, u64 pos, void *victim);
+extern int spl_fsw32(reiser4_aid *raid, u32 fact_bits);
 extern void pack_fsw32(reiser4_aid *raid, char *to, u64 src_off, u64 count);
 extern void unpack_fsw32(reiser4_aid *raid, char *from, u64 dst_off, u64 count);
 

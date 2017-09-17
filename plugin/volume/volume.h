@@ -12,6 +12,27 @@
 
 #define METADATA_SUBVOL_ID  (0)
 
+static int is_meta_brick_id(u64 id)
+{
+	return id == METADATA_SUBVOL_ID;
+}
+
+static int is_meta_brick(reiser4_subvol *this)
+{
+	return this == get_meta_subvol();
+}
+
+static int is_data_brick(reiser4_subvol *this)
+{
+	u64 orig_id, mirr_id;
+
+	for (orig_id = 1; orig_id < current_num_origins(); orig_id ++)
+		for_each_mirror(orig_id, mirr_id)
+			if (this == current_origin(mirr_id))
+				return 1;
+	return 0;
+}
+
 /*
  * Returns true, if meta-data subvolume participates in AID.
  * Otherwise, returns false

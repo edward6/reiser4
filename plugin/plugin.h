@@ -578,11 +578,11 @@ struct dist_volume_ops {
 	/* is called at the end of any volume operation */
 	void (*done)(reiser4_aid *raid);
 	/* increase capacity of a storage array */
-	int (*expand)(reiser4_aid *raid, u64 target_pos, int new);
+	int (*inc)(reiser4_aid *raid, u64 target_pos, int new);
 	/* decrease capacity of a storage array */
-	int (*shrink)(reiser4_aid *raid, u64 target_pos, void *victim);
+	int (*dec)(reiser4_aid *raid, u64 target_pos, void *victim);
 	/* increase maximal capacity of a storage array */
-	int (*split)(reiser4_aid *raid, u32 fact_bits);
+	int (*spl)(reiser4_aid *raid, u32 fact_bits);
 	/* pack system information to a set of blocks */
 	void (*pack)(reiser4_aid *raid, char *to, u64 src_off, u64 count);
 	/* extract system information from a set of blocks */
@@ -601,7 +601,7 @@ typedef struct volume_plugin {
 	/* generic fields */
 	plugin_header h;
 
-	/* Return ID of mata-data subvolume */
+	/* Return ID of meta-data subvolume */
 	u64 (*meta_subvol_id)(void);
 	/* Calculate ID of data subvolume */
 	u64 (*data_subvol_id_calc)(oid_t oid, loff_t data_offset_in_bytes);
@@ -620,14 +620,14 @@ typedef struct volume_plugin {
 	void (*done)(reiser4_subvol *subv);
 	/* Init LV after loading LV system info from all subvolumes */
 	int (*init)(reiser4_volume *vol);
-	/* Increase capacity of a volume. Insert, or expand
-	   a subvolume at the position @pos in the array of subvolumes */
-	int (*expand)(reiser4_volume *vol, u64 pos, u64 delta,
-		      reiser4_subvol *new);
-	/* Decrease capacity of a volume. Remove, or shrink
-	   a subvolume at the position @pos in the array of subvolumes */
-	int (*shrink)(reiser4_volume *vol, u64 pos, u64 delta,
-		      int remove);
+	/* Expand brick with internal ID @id */
+	int (*expand)(reiser4_volume *vol, u64 id, u64 delta);
+	/* Add a @new brick to LV */
+	int (*add)(reiser4_volume *vol, reiser4_subvol *new);
+	/* Shrink brick with internal ID @id */
+	int (*shrink)(reiser4_volume *vol, u64 id, u64 delta);
+	/* Remove a brick with internal ID @id from LV */
+	int (*remove)(reiser4_volume *vol, u64 id);
 	/* Online balancing of a logical volume specified by @super.
 	 * This procedure is supposed to complete any volume operations
 	 * above. If it returns 0, then the volume is fully balanced.

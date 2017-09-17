@@ -39,9 +39,9 @@ distribution_plugin distribution_plugins[LAST_DISTRIB_ID] = {
 		.v = {
 			.init = NULL,
 			.done = NULL,
-			.expand = NULL,
-			.shrink = NULL,
-			.split = NULL,
+			.inc = NULL,
+			.dec = NULL,
+			.spl = NULL,
 			.pack = NULL,
 			.unpack = NULL
 		},
@@ -64,9 +64,9 @@ distribution_plugin distribution_plugins[LAST_DISTRIB_ID] = {
 		.v = {
 			.init = initv_fsw32,
 			.done = donev_fsw32,
-			.expand = expand_fsw32,
-			.shrink = shrink_fsw32,
-			.split = split_fsw32,
+			.inc = inc_fsw32,
+			.dec = dec_fsw32,
+			.spl = spl_fsw32,
 			.pack = pack_fsw32,
 			.unpack = unpack_fsw32
 		}
