@@ -498,8 +498,8 @@ int try_init_format40(struct super_block *super,
 	 * on that subvolume
 	 */
 	subv->volmap_loc = get_format40_volinfo_loc(sb_format);
-	if (vol->vol_plug->load)
-		result = vol->vol_plug->load(subv);
+	if (vol->vol_plug->load_volume)
+		result = vol->vol_plug->load_volume(subv);
 	kfree(sb_format);
 	if (result)
 		return result;
@@ -527,7 +527,8 @@ int init_format_format40(struct super_block *s, reiser4_subvol *subv)
 		assert("nikita-3458", result == 0);
 		break;
 	case INIT_SYSTAB:
-		vol->vol_plug->done(subv);
+		if (vol->vol_plug->done_volume)
+			vol->vol_plug->done_volume(subv);
 	case INIT_JNODE:
 		put_sb_format_jnode(subv);
 	case INIT_SA:
@@ -621,8 +622,8 @@ int release_format40(struct super_block *s, reiser4_subvol *subv)
 		all_grabbed2free();
 	}
 	sa_destroy_allocator(&subv->space_allocator, s, subv);
-	if (vol->vol_plug->done)
-		vol->vol_plug->done(subv);
+	if (vol->vol_plug->done_volume)
+		vol->vol_plug->done_volume(subv);
 	reiser4_done_journal_info(subv);
 	put_sb_format_jnode(subv);
 

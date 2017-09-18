@@ -41,7 +41,7 @@ struct volmap {
 	struct voltab_entry entries [0];
 }PACKED;
 
-static int balance_asym(struct super_block *sb);
+static int balance_volume_asym(struct super_block *sb);
 
 static reiser4_block_nr get_next_volmap(struct volmap *volmap)
 {
@@ -682,7 +682,7 @@ static int add_brick(reiser4_volume *vol, reiser4_subvol *this)
  * Increase capacity of a specified brick
  * @id: internal ID of the brick
  */
-static int expand_asym(reiser4_volume *vol, u64 id, u64 delta)
+static int expand_brick_asym(reiser4_volume *vol, u64 id, u64 delta)
 {
 	int ret;
 	reiser4_aid *raid = &vol->aid;
@@ -707,7 +707,7 @@ static int expand_asym(reiser4_volume *vol, u64 id, u64 delta)
 	ret = capture_volume_info(vol);
 	if (ret)
 		goto out;
-	ret = balance_asym(sb);
+	ret = balance_volume_asym(sb);
  out:
 	dist_plug->v.done(raid);
 	return ret;
@@ -717,7 +717,7 @@ static int expand_asym(reiser4_volume *vol, u64 id, u64 delta)
  * Add a specified brick to a volume
  * @new: brick to add
  */
-static int add_asym(reiser4_volume *vol, reiser4_subvol *new)
+static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 {
 	int ret;
 	reiser4_aid *raid = &vol->aid;
@@ -743,7 +743,7 @@ static int add_asym(reiser4_volume *vol, reiser4_subvol *new)
 	ret = capture_volume_info(vol);
 	if (ret)
 		goto out;
-	ret = balance_asym(sb);
+	ret = balance_volume_asym(sb);
  out:
 	dist_plug->v.done(raid);
 	return ret;
@@ -943,18 +943,18 @@ static int remove_or_shrink_brick(reiser4_volume *vol, u64 id, u64 delta)
 	ret = capture_volume_info(vol);
 	if (ret)
 		goto out;
-	ret = balance_asym(sb);
+	ret = balance_volume_asym(sb);
  out:
 	dist_plug->v.done(&vol->aid);
 	return ret;
 }
 
-static int remove_asym(reiser4_volume *vol, u64 id)
+static int remove_brick_asym(reiser4_volume *vol, u64 id)
 {
 	return remove_or_shrink_brick(vol, id, 0);
 }
 
-static int shrink_asym(reiser4_volume *vol, u64 id, u64 delta)
+static int shrink_brick_asym(reiser4_volume *vol, u64 id, u64 delta)
 {
 	return remove_or_shrink_brick(vol, id, delta);
 }
@@ -974,27 +974,27 @@ static u64 data_subvol_id_find_simple(reiser4_key *key)
 	return METADATA_SUBVOL_ID;
 }
 
-static int shrink_simple(reiser4_volume *vol, u64 id, u64 delta)
+static int shrink_brick_simple(reiser4_volume *vol, u64 id, u64 delta)
 {
 	return -EINVAL;
 }
 
-static int remove_simple(reiser4_volume *vol, u64 id)
+static int remove_brick_simple(reiser4_volume *vol, u64 id)
 {
 	return -EINVAL;
 }
 
-static int expand_simple(reiser4_volume *vol, u64 id, u64 delta)
+static int expand_brick_simple(reiser4_volume *vol, u64 id, u64 delta)
 {
 	return -EINVAL;
 }
 
-static int add_simple(reiser4_volume *vol, reiser4_subvol *new)
+static int add_brick_simple(reiser4_volume *vol, reiser4_subvol *new)
 {
 	return -EINVAL;
 }
 
-static int balance_simple(struct super_block *sb)
+static int balance_volume_simple(struct super_block *sb)
 {
 	return -EINVAL;
 }
@@ -1132,7 +1132,7 @@ static int iter_check_extent_next_file(reiser4_tree *tree, coord_t *coord,
  *
  * FIXME: use hint/seal to not traverse tree every time
  */
-int balance_asym(struct super_block *super)
+int balance_volume_asym(struct super_block *super)
 {
 	int ret;
 	int err = 0;
@@ -1296,14 +1296,14 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		.data_subvol_id_calc = data_subvol_id_calc_simple,
 		.data_subvol_id_find = data_subvol_id_find_simple,
 		.build_body_key = build_body_key_simple,
-		.load = NULL,
-		.done = NULL,
-		.init = NULL,
-		.expand = expand_simple,
-		.add = add_simple,
-		.shrink = shrink_simple,
-		.remove = remove_simple,
-		.balance = balance_simple,
+		.load_volume = NULL,
+		.done_volume = NULL,
+		.init_volume = NULL,
+		.expand_brick = expand_brick_simple,
+		.add_brick = add_brick_simple,
+		.shrink_brick = shrink_brick_simple,
+		.remove_brick = remove_brick_simple,
+		.balance_volume = balance_volume_simple,
 		.aid_ops = {
 			.cap_at = NULL,
 			.fib_of = NULL,
@@ -1325,14 +1325,14 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		.data_subvol_id_calc = data_subvol_id_calc_asym,
 		.data_subvol_id_find = data_subvol_id_find_asym,
 		.build_body_key = build_body_key_asym,
-		.load = load_volume_asym,
-		.done = done_volume_asym,
-		.init = init_volume_asym,
-		.expand = expand_asym,
-		.add = add_asym,
-		.shrink = shrink_asym,
-		.remove = remove_asym,
-		.balance = balance_asym,
+		.load_volume = load_volume_asym,
+		.done_volume = done_volume_asym,
+		.init_volume = init_volume_asym,
+		.expand_brick = expand_brick_asym,
+		.add_brick = add_brick_asym,
+		.shrink_brick = shrink_brick_asym,
+		.remove_brick = remove_brick_asym,
+		.balance_volume = balance_volume_asym,
 		.aid_ops = {
 			.cap_at = cap_at_asym,
 			.fib_of = fib_of_asym,

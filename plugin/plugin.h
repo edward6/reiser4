@@ -614,26 +614,26 @@ typedef struct volume_plugin {
 			      loff_t off, reiser4_key *key);
 	/* Load a system LV info stored in a subvolume @subv.
 	   Normally is called at mount time */
-	int (*load)(reiser4_subvol *subv);
+	int (*load_volume)(reiser4_subvol *subv);
 	/* Release LV system info associated with a subvolume @subv.
 	   Normally is called at umount time */
-	void (*done)(reiser4_subvol *subv);
+	void (*done_volume)(reiser4_subvol *subv);
 	/* Init LV after loading LV system info from all subvolumes */
-	int (*init)(reiser4_volume *vol);
+	int (*init_volume)(reiser4_volume *vol);
 	/* Expand brick with internal ID @id */
-	int (*expand)(reiser4_volume *vol, u64 id, u64 delta);
+	int (*expand_brick)(reiser4_volume *vol, u64 id, u64 delta);
 	/* Add a @new brick to LV */
-	int (*add)(reiser4_volume *vol, reiser4_subvol *new);
+	int (*add_brick)(reiser4_volume *vol, reiser4_subvol *new);
 	/* Shrink brick with internal ID @id */
-	int (*shrink)(reiser4_volume *vol, u64 id, u64 delta);
+	int (*shrink_brick)(reiser4_volume *vol, u64 id, u64 delta);
 	/* Remove a brick with internal ID @id from LV */
-	int (*remove)(reiser4_volume *vol, u64 id);
+	int (*remove_brick)(reiser4_volume *vol, u64 id);
 	/* Online balancing of a logical volume specified by @super.
 	 * This procedure is supposed to complete any volume operations
 	 * above. If it returns 0, then the volume is fully balanced.
 	 * Otherwise, the procedure should be repeated in some context.
 	 */
-	int (*balance)(struct super_block *super);
+	int (*balance_volume)(struct super_block *super);
 	struct reiser4_aid_ops aid_ops;
 } volume_plugin;
 

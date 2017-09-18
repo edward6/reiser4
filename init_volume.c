@@ -631,8 +631,8 @@ int reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 	 */
 	vol = get_super_private(super)->vol;
 
-	if (vol->vol_plug->init != NULL) {
-		ret = vol->vol_plug->init(vol);
+	if (vol->vol_plug->init_volume != NULL) {
+		ret = vol->vol_plug->init_volume(vol);
 		if (ret) {
 			warning("edward-1770",
 				"(%s): failed to init logical volume (%d)\n",

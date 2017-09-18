@@ -58,17 +58,17 @@ static int reiser4_print_brick(struct super_block *sb,
 static int reiser4_expand_brick(struct super_block *sb,
 				struct reiser4_vol_op_args *args)
 {
-	return super_volume(sb)->vol_plug->expand(super_volume(sb),
-						  args->brick_id,
-						  args->delta);
+	return super_volume(sb)->vol_plug->expand_brick(super_volume(sb),
+							args->brick_id,
+							args->delta);
 }
 
 static int reiser4_shrink_brick(struct super_block *sb,
 				struct reiser4_vol_op_args *args)
 {
-	return super_volume(sb)->vol_plug->shrink(super_volume(sb),
-						  args->brick_id,
-						  args->delta);
+	return super_volume(sb)->vol_plug->shrink_brick(super_volume(sb),
+							args->brick_id,
+							args->delta);
 }
 
 static int reiser4_add_brick(struct super_block *sb,
@@ -93,7 +93,7 @@ static int reiser4_add_brick(struct super_block *sb,
 	/*
 	 * add activated brick
 	 */
-	ret = super_volume(sb)->vol_plug->add(super_volume(sb), new);
+	ret = super_volume(sb)->vol_plug->add_brick(super_volume(sb), new);
 	if (ret)
 		reiser4_deactivate_subvol(sb, new);
 	return ret;
@@ -102,13 +102,13 @@ static int reiser4_add_brick(struct super_block *sb,
 static int reiser4_remove_brick(struct super_block *sb,
 				struct reiser4_vol_op_args *args)
 {
-	return super_volume(sb)->vol_plug->remove(super_volume(sb),
-						  args->brick_id);
+	return super_volume(sb)->vol_plug->remove_brick(super_volume(sb),
+							args->brick_id);
 }
 
 static int reiser4_balance_volume(struct super_block *sb)
 {
-	return super_volume(sb)->vol_plug->balance(sb);
+	return super_volume(sb)->vol_plug->balance_volume(sb);
 }
 
 int reiser4_volume_op(struct super_block *sb, struct reiser4_vol_op_args *args)
