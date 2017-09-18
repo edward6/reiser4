@@ -216,7 +216,7 @@ static int replace(struct inode *inode, struct page **pages, unsigned nr_pages, 
 static int reserve_tail2extent_iteration(struct inode *inode, loff_t offset)
 {
 	int ret;
-	reiser4_subvol *subv_d = get_data_subvol(inode, offset);
+	reiser4_subvol *subv_d = calc_data_subvol(inode, offset);
 	reiser4_subvol *subv_m = get_meta_subvol();
 	reiser4_tree *tree_m = &subv_m->tree;
 	/*

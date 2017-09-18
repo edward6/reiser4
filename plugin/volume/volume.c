@@ -1052,13 +1052,17 @@ reiser4_subvol *get_meta_subvol(void)
 	return current_origin(current_vol_plug()->meta_subvol_id());
 }
 
-reiser4_subvol *get_data_subvol(const struct inode *inode, loff_t offset)
+/**
+ * calculate data subvolume ID by @inode and @offset,
+ * calling volume plugin
+ */
+reiser4_subvol *calc_data_subvol(const struct inode *inode, loff_t offset)
 {
 	return current_origin(current_vol_plug()->
 			     data_subvol_id_calc(get_inode_oid(inode), offset));
 }
 
-reiser4_subvol *subvol_by_extent(const coord_t *coord)
+reiser4_subvol *find_data_subvol_by_extent(const coord_t *coord)
 {
 	reiser4_key key;
 	volume_plugin *vol_plug = current_vol_plug();
@@ -1067,10 +1071,15 @@ reiser4_subvol *subvol_by_extent(const coord_t *coord)
 	return current_origin(vol_plug->data_subvol_id_find(&key));
 }
 
-reiser4_subvol *subvol_by_coord(const coord_t *coord)
+/**
+ * find cached value of subvolume ID, which was calculated
+ * earlier by volume plugin and stored somewhere (as key's
+ * component e.g.)
+ */
+reiser4_subvol *find_data_subvol(const coord_t *coord)
 {
 	if (item_is_extent(coord))
-		return subvol_by_extent(coord);
+		return find_data_subvol_by_extent(coord);
 	else if (item_is_internal(coord))
 		return get_meta_subvol();
 	else

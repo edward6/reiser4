@@ -145,7 +145,10 @@ struct jnode {
 	 */
 	/*   40 */ void *data;
 
-	/* Subvolume, where IO is going to/from */
+	/* Subvolume, where IO is going to/from is set
+	   for metadata pages: by do_jget()
+	   for data pages: by item plugin managing file's body
+	*/
 	/*   44 */ struct reiser4_subvol *subvol;
 
 	/* FOURTH CACHE LINE: atom related fields */
@@ -353,7 +356,7 @@ extern jnode *jlookup(reiser4_tree * tree,
 		      oid_t objectid, unsigned long ind) NONNULL;
 extern jnode *jfind(struct address_space *, unsigned long index) NONNULL;
 extern jnode *jnode_by_page(struct page *pg) NONNULL;
-extern jnode *jnode_of_page(struct page *pg, int for_io) NONNULL;
+extern jnode *jnode_of_page(struct page *pg, int for_data_io) NONNULL;
 void jnode_attach_page(jnode * node, struct page *pg);
 
 void unhash_unformatted_jnode(jnode *);

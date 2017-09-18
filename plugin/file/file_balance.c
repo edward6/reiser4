@@ -41,7 +41,7 @@ static int check_stripe_item(reiser4_tree *tree, coord_t *coord,
 	item_key_by_coord(coord, &key);
 	assert("edward-1893", get_key_offset(&key) == mctx->stripe_off);
 
-	if (subvol_by_coord(coord)->id != mctx->new_subvol_id)
+	if (find_data_subvol(coord)->id != mctx->new_subvol_id)
 		/*
 		 * item should be migrated
 		 */

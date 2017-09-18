@@ -242,12 +242,14 @@ static void check_jnodes(znode *twig, const reiser4_key *key, int count)
  * @jnodes: array of jnodes
  * @count: number of jnodes in the array
  *
- * There is already at least one extent item of file @inode in the tree. Append
- * the last of them with unallocated extent unit of width @count. Assign
- * fake block numbers to jnodes corresponding to the inserted extent.
+ * There is already at least one extent item of file @inode in the tree.
+ * Append the last of them with unallocated extent unit of width @count.
+ * Assign fake block numbers to jnodes corresponding to the inserted extent.
+ * Calculate a subvolume ID where the data stripe should be stored and
+ * set it to jnodes.
  */
-static int append_last_extent(uf_coord_t *uf_coord, const reiser4_key *key,
-			      jnode **jnodes, int count)
+static int append_last_extent(struct inode *inode, uf_coord_t *uf_coord,
+			      const reiser4_key *key, jnode **jnodes, int count)
 {
 	int result;
 	reiser4_extent new_ext;
@@ -259,6 +261,7 @@ static int append_last_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	jnode *node;
 	int i;
 	int new_stripe = 0;
+	reiser4_subvol *subv;
 
 	coord = &uf_coord->coord;
 	ext_coord = &uf_coord->extension.extent;
@@ -345,6 +348,8 @@ static int append_last_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	 * assign fake block numbers to all jnodes. FIXME: make sure whether
 	 * twig node containing inserted extent item is locked
 	 */
+	subv = calc_data_subvol(inode, get_key_offset(key));
+
 	for (i = 0; i < count; i ++) {
 		node = jnodes[i];
 		block = fake_blocknr_unformatted(1, node->subvol);
@@ -407,7 +412,8 @@ static int insert_first_hole(coord_t *coord, lock_handle *lh,
  * There are no items of file @inode in the tree yet. Insert unallocated extent
  * of width @count into tree or hole extent if writing not to the
  * beginning. Assign fake block numbers to jnodes corresponding to the inserted
- * unallocated extent. Returns number of jnodes or error code.
+ * unallocated extent. Calculate a subvolume ID where the data stripe should be
+ * stored and set it to jnodes. Returns number of jnodes or error code.
  */
 static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 			       jnode **jnodes, int count,
@@ -420,7 +426,7 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	reiser4_block_nr block;
 	struct unix_file_info *uf_info;
 	jnode *node;
-	reiser4_subvol *subv = get_data_subvol(inode, get_key_offset(key));
+	reiser4_subvol *subv;
 
 	/* first extent insertion starts at leaf level */
 	assert("vs-719", znode_get_level(uf_coord->coord.node) == LEAF_LEVEL);
@@ -476,11 +482,15 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	/*
 	 * assign fake block numbers to all jnodes, capture and mark them dirty
 	 */
+	subv = calc_data_subvol(inode, get_key_offset(key));
+
 	block = fake_blocknr_unformatted(count, subv);
 	for (i = 0; i < count; i ++, block ++) {
 		node = jnodes[i];
 		spin_lock_jnode(node);
 		JF_SET(node, JNODE_CREATED);
+		assert("edward-1934", node->subvol == NULL);
+		node->subvol = subv;
 		jnode_set_block(node, &block);
  		result = reiser4_try_capture(node, ZNODE_WRITE_LOCK, 0);
 		BUG_ON(result != 0);
@@ -666,7 +676,7 @@ static int overwrite_one_block(struct inode *inode, uf_coord_t *uf_coord,
 	reiser4_subvol *subv = node->subvol;
 
 	assert("edward-1784",
-	       subv == get_data_subvol(inode, get_key_offset(key)));
+	       subv == calc_data_subvol(inode, get_key_offset(key)));
 	assert("vs-1312", uf_coord->coord.between == AT_UNIT);
 
 	result = 0;
@@ -739,10 +749,8 @@ static int move_coord(uf_coord_t *uf_coord)
 }
 
 /**
- * overwrite_extent -
- * @inode:
- *
- * Returns number of handled jnodes.
+ * Find cached value of subvolume ID as a component of the item's key
+ * and set it to jnodes. Returns number of handled jnodes.
  */
 static int overwrite_extent(struct inode *inode, uf_coord_t *uf_coord,
 			    const reiser4_key *key, jnode **jnodes,
@@ -752,6 +760,10 @@ static int overwrite_extent(struct inode *inode, uf_coord_t *uf_coord,
 	reiser4_key k;
 	int i;
 	jnode *node;
+	reiser4_subvol *subv = find_data_subvol(&uf_coord->coord);
+
+	assert("edward-1935",
+	       subv == calc_data_subvol(inode, get_key_offset(key)));
 
 	k = *key;
 	for (i = 0; i < count; i ++) {
@@ -772,6 +784,9 @@ static int overwrite_extent(struct inode *inode, uf_coord_t *uf_coord,
 		 * them dirty
 		 */
 		spin_lock_jnode(node);
+		assert("edward-1936",
+		       ergo(node->subvol != NULL, node->subvol == subv));
+		node->subvol = subv;
 		result = reiser4_try_capture(node, ZNODE_WRITE_LOCK, 0);
 		BUG_ON(result != 0);
 		jnode_make_dirty_locked(node);
@@ -793,7 +808,6 @@ static int overwrite_extent(struct inode *inode, uf_coord_t *uf_coord,
 		}
 		set_key_offset(&k, get_key_offset(&k) + PAGE_SIZE);
 	}
-
 	return count;
 }
 
@@ -839,7 +853,7 @@ int reiser4_update_extent(struct inode *inode, jnode *node, loff_t pos,
 		 */
 		init_coord_extension_extent(&uf_coord,
 					    get_key_offset(&key));
-		result = append_last_extent(&uf_coord, &key,
+		result = append_last_extent(inode, &uf_coord, &key,
 					    &node, 1);
 	} else if (coord->between == AT_UNIT) {
 		/*
@@ -913,9 +927,9 @@ static int update_extents(struct file *file, struct inode *inode,
 			if (hint.ext_coord.valid == 0)
 				/* NOTE: get statistics on this */
 				init_coord_extension_extent(&hint.ext_coord,
-							    get_key_offset(&key));
-			result = append_last_extent(&hint.ext_coord, &key,
-						    jnodes, count);
+							  get_key_offset(&key));
+			result = append_last_extent(inode, &hint.ext_coord,
+						    &key, jnodes, count);
 		} else if (hint.ext_coord.coord.between == AT_UNIT) {
 			/*
 			 * overwrite
@@ -973,7 +987,7 @@ static int reserve_write_extent(struct inode *inode, loff_t offset)
 	int ret;
 	reiser4_subvol *subv_m = get_meta_subvol();
 	reiser4_tree *tree_m = &subv_m->tree;
-	reiser4_subvol *subv_d = get_data_subvol(inode, offset);
+	reiser4_subvol *subv_d = calc_data_subvol(inode, offset);
 	/*
 	 * to write WRITE_GRANULARITY pages to a file by extents we have to
 	 * reserve disk space for:
@@ -1081,7 +1095,7 @@ ssize_t reiser4_write_extent(struct file *file, struct inode * inode,
 			goto out;
 		}
 
-		jnodes[i] = jnode_of_page(page, 1 /* for IO */);
+		jnodes[i] = jnode_of_page(page, 1 /* for data IO */);
 		if (IS_ERR(jnodes[i])) {
 			unlock_page(page);
 			put_page(page);
@@ -1228,7 +1242,7 @@ int reiser4_do_readpage_extent(reiser4_extent * ext, reiser4_block_nr pos,
 		break;
 
 	case ALLOCATED_EXTENT:
-		j = jnode_of_page(page, 1 /* for IO */);
+		j = jnode_of_page(page, 1 /* for data IO */);
 		if (IS_ERR(j))
 			return PTR_ERR(j);
 		if (*jnode_get_block(j) == 0) {

@@ -325,7 +325,7 @@ int kill_hook_extent(const coord_t *coord, pos_in_node_t from,
 	assert("nikita-3315", kdata != NULL);
 	assert("vs-34", kdata->buf != NULL);
 
-	subv = subvol_by_coord(coord);
+	subv = find_data_subvol(coord);
 	tree = &subv->tree;
 
 	/* map structures to kdata->buf */
@@ -480,8 +480,10 @@ int kill_hook_extent(const coord_t *coord, pos_in_node_t from,
 			/*
 			 * some jnodes corresponding to this unallocated extent
 			 */
-			fake_allocated2free(length, 0 /* unformatted */,
-					    get_data_subvol(inode, offset));
+			assert("edward-1937",
+			       subv == calc_data_subvol(inode, offset));
+
+			fake_allocated2free(length, 0 /* unformatted */, subv);
 			skip = 0;
 			offset += length;
 			ext++;
@@ -496,10 +498,13 @@ int kill_hook_extent(const coord_t *coord, pos_in_node_t from,
 			 * BA_DEFER bit parameter is turned on because blocks
 			 * which get freed are not safe to be freed immediately
 			 */
+			assert("edward-1938",
+			       subv == calc_data_subvol(inode, offset));
+
 			reiser4_dealloc_blocks(&start, &length,
 					       0, /* not used */
 					       BA_DEFER, /* unformatted with defer */
-					       get_data_subvol(inode, offset));
+					       subv);
 		}
 		skip = 0;
 		offset += length;

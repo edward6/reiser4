@@ -45,7 +45,7 @@ int utmost_child_extent(const coord_t * coord, sideof side, jnode ** childp)
 
 	assert("edward-1851", item_is_extent(coord));
 
-	data_subv = subvol_by_coord(coord);
+	data_subv = find_data_subvol(coord);
 	ext = extent_utmost_ext(coord, side, &pos_in_unit);
 
 	switch (state_of_extent(ext)) {
@@ -161,7 +161,7 @@ int reiser4_scan_extent(flush_scan * scan)
 	scan_index = index_jnode(scan->node);
 
 	assert("jmacd-7889", item_is_extent(&coord));
-	assert("edward-1870", scan->data_subv == subvol_by_coord(&coord));
+	assert("edward-1870", scan->data_subv == find_data_subvol(&coord));
  repeat:
 	oid = get_key_objectid(item_key_by_coord(&coord, &key));
 

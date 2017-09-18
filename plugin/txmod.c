@@ -226,7 +226,8 @@ static int forward_relocate_unformatted(flush_pos_t *flush_pos,
 	start = extent_get_start(ext);
 
 	assert("edward-1852", item_is_extent(coord));
-	assert("edward-1853", flush_pos->data_subv == subvol_by_coord(coord));
+	assert("edward-1853",
+	       flush_pos->data_subv == find_data_subvol(coord));
 
 	if (flush_pos->pos_in_unit) {
 		/*
@@ -342,7 +343,8 @@ static squeeze_result squeeze_relocate_unformatted(znode *left,
 	oid = get_key_objectid(key);
 
 	assert("edward-1613", state != HOLE_EXTENT);
-	assert("edward-1854", flush_pos->data_subv == subvol_by_coord(coord));
+	assert("edward-1854",
+	       flush_pos->data_subv == find_data_subvol(coord));
 
 	if (state == ALLOCATED_EXTENT) {
 		/*
@@ -483,7 +485,8 @@ static squeeze_result squeeze_overwrite_unformatted(znode *left,
 	assert("vs-1457", flush_pos->pos_in_unit == 0);
 	assert("vs-1467", coord_is_leftmost_unit(coord));
 	assert("vs-1467", item_is_extent(coord));
-	assert("edward-1855", flush_pos->data_subv == subvol_by_coord(coord));
+	assert("edward-1855",
+	       flush_pos->data_subv == find_data_subvol(coord));
 
 	ext = extent_by_coord(coord);
 	index = extent_unit_index(coord);
@@ -878,7 +881,7 @@ static int forward_alloc_unformatted_hybrid(flush_pos_t *flush_pos)
 	assert("vs-1469", coord_is_existing_unit(&flush_pos->coord) &&
 	       item_is_extent(&flush_pos->coord));
 	assert("edward-1856",
-	       flush_pos->data_subv == subvol_by_coord(&flush_pos->coord));
+	       flush_pos->data_subv == find_data_subvol(&flush_pos->coord));
 
 	coord = &flush_pos->coord;
 	ext = extent_by_coord(coord);
@@ -1002,7 +1005,8 @@ static int forward_alloc_unformatted_journal(flush_pos_t *flush_pos)
 	assert("edward-1617", flush_pos->state == POS_ON_EPOINT);
 	assert("edward-1618", coord_is_existing_unit(&flush_pos->coord)
 	       && item_is_extent(&flush_pos->coord));
-	assert("edward-1857", flush_pos->data_subv == subvol_by_coord(coord));
+	assert("edward-1857",
+	       flush_pos->data_subv == find_data_subvol(coord));
 
 	ext = extent_by_coord(coord);
 	state = state_of_extent(ext);

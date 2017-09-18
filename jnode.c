@@ -636,20 +636,21 @@ static jnode *do_jget(struct reiser4_subvol *subvol, struct page *pg)
 
 /**
  * return jnode for @pg, creating it if necessary.
- * @for_io: true, if jnode is supposed to participate in IO;
- * false otherwise - in this case jnode is only to participate
- * in transaction.
+ *
+ * @for_data_io: true, if jnode is to be bound with a data page and
+ * to participate in IO;
  */
-jnode *jnode_of_page(struct page *pg, int for_io)
+jnode *jnode_of_page(struct page *pg, int for_data_io)
 {
 	jnode *result;
 	reiser4_subvol *subv;
 
 	assert("nikita-2394", PageLocked(pg));
 
-	if (for_io)
-		subv = get_data_subvol(pg->mapping->host,
-				       (loff_t)(pg->index) << PAGE_SHIFT);
+	if (for_data_io)
+		subv = NULL; /* data subvolume will be set later by the
+				item plugin, see insert_first_extent(),
+				append_last_extent(), overwrite_extent(); */
 	else
 		subv = get_meta_subvol();
 

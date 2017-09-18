@@ -343,7 +343,7 @@ static int reserve_partial_page(struct inode *inode, pgoff_t index)
 {
 	int ret;
 	reiser4_subvol *subv_m = get_meta_subvol();
-	reiser4_subvol *subv_d = get_data_subvol(inode,
+	reiser4_subvol *subv_d = calc_data_subvol(inode,
 						 index << PAGE_SHIFT);
 	grab_space_enable();
 	ret = reiser4_grab_reserved(reiser4_get_current_sb(),
@@ -822,7 +822,7 @@ int find_or_create_extent(struct page *page)
 	inode = page->mapping->host;
 
 	lock_page(page);
-	node = jnode_of_page(page, 1 /* for IO */);
+	node = jnode_of_page(page, 1 /* for data IO */);
 	if (IS_ERR(node)) {
 		unlock_page(page);
 		return PTR_ERR(node);
@@ -1632,7 +1632,7 @@ static int readpages_filler(void * data, struct page * page)
 		}
 		goto repeat;
 	}
-	node = jnode_of_page(page, 1 /* for IO */);
+	node = jnode_of_page(page, 1 /* for data IO */);
 	if (unlikely(IS_ERR(node))) {
 		zrelse(rc->coord.node);
 		ret = PTR_ERR(node);
@@ -2762,8 +2762,8 @@ static int reserve_write_begin_unix_file(const struct inode *inode,
 {
 	int ret;
 	reiser4_subvol *subv_m = get_meta_subvol();
-	reiser4_subvol *subv_d = get_data_subvol(inode,
-						 index << PAGE_SHIFT);
+	reiser4_subvol *subv_d = calc_data_subvol(inode,
+						  index << PAGE_SHIFT);
 	grab_space_enable();
 	ret = reiser4_grab_space(1, BA_CAN_COMMIT, subv_d);
 	if (ret)

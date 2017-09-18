@@ -535,7 +535,7 @@ static int delete_empty_node(znode * node)
 static void set_data_subvol_ifnull(flush_pos_t *pos, const coord_t *coord)
 {
 	if (pos->data_subv == NULL)
-		pos->data_subv = subvol_by_coord(coord);
+		pos->data_subv = find_data_subvol(coord);
 }
 
 /* Prepare flush position for alloc_pos_and_ancestors() and squalloc() */
@@ -1433,7 +1433,7 @@ static void set_data_preceder(flush_pos_t *pos,
 	       ergo(pos->data_subv == NULL, !item_is_extent(parent_of_curr)));
 
 	set_data_subvol_ifnull(pos, parent_of_prec);
-	if (pos->data_subv != subvol_by_coord(parent_of_prec))
+	if (pos->data_subv != find_data_subvol(parent_of_prec))
 		/*
 		 * previous extent points to different subvolume,
 		 * there is no preceder
@@ -1649,7 +1649,7 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t *pos)
 		 */
 		set_data_subvol_ifnull(pos, &coord);
 
-		if (pos->data_subv != subvol_by_coord(&coord)) {
+		if (pos->data_subv != find_data_subvol(&coord)) {
 			ret = -E_OUTSTEP;
 			pos_stop(pos);
 			goto out;
@@ -2383,7 +2383,8 @@ static int handle_pos_on_twig(flush_pos_t *pos)
 
 	assert("zam-844", pos->state == POS_ON_EPOINT);
 	assert("zam-843", item_is_extent(&pos->coord));
-	assert("edward-1849", pos->data_subv == subvol_by_coord(&pos->coord));
+	assert("edward-1849",
+	       pos->data_subv == find_data_subvol(&pos->coord));
 
 	txmod_plug = get_txmod_plugin(pos->data_subv);
 
@@ -2464,7 +2465,7 @@ static int handle_pos_end_of_twig(flush_pos_t *pos)
 
 	if (!node_is_empty(right_lock.node) && item_is_extent(&at_right)) {
 		set_data_subvol_ifnull(pos, &at_right);
-		if (pos->data_subv != subvol_by_coord(&at_right)) {
+		if (pos->data_subv != find_data_subvol(&at_right)) {
 			/*
 			 * first item of the right neighbor
 			 * points to different data subvolume.
@@ -2657,7 +2658,7 @@ static int handle_pos_to_twig(flush_pos_t *pos)
 		pos->state = POS_END_OF_TWIG;
 	else if (item_is_extent(&pcoord)) {
 		set_data_subvol_ifnull(pos, &pcoord);
-		if (pos->data_subv == subvol_by_coord(&pcoord))
+		if (pos->data_subv == find_data_subvol(&pcoord))
 			pos->state = POS_ON_EPOINT;
 		else {
 			/*
@@ -3761,7 +3762,7 @@ static int scan_by_coord(flush_scan * scan)
 					       sideof_reverse(scan->direction));
 		}
 		if ((scan->data_subv != NULL) &&
-		    (subvol_by_coord(&next_coord) != scan->data_subv)) {
+		    (find_data_subvol(&next_coord) != scan->data_subv)) {
 			/*
 			 * we have jumped to different data subvolume.
 			 * stop scanning here, as we don't handle more

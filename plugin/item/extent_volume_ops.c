@@ -107,7 +107,7 @@ static int migrate_allocated_extent(coord_t *coord, lock_handle *lh,
 	}
 	wait_on_page_writeback(page);
 	lock_page(page);
-	node = jnode_of_page(page, 1 /* for IO */);
+	node = jnode_of_page(page, 1 /* for data IO */);
 	if (IS_ERR(node)) {
 		unlock_page(page);
 		return PTR_ERR(node);
