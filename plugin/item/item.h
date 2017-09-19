@@ -256,6 +256,7 @@ struct file_iops{
 
 
 struct volume_iops{
+	u64 (*find_data_subvol)(const coord_t *);
 	int (*migrate)(coord_t *, lock_handle *, struct inode *, u64);
 };
 

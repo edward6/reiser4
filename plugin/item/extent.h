@@ -151,6 +151,7 @@ int get_block_address_extent(const coord_t *, sector_t block,
 			     sector_t * result);
 
 /* plugin->u.item.s.vol */
+u64 find_data_subvol_extent(const coord_t *coord);
 int reiser4_migrate_extent(coord_t *coord, lock_handle *lh,
 			   struct inode *inode, u64 new_subv_id);
 /* these are used in flush.c

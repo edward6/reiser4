@@ -562,6 +562,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				init_coord_extension_extent
 			},
 			.vol = {
+				.find_data_subvol = find_data_subvol_extent,
 				.migrate = reiser4_migrate_extent
 			}
 		}

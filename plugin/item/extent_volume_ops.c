@@ -12,6 +12,14 @@
 #include "../../page_cache.h"
 #include "../object.h"
 
+u64 find_data_subvol_extent(const coord_t *coord)
+{
+	reiser4_key key;
+
+	item_key_by_coord(coord, &key);
+	return get_key_ordering(&key);
+}
+
 static int filler(void *data, struct page *page)
 {
 	coord_t *coord = data;

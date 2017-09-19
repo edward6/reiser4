@@ -826,10 +826,7 @@ int reiser4_check_extent(const coord_t *coord /* coord of item to check */,
 	item_key_by_coord(coord, &key);
 	oid = get_key_objectid(&key);
 	coord_dup(&scan, coord);
-	/*
-	 * subvolume where the extent blocks are located
-	 */
-	subv = current_origin(current_vol_plug()->data_subvol_id_find(&key));
+	subv = find_data_subvol(coord);
 	blk_cnt = reiser4_subvol_block_count(subv);
 
 	for (i = 0; i < num_units; ++i, ++ext) {

@@ -22,7 +22,7 @@ static int is_meta_brick(reiser4_subvol *this)
 	return this == get_meta_subvol();
 }
 
-static int is_data_brick(reiser4_subvol *this)
+static int is_active_data_brick(reiser4_subvol *this)
 {
 	u64 orig_id, mirr_id;
 

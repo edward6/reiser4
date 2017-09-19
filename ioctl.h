@@ -42,7 +42,8 @@ struct reiser4_volume_stat
 {
 	u8  id[16]; /* unique ID */
 	u64 nr_bricks; /* number of bricks in the array */
-	u16 pid; /* volume plugin ID */
+	u16 vpid; /* volume plugin ID */
+	u16 dpid; /* distribution plugin ID */
 	u64 state; /* unbalanced, etc flags */
 };
 

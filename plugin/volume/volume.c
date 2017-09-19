@@ -557,13 +557,17 @@ static u64 aid_pos_for_resize(reiser4_volume *vol, u64 id)
 }
 
 /**
- * @new: brick to add
+ * Check if a registered brick is already a part of LV
+ * @this: brick to check.
  */
-static int check_brick_for_add(reiser4_volume *vol, reiser4_subvol *new)
+static int check_brick_for_add(reiser4_volume *vol, reiser4_subvol *this)
 {
-	if (is_meta_brick(new) && meta_subvol_is_in_aid())
-		return -EINVAL;
-	if (is_data_brick(new))
+	/*
+	 * attempt to register active brick had to fail
+	 */
+	assert("edward-1940", !is_active_data_brick(this));
+
+	if (is_meta_brick(this) && meta_subvol_is_in_aid())
 		return -EINVAL;
 	return 0;
 }
@@ -598,11 +602,15 @@ static int expand_brick(reiser4_volume *vol, u64 pos, u64 delta)
 }
 
 /*
- * Insert a meta-data subvolume to AID
+ * Add a meta-data subvolume to AID
  */
 static int add_meta_brick(reiser4_volume *vol, reiser4_subvol *new)
 {
 	assert("edward-1820", is_meta_brick(new));
+	/*
+	 * Don't need to activate meta-data brick:
+	 * it is always active.
+	 */
 
 	if (vol->num_origins == 1)
 		/*
@@ -613,7 +621,7 @@ static int add_meta_brick(reiser4_volume *vol, reiser4_subvol *new)
 }
 
 /*
- * Add a data subvolume to LV
+ * Add a resistered data subvolume to LV
  */
 static int add_data_brick(reiser4_volume *vol, reiser4_subvol *this)
 {
@@ -633,15 +641,22 @@ static int add_data_brick(reiser4_volume *vol, reiser4_subvol *this)
 		return -EINVAL;
 	}
 	/*
-	 * Currently we insert a new data brick at the very end.
+	 * activate new data brick
+	 */
+	ret = reiser4_activate_subvol(reiser4_get_current_sb(), this);
+	if (ret)
+		return ret;
+	/*
+	 * Insert a new data brick at the very end.
 	 */
 	pos_in_vol = old_num_subvols;
 	pos_in_aid = aid_pos_for_add(vol, this);
 
 	new = reiser4_vmalloc(sizeof(reiser4_subvol) * (1 + old_num_subvols));
-	if (!new)
+	if (!new) {
+		reiser4_deactivate_subvol(reiser4_get_current_sb(), this);
 		return -ENOMEM;
-
+	}
 	memcpy(new, old, sizeof(*new) * pos_in_vol);
 	new[pos_in_vol][0] = this;
 	memcpy(new + pos_in_vol + 1, old + pos_in_vol,
@@ -655,6 +670,7 @@ static int add_data_brick(reiser4_volume *vol, reiser4_subvol *this)
 		vol->subvols = old;
 		vol->num_origins --;
 		kfree(new);
+		reiser4_deactivate_subvol(reiser4_get_current_sb(), this);
 		return ret;
 	}
 	kfree(old);
@@ -687,7 +703,6 @@ static int expand_brick_asym(reiser4_volume *vol, u64 id, u64 delta)
 	int ret;
 	reiser4_aid *raid = &vol->aid;
 	distribution_plugin *dist_plug = vol->dist_plug;
-	struct super_block *sb = reiser4_get_current_sb();
 
 	assert("edward-1824", raid != NULL);
 	assert("edward-1825", dist_plug != NULL);
@@ -705,9 +720,6 @@ static int expand_brick_asym(reiser4_volume *vol, u64 id, u64 delta)
 	if (ret)
 		goto out;
 	ret = capture_volume_info(vol);
-	if (ret)
-		goto out;
-	ret = balance_volume_asym(sb);
  out:
 	dist_plug->v.done(raid);
 	return ret;
@@ -722,7 +734,6 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	int ret;
 	reiser4_aid *raid = &vol->aid;
 	distribution_plugin *dist_plug = vol->dist_plug;
-	struct super_block *sb = reiser4_get_current_sb();
 
 	assert("edward-1930", raid != NULL);
 	assert("edward-1931", dist_plug != NULL);
@@ -741,9 +752,6 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	if (ret)
 		goto out;
 	ret = capture_volume_info(vol);
-	if (ret)
-		goto out;
-	ret = balance_volume_asym(sb);
  out:
 	dist_plug->v.done(raid);
 	return ret;
@@ -787,6 +795,10 @@ static int remove_meta_brick(reiser4_volume *vol)
 	mtd_subv->data_room = 0;
 
 	assert("edward-1827", !meta_subvol_is_in_aid());
+	/*
+	 * Mata-data brick remains to be active after
+	 * removal from AID
+	 */
 	return 0;
 }
 
@@ -941,9 +953,6 @@ static int remove_or_shrink_brick(reiser4_volume *vol, u64 id, u64 delta)
 	if (ret)
 		goto out;
 	ret = capture_volume_info(vol);
-	if (ret)
-		goto out;
-	ret = balance_volume_asym(sb);
  out:
 	dist_plug->v.done(&vol->aid);
 	return ret;
@@ -965,11 +974,6 @@ static u64 meta_subvol_id_simple(void)
 }
 
 static u64 data_subvol_id_calc_simple(oid_t oid, loff_t offset)
-{
-	return METADATA_SUBVOL_ID;
-}
-
-static u64 data_subvol_id_find_simple(reiser4_key *key)
 {
 	return METADATA_SUBVOL_ID;
 }
@@ -1042,11 +1046,6 @@ static int build_body_key_asym(struct inode *inode,
 					    key);
 }
 
-static u64 data_subvol_id_find_asym(reiser4_key *key)
-{
-	return get_key_ordering(key);
-}
-
 reiser4_subvol *get_meta_subvol(void)
 {
 	return current_origin(current_vol_plug()->meta_subvol_id());
@@ -1062,15 +1061,6 @@ reiser4_subvol *calc_data_subvol(const struct inode *inode, loff_t offset)
 			     data_subvol_id_calc(get_inode_oid(inode), offset));
 }
 
-reiser4_subvol *find_data_subvol_by_extent(const coord_t *coord)
-{
-	reiser4_key key;
-	volume_plugin *vol_plug = current_vol_plug();
-
-	item_key_by_coord(coord, &key);
-	return current_origin(vol_plug->data_subvol_id_find(&key));
-}
-
 /**
  * find cached value of subvolume ID, which was calculated
  * earlier by volume plugin and stored somewhere (as key's
@@ -1078,12 +1068,12 @@ reiser4_subvol *find_data_subvol_by_extent(const coord_t *coord)
  */
 reiser4_subvol *find_data_subvol(const coord_t *coord)
 {
-	if (item_is_extent(coord))
-		return find_data_subvol_by_extent(coord);
-	else if (item_is_internal(coord))
-		return get_meta_subvol();
-	else
-		return NULL;
+	u64 id;
+
+	assert("edward-1939", item_is_extent(coord));
+
+	id = item_plugin_by_coord(coord)->s.vol.find_data_subvol(coord);
+	return current_origin(id);
 }
 
 /**
@@ -1303,7 +1293,6 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		},
 		.meta_subvol_id = meta_subvol_id_simple,
 		.data_subvol_id_calc = data_subvol_id_calc_simple,
-		.data_subvol_id_find = data_subvol_id_find_simple,
 		.build_body_key = build_body_key_simple,
 		.load_volume = NULL,
 		.done_volume = NULL,
@@ -1332,7 +1321,6 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		},
 		.meta_subvol_id = meta_subvol_id_simple,
 		.data_subvol_id_calc = data_subvol_id_calc_asym,
-		.data_subvol_id_find = data_subvol_id_find_asym,
 		.build_body_key = build_body_key_asym,
 		.load_volume = load_volume_asym,
 		.done_volume = done_volume_asym,
