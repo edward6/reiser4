@@ -17,6 +17,7 @@
 
 typedef enum {
 	FORMAT40_LARGE_KEYS,
+	FORMAT40_UNBALANCED_VOLUME
 } format40_flags;
 
 /* ondisk super block for format 40. It is 512 bytes long */

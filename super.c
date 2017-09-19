@@ -320,6 +320,31 @@ int reiser4_blocknr_is_sane_for(const reiser4_subvol *subv,
 	return *blk < reiser4_subvol_block_count(subv);
 }
 
+int reiser4_volume_is_unbalanced(const struct super_block *sb)
+{
+	assert("edward-1945", sb != NULL);
+	return reiser4_is_set(sb, REISER4_UNBALANCED_VOL);
+}
+
+void reiser4_volume_set_unbalanced(struct super_block *sb)
+{
+	assert("edward-1946", sb != NULL);
+	set_bit(REISER4_UNBALANCED_VOL, &get_super_private(sb)->fs_flags);
+}
+
+int reiser4_volume_test_set_unbalanced(struct super_block *sb)
+{
+	assert("edward-1947", sb != NULL);
+	return test_and_set_bit(REISER4_UNBALANCED_VOL,
+				&get_super_private(sb)->fs_flags);
+}
+
+void reiser4_volume_clear_unbalanced(struct super_block *sb)
+{
+	assert("edward-1948", sb != NULL);
+	clear_bit(REISER4_UNBALANCED_VOL, &get_super_private(sb)->fs_flags);
+}
+
 /* Make Linus happy.
    Local variables:
    c-indentation-style: "K&R"

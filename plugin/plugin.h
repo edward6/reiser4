@@ -631,7 +631,7 @@ typedef struct volume_plugin {
 	 * above. If it returns 0, then the volume is fully balanced.
 	 * Otherwise, the procedure should be repeated in some context.
 	 */
-	int (*balance_volume)(struct super_block *super);
+	int (*balance_volume)(struct super_block *super, int force);
 	struct reiser4_aid_ops aid_ops;
 } volume_plugin;
 

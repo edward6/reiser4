@@ -52,7 +52,9 @@ typedef enum {
 	/* enable issuing of discard requests */
 	REISER4_DISCARD = 8,
 	/* disable hole punching at flush time */
-	REISER4_DONT_PUNCH_HOLES = 9
+	REISER4_DONT_PUNCH_HOLES = 9,
+	/* some volume operation is not completed */
+	REISER4_UNBALANCED_VOL = 10
 } reiser4_fs_flag;
 
 typedef enum {
@@ -313,6 +315,7 @@ struct reiser4_volume {
 	int num_volmaps;
 	jnode **voltab_nodes;
 	int num_voltabs;
+	struct mutex vol_mutex; /* for serializing volume operations */
 	struct list_head subvols_list;  /* list of registered subvolumes */
 	struct reiser4_subvol ***subvols; /* pointer to a table of activated
 					   * subvolumes, where:
@@ -492,6 +495,16 @@ static inline u32 current_num_mirrors(u32 orig_id)
 	return 1 + current_num_replicas(orig_id);
 }
 
+static inline int reiser4_trylock_volume(struct super_block *sb)
+{
+	return mutex_trylock(&super_volume(sb)->vol_mutex);
+}
+
+static inline void reiser4_unlock_volume(struct super_block *sb)
+{
+	mutex_unlock(&super_volume(sb)->vol_mutex);
+}
+
 #define current_stripe_bits (current_volume()->stripe_bits)
 #define current_stripe_size (1 << current_stripe_bits)
 #define current_stripe_blocks \
@@ -640,6 +653,11 @@ extern int reiser4_blocknr_is_sane_for(const reiser4_subvol *subv,
 extern int reiser4_done_super(struct super_block *s);
 extern int reiser4_scan_device(const char *path, fmode_t flags, void *holder,
 			       reiser4_subvol **result);
+extern int reiser4_volume_is_unbalanced(const struct super_block *sb);
+extern void reiser4_volume_set_unbalanced(struct super_block *sb);
+extern int reiser4_volume_test_set_unbalanced(struct super_block *sb);
+extern void reiser4_volume_clear_unbalanced(struct super_block *sb);
+
 
 /* step of fill super */
 extern int reiser4_init_fs_info(struct super_block *);

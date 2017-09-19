@@ -585,6 +585,11 @@ static void pack_format40_super(const struct super_block *s,
 
 		put_unaligned(cpu_to_le32(version), &format_sb->version);
 	}
+	if (reiser4_volume_is_unbalanced(s)) {
+		u64 flags = get_format40_flags(format_sb) |
+			(1 << FORMAT40_UNBALANCED_VOLUME);
+		put_unaligned(cpu_to_le64(flags), &format_sb->flags);
+	}
 }
 
 /**

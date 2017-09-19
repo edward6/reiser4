@@ -46,6 +46,7 @@ static struct reiser4_volume *reiser4_alloc_volume(u8 *uuid,
 	memcpy(vol->uuid, uuid, 16);
 	INIT_LIST_HEAD(&vol->list);
 	INIT_LIST_HEAD(&vol->subvols_list);
+	mutex_init(&vol->vol_mutex);
 	vol->vol_plug = volume_plugin_by_unsafe_id(vol_pid);
 	vol->dist_plug = distribution_plugin_by_unsafe_id(dist_pid);
 	vol->stripe_bits = stripe_bits;

@@ -22,6 +22,7 @@ static int is_meta_brick(reiser4_subvol *this)
 	return this == get_meta_subvol();
 }
 
+#if REISER4_DEBUG
 static int is_active_data_brick(reiser4_subvol *this)
 {
 	u64 orig_id, mirr_id;
@@ -32,6 +33,7 @@ static int is_active_data_brick(reiser4_subvol *this)
 				return 1;
 	return 0;
 }
+#endif
 
 /*
  * Returns true, if meta-data subvolume participates in AID.

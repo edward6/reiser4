@@ -41,7 +41,7 @@ struct volmap {
 	struct voltab_entry entries [0];
 }PACKED;
 
-static int balance_volume_asym(struct super_block *sb);
+static int balance_volume_asym(struct super_block *sb, int force);
 
 static reiser4_block_nr get_next_volmap(struct volmap *volmap)
 {
@@ -531,14 +531,36 @@ static u64 *fib_lenp_at_asym(void *buckets, u64 index)
 }
 
 /**
- * @id: internal ID of brick to resize
+ * Check that brick with ID @id is a part of specified volume @vol.
+ * If so, return 0. Otherwise, return -EINVAL
  */
-static int check_brick_for_resize(reiser4_volume *vol, u64 id)
+static int check_brick_belongs_volume(reiser4_volume *vol, u64 id)
 {
 	if (is_meta_brick_id(id) && !meta_subvol_is_in_aid())
 		return -EINVAL;
 	if (id >= vol->num_origins)
 		return -EINVAL;
+	return 0;
+}
+
+/**
+ * If the brick with @id can be shrinked on @delta, or removed
+ * (if @delta == 0) from the volume @vol, then return 0. Otherwise
+ * return error.
+ */
+static int check_brick_for_shrink_or_remove(reiser4_volume *vol,
+					    u64 id, u64 delta)
+{
+	int ret;
+
+	ret = check_brick_belongs_volume(vol, id);
+	if (ret)
+		return ret;
+	if (!delta && !is_meta_brick_id(id) && num_aid_subvols(vol) == 1) {
+		warning("edward-1941",
+			"Can not remove last data brick");
+		ret = -EINVAL;
+	}
 	return 0;
 }
 
@@ -557,18 +579,26 @@ static u64 aid_pos_for_resize(reiser4_volume *vol, u64 id)
 }
 
 /**
- * Check if a registered brick is already a part of LV
- * @this: brick to check.
+ * Check if registered brick can be added to the volume @vol.
+ * If so, then return 0. Otherwise return error.
  */
 static int check_brick_for_add(reiser4_volume *vol, reiser4_subvol *this)
 {
 	/*
-	 * attempt to register active brick had to fail
+	 * attempt to register active brick had to fail, so
+	 * we don't check data bricks
 	 */
 	assert("edward-1940", !is_active_data_brick(this));
 
-	if (is_meta_brick(this) && meta_subvol_is_in_aid())
+	if (num_aid_subvols(vol) == 0 && !is_meta_brick(this)) {
+		warning("edward-1840",
+			"Can not add data subvolume to empty AID");
 		return -EINVAL;
+	}
+	if (is_meta_brick(this) && meta_subvol_is_in_aid()) {
+		warning("edward-1943", "Brick is already in AID");
+		return -EINVAL;
+	}
 	return 0;
 }
 
@@ -584,16 +614,18 @@ static u64 aid_pos_for_add(reiser4_volume *vol, reiser4_subvol *new)
 	return vol->num_origins - 1;
 }
 
-static int expand_brick(reiser4_volume *vol, u64 pos, u64 delta)
+static int expand_brick(reiser4_volume *vol, u64 pos, u64 delta,
+			int *need_balance)
 {
 	int ret;
 	distribution_plugin *dist_plug = vol->dist_plug;
 
 	current_aid_subvols()[pos][0]->data_room += delta;
 
-	if (num_aid_subvols(vol) == 1)
+	if (num_aid_subvols(vol) == 1) {
+		*need_balance = 0;
 		return 0;
-
+	}
 	ret = dist_plug->v.inc(&vol->aid, pos, 0);
 	if (ret)
 		/* roll back */
@@ -604,7 +636,8 @@ static int expand_brick(reiser4_volume *vol, u64 pos, u64 delta)
 /*
  * Add a meta-data subvolume to AID
  */
-static int add_meta_brick(reiser4_volume *vol, reiser4_subvol *new)
+static int add_meta_brick(reiser4_volume *vol, reiser4_subvol *new,
+			  int *need_balance)
 {
 	assert("edward-1820", is_meta_brick(new));
 	/*
@@ -612,18 +645,21 @@ static int add_meta_brick(reiser4_volume *vol, reiser4_subvol *new)
 	 * it is always active.
 	 */
 
-	if (vol->num_origins == 1)
+	if (vol->num_origins == 1) {
 		/*
 		 *  nothing to do any more
 		 */
+		*need_balance = 0;
 		return 0;
+	}
 	return vol->dist_plug->v.inc(&vol->aid, 0, 1);
 }
 
 /*
  * Add a resistered data subvolume to LV
  */
-static int add_data_brick(reiser4_volume *vol, reiser4_subvol *this)
+static int add_data_brick(reiser4_volume *vol, reiser4_subvol *this,
+			  int *need_balance)
 {
 	int ret;
 	reiser4_aid *raid = &vol->aid;
@@ -634,12 +670,6 @@ static int add_data_brick(reiser4_volume *vol, reiser4_subvol *this)
 	u64 pos_in_aid;
 
 	assert("edward-1929", !is_meta_brick(this));
-
-	if (num_aid_subvols(vol) == 0) {
-		warning("edward-1840",
-			"Can not add data subvolume to empty AID");
-		return -EINVAL;
-	}
 	/*
 	 * activate new data brick
 	 */
@@ -680,17 +710,18 @@ static int add_data_brick(reiser4_volume *vol, reiser4_subvol *this)
 /*
  * Add a new brick to AID
  */
-static int add_brick(reiser4_volume *vol, reiser4_subvol *this)
+static int add_brick(reiser4_volume *vol, reiser4_subvol *this,
+		     int *need_balance)
 {
 	assert("edward-1843", this->data_room == 0);
 
 	if (is_meta_brick(this)) {
 		this->data_room = default_data_room(this);
-		return add_meta_brick(vol, this);
+		return add_meta_brick(vol, this, need_balance);
 	}
 	else {
 		this->data_room = this->block_count;
-		return add_data_brick(vol, this);
+		return add_data_brick(vol, this, need_balance);
 	}
 }
 
@@ -701,27 +732,41 @@ static int add_brick(reiser4_volume *vol, reiser4_subvol *this)
 static int expand_brick_asym(reiser4_volume *vol, u64 id, u64 delta)
 {
 	int ret;
+	int need_balance = 1;
 	reiser4_aid *raid = &vol->aid;
 	distribution_plugin *dist_plug = vol->dist_plug;
+	struct super_block *sb = reiser4_get_current_sb();
 
 	assert("edward-1824", raid != NULL);
 	assert("edward-1825", dist_plug != NULL);
 
-	ret = check_brick_for_resize(vol, id);
+	ret = check_brick_belongs_volume(vol, id);
 	if (ret)
-		return ret;
-
+		goto out;
 	ret = dist_plug->v.init(vol,
 				num_aid_subvols(vol), vol->num_sgs_bits,
 				&vol->vol_plug->aid_ops, raid);
 	if (ret)
-		return ret;
-	ret = expand_brick(vol, id, delta);
-	if (ret)
 		goto out;
-	ret = capture_volume_info(vol);
- out:
+	ret = expand_brick(vol, id, delta, &need_balance);
+	if (ret) {
+		dist_plug->v.done(raid);
+		goto out;
+	}
+	if (need_balance) {
+		ret = capture_volume_info(vol);
+		if (ret) {
+			dist_plug->v.done(raid);
+			goto out;
+		}
+		/* set on-disk unbalanced status
+		 */
+		ret = reiser4_capture_super_block(get_meta_subvol());
+	}
 	dist_plug->v.done(raid);
+ out:
+	if (ret || !need_balance)
+		reiser4_volume_clear_unbalanced(sb);
 	return ret;
 }
 
@@ -732,41 +777,58 @@ static int expand_brick_asym(reiser4_volume *vol, u64 id, u64 delta)
 static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 {
 	int ret;
+	int need_balance = 1;
 	reiser4_aid *raid = &vol->aid;
 	distribution_plugin *dist_plug = vol->dist_plug;
+	struct super_block *sb = reiser4_get_current_sb();
 
 	assert("edward-1930", raid != NULL);
 	assert("edward-1931", dist_plug != NULL);
 
 	ret = check_brick_for_add(vol, new);
 	if (ret)
-		return ret;
+		goto out;
 
 	ret = dist_plug->v.init(vol,
 				num_aid_subvols(vol), vol->num_sgs_bits,
 				&vol->vol_plug->aid_ops, raid);
 	if (ret)
-		return ret;
-
-	ret = add_brick(vol, new);
-	if (ret)
 		goto out;
-	ret = capture_volume_info(vol);
- out:
+
+	ret = add_brick(vol, new, &need_balance);
+	if (ret) {
+		dist_plug->v.done(raid);
+		goto out;
+	}
+	if (need_balance) {
+		ret = capture_volume_info(vol);
+		if (ret) {
+			dist_plug->v.done(raid);
+			goto out;
+		}
+		/* set on-disk unbalanced status
+		 */
+		ret = reiser4_capture_super_block(get_meta_subvol());
+	}
 	dist_plug->v.done(raid);
+ out:
+	if (ret || !need_balance)
+		reiser4_volume_clear_unbalanced(sb);
 	return ret;
 }
 
-static int shrink_brick(reiser4_volume *vol, u64 pos, u64 delta)
+static int shrink_brick(reiser4_volume *vol, u64 pos, u64 delta,
+			int *need_balance)
 {
 	int ret;
 	distribution_plugin *dist_plug = vol->dist_plug;
 
 	current_aid_subvols()[pos][0]->data_room -= delta;
 
-	if (num_aid_subvols(vol) == 1)
+	if (num_aid_subvols(vol) == 1) {
+		*need_balance = 0;
 		return 0;
-
+	}
 	ret = dist_plug->v.dec(&vol->aid, pos, NULL);
 	if (ret)
 		current_aid_subvols()[pos][0]->data_room += delta;
@@ -776,7 +838,7 @@ static int shrink_brick(reiser4_volume *vol, u64 pos, u64 delta)
 /*
  * Remove meta-data subvolume from AID
  */
-static int remove_meta_brick(reiser4_volume *vol)
+static int remove_meta_brick(reiser4_volume *vol, int *need_balance)
 {
 	int ret;
 	reiser4_subvol *mtd_subv = get_meta_subvol();
@@ -785,9 +847,13 @@ static int remove_meta_brick(reiser4_volume *vol)
 	assert("edward-1844", num_aid_subvols(vol) != 0);
 	assert("edward-1826", meta_subvol_is_in_aid());
 
-	if (num_aid_subvols(vol) == 1)
+	if (num_aid_subvols(vol) == 1) {
+		/*
+		 * remove last meta-data brick from the array
+		 */
+		*need_balance = 0;
 		goto finish;
-
+	}
 	ret = dist_plug->v.dec(&vol->aid, 0, mtd_subv);
 	if (ret)
 		return ret;
@@ -806,7 +872,7 @@ static int remove_meta_brick(reiser4_volume *vol)
  * Remove a data subvolume from LV
  * @id: intermal ID of a subvolume to be removed
  */
-static int remove_data_brick(reiser4_volume *vol, u64 id)
+static int remove_data_brick(reiser4_volume *vol, u64 id, int *need_balance)
 {
 	int ret;
 	reiser4_subvol *victim;
@@ -818,16 +884,11 @@ static int remove_data_brick(reiser4_volume *vol, u64 id)
 	u64 pos_in_vol;
 	u64 pos_in_aid;
 
-	assert("edward-1842", num_aid_subvols(vol) != 0);
+	assert("edward-1842", num_aid_subvols(vol) > 1);
 
-	if (num_aid_subvols(vol) == 1) {
-		warning("edward-1841",
-			"Can not remove single data subvolume");
-		return -EINVAL;
-	}
 	pos_in_vol = id;
 	pos_in_aid = aid_pos_for_resize(vol, id);
-	new = reiser4_vmalloc(sizeof(reiser4_subvol) * (old_num_subvols - 1));
+	new = reiser4_vmalloc(sizeof(reiser4_subvol)*(old_num_subvols - 1));
 	if (!new)
 		return RETERR(-ENOMEM);
 
@@ -855,12 +916,12 @@ static int remove_data_brick(reiser4_volume *vol, u64 id)
 	return 0;
 }
 
-static int remove_brick(reiser4_volume *vol, u64 id)
+static int remove_brick(reiser4_volume *vol, u64 id, int *need_balance)
 {
 	if (is_meta_brick_id(id))
-		return remove_meta_brick(vol);
+		return remove_meta_brick(vol, need_balance);
 	else
-		return remove_data_brick(vol, id);
+		return remove_data_brick(vol, id, need_balance);
 }
 
 static u64 get_free_space_volume(struct super_block *sb)
@@ -876,10 +937,10 @@ static u64 get_free_space_volume(struct super_block *sb)
 }
 
 /**
- * Check if there is enough free space on the volume
- * to remove, or shrink a brick.
+ * If there is enough free space on the volume to remove, or
+ * shrink a brick, then return 0. Otherwise, return error.
  *
- * @id: brick be shrinked, or removed.
+ * @id: brick to be shrinked, or removed.
  * @delta: the value to be shrinked on. If @delta == 0,
  * then brick is to be removed.
  */
@@ -887,6 +948,13 @@ static int check_free_space(struct super_block *sb, u64 id, u64 delta)
 {
 	reiser4_subvol *victim;
 
+	if (num_aid_subvols(super_volume(sb)) == 1) {
+		/*
+		 * No data migration will happen, so nothing to check
+		 */
+		assert("edward-1942", is_meta_brick_id(id));
+		return 0;
+	}
 	victim = current_origin(id);
 
 	spin_lock_reiser4_super(get_super_private(sb));
@@ -916,6 +984,7 @@ static int check_free_space(struct super_block *sb, u64 id, u64 delta)
 static int remove_or_shrink_brick(reiser4_volume *vol, u64 id, u64 delta)
 {
 	int ret;
+	int need_balance = 1;
 	distribution_plugin *dist_plug = vol->dist_plug;
 	struct super_block *sb = reiser4_get_current_sb();
 
@@ -923,19 +992,11 @@ static int remove_or_shrink_brick(reiser4_volume *vol, u64 id, u64 delta)
 	assert("edward-1846", dist_plug != NULL);
 	assert("edward-1831", vol->subvols != NULL);
 	assert("edward-1833", vol->subvols[id] != NULL);
+	assert("edward-1944", dist_plug->h.id != TRIV_DISTRIB_ID);
 
-	if (dist_plug->h.id == TRIV_DISTRIB_ID)
-		return -EINVAL;
-
-	ret = check_brick_for_resize(vol, id);
+	ret = check_brick_for_shrink_or_remove(vol, id, delta);
 	if (ret)
-		return ret;
-
-	ret = dist_plug->v.init(vol,
-				num_aid_subvols(vol), vol->num_sgs_bits,
-				&vol->vol_plug->aid_ops, &vol->aid);
-	if (ret)
-		return ret;
+		goto out;
 	/*
 	 * make sure there is enough space on the rest
 	 * of LV to perform remove or shrink operation.
@@ -946,15 +1007,35 @@ static int remove_or_shrink_brick(reiser4_volume *vol, u64 id, u64 delta)
 	ret = check_free_space(sb, id, delta);
 	if (ret)
 		goto out;
-	if (delta)
-		ret = shrink_brick(vol, id, delta);
-	else
-		ret = remove_brick(vol, aid_pos_for_resize(vol, id));
+	ret = dist_plug->v.init(vol,
+				num_aid_subvols(vol), vol->num_sgs_bits,
+				&vol->vol_plug->aid_ops, &vol->aid);
 	if (ret)
 		goto out;
-	ret = capture_volume_info(vol);
- out:
+	if (delta)
+		ret = shrink_brick(vol, id, delta,
+				   &need_balance);
+	else
+		ret = remove_brick(vol, aid_pos_for_resize(vol, id),
+				   &need_balance);
+	if (ret) {
+		dist_plug->v.done(&vol->aid);
+		goto out;
+	}
+	if (need_balance) {
+		ret = capture_volume_info(vol);
+		if (ret) {
+			dist_plug->v.done(&vol->aid);
+			goto out;
+		}
+		/* set on-disk unbalanced status
+		 */
+		ret = reiser4_capture_super_block(get_meta_subvol());
+	}
 	dist_plug->v.done(&vol->aid);
+ out:
+	if (ret || !need_balance)
+		reiser4_volume_clear_unbalanced(sb);
 	return ret;
 }
 
@@ -998,7 +1079,7 @@ static int add_brick_simple(reiser4_volume *vol, reiser4_subvol *new)
 	return -EINVAL;
 }
 
-static int balance_volume_simple(struct super_block *sb)
+static int balance_volume_simple(struct super_block *sb, int force)
 {
 	return -EINVAL;
 }
@@ -1129,9 +1210,12 @@ static int iter_check_extent_next_file(reiser4_tree *tree, coord_t *coord,
  * then please prove the correctness, or write another balancing which
  * works for that new allocator.
  *
+ * @sb: super-block of the volume to be balanced;
+ * @force: force to balance volume marked as balanced.
+ *
  * FIXME: use hint/seal to not traverse tree every time
  */
-int balance_volume_asym(struct super_block *super)
+int balance_volume_asym(struct super_block *super, int force)
 {
 	int ret;
 	int err = 0;
@@ -1144,6 +1228,8 @@ int balance_volume_asym(struct super_block *super)
 
 	assert("edward-1881", super != NULL);
 
+	if (!reiser4_volume_is_unbalanced(super) && !force)
+		return 0;
  restart:
 	init_lh(&lh);
 	/*
@@ -1274,10 +1360,13 @@ int balance_volume_asym(struct super_block *super)
 		next = temp;
 	}
  exit:
-	/*
-	 * if (!err)
-	 *         clear REBALANCING_IN_PROGRESS flag in super-block
-	 */
+	if (!err) {
+		/*
+		 * update in-memory and on-disk balanced status
+		 */
+		reiser4_volume_clear_unbalanced(super);
+		err = reiser4_capture_super_block(get_meta_subvol());
+	}
 	return err;
 }
 
