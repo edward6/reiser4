@@ -88,7 +88,7 @@ static int num_volmap_nodes(reiser4_volume *vol, int nums_bits)
 
 static int volinfo_absent(void)
 {
-	return current_origin(METADATA_SUBVOL_ID)->volmap_loc == 0;
+	return get_meta_subvol()->volmap_loc == 0;
 }
 
 static void release_volinfo_nodes(reiser4_volume *vol)
@@ -206,7 +206,7 @@ static int update_voltab_nodes(reiser4_volume *vol)
 	u64 segments_loaded = 0;
 	u64 voltab_nodes_loaded = 0;
 	distribution_plugin *dist_plug = vol->dist_plug;
-	reiser4_subvol *mtd_subv = current_origin(METADATA_SUBVOL_ID);
+	reiser4_subvol *mtd_subv = get_meta_subvol();
 	reiser4_block_nr volmap_loc = mtd_subv->volmap_loc;
 
 	assert("edward-1835", volmap_loc != 0);
@@ -303,7 +303,7 @@ static int create_volinfo_nodes(reiser4_volume *vol)
 	int i, j;
 	u64 segments_loaded = 0;
 	u64 voltab_nodes_loaded = 0;
-	reiser4_subvol *meta_subv = current_origin(METADATA_SUBVOL_ID);
+	reiser4_subvol *meta_subv = get_meta_subvol();
 
 	distribution_plugin *dist_plug = vol->dist_plug;
 	reiser4_block_nr volmap_loc;
@@ -788,7 +788,9 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	ret = check_brick_for_add(vol, new);
 	if (ret)
 		goto out;
-
+	/*
+	 * FIXME: Reserve space for volinfo creation if needed
+	 */
 	ret = dist_plug->v.init(vol,
 				num_aid_subvols(vol), vol->num_sgs_bits,
 				&vol->vol_plug->aid_ops, raid);
@@ -801,6 +803,10 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 		goto out;
 	}
 	if (need_balance) {
+		/*
+		 * this will create volinfo, if @new is the first brick
+		 * in the volume.
+		 */
 		ret = capture_volume_info(vol);
 		if (ret) {
 			dist_plug->v.done(raid);

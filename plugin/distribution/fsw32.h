@@ -35,6 +35,7 @@ extern int dec_fsw32(reiser4_aid *raid, u64 pos, void *victim);
 extern int spl_fsw32(reiser4_aid *raid, u32 fact_bits);
 extern void pack_fsw32(reiser4_aid *raid, char *to, u64 src_off, u64 count);
 extern void unpack_fsw32(reiser4_aid *raid, char *from, u64 dst_off, u64 count);
+extern void dump_fsw32(reiser4_aid *raid, char *to, u64 offset, u32 size);
 
 #endif /* FSW32_H */
 

@@ -587,6 +587,7 @@ struct dist_volume_ops {
 	void (*pack)(reiser4_aid *raid, char *to, u64 src_off, u64 count);
 	/* extract system information from a set of blocks */
 	void (*unpack)(reiser4_aid *raid, char *from, u64 dst_off, u64 count);
+	void (*dump)(reiser4_aid *raid, char *to, u64 offset, u32 size);
 };
 
 typedef struct distribution_plugin {

@@ -43,7 +43,8 @@ distribution_plugin distribution_plugins[LAST_DISTRIB_ID] = {
 			.dec = NULL,
 			.spl = NULL,
 			.pack = NULL,
-			.unpack = NULL
+			.unpack = NULL,
+			.dump = NULL
 		},
 	},
 	[FSW32M_DISTRIB_ID] = {
@@ -68,7 +69,8 @@ distribution_plugin distribution_plugins[LAST_DISTRIB_ID] = {
 			.dec = dec_fsw32,
 			.spl = spl_fsw32,
 			.pack = pack_fsw32,
-			.unpack = unpack_fsw32
+			.unpack = unpack_fsw32,
+			.dump = dump_fsw32
 		}
 	}
 };

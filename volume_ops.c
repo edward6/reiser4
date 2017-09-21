@@ -14,7 +14,7 @@
 static int reiser4_register_brick(struct super_block *sb,
 				  struct reiser4_vol_op_args *args)
 {
-	return reiser4_scan_device(args->name, FMODE_READ,
+	return reiser4_scan_device(args->d.name, FMODE_READ,
 				   get_reiser4_fs_type(), NULL);
 }
 
@@ -27,6 +27,7 @@ static int reiser4_print_volume(struct super_block *sb,
 	memcpy(args->u.vol.id, vol->uuid, 16);
 	args->u.vol.vpid = vol->vol_plug->h.id;
 	args->u.vol.dpid = vol->dist_plug->h.id;
+	args->u.vol.fs_flags = get_super_private(sb)->fs_flags;
 	return 0;
 }
 
@@ -34,7 +35,7 @@ static int reiser4_print_brick(struct super_block *sb,
 			       struct reiser4_vol_op_args *args)
 {
 	int ret = 0;
-	u64 id = args->brick_id;
+	u64 id = args->s.brick_id;
 	reiser4_volume *vol = super_volume(sb);
 	reiser4_subvol *subv;
 
@@ -45,7 +46,7 @@ static int reiser4_print_brick(struct super_block *sb,
 		goto out;
 	}
 	subv = vol->subvols[id][0];
-	strncpy(args->name, subv->name, REISER4_PATH_NAME_MAX + 1);
+	strncpy(args->d.name, subv->name, REISER4_PATH_NAME_MAX + 1);
 	memcpy(args->u.brick.ext_id, subv->uuid, 16);
 	args->u.brick.int_id = subv->id;
 	args->u.brick.nr_replicas = subv->num_replicas;
@@ -55,6 +56,23 @@ static int reiser4_print_brick(struct super_block *sb,
  out:
 	spin_unlock_reiser4_super(get_super_private(sb));
 	return ret;
+}
+
+/**
+ * Accept ordered number of a voltab block and dump its content
+ * to a memory buffer.
+ */
+static int reiser4_print_voltab(struct super_block *sb,
+				struct reiser4_vol_op_args *args)
+{
+	u64 idx = args->s.voltab_nr;
+	distribution_plugin *dist_plug = super_volume(sb)->dist_plug;
+
+	dist_plug->v.dump(&super_volume(sb)->aid,
+			  args->d.data + (idx << sb->s_blocksize_bits),
+			  idx << sb->s_blocksize_bits,
+			  sb->s_blocksize);
+	return 0;
 }
 
 static int reiser4_expand_brick(struct super_block *sb,
@@ -67,12 +85,12 @@ static int reiser4_expand_brick(struct super_block *sb,
 
 	if (reiser4_volume_test_set_unbalanced(sb)) {
 		warning("edward-1949",
-			"Can not expand brick of unbalanced volume");
+			"Not allowed to expand brick of unbalanced volume");
 		reiser4_unlock_volume(sb);
 		return -EINVAL;
 	}
 	ret = super_volume(sb)->vol_plug->expand_brick(super_volume(sb),
-						       args->brick_id,
+						       args->s.brick_id,
 						       args->delta);
 	reiser4_unlock_volume(sb);
 	if (ret)
@@ -90,12 +108,12 @@ static int reiser4_shrink_brick(struct super_block *sb,
 
 	if (reiser4_volume_test_set_unbalanced(sb)) {
 		warning("edward-1950",
-			"Can not shrink brick of unbalanced volume");
+			"Not allowed to shrink brick of unbalanced volume");
 		reiser4_unlock_volume(sb);
 		return -EINVAL;
 	}
 	ret = super_volume(sb)->vol_plug->shrink_brick(super_volume(sb),
-						       args->brick_id,
+						       args->s.brick_id,
 						       args->delta);
 	reiser4_unlock_volume(sb);
 	if (ret)
@@ -111,7 +129,7 @@ static int reiser4_add_brick(struct super_block *sb,
 	/*
 	 * register new brick
 	 */
-	ret = reiser4_scan_device(args->name, FMODE_READ,
+	ret = reiser4_scan_device(args->d.name, FMODE_READ,
 				  get_reiser4_fs_type(), &new);
 	if (ret)
 		return ret;
@@ -123,7 +141,7 @@ static int reiser4_add_brick(struct super_block *sb,
 
 	if (reiser4_volume_test_set_unbalanced(sb)) {
 		warning("edward-1951",
-			"Can not add brick to unbalanced volume");
+			"Not allowed to add brick to unbalanced volume");
 		reiser4_unlock_volume(sb);
 		return -EINVAL;
 	}
@@ -145,12 +163,12 @@ static int reiser4_remove_brick(struct super_block *sb,
 
 	if (reiser4_volume_test_set_unbalanced(sb)) {
 		warning("edward-1952",
-			"Can not remove brick from unbalanced volume");
+			"Not allowed to remove brick from unbalanced volume");
 		reiser4_unlock_volume(sb);
 		return -EINVAL;
 	}
 	ret = super_volume(sb)->vol_plug->remove_brick(super_volume(sb),
-						       args->brick_id);
+						       args->s.brick_id);
 	reiser4_unlock_volume(sb);
 	if (ret)
 		return ret;
@@ -163,9 +181,10 @@ static int reiser4_balance_volume(struct super_block *sb)
 }
 
 /**
- * Balance volume marked as balanced
+ * Perform balancing for volume marked as balanced.
+ * This is for on-line file system check.
  */
-static int reiser4_forced_balance_volume(struct super_block *sb)
+static int reiser4_check_volume(struct super_block *sb)
 {
 	return super_volume(sb)->vol_plug->balance_volume(sb, 1);
 }
@@ -179,6 +198,8 @@ int reiser4_volume_op(struct super_block *sb, struct reiser4_vol_op_args *args)
 		return reiser4_print_volume(sb, args);
 	case REISER4_PRINT_BRICK:
 		return reiser4_print_brick(sb, args);
+	case REISER4_PRINT_VOLTAB:
+		return reiser4_print_voltab(sb, args);
 	case REISER4_EXPAND_BRICK:
 		return reiser4_expand_brick(sb, args);
 	case REISER4_SHRINK_BRICK:
@@ -189,8 +210,8 @@ int reiser4_volume_op(struct super_block *sb, struct reiser4_vol_op_args *args)
 		return reiser4_remove_brick(sb, args);
 	case REISER4_BALANCE_VOLUME:
 		return reiser4_balance_volume(sb);
-	case REISER4_FORCED_BALANCE_VOLUME:
-		return reiser4_forced_balance_volume(sb);
+	case REISER4_CHECK_VOLUME:
+		return reiser4_check_volume(sb);
 	default:
 		return -EINVAL;
 	}

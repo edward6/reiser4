@@ -31,12 +31,14 @@ typedef enum {
 	REISER4_REGISTER_BRICK,
 	REISER4_PRINT_VOLUME,
 	REISER4_PRINT_BRICK,
+	REISER4_PRINT_VOLTAB,
 	REISER4_EXPAND_BRICK,
 	REISER4_SHRINK_BRICK,
 	REISER4_ADD_BRICK,
 	REISER4_REMOVE_BRICK,
+	REISER4_SCALE_VOLUME,
 	REISER4_BALANCE_VOLUME,
-	REISER4_FORCED_BALANCE_VOLUME
+	REISER4_CHECK_VOLUME
 } reiser4_vol_op;
 
 struct reiser4_volume_stat
@@ -45,7 +47,8 @@ struct reiser4_volume_stat
 	u64 nr_bricks; /* number of bricks in the array */
 	u16 vpid; /* volume plugin ID */
 	u16 dpid; /* distribution plugin ID */
-	u64 state; /* unbalanced, etc flags */
+	u64 fs_flags; /* the same as the one of private super-block */
+	u64 volinfo_addr; /* number of the first volmap block */
 };
 
 struct reiser4_brick_stat
@@ -63,8 +66,14 @@ struct reiser4_vol_op_args
 {
 	reiser4_vol_op opcode;
 	u64 delta;
-	u64 brick_id;
-	char name[REISER4_PATH_NAME_MAX + 1];
+	union {
+		u64 brick_id;
+		u64 voltab_nr;
+	}s;
+	union {
+		char name[REISER4_PATH_NAME_MAX + 1];
+		char data[4096];
+	}d;
 	union {
 		struct reiser4_volume_stat vol;
 		struct reiser4_brick_stat brick;

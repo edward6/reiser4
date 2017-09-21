@@ -163,6 +163,40 @@ static int create_fibers(u32 nums_bits, u32 *tab,
 	return 0;
 }
 
+#define HEX_BASE_LOGARITHM (4)
+
+static u32 get_rank_hex(u32 number)
+{
+        u32 rank;
+        for (rank = 0;
+             ((number - 1) >> (HEX_BASE_LOGARITHM * rank)) != 0;
+             rank ++);
+        return rank;
+}
+
+static void print_fiber(u32 id, void *vec, u32 num_sgs,
+			void *(*fiber_at)(void *vec, u64 idx),
+			u64 *(*fiber_lenp_at)(void *vec, u64 idx))
+{
+	u32 i;
+	u32 rank;
+	char *text;
+	u32 *fib = fiber_at(vec, id);
+	u32 fib_len = *fiber_lenp_at(vec, id);
+
+        rank = get_rank_hex(num_sgs);
+        text = mem_alloc(rank * fib_len + 1);
+        if (!text)
+                return;
+        for (i = 0; i < fib_len; i++)
+                sprintf(text + i * rank, "%.*x", rank, *fib);
+
+        text[rank * fib_len] = '\0';
+	printk("fiber %d: %s\n", id, text);
+	mem_free(text);
+	return;
+}
+
 static void release_fibers(u32 numb, void *vec,
 			   void *(*fiber_at)(void *vec, u64 idx),
 			   void (*fiber_set_at)(void *vec, u64 idx, void *fib))
@@ -552,6 +586,7 @@ int initv_fsw32(void *buckets,
 		reiser4_aid *raid)
 {
 	int ret = -ENOMEM;
+	u32 i;
 	u32 nums;
 	struct fsw32_aid *aid;
 
@@ -595,6 +630,10 @@ int initv_fsw32(void *buckets,
 	aid->nums_bits = nums_bits;
 	aid->buckets = buckets;
 	aid->ops = ops;
+
+	for (i = 0; i < numb; i++)
+		print_fiber(i, aid->tab,
+			    nums, ops->fib_at, ops->fib_lenp_at);
 	return 0;
  error:
 	doner_fsw32(raid);
@@ -797,6 +836,13 @@ void unpack_fsw32(reiser4_aid *raid, char *from, u64 dst_off, u64 count)
 		from += sizeof(u32);
 		dst ++;
 	}
+}
+
+void dump_fsw32(reiser4_aid *raid, char *to, u64 offset, u32 size)
+{
+	struct fsw32_aid *aid = fsw32_private(raid);
+
+	memcpy(to, aid->tab + offset, size);
 }
 
 /*
