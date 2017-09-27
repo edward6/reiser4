@@ -14,7 +14,6 @@
 #include "../../tree_walk.h"
 #include "../../carry.h"
 #include "../../page_cache.h"
-#include "../../ioctl.h"
 #include "../object.h"
 #include "../cluster.h"
 #include "../../safe_link.h"

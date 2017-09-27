@@ -12,18 +12,18 @@
 
 #define METADATA_SUBVOL_ID  (0)
 
-static int is_meta_brick_id(u64 id)
+static inline int is_meta_brick_id(u64 id)
 {
 	return id == METADATA_SUBVOL_ID;
 }
 
-static int is_meta_brick(reiser4_subvol *this)
+static inline int is_meta_brick(reiser4_subvol *this)
 {
 	return this == get_meta_subvol();
 }
 
 #if REISER4_DEBUG
-static int is_active_data_brick(reiser4_subvol *this)
+static inline int is_active_data_brick(reiser4_subvol *this)
 {
 	u64 orig_id, mirr_id;
 
@@ -47,7 +47,7 @@ static inline int meta_subvol_is_in_aid(void)
 /*
  * Returns number of subvolumes participating in AID
  */
-static u64 num_aid_subvols(reiser4_volume *vol)
+static inline u64 num_aid_subvols(reiser4_volume *vol)
 {
 	if (meta_subvol_is_in_aid())
 		return vol->num_origins;

@@ -7,7 +7,6 @@
 
 #include "../inode.h"
 #include "object.h"
-#include "../ioctl.h"
 
 /* file operations */
 

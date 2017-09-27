@@ -9,7 +9,7 @@
 
 #include "debug.h"
 #include "super.h"
-#include "ioctl.h"
+#include "plugin/volume/volume.h"
 
 static int reiser4_register_brick(struct super_block *sb,
 				  struct reiser4_vol_op_args *args)
@@ -23,7 +23,8 @@ static int reiser4_print_volume(struct super_block *sb,
 {
 	reiser4_volume *vol = super_volume(sb);
 
-	args->u.vol.nr_bricks = vol->num_origins;
+	args->u.vol.nr_bricks = meta_subvol_is_in_aid() ?
+		vol->num_origins : - vol->num_origins;
 	memcpy(args->u.vol.id, vol->uuid, 16);
 	args->u.vol.vpid = vol->vol_plug->h.id;
 	args->u.vol.dpid = vol->dist_plug->h.id;
@@ -85,7 +86,7 @@ static int reiser4_expand_brick(struct super_block *sb,
 
 	if (reiser4_volume_test_set_unbalanced(sb)) {
 		warning("edward-1949",
-			"Not allowed to expand brick of unbalanced volume");
+			"Expanding brick of unbalanced volume is not allowed");
 		reiser4_unlock_volume(sb);
 		return -EINVAL;
 	}
@@ -108,7 +109,7 @@ static int reiser4_shrink_brick(struct super_block *sb,
 
 	if (reiser4_volume_test_set_unbalanced(sb)) {
 		warning("edward-1950",
-			"Not allowed to shrink brick of unbalanced volume");
+			"Shrinking brick of unbalanced volume is not allowed");
 		reiser4_unlock_volume(sb);
 		return -EINVAL;
 	}
@@ -141,7 +142,7 @@ static int reiser4_add_brick(struct super_block *sb,
 
 	if (reiser4_volume_test_set_unbalanced(sb)) {
 		warning("edward-1951",
-			"Not allowed to add brick to unbalanced volume");
+			"Adding brick to unbalanced volume in not allowed");
 		reiser4_unlock_volume(sb);
 		return -EINVAL;
 	}
@@ -163,7 +164,7 @@ static int reiser4_remove_brick(struct super_block *sb,
 
 	if (reiser4_volume_test_set_unbalanced(sb)) {
 		warning("edward-1952",
-			"Not allowed to remove brick from unbalanced volume");
+			"Removing brick from unbalanced volume is not allowed");
 		reiser4_unlock_volume(sb);
 		return -EINVAL;
 	}

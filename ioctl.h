@@ -25,9 +25,41 @@
  * into tails again.
  */
 
+/*
+ * Per volume flags.
+ * They are set up for (re)mount session and are not stored on disk
+ */
+typedef enum {
+	/*
+	 * True if this file system doesn't support hard-links (multiple names)
+	 * for directories: this is default UNIX behavior.
+	 *
+	 * If hard-links on directoires are not allowed, file system is Acyclic
+	 * Directed Graph (modulo dot, and dotdot, of course).
+	 *
+	 * This is used by reiser4_link().
+	 */
+	REISER4_ADG = 0,
+	/* if set, bsd gid assignment is supported. */
+	REISER4_BSD_GID = 2,
+	/* [mac]_time are 32 bit in inode */
+	REISER4_32_BIT_TIMES = 3,
+	/* load all bitmap blocks at mount time */
+	REISER4_DONT_LOAD_BITMAP = 5,
+	/* enforce atomicity during write(2) */
+	REISER4_ATOMIC_WRITE = 6,
+	/* enable issuing of discard requests */
+	REISER4_DISCARD = 8,
+	/* disable hole punching at flush time */
+	REISER4_DONT_PUNCH_HOLES = 9,
+	/* some volume operation is not completed */
+	REISER4_UNBALANCED_VOL = 10
+} reiser4_fs_flag;
+
 #define REISER4_PATH_NAME_MAX 3900 /* FIXME: make it more precise */
 
 typedef enum {
+	REISER4_INVALID_OPT,
 	REISER4_REGISTER_BRICK,
 	REISER4_PRINT_VOLUME,
 	REISER4_PRINT_BRICK,
@@ -44,7 +76,9 @@ typedef enum {
 struct reiser4_volume_stat
 {
 	u8  id[16]; /* unique ID */
-	u64 nr_bricks; /* number of bricks in the array */
+	s64 nr_bricks; /* absolute value indicates total number of
+			  bricks in the volume. Negative means that
+			  AID doesn't contain meta-data brick */
 	u16 vpid; /* volume plugin ID */
 	u16 dpid; /* distribution plugin ID */
 	u64 fs_flags; /* the same as the one of private super-block */

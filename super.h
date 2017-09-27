@@ -8,6 +8,7 @@
 
 #include <linux/exportfs.h>
 
+#include "ioctl.h"
 #include "tree.h"
 #include "entd.h"
 #include "wander.h"
@@ -25,37 +26,6 @@ struct flush_params {
 	unsigned written_threshold;
 	unsigned scan_maxnodes;
 };
-
-/*
- * Per volume flags.
- * They are set up for (re)mount session and are not stored on disk
- */
-typedef enum {
-	/*
-	 * True if this file system doesn't support hard-links (multiple names)
-	 * for directories: this is default UNIX behavior.
-	 *
-	 * If hard-links on directoires are not allowed, file system is Acyclic
-	 * Directed Graph (modulo dot, and dotdot, of course).
-	 *
-	 * This is used by reiser4_link().
-	 */
-	REISER4_ADG = 0,
-	/* if set, bsd gid assignment is supported. */
-	REISER4_BSD_GID = 2,
-	/* [mac]_time are 32 bit in inode */
-	REISER4_32_BIT_TIMES = 3,
-	/* load all bitmap blocks at mount time */
-	REISER4_DONT_LOAD_BITMAP = 5,
-	/* enforce atomicity during write(2) */
-	REISER4_ATOMIC_WRITE = 6,
-	/* enable issuing of discard requests */
-	REISER4_DISCARD = 8,
-	/* disable hole punching at flush time */
-	REISER4_DONT_PUNCH_HOLES = 9,
-	/* some volume operation is not completed */
-	REISER4_UNBALANCED_VOL = 10
-} reiser4_fs_flag;
 
 typedef enum {
 	/* set if all nodes in internal tree have the same
