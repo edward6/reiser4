@@ -728,7 +728,7 @@ static int write_jnodes_to_disk_extent(
 		if (!bio)
 			return RETERR(-ENOMEM);
 
-		bio->bi_bdev = super->s_bdev;
+		bio_set_dev(bio, super->s_bdev);
 		bio->bi_iter.bi_sector = block * (super->s_blocksize >> 9);
 		for (nr_used = 0, i = 0; i < nr_blocks; i++) {
 			struct page *pg;
