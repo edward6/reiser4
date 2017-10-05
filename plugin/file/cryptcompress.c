@@ -1507,7 +1507,7 @@ static int pages_truncate_ok(struct inode *inode, pgoff_t start)
 	int found;
 	struct page * page;
 
-	found = find_get_pages(inode->i_mapping, start, 1, &page);
+	found = find_get_pages(inode->i_mapping, &start, 1, &page);
 	if (found)
 		put_cluster_page(page);
 	return !found;
@@ -1896,14 +1896,14 @@ static void checkout_page_cluster(struct cluster_handle * clust,
 	int i;
 	int found;
 	int to_put;
+	pgoff_t page_index = clust_to_pg(clust->index, inode);
 	struct tfm_cluster *tc = &clust->tc;
 
 	/* find and put checked in pages: cluster is locked,
 	 * so we must get expected number (to_put) of pages
 	 */
 	to_put = size_in_pages(lbytes(clust->index, inode));
-	found = find_get_pages(inode->i_mapping,
-			       clust_to_pg(clust->index, inode),
+	found = find_get_pages(inode->i_mapping, &page_index,
 			       to_put, clust->pages);
 	BUG_ON(found != to_put);
 
@@ -2537,6 +2537,7 @@ void truncate_complete_page_cluster(struct inode *inode, cloff_t index,
 	int found;
 	int nr_pages;
 	jnode *node;
+	pgoff_t page_index = clust_to_pg(index, inode);
 	struct page *pages[MAX_CLUSTER_NRPAGES];
 	reiser4_subvol *subv = get_meta_subvol();
 
@@ -2547,8 +2548,7 @@ void truncate_complete_page_cluster(struct inode *inode, cloff_t index,
 	assert("edward-1483", nr_pages != 0);
 	if (!node)
 		goto truncate;
-	found = find_get_pages(inode->i_mapping,
-			       clust_to_pg(index, inode),
+	found = find_get_pages(inode->i_mapping, &page_index,
 			       cluster_nrpages(inode), pages);
 	if (!found) {
 		assert("edward-1484", jnode_truncate_ok(inode, index, subv));

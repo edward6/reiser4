@@ -431,7 +431,7 @@ static struct bio *page_bio(struct page *page, jnode *node, int rw, gfp_t gfp)
 		assert("nikita-2275", blocknr != (reiser4_block_nr) 0);
 		assert("nikita-2276", !reiser4_blocknr_is_fake(&blocknr));
 
-		bio->bi_bdev = jnode_get_subvol(node)->bdev;
+		bio_set_dev(bio, jnode_get_subvol(node)->bdev);
 		/*
 		 * fill bio->bi_iter.bi_sector before calling bio_add_page(),
 		 * because q->merge_bvec_fn may want to inspect it (see

@@ -877,7 +877,7 @@ static int write_jnodes_contig(jnode *first, int nr,
 		if (!bio)
 			return RETERR(-ENOMEM);
 
-		bio->bi_bdev = subv->bdev;
+		bio_set_dev(bio, subv->bdev);
 		bio->bi_iter.bi_sector = block * (super->s_blocksize >> 9);
 		for (nr_used = 0, i = 0; i < nr_blocks; i++) {
 			struct page *pg;
