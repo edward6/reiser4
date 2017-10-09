@@ -1138,6 +1138,11 @@ reiser4_subvol *get_meta_subvol(void)
 	return current_origin(current_vol_plug()->meta_subvol_id());
 }
 
+reiser4_subvol *super_meta_subvol(struct super_block *super)
+{
+	return super_origin(super, super_vol_plug(super)->meta_subvol_id());
+}
+
 /**
  * calculate data subvolume ID by @inode and @offset,
  * calling volume plugin

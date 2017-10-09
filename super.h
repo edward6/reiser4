@@ -327,6 +327,11 @@ static inline reiser4_volume *super_volume(struct super_block *super)
 	return get_super_private(super)->vol;
 }
 
+static inline volume_plugin *super_vol_plug(struct super_block *super)
+{
+	return super_volume(super)->vol_plug;
+}
+
 static inline reiser4_subvol *sbinfo_mirror(reiser4_super_info_data *info,
 					    u32 id, u32 mirror_id)
 {
@@ -576,6 +581,7 @@ static inline void __init_ch_sub(struct commit_handle_subvol *ch_sub)
 }
 
 extern reiser4_subvol *get_meta_subvol(void);
+extern reiser4_subvol *super_meta_subvol(struct super_block *super);
 extern reiser4_subvol *calc_data_subvol(const struct inode *inode, loff_t offset);
 extern reiser4_subvol *find_data_subvol(const coord_t *coord);
 

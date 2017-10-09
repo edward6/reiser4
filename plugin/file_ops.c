@@ -139,8 +139,7 @@ long reiser4_ioctl_dir_common(struct file *file, unsigned int cmd, unsigned long
 			break;
 		}
 		if (copy_to_user((struct reiser4_vol_op_args __user *)arg,
-				 op_args,
-				 sizeof(op_args)))
+				 op_args, sizeof(*op_args)))
 			ret = RETERR(-EFAULT);
 		kfree(op_args);
 		break;
