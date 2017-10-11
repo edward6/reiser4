@@ -1111,7 +1111,7 @@ static u64 data_subvol_id_calc_asym(oid_t oid, loff_t offset)
 
 	vol = current_volume();
 	dist_plug = current_dist_plug();
-	stripe_idx = offset >> current_stripe_bits;
+	stripe_idx = current_stripe_bits ? offset >> current_stripe_bits : 0;
 
 	return dist_plug->r.lookup(&vol->aid,
 				   (const char *)&stripe_idx,

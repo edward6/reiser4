@@ -25,7 +25,10 @@
 
 static inline void *mem_alloc(u64 len)
 {
-	return reiser4_vmalloc(len);
+	void *result = reiser4_vmalloc(len);
+	if (result)
+		memset(result, 0, len);
+	return result;
 }
 
 static inline void mem_free(void *p)
