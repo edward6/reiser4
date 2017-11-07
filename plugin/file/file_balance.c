@@ -140,9 +140,9 @@ static int migrate_data_stripe(struct inode *inode, pgoff_t stripe_off)
 		/*
 		 * migrate data pages in asynchronos manner
 		 */
-		if (iplug->s.vol.migrate)
-			ret = iplug->s.vol.migrate(&coord, &lh,
-						   inode, mctx.new_subvol_id);
+		if (iplug->v.migrate)
+			ret = iplug->v.migrate(&coord, &lh,
+					       inode, mctx.new_subvol_id);
 		done_lh(&lh);
 		reiser4_inode_clr_flag(inode, REISER4_FILE_BALANCE_IN_PROGRESS);
 		drop_exclusive_access(uf);

@@ -565,7 +565,7 @@ struct reiser4_aid_ops {
 };
 
 struct dist_regular_ops {
-	int (*init)(reiser4_aid *aid, int nums_bits);
+	int (*init)(reiser4_aid *aid, int num_buckets, int nums_bits);
 	u64 (*lookup)(reiser4_aid *aid, const char *str,
 		      int len, u32 seed);
 	void (*done)(reiser4_aid *raid);

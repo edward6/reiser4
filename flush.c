@@ -3225,6 +3225,7 @@ int reiser4_scan_finished(flush_scan *scan)
 	default:
 		impossible("edward-1865",
 			   "bad scan direction %d", scan->direction);
+		return 1;
 	}
 }
 

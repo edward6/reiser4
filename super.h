@@ -36,7 +36,9 @@ typedef enum {
 	/* set if subvol is registered */
 	SUBVOL_REGISTERED = 2,
 	/* set if subvol is activated */
-	SUBVOL_ACTIVATED = 3
+	SUBVOL_ACTIVATED = 3,
+	/* set if subvol participates in the storage array */
+	SUBVOL_HAS_DATA_ROOM = 4
 } reiser4_subvol_flag;
 
 /*

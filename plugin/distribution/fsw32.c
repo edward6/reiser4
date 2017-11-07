@@ -33,7 +33,7 @@ static inline void *mem_alloc(u64 len)
 
 static inline void mem_free(void *p)
 {
-	kfree(p);
+	vfree(p);
 }
 
 static inline struct fsw32_aid *fsw32_private(reiser4_aid *aid)
@@ -553,26 +553,37 @@ void doner_fsw32(reiser4_aid *raid)
 {
 	struct fsw32_aid *aid = fsw32_private(raid);
 
-	if (aid->tab)
+	if (aid->tab) {
 		mem_free(aid->tab);
+		aid->tab = NULL;
+	}
 }
 
 /*
  *Initialize AID descriptor for regular operations
  */
 
-int initr_fsw32(reiser4_aid *raid, int nums_bits)
+int initr_fsw32(reiser4_aid *raid, int numb, int nums_bits)
 {
 	struct fsw32_aid *aid = fsw32_private(raid);
-
-	assert("edward-1921", nums_bits >= MIN_NUMS_BITS);
 
 	if (aid->tab != NULL)
 		return 0;
 
-	aid->tab = mem_alloc((1 << nums_bits) * sizeof(32));
+	if (nums_bits < MIN_NUMS_BITS) {
+		warning("edward-1953",
+			"Invalid minimal number of bricks (%llu). "
+			"It should be not less than %llu",
+			1ull << nums_bits, 1ull << MIN_NUMS_BITS);
+		return -EINVAL;
+	}
+	aid->tab = mem_alloc((1 << nums_bits) * sizeof(u32));
 	if (aid->tab == NULL)
 		return -ENOMEM;
+
+	aid->numb = numb;
+	aid->nums_bits = nums_bits;
+
 	return 0;
 }
 
@@ -612,7 +623,7 @@ int initv_fsw32(void *buckets,
 			 aid->ops->cap_at, nums, aid->weights);
 
 	if (aid->tab == NULL) {
-		ret = initr_fsw32(raid, nums_bits);
+		ret = initr_fsw32(raid, numb, nums_bits);
 		if (ret)
 			goto error;
 	}
@@ -629,8 +640,6 @@ int initv_fsw32(void *buckets,
 	if (ret)
 		goto error;
 
-	aid->numb = numb;
-	aid->nums_bits = nums_bits;
 	aid->buckets = buckets;
 	aid->ops = ops;
 

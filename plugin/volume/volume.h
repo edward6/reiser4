@@ -41,7 +41,7 @@ static inline int is_active_data_brick(reiser4_subvol *this)
  */
 static inline int meta_subvol_is_in_aid(void)
 {
-	return get_meta_subvol()->data_room != 0;
+	return subvol_is_set(get_meta_subvol(), SUBVOL_HAS_DATA_ROOM);
 }
 
 /*

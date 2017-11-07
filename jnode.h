@@ -363,6 +363,7 @@ void unhash_unformatted_jnode(jnode *);
 extern jnode *page_next_jnode(jnode * node) NONNULL;
 extern void jnode_init(jnode *node,
 		       struct reiser4_subvol *sub, jnode_type) NONNULL;
+extern void jnode_init_tail(jnode *node) NONNULL;
 extern void jnode_make_dirty(jnode * node) NONNULL;
 extern void jnode_make_clean(jnode * node) NONNULL;
 extern void jnode_make_wander_nolock(jnode * node) NONNULL;

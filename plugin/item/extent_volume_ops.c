@@ -163,6 +163,7 @@ int reiser4_migrate_extent(coord_t *coord, lock_handle *lh,
 		return migrate_allocated_extent(coord, lh, inode, new_subv_id);
 	default:
 		impossible("edward-1898", "Bad state of extent");
+		return -1;
 	}
 }
 

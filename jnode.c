@@ -246,6 +246,20 @@ void done_jnodes(void)
 	destroy_reiser4_cache(&_jnode_slab);
 }
 
+#if REISER4_DEBUG
+void jnode_init_tail(jnode *node)
+{
+	reiser4_super_info_data *sbinfo;
+
+	sbinfo = get_current_super_private();
+	spin_lock_irq(&sbinfo->all_guard);
+	list_add(&node->jnodes, &sbinfo->all_jnodes);
+	spin_unlock_irq(&sbinfo->all_guard);
+}
+#else
+#define jnode_init_tail(node) noop
+#endif /* REISER4_DEBUG */
+
 /* Initialize a jnode. */
 void jnode_init(jnode *node, reiser4_subvol *subv, jnode_type type)
 {
@@ -260,19 +274,8 @@ void jnode_init(jnode *node, reiser4_subvol *subv, jnode_type type)
 	node->subvol = subv;
 	INIT_LIST_HEAD(&node->capture_link);
 	init_waitqueue_head(&node->wait_jload);
-
 	ASSIGN_NODE_LIST(node, NOT_CAPTURED);
-
-#if REISER4_DEBUG
-	{
-		reiser4_super_info_data *sbinfo;
-
-		sbinfo = get_super_private(subv->super);
-		spin_lock_irq(&sbinfo->all_guard);
-		list_add(&node->jnodes, &sbinfo->all_jnodes);
-		spin_unlock_irq(&sbinfo->all_guard);
-	}
-#endif
+	jnode_init_tail(node);
 }
 
 #if REISER4_DEBUG
@@ -552,6 +555,8 @@ static jnode *find_get_jnode(struct reiser4_subvol *subvol,
 	int preload;
 	reiser4_tree *tree;
 
+	assert("edward-1955", subvol != NULL);
+
 	tree = &subvol->tree;
 	result = jnew_unformatted(subvol);
 
@@ -648,9 +653,14 @@ jnode *jnode_of_page(struct page *pg, int for_data_io)
 	assert("nikita-2394", PageLocked(pg));
 
 	if (for_data_io)
-		subv = NULL; /* data subvolume will be set later by the
-				item plugin, see insert_first_extent(),
-				append_last_extent(), overwrite_extent(); */
+		/*
+		  FIXME-EDWARD: data subvolume should be set
+		  to jnode later by the item plugin. Specifically,
+		  . insert_first_extent() - calculate subvol ID;
+		  . append_last_extent() - calculate subvol ID;
+		  . overwrite_extent() - find subvol ID by item.
+		*/
+		subv = calc_data_subvol(pg->mapping->host, page_offset(pg));
 	else
 		subv = get_meta_subvol();
 

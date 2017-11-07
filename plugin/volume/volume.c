@@ -499,7 +499,9 @@ static int init_volume_asym(reiser4_volume *vol)
 	distribution_plugin *dist_plug = vol->dist_plug;
 
 	if (dist_plug->r.init)
-		return dist_plug->r.init(&vol->aid, vol->num_sgs_bits);
+		return dist_plug->r.init(&vol->aid,
+					 num_aid_subvols(vol),
+					 vol->num_sgs_bits);
 	return 0;
 }
 
@@ -1164,7 +1166,7 @@ reiser4_subvol *find_data_subvol(const coord_t *coord)
 
 	assert("edward-1939", item_is_extent(coord));
 
-	id = item_plugin_by_coord(coord)->s.vol.find_data_subvol(coord);
+	id = item_plugin_by_coord(coord)->v.find_data_subvol(coord);
 	return current_origin(id);
 }
 

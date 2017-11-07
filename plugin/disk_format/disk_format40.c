@@ -408,6 +408,9 @@ int try_init_format40(struct super_block *super,
 	}
 	*stage = KEY_CHECK;
 
+	if (get_format40_flags(sb_format) & (1 << FORMAT40_HAS_DATA_ROOM))
+		subv->flags |= (1 << SUBVOL_HAS_DATA_ROOM);
+
 	result = oid_init_allocator(super, get_format40_file_count(sb_format),
 				    get_format40_oid(sb_format));
 	if (result) {

@@ -352,9 +352,13 @@ static int append_last_extent(struct inode *inode, uf_coord_t *uf_coord,
 
 	for (i = 0; i < count; i ++) {
 		node = jnodes[i];
-		block = fake_blocknr_unformatted(1, node->subvol);
+		block = fake_blocknr_unformatted(1, subv);
 		spin_lock_jnode(node);
 		JF_SET(node, JNODE_CREATED);
+
+		assert("edward-1954", node->subvol == subv);
+		//node->subvol = subv;
+
 		jnode_set_block(node, &block);
  		result = reiser4_try_capture(node, ZNODE_WRITE_LOCK, 0);
 		BUG_ON(result != 0);
@@ -489,8 +493,10 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 		node = jnodes[i];
 		spin_lock_jnode(node);
 		JF_SET(node, JNODE_CREATED);
-		assert("edward-1934", node->subvol == NULL);
-		node->subvol = subv;
+
+		assert("edward-1934", node->subvol == subv);
+		//node->subvol = subv;
+
 		jnode_set_block(node, &block);
  		result = reiser4_try_capture(node, ZNODE_WRITE_LOCK, 0);
 		BUG_ON(result != 0);
@@ -760,8 +766,9 @@ static int overwrite_extent(struct inode *inode, uf_coord_t *uf_coord,
 	reiser4_key k;
 	int i;
 	jnode *node;
+#if REISER4_DEBUG
 	reiser4_subvol *subv = find_data_subvol(&uf_coord->coord);
-
+#endif
 	assert("edward-1935",
 	       subv == calc_data_subvol(inode, get_key_offset(key)));
 
@@ -784,9 +791,8 @@ static int overwrite_extent(struct inode *inode, uf_coord_t *uf_coord,
 		 * them dirty
 		 */
 		spin_lock_jnode(node);
-		assert("edward-1936",
-		       ergo(node->subvol != NULL, node->subvol == subv));
-		node->subvol = subv;
+		assert("edward-1936", node->subvol == subv);
+		//node->subvol = subv;
 		result = reiser4_try_capture(node, ZNODE_WRITE_LOCK, 0);
 		BUG_ON(result != 0);
 		jnode_make_dirty_locked(node);

@@ -209,6 +209,11 @@ struct flush_ops {
 	int (*key_by_offset) (struct inode *, loff_t, reiser4_key *);
 };
 
+struct volume_ops{
+	u64 (*find_data_subvol)(const coord_t *);
+	int (*migrate)(coord_t *, lock_handle *, struct inode *, u64);
+};
+
 /* operations specific to the directory item */
 struct dir_entry_iops {
 	/* extract stat-data key from directory entry at @coord and place it
@@ -254,12 +259,6 @@ struct file_iops{
 	void (*init_coord_extension) (uf_coord_t *, loff_t);
 };
 
-
-struct volume_iops{
-	u64 (*find_data_subvol)(const coord_t *);
-	int (*migrate)(coord_t *, lock_handle *, struct inode *, u64);
-};
-
 /* operations specific to items of stat data type */
 struct sd_iops {
 	int (*init_inode) (struct inode * inode, char *sd, int len);
@@ -284,12 +283,12 @@ struct item_plugin {
 	/* methods common for all item types */
 	struct balance_ops b; /* balance operations */
  	struct flush_ops f;   /* flush operates with items via this methods */
+	struct volume_ops v; /* volume operations */
 
 	/* methods specific to particular type of item */
 	union {
 		struct dir_entry_iops dir;
 		struct      file_iops file;
-		struct    volume_iops vol;
 		struct        sd_iops sd;
 		struct  internal_iops internal;
 	} s;
