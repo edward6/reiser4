@@ -582,9 +582,11 @@ static inline void __init_ch_sub(struct commit_handle_subvol *ch_sub)
 	INIT_LIST_HEAD(&ch_sub->wander_map);
 }
 
+extern u64 get_meta_subvol_id(void);
 extern reiser4_subvol *get_meta_subvol(void);
 extern reiser4_subvol *super_meta_subvol(struct super_block *super);
 extern reiser4_subvol *calc_data_subvol(const struct inode *inode, loff_t offset);
+extern reiser4_subvol *subvol_by_coord(const coord_t *coord);
 extern reiser4_subvol *find_data_subvol(const coord_t *coord);
 
 struct file_system_type *get_reiser4_fs_type(void);

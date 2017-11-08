@@ -552,7 +552,6 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.key_by_offset = key_by_offset_extent
 		},
 		.v = {
-			.find_data_subvol = find_data_subvol_extent,
 			.migrate = reiser4_migrate_extent
 		},
 		.s = {

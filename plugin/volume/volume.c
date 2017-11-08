@@ -1135,9 +1135,14 @@ static int build_body_key_asym(struct inode *inode,
 					    key);
 }
 
+u64 get_meta_subvol_id(void)
+{
+	return current_vol_plug()->meta_subvol_id();
+}
+
 reiser4_subvol *get_meta_subvol(void)
 {
-	return current_origin(current_vol_plug()->meta_subvol_id());
+	return current_origin(get_meta_subvol_id());
 }
 
 reiser4_subvol *super_meta_subvol(struct super_block *super)
@@ -1156,18 +1161,39 @@ reiser4_subvol *calc_data_subvol(const struct inode *inode, loff_t offset)
 }
 
 /**
+ * Return subvolume "pointed" by @coord.
+ * This helper is called by flush scan procedure when
+ * processing TWIG level.
+ */
+reiser4_subvol *subvol_by_coord(const coord_t *coord)
+{
+	u64 subv_id = LAST_ITEM_ID;
+
+	assert("edward-1957", coord != NULL);
+
+	switch(item_id_by_coord(coord)) {
+	case NODE_POINTER_ID:
+		subv_id = METADATA_SUBVOL_ID;
+		break;
+	case EXTENT_POINTER_ID:
+		subv_id = find_data_subvol_extent(coord);
+		break;
+	default:
+		return NULL;
+	}
+	return current_origin(subv_id);
+}
+
+/**
  * find cached value of subvolume ID, which was calculated
  * earlier by volume plugin and stored somewhere (as key's
  * component e.g.)
  */
 reiser4_subvol *find_data_subvol(const coord_t *coord)
 {
-	u64 id;
-
 	assert("edward-1939", item_is_extent(coord));
 
-	id = item_plugin_by_coord(coord)->v.find_data_subvol(coord);
-	return current_origin(id);
+	return subvol_by_coord(coord);
 }
 
 /**

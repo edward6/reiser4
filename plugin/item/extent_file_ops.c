@@ -37,9 +37,10 @@ static void check_uf_coord(const uf_coord_t *uf_coord, const reiser4_key *key)
 	ext_coord = &uf_coord->extension.extent;
 	ext = ext_by_offset(coord->node, uf_coord->extension.extent.ext_offset);
 
-	/* make sure extent doesn't contain stripe boundary */
+	/* make sure that non-hole extent doesn't contain stripe boundary */
 	assert("edward-1815",
-	       ergo(current_stripe_bits,
+	       ergo(current_stripe_bits &&
+		    (state_of_extent(ext) != HOLE_EXTENT),
 		    get_key_offset(&coord_key) >> current_stripe_bits ==
 		    ((get_key_offset(&coord_key) +
 		      (extent_get_width(ext) << PAGE_SHIFT) - 1) >>
@@ -314,6 +315,7 @@ static int append_last_extent(struct inode *inode, uf_coord_t *uf_coord,
 
 			/* update coord extension */
 			ext_coord->width += count;
+			ext_coord->pos_in_unit += count;
 			ON_DEBUG(extent_set_width
 				 (&uf_coord->extension.extent.extent,
 				  ext_coord->width));

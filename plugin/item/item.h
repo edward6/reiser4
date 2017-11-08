@@ -210,7 +210,6 @@ struct flush_ops {
 };
 
 struct volume_ops{
-	u64 (*find_data_subvol)(const coord_t *);
 	int (*migrate)(coord_t *, lock_handle *, struct inode *, u64);
 };
 
