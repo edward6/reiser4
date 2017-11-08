@@ -317,7 +317,7 @@ static int reiser4_kill_root(reiser4_tree * tree /* tree from which root is
 		write_unlock_tree(tree);
 
 		/* reinitialise old root. */
-		result = node_plugin_by_node(old_root)->init(old_root);
+		result = init_znode(ZJNODE(old_root));
 		znode_make_dirty(old_root);
 		if (result == 0) {
 			assert("nikita-1279", node_is_empty(old_root));

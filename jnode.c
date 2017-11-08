@@ -1310,7 +1310,7 @@ static int remove_znode(jnode * node, reiser4_tree * tree)
 }
 
 /* ->init() method for formatted nodes */
-static int init_znode(jnode * node)
+int init_znode(jnode * node)
 {
 	znode *z;
 

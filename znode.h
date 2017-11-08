@@ -218,6 +218,7 @@ extern void znode_remove(znode *, reiser4_tree *);
 extern znode *znode_parent(const znode * node);
 extern znode *znode_parent_nolock(const znode * node);
 extern int znode_above_root(const znode * node);
+extern int init_znode(jnode *node);
 extern int init_znodes(void);
 extern void done_znodes(void);
 extern int znodes_tree_init(reiser4_tree * ztree);
