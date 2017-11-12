@@ -439,7 +439,7 @@ static inline struct distribution_plugin *current_dist_plug(void)
 }
 
 static inline struct reiser4_subvol *current_mirror(u32 id,
-						    u32 mirror_id)
+					    u32 mirror_id)
 {
 	return sbinfo_mirror(get_current_super_private(), id, mirror_id);
 }
@@ -632,7 +632,7 @@ extern int reiser4_blocknr_is_sane_for(const reiser4_subvol *subv,
 				       const reiser4_block_nr *blk);
 extern int reiser4_done_super(struct super_block *s);
 extern int reiser4_scan_device(const char *path, fmode_t flags, void *holder,
-			       reiser4_subvol **result);
+			       reiser4_subvol **result, reiser4_volume **host);
 extern int reiser4_volume_is_unbalanced(const struct super_block *sb);
 extern void reiser4_volume_set_unbalanced(struct super_block *sb);
 extern int reiser4_volume_test_set_unbalanced(struct super_block *sb);

@@ -130,14 +130,16 @@ static int reiser4_register_subvol(const char *path,
 				   u8 *vol_uuid, u8 *sub_uuid,
 				   int dformat_pid, int vol_pid, int dist_pid,
 				   u16 mirror_id, u16 num_replicas,
-				   int stripe_bits, reiser4_subvol **result)
+				   int stripe_bits, reiser4_subvol **result,
+				   reiser4_volume **vol)
 {
-	struct reiser4_volume *vol;
 	struct reiser4_subvol *sub;
 
-	vol = reiser4_search_volume(vol_uuid);
-	if (vol) {
-		sub = reiser4_search_subvol(sub_uuid, &vol->subvols_list);
+	assert("edward-1964", vol != NULL);
+
+	*vol = reiser4_search_volume(vol_uuid);
+	if (*vol) {
+		sub = reiser4_search_subvol(sub_uuid, &(*vol)->subvols_list);
 		if (sub) {
 			if (result)
 				*result = sub;
@@ -148,19 +150,19 @@ static int reiser4_register_subvol(const char *path,
 		if (!sub)
 			return -ENOMEM;
 	} else {
-		vol = reiser4_alloc_volume(vol_uuid, vol_pid, dist_pid,
-					   stripe_bits);
-		if (!vol)
+		*vol = reiser4_alloc_volume(vol_uuid, vol_pid, dist_pid,
+					    stripe_bits);
+		if (*vol == NULL)
 			return -ENOMEM;
 		sub = reiser4_alloc_subvol(sub_uuid, path, dformat_pid,
 					   mirror_id, num_replicas);
 		if (!sub) {
-			kfree(vol);
+			kfree(*vol);
 			return -ENOMEM;
 		}
-		list_add(&vol->list, &reiser4_volumes);
+		list_add(&(*vol)->list, &reiser4_volumes);
 	}
-	list_add(&sub->list, &vol->subvols_list);
+	list_add(&sub->list, &(*vol)->subvols_list);
 	if (result)
 		*result = sub;
 	notice("edward-1932", "registered subvolume (%s)\n", path);
@@ -209,7 +211,7 @@ void reiser4_unregister_volumes(void)
  * If reiser4 was found, then return 0. Otherwise return error.
  */
 int reiser4_scan_device(const char *path, fmode_t flags, void *holder,
-			reiser4_subvol **result)
+			reiser4_subvol **result, reiser4_volume **host)
 {
 	int ret = -EINVAL;
 	struct block_device *bdev;
@@ -248,7 +250,7 @@ int reiser4_scan_device(const char *path, fmode_t flags, void *holder,
 				      master_get_mirror_id(master),
 				      master_get_num_replicas(master),
 				      master_get_stripe_bits(master),
-				      result);
+				      result, host);
 	if (ret > 0)
 		/* ok, it was registered earlier */
 		ret = 0;
@@ -291,11 +293,12 @@ int check_active_replicas(reiser4_subvol *subv)
 		repl = super_mirror(subv->super, subv->id, repl_id);
 		if (repl == NULL) {
 			warning("edward-1752",
-				"%s requires replica No%u, which "
-				" is not registered.",
+				"%s: replica #%u is not registered.",
 				subv->name, repl_id);
 			return -EINVAL;
 		}
+		assert("edward-1965",
+		       subvol_is_set(repl, SUBVOL_ACTIVATED));
 	}
 	return 0;
 }
@@ -417,7 +420,7 @@ void reiser4_deactivate_subvol(struct super_block *super, reiser4_subvol *subv)
 
 	blkdev_put(subv->bdev, subv->mode);
 	clear_subvol(subv);
-	clear_bit((int)SUBVOL_ACTIVATED, &subv->flags);
+	clear_bit(SUBVOL_ACTIVATED, &subv->flags);
 }
 
 static void deactivate_subvolumes_of_type(struct super_block *super,
@@ -432,7 +435,6 @@ static void deactivate_subvolumes_of_type(struct super_block *super,
 			 * subvolume is not active
 			 */
 			assert("edward-1761", subv->super == NULL);
-			
 			continue;
 		}
 		if (subv->type != type)
@@ -454,7 +456,7 @@ void __reiser4_deactivate_volume(struct super_block *super)
 	reiser4_subvol *subv;
 	reiser4_volume *vol = super_volume(super);
 
-	deactivate_subvolumes_of_type(super, REISER4_SUBV_OTHER);
+	deactivate_subvolumes_of_type(super, REISER4_SUBV_ORIGIN);
 	deactivate_subvolumes_of_type(super, REISER4_SUBV_REPLICA);
 
 	if (vol->dist_plug->r.done)
@@ -597,35 +599,27 @@ int reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 	if (ret)
 		goto out;
 	ret = activate_subvolumes_of_type(super, vol_uuid,
-					  REISER4_SUBV_OTHER);
+					  REISER4_SUBV_ORIGIN);
 	if (ret)
 		goto deactivate;
 	/*
 	 * At this point all activated original subvolumes have
-	 * complete sets of active replicas (because of calling
-	 * check_active_replicas() for each one.
-	 * Now make sure that all originals were activated. Thus,
- 	 * on success we'll have a complete set of active components.
+	 * complete sets of active replicas (because we called
+	 * check_active_replicas()).
+	 * Now make sure that all bricks (original ones and their
+	 * replicas) have been activated.
 	 */
-	if (current_num_origins() == 0) {
-		warning("edward-1771",
-			"%s requires at least one origin, which is not "
-			"registered.", super->s_id);
-		ret = -EINVAL;
-		goto deactivate;
-	}
 	for_each_origin(orig_id) {
 		reiser4_subvol *orig;
 		orig = super_origin(super, orig_id);
 		if (orig == NULL) {
 			warning("edward-1772",
-				"%s requires origin No%u, which is not "
-				"registered.", super->s_id, orig_id);
+				"%s: original brick #%u is not registered.",
+				super->s_id, orig_id);
 			ret = -EINVAL;
 			goto deactivate;
 		}
-		assert("edward-1773",
-		       subvol_is_set(orig, SUBVOL_ACTIVATED));
+		assert("edward-1773", subvol_is_set(orig, SUBVOL_ACTIVATED));
 	}
 	/*
 	 * initialize logical volume after activating all subvolumes

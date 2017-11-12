@@ -12,16 +12,17 @@
 #include "../../inode.h"
 #include "volume.h"
 
-/*
- * Reiser4 Logical Volume (LV) of format 5.X is a matrix of subvolumes.
- * The first column always represents meta-data suvolume and its replicas.
+/**
+ * Implementations of simple and asymmetric Logical Volumes (LV).
+ * Asymmetric Logical Volume is a matrix of subvolumes.
+ * Its first column always represents meta-data suvolume and its replicas.
  * Other columns represent data subvolumes.
  *
  * In asymmetric LV all extent pointers are on the meta-data subvolume.
  * In symmetric LV every extent pointer is stored on a respective data
  * subvolume.
  *
- * For asymmetric LV any data search procedure is performed only on the
+ * For asymmetric LV any search-by-key procedure is performed only on the
  * meta-data subvolume. For symmetric LV every data search procedure is
  * launched on a respective data subvolume.
  */
@@ -64,6 +65,19 @@ static int segments_per_block(reiser4_volume *vol)
 	distribution_plugin *dist_plug = vol->dist_plug;
 
 	return 1 << (current_blocksize_bits - dist_plug->seg_bits);
+}
+
+/**
+ * find a meta-data brick of not yet activated volume
+ */
+reiser4_subvol *find_meta_brick(reiser4_volume *vol)
+{
+	struct reiser4_subvol *subv;
+
+	list_for_each_entry(subv, &vol->subvols_list, list)
+		if (is_meta_brick_id(subv->id))
+			return subv;
+	return NULL;
 }
 
 static int num_voltab_nodes(reiser4_volume *vol, int nums_bits)
@@ -481,15 +495,6 @@ static int load_volume_asym(reiser4_subvol *subv)
 	return load_volume_info(subv);
 }
 
-static u64 default_data_room(reiser4_subvol *subv)
-{
-	if (subv != get_meta_subvol())
-		return subv->block_count;
-	else
-		/* 70% of block_count */
-		return (90 * subv->block_count) >> 7;		
-}
-
 /*
  * Init volume system info, which has been already loaded
  * diring disk formats inialization of subvolumes (components).
@@ -533,19 +538,6 @@ static u64 *fib_lenp_at_asym(void *buckets, u64 index)
 }
 
 /**
- * Check that brick with ID @id is a part of specified volume @vol.
- * If so, return 0. Otherwise, return -EINVAL
- */
-static int check_brick_belongs_volume(reiser4_volume *vol, u64 id)
-{
-	if (is_meta_brick_id(id) && !meta_subvol_is_in_aid())
-		return -EINVAL;
-	if (id >= vol->num_origins)
-		return -EINVAL;
-	return 0;
-}
-
-/**
  * If the brick with @id can be shrinked on @delta, or removed
  * (if @delta == 0) from the volume @vol, then return 0. Otherwise
  * return error.
@@ -553,15 +545,15 @@ static int check_brick_belongs_volume(reiser4_volume *vol, u64 id)
 static int check_brick_for_shrink_or_remove(reiser4_volume *vol,
 					    u64 id, u64 delta)
 {
-	int ret;
-
-	ret = check_brick_belongs_volume(vol, id);
-	if (ret)
-		return ret;
-	if (!delta && !is_meta_brick_id(id) && num_aid_subvols(vol) == 1) {
+	if (!brick_id_belongs_aid(id)) {
+		warning("edward-1958",
+			"Can't remove brick %llu, which is not AID member", id);
+		return -EINVAL;
+	}
+	if (!delta /* remove */ && num_aid_subvols(vol) == 1) {
 		warning("edward-1941",
-			"Can not remove last data brick");
-		ret = -EINVAL;
+			"Can't remove last brick from AID");
+		return -EINVAL;
 	}
 	return 0;
 }
@@ -572,36 +564,12 @@ static int check_brick_for_shrink_or_remove(reiser4_volume *vol,
  */
 static u64 aid_pos_for_resize(reiser4_volume *vol, u64 id)
 {
-	if (meta_subvol_is_in_aid())
+	if (meta_brick_belongs_aid())
 		return id;
 	else {
 		assert("edward-1928", id > 0);
 		return id - 1;
 	}
-}
-
-/**
- * Check if registered brick can be added to the volume @vol.
- * If so, then return 0. Otherwise return error.
- */
-static int check_brick_for_add(reiser4_volume *vol, reiser4_subvol *this)
-{
-	/*
-	 * attempt to register active brick had to fail, so
-	 * we don't check data bricks
-	 */
-	assert("edward-1940", !is_active_data_brick(this));
-
-	if (num_aid_subvols(vol) == 0 && !is_meta_brick(this)) {
-		warning("edward-1840",
-			"Can not add data subvolume to empty AID");
-		return -EINVAL;
-	}
-	if (is_meta_brick(this) && meta_subvol_is_in_aid()) {
-		warning("edward-1943", "Brick is already in AID");
-		return -EINVAL;
-	}
-	return 0;
 }
 
 /*
@@ -611,7 +579,7 @@ static u64 aid_pos_for_add(reiser4_volume *vol, reiser4_subvol *new)
 {
 	if (is_meta_brick(new))
 		return 0;
-	if (meta_subvol_is_in_aid())
+	if (meta_brick_belongs_aid())
 		return vol->num_origins;
 	return vol->num_origins - 1;
 }
@@ -638,30 +606,22 @@ static int expand_brick(reiser4_volume *vol, u64 pos, u64 delta,
 /*
  * Add a meta-data subvolume to AID
  */
-static int add_meta_brick(reiser4_volume *vol, reiser4_subvol *new,
-			  int *need_balance)
+static int add_meta_brick(reiser4_volume *vol, reiser4_subvol *new)
 {
 	assert("edward-1820", is_meta_brick(new));
 	/*
 	 * Don't need to activate meta-data brick:
 	 * it is always active.
 	 */
+	new->flags |= (1 << SUBVOL_HAS_DATA_ROOM);
 
-	if (vol->num_origins == 1) {
-		/*
-		 *  nothing to do any more
-		 */
-		*need_balance = 0;
-		return 0;
-	}
 	return vol->dist_plug->v.inc(&vol->aid, 0, 1);
 }
 
 /*
  * Add a resistered data subvolume to LV
  */
-static int add_data_brick(reiser4_volume *vol, reiser4_subvol *this,
-			  int *need_balance)
+static int add_data_brick(reiser4_volume *vol, reiser4_subvol *this)
 {
 	int ret;
 	reiser4_aid *raid = &vol->aid;
@@ -712,19 +672,16 @@ static int add_data_brick(reiser4_volume *vol, reiser4_subvol *this,
 /*
  * Add a new brick to AID
  */
-static int add_brick(reiser4_volume *vol, reiser4_subvol *this,
-		     int *need_balance)
+static int add_brick(reiser4_volume *vol, reiser4_subvol *this)
 {
-	assert("edward-1843", this->data_room == 0);
+	assert("edward-1959", vol != NULL);
+	assert("edward-1960", this != NULL);
+	assert("edward-1961", this->data_room != 0);
 
-	if (is_meta_brick(this)) {
-		this->data_room = default_data_room(this);
-		return add_meta_brick(vol, this, need_balance);
-	}
-	else {
-		this->data_room = this->block_count;
-		return add_data_brick(vol, this, need_balance);
-	}
+	if (is_meta_brick(this))
+		return add_meta_brick(vol, this);
+	else
+		return add_data_brick(vol, this);
 }
 
 /**
@@ -742,9 +699,13 @@ static int expand_brick_asym(reiser4_volume *vol, u64 id, u64 delta)
 	assert("edward-1824", raid != NULL);
 	assert("edward-1825", dist_plug != NULL);
 
-	ret = check_brick_belongs_volume(vol, id);
-	if (ret)
+	if (!brick_id_belongs_aid(id)) {
+		warning("edward-1972",
+			"%s: Brick #%llu doesn't belong to the volume",
+			sb->s_id, id);
+		ret = -EINVAL;
 		goto out;
+	}
 	ret = dist_plug->v.init(vol,
 				num_aid_subvols(vol), vol->num_sgs_bits,
 				&vol->vol_plug->aid_ops, raid);
@@ -779,7 +740,6 @@ static int expand_brick_asym(reiser4_volume *vol, u64 id, u64 delta)
 static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 {
 	int ret;
-	int need_balance = 1;
 	reiser4_aid *raid = &vol->aid;
 	distribution_plugin *dist_plug = vol->dist_plug;
 	struct super_block *sb = reiser4_get_current_sb();
@@ -787,9 +747,16 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	assert("edward-1930", raid != NULL);
 	assert("edward-1931", dist_plug != NULL);
 
-	ret = check_brick_for_add(vol, new);
-	if (ret)
+	if (new->data_room == 0) {
+		warning("edward-1962", "Can't add brick with empty data room");
+		ret = -EINVAL;
 		goto out;
+	}
+	if (brick_belongs_aid(new)) {
+		warning("edward-1963", "Can't add brick to AID twice");
+		ret = -EINVAL;
+		goto out;
+	}
 	/*
 	 * FIXME: Reserve space for volinfo creation if needed
 	 */
@@ -799,28 +766,25 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	if (ret)
 		goto out;
 
-	ret = add_brick(vol, new, &need_balance);
+	ret = add_brick(vol, new);
 	if (ret) {
 		dist_plug->v.done(raid);
 		goto out;
 	}
-	if (need_balance) {
-		/*
-		 * this will create volinfo, if @new is the first brick
-		 * in the volume.
-		 */
-		ret = capture_volume_info(vol);
-		if (ret) {
-			dist_plug->v.done(raid);
-			goto out;
-		}
-		/* set on-disk unbalanced status
-		 */
-		ret = reiser4_capture_super_block(get_meta_subvol());
+	/*
+	 * if volinfo doesn't exist, then it will be created at this step
+	 */
+	ret = capture_volume_info(vol);
+	if (ret) {
+		dist_plug->v.done(raid);
+		goto out;
 	}
+	/* set on-disk unbalanced status
+	 */
+	ret = reiser4_capture_super_block(get_meta_subvol());
 	dist_plug->v.done(raid);
  out:
-	if (ret || !need_balance)
+	if (ret)
 		reiser4_volume_clear_unbalanced(sb);
 	return ret;
 }
@@ -852,25 +816,18 @@ static int remove_meta_brick(reiser4_volume *vol, int *need_balance)
 	reiser4_subvol *mtd_subv = get_meta_subvol();
 	distribution_plugin *dist_plug = vol->dist_plug;
 
-	assert("edward-1844", num_aid_subvols(vol) != 0);
-	assert("edward-1826", meta_subvol_is_in_aid());
+	assert("edward-1844", num_aid_subvols(vol) > 1);
+	assert("edward-1826", meta_brick_belongs_aid());
 
-	if (num_aid_subvols(vol) == 1) {
-		/*
-		 * remove last meta-data brick from the array
-		 */
-		*need_balance = 0;
-		goto finish;
-	}
 	ret = dist_plug->v.dec(&vol->aid, 0, mtd_subv);
 	if (ret)
 		return ret;
- finish:
-	mtd_subv->data_room = 0;
 
-	assert("edward-1827", !meta_subvol_is_in_aid());
+	clear_bit(SUBVOL_HAS_DATA_ROOM, &mtd_subv->flags);
+
+	assert("edward-1827", !meta_brick_belongs_aid());
 	/*
-	 * Mata-data brick remains to be active after
+	 * Meta-data brick remains to be active after
 	 * removal from AID
 	 */
 	return 0;

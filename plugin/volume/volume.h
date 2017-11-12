@@ -22,8 +22,16 @@ static inline int is_meta_brick(reiser4_subvol *this)
 	return this == get_meta_subvol();
 }
 
-#if REISER4_DEBUG
-static inline int is_active_data_brick(reiser4_subvol *this)
+/*
+ * Returns true, if meta-data subvolume participates in AID.
+ * Otherwise, returns false
+ */
+static inline int meta_brick_belongs_aid(void)
+{
+	return subvol_is_set(get_meta_subvol(), SUBVOL_HAS_DATA_ROOM);
+}
+
+static inline int data_brick_belongs_volume(reiser4_subvol *this)
 {
 	u64 orig_id, mirr_id;
 
@@ -33,15 +41,30 @@ static inline int is_active_data_brick(reiser4_subvol *this)
 				return 1;
 	return 0;
 }
-#endif
 
-/*
- * Returns true, if meta-data subvolume participates in AID.
- * Otherwise, returns false
- */
-static inline int meta_subvol_is_in_aid(void)
+static inline int brick_belongs_aid(reiser4_subvol *this)
 {
-	return subvol_is_set(get_meta_subvol(), SUBVOL_HAS_DATA_ROOM);
+	if (is_meta_brick(this)) {
+		if (meta_brick_belongs_aid())
+			return 1;
+		else
+			return 0;
+	}
+	return data_brick_belongs_volume(this);
+}
+
+static inline int brick_id_belongs_aid(u64 id)
+{
+	if (is_meta_brick_id(id)) {
+		if (meta_brick_belongs_aid())
+			return 1;
+		else
+			return 0;
+	}
+	/*
+	 * data brick
+	 */
+	return id < current_num_origins();
 }
 
 /*
@@ -49,7 +72,7 @@ static inline int meta_subvol_is_in_aid(void)
  */
 static inline u64 num_aid_subvols(reiser4_volume *vol)
 {
-	if (meta_subvol_is_in_aid())
+	if (meta_brick_belongs_aid())
 		return vol->num_origins;
 	else
 		return vol->num_origins - 1;
@@ -60,13 +83,14 @@ static inline u64 num_aid_subvols(reiser4_volume *vol)
  */
 static inline reiser4_subvol ***current_aid_subvols(void)
 {
-	if (meta_subvol_is_in_aid())
+	if (meta_brick_belongs_aid())
 		return current_subvols();
 	else
 		return current_subvols() + 1;
 }
 
 extern void deactivate_subvol(struct super_block *super, reiser4_subvol *subv);
+extern reiser4_subvol *find_meta_brick(reiser4_volume *vol);
 
 /*
   Local variables:

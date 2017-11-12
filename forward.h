@@ -251,7 +251,7 @@ typedef enum {
 } atom_list;
 
 typedef enum {
-	REISER4_SUBV_OTHER = 0,
+	REISER4_SUBV_ORIGIN = 0,
 	REISER4_SUBV_REPLICA = 1
 } reiser4_subv_type;
 

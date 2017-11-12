@@ -7,6 +7,7 @@
 #include "flush.h"
 #include "safe_link.h"
 #include "checksum.h"
+#include "plugin/volume/volume.h"
 
 #include <linux/vfs.h>
 #include <linux/writeback.h>
@@ -629,13 +630,31 @@ static struct dentry *reiser4_mount(struct file_system_type *fs_type, int flags,
 				    const char *dev_name, void *data)
 {
 	int ret;
+	reiser4_volume *host = NULL;
+	reiser4_subvol *subv = NULL;
 	/*
 	 * the volume could be created by old version of reiser4progs,
 	 * so try to register it here.
 	 */
-	ret = reiser4_scan_device(dev_name, flags, fs_type, NULL);
+	ret = reiser4_scan_device(dev_name, flags, fs_type, &subv, &host);
 	if (ret)
 		return ERR_PTR(ret);
+
+	assert("edward-1966", host != NULL);
+	assert("edward-1967", subv != NULL);
+
+	if (!is_meta_brick_id(subv->id)) {
+		/*
+		 * Scan all registered bricks to find meta-data brick
+		 */
+		subv = find_meta_brick(host);
+		if (subv == NULL) {
+			warning("edward-1968",
+				"%s: Can't find meta-data brick.", dev_name);
+			return ERR_PTR(-EINVAL);
+		}
+		dev_name = subv->name;
+	}
 	return mount_bdev(fs_type, flags, dev_name, data, fill_super);
 }
 
