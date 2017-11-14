@@ -1090,6 +1090,9 @@ int jinit_new(jnode * node, gfp_t gfp_flags)
 
 	if (!jnode_is_parsed(node)) {
 		jnode_plugin *jplug = jnode_ops(node);
+		assert("edward-1973", jplug != NULL);
+		assert("edward-1974", jplug->init != NULL);
+
 		spin_lock_jnode(node);
 		result = jplug->init(node);
 		spin_unlock_jnode(node);
@@ -1511,10 +1514,10 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 			.desc = "volinfo head",
 			.linkage = {NULL, NULL}
 		},
-		.init = NULL,
-		.parse = NULL,
-		.mapping = NULL,
-		.index = NULL
+		.init = init_noinit,
+		.parse = parse_noparse,
+		.mapping = mapping_bitmap,
+		.index = index_is_address
 	}
 };
 

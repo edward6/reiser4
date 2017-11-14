@@ -54,9 +54,9 @@ static struct reiser4_volume *reiser4_alloc_volume(u8 *uuid,
 }
 
 struct reiser4_subvol *reiser4_alloc_subvol(u8 *uuid, const char *path,
-						   int dformat_pid,
-						   u16 mirror_id,
-						   u16 num_replicas)
+					    int dformat_pid,
+					    u16 mirror_id,
+					    u16 num_replicas)
 {
 	struct reiser4_subvol *subv;
 
@@ -396,6 +396,10 @@ static void free_subvols_set(reiser4_volume *vol)
 	assert("edward-1754", vol != NULL);
 
 	if (vol->subvols != NULL) {
+		u32 i;
+		for (i = 0; i < vol->num_origins; i++)
+			if (vol->subvols[i])
+				kfree(vol->subvols[i]);
 		kfree(vol->subvols);
 		vol->subvols = NULL;
 	}

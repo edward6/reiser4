@@ -130,38 +130,60 @@ static int reiser4_add_brick(struct super_block *sb,
 	int ret;
 	reiser4_subvol *new = NULL;
 	reiser4_volume *host_of_new = NULL;
+	reiser4_context *ctx;
+
+	ctx = reiser4_init_context(sb);
+	if (IS_ERR(ctx)) {
+		warning("edward-1975", "failed to init context");
+		return PTR_ERR(ctx);
+	}
 	/*
 	 * register new brick
 	 */
 	ret = reiser4_scan_device(args->d.name, FMODE_READ,
 				  get_reiser4_fs_type(), &new, &host_of_new);
 	if (ret)
-		return ret;
+		goto out;
 
 	assert("edward-1969", new != NULL);
 	assert("edward-1970", host_of_new != NULL);
 
 	if (host_of_new != super_volume(sb)) {
 		warning("edward-1971", "Can't add brick of other volume");
-		return -EINVAL;
+		ret = -EINVAL;
+		goto out;
 	}
+	ret = reiser4_activate_subvol(sb, new);
+	if (ret)
+		goto out;
 	/*
-	 * add registered brick
+	 * add activated brick
 	 */
-	if (!reiser4_trylock_volume(sb))
-		return -EINVAL;
-
+	if (!reiser4_trylock_volume(sb)) {
+		ret = -EINVAL;
+		goto deactivate;
+	}
 	if (reiser4_volume_test_set_unbalanced(sb)) {
 		warning("edward-1951", "Can't add brick to unbalanced volume");
 		reiser4_unlock_volume(sb);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto deactivate;
 	}
 	ret = super_volume(sb)->vol_plug->add_brick(super_volume(sb),
 						    new);
 	reiser4_unlock_volume(sb);
 	if (ret)
-		return ret;
-	return super_volume(sb)->vol_plug->balance_volume(sb, 0);
+		goto deactivate;
+	ret = super_volume(sb)->vol_plug->balance_volume(sb, 0);
+	if (ret)
+		goto deactivate;
+	reiser4_exit_context(ctx);
+	return 0;
+ deactivate:
+	reiser4_deactivate_subvol(sb, new);
+ out:
+	reiser4_exit_context(ctx);
+	return ret;
 }
 
 static int reiser4_remove_brick(struct super_block *sb,

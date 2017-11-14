@@ -160,45 +160,27 @@ static int create_fibers(u32 nums_bits, u32 *tab,
 	init_fibers_by_tab(new_numb,
 			   nums_bits, tab, vec, fiber_at, new_weights);
 
-	for (i = 0; i < new_numb + 1; i++)
+	for (i = 0; i < new_numb; i++)
 		assert("edward-1901",
 		       new_weights[i] == *(fiber_lenp_at(vec, i)));
 	return 0;
 }
 
-#define HEX_BASE_LOGARITHM (4)
-
-static u32 get_rank_hex(u32 number)
-{
-        u32 rank;
-        for (rank = 0;
-             ((number - 1) >> (HEX_BASE_LOGARITHM * rank)) != 0;
-             rank ++);
-        return rank;
-}
-
+#if REISER4_DEBUG
 static void print_fiber(u32 id, void *vec, u32 num_sgs,
 			void *(*fiber_at)(void *vec, u64 idx),
 			u64 *(*fiber_lenp_at)(void *vec, u64 idx))
 {
 	u32 i;
-	u32 rank;
-	char *text;
 	u32 *fib = fiber_at(vec, id);
 	u32 fib_len = *fiber_lenp_at(vec, id);
 
-        rank = get_rank_hex(num_sgs);
-        text = mem_alloc(rank * fib_len + 1);
-        if (!text)
-                return;
-        for (i = 0; i < fib_len; i++)
-                sprintf(text + i * rank, "%.*x", rank, *fib);
-
-        text[rank * fib_len] = '\0';
-	printk("fiber %d: %s\n", id, text);
-	mem_free(text);
+	printk("fiber %d:", id);
+	for (i = 0; i < fib_len; i++)
+                printk("%d", fib[i]);
 	return;
 }
+#endif
 
 static void release_fibers(u32 numb, void *vec,
 			   void *(*fiber_at)(void *vec, u64 idx),
@@ -620,7 +602,7 @@ int initv_fsw32(void *buckets,
 		goto error;
 
 	calibrate_vector(numb, buckets,
-			 aid->ops->cap_at, nums, aid->weights);
+			 ops->cap_at, nums, aid->weights);
 
 	if (aid->tab == NULL) {
 		ret = initr_fsw32(raid, numb, nums_bits);
@@ -643,9 +625,11 @@ int initv_fsw32(void *buckets,
 	aid->buckets = buckets;
 	aid->ops = ops;
 
+#if REISER4_DEBUG
 	for (i = 0; i < numb; i++)
 		print_fiber(i, aid->tab,
 			    nums, ops->fib_at, ops->fib_lenp_at);
+#endif
 	return 0;
  error:
 	doner_fsw32(raid);
@@ -670,6 +654,7 @@ u64 lookup_fsw32m(reiser4_aid *raid, const char *str,
  */
 int inc_fsw32(reiser4_aid *raid, u64 target_pos, int new)
 {
+	u32 i;
 	int ret = 0;
 	u32 *new_weights;
 	u32 old_numb, new_numb, nums;
@@ -705,7 +690,11 @@ int inc_fsw32(reiser4_aid *raid, u64 target_pos, int new)
 			     aid->ops->fib_lenp_at);
 	if (ret)
 		goto error;
-
+#if REISER4_DEBUG
+	for (i = 0; i < new_numb; i++)
+		print_fiber(i, aid->tab,
+			    nums, aid->ops->fib_at, aid->ops->fib_lenp_at);
+#endif
 	mem_free(aid->weights);
 	aid->weights = new_weights;
 	aid->numb = new_numb;

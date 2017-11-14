@@ -581,6 +581,8 @@ static void pack_format40_super(const struct super_block *s,
 
 	put_unaligned(cpu_to_le64(subv->volmap_loc), &format_sb->volinfo_loc);
 
+	put_unaligned(cpu_to_le64(subv->id), &format_sb->origin_id);
+
 	put_unaligned(cpu_to_le64(subv->data_room), &format_sb->data_room);
 
 	if (update_disk_version_minor(format_sb)) {
