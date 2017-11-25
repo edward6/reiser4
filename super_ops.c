@@ -179,7 +179,7 @@ static void reiser4_dirty_inode(struct inode *inode, int flags)
 	assert("edward-1606", !IS_RDONLY(inode));
 	assert("edward-1607",
 	       (inode_file_plugin(inode)->estimate.update(inode) <=
-		ctx->ctx_grabbed_blocks[get_meta_subvol()->id]));
+		ctx_subvol_grabbed(ctx, get_meta_subvol()->id)));
 
 	if (ctx->locked_page)
 		unlock_page(ctx->locked_page);
@@ -560,10 +560,6 @@ static int fill_super(struct super_block *super, void *data, int silent)
 	if ((result = reiser4_activate_volume(super, vol_uuid)) != 0)
 		goto failed_activate_volume;
 
-	/* complete context initialization */
-	if ((result = reiser4_init_context_tail(&ctx, sbinfo)) != 0)
-		goto failed_complete_init_context;
-
 	sbinfo->default_uid = 0;
 	sbinfo->default_gid = 0;
 	sbinfo->nr_files_committed = oids_used(super);
@@ -598,7 +594,6 @@ static int fill_super(struct super_block *super, void *data, int silent)
  failed_process_safelinks:
 	dput(super->s_root);
  failed_init_root_inode:
- failed_complete_init_context:
 	reiser4_deactivate_volume(super);
  failed_activate_volume:
 	reiser4_done_formatted_fake(super);
@@ -747,11 +742,17 @@ static int __init init_reiser4(void)
 	if ((result = blocknr_list_init_static()) != 0)
 		goto failed_init_blocknr_list;
 
+	/* initialize cache of ctx_brick_info */
+	if ((result = ctx_brick_info_init_static()) != 0)
+		goto failed_init_ctx_brick_info;
+
 	if ((result = register_filesystem(&reiser4_fs_type)) == 0) {
 		reiser4_debugfs_root = debugfs_create_dir("reiser4", NULL);
 		return 0;
 	}
 
+	ctx_brick_info_done_static();
+ failed_init_ctx_brick_info:
 	blocknr_list_done_static();
  failed_init_blocknr_list:
 	blocknr_set_done_static();

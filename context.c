@@ -42,30 +42,109 @@
 #include <linux/writeback.h> /* for current_is_pdflush() */
 #include <linux/hardirq.h>
 
-/**
- * Allocate per-subvolume sets of grabbed blocks
- * FIXME-EDWARD: This set is not optimal. Replace it with RB-tree,
- * which provides better scalability
- */
-int reiser4_init_context_tail(reiser4_context *ctx,
-			      reiser4_super_info_data *sbinfo)
+static struct kmem_cache *cbi_slab = NULL;
+
+int ctx_brick_info_init_static(void)
 {
-	assert("edward-1731", sbinfo != NULL);
-	assert("edward-1732", sbinfo->vol != NULL);
-	assert("edward-1733", ctx->ctx_grabbed_blocks == NULL);
+	assert("edward-1978", cbi_slab == NULL);
 
-	ctx->ctx_num_origins = sbinfo_num_origins(sbinfo);
-
-	ctx->ctx_grabbed_blocks = kzalloc((ctx->ctx_num_origins) *
-					  sizeof(*ctx->ctx_grabbed_blocks),
-					  GFP_KERNEL);
-	if (!ctx->ctx_grabbed_blocks)
+	cbi_slab = kmem_cache_create("ctx_brick_info",
+				     sizeof(struct ctx_brick_info),
+				     0,
+				     SLAB_HWCACHE_ALIGN |
+				     SLAB_RECLAIM_ACCOUNT,
+				     NULL);
+	if (cbi_slab == NULL)
 		return RETERR(-ENOMEM);
 	return 0;
 }
 
-static int _reiser4_init_context(reiser4_context *context,
-				 struct super_block *super)
+void ctx_brick_info_done_static(void)
+{
+	destroy_reiser4_cache(&cbi_slab);
+}
+
+struct ctx_brick_info *alloc_context_brick_info(void)
+{
+	return kmem_cache_alloc(cbi_slab, reiser4_ctx_gfp_mask_get());
+}
+
+void free_context_brick_info(struct ctx_brick_info *cbi)
+{
+	assert("edward-1979", cbi != NULL);
+
+	kmem_cache_free(cbi_slab, cbi);
+}
+
+struct ctx_brick_info *find_context_brick_info(reiser4_context *ctx,
+					       u32 brick_id)
+{
+	struct rb_root *root = &ctx->bricks_info;
+	struct rb_node *node = root->rb_node;
+
+	while (node) {
+		struct ctx_brick_info *cbi =
+			rb_entry(node, struct ctx_brick_info, node);
+
+		if (cbi->brick_id > brick_id)
+			node = node->rb_left;
+		else if (cbi->brick_id < brick_id)
+			node = node->rb_right;
+		else
+			return cbi;
+	}
+	return NULL;
+}
+
+int insert_context_brick_info(reiser4_context *ctx,
+			      struct ctx_brick_info *this)
+{
+	struct rb_root *root = &ctx->bricks_info;
+	struct rb_node *parent = NULL;
+	struct rb_node **new = &(root->rb_node);
+
+	while (*new) {
+		struct ctx_brick_info *cbi;
+
+		cbi = rb_entry(*new, struct ctx_brick_info, node);
+		parent = *new;
+
+		if (this->brick_id < cbi->brick_id)
+			new = &((*new)->rb_left);
+		else if (this->brick_id > cbi->brick_id)
+			new = &((*new)->rb_right);
+		else
+			return -EEXIST;
+	}
+	rb_link_node(&this->node, parent, new);
+	rb_insert_color(&this->node, root);
+
+	return 0;
+}
+
+static void done_bricks_info(reiser4_context *ctx)
+{
+	struct rb_root *root;
+
+	root = &ctx->bricks_info;
+
+	while (!RB_EMPTY_ROOT(root)) {
+		struct rb_node *node;
+		struct ctx_brick_info *cbi;
+
+		node = rb_first(root);
+		cbi = rb_entry(node, struct ctx_brick_info, node);
+
+		assert("edward-1980", cbi->grabbed_blocks == 0);
+
+		rb_erase(&cbi->node, root);
+		RB_CLEAR_NODE(&cbi->node);
+		free_context_brick_info(cbi);
+	}
+}
+
+static void _reiser4_init_context(reiser4_context *context,
+				  struct super_block *super)
 {
 	context->super = super;
 	context->magic = context_magic;
@@ -73,6 +152,7 @@ static int _reiser4_init_context(reiser4_context *context,
 	current->journal_info = (void *)context;
 	context->nr_children = 0;
 	context->gfp_mask = GFP_KERNEL;
+	context->bricks_info = RB_ROOT;
 
 	init_lock_stack(&context->stack);
 
@@ -84,15 +164,6 @@ static int _reiser4_init_context(reiser4_context *context,
 	context->task = current;
 #endif
 	grab_space_enable();
-
-	if (get_super_private(super) == NULL ||
-	    get_super_private(super)->vol == NULL)
-		/*
-		 * initialization has to be completed later
-		 */
-		return 0;
-	return reiser4_init_context_tail(context,
-					 get_super_private(super));
 }
 
 /**
@@ -101,7 +172,6 @@ static int _reiser4_init_context(reiser4_context *context,
  */
 reiser4_context *reiser4_init_context(struct super_block *super)
 {
-	int ret;
 	reiser4_context *context;
 
 	assert("nikita-2662", !in_interrupt() && !in_irq());
@@ -117,22 +187,15 @@ reiser4_context *reiser4_init_context(struct super_block *super)
 	context = kzalloc(sizeof(*context), GFP_KERNEL);
 	if (context == NULL)
 		return ERR_PTR(RETERR(-ENOMEM));
-	ret = _reiser4_init_context(context, super);
-	if (ret) {
-		kfree(context);
-		return ERR_PTR(RETERR(ret));
-	}
+	_reiser4_init_context(context, super);
 	return context;
 }
 
 /**
  * This is used in scan_mgr which is called with spinlock held and in
  * reiser4_fill_super magic.
- *
- * FIXME-EDWARD: This function is called in critical places where it is not
- * allowed to fail.
  */
-int init_stack_context(reiser4_context *context, struct super_block *super)
+void init_stack_context(reiser4_context *context, struct super_block *super)
 {
 	assert("nikita-2662", !in_interrupt() && !in_irq());
 	assert("nikita-3357", super != NULL);
@@ -141,7 +204,7 @@ int init_stack_context(reiser4_context *context, struct super_block *super)
 
 	memset(context, 0, sizeof(*context));
 	context->on_stack = 1;
-	return _reiser4_init_context(context, super);
+	_reiser4_init_context(context, super);
 }
 
 /* cast lock stack embedded into reiser4 context up to its container */
@@ -245,8 +308,7 @@ static void reiser4_done_context(reiser4_context * context)
 		 * restore original ->fs_context value
 		 */
 		current->journal_info = context->outer;
-		if (context->ctx_grabbed_blocks)
-			kfree(context->ctx_grabbed_blocks);
+		done_bricks_info(context);
 		if (context->on_stack == 0)
 			kfree(context);
 	} else {

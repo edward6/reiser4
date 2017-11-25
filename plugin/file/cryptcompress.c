@@ -2181,7 +2181,7 @@ int find_disk_cluster(struct cluster_handle * clust,
 
 	hint = clust->hint;
 	fplug = inode_file_plugin(inode);
-	was_grabbed = get_current_context()->ctx_grabbed_blocks[subv->id];
+	was_grabbed = ctx_subvol_grabbed(get_current_context(), subv->id);
 	info = cryptcompress_inode_data(inode);
 	tc = &clust->tc;
 
@@ -2287,13 +2287,8 @@ int find_disk_cluster(struct cluster_handle * clust,
 		dclust_set_extension_dsize(clust->hint, tc->len);
 	}
  out:
-	assert("edward-1339",
-	       get_current_context()->ctx_grabbed_blocks[subv->id] >=
-	       was_grabbed);
-	grabbed2free(get_current_context(),
-		     get_current_super_private(),
-		     get_current_context()->ctx_grabbed_blocks[subv->id] -
-		     was_grabbed, subv);
+	grabbed2free_mark(was_grabbed, subv);
+
 	return result;
 }
 

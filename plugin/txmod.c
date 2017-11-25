@@ -641,7 +641,7 @@ static int forward_try_defragment_locality(znode * node,
 	ctx = get_current_context();
 	sbinfo = get_super_private(ctx->super);
 
-	grabbed = ctx->ctx_grabbed_blocks[subv->id];
+	grabbed = ctx_subvol_grabbed(ctx, subv->id);
 
 	ret = zload(node);
 	if (ret)

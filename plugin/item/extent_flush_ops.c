@@ -310,21 +310,11 @@ static reiser4_block_nr reserve_replace(reiser4_subvol *subv)
 {
 	reiser4_block_nr grabbed, needed;
 
-	grabbed = get_current_context()->ctx_grabbed_blocks[subv->id];
+	grabbed = ctx_subvol_grabbed(get_current_context(), subv->id);
 	needed = estimate_one_insert_into_item(&subv->tree);
 	check_me("vpf-340",
 		 !reiser4_grab_space_force(needed, BA_RESERVED, subv));
 	return grabbed;
-}
-
-static void free_reserved_replace(reiser4_block_nr grabbed,
-				  reiser4_subvol *subv)
-{
-	reiser4_context *ctx;
-
-	ctx = get_current_context();
-	grabbed2free(ctx, get_super_private(ctx->super),
-		     ctx->ctx_grabbed_blocks[subv->id] - grabbed, subv);
 }
 
 /* Block offset of first block addressed by unit */
@@ -363,7 +353,7 @@ int split_allocated_extent(coord_t *coord, reiser4_block_nr pos_in_unit)
 	int result;
 	struct replace_handle *h;
 	reiser4_extent *ext;
-	reiser4_block_nr grabbed;
+	reiser4_block_nr was_grabbed;
 
 	ext = extent_by_coord(coord);
 	assert("vs-1410", state_of_extent(ext) == ALLOCATED_EXTENT);
@@ -389,11 +379,11 @@ int split_allocated_extent(coord_t *coord, reiser4_block_nr pos_in_unit)
 	h->paste_key = h->key;
 
 	/* reserve space for extent unit paste, @grabbed is reserved before */
-	grabbed = reserve_replace(get_meta_subvol());
+	was_grabbed = reserve_replace(get_meta_subvol());
 	result = reiser4_replace_extent(h, 0 /* leave @coord set to overwritten
 						extent */);
 	/* restore reserved */
-	free_reserved_replace(grabbed, get_meta_subvol());
+	grabbed2free_mark(was_grabbed, get_meta_subvol());
 	kfree(h);
 	return result;
 }
@@ -477,7 +467,7 @@ int convert_extent(coord_t *coord, reiser4_extent *replace)
 	struct replace_handle *h;
 	reiser4_extent *ext;
 	reiser4_block_nr start, width, new_width;
-	reiser4_block_nr grabbed;
+	reiser4_block_nr was_grabbed;
 	extent_state state;
 
 	ext = extent_by_coord(coord);
@@ -526,11 +516,11 @@ int convert_extent(coord_t *coord, reiser4_extent *replace)
 	h->paste_key = h->key;
 
 	/* reserve space for extent unit paste, @grabbed is reserved before */
-	grabbed = reserve_replace(get_meta_subvol());
+	was_grabbed = reserve_replace(get_meta_subvol());
 	result = reiser4_replace_extent(h, 0 /* leave @coord set to overwritten
 						extent */);
 	/* restore reserved */
-	free_reserved_replace(grabbed, get_meta_subvol());
+	grabbed2free_mark(was_grabbed, get_meta_subvol());
 	kfree(h);
 	return result;
 }

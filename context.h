@@ -16,6 +16,16 @@
 #include <linux/fs.h>		/* for struct super_block  */
 #include <linux/spinlock.h>
 #include <linux/sched.h>	/* for struct task_struct */
+#include <linux/rbtree.h>
+
+/*
+ * Brick-specific part of context
+ */
+struct ctx_brick_info {
+	struct rb_node node;
+	u32 brick_id; /* key */
+	reiser4_block_nr grabbed_blocks;
+};
 
 /* reiser4 per-thread context */
 struct reiser4_context {
@@ -38,14 +48,10 @@ struct reiser4_context {
 
 	/* parent fs activation */
 	struct fs_activation *outer;
-	/*
-	 * per-thread grabbed (for further allocation) blocks counter
-	 * FIXME-EDWARD: RB-tree should be here for mapping
-	 * subvolume <-> grabbed_blocks. Once it is fixed, ctx_num_origins
-	 * is not needed.
-	 */
-	reiser4_block_nr *ctx_grabbed_blocks;
-	u32 ctx_num_origins;
+
+	/* brick-specific parts of the context for all the bricks which
+	   participate in the transaction. Sorted by internal brick ID */
+	struct rb_root bricks_info;
 
 	/* list of taps currently monitored. See tap.c */
 	struct list_head taps;
@@ -96,6 +102,20 @@ struct reiser4_context {
 };
 
 extern reiser4_context *get_context_by_lock_stack(lock_stack *);
+extern int ctx_brick_info_init_static(void);
+extern void ctx_brick_info_done_static(void);
+extern struct ctx_brick_info *find_context_brick_info(reiser4_context *ctx,
+						      u32 brick_id);
+extern int insert_context_brick_info(reiser4_context *ctx,
+				     struct ctx_brick_info *data);
+extern struct ctx_brick_info *alloc_context_brick_info(void);
+static inline void init_context_brick_info(struct ctx_brick_info *cbi,
+					   u32 brick_id)
+{
+	memset(cbi, 0, sizeof(*cbi));
+	RB_CLEAR_NODE(&cbi->node);
+	cbi->brick_id = brick_id;
+}
 
 /* Debugging helps. */
 #if REISER4_DEBUG
@@ -109,9 +129,7 @@ extern void print_contexts(void);
 #define current_tree(subvol_id) (&(current_origin(subvol_id)->tree))
 
 extern reiser4_context *reiser4_init_context(struct super_block *);
-extern int reiser4_init_context_tail(reiser4_context *,
-				     reiser4_super_info_data *);
-extern int init_stack_context(reiser4_context *, struct super_block *);
+extern void init_stack_context(reiser4_context *, struct super_block *);
 extern void reiser4_exit_context(reiser4_context *);
 
 /* magic constant we store in reiser4_context allocated at the stack. Used to

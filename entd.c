@@ -225,12 +225,9 @@ void reiser4_leave_flush(struct super_block *super)
 
 static void entd_flush(struct super_block *super, struct wbq *rq)
 {
-	int ret;
 	reiser4_context ctx;
 
-	ret = init_stack_context(&ctx, super);
-	BUG_ON(ret != 0); /* FIXME-EDWARD: We are not allowed to fail here */
-
+	init_stack_context(&ctx, super);
 	ctx.entd = 1;
 	ctx.gfp_mask = GFP_NOFS;
 

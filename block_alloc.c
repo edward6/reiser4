@@ -146,26 +146,45 @@ int reiser4_blocknr_is_fake(const reiser4_block_nr * da)
 
 __u64 ctx_subvol_grabbed(reiser4_context *ctx, __u32 subv_id)
 {
-	return ctx->ctx_grabbed_blocks[subv_id];
+	struct ctx_brick_info *cbi;
+
+	cbi = find_context_brick_info(ctx, subv_id);
+	return cbi != NULL ? cbi->grabbed_blocks : 0;
 }
 
-/* Static functions for <reiser4 super block>/<reiser4 context> block counters
-   arithmetic. Mostly, they are isolated to not to code same assertions in
-   several places. */
-static void sub_from_ctx_grabbed(reiser4_context *ctx,
-				 __u64 count, __u32 subv_id)
+/*
+ * Static functions for <reiser4 super block>/<reiser4 context>
+ * block counters arithmetic. Mostly, they are isolated to not
+ * to code same assertions in several places
+ */
+
+static void sub_from_ctx_grabbed(struct ctx_brick_info *cbi, __u64 count)
 {
-	assert("zam-527",
-	       ctx->ctx_grabbed_blocks[subv_id] >= count);
-	BUG_ON(ctx->ctx_grabbed_blocks[subv_id] < count);
-
-	ctx->ctx_grabbed_blocks[subv_id] -= count;
+	if (count != 0) {
+		assert("edward-1976", cbi != NULL);
+		assert("zam-527", cbi->grabbed_blocks >= count);
+		BUG_ON(cbi->grabbed_blocks < count);
+		cbi->grabbed_blocks -= count;
+	}
 }
 
+/*
+ * This can allocate memory.
+ * Must not be called under spinlocks.
+ */
 static void add_to_ctx_grabbed(reiser4_context *ctx,
 			       __u64 count, __u32 subv_id)
 {
-	ctx->ctx_grabbed_blocks[subv_id] += count;
+	struct ctx_brick_info *cbi;
+
+	cbi = find_context_brick_info(ctx, subv_id);
+	if (cbi == NULL) {
+		cbi = alloc_context_brick_info();
+		BUG_ON(cbi == NULL);
+		init_context_brick_info(cbi, subv_id);
+		insert_context_brick_info(ctx, cbi);
+	}
+	cbi->grabbed_blocks += count;
 }
 
 static void sub_from_subvol_grabbed(reiser4_subvol *subv, __u64 count)
@@ -288,7 +307,7 @@ static int reiser4_grab(reiser4_context *ctx, __u64 count,
 			reiser4_ba_flags_t flags, reiser4_subvol *subv)
 {
 	__u64 free_blocks;
-	int ret = 0, use_reserved = flags & BA_RESERVED;
+	int use_reserved = flags & BA_RESERVED;
 	reiser4_super_info_data *sbinfo;
 
 	assert("vs-1276", ctx == get_current_context());
@@ -307,23 +326,23 @@ static int reiser4_grab(reiser4_context *ctx, __u64 count,
 
 	if ((use_reserved && free_blocks < count) ||
 	    (!use_reserved && free_blocks < count + subv->blocks_reserved)) {
-		ret = RETERR(-ENOSPC);
-		goto unlock_and_ret;
-	}
-	add_to_ctx_grabbed(ctx, count, subv->id);
 
+		spin_unlock_reiser4_super(sbinfo);
+		return RETERR(-ENOSPC);
+	}
 	subv->blocks_grabbed += count;
 	subv->blocks_free -= count;
 
 	assert("nikita-2986", subvol_check_block_counters(subv));
+
+	spin_unlock_reiser4_super(sbinfo);
+
+	add_to_ctx_grabbed(ctx, count, subv->id);
 	/*
 	 * disable grab space in current context
 	 */
 	ctx->grab_enabled = 0;
- unlock_and_ret:
-	spin_unlock_reiser4_super(sbinfo);
-
-	return ret;
+	return 0;
 }
 
 int reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags,
@@ -439,10 +458,13 @@ static reiser4_super_info_data *grabbed2fake_allocated_head(int count,
 							   reiser4_subvol *subv)
 {
 	reiser4_context *ctx;
+	struct ctx_brick_info *cbi;
 	reiser4_super_info_data *sbinfo;
 
 	ctx = get_current_context();
-	sub_from_ctx_grabbed(ctx, count, subv->id);
+	cbi = find_context_brick_info(ctx, subv->id);
+
+	sub_from_ctx_grabbed(cbi, count);
 
 	sbinfo = get_super_private(ctx->super);
 	spin_lock_reiser4_super(sbinfo);
@@ -486,10 +508,12 @@ static void grabbed2fake_allocated_unformatted(int count, reiser4_subvol *subv)
 void grabbed2cluster_reserved(int count, reiser4_subvol *subv)
 {
 	reiser4_context *ctx;
+	struct ctx_brick_info *cbi;
 	reiser4_super_info_data *sbinfo;
 
 	ctx = get_current_context();
-	sub_from_ctx_grabbed(ctx, count, subv->id);
+	cbi = find_context_brick_info(ctx, subv->id);
+	sub_from_ctx_grabbed(cbi, count);
 
 	sbinfo = get_super_private(ctx->super);
 	spin_lock_reiser4_super(sbinfo);
@@ -592,7 +616,10 @@ reiser4_block_nr fake_blocknr_unformatted(int count, reiser4_subvol *subv)
 static void grabbed2used(reiser4_context *ctx, reiser4_super_info_data *sbinfo,
 			 __u64 count, reiser4_subvol *subv)
 {
-	sub_from_ctx_grabbed(ctx, count, subv->id);
+	struct ctx_brick_info *cbi;
+
+	cbi = find_context_brick_info(ctx, subv->id);
+	sub_from_ctx_grabbed(cbi, count);
 
 	spin_lock_reiser4_super(sbinfo);
 
@@ -866,14 +893,30 @@ void grabbed2free_mark(__u64 mark, reiser4_subvol *subv)
 {
 	reiser4_context *ctx;
 	reiser4_super_info_data *sbinfo;
+	u64 ctx_grabbed;
 
 	ctx = get_current_context();
 	sbinfo = get_super_private(ctx->super);
+	ctx_grabbed = ctx_subvol_grabbed(ctx, subv->id);
 
 	assert("nikita-3007", (__s64) mark >= 0);
-	assert("nikita-3006", ctx->ctx_grabbed_blocks[subv->id] >= mark);
-	grabbed2free(ctx, sbinfo,
-		     ctx->ctx_grabbed_blocks[subv->id] - mark, subv);
+	assert("nikita-3006", ctx_grabbed >= mark);
+
+	grabbed2free(ctx, sbinfo, ctx_grabbed - mark, subv);
+}
+
+void __grabbed2free(struct ctx_brick_info *cbi, reiser4_super_info_data *sbinfo,
+		    __u64 count, reiser4_subvol *subv)
+{
+	assert("edward-1977", cbi != NULL);
+
+	sub_from_ctx_grabbed(cbi, count);
+
+	spin_lock_reiser4_super(sbinfo);
+	sub_from_subvol_grabbed(subv, count);
+	subv->blocks_free += count;
+	assert("nikita-2684", subvol_check_block_counters(subv));
+	spin_unlock_reiser4_super(sbinfo);
 }
 
 /**
@@ -888,30 +931,28 @@ void grabbed2free_mark(__u64 mark, reiser4_subvol *subv)
 void grabbed2free(reiser4_context *ctx, reiser4_super_info_data *sbinfo,
 		  __u64 count, reiser4_subvol *subv)
 {
-	sub_from_ctx_grabbed(ctx, count, subv->id);
+	if (count != 0) {
+		struct ctx_brick_info *cbi;
 
-	spin_lock_reiser4_super(sbinfo);
-
-	sub_from_subvol_grabbed(subv, count);
-	subv->blocks_free += count;
-
-	assert("nikita-2684", subvol_check_block_counters(subv));
-
-	spin_unlock_reiser4_super(sbinfo);
+		cbi = find_context_brick_info(ctx, subv->id);
+		__grabbed2free(cbi, sbinfo, count, subv);
+	}
 }
 
 void grabbed2flush_reserved_nolock(txn_atom *atom,
 				   __u64 count, reiser4_subvol *subv)
 {
 	reiser4_context *ctx;
+	struct ctx_brick_info *cbi;
 	reiser4_super_info_data *sbinfo;
 
 	assert("vs-1095", atom);
 
 	ctx = get_current_context();
+	cbi = find_context_brick_info(ctx, subv->id);
 	sbinfo = get_super_private(ctx->super);
 
-	sub_from_ctx_grabbed(ctx, count, subv->id);
+	sub_from_ctx_grabbed(cbi, count);
 
 	add_to_atom_flush_reserved_nolock(atom, count, subv->id);
 
@@ -968,29 +1009,22 @@ void flush_reserved2grabbed(txn_atom *atom, __u64 count, reiser4_subvol *subv)
  */
 void all_grabbed2free(void)
 {
-	u32 subv_id;
 	reiser4_context *ctx = get_current_context();
+	struct rb_root *root = &ctx->bricks_info;
+	struct rb_node *node;
 
-	if (ctx->ctx_grabbed_blocks == NULL)
+	if (current_subvols() == NULL)
+		/* not active volume */
 		return;
-	if (get_super_private(ctx->super) == NULL) {
-		/*
-		 * this is exit_context() after reiser4_done_fs_info()
-		 * at put_super(), i.e. nothing to do any more
-		 */
-		assert("edward-1777", ctx->ctx_grabbed_blocks[0] == 0);
-		return;
-	}
-	for_each_origin(subv_id) {
-		if (current_volume()->subvols == NULL)
-			break;
-		if (current_origin(subv_id) == NULL)
-			continue;
-		if (ctx->ctx_grabbed_blocks[subv_id])
-			grabbed2free(ctx,
-				     get_super_private(ctx->super),
-				     ctx->ctx_grabbed_blocks[subv_id],
-				     current_origin(subv_id));
+
+	for (node = rb_first(root); node; node = rb_next(node)) {
+		struct ctx_brick_info *cbi;
+
+		cbi = rb_entry(node, struct ctx_brick_info, node);
+		__grabbed2free(cbi,
+			       get_super_private(ctx->super),
+			       cbi->grabbed_blocks,
+			       current_origin(cbi->brick_id));
 	}
 }
 
