@@ -4,6 +4,8 @@ config REISER4_FS
 	select ZLIB_DEFLATE
 	select LZO_COMPRESS
 	select LZO_DECOMPRESS
+	select ZSTD_COMPRESS
+	select ZSTD_DECOMPRESS
 	select CRYPTO
 	select CRYPTO_CRC32C
 	help
