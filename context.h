@@ -52,6 +52,7 @@ struct reiser4_context {
 	/* brick-specific parts of the context for all the bricks which
 	   participate in the transaction. Sorted by internal brick ID */
 	struct rb_root bricks_info;
+	struct ctx_brick_info mcbi; /* pre-allocated meta-brick info */
 
 	/* list of taps currently monitored. See tap.c */
 	struct list_head taps;
@@ -72,7 +73,7 @@ struct reiser4_context {
 	/* this bit is used on reiser4_done_context to decide whether context is
 	   kmalloc-ed and has to be kfree-ed */
 	unsigned int on_stack:1;
-	unsigned int exit_mount_session:1;
+	unsigned int init_vol_failed:1;
 
 	/* count non-trivial jnode_set_dirty() calls */
 	unsigned long nr_marked_dirty;
@@ -109,6 +110,11 @@ extern struct ctx_brick_info *find_context_brick_info(reiser4_context *ctx,
 extern int insert_context_brick_info(reiser4_context *ctx,
 				     struct ctx_brick_info *data);
 extern struct ctx_brick_info *alloc_context_brick_info(void);
+static inline ctx_brick_info *context_meta_brick_info(reiser4_context *ctx)
+{
+	return &ctx->mcbi;
+}
+
 static inline void init_context_brick_info(struct ctx_brick_info *cbi,
 					   u32 brick_id)
 {

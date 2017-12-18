@@ -192,6 +192,17 @@ typedef enum {
    code above and proceed without restarting if they are still satisfied.
 */
 
+struct atom_brick_info {
+	struct rb_node node;
+	u32 brick_id; /* key */
+	reiser4_block_nr nr_blocks_allocated; /* number of blocks allocated
+						 during the transaction */
+	reiser4_block_nr atom_flush_reserved; /* counter of blocks reserved
+						 for flush and commit, see
+						 reiser4 space reservation
+						 scheme at block_alloc.c */
+};
+
 /* An atomic transaction: this is the underlying system representation
    of a transaction, not the one seen by clients.
 
@@ -235,6 +246,8 @@ struct txn_atom {
 	int ovrwr;
 	int wb;
 	int fq;
+	atom_brick_info *abi;
+	atom_brick_info *abi_found;
 #endif
 
 	__u32 flushed;
@@ -312,11 +325,9 @@ struct txn_atom {
 	/* number of flush queues which are IN_USE and jnodes from fq->prepped
 	   are submitted to disk by the reiser4_write_fq() routine. */
 	int nr_running_queues;
-	/* number of blocks allocated during the transaction */
-	reiser4_block_nr *nr_blocks_allocated;
-	/* A counter of grabbed unformatted nodes, see a description of the
-	 * reiser4 space reservation scheme at block_alloc.c */
-	reiser4_block_nr *flush_reserved;
+
+	struct rb_root bricks_info;
+	struct atom_brick_info mabi; /* pre-allocated meta-data brick info */
 #if REISER4_DEBUG
 	void *committer;
 #endif
@@ -436,6 +447,40 @@ extern int reiser4_uncapture_inode(struct inode *);
 
 extern txn_atom *get_current_atom_locked_nocheck(void);
 
+extern struct atom_brick_info *alloc_atom_brick_info(void);
+extern void free_atom_brick_info(struct atom_brick_info *abi);
+static inline void init_atom_brick_info(struct atom_brick_info *abi,
+					u32 brick_id)
+{
+	memset(abi, 0, sizeof(*abi));
+	RB_CLEAR_NODE(&abi->node);
+	abi->brick_id = brick_id;
+}
+
+static inline struct atom_brick_info *atom_meta_brick_info(txn_atom *atom)
+{
+	return &atom->mabi;
+}
+
+extern struct atom_brick_info *find_atom_brick_info(const struct rb_root *root,
+						    u32 brick_id);
+extern struct atom_brick_info *insert_atom_brick_info(struct rb_root *root,
+					      struct atom_brick_info *abi);
+extern int __check_insert_atom_brick_info(txn_atom **atom, u32 brick_id,
+					  struct atom_brick_info **abi);
+extern int check_insert_atom_brick_info(u32 brick_id,
+					struct atom_brick_info **abi);
+
+#if REISER4_DEBUG
+extern void check_atom_flush_reserved(txn_atom *atom);
+extern void __check_atom_brick_info(struct rb_root *root);
+extern void check_atom_brick_info(txn_atom *atom);
+#else
+#define check_atom_flush_reserved(atom) noop
+#define __check_atom_brick_info(root) noop
+#define check_atom_brick_info(atom) noop
+#endif
+
 #if REISER4_DEBUG
 
 /**
@@ -475,7 +520,7 @@ extern void insert_into_atom_ovrwr_list(txn_atom *atom, jnode *node);
 extern void insert_into_subv_ovrwr_list(reiser4_subvol *subv, jnode *node,
 					txn_atom *atom);
 
-extern int reiser4_capture_super_block(reiser4_subvol *subv);
+extern int capture_brick_super(reiser4_subvol *subv);
 int capture_bulk(jnode **, int count);
 
 /* See the comment on the function blocknrset.c:blocknr_set_add for the

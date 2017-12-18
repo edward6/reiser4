@@ -234,6 +234,7 @@ year old --- define all technical terms used.
 #include "inode.h"
 #include "flush.h"
 #include "discard.h"
+#include "plugin/volume/volume.h"
 
 #include <asm/atomic.h>
 #include <linux/types.h>
@@ -283,6 +284,272 @@ struct _txn_wait_links {
 static struct kmem_cache *_atom_slab = NULL;
 /* this is for user-visible, cross system-call transactions. */
 static struct kmem_cache *_txnh_slab = NULL;
+static struct kmem_cache *_abi_slab = NULL;
+
+struct atom_brick_info *alloc_atom_brick_info(void)
+{
+	return kmem_cache_alloc(_abi_slab, reiser4_ctx_gfp_mask_get());
+}
+
+void free_atom_brick_info(struct atom_brick_info *abi)
+{
+	assert("edward-1979", abi != NULL);
+
+	kmem_cache_free(_abi_slab, abi);
+}
+
+struct atom_brick_info *find_atom_brick_info(const struct rb_root *root,
+					     u32 brick_id)
+{
+	struct rb_node *node = root->rb_node;
+
+	while (node) {
+		struct atom_brick_info *abi =
+			rb_entry(node, struct atom_brick_info, node);
+
+		if (abi->brick_id > brick_id)
+			node = node->rb_left;
+		else if (abi->brick_id < brick_id)
+			node = node->rb_right;
+		else
+			return abi;
+	}
+	return NULL;
+}
+
+#if REISER4_DEBUG
+void __check_atom_brick_info(struct rb_root *root)
+{
+	struct rb_node *node;
+
+	for (node = rb_first(root);
+	     node;
+	     node = rb_next(node)) {
+		struct atom_brick_info *abi;
+
+		abi = rb_entry(node, struct atom_brick_info, node);
+		assert("edward-2007",
+		       abi == find_atom_brick_info(root, abi->brick_id));
+	}
+}
+
+void check_atom_brick_info(txn_atom *atom)
+{
+	struct rb_root *root = &atom->bricks_info;
+	struct rb_node *node;
+
+	for (node = rb_first(root);
+	     node;
+	     node = rb_next(node)) {
+		atom->abi = rb_entry(node, struct atom_brick_info, node);
+		atom->abi_found =
+			find_atom_brick_info(root, atom->abi->brick_id);
+		assert("edward-2008", atom->abi == atom->abi_found);
+	}
+}
+#endif /* REISER4_DEBUG */
+
+/**
+ * Try to insert item @this to rb-tree @root
+ * Return NULL on success. Otherwise, return node of existing item
+ */
+struct atom_brick_info *insert_atom_brick_info(struct rb_root *root,
+					       struct atom_brick_info *this)
+{
+	struct rb_node *parent = NULL;
+	struct rb_node **pos = &(root->rb_node);
+
+	while (*pos) {
+		struct atom_brick_info *abi;
+
+		abi = rb_entry(*pos, struct atom_brick_info, node);
+		parent = *pos;
+
+		if (this->brick_id < abi->brick_id)
+			pos = &((*pos)->rb_left);
+		else if (this->brick_id > abi->brick_id)
+			pos = &((*pos)->rb_right);
+		else
+			return abi;
+	}
+	rb_link_node(&this->node, parent, pos);
+	rb_insert_color(&this->node, root);
+
+	__check_atom_brick_info(root);
+
+	return NULL;
+}
+
+/**
+ * On sucess: 0 is returned and @this points
+ * to existing or inserted atom brick info.
+ */
+int __check_insert_atom_brick_info(txn_atom **atom, u32 brick_id,
+				   struct atom_brick_info **this)
+{
+	struct atom_brick_info *abi;
+
+	assert("edward-2009", atom != NULL);
+	assert("edward-2010", *atom != NULL);
+	assert("edward-2011", this != NULL);
+	assert_spin_locked(&((*atom)->alock));
+
+	if (brick_id == METADATA_SUBVOL_ID) {
+		/*
+		 * It is known to be preallocated
+		 */
+		*this = atom_meta_brick_info(*atom);
+		return 0;
+	}
+	abi = find_atom_brick_info(&((*atom)->bricks_info), brick_id);
+	if (abi == NULL) {
+		/*
+		 * Insert a new item to the tree
+		 */
+		spin_unlock_atom(*atom);
+		abi = alloc_atom_brick_info();
+		if (abi == NULL)
+			return -ENOMEM;
+		init_atom_brick_info(abi, brick_id);
+		*atom = get_current_atom_locked();
+		*this = insert_atom_brick_info(&(*atom)->bricks_info, abi);
+		if (*this != NULL) {
+			/*
+			 * someone has already inserted
+			 * an item with such key after we
+			 * unlocked the atom
+			 */
+			free_atom_brick_info(abi);
+			return 0;
+		}
+	}
+	*this = abi;
+	return 0;
+}
+
+int check_insert_atom_brick_info(u32 brick_id, struct atom_brick_info **this)
+{
+	int ret;
+	txn_atom *atom;
+
+	atom = get_current_atom_locked();
+	ret = __check_insert_atom_brick_info(&atom, brick_id, this);
+	if (ret)
+		return ret;
+	spin_unlock_atom(atom);
+	return 0;
+}
+
+static void done_atom_bricks_info(txn_atom *atom)
+{
+	struct rb_root *root;
+
+	root = &atom->bricks_info;
+	/*
+	 * remove pre-allocated info
+	 */
+	rb_erase(&atom->mabi.node, root);
+	RB_CLEAR_NODE(&atom->mabi.node);
+
+	while (!RB_EMPTY_ROOT(root)) {
+		struct rb_node *node;
+		struct atom_brick_info *abi;
+
+		node = rb_first(root);
+		abi = rb_entry(node, struct atom_brick_info, node);
+
+		rb_erase(&abi->node, root);
+		RB_CLEAR_NODE(&abi->node);
+		free_atom_brick_info(abi);
+	}
+}
+
+#if REISER4_DEBUG
+void check_atom_flush_reserved(txn_atom *atom)
+{
+	struct rb_node *node;
+
+	assert_spin_locked(&(atom->alock));
+
+	check_atom_brick_info(atom);
+
+	spin_lock_reiser4_super(get_current_super_private());
+
+	for (node = rb_first(&atom->bricks_info);
+	     node;
+	     node = rb_next(node)) {
+		struct atom_brick_info *abi;
+
+		abi = rb_entry(node, struct atom_brick_info, node);
+		assert("edward-2012",
+		       abi->atom_flush_reserved <=
+		       current_origin(abi->brick_id)->blocks_flush_reserved);
+	}
+	spin_unlock_reiser4_super(get_current_super_private());
+}
+#endif
+
+/**
+ * merge items representing per-brick atom's info
+ */
+static void fuse_abi(txn_atom *from, txn_atom *to)
+{
+	struct rb_node *node;
+	struct atom_brick_info *mabi_from, *mabi_to;
+	/*
+	 * start from fusing data of pre-allocated items
+	 */
+	mabi_from = atom_meta_brick_info(from);
+	mabi_to = atom_meta_brick_info(to);
+
+	mabi_to->atom_flush_reserved += mabi_from->atom_flush_reserved;
+	mabi_to->nr_blocks_allocated += mabi_from->nr_blocks_allocated;
+
+	mabi_from->atom_flush_reserved = 0;
+	mabi_from->nr_blocks_allocated = 0;
+
+	node = rb_next(&mabi_from->node);
+	while (node) {
+		struct rb_node *node_from;
+		struct atom_brick_info *abi_from;
+		struct atom_brick_info *abi_to;
+
+		node_from = node;
+		node = rb_next(node);
+
+		/* try to move the item to the @to's tree */
+
+		rb_erase(node_from, &from->bricks_info);
+		RB_CLEAR_NODE(node_from);
+
+		abi_from = rb_entry(node_from, struct atom_brick_info, node);
+		abi_to = insert_atom_brick_info(&to->bricks_info, abi_from);
+
+		if (abi_to != NULL) {
+			/*
+			 * can't insert: an item with such brick_id
+			 * already exists in the @to's rb-tree, so
+			 * simply update the existing item, and
+			 * release the item that we wanted to insert
+			 */
+			assert("edward-2013", abi_to->brick_id != 0);
+			assert("edward-2014", abi_from->brick_id == abi_to->brick_id);
+
+			abi_to->atom_flush_reserved += abi_from->atom_flush_reserved;
+			abi_to->nr_blocks_allocated += abi_from->nr_blocks_allocated;
+			free_atom_brick_info(abi_from);
+		}
+	}
+	/*
+	 * after fusion the @from's rb-tree contains only pre-allocated item
+	 */
+	assert("edward-2015",
+	       from->bricks_info.rb_node != NULL &&
+	       from->bricks_info.rb_node->rb_left == NULL &&
+	       from->bricks_info.rb_node->rb_right == NULL);
+
+	check_atom_brick_info(to);
+}
 
 /**
  * init_txnmgr_static - create transaction manager slab caches
@@ -294,6 +561,7 @@ int init_txnmgr_static(void)
 {
 	assert("jmacd-600", _atom_slab == NULL);
 	assert("jmacd-601", _txnh_slab == NULL);
+	assert("edward-2016", _abi_slab == NULL);
 
 	ON_DEBUG(atomic_set(&flush_cnt, 0));
 
@@ -311,6 +579,17 @@ int init_txnmgr_static(void)
 		return RETERR(-ENOMEM);
 	}
 
+	_abi_slab = kmem_cache_create("atom_brick_info",
+				      sizeof(struct atom_brick_info), 0,
+				      SLAB_HWCACHE_ALIGN |
+				      SLAB_RECLAIM_ACCOUNT, NULL);
+	if (_abi_slab == NULL) {
+		kmem_cache_destroy(_atom_slab);
+		kmem_cache_destroy(_txnh_slab);
+		_atom_slab = NULL;
+		_txnh_slab = NULL;
+		return RETERR(-ENOMEM);
+	}
 	return 0;
 }
 
@@ -323,6 +602,7 @@ void done_txnmgr_static(void)
 {
 	destroy_reiser4_cache(&_atom_slab);
 	destroy_reiser4_cache(&_txnh_slab);
+	destroy_reiser4_cache(&_abi_slab);
 }
 
 /**
@@ -385,10 +665,16 @@ static void init_atom(txn_atom * atom)
 	int level;
 
 	assert("umka-173", atom != NULL);
-	assert("edward-1813", atom->nr_blocks_allocated != NULL);
 
 	atom->stage = ASTAGE_FREE;
 	atom->start_time = jiffies;
+	/*
+	 * init set of per-brick info and populate it
+	 * with pree-allocated item for meta-data brick
+	 */
+	atom->bricks_info = RB_ROOT;
+	init_atom_brick_info(&atom->mabi, METADATA_SUBVOL_ID);
+	insert_atom_brick_info(&atom->bricks_info, &atom->mabi);
 
 	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1)
 		INIT_LIST_HEAD(ATOM_DIRTY_LIST(atom, level));
@@ -405,8 +691,6 @@ static void init_atom(txn_atom * atom)
 	INIT_LIST_HEAD(&atom->fwaitfor_list);
 	INIT_LIST_HEAD(&atom->fwaiting_list);
 	atom_dset_init(atom);
-	atom->flush_reserved =
-		atom->nr_blocks_allocated + current_num_origins();
 	init_atom_fq_parts(atom);
 }
 
@@ -695,19 +979,11 @@ static txn_atom *__alloc_atom(void)
 	if (atom == NULL)
 		return NULL;
 	memset(atom, 0, sizeof(txn_atom));
-	atom->nr_blocks_allocated = kzalloc(2 * current_num_origins() *
-					    sizeof(*atom->nr_blocks_allocated),
-					    GFP_KERNEL);
-	if (atom->nr_blocks_allocated == NULL) {
-		kmem_cache_free(_atom_slab, atom);
-		return NULL;
-	}
 	return atom;
 }
 
 static void __free_atom(txn_atom *atom)
 {
-	kfree(atom->nr_blocks_allocated);
 	kmem_cache_free(_atom_slab, atom);
 }
 
@@ -832,6 +1108,8 @@ static void free_atom(txn_atom * atom)
 	atom_dset_destroy(atom);
 
 	assert("jmacd-16", atom_isclean(atom));
+
+	done_atom_bricks_info(atom);
 
 	spin_unlock_atom(atom);
 
@@ -1088,6 +1366,7 @@ static int commit_current_atom(long *nr_submitted, txn_atom ** atom)
 		reiser4_preempt_point();
 
 		*atom = get_current_atom_locked();
+
 		if (flushiters > TOOMANYFLUSHES && IS_POW(flushiters)) {
 			warning("nikita-3176",
 				"Flushing like mad: %i", flushiters);
@@ -1436,7 +1715,6 @@ repeat:
 		list_for_each_entry(atom, &tmgr->atoms_list, atom_link) {
 			/* lock atom before checking its state */
 			spin_lock_atom(atom);
-
 			/*
 			 * we need an atom which is not being committed and
 			 * which has no flushers (jnode_flush() add one flusher
@@ -1456,8 +1734,7 @@ repeat:
 
 		/*
 		 * Write throttling is case of no one atom can be
-		 * flushed/committed.
-		 */
+		 * flushed/committed.		 */
 		if (!current_is_flush_bd_task()) {
 			list_for_each_entry(atom, &tmgr->atoms_list, atom_link) {
 				spin_lock_atom(atom);
@@ -2366,12 +2643,17 @@ static void capture_assign_block_nolock(txn_atom *atom, jnode *node)
 	LOCK_CNT_INC(t_refs);
 }
 
-/* common code for dirtying both unformatted jnodes and formatted znodes. */
-static void do_jnode_make_dirty(jnode * node, txn_atom * atom)
+/**
+ * Common code for dirtying both unformatted jnodes and formatted znodes.
+ * Pre-condition: atom brick header should be already allocated.
+ */
+static void do_jnode_make_dirty(jnode *node, txn_atom *atom)
 {
 	assert_spin_locked(&(node->guard));
 	assert_spin_locked(&(atom->alock));
 	assert("jmacd-3981", !JF_ISSET(node, JNODE_DIRTY));
+	assert("edward-2017",
+	       find_atom_brick_info(&atom->bricks_info, node->subvol->id) != NULL);
 
 	JF_SET(node, JNODE_DIRTY);
 
@@ -2388,6 +2670,9 @@ static void do_jnode_make_dirty(jnode * node, txn_atom * atom)
 	    && !jnode_is_cluster_page(node)) {
 		assert("vs-1093", !reiser4_blocknr_is_fake(&node->blocknr));
 		assert("vs-1506", *jnode_get_block(node) != 0);
+		/*
+		 * this will make a record to the atom brick header
+		 */
 		grabbed2flush_reserved_nolock(atom, (__u64) 1,
 					      jnode_get_subvol(node));
 		JF_SET(node, JNODE_FLUSH_RESERVED);
@@ -2635,7 +2920,7 @@ count_jnode(txn_atom * atom, jnode * node, atom_list old_list,
 
 #endif
 
-int reiser4_capture_super_block(reiser4_subvol *subv)
+int capture_brick_super(reiser4_subvol *subv)
 {
 	int result;
 	/*
@@ -2647,6 +2932,7 @@ int reiser4_capture_super_block(reiser4_subvol *subv)
 	{
 		znode *uber;
 		lock_handle lh;
+		struct atom_brick_info *abi;
 
 		init_lh(&lh);
 		result = get_uber_znode(&subv->tree,
@@ -2654,6 +2940,12 @@ int reiser4_capture_super_block(reiser4_subvol *subv)
 					&lh);
 		if (result)
 			return result;
+
+		result = check_insert_atom_brick_info(subv->id, &abi);
+		if (result) {
+			done_lh(&lh);
+			return result;
+		}
 		uber = lh.node;
 		znode_make_dirty(uber);
 		done_lh(&lh);
@@ -2908,7 +3200,6 @@ capture_fuse_txnh_lists(txn_atom *large, struct list_head *large_head,
 */
 static void capture_fuse_into(txn_atom * small, txn_atom * large)
 {
-	u32 i;
 	int level;
 	unsigned zcount = 0;
 	unsigned tcount = 0;
@@ -3006,18 +3297,9 @@ static void capture_fuse_into(txn_atom * small, txn_atom * large)
 
 	large->nr_running_queues += small->nr_running_queues;
 	small->nr_running_queues = 0;
-	/*
-	 * Merge numbers of allocated blocks and
-	 * blocks reserved for overwrite set.
-	 * FIXME-EDWARD: such arrays scale badly, replace them
-	 * with other data structures
-	 */
-	for_each_origin(i) {
-		large->nr_blocks_allocated[i] += small->nr_blocks_allocated[i];
-		large->flush_reserved[i] += small->flush_reserved[i];
-		small->nr_blocks_allocated[i] = 0;
-		small->flush_reserved[i] = 0;
-	}
+
+	fuse_abi(small, large);
+
 	if (large->stage < small->stage) {
 		/* Large only needs to notify if it has changed state. */
 		reiser4_atom_set_stage(large, small->stage);

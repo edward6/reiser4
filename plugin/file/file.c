@@ -772,7 +772,8 @@ int hint_is_set(const hint_t * hint)
 }
 
 #if REISER4_DEBUG
-static int all_but_offset_key_eq(const reiser4_key * k1, const reiser4_key * k2)
+static int all_but_offset_key_eq(const reiser4_key * k1,
+				 const reiser4_key * k2)
 {
 	return (get_key_locality(k1) == get_key_locality(k2) &&
 		get_key_type(k1) == get_key_type(k2) &&
@@ -843,6 +844,13 @@ int find_or_create_extent(struct page *page)
 		if (plugged_hole)
 			reiser4_update_sd(inode);
 	} else {
+		struct atom_brick_info *abi;
+		assert("edward-1982", node->subvol != NULL);
+
+		result = check_insert_atom_brick_info(node->subvol->id,
+						      &abi);
+		if (result)
+			return result;
 		spin_lock_jnode(node);
 		result = reiser4_try_capture(node, ZNODE_WRITE_LOCK, 0);
 		BUG_ON(result != 0);

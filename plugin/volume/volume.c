@@ -138,6 +138,10 @@ static int volinfo_absent(void)
 static void release_volinfo_nodes(reiser4_volume *vol)
 {
 	u64 i;
+
+	if (vol->volmap_nodes == NULL)
+		return;
+
 	for (i = 0; i < vol->num_volmaps + vol->num_voltabs; i++)
 		if (vol->volmap_nodes[i]) {
 			jput(vol->volmap_nodes[i]);
@@ -164,21 +168,35 @@ static int load_volume_info(reiser4_subvol *subv)
 {
 	int ret;
 	int i, j;
+	u32 num_aid_bricks;
 	u64 packed_segments = 0;
-	u64 voltab_nodes_loaded = 0;
 	reiser4_volume *vol = super_volume(subv->super);
 	distribution_plugin *dist_plug = vol->dist_plug;
 	reiser4_block_nr volmap_loc = subv->volmap_loc;
+	u64 voltabs_needed;
 
+	assert("edward-1984", subv->id == METADATA_SUBVOL_ID);
+
+	if (subvol_is_set(subv, SUBVOL_HAS_DATA_ROOM))
+		num_aid_bricks = vol->num_origins;
+	else {
+		assert("edward-1985", vol->num_origins > 1);
+		num_aid_bricks = vol->num_origins - 1;
+	}
+	if (dist_plug->r.init) {
+		ret = dist_plug->r.init(&vol->aid,
+					num_aid_bricks,
+					vol->num_sgs_bits);
+		if (ret)
+			return ret;
+	}
 	if (volmap_loc == 0) {
-		/*
-		 * It can happen only for simple volumes
-		 */
 		assert("edward-1847", vol->num_origins == 1);
 		return 0;
 	}
 	vol->num_volmaps = num_volmap_nodes(vol, vol->num_sgs_bits);
 	vol->num_voltabs = num_voltab_nodes(vol, vol->num_sgs_bits);
+	voltabs_needed = vol->num_voltabs;
 
 	vol->volmap_nodes =
 		kzalloc((vol->num_volmaps + vol->num_voltabs) *
@@ -190,51 +208,55 @@ static int load_volume_info(reiser4_subvol *subv)
 	vol->voltab_nodes = vol->volmap_nodes + vol->num_volmaps;
 
 	for (i = 0; i < vol->num_volmaps; i++) {
-		jnode *volmapj;
 		struct volmap *volmap;
 
 		assert("edward-1819", volmap_loc != 0);
 
-		volmapj = vol->volmap_nodes[i] =
+		vol->volmap_nodes[i] =
 			reiser4_alloc_volinfo_head(&volmap_loc, subv);
-		if (!volmapj) {
+		if (!vol->volmap_nodes[i]) {
 			ret = -ENOMEM;
 			goto unpin;
 		}
-		ret = jload(volmapj);
+		ret = jload(vol->volmap_nodes[i]);
 		if (ret)
 			goto unpin;
-		volmap = (struct volmap *)jdata(volmapj);
+		volmap = (struct volmap *)jdata(vol->volmap_nodes[i]);
 		/*
 		 * load all voltabs pointed by current volmap
 		 */
-		for (j = 0; j < voltab_nodes_per_block(); j++) {
-			jnode *voltabj;
+		for (j = 0;
+		     j < voltab_nodes_per_block() && voltabs_needed;
+		     j++, voltabs_needed --) {
+
 			reiser4_block_nr voltab_loc;
 
 			voltab_loc = volmap_get_entry_blk(volmap, j);
-			voltabj = vol->voltab_nodes[voltab_nodes_loaded] =
-				reiser4_alloc_volinfo_head(&voltab_loc, subv);
-			if (!voltabj) {
+			assert("edward-1986", voltab_loc != 0);
+
+			vol->voltab_nodes[j] =
+				reiser4_alloc_volinfo_head(&voltab_loc,
+							   subv);
+			if (!vol->voltab_nodes[j]) {
 				ret = -ENOMEM;
 				goto unpin;
 			}
-			ret = jload(voltabj);
+			ret = jload(vol->voltab_nodes[j]);
 			if (ret)
 				goto unpin;
 			dist_plug->v.unpack(&vol->aid,
-					    jdata(voltabj),
+					    jdata(vol->voltab_nodes[j]),
 					    packed_segments,
 					    segments_per_block(vol));
-			jrelse(voltabj);
+			jrelse(vol->voltab_nodes[j]);
+
 			packed_segments += segments_per_block(vol);
-			voltab_nodes_loaded ++;
 		}
 		volmap_loc = get_next_volmap_addr(volmap);
-		jrelse(volmapj);
+		jrelse(vol->volmap_nodes[i]);
 	}
  unpin:
-	done_volume_asym(subv);
+	release_volinfo_nodes(vol);
 	return ret;
 }
 
@@ -248,14 +270,16 @@ static int update_voltab_nodes(reiser4_volume *vol)
 	int ret;
 	int i, j;
 	u64 packed_segments = 0;
-	u64 voltab_nodes_loaded = 0;
 	distribution_plugin *dist_plug = vol->dist_plug;
 	reiser4_subvol *mtd_subv = get_meta_subvol();
 	reiser4_block_nr volmap_loc = mtd_subv->volmap_loc;
+	u64 voltabs_needed;
 
 	assert("edward-1835", volmap_loc != 0);
 	assert("edward-1836", vol->num_volmaps != 0);
 	assert("edward-1837", vol->num_voltabs != 0);
+
+	voltabs_needed = vol->num_voltabs;
 
 	vol->volmap_nodes =
 		kzalloc((vol->num_volmaps + vol->num_voltabs) *
@@ -267,57 +291,58 @@ static int update_voltab_nodes(reiser4_volume *vol)
 	vol->voltab_nodes = vol->volmap_nodes + vol->num_volmaps;
 
 	for (i = 0; i < vol->num_volmaps; i++) {
-		jnode *volmapj;
 		struct volmap *volmap;
 
 		assert("edward-1819", volmap_loc != 0);
 
-		volmapj = vol->volmap_nodes[i] =
+		vol->volmap_nodes[i] =
 			reiser4_alloc_volinfo_head(&volmap_loc, mtd_subv);
-		if (!volmapj) {
+		if (!vol->volmap_nodes[i]) {
 			ret = -ENOMEM;
 			goto unpin;
 		}
-		ret = jload(volmapj);
+		ret = jload(vol->volmap_nodes[i]);
 		if (ret)
 			goto unpin;
-		volmap = (struct volmap *)jdata(volmapj);
+		volmap = (struct volmap *)jdata(vol->volmap_nodes[i]);
 		/*
 		 * upate all voltabs pointed by current volmap
 		 */
-		for (j = 0; j < voltab_nodes_per_block(); j++) {
-			jnode *voltabj;
+		for (j = 0;
+		     j < voltab_nodes_per_block() && voltabs_needed;
+		     j++, voltabs_needed --) {
+
 			reiser4_block_nr voltab_loc;
 
-			volmap_loc = volmap_get_entry_blk(volmap, j);
-			voltabj = vol->voltab_nodes[voltab_nodes_loaded] =
+			voltab_loc = volmap_get_entry_blk(volmap, j);
+			assert("edward-1987", voltab_loc != 0);
+
+			vol->voltab_nodes[j] =
 				reiser4_alloc_volinfo_head(&voltab_loc,
 							   mtd_subv);
-			if (!voltabj) {
+			if (!vol->voltab_nodes[j]) {
 				ret = -ENOMEM;
 				goto unpin;
 			}
 			/*
-			 * we don't want to read voltab block,
+			 * we don't read voltab block fom disk,
 			 * as it will be completely overwritten
 			 * with new data
 			 */
-			ret = jinit_new(voltabj, GFP_KERNEL);
-			if (ret)
-				return ret;
-			ret = jload(voltabj);
+			ret = jinit_new(vol->voltab_nodes[j], GFP_KERNEL);
 			if (ret)
 				goto unpin;
+
 			dist_plug->v.pack(&vol->aid,
-					  jdata(voltabj),
+					  jdata(vol->voltab_nodes[j]),
 					  packed_segments,
 					  segments_per_block(vol));
-			jrelse(voltabj);
+			jrelse(vol->voltab_nodes[j]);
+
 			packed_segments += segments_per_block(vol);
-			voltab_nodes_loaded ++;
 		}
 		volmap_loc = get_next_volmap_addr(volmap);
-		jrelse(volmapj);
+		jrelse(vol->volmap_nodes[i]);
 	}
 	return 0;
  unpin:
@@ -357,7 +382,6 @@ noinline int create_volinfo_nodes(reiser4_volume *vol)
 	ret = alloc_volinfo_block(&volmap_loc, meta_subv);
 	if (ret)
 		return ret;
-
 	meta_subv->volmap_loc = volmap_loc;
 
 	vol->num_volmaps = num_volmap_nodes(vol, vol->num_sgs_bits);
@@ -383,9 +407,6 @@ noinline int create_volinfo_nodes(reiser4_volume *vol)
 			goto unpin;
 		}
 		ret = jinit_new(vol->volmap_nodes[i], GFP_KERNEL);
-		if (ret)
-			goto unpin;
-		ret = jload(vol->volmap_nodes[i]);
 		if (ret)
 			goto unpin;
 		volmap = (struct volmap *)jdata(vol->volmap_nodes[i]);
@@ -416,9 +437,6 @@ noinline int create_volinfo_nodes(reiser4_volume *vol)
 			}
 			ret = jinit_new(vol->voltab_nodes[j],
 					GFP_KERNEL);
-			if (ret)
-				goto unpin;
-			ret = jload(vol->voltab_nodes[j]);
 			if (ret)
 				goto unpin;
 			dist_plug->v.pack(&vol->aid,
@@ -478,18 +496,15 @@ static int capture_array_nodes(jnode **start, u64 count)
 
 static int capture_volinfo_nodes(reiser4_volume *vol)
 {
-	u64 i;
 	int ret;
 	/*
-	 * Format superblocks of all subvolumes to be overwritten
-	 * with updated data room size and location of the first
-	 * volmap block. So, put them to the transaction.
+	 * Format superblock of meta-data brick should be overwritten
+	 * with updated data room size and location of the first volmap
+	 * block. So, put them to the transaction.
 	 */
-	for (i = 0; i < current_num_origins(); i++) {
-		ret = reiser4_capture_super_block(current_origin(i));
-		if (ret)
-			return ret;
-	}
+	ret = capture_brick_super(current_origin(METADATA_SUBVOL_ID));
+	if (ret)
+		return ret;
 	return capture_array_nodes(vol->volmap_nodes,
 				   vol->num_volmaps + vol->num_voltabs);
 }
@@ -502,6 +517,8 @@ static int capture_voltab_nodes(reiser4_volume *vol)
 static int capture_volume_info(reiser4_volume *vol)
 {
 	int ret;
+	txn_atom *atom;
+	txn_handle *th;
 
 	if (volinfo_absent()) {
 		ret = create_volinfo_nodes(vol);
@@ -514,17 +531,28 @@ static int capture_volume_info(reiser4_volume *vol)
 			return ret;
 		ret = capture_voltab_nodes(vol);
 	}
+	if (ret)
+		return ret;
+	/*
+	 * write volinfo to disk
+	 */
+	th = get_current_context()->trans;
+	atom = get_current_atom_locked();
+	assert("edward-1988", atom != NULL);
+
+	spin_lock_txnh(th);
+
+	ret = force_commit_atom(th);
 	release_volinfo_nodes(vol);
 	return ret;
 }
 
 static int load_volume_asym(reiser4_subvol *subv)
 {
-	if (subv->id != 0)
+	if (subv->id != METADATA_SUBVOL_ID)
 		/*
-		 * Nothing to load:
-		 * Asymmetric LV stores system info only
-		 * on meta-data subvolume with id = 0
+		 * System configuration of assymetric LV
+		 * is stored only in meta-data subvolume
 		 */
 		return 0;
 	return load_volume_info(subv);
@@ -536,12 +564,6 @@ static int load_volume_asym(reiser4_subvol *subv)
  */
 static int init_volume_asym(reiser4_volume *vol)
 {
-	distribution_plugin *dist_plug = vol->dist_plug;
-
-	if (dist_plug->r.init)
-		return dist_plug->r.init(&vol->aid,
-					 num_aid_subvols(vol),
-					 vol->num_sgs_bits);
 	return 0;
 }
 
@@ -750,7 +772,7 @@ static int expand_brick_asym(reiser4_volume *vol, u64 id, u64 delta)
 		}
 		/* set on-disk unbalanced status
 		 */
-		ret = reiser4_capture_super_block(get_meta_subvol());
+		ret = capture_brick_super(get_meta_subvol());
 	}
 	dist_plug->v.done(raid);
  out:
@@ -760,7 +782,7 @@ static int expand_brick_asym(reiser4_volume *vol, u64 id, u64 delta)
 }
 
 /**
- * Add a specified brick to a volume
+ * Add a brick to an asymmetric logical volume
  * @new: brick to add
  */
 static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
@@ -807,7 +829,7 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	}
 	/* set on-disk unbalanced status
 	 */
-	ret = reiser4_capture_super_block(get_meta_subvol());
+	ret = capture_brick_super(get_meta_subvol());
 	dist_plug->v.done(raid);
  out:
 	if (ret)
@@ -1021,7 +1043,7 @@ static int remove_or_shrink_brick(reiser4_volume *vol, u64 id, u64 delta)
 		}
 		/* set on-disk unbalanced status
 		 */
-		ret = reiser4_capture_super_block(get_meta_subvol());
+		ret = capture_brick_super(get_meta_subvol());
 	}
 	dist_plug->v.done(&vol->aid);
  out:
@@ -1387,7 +1409,7 @@ int balance_volume_asym(struct super_block *super, int force)
 		 * update in-memory and on-disk balanced status
 		 */
 		reiser4_volume_clear_unbalanced(super);
-		err = reiser4_capture_super_block(get_meta_subvol());
+		err = capture_brick_super(get_meta_subvol());
 	}
 	return err;
 }

@@ -688,16 +688,31 @@ static void uncapture_znode(znode *node)
 				(unsigned long long)(*znode_get_block(node)));
 
 		spin_lock_znode(node);
-		/* Here we return flush reserved block which was reserved at the
-		 * moment when this allocated node was marked dirty and still
-		 * not used by flush in node relocation procedure.  */
+		/*
+		 * Here we return flush reserved block which was reserved
+		 * at the moment when this allocated node was marked dirty
+		 * and still not used by flush in node relocation procedure
+		 */
 		if (ZF_ISSET(node, JNODE_FLUSH_RESERVED)) {
 			txn_atom *atom;
+			atom_brick_info *abi;
+			ctx_brick_info *cbi;
 
 			atom = jnode_get_atom(ZJNODE(node));
 			assert("zam-939", atom != NULL);
+
 			spin_unlock_znode(node);
-			flush_reserved2grabbed(atom, (__u64) 1,
+
+			cbi = find_context_brick_info(get_current_context(),
+						   znode_get_subvol(node)->id);
+			assert("edward-2005", cbi != NULL);
+
+			abi = find_atom_brick_info(&atom->bricks_info,
+						   znode_get_subvol(node)->id);
+			assert("edward-2006", abi != NULL);
+
+			flush_reserved2grabbed(abi, cbi,
+					       (__u64) 1,
 					       znode_get_subvol(node));
 			spin_unlock_atom(atom);
 		} else

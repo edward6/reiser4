@@ -114,13 +114,6 @@ coord_matches_key_extent(const coord_t * coord, const reiser4_key * key)
 
 #endif
 
-/**
- * can_append -
- * @key:
- * @coord:
- *
- * Returns 1 if @key is equal to an append key of item @coord is set to
- */
 static int can_append(const reiser4_key *key, const coord_t *coord)
 {
 	reiser4_key append_key;
@@ -128,13 +121,6 @@ static int can_append(const reiser4_key *key, const coord_t *coord)
 	return keyeq(key, append_key_extent(coord, &append_key));
 }
 
-/**
- * append_hole
- * @coord:
- * @lh:
- * @key:
- *
- */
 int append_hole(coord_t *coord, lock_handle *lh, const reiser4_key *key)
 {
 	reiser4_key append_key;
@@ -263,6 +249,7 @@ static int append_last_extent(struct inode *inode, uf_coord_t *uf_coord,
 	int i;
 	int new_stripe = 0;
 	reiser4_subvol *subv;
+	struct atom_brick_info *abi;
 
 	coord = &uf_coord->coord;
 	ext_coord = &uf_coord->extension.extent;
@@ -352,6 +339,10 @@ static int append_last_extent(struct inode *inode, uf_coord_t *uf_coord,
 	 */
 	subv = calc_data_subvol(inode, get_key_offset(key));
 
+	result = check_insert_atom_brick_info(subv->id, &abi);
+	if (result)
+		return result;
+
 	for (i = 0; i < count; i ++) {
 		node = jnodes[i];
 		block = fake_blocknr_unformatted(1, subv);
@@ -433,6 +424,7 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	struct unix_file_info *uf_info;
 	jnode *node;
 	reiser4_subvol *subv;
+	struct atom_brick_info *abi;
 
 	/* first extent insertion starts at leaf level */
 	assert("vs-719", znode_get_level(uf_coord->coord.node) == LEAF_LEVEL);
@@ -489,6 +481,10 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	 * assign fake block numbers to all jnodes, capture and mark them dirty
 	 */
 	subv = calc_data_subvol(inode, get_key_offset(key));
+
+	result = check_insert_atom_brick_info(subv->id, &abi);
+	if (result)
+		return result;
 
 	block = fake_blocknr_unformatted(count, subv);
 	for (i = 0; i < count; i ++, block ++) {
@@ -768,11 +764,15 @@ static int overwrite_extent(struct inode *inode, uf_coord_t *uf_coord,
 	reiser4_key k;
 	int i;
 	jnode *node;
-#if REISER4_DEBUG
+	struct atom_brick_info *abi;
 	reiser4_subvol *subv = find_data_subvol(&uf_coord->coord);
-#endif
+
 	assert("edward-1935",
 	       subv == calc_data_subvol(inode, get_key_offset(key)));
+
+	result = check_insert_atom_brick_info(subv->id, &abi);
+	if (result)
+		return result;
 
 	k = *key;
 	for (i = 0; i < count; i ++) {
@@ -1060,6 +1060,10 @@ filemap_copy_from_user(struct page *page, unsigned long offset,
  * @pos: position in file to write to
  *
  */
+/*
+ * FIXME-EDWARD: align writes by stripe boundaries,
+ * so that we don't need to check atom-brick-info for every jnode
+ */
 ssize_t reiser4_write_extent(struct file *file, struct inode * inode,
 			     const char __user *buf, size_t count, loff_t *pos)
 {
@@ -1184,10 +1188,21 @@ ssize_t reiser4_write_extent(struct file *file, struct inode * inode,
 	} else {
 		for (i = 0; i < nr_dirty; i ++) {
 			int ret;
+			struct atom_brick_info *abi;
+
+			assert("edward-1983", jnodes[i]->subvol != NULL);
+
 			spin_lock_jnode(jnodes[i]);
 			ret = reiser4_try_capture(jnodes[i],
 						     ZNODE_WRITE_LOCK, 0);
+			spin_unlock_jnode(jnodes[i]);
 			BUG_ON(ret != 0);
+
+			ret = check_insert_atom_brick_info(jnodes[i]->subvol->id,
+							   &abi);
+			if (ret)
+				return ret;
+			spin_lock_jnode(jnodes[i]);
 			jnode_make_dirty_locked(jnodes[i]);
 			spin_unlock_jnode(jnodes[i]);
 		}

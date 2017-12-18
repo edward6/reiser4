@@ -611,11 +611,11 @@ typedef struct volume_plugin {
 	   is to be located */
 	int (*build_body_key)(struct inode *inode,
 			      loff_t off, reiser4_key *key);
-	/* Load a system LV info stored in a subvolume @subv.
-	   Normally is called at mount time */
+	/* Load a portion of LV system configuration contained
+	   in a subvolume @subv. Normally is called at mount time */
 	int (*load_volume)(reiser4_subvol *subv);
-	/* Release LV system info associated with a subvolume @subv.
-	   Normally is called at umount time */
+	/* Release a portion of LV system info associated with a
+	   subvolume @subv. Normally is called at umount time */
 	void (*done_volume)(reiser4_subvol *subv);
 	/* Init LV after loading LV system info from all subvolumes */
 	int (*init_volume)(reiser4_volume *vol);

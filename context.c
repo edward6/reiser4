@@ -38,6 +38,7 @@
 #include "super.h"
 #include "context.h"
 #include "vfs_ops.h"	/* for reiser4_throttle_write() */
+#include "plugin/volume/volume.h" /* for METADATA_SUBVOL_ID */
 
 #include <linux/writeback.h> /* for current_is_pdflush() */
 #include <linux/hardirq.h>
@@ -128,6 +129,12 @@ static void done_bricks_info(reiser4_context *ctx)
 
 	root = &ctx->bricks_info;
 
+	/*
+	 * remove pre-allocated info
+	 */
+	rb_erase(&ctx->mcbi.node, root);
+	RB_CLEAR_NODE(&ctx->mcbi.node);
+
 	while (!RB_EMPTY_ROOT(root)) {
 		struct rb_node *node;
 		struct ctx_brick_info *cbi;
@@ -152,7 +159,13 @@ static void _reiser4_init_context(reiser4_context *context,
 	current->journal_info = (void *)context;
 	context->nr_children = 0;
 	context->gfp_mask = GFP_KERNEL;
+	/*
+	 * init set of per-brick info and populate it
+	 * with pree-allocated item for meta-data brick
+	 */
 	context->bricks_info = RB_ROOT;
+	init_context_brick_info(&context->mcbi, METADATA_SUBVOL_ID);
+	insert_context_brick_info(context, &context->mcbi);
 
 	init_lock_stack(&context->stack);
 

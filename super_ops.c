@@ -246,7 +246,6 @@ static void reiser4_put_super(struct super_block *super)
 		warning("vs-17", "failed to init context");
 		return;
 	}
-	ctx->exit_mount_session = 1;
 	/*
 	 * release disk format related resources
 	 */

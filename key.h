@@ -224,7 +224,7 @@ static inline __u64 get_key_ordering(const reiser4_key * key)
 static inline void set_key_ordering(reiser4_key * key, __u64 val)
 {
 }
-#endif
+#endif /* REISER4_LARGE_KEY */
 
 /* key comparison result */
 typedef enum { LESS_THAN = -1,	/* if first key is less than second */

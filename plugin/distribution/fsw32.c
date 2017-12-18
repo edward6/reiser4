@@ -582,7 +582,6 @@ int initv_fsw32(void *buckets,
 		reiser4_aid *raid)
 {
 	int ret = -ENOMEM;
-	u32 i;
 	u32 nums;
 	struct fsw32_aid *aid;
 
@@ -626,9 +625,12 @@ int initv_fsw32(void *buckets,
 	aid->ops = ops;
 
 #if REISER4_DEBUG
-	for (i = 0; i < numb; i++)
-		print_fiber(i, aid->tab,
-			    nums, ops->fib_at, ops->fib_lenp_at);
+	{
+		int i;
+		for (i = 0; i < numb; i++)
+			print_fiber(i, aid->tab,
+				    nums, ops->fib_at, ops->fib_lenp_at);
+	}
 #endif
 	return 0;
  error:
@@ -654,7 +656,6 @@ u64 lookup_fsw32m(reiser4_aid *raid, const char *str,
  */
 int inc_fsw32(reiser4_aid *raid, u64 target_pos, int new)
 {
-	u32 i;
 	int ret = 0;
 	u32 *new_weights;
 	u32 old_numb, new_numb, nums;
@@ -691,9 +692,13 @@ int inc_fsw32(reiser4_aid *raid, u64 target_pos, int new)
 	if (ret)
 		goto error;
 #if REISER4_DEBUG
-	for (i = 0; i < new_numb; i++)
-		print_fiber(i, aid->tab,
-			    nums, aid->ops->fib_at, aid->ops->fib_lenp_at);
+	{
+		int i;
+		for (i = 0; i < new_numb; i++)
+			print_fiber(i, aid->tab,
+				    nums, aid->ops->fib_at,
+				    aid->ops->fib_lenp_at);
+	}
 #endif
 	mem_free(aid->weights);
 	aid->weights = new_weights;

@@ -153,8 +153,9 @@ extern void reiser4_release_reserved(struct super_block *super);
 
 /* used -> fake_allocated -> grabbed -> free */
 
-extern void flush_reserved2grabbed(txn_atom * atom, __u64 count,
-				   reiser4_subvol *subv);
+extern void flush_reserved2grabbed(atom_brick_info *abi, ctx_brick_info *cbi,
+				   __u64 count, reiser4_subvol *subv);
+extern u64 all_flush_reserved2grabbed(txn_atom *atom);
 extern int reiser4_blocknr_is_fake(const reiser4_block_nr * da);
 
 extern void grabbed2cluster_reserved(int count, reiser4_subvol *);

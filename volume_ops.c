@@ -174,9 +174,11 @@ static int reiser4_add_brick(struct super_block *sb,
 	reiser4_unlock_volume(sb);
 	if (ret)
 		goto deactivate;
+
 	ret = super_volume(sb)->vol_plug->balance_volume(sb, 0);
 	if (ret)
 		goto deactivate;
+
 	reiser4_exit_context(ctx);
 	return 0;
  deactivate:

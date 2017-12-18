@@ -1396,9 +1396,9 @@ static int apply_dset_to_commit_bmap(txn_atom *atom,
 
 int reiser4_pre_commit_hook_bitmap(void)
 {
-	__u32 subv_id;
-	struct super_block *super = reiser4_get_current_sb();
 	txn_atom *atom;
+	struct rb_node *node;
+	struct super_block *super = reiser4_get_current_sb();
 	reiser4_super_info_data *sbinfo = get_super_private(super);
 
 	atom = get_current_atom_locked();
@@ -1470,27 +1470,43 @@ int reiser4_pre_commit_hook_bitmap(void)
 					  jnode, capture_link);
 		}
 	}
+#if 1
 	/*
-	 * Initialize ->blocks_freed of every subvolume
+	 * make sure that ->blocks_feed of all items are properly initialized
 	 */
-	for_each_origin(subv_id)
-		current_origin(subv_id)->blocks_freed = 0;
+	for (node = rb_first(&atom->bricks_info);
+	     node;
+	     node = rb_next(node)) {
+		reiser4_subvol *subv;
+		struct atom_brick_info *abi;
+
+		abi = rb_entry(node, struct atom_brick_info, node);
+		subv = current_origin(abi->brick_id);
+		subv->blocks_freed = 0;
+	}
+#endif
 	/*
-	 * This will update ->blocks_freed of every subvolume
+	 * This will update ->blocks_freed of every abi
 	 */
 	atom_dset_deferred_apply(atom, apply_dset_to_commit_bmap, NULL, 0);
 	/*
-	 * Set "committed" version of free blocks counters
+	 * Finally, update "committed" version of free blocks counters
+	 * for all bricks, which participate in the transaction
 	 */
-	spin_lock_reiser4_super(sbinfo);
+	spin_lock_reiser4_super(sbinfo); /* FIXME-EDWARD: lock respective
+					    subvolume instead of super-block */
+	for (node = rb_first(&atom->bricks_info);
+	     node;
+	     node = rb_next(node)) {
 
-	for_each_origin(subv_id){
+		reiser4_subvol *subv;
+		struct atom_brick_info *abi;
 
-		reiser4_subvol *subv = current_origin(subv_id);
+		abi = rb_entry(node, struct atom_brick_info, node);
+		subv = current_origin(abi->brick_id);
 
 		subv->blocks_free_committed +=
-			(subv->blocks_freed -
-			 atom->nr_blocks_allocated[subv->id]);
+			(subv->blocks_freed - abi->nr_blocks_allocated);
 	}
 	spin_unlock_reiser4_super(sbinfo);
 	return 0;

@@ -180,6 +180,7 @@
 #include "writeout.h"
 #include "inode.h"
 #include "entd.h"
+#include "plugin/volume/volume.h"
 
 #include <linux/types.h>
 #include <linux/fs.h>		/* for struct super_block  */
@@ -234,9 +235,17 @@ static void init_commit_handle(struct commit_handle *ch, txn_atom *atom,
 		/*
 		 * init ch of all subvolumes
 		 */
-		u32 orig_id;
-		for_each_origin(orig_id)
-			init_ch_sub(super_origin(ch->super, orig_id));
+		struct rb_node *node;
+
+		for (node = rb_first(&atom->bricks_info);
+		     node;
+		     node = rb_next(node)) {
+
+			struct atom_brick_info *abi;
+			abi = rb_entry(node, struct atom_brick_info, node);
+
+			init_ch_sub(super_origin(ch->super, abi->brick_id));
+		}
 	}
 }
 
@@ -257,9 +266,17 @@ static void done_commit_handle(struct commit_handle *ch, reiser4_subvol *subv)
 	if (subv)
 		done_ch_sub(subv);
 	else {
-		u32 subv_id;
-		for_each_origin(subv_id)
-			done_ch_sub(super_origin(ch->super, subv_id));
+		struct rb_node *node;
+		txn_atom *atom = ch->atom;
+
+		for (node = rb_first(&atom->bricks_info);
+		     node;
+		     node = rb_next(node)) {
+			struct atom_brick_info *abi;
+			abi = rb_entry(node, struct atom_brick_info, node);
+
+			done_ch_sub(super_origin(ch->super, abi->brick_id));
+		}
 	}
 #endif
 }
@@ -420,16 +437,25 @@ static void store_entry(jnode *node, int index,
  */
 static void get_tx_size(struct commit_handle *ch)
 {
-	u32 subv_id;
+	struct rb_node *node;
+	txn_atom *atom = ch->atom;
 
-	for_each_origin(subv_id) {
+	for (node = rb_first(&atom->bricks_info);
+	     node;
+	     node = rb_next(node)) {
 
+		struct atom_brick_info *abi;
 		struct commit_handle_subvol *ch_sub;
 
-		ch_sub = &super_origin(ch->super, subv_id)->ch;
+		abi = rb_entry(node, struct atom_brick_info, node);
+		ch_sub = &super_origin(ch->super, abi->brick_id)->ch;
 
-		assert("zam-440", ch_sub->overwrite_set_size != 0);
+		assert("zam-440", ergo(abi->brick_id != METADATA_SUBVOL_ID,
+				       ch_sub->overwrite_set_size != 0));
 		assert("zam-695", ch_sub->tx_size == 0);
+
+		if (ch_sub->overwrite_set_size == 0)
+			continue;
 		/*
 		 * count all ordinary wander records
 		 * (<overwrite_set_size> - 1) / <wander_record_capacity> + 1
@@ -541,11 +567,20 @@ static int update_journal_footer(struct commit_handle *ch, u32 subv_id)
  */
 static void dealloc_tx_list(struct commit_handle *ch)
 {
-	u32 subv_id;
+	struct rb_node *node;
+	txn_atom *atom = ch->atom;
 
-	for_each_origin(subv_id) {
-		reiser4_subvol *subv = current_origin(subv_id);
-		struct commit_handle_subvol *ch_sub = &subv->ch;
+	for (node = rb_first(&atom->bricks_info);
+	     node;
+	     node = rb_next(node)) {
+
+		reiser4_subvol *subv;
+		struct atom_brick_info *abi;
+		struct commit_handle_subvol *ch_sub;
+
+		abi = rb_entry(node, struct atom_brick_info, node);
+		subv = current_origin(abi->brick_id);
+		ch_sub = &subv->ch;
 
 		while (!list_empty(&ch_sub->tx_list)) {
 			jnode *cur = list_entry(ch_sub->tx_list.next,
@@ -587,20 +622,25 @@ static int dealloc_wmap_actor(txn_atom *atom UNUSED_ARG,
  */
 static void dealloc_wmap(struct commit_handle *ch)
 {
-	u32 subv_id;
+	struct rb_node *node;
+	txn_atom *atom = ch->atom;
 
 	assert("zam-696", ch->atom != NULL);
 
-	for_each_origin(subv_id) {
+	for (node = rb_first(&atom->bricks_info);
+	     node;
+	     node = rb_next(node)) {
 
+		struct atom_brick_info *abi;
 		struct commit_handle_subvol *ch_sub;
 
-		ch_sub = &super_origin(ch->super, subv_id)->ch;
+		abi = rb_entry(node, struct atom_brick_info, node);
+		ch_sub = &super_origin(ch->super, abi->brick_id)->ch;
 
-		blocknr_set_iterator(ch->atom,
+		blocknr_set_iterator(atom,
 				     &ch_sub->wander_map,
 				     dealloc_wmap_actor, NULL, 1,
-				     subv_id);
+				     abi->brick_id);
 	}
 }
 
@@ -652,13 +692,19 @@ static void undo_bio(struct bio *bio)
  */
 static void put_overwrite_set(struct commit_handle *ch)
 {
-	jnode *cur;
-	u32 subv_id;
+	struct rb_node *node;
+	txn_atom *atom = ch->atom;
 
-	for_each_origin(subv_id) {
+	for (node = rb_first(&atom->bricks_info);
+	     node;
+	     node = rb_next(node)) {
+
+		jnode *cur;
+		struct atom_brick_info *abi;
 		struct commit_handle_subvol *ch_sub;
 
-		ch_sub = &super_origin(ch->super, subv_id)->ch;
+		abi = rb_entry(node, struct atom_brick_info, node);
+		ch_sub = &super_origin(ch->super, abi->brick_id)->ch;
 
 		list_for_each_entry(cur, &ch_sub->overwrite_set, capture_link)
 			jrelse_tail(cur);
@@ -674,12 +720,19 @@ void check_overwrite_set_subv(reiser4_subvol *subv)
 		assert("edward-1706", cur->subvol == subv);
 }
 
-void check_overwrite_set(void)
+void check_overwrite_set(txn_atom *atom)
 {
-	u32 subv_id;
+	struct rb_node *node;
 
-	for_each_origin(subv_id)
-		check_overwrite_set_subv(current_origin(subv_id));
+	for (node = rb_first(&atom->bricks_info);
+	     node;
+	     node = rb_next(node)) {
+
+		struct atom_brick_info *abi;
+		abi = rb_entry(node, struct atom_brick_info, node);
+
+		check_overwrite_set_subv(current_origin(abi->brick_id));
+	}
 }
 
 /*
@@ -694,12 +747,11 @@ int get_overwrite_set(struct commit_handle *ch)
 {
 	int ret;
 	jnode *cur;
-	u32 subv_id;
 	struct list_head *overw_set;
+	s64 rest_flush_reserved;
 #if REISER4_DEBUG
-	__u64 flush_reserved = 0;
-	__u64 nr_formatted_leaves = 0;
-	__u64 nr_unformatted_leaves = 0;
+	u64 nr_formatted_leaves = 0;
+	u64 nr_unformatted_leaves = 0;
 #endif
 	overw_set = ATOM_OVRWR_LIST(ch->atom);
 	cur = list_entry(overw_set->next, jnode, capture_link);
@@ -729,7 +781,7 @@ int get_overwrite_set(struct commit_handle *ch)
 			/*
 			 * This is a super-block captured in rare events (like
 			 * the final commit at the end of mount session (see
-			 * release_format40()->capture_super_block(), also
+			 * release_format40()->capture_brick_super(), also
 			 * see comments at reiser4_journal_recover_sb_data()).
 			 *
 			 * We replace fake znode by another (real) znode which
@@ -806,23 +858,19 @@ int get_overwrite_set(struct commit_handle *ch)
 		cur = next;
 	}
 	/*
-	 * Disk space for allocation of wandered blocks of leaf nodes already
-	 * reserved as "flush reserved", move it to grabbed space counter
+	 * All needed disk space reserved for allocation of wandered
+	 * blocks of leaf nodes ("flush reserved") has changed its status
+	 * to "used". Return the rest to "grabbed" to be released later.
 	 */
-	spin_lock_atom(ch->atom);
-	for_each_origin(subv_id) {
-#if REISER4_DEBUG
-		flush_reserved += ch->atom->flush_reserved[subv_id];
-#endif
-		flush_reserved2grabbed(ch->atom,
-				       ch->atom->flush_reserved[subv_id],
-				       current_origin(subv_id));
-	}
-	assert("zam-940",
-	       nr_formatted_leaves + nr_unformatted_leaves <= flush_reserved);
-	spin_unlock_atom(ch->atom);
+	rest_flush_reserved = all_flush_reserved2grabbed(ch->atom);
+	if (rest_flush_reserved < 0)
+		return rest_flush_reserved;
 
-	check_overwrite_set();
+	assert("zam-940",
+	       nr_formatted_leaves + nr_unformatted_leaves <=
+	       rest_flush_reserved);
+
+	check_overwrite_set(ch->atom);
 	return ch->total_overwrite_set_size;
 }
 
@@ -1252,7 +1300,6 @@ static int alloc_submit_wander_records(struct commit_handle *ch,
 					   BA_USE_DEFAULT_SEARCH_START,
 					   subv);
 		reiser4_blocknr_hint_done(&hint);
-
 		if (ret)
 			return ret;
 
@@ -1349,6 +1396,7 @@ static int commit_tx_subv(struct commit_handle *ch, u32 subv_id)
 				       BA_RESERVED, subv);
 	if (ret)
 		return ret;
+
 	fq = get_fq_for_current_atom();
 	if (IS_ERR(fq))
 		return PTR_ERR(fq);
@@ -1367,10 +1415,24 @@ static int commit_tx_subv(struct commit_handle *ch, u32 subv_id)
 static int commit_tx(struct commit_handle *ch)
 {
 	int ret;
-	u32 subv_id;
 
-	for_each_origin(subv_id) {
-		ret = commit_tx_subv(ch, subv_id);
+	txn_atom *atom = ch->atom;
+	struct rb_node *node;
+
+	for (node = rb_first(&atom->bricks_info);
+	     node;
+	     node = rb_next(node)) {
+
+		struct atom_brick_info *abi;
+		struct commit_handle_subvol *ch_sub;
+
+		abi = rb_entry(node, struct atom_brick_info, node);
+		ch_sub = &current_origin(abi->brick_id)->ch;
+
+		if (ch_sub->overwrite_set_size == 0)
+			continue;
+
+		ret = commit_tx_subv(ch, abi->brick_id);
 		if (ret)
 			return ret;
 	}
@@ -1378,8 +1440,20 @@ static int commit_tx(struct commit_handle *ch)
 	if (ret)
 		return ret;
 
-	for_each_origin(subv_id) {
-		ret = update_journal_header(ch, subv_id);
+	for (node = rb_first(&atom->bricks_info);
+	     node;
+	     node = rb_next(node)) {
+
+		struct atom_brick_info *abi;
+		struct commit_handle_subvol *ch_sub;
+
+		abi = rb_entry(node, struct atom_brick_info, node);
+		ch_sub = &current_origin(abi->brick_id)->ch;
+
+		if (ch_sub->overwrite_set_size == 0)
+			continue;
+
+		ret = update_journal_header(ch, abi->brick_id);
 		if (ret)
 			return ret;
 	}
@@ -1417,17 +1491,31 @@ static int play_tx_mirror(struct commit_handle *ch, reiser4_subvol *mirror)
 static int play_tx(struct commit_handle *ch)
 {
 	int ret;
-	u32 orig_id;
+	struct rb_node *node;
+	txn_atom *atom = ch->atom;
 
 	/*
 	 * First of all,
 	 * we issue per-component portions of IO requests in parallel.
 	 */
-	for_each_origin(orig_id) {
+	for (node = rb_first(&atom->bricks_info);
+	     node;
+	     node = rb_next(node)) {
+
 		u32 mirr_id;
-		for_each_mirror(orig_id, mirr_id) {
+		struct atom_brick_info *abi;
+		struct commit_handle_subvol *ch_sub;
+
+		abi = rb_entry(node, struct atom_brick_info, node);
+		ch_sub = &current_origin(abi->brick_id)->ch;
+
+		if (ch_sub->overwrite_set_size == 0)
+			continue;
+
+		for_each_mirror(abi->brick_id, mirr_id) {
+
 			reiser4_subvol *mirror;
-			mirror = current_mirror(orig_id, mirr_id);
+			mirror = current_mirror(abi->brick_id, mirr_id);
 			ret = play_tx_mirror(ch, mirror);
 			if (ret)
 				return ret;
@@ -1440,8 +1528,20 @@ static int play_tx(struct commit_handle *ch)
 	if (ret)
 		return ret;
 
-	for_each_origin(orig_id) {
-		ret = update_journal_footer(ch, orig_id);
+	for (node = rb_first(&atom->bricks_info);
+	     node;
+	     node = rb_next(node)) {
+
+		struct atom_brick_info *abi;
+		struct commit_handle_subvol *ch_sub;
+
+		abi = rb_entry(node, struct atom_brick_info, node);
+		ch_sub = &current_origin(abi->brick_id)->ch;
+
+		if (ch_sub->overwrite_set_size == 0)
+			continue;
+
+		ret = update_journal_footer(ch, abi->brick_id);
 		if (ret)
 			return ret;
 	}

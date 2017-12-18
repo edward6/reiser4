@@ -667,7 +667,9 @@ static int forward_try_defragment_locality(znode * node,
 			txn_atom *atom = get_current_atom_locked();
 			assert("nikita-3449",
 			       ZF_ISSET(node, JNODE_FLUSH_RESERVED));
-			flush_reserved2grabbed(atom, (__u64) 1, subv);
+			flush_reserved2grabbed(atom_meta_brick_info(atom),
+					       context_meta_brick_info(ctx),
+					       (__u64) 1, subv);
 			spin_unlock_atom(atom);
 			/*
 			 * we are trying to move node into relocate
@@ -683,18 +685,22 @@ static int forward_try_defragment_locality(znode * node,
 				goto exit;
 		}
 	}
-
-	/* We may do not use 5% of reserved disk space here and flush will not
-	   pack tightly. */
+	/*
+	 * We may do not use 5% of reserved disk space here
+	 * and flush will not pack tightly
+	 */
 	ret = reiser4_alloc_block(flush_pos_meta_hint(pos), &blk,
 				  BA_FORMATTED | BA_PERMANENT, subv);
 	if (ret)
 		goto exit;
 
-	if (!ZF_ISSET(node, JNODE_CREATED) &&
-	    (ret = reiser4_dealloc_block(znode_get_block(node), 0,
-					 BA_DEFER | BA_FORMATTED, subv)))
-		goto exit;
+	if (!ZF_ISSET(node, JNODE_CREATED)) {
+		ret = reiser4_dealloc_block(znode_get_block(node), 0,
+					    BA_DEFER | BA_FORMATTED,
+					    subv);
+		if (ret)
+			goto exit;
+	}
 
 	if (likely(!znode_is_root(node))) {
 		item_plugin *iplug;
@@ -704,7 +710,6 @@ static int forward_try_defragment_locality(znode * node,
 		iplug->f.update(parent_coord, &blk);
 
 		znode_make_dirty(parent_coord->node);
-
 	} else {
 		reiser4_tree *tree = znode_get_tree(node);
 		znode *uber;

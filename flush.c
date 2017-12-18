@@ -763,7 +763,6 @@ static int jnode_flush(jnode *node, long nr_to_write, long *nr_written,
 
 	assert("jmacd-76619", lock_stack_isclean(get_current_lock_stack()));
 	assert("nikita-3022", reiser4_schedulable());
-
 	assert("nikita-3185",
 	       get_current_super_private()->delete_mutex_owner != current);
 
@@ -812,7 +811,6 @@ static int jnode_flush(jnode *node, long nr_to_write, long *nr_written,
 	ret = scan_left(left_scan, right_scan, node);
 	if (ret != 0)
 		goto failed;
-
 	leftmost_in_slum = jref(left_scan->node);
 	scan_done(left_scan);
 
@@ -914,6 +912,7 @@ static int jnode_flush(jnode *node, long nr_to_write, long *nr_written,
 
 	/* Do the main rightward-bottom-up squeeze and allocate loop. */
 	ret = squalloc(flush_pos);
+
 	pos_stop(flush_pos);
 	if (ret)
 		goto failed;
@@ -1291,7 +1290,6 @@ static int alloc_pos_and_ancestors(flush_pos_t *pos)
 		/* Do the recursive step, allocating zero or more of our
 		 * ancestors. */
 		ret = alloc_one_ancestor(&pos->coord, pos);
-
 	} else {
 		if (!znode_is_root(pos->lock.node)) {
 			/*
@@ -2406,7 +2404,24 @@ static int handle_pos_on_twig(flush_pos_t *pos)
 	while (pos_valid(pos) &&
 	       coord_is_existing_unit(&pos->coord) &&
 	       item_is_extent(&pos->coord)) {
+		/*
+		 * check subvolume pointed by current unit
+		 */
+		reiser4_subvol *subv;
 
+		subv = find_data_subvol(&pos->coord);
+		if (subv != pos->data_subv) {
+			if (pos->data_subv == get_meta_subvol())
+				pos->data_subv = subv;
+			else {
+				/* in one flush session we process
+				 * not more than one data and one
+				 * meta-data subvolume
+				 */
+				pos_stop(pos);
+				return ret;
+			}
+		}
 		ret = txmod_plug->forward_alloc_unformatted(pos);
 		if (ret)
 			break;

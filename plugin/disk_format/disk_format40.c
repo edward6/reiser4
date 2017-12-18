@@ -564,6 +564,7 @@ static void pack_format40_super(const struct super_block *s,
 {
 	format40_disk_super_block *format_sb =
 		(format40_disk_super_block *) data;
+	reiser4_volume *vol = super_volume(s);
 
 	assert("zam-591", data != NULL);
 
@@ -580,6 +581,8 @@ static void pack_format40_super(const struct super_block *s,
 	put_unaligned(cpu_to_le16(subv->tree.height), &format_sb->tree_height);
 
 	put_unaligned(cpu_to_le64(subv->volmap_loc), &format_sb->volinfo_loc);
+
+	put_unaligned(cpu_to_le64(vol->num_origins), &format_sb->num_origins);
 
 	put_unaligned(cpu_to_le64(subv->id), &format_sb->origin_id);
 
@@ -619,8 +622,10 @@ int release_format40(struct super_block *s, reiser4_subvol *subv)
 	int ret;
 	reiser4_volume *vol = super_volume(s);
 
-	if (!rofs_super(s)) {
-		ret = reiser4_capture_super_block(subv);
+	if (!rofs_super(s) &&
+	    !get_current_context()->init_vol_failed) {
+
+		ret = capture_brick_super(subv);
 		if (ret != 0)
 			warning("vs-898",
 				"Failed to capture superblock (%d)", ret);

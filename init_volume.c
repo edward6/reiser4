@@ -574,6 +574,7 @@ static int activate_subvolumes_of_type(struct super_block *super,
 	}
 	return 0;
  error:
+	get_current_context()->init_vol_failed = 1;
 	__reiser4_deactivate_volume(super);
 	return ret;
 }

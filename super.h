@@ -324,12 +324,12 @@ static inline reiser4_super_info_data *get_super_private(const struct
 	return (reiser4_super_info_data *) super->s_fs_info;
 }
 
-static inline reiser4_volume *super_volume(struct super_block *super)
+static inline reiser4_volume *super_volume(const struct super_block *super)
 {
 	return get_super_private(super)->vol;
 }
 
-static inline volume_plugin *super_vol_plug(struct super_block *super)
+static inline volume_plugin *super_vol_plug(const struct super_block *super)
 {
 	return super_volume(super)->vol_plug;
 }

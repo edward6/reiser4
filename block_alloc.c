@@ -53,7 +53,9 @@ reiser4/README */
    basis.  A reiser4 context has a counter of blocks grabbed by this transaction
    and the sb's grabbed blocks counter is a sum of grabbed blocks counter values
    of each reiser4 context.  Each reiser4 atom has a counter of "flush reserved"
-   blocks, which are reserved for flush processing and atom commit. */
+   blocks, which are reserved for flush processing and atom commit, and the sb's
+   counter of flush reserved blocks is a sum of respective counters of each atom
+*/
 
 /* AN EXAMPLE: suppose we insert new item to the reiser4 tree.  We estimate
    number of blocks to grab for most expensive case of balancing when the leaf
@@ -158,20 +160,31 @@ __u64 ctx_subvol_grabbed(reiser4_context *ctx, __u32 subv_id)
  * to code same assertions in several places
  */
 
-static void sub_from_ctx_grabbed(struct ctx_brick_info *cbi, __u64 count)
+static inline void sub_from_cbi_grabbed(struct ctx_brick_info *cbi,
+					__u64 count)
 {
 	if (count != 0) {
 		assert("edward-1976", cbi != NULL);
 		assert("zam-527", cbi->grabbed_blocks >= count);
+		BUG_ON(cbi == NULL);
 		BUG_ON(cbi->grabbed_blocks < count);
+
 		cbi->grabbed_blocks -= count;
 	}
 }
 
-/*
- * This can allocate memory.
- * Must not be called under spinlocks.
- */
+static inline void sub_from_ctx_grabbed(reiser4_context *ctx,
+					u64 count, reiser4_subvol *subv)
+{
+	sub_from_cbi_grabbed(find_context_brick_info(ctx, subv->id),
+			     count);
+}
+
+static inline void add_to_cbi_grabbed(struct ctx_brick_info *cbi, u64 count)
+{
+	cbi->grabbed_blocks += count;
+}
+
 static void add_to_ctx_grabbed(reiser4_context *ctx,
 			       __u64 count, __u32 subv_id)
 {
@@ -179,12 +192,14 @@ static void add_to_ctx_grabbed(reiser4_context *ctx,
 
 	cbi = find_context_brick_info(ctx, subv_id);
 	if (cbi == NULL) {
+		assert("edward-1989", reiser4_schedulable());
+
 		cbi = alloc_context_brick_info();
 		BUG_ON(cbi == NULL);
 		init_context_brick_info(cbi, subv_id);
 		insert_context_brick_info(ctx, cbi);
 	}
-	cbi->grabbed_blocks += count;
+	add_to_cbi_grabbed(cbi, count);
 }
 
 static void sub_from_subvol_grabbed(reiser4_subvol *subv, __u64 count)
@@ -193,13 +208,12 @@ static void sub_from_subvol_grabbed(reiser4_subvol *subv, __u64 count)
 	subv->blocks_grabbed -= count;
 }
 
-/*
- * Decrease the counter of block reserved for flush in super block
- */
 static void sub_from_subvol_flush_reserved(reiser4_subvol *subv,
 					   __u64 count)
 {
+	assert("edward-1990", subvol_check_block_counters(subv));
 	assert("vpf-291", subv->blocks_flush_reserved >= count);
+
 	subv->blocks_flush_reserved -= count;
 }
 
@@ -220,6 +234,7 @@ static void sub_from_subvol_used(reiser4_subvol *subv, __u64 count)
 {
 	assert("zam-530",
 	       subv->blocks_used >= count + subv->min_blocks_used);
+
 	subv->blocks_used -= count;
 }
 
@@ -229,27 +244,32 @@ static void sub_from_cluster_reserved(reiser4_subvol *subv, __u64 count)
 	subv->blocks_clustered -= count;
 }
 
-/*
- * Increase the counter of block reserved for flush in atom
- */
-static void add_to_atom_flush_reserved_nolock(txn_atom *atom, __u32 count,
-					      __u32 subv_id)
+static inline void add_to_abi_flush_reserved(struct atom_brick_info *abi,
+					u32 count)
+{
+	assert("edward-1991", abi != NULL);
+	BUG_ON(abi == NULL);
+
+	abi->atom_flush_reserved += count;
+}
+
+static void add_to_atom_flush_reserved(txn_atom *atom, __u32 count,
+				       __u32 subv_id)
 {
 	assert("zam-772", atom != NULL);
 	assert_spin_locked(&(atom->alock));
-	atom->flush_reserved[subv_id] += count;
+
+	add_to_abi_flush_reserved(find_atom_brick_info(&atom->bricks_info,
+						       subv_id), count);
 }
 
-/*
- * Decrease the counter of block reserved for flush in atom
- */
-static void sub_from_atom_flush_reserved_nolock(txn_atom *atom, __u32 count,
-						__u32 subv_id)
+static void sub_from_abi_flush_reserved(struct atom_brick_info *abi,
+					u32 count)
 {
-	assert("zam-774", atom != NULL);
-	assert_spin_locked(&(atom->alock));
-	assert("nikita-2790", atom->flush_reserved[subv_id] >= count);
-	atom->flush_reserved[subv_id] -= count;
+	assert("edward-1992", abi != NULL);
+	assert("nikita-2790", abi->atom_flush_reserved >= count);
+
+	abi->atom_flush_reserved -= count;
 }
 
 /*
@@ -458,13 +478,11 @@ static reiser4_super_info_data *grabbed2fake_allocated_head(int count,
 							   reiser4_subvol *subv)
 {
 	reiser4_context *ctx;
-	struct ctx_brick_info *cbi;
 	reiser4_super_info_data *sbinfo;
 
 	ctx = get_current_context();
-	cbi = find_context_brick_info(ctx, subv->id);
 
-	sub_from_ctx_grabbed(cbi, count);
+	sub_from_ctx_grabbed(ctx, count, subv);
 
 	sbinfo = get_super_private(ctx->super);
 	spin_lock_reiser4_super(sbinfo);
@@ -508,12 +526,11 @@ static void grabbed2fake_allocated_unformatted(int count, reiser4_subvol *subv)
 void grabbed2cluster_reserved(int count, reiser4_subvol *subv)
 {
 	reiser4_context *ctx;
-	struct ctx_brick_info *cbi;
 	reiser4_super_info_data *sbinfo;
 
 	ctx = get_current_context();
-	cbi = find_context_brick_info(ctx, subv->id);
-	sub_from_ctx_grabbed(cbi, count);
+
+	sub_from_ctx_grabbed(ctx, count, subv);
 
 	sbinfo = get_super_private(ctx->super);
 	spin_lock_reiser4_super(sbinfo);
@@ -616,10 +633,7 @@ reiser4_block_nr fake_blocknr_unformatted(int count, reiser4_subvol *subv)
 static void grabbed2used(reiser4_context *ctx, reiser4_super_info_data *sbinfo,
 			 __u64 count, reiser4_subvol *subv)
 {
-	struct ctx_brick_info *cbi;
-
-	cbi = find_context_brick_info(ctx, subv->id);
-	sub_from_ctx_grabbed(cbi, count);
+	sub_from_ctx_grabbed(ctx, count, subv);
 
 	spin_lock_reiser4_super(sbinfo);
 
@@ -647,19 +661,30 @@ static void fake_allocated2used(reiser4_super_info_data *sbinfo, __u64 count,
 	spin_unlock_reiser4_super(sbinfo);
 }
 
-static void flush_reserved2used(txn_atom *atom,
-				__u64 count, reiser4_subvol *subv)
+static void flush_reserved2used(txn_atom *atom, u64 count, reiser4_subvol *subv)
 {
 	reiser4_super_info_data *sbinfo;
+	struct atom_brick_info *abi;
 
 	assert("zam-787", atom != NULL);
 	assert_spin_locked(&(atom->alock));
 
-	sub_from_atom_flush_reserved_nolock(atom, (__u32)count, subv->id);
+	abi = find_atom_brick_info(&atom->bricks_info, subv->id);
+
+	assert("edward-1993", abi != NULL);
+	assert("edward-1994", abi->brick_id == subv->id);
+	assert("edward-1995",
+	       abi->atom_flush_reserved <= subv->blocks_flush_reserved);
+
+	sub_from_abi_flush_reserved(abi, count);
 	sbinfo = get_current_super_private();
 	spin_lock_reiser4_super(sbinfo);
 
 	sub_from_subvol_flush_reserved(subv, count);
+
+	assert("edward-1996",
+	       abi->atom_flush_reserved <= subv->blocks_flush_reserved);
+
 	subv->blocks_used += count;
 
 	assert("zam-789", subvol_check_block_counters(subv));
@@ -757,8 +782,14 @@ int reiser4_alloc_blocks(reiser4_blocknr_hint *hint, reiser4_block_nr *blk,
 			/*
 			 * we assume that current atom exists at this moment
 			 */
+			struct atom_brick_info *abi;
 			txn_atom *atom = get_current_atom_locked();
-			atom->nr_blocks_allocated[subv->id] += *len; /* FIXME-EDWARD */
+
+			ret = __check_insert_atom_brick_info(&atom,
+							     subv->id, &abi);
+			if (ret)
+				return ret;
+			abi->nr_blocks_allocated += *len;
 			spin_unlock_atom(atom);
 		}
 		switch (hint->block_stage) {
@@ -843,7 +874,7 @@ static void used2flush_reserved(reiser4_super_info_data *sbinfo, txn_atom *atom,
 	assert("nikita-2791", atom != NULL);
 	assert_spin_locked(&(atom->alock));
 
-	add_to_atom_flush_reserved_nolock(atom, (__u32)count, subv->id);
+	add_to_atom_flush_reserved(atom, (__u32)count, subv->id);
 	spin_lock_reiser4_super(sbinfo);
 
 	subv->blocks_flush_reserved += count;
@@ -910,7 +941,7 @@ void __grabbed2free(struct ctx_brick_info *cbi, reiser4_super_info_data *sbinfo,
 {
 	assert("edward-1977", cbi != NULL);
 
-	sub_from_ctx_grabbed(cbi, count);
+	sub_from_cbi_grabbed(cbi, count);
 
 	spin_lock_reiser4_super(sbinfo);
 	sub_from_subvol_grabbed(subv, count);
@@ -935,6 +966,9 @@ void grabbed2free(reiser4_context *ctx, reiser4_super_info_data *sbinfo,
 		struct ctx_brick_info *cbi;
 
 		cbi = find_context_brick_info(ctx, subv->id);
+
+		assert("edward-1997", cbi != NULL);
+
 		__grabbed2free(cbi, sbinfo, count, subv);
 	}
 }
@@ -943,18 +977,17 @@ void grabbed2flush_reserved_nolock(txn_atom *atom,
 				   __u64 count, reiser4_subvol *subv)
 {
 	reiser4_context *ctx;
-	struct ctx_brick_info *cbi;
 	reiser4_super_info_data *sbinfo;
 
 	assert("vs-1095", atom);
 
 	ctx = get_current_context();
-	cbi = find_context_brick_info(ctx, subv->id);
+
 	sbinfo = get_super_private(ctx->super);
 
-	sub_from_ctx_grabbed(cbi, count);
+	sub_from_ctx_grabbed(ctx, count, subv);
 
-	add_to_atom_flush_reserved_nolock(atom, count, subv->id);
+	add_to_atom_flush_reserved(atom, count, subv->id);
 
 	spin_lock_reiser4_super(sbinfo);
 
@@ -975,29 +1008,78 @@ void grabbed2flush_reserved(__u64 count, reiser4_subvol *subv)
 	spin_unlock_atom(atom);
 }
 
-void flush_reserved2grabbed(txn_atom *atom, __u64 count, reiser4_subvol *subv)
+void flush_reserved2grabbed(struct atom_brick_info *abi,
+			    struct ctx_brick_info *cbi,
+			    u64 count, reiser4_subvol *subv)
 {
-	reiser4_context *ctx;
 	reiser4_super_info_data *sbinfo;
 
-	assert("nikita-2788", atom != NULL);
-	assert_spin_locked(&(atom->alock));
+	assert("edward-1998", abi != NULL);
+	assert("edward-1999", cbi != NULL);
+	assert("edward-2000", abi->brick_id == subv->id);
+	assert("edward-2001", cbi->brick_id == subv->id);
 
-	ctx = get_current_context();
-	sbinfo = get_super_private(ctx->super);
+	sbinfo = get_current_super_private();
 
-	add_to_ctx_grabbed(ctx, count, subv->id);
+	add_to_cbi_grabbed(cbi, count);
 
-	sub_from_atom_flush_reserved_nolock(atom, (__u32)count, subv->id);
+	sub_from_abi_flush_reserved(abi, count);
 
 	spin_lock_reiser4_super(sbinfo);
 
-	subv->blocks_grabbed += count;
 	sub_from_subvol_flush_reserved(subv, count);
+
+	subv->blocks_grabbed += count;
 
 	assert("vpf-292", subvol_check_block_counters(subv));
 
 	spin_unlock_reiser4_super(sbinfo);
+}
+
+u64 all_flush_reserved2grabbed(txn_atom *atom)
+{
+	struct rb_root *root;
+	struct rb_node *node;
+	u64 flush_reserved = 0;
+	reiser4_context *ctx = get_current_context();
+
+	spin_lock_atom(atom);
+
+	root = &atom->bricks_info;
+
+	check_atom_flush_reserved(atom);
+
+	for (node = rb_first(root); node; node = rb_next(node)) {
+		struct atom_brick_info *abi;
+		struct ctx_brick_info *cbi;
+		reiser4_subvol *subv;
+
+		abi = rb_entry(node, struct atom_brick_info, node);
+		subv = current_origin(abi->brick_id);
+		/*
+		 * make sure that respective context brick info exists
+		 */
+		cbi = find_context_brick_info(ctx, abi->brick_id);
+		if (cbi == NULL) {
+			warning("edward-2002",
+				"Context info for brick %d not found.",
+				abi->brick_id);
+			spin_unlock_atom(atom);
+			cbi = alloc_context_brick_info();
+			if (!cbi)
+				return -ENOMEM;
+			init_context_brick_info(cbi, abi->brick_id);
+			insert_context_brick_info(ctx, cbi);
+			spin_lock_atom(atom);
+		}
+		flush_reserved += abi->atom_flush_reserved;
+		flush_reserved2grabbed(abi, cbi,
+				       abi->atom_flush_reserved, subv);
+	}
+	check_atom_flush_reserved(atom);
+
+	spin_unlock_atom(atom);
+	return flush_reserved;
 }
 
 /**
@@ -1086,6 +1168,10 @@ int reiser4_check_blocks(const reiser4_block_nr *start,
 /* BA_FORMATTED bit is only used when BA_DEFER in not present: it is used to
    distinguish blocks allocated for unformatted and formatted nodes */
 
+/**
+ * Deallocate an extent of @len blocks with the beginning at @start
+ * on the block device associated with @subv.
+ */
 int reiser4_dealloc_blocks(const reiser4_block_nr *start,
 			   const reiser4_block_nr *len,
 			   block_stage_t target_stage,
@@ -1120,9 +1206,16 @@ int reiser4_dealloc_blocks(const reiser4_block_nr *start,
 		/* store deleted block numbers in the atom's deferred delete set
 		   for further actual deletion */
 		do {
+			struct atom_brick_info *abi;
+
 			atom = get_current_atom_locked();
 			assert("zam-430", atom != NULL);
 
+			ret = __check_insert_atom_brick_info(&atom,
+							     subv->id,
+							     &abi);
+			if (ret)
+				return ret;
 			ret = atom_dset_deferred_add_extent(atom,
 							    &new_entry,
 							    start, len,
@@ -1145,10 +1238,23 @@ int reiser4_dealloc_blocks(const reiser4_block_nr *start,
 				  *start, *len, subv);
 
 		if (flags & BA_PERMANENT) {
-			/* These blocks were counted as allocated, we have to
-			 * revert it back if allocation is discarded. */
+			/*
+			 * These blocks were counted as allocated, we have
+			 * to revert it back if allocation is discarded.
+			 */
 			txn_atom *atom = get_current_atom_locked();
-			atom->nr_blocks_allocated[subv->id] -= *len; /* FIXME-EDWARD */
+			struct atom_brick_info *abi;
+
+			abi = find_atom_brick_info(&atom->bricks_info, subv->id);
+			/*
+			 * has to be found as we inserted that
+			 * item, see reiser4_alloc_blocks(),
+			 * case (flags & BA_PERMANENT)
+			 */
+			assert("edward-2003", abi != NULL);
+			assert("edward-2004", abi->nr_blocks_allocated >= *len);
+
+			abi->nr_blocks_allocated -= *len;
 			spin_unlock_atom(atom);
 		}
 
