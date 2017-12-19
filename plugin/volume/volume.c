@@ -1155,50 +1155,24 @@ reiser4_subvol *super_meta_subvol(struct super_block *super)
 	return super_origin(super, super_vol_plug(super)->meta_subvol_id());
 }
 
-/**
- * calculate data subvolume ID by @inode and @offset,
- * calling volume plugin
- */
-reiser4_subvol *calc_data_subvol(const struct inode *inode, loff_t offset)
+u64 data_subvol_id_find_simple(const coord_t *coord)
 {
-	return current_origin(current_vol_plug()->
-			     data_subvol_id_calc(get_inode_oid(inode), offset));
+	return METADATA_SUBVOL_ID;
 }
 
-/**
- * Return subvolume "pointed" by @coord.
- * This helper is called by flush scan procedure when
- * processing TWIG level.
- */
-reiser4_subvol *subvol_by_coord(const coord_t *coord)
+u64 data_subvol_id_find_asym(const coord_t *coord)
 {
-	u64 subv_id = LAST_ITEM_ID;
-
 	assert("edward-1957", coord != NULL);
 
 	switch(item_id_by_coord(coord)) {
 	case NODE_POINTER_ID:
-		subv_id = METADATA_SUBVOL_ID;
-		break;
+		return METADATA_SUBVOL_ID;
 	case EXTENT_POINTER_ID:
-		subv_id = find_data_subvol_extent(coord);
-		break;
+		return find_data_subvol_extent(coord);
 	default:
-		return NULL;
+		impossible("edward-2018", "Bad item ID");
+		return METADATA_SUBVOL_ID;
 	}
-	return current_origin(subv_id);
-}
-
-/**
- * find cached value of subvolume ID, which was calculated
- * earlier by volume plugin and stored somewhere (as key's
- * component e.g.)
- */
-reiser4_subvol *find_data_subvol(const coord_t *coord)
-{
-	assert("edward-1939", item_is_extent(coord));
-
-	return subvol_by_coord(coord);
 }
 
 /**
@@ -1426,6 +1400,7 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		},
 		.meta_subvol_id = meta_subvol_id_simple,
 		.data_subvol_id_calc = data_subvol_id_calc_simple,
+		.data_subvol_id_find = data_subvol_id_find_simple,
 		.build_body_key = build_body_key_simple,
 		.load_volume = NULL,
 		.done_volume = NULL,
@@ -1454,6 +1429,7 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		},
 		.meta_subvol_id = meta_subvol_id_simple,
 		.data_subvol_id_calc = data_subvol_id_calc_asym,
+		.data_subvol_id_find = data_subvol_id_find_asym,
 		.build_body_key = build_body_key_asym,
 		.load_volume = load_volume_asym,
 		.done_volume = done_volume_asym,

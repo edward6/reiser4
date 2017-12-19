@@ -606,6 +606,8 @@ typedef struct volume_plugin {
 	u64 (*meta_subvol_id)(void);
 	/* Calculate ID of data subvolume */
 	u64 (*data_subvol_id_calc)(oid_t oid, loff_t data_offset_in_bytes);
+	/* Return data subvolume ID stored in the item specified by @coord */
+	u64 (*data_subvol_id_find)(const coord_t *coord);
 	/* Construct a key for a chunk of data. That key should
 	   contain encoded ID of the subvolume where that chunk of data
 	   is to be located */

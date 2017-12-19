@@ -11,6 +11,7 @@
 #include "plugin/plugin.h"
 #include "tree.h"
 #include "vfs_ops.h"
+#include "inode.h"
 #include "super.h"
 #include "reiser4.h"
 
@@ -343,6 +344,25 @@ void reiser4_volume_clear_unbalanced(struct super_block *sb)
 {
 	assert("edward-1948", sb != NULL);
 	clear_bit(REISER4_UNBALANCED_VOL, &get_super_private(sb)->fs_flags);
+}
+
+/**
+ * Calculate data subvolume ID by @inode and @offset,
+ * by calling respective volume plugin
+ */
+reiser4_subvol *calc_data_subvol(const struct inode *inode, loff_t offset)
+{
+	return current_origin(current_vol_plug()->
+			      data_subvol_id_calc(get_inode_oid(inode),
+						  offset));
+}
+
+/**
+ * Find stored value of data subvolume ID, by calling respective volume plugin
+ */
+reiser4_subvol *find_data_subvol(const coord_t *coord)
+{
+	return current_origin(current_vol_plug()->data_subvol_id_find(coord));
 }
 
 /* Make Linus happy.

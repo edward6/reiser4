@@ -3778,7 +3778,7 @@ static int scan_by_coord(flush_scan * scan)
 					       sideof_reverse(scan->direction));
 		}
 		if ((scan->data_subv != NULL) &&
-		    (subvol_by_coord(&next_coord) != scan->data_subv)) {
+		    (find_data_subvol(&next_coord) != scan->data_subv)) {
 			/*
 			 * we have jumped to different data subvolume.
 			 * stop scanning here, as we don't handle more
