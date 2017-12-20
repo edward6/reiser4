@@ -1095,6 +1095,9 @@ void all_grabbed2free(void)
 	struct rb_root *root = &ctx->bricks_info;
 	struct rb_node *node;
 
+	if (get_current_super_private() == NULL)
+		return;
+
 	if (current_subvols() == NULL)
 		/* not active volume */
 		return;

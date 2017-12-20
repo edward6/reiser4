@@ -82,7 +82,8 @@ struct reiser4_volume_stat
 	u16 vpid; /* volume plugin ID */
 	u16 dpid; /* distribution plugin ID */
 	u64 fs_flags; /* the same as the one of private super-block */
-	u64 volinfo_addr; /* number of the first volmap block */
+	u32 nr_volinfo_blocks; /* Total number of blocks in the set
+				  where volume configuration is stored */
 };
 
 struct reiser4_brick_stat
@@ -94,6 +95,8 @@ struct reiser4_brick_stat
 	u64 block_count; /* total number of blocks */
 	u64 data_room; /* number of data blocks */
 	u64 blocks_used; /* number of blocks used by data and meta-data */
+	u64 volinfo_addr; /* disk address of the first block of a portion
+			     of volume configuration stored on this brick */
 };
 
 struct reiser4_vol_op_args

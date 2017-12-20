@@ -167,9 +167,9 @@ static int create_fibers(u32 nums_bits, u32 *tab,
 }
 
 #if REISER4_DEBUG
-static void print_fiber(u32 id, void *vec, u32 num_sgs,
-			void *(*fiber_at)(void *vec, u64 idx),
-			u64 *(*fiber_lenp_at)(void *vec, u64 idx))
+void print_fiber(u32 id, void *vec, u32 num_sgs,
+		 void *(*fiber_at)(void *vec, u64 idx),
+		 u64 *(*fiber_lenp_at)(void *vec, u64 idx))
 {
 	u32 i;
 	u32 *fib = fiber_at(vec, id);
@@ -624,7 +624,7 @@ int initv_fsw32(void *buckets,
 	aid->buckets = buckets;
 	aid->ops = ops;
 
-#if REISER4_DEBUG
+#if 0
 	{
 		int i;
 		for (i = 0; i < numb; i++)
@@ -691,7 +691,7 @@ int inc_fsw32(reiser4_aid *raid, u64 target_pos, int new)
 			     aid->ops->fib_lenp_at);
 	if (ret)
 		goto error;
-#if REISER4_DEBUG
+#if 0
 	{
 		int i;
 		for (i = 0; i < new_numb; i++)

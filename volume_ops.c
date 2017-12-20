@@ -31,6 +31,7 @@ static int reiser4_print_volume(struct super_block *sb,
 	args->u.vol.vpid = vol->vol_plug->h.id;
 	args->u.vol.dpid = vol->dist_plug->h.id;
 	args->u.vol.fs_flags = get_super_private(sb)->fs_flags;
+	args->u.vol.nr_volinfo_blocks = vol->num_volmaps + vol->num_voltabs;
 	return 0;
 }
 
@@ -56,6 +57,7 @@ static int reiser4_print_brick(struct super_block *sb,
 	args->u.brick.block_count = subv->block_count;
 	args->u.brick.data_room = subv->data_room;
 	args->u.brick.blocks_used = subv->blocks_used;
+	args->u.brick.volinfo_addr = subv->volmap_loc;
  out:
 	spin_unlock_reiser4_super(get_super_private(sb));
 	return ret;
@@ -128,6 +130,7 @@ static int reiser4_add_brick(struct super_block *sb,
 			     struct reiser4_vol_op_args *args)
 {
 	int ret;
+	time_t start;
 	reiser4_subvol *new = NULL;
 	reiser4_volume *host_of_new = NULL;
 	reiser4_context *ctx;
@@ -175,11 +178,20 @@ static int reiser4_add_brick(struct super_block *sb,
 	if (ret)
 		goto deactivate;
 
+	printk("reiser4 (%s): Brick %s has been added. Started balancing...\n",
+	       sb->s_id, new->name);
+
+	start = get_seconds();
+
 	ret = super_volume(sb)->vol_plug->balance_volume(sb, 0);
 	if (ret)
 		goto deactivate;
 
 	reiser4_exit_context(ctx);
+
+	printk("reiser4 (%s): Balancing completed in %lu seconds.\n",
+	       sb->s_id, get_seconds() - start);
+
 	return 0;
  deactivate:
 	reiser4_deactivate_subvol(sb, new);
