@@ -50,23 +50,18 @@ int write_sd_by_inode_common(struct inode *inode, oid_t *oid)
 /**
  * Common implementation of ->key_by_inode() of file plugin
  */
-int key_by_inode_offset_ordering(struct inode *inode,
-				 loff_t off, __u64 ordering,
-				 reiser4_key *key)
+int key_by_inode_and_offset(struct inode *inode, loff_t off,
+			    reiser4_key *key)
 {
 	reiser4_key_init(key);
 	set_key_locality(key, reiser4_inode_data(inode)->locality_id);
-	set_key_ordering(key, ordering);
 	set_key_objectid(key, get_inode_oid(inode));	/*FIXME: inode->i_ino */
+	current_vol_plug()->set_key_ordering(key, inode,
+					     get_inode_oid(inode), off);
 	set_key_type(key, KEY_BODY_MINOR);
 	set_key_offset(key, (__u64) off);
-	return 0;
-}
 
-int key_by_inode_and_offset(struct inode *inode,
-			    loff_t off, reiser4_key *key)
-{
-	return current_vol_plug()->build_body_key(inode, off, key);
+	return 0;
 }
 
 /* this is common implementation of set_plug_in_inode method of file plugin

@@ -1097,17 +1097,10 @@ static int balance_volume_simple(struct super_block *sb, int force)
 	return -EINVAL;
 }
 
-static int build_body_key_simple(struct inode *inode,
-				 loff_t offset, reiser4_key *key)
+static void set_key_ordering_simple(reiser4_key *key, struct inode *inode,
+				    oid_t oid, loff_t offset)
 {
-	/*
-	 * For simple volumes body key's ordering is
-	 * inherited from inode
-	 */
-	return key_by_inode_offset_ordering(inode,
-					    offset,
-					    get_inode_ordering(inode),
-					    key);
+	set_key_ordering(key, get_inode_ordering(inode));
 }
 
 static u64 data_subvol_id_calc_asym(oid_t oid, loff_t offset)
@@ -1125,19 +1118,10 @@ static u64 data_subvol_id_calc_asym(oid_t oid, loff_t offset)
 				   sizeof(stripe_idx), (u32)oid);
 }
 
-static int build_body_key_asym(struct inode *inode,
-			       loff_t offset, reiser4_key *key)
+static void set_key_ordering_asym(reiser4_key *key, struct inode *inode,
+				 oid_t oid, loff_t offset)
 {
-	oid_t oid;
-
-	oid = get_inode_oid(inode);
-	/*
-	 * For compound volumes body key's ordering is a subvolume ID
-	 */
-	return key_by_inode_offset_ordering(inode,
-					    offset,
-					    data_subvol_id_calc_asym(oid, offset),
-					    key);
+	set_key_ordering(key, data_subvol_id_calc_asym(oid, offset));
 }
 
 u64 get_meta_subvol_id(void)
@@ -1401,7 +1385,7 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		.meta_subvol_id = meta_subvol_id_simple,
 		.data_subvol_id_calc = data_subvol_id_calc_simple,
 		.data_subvol_id_find = data_subvol_id_find_simple,
-		.build_body_key = build_body_key_simple,
+		.set_key_ordering = set_key_ordering_simple,
 		.load_volume = NULL,
 		.done_volume = NULL,
 		.init_volume = NULL,
@@ -1430,7 +1414,7 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		.meta_subvol_id = meta_subvol_id_simple,
 		.data_subvol_id_calc = data_subvol_id_calc_asym,
 		.data_subvol_id_find = data_subvol_id_find_asym,
-		.build_body_key = build_body_key_asym,
+		.set_key_ordering = set_key_ordering_asym,
 		.load_volume = load_volume_asym,
 		.done_volume = done_volume_asym,
 		.init_volume = init_volume_asym,
