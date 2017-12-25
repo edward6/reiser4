@@ -334,15 +334,28 @@ static inline volume_plugin *super_vol_plug(const struct super_block *super)
 	return super_volume(super)->vol_plug;
 }
 
-static inline reiser4_subvol *sbinfo_mirror(reiser4_super_info_data *info,
-					    u32 id, u32 mirror_id)
+static inline reiser4_subvol **sbinfo_mirrors(reiser4_super_info_data *info,
+					      u32 id)
 {
 	assert("edward-1719", info != NULL);
 	assert("edward-1720", info->vol != NULL);
 	assert("edward-1981", info->vol->subvols != NULL);
-	assert("edward-1721", info->vol->subvols[id] != NULL);
 
-	return info->vol->subvols[id][mirror_id];
+	return info->vol->subvols[id];
+}
+
+static inline reiser4_subvol *sbinfo_mirror(reiser4_super_info_data *info,
+					    u32 id, u32 mirror_id)
+{
+	assert("edward-1721", sbinfo_mirrors(info, id) != NULL);
+
+	return sbinfo_mirrors(info, id)[mirror_id];
+}
+
+static inline reiser4_subvol **super_mirrors(struct super_block *super,
+					     u32 id)
+{
+	return sbinfo_mirrors(get_super_private(super), id);
 }
 
 static inline reiser4_subvol *super_mirror(struct super_block *super,

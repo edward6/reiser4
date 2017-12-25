@@ -358,8 +358,8 @@ static int alloc_volinfo_block(reiser4_block_nr *block, reiser4_subvol *subv)
 	hint.block_stage = BLOCK_NOT_COUNTED;
 
 	return reiser4_alloc_block(&hint, block,
-				   BA_FORMATTED | BA_USE_DEFAULT_SEARCH_START,
-				   subv);
+				   BA_FORMATTED | BA_PERMANENT |
+				   BA_USE_DEFAULT_SEARCH_START, subv);
 }
 
 /**
@@ -376,6 +376,10 @@ noinline int create_volinfo_nodes(reiser4_volume *vol)
 	distribution_plugin *dist_plug = vol->dist_plug;
 	reiser4_block_nr volmap_loc;
 	u64 voltabs_needed;
+
+	ret = reiser4_create_atom();
+	if (ret)
+		return ret;
 	/*
 	 * allocate disk address of the first volmap block
 	 */
@@ -475,8 +479,9 @@ noinline int create_volinfo_nodes(reiser4_volume *vol)
 
 /*
  * Capture an array of jnodes and make them dirty
+ * if @new is true, then jnode is recently allocated
  */
-static int capture_array_nodes(jnode **start, u64 count)
+static int capture_array_nodes(jnode **start, u64 count, int new)
 {
 	u64 i;
 	int ret;
@@ -486,6 +491,8 @@ static int capture_array_nodes(jnode **start, u64 count)
 		node = start[i];
 
 		spin_lock_jnode(node);
+		if (new)
+			jnode_set_reloc(node);
 		ret = reiser4_try_capture(node, ZNODE_WRITE_LOCK, 0);
 		BUG_ON(ret != 0);
 		jnode_make_dirty_locked(node);
@@ -494,7 +501,7 @@ static int capture_array_nodes(jnode **start, u64 count)
 	return 0;
 }
 
-static int capture_volinfo_nodes(reiser4_volume *vol)
+static int capture_volinfo_nodes(reiser4_volume *vol, int new)
 {
 	int ret;
 	/*
@@ -506,12 +513,12 @@ static int capture_volinfo_nodes(reiser4_volume *vol)
 	if (ret)
 		return ret;
 	return capture_array_nodes(vol->volmap_nodes,
-				   vol->num_volmaps + vol->num_voltabs);
+				   vol->num_volmaps + vol->num_voltabs, new);
 }
 
-static int capture_voltab_nodes(reiser4_volume *vol)
+static int capture_voltab_nodes(reiser4_volume *vol, int new)
 {
-	return capture_array_nodes(vol->voltab_nodes, vol->num_voltabs);
+	return capture_array_nodes(vol->voltab_nodes, vol->num_voltabs, new);
 }
 
 static int capture_volume_info(reiser4_volume *vol)
@@ -524,12 +531,12 @@ static int capture_volume_info(reiser4_volume *vol)
 		ret = create_volinfo_nodes(vol);
 		if (ret)
 			return ret;
-		ret = capture_volinfo_nodes(vol);
+		ret = capture_volinfo_nodes(vol, 1);
 	} else {
 		ret = update_voltab_nodes(vol);
 		if (ret)
 			return ret;
-		ret = capture_voltab_nodes(vol);
+		ret = capture_voltab_nodes(vol, 0);
 	}
 	if (ret)
 		return ret;
@@ -1097,12 +1104,6 @@ static int balance_volume_simple(struct super_block *sb, int force)
 	return -EINVAL;
 }
 
-static void set_key_ordering_simple(reiser4_key *key, struct inode *inode,
-				    oid_t oid, loff_t offset)
-{
-	set_key_ordering(key, get_inode_ordering(inode));
-}
-
 static u64 data_subvol_id_calc_asym(oid_t oid, loff_t offset)
 {
 	reiser4_volume *vol;
@@ -1118,10 +1119,9 @@ static u64 data_subvol_id_calc_asym(oid_t oid, loff_t offset)
 				   sizeof(stripe_idx), (u32)oid);
 }
 
-static void set_key_ordering_asym(reiser4_key *key, struct inode *inode,
-				 oid_t oid, loff_t offset)
+static u64 body_key_ordering_asym(oid_t oid, loff_t offset)
 {
-	set_key_ordering(key, data_subvol_id_calc_asym(oid, offset));
+	return data_subvol_id_calc_asym(oid, offset);
 }
 
 u64 get_meta_subvol_id(void)
@@ -1385,7 +1385,7 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		.meta_subvol_id = meta_subvol_id_simple,
 		.data_subvol_id_calc = data_subvol_id_calc_simple,
 		.data_subvol_id_find = data_subvol_id_find_simple,
-		.set_key_ordering = set_key_ordering_simple,
+		.body_key_ordering = NULL,
 		.load_volume = NULL,
 		.done_volume = NULL,
 		.init_volume = NULL,
@@ -1414,7 +1414,7 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		.meta_subvol_id = meta_subvol_id_simple,
 		.data_subvol_id_calc = data_subvol_id_calc_asym,
 		.data_subvol_id_find = data_subvol_id_find_asym,
-		.set_key_ordering = set_key_ordering_asym,
+		.body_key_ordering = body_key_ordering_asym,
 		.load_volume = load_volume_asym,
 		.done_volume = done_volume_asym,
 		.init_volume = init_volume_asym,

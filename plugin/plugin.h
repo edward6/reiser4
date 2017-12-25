@@ -608,9 +608,8 @@ typedef struct volume_plugin {
 	u64 (*data_subvol_id_calc)(oid_t oid, loff_t data_offset_in_bytes);
 	/* Return data subvolume ID stored in the item specified by @coord */
 	u64 (*data_subvol_id_find)(const coord_t *coord);
-	/* Calculate and set an ordering component to the key */
-	void (*set_key_ordering)(reiser4_key *key, struct inode *inode,
-				 oid_t oid, loff_t offset);
+	/* Calculate an ordering component of a file's body key */
+	u64 (*body_key_ordering)(oid_t oid, loff_t offset);
 	/* Load a portion of LV system configuration contained
 	   in a subvolume @subv. Normally is called at mount time */
 	int (*load_volume)(reiser4_subvol *subv);

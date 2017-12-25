@@ -76,13 +76,9 @@ static inline reiser4_extent *ext_by_ext_coord(const uf_coord_t *uf_coord)
 #if REISER4_DEBUG
 
 /**
- * offset_is_in_unit
- *
- *
- *
+ * return 1 if offset @off is inside of extent unit pointed to by @coord.
+ * Set pos_in_unit inside of unit correspondingly
  */
-/* return 1 if offset @off is inside of extent unit pointed to by @coord. Set
-   pos_in_unit inside of unit correspondingly */
 static int offset_is_in_unit(const coord_t *coord, loff_t off)
 {
 	reiser4_key unit_key;
@@ -100,25 +96,35 @@ static int offset_is_in_unit(const coord_t *coord, loff_t off)
 	return 1;
 }
 
-static int
-coord_matches_key_extent(const coord_t * coord, const reiser4_key * key)
+static int coord_matches_key_extent(const coord_t *coord,
+				    const reiser4_key *key)
 {
 	reiser4_key item_key;
 
 	assert("vs-771", coord_is_existing_unit(coord));
-	assert("vs-1258", keylt(key, append_key_extent(coord, &item_key)));
-	assert("vs-1259", keyge(key, item_key_by_coord(coord, &item_key)));
+	/*
+	 * in simple volumes the function (key -> offset-in-file-body)
+	 * should be monotonic.
+	 */
+	assert("vs-1258",
+	       ergo(current_vol_plug() ==
+		    volume_plugin_by_id(SIMPLE_VOLUME_ID),
+		    keylt(key, append_key_extent(coord, &item_key))));
+	assert("vs-1259",
+	       ergo(current_vol_plug() ==
+		    volume_plugin_by_id(SIMPLE_VOLUME_ID),
+		    keyge(key, item_key_by_coord(coord, &item_key))));
 
 	return offset_is_in_unit(coord, get_key_offset(key));
 }
-
 #endif
 
 static int can_append(const reiser4_key *key, const coord_t *coord)
 {
 	reiser4_key append_key;
 
-	return keyeq(key, append_key_extent(coord, &append_key));
+	return all_but_ordering_keyeq(key,
+				      append_key_extent(coord, &append_key));
 }
 
 int append_hole(coord_t *coord, lock_handle *lh, const reiser4_key *key)
@@ -144,7 +150,6 @@ int append_hole(coord_t *coord, lock_handle *lh, const reiser4_key *key)
 	 */
 	hole_width = ((get_key_offset(key) - get_key_offset(&append_key) +
 		       current_blocksize - 1) >> current_blocksize_bits);
-
 	if (0) {
 		/*
 		 * respect stripes
@@ -196,9 +201,12 @@ int append_hole(coord_t *coord, lock_handle *lh, const reiser4_key *key)
  */
 static void check_jnodes(znode *twig, const reiser4_key *key, int count)
 {
-#if REISER4_DEBUG
 	coord_t c;
 	reiser4_key node_key, jnode_key;
+
+	if (current_vol_plug() != volume_plugin_by_id(SIMPLE_VOLUME_ID))
+		/* this check is for simple volumes */
+		return;
 
 	jnode_key = *key;
 
@@ -220,7 +228,6 @@ static void check_jnodes(znode *twig, const reiser4_key *key, int count)
 		       get_key_offset(&jnode_key) + (loff_t)count * PAGE_SIZE - 1);
 	assert("", keylt(&jnode_key, &node_key));
 	zrelse(twig);
-#endif
 }
 
 /**
@@ -232,8 +239,7 @@ static void check_jnodes(znode *twig, const reiser4_key *key, int count)
  * There is already at least one extent item of file @inode in the tree.
  * Append the last of them with unallocated extent unit of width @count.
  * Assign fake block numbers to jnodes corresponding to the inserted extent.
- * Calculate a subvolume ID where the data stripe should be stored and
- * set it to jnodes.
+ * Set pointer to subvolume where the data stripe should be stored to jnodes.
  */
 static int append_last_extent(struct inode *inode, uf_coord_t *uf_coord,
 			      const reiser4_key *key, jnode **jnodes, int count)
@@ -326,7 +332,6 @@ static int append_last_extent(struct inode *inode, uf_coord_t *uf_coord,
 	default:
 		return RETERR(-EIO);
 	}
-
 	/*
 	 * make sure that we hold long term locked twig node containing all
 	 * jnodes we are about to capture
@@ -336,6 +341,10 @@ static int append_last_extent(struct inode *inode, uf_coord_t *uf_coord,
 	/*
 	 * assign fake block numbers to all jnodes. FIXME: make sure whether
 	 * twig node containing inserted extent item is locked
+	 */
+	/*
+	 * FIXME-EDWARD: replace calc_data_subvol() with find_data_subvol():
+	 * subvolums should be found by existing, or newly created extent.
 	 */
 	subv = calc_data_subvol(inode, get_key_offset(key));
 
@@ -430,7 +439,7 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	assert("vs-719", znode_get_level(uf_coord->coord.node) == LEAF_LEVEL);
 	assert("vs-711", coord_is_between_items(&uf_coord->coord));
 
-	if (get_key_offset(key) != 0) {
+	if (get_key_offset(key) != 0 && i_size_read(inode) == 0) {
 		result = insert_first_hole(&uf_coord->coord, uf_coord->lh, key);
 		uf_coord->valid = 0;
 		uf_info = unix_file_inode_data(inode);
@@ -444,6 +453,7 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 						    REISER4_PART_MIXED) &&
 			     reiser4_inode_get_flag(inode,
 						    REISER4_PART_IN_CONV))));
+
 		/* if file was empty - update its state */
 		if (result == 0 && uf_info->container == UF_CONTAINER_EMPTY)
 			uf_info->container = UF_CONTAINER_EXTENTS;
@@ -819,14 +829,6 @@ static int overwrite_extent(struct inode *inode, uf_coord_t *uf_coord,
 	return count;
 }
 
-/**
- * reiser4_update_extent
- * @file:
- * @jnodes:
- * @count:
- * @off:
- *
- */
 int reiser4_update_extent(struct inode *inode, jnode *node, loff_t pos,
 		  int *plugged_hole)
 {
@@ -888,14 +890,6 @@ int reiser4_update_extent(struct inode *inode, jnode *node, loff_t pos,
 	return (result == 1) ? 0 : result;
 }
 
-/**
- * update_extents
- * @file:
- * @jnodes:
- * @count:
- * @off:
- *
- */
 static int update_extents(struct file *file, struct inode *inode,
 			  jnode **jnodes, int count, loff_t pos)
 {
@@ -1473,20 +1467,23 @@ int get_block_address_extent(const coord_t *coord, sector_t block,
 	return 0;
 }
 
-/*
-  plugin->u.item.s.file.append_key
-  key of first byte which is the next to last byte by addressed by this extent
-*/
-reiser4_key *append_key_extent(const coord_t * coord, reiser4_key * key)
+/**
+ * plugin->u.item.s.file.append_key
+ * Build key of first byte of file's body which is the next
+ * to last byte addressed by this extent
+ */
+reiser4_key *append_key_extent(const coord_t *coord, reiser4_key *key)
 {
 	item_key_by_coord(coord, key);
-	set_key_offset(key,
-		       get_key_offset(key) + reiser4_extent_size(coord,
-								 nr_units_extent
-								 (coord)));
+	set_key_offset(key, get_key_offset(key) +
+		       reiser4_extent_size(coord, nr_units_extent(coord)));
 
-	assert("vs-610", get_key_offset(key)
-	       && (get_key_offset(key) & (current_blocksize - 1)) == 0);
+	if (current_vol_plug()->body_key_ordering != NULL)
+		set_key_ordering(key,
+		    current_vol_plug()->body_key_ordering(get_key_objectid(key),
+							  get_key_offset(key)));
+	assert("vs-610", get_key_offset(key) &&
+	       (get_key_offset(key) & (current_blocksize - 1)) == 0);
 	return key;
 }
 

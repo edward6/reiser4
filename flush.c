@@ -1078,14 +1078,15 @@ enter:
 			 * height.
 			 */
 			jnode_make_wander_nolock(node);
-		} else if (jnode_is_volinfo_head(node)) {
-			/*
-			 * volume system info is committed via journal
-			 */
-			jnode_make_wander_nolock(node);
 		} else if (JF_ISSET(node, JNODE_RELOC)) {
 			queue_jnode(fq, node);
 			++(*nr_queued);
+		} else if (jnode_is_volinfo_head(node)) {
+			/*
+			 * volume system info block, which is already marked as
+			 * busy in bitmap - commit via journal
+			 */
+			jnode_make_wander_nolock(node);
 		} else
 			break;
 

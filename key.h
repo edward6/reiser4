@@ -361,6 +361,16 @@ static inline int keyge(const reiser4_key * k1 /* first key to compare */ ,
 	return keycmp(k1, k2) != LESS_THAN;
 }
 
+static inline int all_but_ordering_keyeq(const reiser4_key * k1,
+					 const reiser4_key * k2)
+{
+	return (get_key_locality(k1) == get_key_locality(k2) &&
+		get_key_type(k1) == get_key_type(k2) &&
+		get_key_band(k1) == get_key_band(k2) &&
+		get_key_objectid(k1) == get_key_objectid(k2) &&
+		get_key_offset(k1) == get_key_offset(k2));
+}
+
 static inline void prefetchkey(reiser4_key * key)
 {
 	prefetch(key);

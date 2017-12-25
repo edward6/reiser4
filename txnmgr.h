@@ -435,6 +435,7 @@ extern int same_slum_check(jnode * base, jnode * check, int alloc_check,
 			   int alloc_value);
 extern void atom_dec_and_unlock(txn_atom * atom);
 
+extern int reiser4_create_atom(void);
 extern int reiser4_try_capture(jnode * node, znode_lock_mode mode, txn_capture flags);
 extern int try_capture_page_to_invalidate(struct page *pg);
 

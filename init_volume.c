@@ -574,7 +574,6 @@ static int activate_subvolumes_of_type(struct super_block *super,
 	}
 	return 0;
  error:
-	get_current_context()->init_vol_failed = 1;
 	__reiser4_deactivate_volume(super);
 	return ret;
 }
@@ -593,6 +592,8 @@ int reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 	u32 orig_id;
 	reiser4_volume *vol;
 
+	get_current_context()->init_vol_failed = 1;
+
 	mutex_lock(&reiser4_volumes_mutex);
 	/*
 	 * First we activate all replicas, as we need to have a
@@ -608,23 +609,23 @@ int reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 	if (ret)
 		goto deactivate;
 	/*
-	 * At this point all activated original subvolumes have
+	 * At this point all activated original bricks have
 	 * complete sets of active replicas (because we called
-	 * check_active_replicas()).
-	 * Now make sure that all bricks (original ones and their
-	 * replicas) have been activated.
+	 * check_active_replicas()). Now make sure that all
+	 * original bricks have been activated.
 	 */
 	for_each_origin(orig_id) {
-		reiser4_subvol *orig;
-		orig = super_origin(super, orig_id);
-		if (orig == NULL) {
+		if (super_mirrors(super, orig_id) == NULL ||
+		    super_origin(super, orig_id) == NULL) {
 			warning("edward-1772",
 				"%s: original brick #%u is not registered.",
 				super->s_id, orig_id);
 			ret = -EINVAL;
 			goto deactivate;
 		}
-		assert("edward-1773", subvol_is_set(orig, SUBVOL_ACTIVATED));
+		assert("edward-1773",
+		       subvol_is_set(super_origin(super, orig_id),
+				     SUBVOL_ACTIVATED));
 	}
 	/*
 	 * initialize logical volume after activating all subvolumes
@@ -640,6 +641,7 @@ int reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 			goto deactivate;
 		}
 	}
+	get_current_context()->init_vol_failed = 0;
 	goto out;
  deactivate:
 	__reiser4_deactivate_volume(super);

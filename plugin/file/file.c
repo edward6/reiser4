@@ -260,6 +260,9 @@ int find_file_item(hint_t *hint, const reiser4_key *key,
 	lh = hint->ext_coord.lh;
 	init_lh(lh);
 
+	if (current_vol_plug() != volume_plugin_by_id(SIMPLE_VOLUME_ID))
+		goto nohint;
+
 	result = hint_validate(hint,
 			       meta_subvol_tree(),
 			       key, 1 /* check key */, lock_mode);
@@ -284,7 +287,7 @@ int find_file_item(hint_t *hint, const reiser4_key *key,
 
 		return CBK_COORD_FOUND;
 	}
-
+ nohint:
 	coord_init_zero(coord);
 	result = find_file_item_nohint(coord, lh, key, lock_mode, inode);
 	set_file_state(unix_file_inode_data(inode), result,
