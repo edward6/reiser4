@@ -850,17 +850,19 @@ int find_or_create_extent(struct page *page)
 		struct atom_brick_info *abi;
 		assert("edward-1982", node->subvol != NULL);
 
+		spin_lock_jnode(node);
+		result = reiser4_try_capture(node, ZNODE_WRITE_LOCK, 0);
+		spin_unlock_jnode(node);
+		BUG_ON(result != 0);
+
 		result = check_insert_atom_brick_info(node->subvol->id,
 						      &abi);
 		if (result)
 			return result;
 		spin_lock_jnode(node);
-		result = reiser4_try_capture(node, ZNODE_WRITE_LOCK, 0);
-		BUG_ON(result != 0);
 		jnode_make_dirty_locked(node);
 		spin_unlock_jnode(node);
 	}
-
 	BUG_ON(node->atom == NULL);
 	JF_CLR(node, JNODE_WRITE_PREPARED);
 

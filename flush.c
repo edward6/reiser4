@@ -2406,22 +2406,20 @@ static int handle_pos_on_twig(flush_pos_t *pos)
 	       coord_is_existing_unit(&pos->coord) &&
 	       item_is_extent(&pos->coord)) {
 		/*
-		 * check subvolume pointed by current unit
+		 * at the beginning of iteration check
+		 * data subvolume pointed out by current item
 		 */
 		reiser4_subvol *subv;
 
 		subv = find_data_subvol(&pos->coord);
 		if (subv != pos->data_subv) {
-			if (pos->data_subv == get_meta_subvol())
-				pos->data_subv = subv;
-			else {
-				/* in one flush session we process
-				 * not more than one data and one
-				 * meta-data subvolume
-				 */
-				pos_stop(pos);
-				return ret;
-			}
+			assert("edward-2019", pos->data_subv != NULL);
+			/*
+			 * we process not more than one
+			 * data subvolume per flush session
+			 */
+			pos_stop(pos);
+			return -E_OUTSTEP;
 		}
 		ret = txmod_plug->forward_alloc_unformatted(pos);
 		if (ret)
@@ -3057,7 +3055,7 @@ jnode_lock_parent_coord(jnode * node,
 
 		assert("jmacd-1812", coord != NULL);
 
-		ret = coord_by_key(jnode_get_tree(node), &key, coord, parent_lh,
+		ret = coord_by_key(meta_subvol_tree(), &key, coord, parent_lh,
 				   parent_mode, bias, stop_level, stop_level,
 				   CBK_UNIQUE, NULL/*ra_info */);
 		switch (ret) {
