@@ -3150,7 +3150,6 @@ static int expand_cryptcompress(struct inode *inode /* old size */,
 	assert("edward-1134", reiser4_schedulable());
 	assert("edward-1135", cryptcompress_inode_ok(inode));
 	assert("edward-1136", current_blocksize == PAGE_SIZE);
-	assert("edward-1333", off_to_cloff(inode->i_size, inode) != 0);
 
 	hint = kmalloc(sizeof(*hint), reiser4_ctx_gfp_mask_get());
 	if (hint == NULL)
