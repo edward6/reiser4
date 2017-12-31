@@ -273,9 +273,12 @@ int hint_is_set(const hint_t *);
 void reiser4_unset_hint(hint_t *);
 
 int reiser4_update_file_size(struct inode *, loff_t, int update_sd);
-int cut_file_items(struct inode *, loff_t new_size,
-		   int update_sd, loff_t cur_size,
-		   int (*update_actor) (struct inode *, loff_t, int));
+int cut_file_items_simple(struct inode *, loff_t new_size,
+			  int update_sd, loff_t cur_size,
+			  int (*update_actor) (struct inode *, loff_t, int));
+int cut_file_items_asym(struct inode *, loff_t new_size,
+			int update_sd, loff_t cur_size,
+			int (*update_actor) (struct inode *, loff_t, int));
 #if REISER4_DEBUG
 
 /* return 1 is exclusive access is obtained, 0 - otherwise */

@@ -499,7 +499,8 @@ int kill_hook_extent(const coord_t *coord, pos_in_node_t from,
 			 * which get freed are not safe to be freed immediately
 			 */
 			assert("edward-1938",
-			       subv == calc_data_subvol(inode, offset));
+			       subv == calc_data_subvol(inode,
+							offset << PAGE_SHIFT));
 
 			reiser4_dealloc_blocks(&start, &length,
 					       0, /* not used */

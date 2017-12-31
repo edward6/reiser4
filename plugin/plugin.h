@@ -610,6 +610,11 @@ typedef struct volume_plugin {
 	u64 (*data_subvol_id_find)(const coord_t *coord);
 	/* Calculate an ordering component of a file's body key */
 	u64 (*body_key_ordering)(oid_t oid, loff_t offset);
+	/* Cut file body to @new_size */
+	int (*cut_file_items)(struct inode *inode, loff_t new_size,
+			      int update_sd, loff_t cur_size,
+			      int (*update_file_size_fn)(struct inode *,
+							 loff_t, int));
 	/* Load a portion of LV system configuration contained
 	   in a subvolume @subv. Normally is called at mount time */
 	int (*load_volume)(reiser4_subvol *subv);

@@ -397,13 +397,19 @@ int reiser4_update_file_size(struct inode *inode, loff_t new_size,
 }
 
 /**
- * Cut file items one by one starting from the last one until
- * new file size (inode->i_size) is reached. Reserve space
- * and update file stat data on every single cut from the tree
+ * This is a version of cut_file_items() for simple volumes,
+ * where the functon (key -> offset-in-file-body) is monotonic,
+ * so when cutting off a file's tail at some offset we know
+ * that all items to the right should be cut off, so things
+ * can be optimized to not perform many per-item cuts.
+ *
+ * Cut file items starting from the last one until @new_size of
+ * the file is reached. Reserve space and update file stat data
+ * on every single cut from the tree.
  */
-int cut_file_items(struct inode *inode, loff_t new_size,
-		   int update_sd, loff_t cur_size,
-		   int (*update_actor) (struct inode *, loff_t, int))
+int cut_file_items_simple(struct inode *inode, loff_t new_size,
+			  int update_sd, loff_t cur_size,
+			  int (*update_actor) (struct inode *, loff_t, int))
 {
 	reiser4_tree *tree;
 	reiser4_key from_key, to_key;
@@ -445,7 +451,7 @@ int cut_file_items(struct inode *inode, loff_t new_size,
 					break;
 			}
 			/* the below does up(sbinfo->delete_mutex).
-			 * Do not get folled */
+			 * Do not get confused */
 			reiser4_release_reserved(inode->i_sb);
 			/**
 			 * reiser4_cut_tree_object() was interrupted probably
@@ -469,17 +475,111 @@ int cut_file_items(struct inode *inode, loff_t new_size,
 		break;
 	}
 	/*
-	 * the below does up(sbinfo->delete_mutex). Do not get folled
+	 * the below does up(sbinfo->delete_mutex). Do not get confused
 	 */
 	reiser4_release_reserved(inode->i_sb);
 
 	return result;
 }
 
-int find_or_create_extent(struct page *page);
+/**
+ * This is a version of cut_file_items() for logical volumes,
+ * where a file can be scattered among many subvolumes (bricks)
+ * and items of the same file are not necessarily grouped together
+ * in the tree.
+ * So we cut off file's items one by one in a loop until @new_size
+ * of the file is reached. At every iteration we reserve space,
+ * find the last file's item in the tree, cut it off, and finally
+ * update file's stat data.
+ */
+int cut_file_items_asym(struct inode *inode, loff_t new_size,
+			int update_sd, loff_t cur_size,
+			int (*update_size_fn) (struct inode *, loff_t, int))
+{
+	reiser4_tree *tree;
+	reiser4_key from_key, to_key;
+	reiser4_key smallest_removed;
+	int result = 0;
+	int progress = 0;
 
-/* part of truncate_file_body: it is called when truncate is used to make file
-   shorter */
+	assert("edward-2021",
+	       inode_file_plugin(inode) ==
+	       file_plugin_by_id(UNIX_FILE_PLUGIN_ID) &&
+	       inode_formatting_plugin(inode) ==
+	       formatting_plugin_by_id(NEVER_TAILS_FORMATTING_ID));
+
+	tree = meta_subvol_tree();
+
+	while (i_size_read(inode) != new_size) {
+
+		assert("edward-2020", inode->i_size != 0);
+		/*
+		 * Cut the last item in the file's body.
+		 * We need to calculate its key and to honestly
+		 * find that item in the tree. This is a "payment"
+		 * for an optimal flush procedure, where we are now
+		 * able to process more than one stripe at one time.
+		 */
+		inode_file_plugin(inode)->key_by_inode(inode,
+						       i_size_read(inode) - 1,
+						       &to_key);
+		from_key = to_key;
+		set_key_offset(&from_key,
+			       round_down(i_size_read(inode) - 1,
+					  current_stripe_size));
+
+		result = reserve_cut_iteration(inode, new_size);
+		if (result)
+			break;
+
+		result = reiser4_cut_tree_object(tree,
+						 &from_key, &to_key,
+						 &smallest_removed, inode, 1,
+						 &progress);
+		if (result == -E_REPEAT) {
+			/*
+			 * -E_REPEAT is a signal to interrupt a long
+			 * file truncation process
+			 */
+			if (progress) {
+				result = update_size_fn(inode,
+					      get_key_offset(&smallest_removed),
+					      update_sd);
+				if (result)
+					break;
+			}
+			/*
+			 * the below does up(sbinfo->delete_mutex).
+			 * Take a mental note of this
+			 */
+			reiser4_release_reserved(inode->i_sb);
+			/*
+			 * reiser4_cut_tree_object() was interrupted probably
+			 * because current atom requires commit, we have to
+			 * release transaction handle to allow atom commit.
+			 */
+			reiser4_txn_restart_current();
+			continue;
+		}
+		if (result && !(result == CBK_COORD_NOTFOUND &&
+				new_size == 0 && inode->i_size == 0))
+			break;
+
+		result = update_size_fn(inode,
+				      get_key_offset(&smallest_removed),
+				      update_sd);
+	}
+	/*
+	 * the below does up(sbinfo->delete_mutex). Do not get confused
+	 */
+	reiser4_release_reserved(inode->i_sb);
+
+	return result;
+}
+
+/**
+ * make file shorter
+ */
 static int shorten_file(struct inode *inode, loff_t new_size)
 {
 	int result;
@@ -489,13 +589,12 @@ static int shorten_file(struct inode *inode, loff_t new_size)
 	struct unix_file_info *uf_info;
 
 	/*
-	 * all items of ordinary reiser4 file are grouped together. That is why
-	 * we can use reiser4_cut_tree. Plan B files (for instance) can not be
-	 * truncated that simply
+	 * cut file body using volume-specific method
 	 */
-	result = cut_file_items(inode, new_size, 1 /*update_sd */ ,
-				get_key_offset(reiser4_max_key()),
-				reiser4_update_file_size);
+	result = current_vol_plug()->cut_file_items(inode, new_size,
+					      1, /*update_sd */
+					      get_key_offset(reiser4_max_key()),
+					      reiser4_update_file_size);
 	if (result)
 		return result;
 

@@ -3161,7 +3161,6 @@ static int expand_cryptcompress(struct inode *inode /* old size */,
 	assert("edward-1134", reiser4_schedulable());
 	assert("edward-1135", cryptcompress_inode_ok(inode));
 	assert("edward-1136", current_blocksize == PAGE_SIZE);
-	assert("edward-1333", off_to_cloff(inode->i_size, inode) != 0);
 
 	hint = kmalloc(sizeof(*hint), reiser4_ctx_gfp_mask_get());
 	if (hint == NULL)
@@ -3276,11 +3275,11 @@ static int prune_cryptcompress(struct inode *inode,
 		struct cryptcompress_info *info;
 		info = cryptcompress_inode_data(inode);
 
-		result = cut_file_items(inode,
-					clust_to_off(from_idx, inode),
-					update_sd,
-					clust_to_off(to_idx, inode),
-					update_size_actor);
+		result = cut_file_items_simple(inode,
+					       clust_to_off(from_idx, inode),
+					       update_sd,
+					       clust_to_off(to_idx, inode),
+					       update_size_actor);
 		info->trunc_index = ULONG_MAX;
 		if (unlikely(result == CBK_COORD_NOTFOUND))
 			result = 0;
