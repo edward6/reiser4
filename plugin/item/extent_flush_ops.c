@@ -637,8 +637,15 @@ static int must_insert(const coord_t *coord, const reiser4_key *key)
 {
 	reiser4_key last;
 
-	if (item_id_by_coord(coord) == EXTENT_POINTER_ID
-	    && keyeq(append_key_extent(coord, &last), key))
+	if (item_id_by_coord(coord) != EXTENT_POINTER_ID)
+		return 1;
+	if (current_stripe_bits &&
+	    (get_key_offset(key) & (current_stripe_size - 1)) == 0)
+		/*
+		 * extents are not mergeable at stripe boundaries
+		 */
+		return 1;
+	if (keyeq(append_key_extent(coord, &last), key))
 		return 0;
 	return 1;
 }

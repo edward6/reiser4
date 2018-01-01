@@ -49,6 +49,7 @@ int mergeable_extent(const coord_t * p1, const coord_t * p2)
 
 	item_key_by_coord(p1, &key1);
 	item_key_by_coord(p2, &key2);
+
 	if (get_key_locality(&key1) != get_key_locality(&key2) ||
 	    get_key_objectid(&key1) != get_key_objectid(&key2) ||
 	    get_key_ordering(&key1) != get_key_ordering(&key2) ||
@@ -57,6 +58,10 @@ int mergeable_extent(const coord_t * p1, const coord_t * p2)
 	if (get_key_offset(&key1) +
 	    reiser4_extent_size(p1, nr_units_extent(p1)) !=
 	    get_key_offset(&key2))
+		return 0;
+	if (current_stripe_bits &&
+	    (get_key_offset(&key2) & (current_stripe_size - 1)) == 0)
+		/* don't merge extents at stripe boundary (if any) */
 		return 0;
 	return 1;
 }
