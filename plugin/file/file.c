@@ -501,7 +501,10 @@ int cut_file_items_asym(struct inode *inode, loff_t new_size,
 	reiser4_key smallest_removed;
 	int result = 0;
 	int progress = 0;
-
+	/*
+	 * for now we can scatter only files managed by
+	 * unix-file plugin and built on extent items
+	 */
 	assert("edward-2021",
 	       inode_file_plugin(inode) ==
 	       file_plugin_by_id(UNIX_FILE_PLUGIN_ID) &&
@@ -511,8 +514,6 @@ int cut_file_items_asym(struct inode *inode, loff_t new_size,
 	tree = meta_subvol_tree();
 
 	while (i_size_read(inode) != new_size) {
-
-		assert("edward-2020", inode->i_size != 0);
 		/*
 		 * Cut the last item in the file's body.
 		 * We need to calculate its key and to honestly
@@ -520,9 +521,15 @@ int cut_file_items_asym(struct inode *inode, loff_t new_size,
 		 * for an optimal flush procedure, where we are now
 		 * able to process more than one stripe at one time.
 		 */
+		assert("edward-2020", inode->i_size != 0);
+		/*
+		 * when constructing @to_key, round up file size to
+		 * block size boundary for parse_cut_by_key_range()
+		 * to evaluate cut mode properly
+		 */
 		inode_file_plugin(inode)->key_by_inode(inode,
-						       i_size_read(inode) - 1,
-						       &to_key);
+			    round_up(i_size_read(inode), current_blocksize) - 1,
+			    &to_key);
 		from_key = to_key;
 		set_key_offset(&from_key,
 			       round_down(i_size_read(inode) - 1,
