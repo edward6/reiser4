@@ -1647,12 +1647,6 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t *pos)
 		 * squeeze_right_neighbor->squeeze_right_twig
 		 */
 		set_data_subvol_ifnull(pos, &coord);
-
-		if (pos->data_subv != find_data_subvol(&coord)) {
-			ret = -E_OUTSTEP;
-			pos_stop(pos);
-			goto out;
-		}
 	}
 	/*
 	 * FIXME: can be optimized to cut once
@@ -1660,6 +1654,15 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t *pos)
 	while (!node_is_empty(coord.node) && item_is_extent(&coord)) {
 		ON_DEBUG(void *vp);
 
+		if (pos->data_subv != find_data_subvol(&coord)) {
+			/*
+			 * we process not more than one data subvolume
+			 * in each flush session
+			 */
+			ret = -E_OUTSTEP;
+			pos_stop(pos);
+			goto out;
+		}
 		assert("vs-1468", coord_is_leftmost_unit(&coord));
 		ON_DEBUG(vp = shift_check_prepare(left, coord.node));
 		/*
