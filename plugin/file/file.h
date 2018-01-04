@@ -294,8 +294,6 @@ static inline int ea_obtained(struct unix_file_info * uf_info)
 
 #endif
 
-#define WRITE_GRANULARITY 32
-
 int tail2extent(struct unix_file_info *);
 int extent2tail(struct file *, struct unix_file_info *);
 

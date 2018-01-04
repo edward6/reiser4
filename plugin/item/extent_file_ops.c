@@ -1017,7 +1017,7 @@ static int update_extents(struct file *file, struct inode *inode,
  * @offset: write position.
  *
  * Estimates and reserves space which may be required for writing
- * WRITE_GRANULARITY pages of file.
+ * reiser4_write_granularity() pages of file.
  */
 static int reserve_write_extent(struct inode *inode, loff_t offset)
 {
@@ -1026,8 +1026,8 @@ static int reserve_write_extent(struct inode *inode, loff_t offset)
 	reiser4_tree *tree_m = &subv_m->tree;
 	reiser4_subvol *subv_d = calc_data_subvol(inode, offset);
 	/*
-	 * to write WRITE_GRANULARITY pages to a file by extents we have to
-	 * reserve disk space for:
+	 * to write reiser4_write_granularity() pages to a file by extents we
+	 * have to reserve disk space for:
 	 *
 	 * 1. find_file_item may have to insert empty node to the tree (empty
 	 * leaf node between two extent items). This requires:
@@ -1043,7 +1043,7 @@ static int reserve_write_extent(struct inode *inode, loff_t offset)
 	 * reserve space for 1(a)
 	 */
 	grab_space_enable();
-	ret = reiser4_grab_space(WRITE_GRANULARITY, 0, subv_d);
+	ret = reiser4_grab_space(reiser4_write_granularity(), 0, subv_d);
 	if (ret)
 		return ret;
 	/*
@@ -1051,7 +1051,7 @@ static int reserve_write_extent(struct inode *inode, loff_t offset)
 	 */
 	grab_space_enable();
 	ret = reiser4_grab_space(estimate_one_insert_item(tree_m) +
-		     WRITE_GRANULARITY * estimate_one_insert_into_item(tree_m) +
+		     reiser4_write_granularity() * estimate_one_insert_into_item(tree_m) +
 		     estimate_one_insert_item(tree_m), 0, subv_m);
 	return ret;
 }
@@ -1099,7 +1099,7 @@ ssize_t reiser4_write_extent(struct file *file, struct inode * inode,
 	int have_to_update_extent;
 	int nr_pages, nr_dirty;
 	struct page *page;
-	jnode *jnodes[WRITE_GRANULARITY + 1];
+	jnode *jnodes[DEFAULT_WRITE_GRANULARITY + 1];
 	unsigned long index;
 	unsigned long end;
 	int i;
@@ -1115,16 +1115,24 @@ ssize_t reiser4_write_extent(struct file *file, struct inode * inode,
 		update_extents(file, inode, jnodes, 0, *pos);
 		return 0;
 	}
-
 	BUG_ON(get_current_context()->trans->atom != NULL);
 
+	if (current_stripe_bits) {
+		/*
+		 * respect stripes
+		 */
+		int to_stripe = current_stripe_size -
+			(*pos & (current_stripe_size - 1));
+		if (count > to_stripe)
+			count = to_stripe;
+	}
 	left = count;
 	index = *pos >> PAGE_SHIFT;
 	/* calculate number of pages which are to be written */
       	end = ((*pos + count - 1) >> PAGE_SHIFT);
 	nr_pages = end - index + 1;
 	nr_dirty = 0;
-	assert("", nr_pages <= WRITE_GRANULARITY + 1);
+	assert("", nr_pages <= reiser4_write_granularity() + 1);
 
 	/* get pages and jnodes */
 	for (i = 0; i < nr_pages; i ++) {
