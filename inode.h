@@ -263,8 +263,6 @@ unix_file_info_to_inode(const struct unix_file_info *uf_info)
 extern ino_t oid_to_ino(oid_t oid) __attribute__ ((const));
 extern ino_t oid_to_uino(oid_t oid) __attribute__ ((const));
 
-extern reiser4_tree *meta_subvol_tree(void);
-
 #if REISER4_DEBUG
 extern void reiser4_inode_invariant(const struct inode *inode);
 extern int inode_has_no_jnodes(reiser4_inode *);

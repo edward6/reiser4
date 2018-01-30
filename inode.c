@@ -22,12 +22,6 @@
 
 #include <linux/fs.h>
 
-/* return tree which inode belongs to */
-reiser4_tree *meta_subvol_tree(void)
-{
-	return &get_meta_subvol()->tree;
-}
-
 /* return reiser4-specific inode flags */
 static inline unsigned long *inode_flags(const struct inode *const inode)
 {

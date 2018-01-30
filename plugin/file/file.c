@@ -356,7 +356,7 @@ static int reserve_partial_page(struct inode *inode, pgoff_t index)
 	grab_space_enable();
 	ret = reiser4_grab_reserved(reiser4_get_current_sb(),
 				   2 *
-				   estimate_one_insert_into_item(&subv_m->tree),
+				   estimate_one_insert_into_item(subv_m->tree),
 				   BA_CAN_COMMIT, subv_m);
 	return ret;
 }
@@ -364,9 +364,8 @@ static int reserve_partial_page(struct inode *inode, pgoff_t index)
 /**
  * estimate and reserve space needed to cut one item and update one stat data
  * @inode: object to cut;
- * @off: offset to cut from
  */
-static int reserve_cut_iteration(struct inode *inode, loff_t off)
+static int reserve_cut_iteration(struct inode *inode)
 {
 	reiser4_subvol *subv = get_meta_subvol();
 
@@ -378,8 +377,8 @@ static int reserve_cut_iteration(struct inode *inode, loff_t off)
 	 */
 	grab_space_enable();
 	return reiser4_grab_reserved(reiser4_get_current_sb(),
-				2 *(estimate_one_item_removal(&subv->tree) +
-				    estimate_one_insert_into_item(&subv->tree)),
+				2 *(estimate_one_item_removal(subv->tree) +
+				    estimate_one_insert_into_item(subv->tree)),
 				BA_CAN_COMMIT, subv);
 }
 
@@ -430,7 +429,7 @@ int cut_file_items_simple(struct inode *inode, loff_t new_size,
 	 * this loop normally runs just once
 	 */
 	while (1) {
-		result = reserve_cut_iteration(inode, new_size);
+		result = reserve_cut_iteration(inode);
 		if (result)
 			break;
 
@@ -535,7 +534,7 @@ int cut_file_items_asym(struct inode *inode, loff_t new_size,
 			       round_down(i_size_read(inode) - 1,
 					  current_stripe_size));
 
-		result = reserve_cut_iteration(inode, new_size);
+		result = reserve_cut_iteration(inode);
 		if (result)
 			break;
 
@@ -575,6 +574,7 @@ int cut_file_items_asym(struct inode *inode, loff_t new_size,
 		result = update_size_fn(inode,
 				      get_key_offset(&smallest_removed),
 				      update_sd);
+		all_grabbed2free();
 	}
 	/*
 	 * the below does up(sbinfo->delete_mutex). Do not get confused
@@ -1016,7 +1016,7 @@ static int reserve_capture_page_and_create_extent(struct page *page)
 	 */
 	grab_space_enable();
 	return reiser4_grab_space(2 *
-				  estimate_one_insert_into_item(&subv->tree),
+				  estimate_one_insert_into_item(subv->tree),
 				  BA_CAN_COMMIT, subv);
 }
 
@@ -2887,7 +2887,7 @@ static int reserve_write_begin_unix_file(const struct inode *inode,
 	if (ret)
 		return ret;
 	grab_space_enable();
-	ret = reiser4_grab_space(estimate_one_insert_into_item(&subv_m->tree),
+	ret = reiser4_grab_space(estimate_one_insert_into_item(subv_m->tree),
 				 BA_CAN_COMMIT, subv_m);
 	return ret;
 }

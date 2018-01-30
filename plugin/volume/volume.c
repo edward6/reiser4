@@ -144,8 +144,7 @@ static void release_volinfo_nodes(reiser4_volume *vol)
 
 	for (i = 0; i < vol->num_volmaps + vol->num_voltabs; i++)
 		if (vol->volmap_nodes[i]) {
-			jput(vol->volmap_nodes[i]);
-			jdrop(vol->volmap_nodes[i]);
+			reiser4_drop_volinfo_head(vol->volmap_nodes[i]);
 			vol->volmap_nodes[i] = NULL;
 		}
 	kfree(vol->volmap_nodes);

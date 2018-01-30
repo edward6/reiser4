@@ -883,7 +883,7 @@ static int setattr_reserve(struct inode *inode)
 	assert("edward-1793", subv != NULL);
 	assert("vs-1096", is_grab_enabled(get_current_context()));
 
-	return reiser4_grab_space(estimate_one_insert_into_item(&subv->tree),
+	return reiser4_grab_space(estimate_one_insert_into_item(subv->tree),
 				  BA_CAN_COMMIT, subv);
 }
 

@@ -90,7 +90,7 @@ typedef struct format40_disk_super_block {
  * declarations of functions implementing methods of layout plugin
  * for format40. The functions theirself are in disk_format40.c
  */
-extern struct page *find_format_format40(reiser4_subvol *subv, int consult);
+extern struct page *find_format_format40(reiser4_subvol *subv);
 extern int init_format_format40(struct super_block *, reiser4_subvol *);
 extern const reiser4_key *root_dir_key_format40(const struct super_block *);
 extern int release_format40(struct super_block *s, reiser4_subvol *);

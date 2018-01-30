@@ -171,14 +171,6 @@ TYPE_SAFE_HASH_DEFINE(j, jnode, struct jnode_key, key.j, link.j,
 #undef KFREE
 #undef KMALLOC
 
-reiser4_tree *jnode_get_tree(const jnode *node)
-{
-	assert("nikita-2691", node != NULL);
-	assert("edward-1778", node->subvol != NULL);
-
-	return &node->subvol->tree;
-}
-
 struct super_block *jnode_get_super(const jnode *node)
 {
 	assert("edward-1779", node != NULL);
@@ -210,9 +202,8 @@ int jnodes_tree_done(reiser4_tree * tree/* tree to destroy jnodes for */)
 	if (jtable->_table) {
 		for_all_in_htable(jtable, j, node, next) {
 			assert("nikita-2361", !atomic_read(&node->x_count));
-			jdrop(node);
+			jdrop(node, tree);
 		}
-
 		j_hash_done(&tree->jhash_table);
 	}
 	return 0;
@@ -415,17 +406,15 @@ static jnode *jfind_nolock(struct address_space *mapping, unsigned long index)
 
 jnode *jfind(struct address_space *mapping, unsigned long index)
 {
-	reiser4_tree *tree;
 	jnode *node;
 
 	assert("vs-1694", mapping->host != NULL);
-	tree = meta_subvol_tree();
 
-	read_lock_tree(tree);
+	read_lock_tree(meta_subvol_tree());
 	node = jfind_nolock(mapping, index);
 	if (node != NULL)
 		jref(node);
-	read_unlock_tree(tree);
+	read_unlock_tree(meta_subvol_tree());
 	return node;
 }
 
@@ -435,7 +424,7 @@ static void inode_attach_jnode(jnode * node)
 	reiser4_inode *info;
 	struct radix_tree_root *rtree;
 
-	assert_rw_write_locked(&(jnode_get_tree(node)->tree_lock));
+	assert_rw_write_locked(&meta_subvol_tree()->tree_lock);
 	assert("zam-1043", node->key.j.mapping != NULL);
 	inode = node->key.j.mapping->host;
 	info = reiser4_inode_data(inode);
@@ -459,7 +448,7 @@ static void inode_detach_jnode(jnode * node)
 	reiser4_inode *info;
 	struct radix_tree_root *rtree;
 
-	assert_rw_write_locked(&(jnode_get_tree(node)->tree_lock));
+	assert_rw_write_locked(&meta_subvol_tree()->tree_lock);
 	assert("zam-1044", node->key.j.mapping != NULL);
 	inode = node->key.j.mapping->host;
 	info = reiser4_inode_data(inode);
@@ -494,13 +483,13 @@ hash_unformatted_jnode(jnode * node, struct address_space *mapping,
 	assert("vs-1442", node->key.j.mapping == 0);
 	assert("vs-1443", node->key.j.objectid == 0);
 	assert("vs-1444", node->key.j.index == (unsigned long)-1);
-	assert_rw_write_locked(&(jnode_get_tree(node)->tree_lock));
+	assert_rw_write_locked(&meta_subvol_tree()->tree_lock);
 
 	node->key.j.mapping = mapping;
 	node->key.j.objectid = get_inode_oid(mapping->host);
 	node->key.j.index = index;
 
-	jtable = &jnode_get_tree(node)->jhash_table;
+	jtable = &meta_subvol_tree()->jhash_table;
 
 	/* race with some other thread inserting jnode into the hash table is
 	 * impossible, because we keep the page lock. */
@@ -521,7 +510,7 @@ static void unhash_unformatted_node_nolock(jnode * node)
 	       get_inode_oid(node->key.j.mapping->host));
 
 	/* remove jnode from hash-table */
-	j_hash_remove_rcu(&jnode_get_tree(node)->jhash_table, node);
+	j_hash_remove_rcu(&meta_subvol_tree()->jhash_table, node);
 	inode_detach_jnode(node);
 	node->key.j.mapping = NULL;
 	node->key.j.index = (unsigned long)-1;
@@ -536,9 +525,9 @@ void unhash_unformatted_jnode(jnode * node)
 {
 	assert("vs-1445", jnode_is_unformatted(node));
 
-	write_lock_tree(jnode_get_tree(node));
+	write_lock_tree(meta_subvol_tree());
 	unhash_unformatted_node_nolock(node);
-	write_unlock_tree(jnode_get_tree(node));
+	write_unlock_tree(meta_subvol_tree());
 }
 
 /*
@@ -546,19 +535,18 @@ void unhash_unformatted_jnode(jnode * node)
  * allocate new jnode, insert it, and also insert into radix tree for the
  * given inode/mapping.
  */
-static jnode *find_get_jnode(struct reiser4_subvol *subvol,
+static jnode *find_get_jnode(reiser4_subvol *subv,
 			     struct address_space *mapping,
 			     oid_t oid, unsigned long index)
 {
 	jnode *result;
 	jnode *shadow;
 	int preload;
-	reiser4_tree *tree;
+	reiser4_tree *tree = meta_subvol_tree();
 
-	assert("edward-1955", subvol != NULL);
+	assert("edward-1955", subv != NULL);
 
-	tree = &subvol->tree;
-	result = jnew_unformatted(subvol);
+	result = jnew_unformatted(subv);
 
 	if (unlikely(result == NULL))
 		return ERR_PTR(RETERR(-ENOMEM));
@@ -1646,7 +1634,7 @@ static int jnode_try_drop(jnode * node)
 	assert("nikita-2491", node != NULL);
 	assert("nikita-2583", JF_ISSET(node, JNODE_RIP));
 
-	tree = jnode_get_tree(node);
+	tree = meta_subvol_tree();
 	jtype = jnode_get_type(node);
 
 	spin_lock_jnode(node);
@@ -1699,7 +1687,7 @@ static int jdelete(jnode * node/* jnode to finish with */)
 	page = jnode_lock_page(node);
 	assert_spin_locked(&(node->guard));
 
-	tree = jnode_get_tree(node);
+	tree = meta_subvol_tree();
 
 	write_lock_tree(tree);
 	/* re-check ->x_count under tree lock. */
@@ -1735,22 +1723,22 @@ static int jdelete(jnode * node/* jnode to finish with */)
 	return result;
 }
 
-/* drop jnode on the floor.
-
-   Return value:
-
-    -EBUSY:  failed to drop jnode, because there are still references to it
-
-    0:       successfully dropped jnode
-
-*/
-static int jdrop_in_tree(jnode * node, reiser4_tree * tree)
+/**
+ * This function frees jnode "if possible".
+ * In particular, [dcx]_count has to be 0 (where applicable).
+ *
+ * @tree: the tree that jnode belongs to.
+ *
+ * Return value:
+ *  -EBUSY:  failed to drop jnode, because there are still references to it
+ *  0:       successfully dropped jnode
+ */
+int jdrop(jnode *node, reiser4_tree *tree)
 {
 	struct page *page;
 	jnode_type jtype;
 	int result;
 
-	assert("zam-602", node != NULL);
 	assert_rw_not_read_locked(&(tree->tree_lock));
 	assert_rw_not_write_locked(&(tree->tree_lock));
 	assert("nikita-2403", !JF_ISSET(node, JNODE_HEARD_BANSHEE));
@@ -1791,17 +1779,11 @@ static int jdrop_in_tree(jnode * node, reiser4_tree * tree)
 	return result;
 }
 
-/* This function frees jnode "if possible". In particular, [dcx]_count has to
-   be 0 (where applicable).  */
-void jdrop(jnode * node)
-{
-	jdrop_in_tree(node, jnode_get_tree(node));
-}
-
-/* IO head jnode implementation; The io heads are simple j-nodes with limited
-   functionality (these j-nodes are not in any hash table) just for reading
-   from and writing to disk. */
-
+/**
+ * IO head jnode implementation; The io heads are simple j-nodes with limited
+ * functionality (these j-nodes are not in any hash table) just for reading
+ * from and writing to disk
+ */
 jnode *reiser4_alloc_io_head(const reiser4_block_nr *block,
 			     reiser4_subvol *subv)
 {
@@ -1822,7 +1804,7 @@ void reiser4_drop_io_head(jnode * node)
 	assert("zam-648", jnode_get_type(node) == JNODE_IO_HEAD);
 
 	jput(node);
-	jdrop(node);
+	jdrop(node, meta_subvol_tree());
 }
 
 jnode *reiser4_alloc_volinfo_head(const reiser4_block_nr *block,
@@ -1845,7 +1827,7 @@ void reiser4_drop_volinfo_head(jnode *node)
 	       jnode_get_type(node) == JNODE_VOLINFO_HEAD);
 
 	jput(node);
-	jdrop(node);
+	jdrop(node, jnode_get_tree(node));
 }
 
 /* protect keep jnode data from reiser4_releasepage()  */
@@ -1979,24 +1961,20 @@ static int jnode_invariant(jnode * node, int tlocked, int jlocked)
 {
 	char const *failed_msg;
 	int result;
-	reiser4_tree *tree;
-
-	tree = jnode_get_tree(node);
 
 	assert("umka-063312", node != NULL);
-	assert("umka-064321", tree != NULL);
 
 	if (!jlocked && !tlocked)
 		spin_lock_jnode((jnode *) node);
 	if (!tlocked)
-		read_lock_tree(jnode_get_tree(node));
+		read_lock_tree(meta_subvol_tree());
 	result = jnode_invariant_f(node, &failed_msg);
 	if (!result) {
 		info_jnode("corrupted node", node);
 		warning("jmacd-555", "Condition %s failed", failed_msg);
 	}
 	if (!tlocked)
-		read_unlock_tree(jnode_get_tree(node));
+		read_unlock_tree(meta_subvol_tree());
 	if (!jlocked && !tlocked)
 		spin_unlock_jnode((jnode *) node);
 	return result;

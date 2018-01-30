@@ -56,7 +56,7 @@ znode *reiser4_new_node(znode *brother, /* existing left neighbor of new node */
 
 	retcode = assign_fake_blocknr_formatted(&blocknr, subv);
 	if (retcode == 0) {
-		result = zget(subv, &blocknr, NULL, level,
+		result = zget(subv->tree, &blocknr, NULL, level,
 			      reiser4_ctx_gfp_mask_get());
 		if (IS_ERR(result)) {
 			ewarning(PTR_ERR(result), "nikita-929",
@@ -292,7 +292,7 @@ static int reiser4_kill_root(reiser4_tree * tree /* tree from which root is
 
 	init_lh(&handle_for_uber);
 	/* obtain and lock "fake" znode protecting changes in tree height. */
-	result = get_uber_znode(tree, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI,
+	result = get_uber_znode(tree->subv, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI,
 				&handle_for_uber);
 	if (result == 0) {
 		uber = handle_for_uber.node;

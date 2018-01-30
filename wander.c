@@ -450,8 +450,6 @@ static void get_tx_size(struct commit_handle *ch)
 		abi = rb_entry(node, struct atom_brick_info, node);
 		ch_sub = &super_origin(ch->super, abi->brick_id)->ch;
 
-		assert("zam-440", ergo(abi->brick_id != METADATA_SUBVOL_ID,
-				       ch_sub->overwrite_set_size != 0));
 		assert("zam-695", ch_sub->tx_size == 0);
 
 		if (ch_sub->overwrite_set_size == 0)
@@ -1072,9 +1070,6 @@ int write_jnode_list_subv(struct list_head *head, flush_queue_t *fq,
 		struct list_head *cur = beg->next;
 
 		while (head != cur) {
-			assert("edward-1876",
-			       jnode_by_link(beg)->subvol ==
-			       subv);
 			assert("edward-1707",
 			       jnode_by_link(beg)->subvol ==
 			       jnode_by_link(cur)->subvol);

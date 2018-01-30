@@ -156,16 +156,21 @@ static int reiser4_add_brick(struct super_block *sb,
 		ret = -EINVAL;
 		goto out;
 	}
-	ret = reiser4_activate_subvol(sb, new);
-	if (ret)
+	if (!reiser4_trylock_volume(sb)) {
+		warning("edward-2028", "Can't add brick to locked volume");
+		ret = -EINVAL;
 		goto out;
+	}
+	new->flags |= (1 << SUBVOL_IS_NEW);
+
+	ret = reiser4_activate_subvol(sb, new);
+	if (ret) {
+		reiser4_unlock_volume(sb);
+		goto out;
+	}
 	/*
 	 * add activated brick
 	 */
-	if (!reiser4_trylock_volume(sb)) {
-		ret = -EINVAL;
-		goto deactivate;
-	}
 	if (reiser4_volume_test_set_unbalanced(sb)) {
 		warning("edward-1951", "Can't add brick to unbalanced volume");
 		reiser4_unlock_volume(sb);
@@ -192,6 +197,7 @@ static int reiser4_add_brick(struct super_block *sb,
 	printk("reiser4 (%s): Balancing completed in %lu seconds.\n",
 	       sb->s_id, get_seconds() - start);
 
+	clear_bit(SUBVOL_IS_NEW, &new->flags);
 	return 0;
  deactivate:
 	reiser4_deactivate_subvol(sb, new);

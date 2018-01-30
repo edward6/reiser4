@@ -10,6 +10,7 @@
 #ifndef VOLUME_H
 #define VOLUME_H
 
+#define INVALID_SUBVOL_ID   (0xffffffff)
 #define METADATA_SUBVOL_ID  (0)
 
 static inline int is_meta_brick_id(u64 id)

@@ -136,7 +136,7 @@ int safe_link_grab(struct super_block *super,
 	 * safe_link_release() should be called before leaving
 	 * reiser4 context
 	 */
-	result = reiser4_grab_reserved(super, safe_link_tograb(&subv->tree),
+	result = reiser4_grab_reserved(super, safe_link_tograb(subv->tree),
 				       flags, subv);
 	grab_space_enable();
 	return result;
@@ -174,9 +174,9 @@ int safe_link_add(struct inode *inode, reiser4_safe_link_t link)
 	}
 	build_link_key(subv, get_inode_oid(inode), link, &key);
 
-	result = store_black_box(&subv->tree, &key, &sl, length);
+	result = store_black_box(subv->tree, &key, &sl, length);
 	if (result == -EEXIST)
-		result = update_black_box(&subv->tree, &key, &sl, length);
+		result = update_black_box(subv->tree, &key, &sl, length);
 	return result;
 }
 
@@ -188,7 +188,7 @@ int safe_link_del(reiser4_subvol *subv, oid_t oid, reiser4_safe_link_t link)
 {
 	reiser4_key key;
 
-	return kill_black_box(&subv->tree,
+	return kill_black_box(subv->tree,
 			      build_link_key(subv, oid, link, &key));
 }
 
@@ -226,7 +226,7 @@ static int safe_link_iter_next(reiser4_subvol *subv,
 	int result;
 	safelink_t sl;
 
-	result = load_black_box(&subv->tree, &ctx->key, &sl, sizeof sl, 0);
+	result = load_black_box(subv->tree, &ctx->key, &sl, sizeof sl, 0);
 	if (result == 0) {
 		ctx->oid = get_key_objectid(&ctx->key);
 		ctx->link = get_key_offset(&ctx->key);

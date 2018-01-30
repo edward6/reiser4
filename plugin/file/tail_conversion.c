@@ -218,7 +218,7 @@ static int reserve_tail2extent_iteration(struct inode *inode, loff_t offset)
 	int ret;
 	reiser4_subvol *subv_d = calc_data_subvol(inode, offset);
 	reiser4_subvol *subv_m = get_meta_subvol();
-	reiser4_tree *tree_m = &subv_m->tree;
+	reiser4_tree *tree_m = subv_m->tree;
 	/*
 	 * space required for one iteration of extent->tail conversion:
 	 *
@@ -571,7 +571,7 @@ int tail2extent(struct unix_file_info *uf_info)
 static int reserve_extent2tail_iteration(struct inode *inode)
 {
 	reiser4_subvol *subv = get_meta_subvol();
-	reiser4_tree *tree = &subv->tree;
+	reiser4_tree *tree = subv->tree;
 	/*
 	 * reserve blocks for (in this order):
 	 *

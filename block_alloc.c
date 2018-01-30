@@ -588,8 +588,7 @@ static reiser4_block_nr fake_gen = 0;
  * Obtain a fake block number for new node which will be used to refer to
  * this newly allocated node until real allocation is done.
  */
-static void assign_fake_blocknr(reiser4_block_nr *blocknr, int count,
-				reiser4_subvol *subv)
+static void assign_fake_blocknr(reiser4_block_nr *blocknr, int count)
 {
 	spin_lock(&fake_lock);
 	*blocknr = fake_gen;
@@ -599,13 +598,13 @@ static void assign_fake_blocknr(reiser4_block_nr *blocknr, int count,
 	BUG_ON(*blocknr & REISER4_BLOCKNR_STATUS_BIT_MASK);
 	/**blocknr &= ~REISER4_BLOCKNR_STATUS_BIT_MASK;*/
 	*blocknr |= REISER4_UNALLOCATED_STATUS_VALUE;
-	assert("zam-394", zlook(&subv->tree, blocknr) == NULL);
+	assert("zam-394", zlook(meta_subvol_tree(), blocknr) == NULL);
 }
 
 int assign_fake_blocknr_formatted(reiser4_block_nr *blocknr,
 				  reiser4_subvol *subv)
 {
-	assign_fake_blocknr(blocknr, 1, subv);
+	assign_fake_blocknr(blocknr, 1);
 	grabbed2fake_allocated_formatted(subv);
 	return 0;
 }
@@ -620,7 +619,7 @@ reiser4_block_nr fake_blocknr_unformatted(int count, reiser4_subvol *subv)
 {
 	reiser4_block_nr blocknr;
 
-	assign_fake_blocknr(&blocknr, count, subv);
+	assign_fake_blocknr(&blocknr, count);
 	grabbed2fake_allocated_unformatted(count, subv);
 
 	return blocknr;

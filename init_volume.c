@@ -347,12 +347,23 @@ int reiser4_activate_subvol(struct super_block *super,
 		subv->flags |= (1 << SUBVOL_IS_NONROT_DEVICE);
 		subv->txmod = WA_TXMOD_ID;
 	}
-	page = subv->df_plug->find_format(subv, 1);
+	/*
+	 * Read format super-block of the subvolume and	perform early
+	 * initialisations needed by check_active_replicas().
+	 * Note that it may be not the most recent version of format
+	 * super-block, since the journal hasn't been yet replayed.
+	 *
+	 * FIXME-EDWARD: Provide a guarantee that on-disk data needed
+	 * for that early initialisation (in particular, num_origins)
+	 * are really actual.
+	 */
+	page = subv->df_plug->find_format(subv);
 	if (IS_ERR(page)) {
 		ret = PTR_ERR(page);
 		goto error;
 	}
 	put_page(page);
+
 	if (is_replica(subv))
 		/*
 		 * nothing to do any more for replicas,

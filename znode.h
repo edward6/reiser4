@@ -164,10 +164,10 @@ ON_DEBUG(extern atomic_t delim_key_version;
 #define	ZF_CLR(p,f)	        JF_CLR  (ZJNODE(p), (f))
 #define	ZF_ISSET(p,f)	        JF_ISSET(ZJNODE(p), (f))
 #define	ZF_SET(p,f)		JF_SET  (ZJNODE(p), (f))
-extern znode *zget(struct reiser4_subvol *subvol,
+extern znode *zget(reiser4_tree *tree,
 		   const reiser4_block_nr * const block,
 		   znode * parent, tree_level level, gfp_t gfp_flag);
-extern znode *zlook(reiser4_tree * tree, const reiser4_block_nr * const block);
+extern znode *zlook(reiser4_tree *tree, const reiser4_block_nr * const block);
 extern int zload(znode * node);
 extern int zload_ra(znode * node, ra_info_t * info);
 extern int zinit_new(znode * node, gfp_t gfp_flags);
@@ -314,11 +314,7 @@ static inline struct reiser4_subvol *znode_get_subvol(const znode *node)
 	return jnode_get_subvol(ZJNODE(node));
 }
 
-static inline reiser4_tree *znode_get_tree(const znode *node)
-{
-	assert("nikita-2692", node != NULL);
-	return jnode_get_tree(ZJNODE(node));
-}
+#define znode_get_tree(node) (znode_get_subvol(node)->tree)
 
 /* resolve race with zput */
 static inline znode *znode_rip_check(reiser4_tree * tree, znode * node)
