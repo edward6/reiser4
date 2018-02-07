@@ -335,14 +335,20 @@ void zinit(znode *node, const znode *parent, struct reiser4_subvol *subvol)
  * remove znode from indices. This is called jput() when last reference on
  * znode is released.
  */
-void znode_remove(znode * node /* znode to remove */ , reiser4_tree * tree)
+void znode_remove(znode *node)
 {
+#if REISER4_DEBUG
+	reiser4_super_info_data *sbinfo;
+
 	assert("nikita-2108", node != NULL);
 	assert("nikita-470", node->c_count == 0);
-	assert_rw_write_locked(&(tree->tree_lock));
+	assert("edward-2027", znode_get_subvol(node) != NULL);
 
+	sbinfo = get_super_private(znode_get_subvol(node)->super);
+	assert_rw_write_locked(&(sbinfo->tree_lock));
+#endif
 	/* remove reference to this znode from cbk cache */
-	cbk_cache_invalidate(node, tree);
+	cbk_cache_invalidate(node, znode_get_tree(node));
 
 	/* update c_count of parent */
 	if (znode_parent(node) != NULL) {

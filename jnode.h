@@ -517,7 +517,7 @@ static inline int jload(jnode *node)
 extern int jinit_new(jnode *, gfp_t) NONNULL;
 extern int jstartio(jnode *) NONNULL;
 
-extern void jdrop(jnode *) NONNULL;
+extern int jdrop(jnode *) NONNULL;
 extern int jwait_io(jnode *, int rw) NONNULL;
 
 void jload_prefetch(jnode *);

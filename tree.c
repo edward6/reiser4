@@ -796,7 +796,7 @@ void forget_znode(lock_handle * handle)
 
 	write_lock_tree(tree);
 	sibling_list_remove(node);
-	znode_remove(node, tree);
+	znode_remove(node);
 	write_unlock_tree(tree);
 
 	/* Here we set JNODE_DYING and cancel all pending lock requests.  It
@@ -1861,7 +1861,6 @@ int reiser4_subvol_init_tree(struct super_block *super,
 	tree->carry.paste_flags = REISER4_PASTE_FLAGS;
 	tree->carry.insert_flags = REISER4_INSERT_FLAGS;
 
-	rwlock_init(&(tree->tree_lock));
 	spin_lock_init(&(tree->epoch_lock));
 
 	tree->root_block = *root_block;

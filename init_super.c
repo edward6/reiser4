@@ -31,8 +31,11 @@ int reiser4_init_fs_info(struct super_block *super)
 	mutex_init(&sbinfo->delete_mutex);
 	spin_lock_init(&(sbinfo->guard));
 
-	/*  initialize per-super-block d_cursor resources */
+	/* initialize per-super-block d_cursor resources */
 	reiser4_init_super_d_info(super);
+
+	/* initialize global tree lock */
+	rwlock_init(&(sbinfo->tree_lock));
 
 	return 0;
 }

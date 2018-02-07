@@ -215,7 +215,7 @@ static inline int znode_is_connected(const znode * node)
 
 extern int znode_shift_order;
 extern int znode_rehash(znode * node, const reiser4_block_nr * new_block_nr);
-extern void znode_remove(znode *, reiser4_tree *);
+extern void znode_remove(znode *);
 extern znode *znode_parent(const znode * node);
 extern znode *znode_parent_nolock(const znode * node);
 extern int znode_above_root(const znode * node);

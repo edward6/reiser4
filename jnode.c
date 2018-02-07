@@ -1159,9 +1159,11 @@ static void jnode_finish_io(jnode * node)
  * separate function, because we want fast path of jput() to be inline and,
  * therefore, small.
  */
-void jput_final(jnode * node)
+void jput_final(jnode *node)
 {
 	int r_i_p;
+
+	assert("edward-2022", jnode_get_subvol(node) != NULL);
 
 	/* A fast check for keeping node in cache. We always keep node in cache
 	 * if its page is present and node was not marked for deletion */
@@ -1276,7 +1278,7 @@ unsigned long index_jnode(const jnode * node)
 }
 
 /* ->remove() method for unformatted jnodes */
-static inline void remove_jnode(jnode * node, reiser4_tree * tree)
+static inline void remove_jnode(jnode *node)
 {
 	/* remove jnode from hash table and radix tree */
 	if (node->key.j.mapping)
@@ -1391,11 +1393,18 @@ static int parse_znode(jnode * node)
 }
 
 /* ->delete() method for formatted nodes */
-static void delete_znode(jnode * node, reiser4_tree * tree)
+static void delete_znode(jnode *node)
 {
 	znode *z;
+#if REISER4_DEBUG
+	reiser4_super_info_data *sbinfo;
 
-	assert_rw_write_locked(&(tree->tree_lock));
+	assert("edward-2023", jnode_get_subvol(node) != NULL);
+
+	sbinfo = get_super_private(jnode_get_subvol(node)->super);
+
+	assert_rw_write_locked(&(sbinfo->tree_lock));
+#endif
 	assert("vs-898", JF_ISSET(node, JNODE_HEARD_BANSHEE));
 
 	z = JZNODE(node);
@@ -1403,16 +1412,23 @@ static void delete_znode(jnode * node, reiser4_tree * tree)
 
 	/* delete znode from sibling list. */
 	sibling_list_remove(z);
-
-	znode_remove(z, tree);
+	znode_remove(z);
 }
 
-/* ->remove() method for formatted nodes */
-static int remove_znode(jnode * node, reiser4_tree * tree)
+/*
+ * ->remove() method for formatted nodes
+ */
+static int remove_znode(jnode *node)
 {
 	znode *z;
+#if REISER4_DEBUG
+	reiser4_super_info_data *sbinfo;
 
-	assert_rw_write_locked(&(tree->tree_lock));
+	assert("edward-2024", jnode_get_subvol(node) != NULL);
+
+	sbinfo = get_super_private(jnode_get_subvol(node)->super);
+	assert_rw_write_locked(&(sbinfo->tree_lock));
+#endif
 	z = JZNODE(node);
 
 	if (z->c_count == 0) {
@@ -1420,7 +1436,7 @@ static int remove_znode(jnode * node, reiser4_tree * tree)
 		sibling_list_drop(z);
 		/* this is called with tree spin-lock held, so call
 		   znode_remove() directly (rather than znode_lock_remove()). */
-		znode_remove(z, tree);
+		znode_remove(z);
 		return 0;
 	}
 	return RETERR(-EBUSY);
@@ -1561,12 +1577,11 @@ static inline int jnode_is_busy(const jnode * node, jnode_type jtype)
  * corresponding function that removes jnode from indices and returns it back
  * to the appropriate slab (through RCU).
  */
-static inline void
-jnode_remove(jnode * node, jnode_type jtype, reiser4_tree * tree)
+static inline void jnode_remove(jnode *node, jnode_type jtype)
 {
 	switch (jtype) {
 	case JNODE_UNFORMATTED_BLOCK:
-		remove_jnode(node, tree);
+		remove_jnode(node);
 		break;
 	case JNODE_IO_HEAD:
 	case JNODE_BITMAP:
@@ -1574,7 +1589,7 @@ jnode_remove(jnode * node, jnode_type jtype, reiser4_tree * tree)
 	case JNODE_VOLINFO_HEAD:
 		break;
 	case JNODE_FORMATTED_BLOCK:
-		remove_znode(node, tree);
+		remove_znode(node);
 		break;
 	default:
 		wrong_return_value("nikita-3196", "Wrong jnode type");
@@ -1589,18 +1604,17 @@ jnode_remove(jnode * node, jnode_type jtype, reiser4_tree * tree)
  * This differs from jnode_remove() only for formatted nodes---for them
  * sibling list handling is different for removal and deletion.
  */
-static inline void
-jnode_delete(jnode * node, jnode_type jtype, reiser4_tree * tree UNUSED_ARG)
+static inline void jnode_delete(jnode *node, jnode_type jtype)
 {
 	switch (jtype) {
 	case JNODE_UNFORMATTED_BLOCK:
-		remove_jnode(node, tree);
+		remove_jnode(node);
 		break;
 	case JNODE_IO_HEAD:
 	case JNODE_BITMAP:
 		break;
 	case JNODE_FORMATTED_BLOCK:
-		delete_znode(node, tree);
+		delete_znode(node);
 		break;
 	case JNODE_VOLINFO_HEAD:
 	default:
@@ -1629,26 +1643,27 @@ void jnode_list_remove(jnode * node)
  * this is called by jput_final() to remove jnode when last reference to it is
  * released.
  */
-static int jnode_try_drop(jnode * node)
+static int jnode_try_drop(jnode *node)
 {
 	int result;
-	reiser4_tree *tree;
 	jnode_type jtype;
+	reiser4_super_info_data *sbinfo;
 
 	assert("nikita-2491", node != NULL);
 	assert("nikita-2583", JF_ISSET(node, JNODE_RIP));
+	assert("edward-2025", jnode_get_subvol(node) != NULL);
 
-	tree = jnode_get_tree(node);
+	sbinfo = get_super_private(jnode_get_subvol(node)->super);
 	jtype = jnode_get_type(node);
 
 	spin_lock_jnode(node);
-	write_lock_tree(tree);
+	__write_lock_tree(sbinfo);
 	/*
 	 * if jnode has a page---leave it alone. Memory pressure will
 	 * eventually kill page and jnode.
 	 */
 	if (jnode_page(node) != NULL) {
-		write_unlock_tree(tree);
+		__write_unlock_tree(sbinfo);
 		spin_unlock_jnode(node);
 		JF_CLR(node, JNODE_RIP);
 		return RETERR(-EBUSY);
@@ -1662,13 +1677,13 @@ static int jnode_try_drop(jnode * node)
 
 		spin_unlock_jnode(node);
 		/* no page and no references---despatch him. */
-		jnode_remove(node, jtype, tree);
-		write_unlock_tree(tree);
+		jnode_remove(node, jtype);
+		__write_unlock_tree(sbinfo);
 		jnode_free(node, jtype);
 	} else {
 		/* busy check failed: reference was acquired by concurrent
 		 * thread. */
-		write_unlock_tree(tree);
+		__write_unlock_tree(sbinfo);
 		spin_unlock_jnode(node);
 		JF_CLR(node, JNODE_RIP);
 	}
@@ -1709,7 +1724,7 @@ static int jdelete(jnode * node/* jnode to finish with */)
 		}
 		spin_unlock_jnode(node);
 		/* goodbye */
-		jnode_delete(node, jtype, tree);
+		jnode_delete(node, jtype);
 		write_unlock_tree(tree);
 		jnode_free(node, jtype);
 		/* @node is no longer valid pointer */
@@ -1727,32 +1742,38 @@ static int jdelete(jnode * node/* jnode to finish with */)
 	return result;
 }
 
-/* drop jnode on the floor.
-
-   Return value:
-
-    -EBUSY:  failed to drop jnode, because there are still references to it
-
-    0:       successfully dropped jnode
-
-*/
-static int jdrop_in_tree(jnode * node, reiser4_tree * tree)
+/**
+ * This function frees jnode "if possible".
+ * In particular, [dcx]_count has to be 0 (where applicable).
+ *
+ * @tree: the tree that jnode belongs to.
+ *
+ * Return value:
+ *  -EBUSY:  failed to drop jnode, because there are still references to it
+ *  0:       successfully dropped jnode
+ */
+int jdrop(jnode *node)
 {
 	struct page *page;
 	jnode_type jtype;
 	int result;
+#if REISER4_DEBUG
+	reiser4_super_info_data *sbinfo;
 
-	assert("zam-602", node != NULL);
-	assert_rw_not_read_locked(&(tree->tree_lock));
-	assert_rw_not_write_locked(&(tree->tree_lock));
+	assert("edward-2026", jnode_get_subvol(node) != NULL);
+
+	sbinfo = get_super_private(jnode_get_subvol(node)->super);
+
+	assert_rw_not_read_locked(&(sbinfo->tree_lock));
+	assert_rw_not_write_locked(&(sbinfo->tree_lock));
 	assert("nikita-2403", !JF_ISSET(node, JNODE_HEARD_BANSHEE));
-
+#endif
 	jtype = jnode_get_type(node);
 
 	page = jnode_lock_page(node);
 	assert_spin_locked(&(node->guard));
 
-	write_lock_tree(tree);
+	write_lock_tree(NULL);
 
 	/* re-check ->x_count under tree lock. */
 	result = jnode_is_busy(node, jtype);
@@ -1766,8 +1787,8 @@ static int jdrop_in_tree(jnode * node, reiser4_tree * tree)
 			page_clear_jnode(page, node);
 		}
 		spin_unlock_jnode(node);
-		jnode_remove(node, jtype, tree);
-		write_unlock_tree(tree);
+		jnode_remove(node, jtype);
+		write_unlock_tree(NULL);
 		jnode_free(node, jtype);
 		if (page != NULL)
 			reiser4_drop_page(page);
@@ -1775,19 +1796,12 @@ static int jdrop_in_tree(jnode * node, reiser4_tree * tree)
 		/* busy check failed: reference was acquired by concurrent
 		 * thread. */
 		JF_CLR(node, JNODE_RIP);
-		write_unlock_tree(tree);
+		write_unlock_tree(NULL);
 		spin_unlock_jnode(node);
 		if (page != NULL)
 			unlock_page(page);
 	}
 	return result;
-}
-
-/* This function frees jnode "if possible". In particular, [dcx]_count has to
-   be 0 (where applicable).  */
-void jdrop(jnode * node)
-{
-	jdrop_in_tree(node, jnode_get_tree(node));
 }
 
 /* IO head jnode implementation; The io heads are simple j-nodes with limited

@@ -119,22 +119,6 @@ struct reiser4_tree {
 	/* hash table to look up jnodes by inode and offset. */
 	j_hash_table jhash_table;
 
-	/* lock protecting:
-	   - parent pointers,
-	   - sibling pointers,
-	   - znode hash table
-	   - coord cache
-	 */
-	/* NOTE: The "giant" tree lock can be replaced by more spin locks,
-	   hoping they will be less contented. We can use one spin lock per one
-	   znode hash bucket.  With adding of some code complexity, sibling
-	   pointers can be protected by both znode spin locks.  However it looks
-	   more SMP scalable we should test this locking change on n-ways (n >
-	   4) SMP machines.  Current 4-ways machine test does not show that tree
-	   lock is contented and it is a bottleneck (2003.07.25). */
-
-	rwlock_t tree_lock;
-
 	/* lock protecting delimiting keys */
 	rwlock_t dk_lock;
 
@@ -433,68 +417,6 @@ int lookup_couple(reiser4_tree * tree,
 		  znode_lock_mode lock_mode, lookup_bias bias,
 		  tree_level lock_level, tree_level stop_level, __u32 flags,
 		  int *result1, int *result2);
-
-static inline void read_lock_tree(reiser4_tree *tree)
-{
-	/* check that tree is not locked */
-	assert("", (LOCK_CNT_NIL(rw_locked_tree) &&
-		    LOCK_CNT_NIL(read_locked_tree) &&
-		    LOCK_CNT_NIL(write_locked_tree)));
-	/* check that spinlocks of lower priorities are not held */
-	assert("", (LOCK_CNT_NIL(spin_locked_txnh) &&
-		    LOCK_CNT_NIL(rw_locked_dk) &&
-		    LOCK_CNT_NIL(spin_locked_stack)));
-
-	read_lock(&(tree->tree_lock));
-
-	LOCK_CNT_INC(read_locked_tree);
-	LOCK_CNT_INC(rw_locked_tree);
-	LOCK_CNT_INC(spin_locked);
-}
-
-static inline void read_unlock_tree(reiser4_tree *tree)
-{
-	assert("nikita-1375", LOCK_CNT_GTZ(read_locked_tree));
-	assert("nikita-1376", LOCK_CNT_GTZ(rw_locked_tree));
-	assert("nikita-1376", LOCK_CNT_GTZ(spin_locked));
-
-	LOCK_CNT_DEC(read_locked_tree);
-	LOCK_CNT_DEC(rw_locked_tree);
-	LOCK_CNT_DEC(spin_locked);
-
-	read_unlock(&(tree->tree_lock));
-}
-
-static inline void write_lock_tree(reiser4_tree *tree)
-{
-	/* check that tree is not locked */
-	assert("", (LOCK_CNT_NIL(rw_locked_tree) &&
-		    LOCK_CNT_NIL(read_locked_tree) &&
-		    LOCK_CNT_NIL(write_locked_tree)));
-	/* check that spinlocks of lower priorities are not held */
-	assert("", (LOCK_CNT_NIL(spin_locked_txnh) &&
-		    LOCK_CNT_NIL(rw_locked_dk) &&
-		    LOCK_CNT_NIL(spin_locked_stack)));
-
-	write_lock(&(tree->tree_lock));
-
-	LOCK_CNT_INC(write_locked_tree);
-	LOCK_CNT_INC(rw_locked_tree);
-	LOCK_CNT_INC(spin_locked);
-}
-
-static inline void write_unlock_tree(reiser4_tree *tree)
-{
-	assert("nikita-1375", LOCK_CNT_GTZ(write_locked_tree));
-	assert("nikita-1376", LOCK_CNT_GTZ(rw_locked_tree));
-	assert("nikita-1376", LOCK_CNT_GTZ(spin_locked));
-
-	LOCK_CNT_DEC(write_locked_tree);
-	LOCK_CNT_DEC(rw_locked_tree);
-	LOCK_CNT_DEC(spin_locked);
-
-	write_unlock(&(tree->tree_lock));
-}
 
 static inline void read_lock_dk(reiser4_tree *tree)
 {

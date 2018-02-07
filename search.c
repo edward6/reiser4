@@ -1198,7 +1198,7 @@ static int cbk_cache_scan_slots(cbk_handle * h/* cbk handle */)
 		    znode_contains_key_strict(node, key, isunique)) {
 			zref(node);
 			result = 0;
-			spin_lock_prefetch(&tree->tree_lock);
+			spin_lock_prefetch(&get_current_super_private()->tree_lock);
 			break;
 		}
 	}
