@@ -438,7 +438,7 @@ static void forward_overwrite_unformatted(flush_pos_t *flush_pos, oid_t oid,
 	txn_atom *atom;
 	LIST_HEAD(jnodes);
 
-	tree = meta_subvol_tree();
+	tree = &flush_pos->data_subv->tree;
 
 	atom = atom_locked_by_fq(reiser4_pos_fq(flush_pos));
 	assert("vs-1478", atom);
@@ -717,7 +717,7 @@ static int forward_try_defragment_locality(znode * node,
 		 * We take a longterm lock on the fake node in order to change
 		 * the root block number. This may cause atom fusion
 		 */
-		ret = get_uber_znode(subv, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI,
+		ret = get_uber_znode(tree, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI,
 				     &uber_lock);
 		/*
 		 * The fake node cannot be deleted, and we must have priority

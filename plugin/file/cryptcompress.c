@@ -724,7 +724,7 @@ static int find_cluster_item(hint_t * hint,
 	assert("edward-152", hint != NULL);
 
 	if (!hint_is_valid(hint)) {
-		result = cryptcompress_hint_validate(hint, subv->tree,
+		result = cryptcompress_hint_validate(hint, &subv->tree,
 						     key, lock_mode);
 		if (result == -E_REPEAT)
 			goto traverse_tree;
@@ -841,7 +841,7 @@ static int find_cluster_item(hint_t * hint,
 	assert("edward-713", hint->lh.owner == NULL);
 	assert("edward-714", reiser4_schedulable());
 
-	result = coord_by_key(subv->tree,
+	result = coord_by_key(&subv->tree,
 			      key, coord, &hint->lh,
 			      lock_mode, bias, LEAF_LEVEL, LEAF_LEVEL,
 			      CBK_UNIQUE | flags, ra_info);
@@ -1520,7 +1520,7 @@ static int jnode_truncate_ok(struct inode *inode, cloff_t index,
 			     reiser4_subvol *subv)
 {
 	jnode *node;
-	node = jlookup(subv->tree, get_inode_oid(inode),
+	node = jlookup(&subv->tree, get_inode_oid(inode),
 		       clust_to_pg(index, inode));
 	if (likely(!node))
 		return 1;
@@ -2536,7 +2536,7 @@ void truncate_complete_page_cluster(struct inode *inode, cloff_t index,
 	struct page *pages[MAX_CLUSTER_NRPAGES];
 	reiser4_subvol *subv = get_meta_subvol();
 
-	node = jlookup(subv->tree,
+	node = jlookup(&subv->tree,
 		       get_inode_oid(inode),
 		       clust_to_pg(index, inode));
 	nr_pages = size_in_pages(lbytes(index, inode));

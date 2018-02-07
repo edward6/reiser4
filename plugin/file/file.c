@@ -356,7 +356,7 @@ static int reserve_partial_page(struct inode *inode, pgoff_t index)
 	grab_space_enable();
 	ret = reiser4_grab_reserved(reiser4_get_current_sb(),
 				   2 *
-				   estimate_one_insert_into_item(subv_m->tree),
+				   estimate_one_insert_into_item(&subv_m->tree),
 				   BA_CAN_COMMIT, subv_m);
 	return ret;
 }
@@ -377,8 +377,8 @@ static int reserve_cut_iteration(struct inode *inode)
 	 */
 	grab_space_enable();
 	return reiser4_grab_reserved(reiser4_get_current_sb(),
-				2 *(estimate_one_item_removal(subv->tree) +
-				    estimate_one_insert_into_item(subv->tree)),
+				2 *(estimate_one_item_removal(&subv->tree) +
+				    estimate_one_insert_into_item(&subv->tree)),
 				BA_CAN_COMMIT, subv);
 }
 
@@ -572,8 +572,8 @@ int cut_file_items_asym(struct inode *inode, loff_t new_size,
 			break;
 
 		result = update_size_fn(inode,
-				      get_key_offset(&smallest_removed),
-				      update_sd);
+					get_key_offset(&smallest_removed),
+					update_sd);
 		all_grabbed2free();
 	}
 	/*
@@ -1016,7 +1016,7 @@ static int reserve_capture_page_and_create_extent(struct page *page)
 	 */
 	grab_space_enable();
 	return reiser4_grab_space(2 *
-				  estimate_one_insert_into_item(subv->tree),
+				  estimate_one_insert_into_item(&subv->tree),
 				  BA_CAN_COMMIT, subv);
 }
 
@@ -2887,7 +2887,7 @@ static int reserve_write_begin_unix_file(const struct inode *inode,
 	if (ret)
 		return ret;
 	grab_space_enable();
-	ret = reiser4_grab_space(estimate_one_insert_into_item(subv_m->tree),
+	ret = reiser4_grab_space(estimate_one_insert_into_item(&subv_m->tree),
 				 BA_CAN_COMMIT, subv_m);
 	return ret;
 }

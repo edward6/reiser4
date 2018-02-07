@@ -463,12 +463,12 @@ int reiser4_iterate_tree(reiser4_tree * tree /* tree to scan */ ,
 /**
  * Return locked uber znode for @tree
  */
-int get_uber_znode(reiser4_subvol *subv, znode_lock_mode mode,
+int get_uber_znode(reiser4_tree * tree, znode_lock_mode mode,
 		   znode_lock_request pri, lock_handle * lh)
 {
 	int result;
 
-	result = longterm_lock_znode(lh, subv->uber, mode, pri);
+	result = longterm_lock_znode(lh, tree->uber, mode, pri);
 	return result;
 }
 
@@ -673,7 +673,7 @@ restart:
 	}
 	if (h->parent_lh->node == NULL) {
 		done =
-		    get_uber_znode(h->tree->subv, ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI,
+		    get_uber_znode(h->tree, ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI,
 				   h->parent_lh);
 
 		assert("nikita-1637", done != -E_DEADLOCK);
@@ -845,8 +845,7 @@ static level_lookup_result cbk_level_lookup(cbk_handle * h/* search handle */)
 	assert("nikita-3025", reiser4_schedulable());
 
 	/* acquire reference to @active node */
-	active = zget(h->tree,
-		      &h->block, h->parent_lh->node, h->level,
+	active = zget(h->tree->subvol, &h->block, h->parent_lh->node, h->level,
 		      reiser4_ctx_gfp_mask_get());
 
 	if (IS_ERR(active)) {
@@ -1597,7 +1596,7 @@ static int sanity_check(cbk_handle * h/* search handle */)
 		h->error = "Buried under leaves";
 		h->result = RETERR(-EIO);
 		return LOOKUP_DONE;
-	} else if (!block_nr_is_correct(&h->block, h->tree->subv)) {
+	} else if (!block_nr_is_correct(&h->block, h->tree->subvol)) {
 		h->error = "bad block number";
 		h->result = RETERR(-EIO);
 		return LOOKUP_DONE;

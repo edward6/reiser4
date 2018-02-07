@@ -218,7 +218,7 @@ static int reserve_delete_object(struct inode *inode)
 	reiser4_subvol *subv = get_meta_subvol();
 
 	return reiser4_grab_space_force(2 *
-					estimate_one_item_removal(subv->tree),
+					estimate_one_item_removal(&subv->tree),
 					BA_RESERVED | BA_CAN_COMMIT, subv);
 }
 

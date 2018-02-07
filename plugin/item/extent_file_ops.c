@@ -1023,7 +1023,7 @@ static int reserve_write_extent(struct inode *inode, loff_t offset)
 {
 	int ret;
 	reiser4_subvol *subv_m = get_meta_subvol();
-	reiser4_tree *tree_m = subv_m->tree;
+	reiser4_tree *tree_m = &subv_m->tree;
 	reiser4_subvol *subv_d = calc_data_subvol(inode, offset);
 	/*
 	 * to write reiser4_write_granularity() pages to a file by extents we

@@ -144,8 +144,9 @@ struct reiser4_tree {
 	 * information. */
 	__u64 znode_epoch;
 
+	znode *uber;
 	node_plugin *nplug;
-	reiser4_subvol *subv;
+	reiser4_subvol *subvol;
 	struct {
 		/* carry flags used for insertion of new nodes */
 		__u32 new_node_flags;
@@ -208,7 +209,7 @@ extern int reiser4_iterate_tree(reiser4_tree * tree, coord_t * coord,
 				lock_handle * lh,
 				tree_iterate_actor_t actor, void *arg,
 				znode_lock_mode mode, int through_units_p);
-extern int get_uber_znode(reiser4_subvol *subv, znode_lock_mode mode,
+extern int get_uber_znode(reiser4_tree * tree, znode_lock_mode mode,
 			  znode_lock_request pri, lock_handle * lh);
 
 /* return node plugin of @node */
@@ -435,8 +436,6 @@ int lookup_couple(reiser4_tree * tree,
 
 static inline void read_lock_tree(reiser4_tree *tree)
 {
-	assert("edward-2031", tree != NULL);
-
 	/* check that tree is not locked */
 	assert("", (LOCK_CNT_NIL(rw_locked_tree) &&
 		    LOCK_CNT_NIL(read_locked_tree) &&
@@ -455,7 +454,6 @@ static inline void read_lock_tree(reiser4_tree *tree)
 
 static inline void read_unlock_tree(reiser4_tree *tree)
 {
-	assert("edward-2032", tree != NULL);
 	assert("nikita-1375", LOCK_CNT_GTZ(read_locked_tree));
 	assert("nikita-1376", LOCK_CNT_GTZ(rw_locked_tree));
 	assert("nikita-1376", LOCK_CNT_GTZ(spin_locked));
@@ -469,7 +467,6 @@ static inline void read_unlock_tree(reiser4_tree *tree)
 
 static inline void write_lock_tree(reiser4_tree *tree)
 {
-	assert("edward-2033", tree != NULL);
 	/* check that tree is not locked */
 	assert("", (LOCK_CNT_NIL(rw_locked_tree) &&
 		    LOCK_CNT_NIL(read_locked_tree) &&
@@ -488,7 +485,6 @@ static inline void write_lock_tree(reiser4_tree *tree)
 
 static inline void write_unlock_tree(reiser4_tree *tree)
 {
-	assert("edward-2034", tree != NULL);
 	assert("nikita-1375", LOCK_CNT_GTZ(write_locked_tree));
 	assert("nikita-1376", LOCK_CNT_GTZ(rw_locked_tree));
 	assert("nikita-1376", LOCK_CNT_GTZ(spin_locked));

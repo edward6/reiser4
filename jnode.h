@@ -379,8 +379,7 @@ static inline reiser4_subvol *jnode_get_subvol(const jnode *node)
 
 	return node->subvol;
 }
-
-#define jnode_get_tree(node) (jnode_get_subvol(node)->tree)
+#define jnode_get_tree(node) (&jnode_get_subvol(node)->tree)
 
 static inline const reiser4_block_nr *jnode_get_block(const jnode *node)
 {
@@ -518,7 +517,7 @@ static inline int jload(jnode *node)
 extern int jinit_new(jnode *, gfp_t) NONNULL;
 extern int jstartio(jnode *) NONNULL;
 
-extern int jdrop(jnode *, reiser4_tree *tree) NONNULL;
+extern void jdrop(jnode *) NONNULL;
 extern int jwait_io(jnode *, int rw) NONNULL;
 
 void jload_prefetch(jnode *);
@@ -529,7 +528,6 @@ extern jnode *reiser4_alloc_volinfo_head(const reiser4_block_nr *block,
 					 reiser4_subvol *subv) NONNULL;
 extern void reiser4_drop_io_head(jnode * node) NONNULL;
 extern void reiser4_drop_volinfo_head(jnode * node) NONNULL;
-extern struct reiser4_subvol *jnode_get_subvol(const jnode *node);
 extern struct super_block *jnode_get_super(const jnode *node);
 
 extern void pin_jnode_data(jnode *);

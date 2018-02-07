@@ -177,7 +177,6 @@ typedef enum format40_init_stage {
 	KEY_CHECK,
 	INIT_OID,
 	INIT_TREE,
-	INIT_UBER,
 	JOURNAL_RECOVER,
 	INIT_SA,
 	INIT_JNODE,
@@ -323,42 +322,6 @@ struct page *find_format_format40(reiser4_subvol *subv)
 }
 
 /**
- * Initialize uber znode of a subvolume (see the comment to the .uber
- * field in the definition of struct reiser4_subvol (reiser4/super.h)
- */
-static int reiser4_init_uber(reiser4_subvol *subv)
-{
-	assert("edward-2029", subv->uber == NULL);
-
-	subv->uber = zalloc(reiser4_ctx_gfp_mask_get());
-	if (!subv->uber)
-		return -ENOMEM;
-
-	zinit(subv->uber, NULL, subv);
-	ZJNODE(subv->uber)->blocknr = UBER_TREE_ADDR;
-	subv->uber->level = 0;
-	atomic_inc(&ZJNODE(subv->uber)->x_count);
-
-	return 0;
-}
-
-/**
- * Release uber znode of a subvolume
- */
-static void reiser4_done_uber(reiser4_subvol *subv)
-{
-	if (subv->uber) {
-		assert("edward-2030",
-		       atomic_read(&ZJNODE(subv->uber)->x_count) > 0);
-
-		atomic_dec(&ZJNODE(subv->uber)->x_count);
-		jnode_list_remove(ZJNODE(subv->uber));
-		zfree(subv->uber);
-		subv->uber = NULL;
-	}
-}
-
-/**
  * Initialize in-memory subvolume header.
  * Pre-condition: we are sure that subvolume is of format40
  * (i.e. format superblock with correct magic was found).
@@ -466,13 +429,13 @@ int try_init_format40(struct super_block *super,
 		return result;
 	}
 	*stage = INIT_OID;
-	/*
-	 * initialize storage tree.
-	 */
+
 	root_block = get_format40_root_block(sb_format);
 	height = get_format40_tree_height(sb_format);
 	nplug = node_plugin_by_id(get_format40_node_plugin_id(sb_format));
-
+	/*
+	 * initialize storage tree.
+	 */
 	result = reiser4_subvol_init_tree(super, subv,
 					  &root_block, height, nplug);
 	if (result) {
@@ -480,15 +443,6 @@ int try_init_format40(struct super_block *super,
 		return result;
 	}
 	*stage = INIT_TREE;
-	/*
-	 * initialize uber znode
-	 */
-	result = reiser4_init_uber(subv);
-	if (result) {
-		kfree(sb_format);
-		return result;
-	}
-	*stage = INIT_UBER;
 	/*
 	 * set private subvolume parameters
 	 */
@@ -593,11 +547,8 @@ int init_format_format40(struct super_block *s, reiser4_subvol *subv)
 		sa_destroy_allocator(reiser4_get_space_allocator(subv),
 				     s, subv);
 	case JOURNAL_RECOVER:
-	case INIT_UBER:
-		reiser4_done_uber(subv);
 	case INIT_TREE:
-		reiser4_done_tree(subv->tree);
-		subv->tree = NULL;
+		reiser4_done_tree(&subv->tree);
 	case INIT_OID:
 	case KEY_CHECK:
 	case READ_SUPER:
@@ -629,16 +580,14 @@ static void pack_format40_super(const struct super_block *s,
 	put_unaligned(cpu_to_le64(reiser4_subvol_free_committed_blocks(subv)),
 		      &format_sb->free_blocks);
 
-	if (subv->tree) {
-		put_unaligned(cpu_to_le64(subv->tree->root_block),
-			      &format_sb->root_block);
-		put_unaligned(cpu_to_le16(subv->tree->height),
-			      &format_sb->tree_height);
-	}
+	put_unaligned(cpu_to_le64(subv->tree.root_block),
+		      &format_sb->root_block);
 
 	put_unaligned(cpu_to_le64(oid_next(s)), &format_sb->oid);
 
 	put_unaligned(cpu_to_le64(oids_used(s)), &format_sb->file_count);
+
+	put_unaligned(cpu_to_le16(subv->tree.height), &format_sb->tree_height);
 
 	put_unaligned(cpu_to_le64(subv->volmap_loc), &format_sb->volinfo_loc);
 
@@ -703,9 +652,7 @@ int release_format40(struct super_block *s, reiser4_subvol *subv)
 	put_sb_format_jnode(subv);
 
 	rcu_barrier();
-	reiser4_done_uber(subv);
-	reiser4_done_tree(subv->tree);
-	subv->tree = NULL;
+	reiser4_done_tree(&subv->tree);
 	/*
 	 * call finish_rcu(), because some znode
 	 * were "released" in reiser4_done_tree()
@@ -801,7 +748,7 @@ int version_update_format40(struct super_block *super, reiser4_subvol *subv)
 	 * Mark the uber znode dirty to call ->log_super() on write_logs
 	 */
 	init_lh(&lh);
-	ret = get_uber_znode(subv, ZNODE_WRITE_LOCK,
+	ret = get_uber_znode(&subv->tree, ZNODE_WRITE_LOCK,
 			     ZNODE_LOCK_HIPRI, &lh);
 	if (ret != 0)
 		return ret;

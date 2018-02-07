@@ -380,6 +380,7 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child,
 	/* parent of the neighbor node; we set it to parent until not sharing
 	   of one parent between child and neighbor node is detected */
 	znode *side_parent = coord->node;
+	reiser4_subvol *subv = ZJNODE(child)->subvol;
 	reiser4_tree *tree = znode_get_tree(child);
 	znode *neighbor = NULL;
 
@@ -422,7 +423,7 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child,
 		if (flags & GN_NO_ALLOC)
 			neighbor = zlook(tree, &da);
 		else
-			neighbor = zget(tree, &da, side_parent, level,
+			neighbor = zget(subv, &da, side_parent, level,
 					reiser4_ctx_gfp_mask_get());
 
 		if (IS_ERR(neighbor)) {

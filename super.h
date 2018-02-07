@@ -153,16 +153,7 @@ struct reiser4_subvol {
 	reiser4_space_allocator space_allocator; /* space manager plugin */
 	reiser4_txmod_id txmod; /* transaction model for this subvolume */
 	struct flush_params flush; /* parameters for the flush algorithm */
-	reiser4_tree *tree; /* internal tree */
-	znode *uber; /* Per-subvolume uber znode (AKA "parent of the tree root")
-		      * has restricted functionality. In contrast with usual
-		      * znodes we don't put it to the hash table: It is always
-		      * persistent during mount session. Every subvolume has a
-		      * pointer to its uber znode. Reference to uber znode is
-		      * taken [released] at mount [umount] time. Uber znode
-		      * doesn't have an attached page: it can be only locked,
-		      * captured and made dirty. Other operatons (e.g. zload())
-		      * are undefined for uber znodes */
+	reiser4_tree tree; /* internal tree */
 	__u32 mkfs_id; /* mkfs identifier generated at mkfs time. */
 
 	__u64 block_count; /* amount of blocks in a subvolume */
@@ -626,7 +617,7 @@ extern u64 get_meta_subvol_id(void);
 extern reiser4_subvol *get_meta_subvol(void);
 static inline reiser4_tree *meta_subvol_tree(void)
 {
-	return get_meta_subvol()->tree;
+	return &get_meta_subvol()->tree;
 }
 extern reiser4_subvol *super_meta_subvol(struct super_block *super);
 extern reiser4_subvol *calc_data_subvol(const struct inode *inode, loff_t offset);

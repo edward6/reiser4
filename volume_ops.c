@@ -168,15 +168,15 @@ static int reiser4_add_brick(struct super_block *sb,
 		reiser4_unlock_volume(sb);
 		goto out;
 	}
-	/*
-	 * add activated brick
-	 */
 	if (reiser4_volume_test_set_unbalanced(sb)) {
 		warning("edward-1951", "Can't add brick to unbalanced volume");
 		reiser4_unlock_volume(sb);
 		ret = -EINVAL;
 		goto deactivate;
 	}
+	/*
+	 * add activated new brick
+	 */
 	ret = super_volume(sb)->vol_plug->add_brick(super_volume(sb),
 						    new);
 	reiser4_unlock_volume(sb);

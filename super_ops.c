@@ -480,7 +480,7 @@ static int reiser4_show_options(struct seq_file *m, struct dentry *dentry)
 	seq_printf(m, ",atom_max_flushers=0x%x",
 		   sbinfo->tmgr.atom_max_flushers);
 	seq_printf(m, ",cbk_cache_slots=0x%x",
-		   super_meta_subvol(super)->tree->cbk_cache.nr_slots);
+		   super_meta_subvol(super)->tree.cbk_cache.nr_slots);
 	return 0;
 }
 

@@ -331,7 +331,7 @@ int kill_hook_extent(const coord_t *coord, pos_in_node_t from,
 	assert("vs-34", kdata->buf != NULL);
 
 	subv = find_data_subvol(coord);
-	tree = meta_subvol_tree();
+	tree = &subv->tree;
 
 	/* map structures to kdata->buf */
 	min_item_key = (reiser4_key *) (kdata->buf);

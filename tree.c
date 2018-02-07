@@ -189,7 +189,6 @@
 #include "vfs_ops.h"
 #include "page_cache.h"
 #include "super.h"
-#include "plugin/volume/volume.h"
 #include "reiser4.h"
 #include "inode.h"
 
@@ -653,9 +652,9 @@ znode *child_znode(const coord_t * parent_coord	/* coord of pointer to
 
 		subv = znode_get_subvol(parent);
 		if (incore_p)
-			child = zlook(subv->tree, &addr);
+			child = zlook(&subv->tree, &addr);
 		else
-			child = zget(subv->tree, &addr, parent,
+			child = zget(subv, &addr, parent,
 				     znode_get_level(parent) - 1,
 				     reiser4_ctx_gfp_mask_get());
 		if ((child != NULL) && !IS_ERR(child) && setup_dkeys_p)
@@ -1838,33 +1837,24 @@ int reiser4_subvol_init_tree(struct super_block *super,
 			     const reiser4_block_nr *root_block,
 			     tree_level height, node_plugin *nplug)
 {
-	int ret;
-	reiser4_tree *tree;
+	int result;
+	reiser4_tree *tree = &subv->tree;
 
-	assert("edward-2022", subv != NULL);
-	assert("edward-2023", subv->tree == NULL);
 	assert("nikita-307", root_block != NULL);
 	assert("nikita-308", height > 0);
 	assert("nikita-309", nplug != NULL);
 	assert("zam-587", super != NULL);
 	assert("edward-171", get_current_context() != NULL);
-
-	if (subv->id != METADATA_SUBVOL_ID)
-		return 0;
-
-	tree = kzalloc(sizeof(*tree), get_current_context()->gfp_mask);
-	if (tree == NULL)
-		return -ENOMEM;
-	subv->tree = tree;
 	/*
 	 * We'll perform costly memory allocations for znode hash table, etc.
 	 * So, set proper allocation flags
 	 */
 	get_current_context()->gfp_mask |= (__GFP_NOWARN);
+
+	tree->subvol = subv;
 	/*
 	 * Set default tree options (came from init_super)
 	 */
-	tree->subv = subv;
 	tree->cbk_cache.nr_slots = CBK_CACHE_SLOTS;
 	tree->carry.new_node_flags = REISER4_NEW_NODE_FLAGS;
 	tree->carry.new_extent_flags = REISER4_NEW_EXTENT_FLAGS;
@@ -1883,32 +1873,33 @@ int reiser4_subvol_init_tree(struct super_block *super,
 
 	cbk_cache_init(&tree->cbk_cache);
 
-	ret = znodes_tree_init(tree);
-	if (ret)
-		goto done_tree;
-	ret = jnodes_tree_init(tree);
-	if (ret)
-		goto done_znodes;
-	return 0;
- done_znodes:
-	znodes_tree_done(tree);
- done_tree:
-	kfree(tree);
-	subv->tree = NULL;
-	return ret;
+	result = znodes_tree_init(tree);
+	if (result == 0)
+		result = jnodes_tree_init(tree);
+	if (result == 0) {
+		tree->uber = zget(subv, &UBER_TREE_ADDR, NULL, 0,
+				  reiser4_ctx_gfp_mask_get());
+		if (IS_ERR(tree->uber)) {
+			result = PTR_ERR(tree->uber);
+			tree->uber = NULL;
+		}
+	}
+	return result;
 }
 
-/**
- * release resources associated with @tree
- */
-void reiser4_done_tree(reiser4_tree *tree)
+/* release resources associated with @tree */
+void reiser4_done_tree(reiser4_tree * tree /* tree to release */ )
 {
 	if (tree == NULL)
 		return;
+
+	if (tree->uber != NULL) {
+		zput(tree->uber);
+		tree->uber = NULL;
+	}
 	znodes_tree_done(tree);
 	jnodes_tree_done(tree);
 	cbk_cache_done(&tree->cbk_cache);
-	kfree(tree);
 }
 
 /* Make Linus happy.

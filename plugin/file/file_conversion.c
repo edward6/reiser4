@@ -369,7 +369,7 @@ static int reserve_cryptcompress2unixfile(struct inode *inode)
 	reiser4_block_nr num_unformatted = cluster_nrpages(inode);
 	reiser4_subvol *subv_d = calc_data_subvol(inode, 0);
 	reiser4_subvol *subv_m = get_meta_subvol();
-	reiser4_tree *tree_m = subv_m->tree;
+	reiser4_tree *tree_m = &subv_m->tree;
 	/*
 	 * space required for one iteration of extent->tail conversion:
 	 *

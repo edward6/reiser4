@@ -153,7 +153,6 @@
 #include "tree.h"
 #include "tree_walk.h"
 #include "super.h"
-#include "plugin/volume/volume.h"
 #include "reiser4.h"
 
 #include <linux/pagemap.h>
@@ -364,7 +363,7 @@ void znode_remove(znode * node /* znode to remove */ , reiser4_tree * tree)
    This is called when znode is removed from the memory. */
 static void zdrop(znode * node /* znode to finish with */ )
 {
-	jdrop(ZJNODE(node), znode_get_tree(node));
+	jdrop(ZJNODE(node));
 }
 
 /*
@@ -452,27 +451,24 @@ static z_hash_table *znode_get_htable(const znode * node)
 	return get_htable(znode_get_tree(node), znode_get_block(node));
 }
 
-/**
- * get znode from hash table, allocating it if necessary.
- *
- * First a call to zlook, locating a x-referenced znode if one
- * exists.  If znode is not found, allocate new one and return.
- * Result is returned with x_count reference increased.
- *
- * LOCKS TAKEN:   TREE_LOCK, ZNODE_LOCK
- * LOCK ORDERING: NONE
- */
-znode *zget(reiser4_tree *tree,
-	    const reiser4_block_nr *const blocknr,
-	    znode *parent, tree_level level, gfp_t gfp_flag)
+/* zget() - get znode from hash table, allocating it if necessary.
+
+   First a call to zlook, locating a x-referenced znode if one
+   exists.  If znode is not found, allocate new one and return.  Result
+   is returned with x_count reference increased.
+
+   LOCKS TAKEN:   TREE_LOCK, ZNODE_LOCK
+   LOCK ORDERING: NONE
+*/
+znode *zget(struct reiser4_subvol *subv,
+	    const reiser4_block_nr * const blocknr,
+	    znode * parent, tree_level level, gfp_t gfp_flag)
 {
 	znode *result;
 	__u32 hashi;
+	reiser4_tree *tree = &subv->tree;
 	z_hash_table *zth;
 
-	assert("edward-2024", tree != NULL);
-	assert("edward-2025", tree->subv != NULL);
-	assert("edward-2026", tree->subv->id == METADATA_SUBVOL_ID);
 	assert("jmacd-513", blocknr != NULL);
 	assert("jmacd-514", level < REISER4_MAX_ZTREE_HEIGHT);
 
@@ -512,7 +508,7 @@ znode *zget(reiser4_tree *tree,
 			return ERR_PTR(RETERR(-ENOMEM));
 		}
 
-		zinit(result, parent, tree->subv);
+		zinit(result, parent, subv);
 		ZJNODE(result)->blocknr = *blocknr;
 		ZJNODE(result)->key.z = *blocknr;
 		result->level = level;
@@ -539,7 +535,7 @@ znode *zget(reiser4_tree *tree,
 
 	assert("intelfx-6",
 	       ergo(!reiser4_blocknr_is_fake(blocknr) && *blocknr != 0,
-	            reiser4_check_block(blocknr, 1, tree->subv)));
+	            reiser4_check_block(blocknr, 1, subv)));
 
 	/* Check for invalid tree level, return -EIO */
 	if (unlikely(znode_get_level(result) != level)) {
@@ -576,7 +572,7 @@ static node_plugin *znode_guess_plugin(const znode *node)
 	assert("edward-1802", subv != NULL);
 
 	if (subvol_is_set(subv, SUBVOL_ONE_NODE_PLUGIN)) {
-		return subv->tree->nplug;
+		return subv->tree.nplug;
 	} else {
 		return node_plugin_by_disk_id
 		    (&((common_node_header *) zdata(node))->plugin_id);
@@ -1000,15 +996,6 @@ int znode_invariant(znode *node)
 
 	assert("umka-063", node != NULL);
 	assert("edward-1805", znode_get_subvol(node) != NULL);
-
-	if (znode_above_root(node))
-		/*
-		 * uber znode has restricted functionality,
-		 * so some invariants don't take place
-		 */
-		return 1;
-
-	assert("edward-2027", znode_get_tree(node) != NULL);
 
 	spin_lock_znode(node);
 	read_lock_tree(znode_get_tree(node));
