@@ -1,6 +1,7 @@
 /* Copyright 2005 by Hans Reiser, licensing governed by
  * reiser4/README */
 
+#include <linux/iversion.h>
 #include "../inode.h"
 
 /* return true, iff @coord points to the valid directory item that is part of
@@ -627,7 +628,7 @@ repeat:
 		reiser4_tap_relse(&tap);
 
 		if (result >= 0)
-			f->f_version = inode->i_version;
+			f->f_version = inode_query_iversion(inode);
 	} else if (result == -E_NO_NEIGHBOR || result == -ENOENT)
 		result = 0;
 	reiser4_tap_done(&tap);
