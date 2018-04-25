@@ -513,6 +513,7 @@ int cut_file_items_asym(struct inode *inode, loff_t new_size,
 	tree = meta_subvol_tree();
 
 	while (i_size_read(inode) != new_size) {
+		loff_t from_off;
 		/*
 		 * Cut the last item in the file's body.
 		 * We need to calculate its key and to honestly
@@ -530,9 +531,14 @@ int cut_file_items_asym(struct inode *inode, loff_t new_size,
 			    round_up(i_size_read(inode), current_blocksize) - 1,
 			    &to_key);
 		from_key = to_key;
-		set_key_offset(&from_key,
-			       round_down(i_size_read(inode) - 1,
-					  current_stripe_size));
+		/*
+		 * cut not more than last stripe
+		 */
+		from_off = round_down(i_size_read(inode) - 1,
+				      current_stripe_size);
+		if (from_off < new_size)
+			from_off = new_size;
+		set_key_offset(&from_key, from_off);
 
 		result = reserve_cut_iteration(inode);
 		if (result)
