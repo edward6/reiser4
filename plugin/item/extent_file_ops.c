@@ -7,6 +7,11 @@
 
 #include <linux/swap.h>
 
+/*
+ * calculate index of stripe which contains a byte of file body at given offset
+ */
+#define off_to_stripe(_off) ((_off) >> current_stripe_bits)
+
 static inline reiser4_extent *ext_by_offset(const znode *node, int offset)
 {
 	reiser4_extent *ext;
@@ -41,10 +46,9 @@ static void check_uf_coord(const uf_coord_t *uf_coord, const reiser4_key *key)
 	assert("edward-1815",
 	       ergo(current_stripe_bits &&
 		    (state_of_extent(ext) != HOLE_EXTENT),
-		    get_key_offset(&coord_key) >> current_stripe_bits ==
-		    ((get_key_offset(&coord_key) +
-		      (extent_get_width(ext) << PAGE_SHIFT) - 1) >>
-		     current_stripe_bits)));
+		    off_to_stripe(get_key_offset(&coord_key)) ==
+		    off_to_stripe(get_key_offset(&coord_key) +
+				  (extent_get_width(ext) << PAGE_SHIFT) - 1)));
 	assert("",
 	       WITH_DATA(coord->node,
 			 (uf_coord->valid == 1 &&
@@ -548,25 +552,24 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	return count;
 }
 
+#define IS_STRIPE_BOUNDARY(_off) ((((_off) & (current_stripe_size - 1))) == 0)
+
 #define BLOCK_LEFT_MERGEABLE(__off)					\
 	((current_stripe_bits == 0) ||					\
-	 ((__off & (current_stripe_size - 1)) != 0))
+	 !IS_STRIPE_BOUNDARY(__off))
 
 #define BLOCK_RIGHT_MERGEABLE(__off)					\
 	((current_stripe_bits == 0) ||					\
-	 (((__off + current_blocksize) & (current_stripe_size - 1)) != 0))
+	 !IS_STRIPE_BOUNDARY(__off + current_blocksize))
 
 /**
- * plug_hole - replace hole extent with unallocated and holes
- * @uf_coord:
- * @key:
- * @node:
- * @h: structure containing coordinate, lock handle, key, etc
- *
- * Creates an unallocated extent of width 1 within a hole. In worst case two
- * additional extents can be created.
+ * ->plug_hole() method of simple logical volumes, where
+ * nearness of keys means nearness of items in the storage tree.
+ * Creates an unallocated extent of width 1 within a hole
+ * In worst case two additional extents can be created.
  */
-static int plug_hole(uf_coord_t *uf_coord, const reiser4_key *key, int *how)
+int plug_hole_simple(struct inode *inode, uf_coord_t *uf_coord,
+		     const reiser4_key *key, int *how)
 {
 	struct replace_handle rh;
 	reiser4_extent *ext;
@@ -575,7 +578,7 @@ static int plug_hole(uf_coord_t *uf_coord, const reiser4_key *key, int *how)
 	struct extent_coord_extension *ext_coord;
 	int return_inserted_position;
 
- 	check_uf_coord(uf_coord, key);
+	check_uf_coord(uf_coord, key);
 
 	rh.coord = coord_by_uf_coord(uf_coord);
 	rh.lh = uf_coord->lh;
@@ -697,6 +700,394 @@ static int plug_hole(uf_coord_t *uf_coord, const reiser4_key *key, int *how)
 }
 
 /**
+ * true, if @offset belongs to the same data subvolume
+ * as the @coord points to. Otherwise false.
+ */
+static inline int same_data_subvol(oid_t oid, loff_t offset,
+				   coord_t *coord)
+{
+	assert("edward-2029", item_is_extent(coord));
+
+	return current_vol_plug()->data_subvol_id_calc(oid, offset) ==
+	       current_vol_plug()->data_subvol_id_find(coord);
+}
+
+#define AT_THE_END 1
+#define AT_THE_BEGINNING 2
+#define IN_THE_MIDDLE 3
+
+#if REISER4_DEBUG
+static void check_body_key(const reiser4_key *key, struct inode *inode)
+{
+	reiser4_key ref;
+
+	key_by_inode_and_offset(inode, get_key_offset(key), &ref);
+	assert("edward-2030", keyeq(key, &ref));
+}
+#else
+#define check_body_key(key, inode) noop;
+#endif
+
+void sync_dkeys(znode *node);
+/**
+ * "not continuous" version of ->plug_hole() for asymmetric Logical Volumes.
+ * In contrast with simple volumes, the new extent can get location far from
+ * the maternal hole, so we need to unlock the current position in the tree
+ * and search for a new one.
+ *
+ */
+int plug_hole_asym(struct inode *inode, uf_coord_t *uf_coord,
+		   const reiser4_key *key, int *how)
+{
+	int ret;
+	int where = 0;
+	int new_item = 0;
+	reiser4_extent *ext;
+	reiser4_block_nr width, pos_in_unit;
+	coord_t *coord;
+	struct extent_coord_extension *ext_coord;
+	reiser4_key nkey; /* key of the new position */
+
+	assert("edward-2031", current_stripe_bits != 0);
+	check_body_key(key, inode);
+
+	if (same_data_subvol(get_inode_oid(inode),
+			     get_key_offset(key),
+			     coord_by_uf_coord(uf_coord)))
+		return plug_hole_simple(inode, uf_coord, key, how);
+	/*
+	 * The "plug" to be relocated to a new position in the tree.
+	 * Cut out one block from an existing extent item.
+	 * Find a new position in the tree and put the unallocated
+	 * block at that position. If impossible to glue or paste
+	 * to existing item, then create a new unallocated extent item
+	 * at that new position.
+	 */
+	check_uf_coord(uf_coord, key);
+	coord = coord_by_uf_coord(uf_coord);
+	ext_coord = ext_coord_by_uf_coord(uf_coord);
+	ext = ext_by_ext_coord(uf_coord);
+	width = ext_coord->width;
+	pos_in_unit = ext_coord->pos_in_unit;
+
+	if ((coord->unit_pos == nr_units_extent(coord) - 1) &&
+		 (pos_in_unit == width - 1)) {
+		/*
+		 * We plug at the end of an item,
+		 * so cut out one block from the last unit
+		 */
+		where = AT_THE_END;
+		if (width == 1) {
+			/*
+			 * If it is the single unit in the item,
+			 * then the whole item to be removed.
+			 */
+			ret = cut_node_content(coord, coord, NULL, NULL, NULL);
+			if (ret)
+				return ret;
+		} else {
+			/*
+			 * fast cut
+			 */
+			extent_set_width(ext, width - 1);
+			znode_make_dirty(coord->node);
+		}
+	} else if (coord->unit_pos == 0 && pos_in_unit == 0) {
+		/*
+		 * We plug at the beginning of an item,
+		 * so cut out one block from the first unit
+		 */
+		where = AT_THE_BEGINNING;
+
+		if (width == 1) {
+			ret = cut_node_content(coord, coord, NULL, NULL, NULL);
+			if (ret)
+				return ret;
+		} else {
+			/*
+			 * fast cut at the beginning of item,
+			 */
+			reiser4_key ikey;
+
+			extent_set_width(ext, width - 1);
+			item_key_by_coord(coord, &ikey);
+			set_key_offset(&ikey,
+				       get_key_offset(key) + current_blocksize);
+			node_plugin_by_node(coord->node)->update_item_key(coord,
+									  &ikey,
+									  NULL);
+			if (coord->item_pos == 0)
+				/*
+				 * it is the leftmost item in the node,
+				 * so we also need to update delimining
+				 * keys
+				 */
+				sync_dkeys(coord->node);
+			znode_make_dirty(coord->node);
+		}
+	} else {
+		lock_handle lh;
+		reiser4_extent *tail;
+		int tail_pos;
+		coord_t tail_coord;
+		reiser4_key tail_key;
+		reiser4_item_data idata;
+
+		assert("edward-2032",
+		       ((coord->unit_pos < nr_units_extent(coord) - 1) ||
+			(pos_in_unit < width - 1)) &&
+		       (coord->unit_pos != 0 || pos_in_unit != 0));
+		where = IN_THE_MIDDLE;
+		/*
+		 * We plug in the middle of an item,
+		 * so we need to replace the item with 2 ones
+		 * with different keys (otherwise we won't be
+		 * able to find the "plug" (i.e. converted and
+		 * relocated extent) by a tree seach procedure.
+		 */
+		/*
+		 * Step 1: Create a new item, which contains the tail
+		 * of the old one;
+		 */
+		key_by_inode_and_offset(inode,
+					get_key_offset(key) + current_blocksize,
+					&tail_key);
+		check_body_key(&tail_key, inode);
+		tail_pos = coord->unit_pos;
+		tail = ext;
+
+		if (pos_in_unit == width - 1) {
+			tail ++;
+			tail_pos ++;
+		} else
+			extent_set_width(tail, width - 1 - pos_in_unit);
+
+		idata.data = (void *)tail;
+		idata.user = 0;
+		idata.length = sizeof(reiser4_extent) *
+			(nr_units_extent(coord) - tail_pos);
+		idata.arg = NULL;
+		idata.iplug = item_plugin_by_id(EXTENT_POINTER_ID);
+
+		coord_dup(&tail_coord, coord);
+		tail_coord.unit_pos = 0;
+		tail_coord.between = AFTER_ITEM;
+		init_lh(&lh);
+		copy_lh(&lh, uf_coord->lh);
+
+		ret = insert_by_coord(&tail_coord, &idata, &tail_key, &lh, 0);
+		done_lh(&lh);
+		if (ret < 0)
+			return ret;
+		/*
+		 * Step 2: Cut out the tail from the old item, if needed
+		 */
+		if (pos_in_unit) {
+			coord->unit_pos ++;
+			extent_set_width(ext, pos_in_unit);
+		}
+		if (coord->unit_pos <= coord_last_unit_pos(coord)) {
+			coord_dup(&tail_coord, coord);
+			tail_coord.unit_pos = coord_last_unit_pos(coord);
+
+			ret = cut_node_content(coord, &tail_coord,
+					       NULL, NULL, NULL);
+			if (ret) {
+				warning("edward-2033",
+				    "Failed to cut extent when plugging hole.");
+				return ret;
+			}
+		}
+	}
+	/*
+	 * unlock current position to find a new one.
+	 * The caller must not use that new position,
+	 * so invalidate the hint
+	 */
+	done_lh(uf_coord->lh);
+	uf_coord->valid = 0;
+	/*
+	 * Construct a key for the new position
+	 * Depending on the initial plug location it can be a key
+	 * of neighboring item that we'll try to glue or paste to.
+	 */
+	switch (where) {
+	case AT_THE_END:
+		if (IS_STRIPE_BOUNDARY(get_key_offset(key) +
+				       current_blocksize)) {
+			/* can't glue or paste to the right */
+			nkey = *key;
+			new_item = 1;
+			break;
+		}
+		key_by_inode_and_offset(inode,
+					get_key_offset(key) +
+					current_blocksize,
+					&nkey);
+		break;
+	case AT_THE_BEGINNING:
+		if (IS_STRIPE_BOUNDARY(get_key_offset(key))) {
+			/* can't glue or paste to the left */
+			nkey = *key;
+			new_item = 1;
+			break;
+		}
+		assert("edward-2034", get_key_offset(key) != 0);
+
+		key_by_inode_and_offset(inode,
+					get_key_offset(key) - 1,
+					&nkey);
+		break;
+	case IN_THE_MIDDLE:
+		/* can not glue or paste to anywhere */
+		nkey = *key;
+		new_item = 1;
+		break;
+	default:
+		impossible("edward-2035", "bad hole location");
+	}
+	check_body_key(&nkey, inode);
+	ret = reiser4_object_lookup(meta_subvol_tree(),
+				    inode, &nkey, coord, uf_coord->lh,
+				    ZNODE_WRITE_LOCK, FIND_EXACT,
+				    TWIG_LEVEL, TWIG_LEVEL,
+				    CBK_UNIQUE | CBK_FOR_INSERT, NULL);
+	if (IS_CBKERR(ret)) {
+		warning("edward-2036", "object lookup failed (%d)", ret);
+		return ret;
+	}
+	if (new_item)
+		goto create_new_item;
+	/*
+	 * put an unallocated block at the newly found position.
+	 * Depending on initial plug location, try glue, or paste
+	 * to an existing item at that position. If impossible,
+	 * then insert a new unallocated extent item.
+	 */
+	switch (where) {
+	case AT_THE_END:
+		/* try to glue or paste to the node poiner at the right */
+		if (ret == CBK_COORD_NOTFOUND) {
+			/*
+			 * there is no file's items at the right
+			 */
+			if (i_size_read(inode) > get_key_offset(&nkey)) {
+				warning("edward-2037",
+					"No file data found at %llu. FSCK?",
+					get_key_offset(&nkey));
+				return RETERR(-EIO);
+			}
+			/* a new item will be created */
+			break;
+		}
+		assert("edward-2038", coord->unit_pos == 0);
+		assert("edward-2039",
+		       item_id_by_coord(coord) == EXTENT_POINTER_ID);
+
+		ext = extent_by_coord(coord);
+		if (state_of_extent(ext) == UNALLOCATED_EXTENT) {
+			/*
+			 * glue at the beginning of the right node
+			 * pointer without carry
+			 */
+			extent_set_width(ext, extent_get_width(ext) + 1);
+			if (coord->unit_pos == 0) {
+				reiser4_key ikey;
+				/*
+				 * it is the leftmost unit in the
+				 * item, so update items's key
+				 */
+				item_key_by_coord(coord, &ikey);
+				set_key_offset(&ikey,
+					       get_key_offset(key) -
+					       current_blocksize);
+				node_plugin_by_node(coord->node)->update_item_key(coord,
+										  &ikey,
+										  NULL);
+				if (coord->item_pos == 0)
+					/*
+					 * it is the leftmost item in the node,
+					 * so we also need to update delimining
+					 * keys
+					 */
+					sync_dkeys(coord->node);
+				znode_make_dirty(coord->node);
+			}
+			return 0;
+		} else {
+			/*
+			 * paste an unallocated extent at the beginning
+			 * of the item with possible carry
+			 */
+			reiser4_extent new_ext;
+			reiser4_item_data idata;
+
+			reiser4_set_extent(&new_ext,
+					   UNALLOCATED_EXTENT_START, 1);
+			init_new_extent(&idata, &new_ext, 1);
+			coord->between = BEFORE_UNIT;
+			return insert_into_item(coord, uf_coord->lh, key,
+						&idata, 0);
+		}
+		assert("edward-2040", 0);
+	case AT_THE_BEGINNING:
+		/* try to glue or paste to the node pointer at the left */
+		if (ret == CBK_COORD_NOTFOUND) {
+			/*
+			 * there is no file's items at the right
+			 */
+			warning("edward-2041",
+				"No file data found at %llu. FSCK?",
+				get_key_offset(&nkey));
+			return RETERR(-EIO);
+		}
+		ext = extent_by_coord(coord);
+		if (state_of_extent(ext) == UNALLOCATED_EXTENT) {
+			/*
+			 * glue to the end of left node poiner
+			 * without carry. There is no need to update
+			 * item's key and node delimiting keys
+			 */
+			extent_set_width(ext, extent_get_width(ext) + 1);
+			znode_make_dirty(coord->node);
+			return 0;
+		} else {
+			/*
+			 * paste an unallocated extent at the end
+			 * of left node pointer with possible carry
+			 */
+			reiser4_extent new_ext;
+			reiser4_item_data idata;
+
+			reiser4_set_extent(&new_ext,
+					   UNALLOCATED_EXTENT_START, 1);
+			init_new_extent(&idata, &new_ext, 1);
+			coord->between = AFTER_UNIT;
+			return insert_into_item(coord, uf_coord->lh, key,
+						&idata, 0);
+		}
+		assert("edward-2042", 0);
+	case IN_THE_MIDDLE:
+		/*
+		 * Can not glue or paste to existing items.
+		 * Create a new unallocated extent item
+		 */
+		break;
+	default:
+		impossible("edward-2043", "bad plug location");
+	}
+ create_new_item:
+	{
+		reiser4_extent new_ext;
+		reiser4_item_data idata;
+
+		reiser4_set_extent(&new_ext, UNALLOCATED_EXTENT_START, 1);
+		init_new_extent(&idata, &new_ext, 1);
+		return insert_by_coord(coord, &idata, key, uf_coord->lh, 0);
+	}
+}
+
+/**
  * overwrite_one_block -
  * @uf_coord:
  * @key:
@@ -710,7 +1101,7 @@ static int overwrite_one_block(struct inode *inode, uf_coord_t *uf_coord,
 			       const reiser4_key *key, jnode *node,
 			       int *hole_plugged)
 {
-	int result;
+	int result = 0;
 	struct extent_coord_extension *ext_coord;
 	reiser4_extent *ext;
 	reiser4_block_nr block;
@@ -721,11 +1112,12 @@ static int overwrite_one_block(struct inode *inode, uf_coord_t *uf_coord,
 	       subv == calc_data_subvol(inode, get_key_offset(key)));
 	assert("vs-1312", uf_coord->coord.between == AT_UNIT);
 
-	result = 0;
 	ext_coord = ext_coord_by_uf_coord(uf_coord);
 	check_uf_coord(uf_coord, NULL);
 	ext = ext_by_ext_coord(uf_coord);
-	assert("", state_of_extent(ext) != UNALLOCATED_EXTENT);
+	assert("edward-2044",
+	       ergo(current_vol_plug() == volume_plugin_by_id(SIMPLE_VOLUME_ID),
+		    state_of_extent(ext) != UNALLOCATED_EXTENT));
 
 	switch (state_of_extent(ext)) {
 	case ALLOCATED_EXTENT:
@@ -733,20 +1125,22 @@ static int overwrite_one_block(struct inode *inode, uf_coord_t *uf_coord,
 		break;
 
 	case HOLE_EXTENT:
-		inode_add_blocks(mapping_jnode(node)->host, 1);
-		result = plug_hole(uf_coord, key, &how);
-		if (result)
+		result = current_vol_plug()->plug_hole(inode, uf_coord,
+						       key, &how);
+		if (result) {
+			assert("edward-2045", 0);
 			return result;
+		}
+	case UNALLOCATED_EXTENT:
+		inode_add_blocks(mapping_jnode(node)->host, 1);
 		block = fake_blocknr_unformatted(1, subv);
 		if (hole_plugged)
 			*hole_plugged = 1;
 		JF_SET(node, JNODE_CREATED);
 		break;
-
 	default:
 		return RETERR(-EIO);
 	}
-
 	jnode_set_block(node, &block);
 	return 0;
 }
@@ -845,14 +1239,16 @@ static int overwrite_extent(struct inode *inode, uf_coord_t *uf_coord,
 
 		if (move_coord(uf_coord)) {
 			/*
-			 * failed to move to the next node pointer. Either end
-			 * of file or end of twig node is reached. In the later
-			 * case we might go to the right neighbor.
+			 * failed to move to the next node pointer
+			 * for some reasons. To find the next node
+			 * pointer a tree search procedure will be
+			 * invoked
 			 */
 			uf_coord->valid = 0;
 			return i + 1;
 		}
 		set_key_offset(&k, get_key_offset(&k) + PAGE_SIZE);
+		calc_update_key_ordering(&k);
 	}
 	return count;
 }
@@ -990,8 +1386,10 @@ static int update_extents(struct file *file, struct inode *inode,
 		jnodes += result;
 		count -= result;
 		set_key_offset(&key, get_key_offset(&key) + result * PAGE_SIZE);
-
-		/* seal and unlock znode */
+		calc_update_key_ordering(&key);
+		/*
+		 * seal and unlock znode
+		 */
 		if (hint.ext_coord.valid)
 			reiser4_set_hint(&hint, &key, ZNODE_WRITE_LOCK);
 		else
@@ -1520,11 +1918,8 @@ reiser4_key *append_key_extent(const coord_t *coord, reiser4_key *key)
 	item_key_by_coord(coord, key);
 	set_key_offset(key, get_key_offset(key) +
 		       reiser4_extent_size(coord, nr_units_extent(coord)));
+	calc_update_key_ordering(key);
 
-	if (current_vol_plug()->body_key_ordering != NULL)
-		set_key_ordering(key,
-		    current_vol_plug()->body_key_ordering(get_key_objectid(key),
-							  get_key_offset(key)));
 	assert("vs-610", get_key_offset(key) &&
 	       (get_key_offset(key) & (current_blocksize - 1)) == 0);
 	return key;

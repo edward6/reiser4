@@ -279,10 +279,8 @@ typedef struct file_plugin {
 			      int user, loff_t size,
 			      loff_t off, rw_op op, flow_t *);
 	/*
-	 * Return the key used to retrieve an offset of a file. It is used by
-	 * default implementation of ->flow_by_inode() method
-	 * (common_build_flow()) and, among other things, to get to the extent
-	 * from jnode of unformatted node.
+	 * Construct a file body key.
+	 * Must not be used to build stat-data key
 	 */
 	int (*key_by_inode) (struct inode *, loff_t off, reiser4_key *);
 
@@ -615,6 +613,9 @@ typedef struct volume_plugin {
 			      int update_sd, loff_t cur_size,
 			      int (*update_file_size_fn)(struct inode *,
 							 loff_t, int));
+	/* replace hole extent with unallocated and holes */
+	int (*plug_hole)(struct inode *inode, uf_coord_t *uf_coord,
+			 const reiser4_key *key, int *how);
 	/* Load a portion of LV system configuration contained
 	   in a subvolume @subv. Normally is called at mount time */
 	int (*load_volume)(reiser4_subvol *subv);

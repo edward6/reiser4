@@ -749,7 +749,7 @@ static int lock_carry_level(carry_level * level/* level to lock */)
 ON_DEBUG(extern atomic_t delim_key_version;
     )
 
-static void sync_dkeys(znode * spot/* node to update */)
+void sync_dkeys(znode * spot/* node to update */)
 {
 	reiser4_key pivot;
 	reiser4_tree *tree;

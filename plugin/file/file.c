@@ -87,21 +87,17 @@ int equal_to_ldk(znode *node, const reiser4_key *key)
 	return result;
 }
 
-/**
- * check_coord - check whether coord corresponds to key
- * @coord: coord to check
- * @key: key @coord has to correspond to
- *
- * Returns true if @coord is set as if it was set as result of lookup with @key
- * in coord->node.
+/*
+ * Search for a position within a node by given @key and make sure
+ * that it coincides with given @coord.
  */
 static int check_coord(const coord_t *coord, const reiser4_key *key)
 {
-	coord_t twin;
+	coord_t pos;
 
 	node_plugin_by_node(coord->node)->lookup(coord->node, key,
-						 FIND_MAX_NOT_MORE_THAN, &twin);
-	return coords_equal(coord, &twin);
+						 FIND_MAX_NOT_MORE_THAN, &pos);
+	return coords_equal(coord, &pos);
 }
 
 #endif /* REISER4_DEBUG */
@@ -873,7 +869,9 @@ void reiser4_set_hint(hint_t * hint, const reiser4_key * key,
 		      znode_lock_mode mode)
 {
 	ON_DEBUG(coord_t * coord = &hint->ext_coord.coord);
-	assert("vs-1207", WITH_DATA(coord->node, check_coord(coord, key)));
+	assert("vs-1207",
+	       ergo(current_vol_plug() == volume_plugin_by_id(SIMPLE_VOLUME_ID),
+		    WITH_DATA(coord->node, check_coord(coord, key))));
 
 	reiser4_seal_init(&hint->seal, &hint->ext_coord.coord, key);
 	hint->offset = get_key_offset(key);
