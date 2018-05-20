@@ -154,11 +154,6 @@ int get_block_address_extent(const coord_t *, sector_t block,
 u64 find_data_subvol_extent(const coord_t *coord);
 int reiser4_migrate_extent(coord_t *coord, lock_handle *lh,
 			   struct inode *inode, u64 new_subv_id);
-int plug_hole_simple(struct inode *inode, uf_coord_t *uf_coord,
-		     const reiser4_key *key, int *how);
-int plug_hole_asym(struct inode *inode, uf_coord_t *uf_coord,
-		   const reiser4_key *key, int *how);
-
 /* these are used in flush.c
    FIXME-VS: should they be somewhere in item_plugin? */
 int allocate_extent_item_in_place(coord_t *, lock_handle *, flush_pos_t * pos);

@@ -46,34 +46,9 @@ int write_sd_by_inode_common(struct inode *inode, oid_t *oid)
 				result);
 		return result;
 }
-/**
- * Calculate key ordering by specified @inode and offset
- * and set it to the @key. Applicable only to file body keys
- */
-static inline void calc_set_key_ordering(struct inode *inode, loff_t off,
-					 reiser4_key *key)
-{
-	set_key_ordering(key,
-	      current_vol_plug()->body_key_ordering != NULL ?
-	      current_vol_plug()->body_key_ordering(get_inode_oid(inode), off) :
-	      get_inode_ordering(inode));
-}
 
 /**
- * Calculate key ordering by object-id and offset of specified @key
- * and set it to that key. Applicable only to file body keys
- */
-void calc_update_key_ordering(reiser4_key *key)
-{
-	if (current_vol_plug()->body_key_ordering == NULL)
-		return;
-	set_key_ordering(key,
-		    current_vol_plug()->body_key_ordering(get_key_objectid(key),
-							  get_key_offset(key)));
-}
-
-/**
- * Common implementation of ->key_by_inode() of file plugin.
+ * Common implementation of ->key_by_inode() of file plugin
  */
 int key_by_inode_and_offset(struct inode *inode, loff_t off,
 			    reiser4_key *key)
@@ -81,7 +56,10 @@ int key_by_inode_and_offset(struct inode *inode, loff_t off,
 	reiser4_key_init(key);
 	set_key_locality(key, reiser4_inode_data(inode)->locality_id);
 	set_key_objectid(key, get_inode_oid(inode));	/*FIXME: inode->i_ino */
-	calc_set_key_ordering(inode, off, key);
+	set_key_ordering(key,
+	      current_vol_plug()->body_key_ordering != NULL ?
+	      current_vol_plug()->body_key_ordering(get_inode_oid(inode), off) :
+	      get_inode_ordering(inode));
 	set_key_type(key, KEY_BODY_MINOR);
 	set_key_offset(key, (__u64) off);
 	return 0;
