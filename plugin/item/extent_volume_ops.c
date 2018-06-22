@@ -24,7 +24,7 @@ static int filler(void *data, struct page *page)
 {
 	coord_t *coord = data;
 
-	return reiser4_do_readpage_extent(extent_by_coord(coord), 0, page);
+	return __reiser4_readpage_extent(extent_by_coord(coord), 0, page);
 }
 
 /**
@@ -45,28 +45,6 @@ static int cut_off_head_block(coord_t *coord)
 }
 
 int append_hole(coord_t *coord, lock_handle *lh, const reiser4_key *key);
-
-/*
- * Migrate one block of data pointed by hole extent
- */
-static int migrate_hole_extent(coord_t *coord, lock_handle *lh,
-			       struct inode *inode, u64 new_subv_id)
-{
-	int ret;
-	reiser4_key key;
-
-	item_key_by_coord(coord, &key);
-
-	ret = cut_off_head_block(coord);
-	done_lh(lh);
-	if (ret)
-		return ret;
-	ret = find_file_item_nohint(coord, lh, &key,
-				    ZNODE_WRITE_LOCK, inode);
-	if (IS_CBKERR(ret))
-		return ret;
-	return append_hole(coord, lh, &key);
-}
 
 /*
  * Migrate one block of data pointed by allocated extent
@@ -131,7 +109,7 @@ static int migrate_allocated_extent(coord_t *coord, lock_handle *lh,
 	/*
 	 * append the block to the end of previous item
 	 */
-	ret = reiser4_update_extent(inode, node, page_offset(page), NULL);
+	ret = update_extent_stripe(inode, node, page_offset(page), NULL);
 	if (ret)
 		warning("edward-1897", "Failed to migrate extent: %d", ret);
 	JF_CLR(node, JNODE_WRITE_PREPARED);
@@ -156,8 +134,6 @@ int reiser4_migrate_extent(coord_t *coord, lock_handle *lh,
 			   struct inode *inode, u64 new_subv_id)
 {
 	switch(state_of_extent(extent_by_coord(coord))) {
-	case HOLE_EXTENT:
-		return migrate_hole_extent(coord, lh, inode, new_subv_id);
 	case UNALLOCATED_EXTENT:
 	case ALLOCATED_EXTENT:
 		return migrate_allocated_extent(coord, lh, inode, new_subv_id);

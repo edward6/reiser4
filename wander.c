@@ -306,14 +306,13 @@ static void format_journal_header(struct commit_handle *ch,
 }
 
 /* fill journal footer block data */
-static void format_journal_footer(struct commit_handle *ch, unsigned subv_id)
+static void format_journal_footer(struct commit_handle *ch,
+				  reiser4_subvol *subv)
 {
-	reiser4_subvol *subv;
 	struct journal_footer *footer;
 	jnode *tx_head;
 	struct commit_handle_subvol *ch_sub;
 
-	subv = super_origin(ch->super, subv_id);
 	ch_sub = &subv->ch;
 
 	tx_head = list_entry(ch_sub->tx_list.next, jnode, capture_link);
@@ -541,13 +540,12 @@ static int update_journal_header(struct commit_handle *ch, u32 subv_id)
  * footer block and free blocks which were occupied by wandered blocks and
  * transaction wander records
  */
-static int update_journal_footer(struct commit_handle *ch, u32 subv_id)
+static int update_journal_footer(struct commit_handle *ch, reiser4_subvol *subv)
 {
 	int ret;
-	reiser4_subvol *subv = super_origin(ch->super, subv_id);
 	jnode *jf = subv->journal_footer;
 
-	format_journal_footer(ch, subv_id);
+	format_journal_footer(ch, subv);
 
 	ret = write_jnodes_contig(jf, 1, jnode_get_block(jf), NULL,
 				  WRITEOUT_FLUSH_FUA, subv);
@@ -1528,15 +1526,17 @@ static int play_tx(struct commit_handle *ch)
 	     node = rb_next(node)) {
 
 		struct atom_brick_info *abi;
+		reiser4_subvol *subv;
 		struct commit_handle_subvol *ch_sub;
 
 		abi = rb_entry(node, struct atom_brick_info, node);
-		ch_sub = &current_origin(abi->brick_id)->ch;
+		subv = current_origin(abi->brick_id);
+		ch_sub = &subv->ch;
 
 		if (ch_sub->overwrite_set_size == 0)
 			continue;
 
-		ret = update_journal_footer(ch, abi->brick_id);
+		ret = update_journal_footer(ch, subv);
 		if (ret)
 			return ret;
 	}
@@ -1751,28 +1751,32 @@ static int restore_commit_handle(struct commit_handle *ch,
 /**
  * Overwrite blocks on permanent location by the wandered set.
  * and synchronize it with all replicas (if any).
- * Pre-condition: all mirrors should be already activated.
+ * Pre-condition: all replicas of @subv should be already activated.
  */
 static int replay_tx_subv(reiser4_subvol *subv)
 {
 	int ret;
-	u32 mirr_id;
+	u32 repl_id;
 	const u32 orig_id = subv->id;
 	struct commit_handle_subvol *ch_sub = &subv->ch;
 
 	assert("edward-1708", is_origin(subv));
-	assert("edward-1709", subvol_is_set(subv, SUBVOL_ACTIVATED));
-
-	for_each_mirror(orig_id, mirr_id) {
-		assert("edward-1710" ,
-		       subv->super ==
-		       super_mirror(subv->super, orig_id, mirr_id)->super);
-
-		subv = super_mirror(subv->super, orig_id, mirr_id);
-		assert("edward-1711", subvol_is_set(subv, SUBVOL_ACTIVATED));
-
+	/*
+	 * first replay on the original subvolume
+	 */
+	write_jnode_list_subv(&ch_sub->overwrite_set,
+			      NULL, NULL, 0, subv);
+	ret = wait_on_jnode_list(&ch_sub->overwrite_set);
+	if (ret)
+		goto error;
+	/*
+	 * then replay on its replicas, if any
+	 */
+	__for_each_replica(subv, repl_id) {
+		reiser4_subvol *repl = super_mirror(subv->super,
+						    orig_id, repl_id);
 		write_jnode_list_subv(&ch_sub->overwrite_set,
-				      NULL, NULL, 0, subv);
+				      NULL, NULL, 0, repl);
 		ret = wait_on_jnode_list(&ch_sub->overwrite_set);
 		if (ret)
 			goto error;
@@ -1900,7 +1904,7 @@ static int replay_tx(jnode *tx_head,
 		goto free_ow_set;
 	}
 	ret = replay_tx_subv(subv);
-	ret = update_journal_footer(&ch, subv->id);
+	ret = update_journal_footer(&ch, subv);
 
  free_ow_set:
 

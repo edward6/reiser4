@@ -16,14 +16,13 @@ static inline reiser4_extent *ext_by_offset(const znode *node, int offset)
 }
 
 /**
- * check_uf_coord - verify coord extension
- * @uf_coord:
- * @key:
+ * verify coord extension @uf_coord against @key:
  *
- * Makes sure that all fields of @uf_coord are set properly. If @key is
- * specified - check whether @uf_coord is set correspondingly.
+ * Makes sure that all fields of @uf_coord are set properly.
+ * If @key is specified - check whether @uf_coord is set correspondingly.
  */
-static void check_uf_coord(const uf_coord_t *uf_coord, const reiser4_key *key)
+static void check_uf_coord(const uf_coord_t *uf_coord, const reiser4_key *key,
+			   int striped)
 {
 #if REISER4_DEBUG
 	const coord_t *coord;
@@ -37,15 +36,14 @@ static void check_uf_coord(const uf_coord_t *uf_coord, const reiser4_key *key)
 	ext_coord = &uf_coord->extension.extent;
 	ext = ext_by_offset(coord->node, uf_coord->extension.extent.ext_offset);
 
-	/* make sure that non-hole extent doesn't contain stripe boundary */
+	/* make sure that extent doesn't contain stripe boundary (if any) */
 	assert("edward-1815",
-	       ergo(current_stripe_bits &&
-		    (state_of_extent(ext) != HOLE_EXTENT),
+	       ergo(striped && current_stripe_bits,
 		    get_key_offset(&coord_key) >> current_stripe_bits ==
 		    ((get_key_offset(&coord_key) +
 		      (extent_get_width(ext) << PAGE_SHIFT) - 1) >>
 		     current_stripe_bits)));
-	assert("",
+	assert("edward-2047",
 	       WITH_DATA(coord->node,
 			 (uf_coord->valid == 1 &&
 			  coord_is_iplug_set(coord) &&
@@ -66,6 +64,8 @@ static void check_uf_coord(const uf_coord_t *uf_coord, const reiser4_key *key)
 	}
 #endif
 }
+
+
 
 static inline reiser4_extent *ext_by_ext_coord(const uf_coord_t *uf_coord)
 {
@@ -126,8 +126,8 @@ static int can_append(struct inode *inode,
 		round_up(i_size_read(inode), current_blocksize);
 }
 
-int append_hole(struct inode *inode, coord_t *coord,
-		lock_handle *lh, const reiser4_key *key)
+int append_hole_unix_file(struct inode *inode, coord_t *coord,
+			  lock_handle *lh, const reiser4_key *key)
 {
 	int ret;
 	u64 hole_offset;
@@ -135,7 +135,6 @@ int append_hole(struct inode *inode, coord_t *coord,
 	reiser4_block_nr hole_width;
 	reiser4_extent *ext, new_ext;
 	reiser4_item_data idata;
-	int new_stripe = 0;
 
 	/* last item of file may have to be appended with hole */
 	assert("vs-708", znode_get_level(coord->node) == TWIG_LEVEL);
@@ -152,21 +151,6 @@ int append_hole(struct inode *inode, coord_t *coord,
 	 */
 	hole_width = (get_key_offset(key) - hole_offset +
 		      current_blocksize - 1) >> current_blocksize_bits;
-	if (0) {
-		/*
-		 * respect stripes
-		 */
-		int to_stripe = current_stripe_blocks -
-			((hole_offset >> current_blocksize_bits) &
-			 (current_stripe_blocks - 1));
-		if (hole_width > to_stripe)
-			hole_width = to_stripe;
-		if ((hole_offset & (current_stripe_size - 1)) == 0)
-			/*
-			 * new stripe is going to be inserted
-			 */
-			new_stripe = 1;
-	}
 	assert("vs-954", hole_width > 0);
 
 	/* set coord after last unit */
@@ -174,7 +158,7 @@ int append_hole(struct inode *inode, coord_t *coord,
 
 	/* get last extent in the item */
 	ext = extent_by_coord(coord);
-	if (state_of_extent(ext) == HOLE_EXTENT && !new_stripe) {
+	if (state_of_extent(ext) == HOLE_EXTENT) {
 		/*
 		 * last extent of a file is hole extent. Widen that extent by
 		 * @hole_width blocks. Note that we do not worry about
@@ -202,10 +186,7 @@ int append_hole(struct inode *inode, coord_t *coord,
 }
 
 /**
- * check_jnodes
  * @twig: longterm locked twig node
- * @key:
- *
  */
 static void check_jnodes(znode *twig, const reiser4_key *key, int count)
 {
@@ -239,7 +220,7 @@ static void check_jnodes(znode *twig, const reiser4_key *key, int count)
 }
 
 /**
- * append_last_extent - append last file item
+ * append last file item
  * @uf_coord: coord to start insertion from
  * @jnodes: array of jnodes
  * @count: number of jnodes in the array
@@ -249,8 +230,10 @@ static void check_jnodes(znode *twig, const reiser4_key *key, int count)
  * Assign fake block numbers to jnodes corresponding to the inserted extent.
  * Set pointer to subvolume where the data stripe should be stored to jnodes.
  */
-static int append_last_extent(struct inode *inode, uf_coord_t *uf_coord,
-			      const reiser4_key *key, jnode **jnodes, int count)
+static int append_last_extent_unix_file(struct inode *inode,
+					uf_coord_t *uf_coord,
+					const reiser4_key *key,
+					jnode **jnodes, int count)
 {
 	int result;
 	reiser4_extent new_ext;
@@ -261,7 +244,6 @@ static int append_last_extent(struct inode *inode, uf_coord_t *uf_coord,
 	reiser4_block_nr block;
 	jnode *node;
 	int i;
-	int new_stripe = 0;
 	reiser4_subvol *subv;
 	struct atom_brick_info *abi;
 
@@ -276,66 +258,33 @@ static int append_last_extent(struct inode *inode, uf_coord_t *uf_coord,
 
 	if (!can_append(inode, key, coord)) {
 		/* hole extent has to be inserted */
-		result = append_hole(inode, coord, uf_coord->lh, key);
+		result = append_hole_unix_file(inode, coord, uf_coord->lh, key);
 		uf_coord->valid = 0;
 		return result;
 	}
 	if (count == 0)
 		return 0;
-	if (current_stripe_bits) {
-		/*
-		 * respect stripes
-		 */
-		int to_stripe = current_stripe_blocks -
-			((get_key_offset(key) >> current_blocksize_bits) &
-			 (current_stripe_blocks - 1));
-		if (count > to_stripe)
-			count = to_stripe;
-		if ((get_key_offset(key) & (current_stripe_size - 1)) == 0)
-			/*
-			 * new stripe is going to be inserted
-			 */
-			new_stripe = 1;
-	}
 	assert("", get_key_offset(key) == (loff_t)index_jnode(jnodes[0]) * PAGE_SIZE);
 
 	inode_add_blocks(mapping_jnode(jnodes[0])->host, count);
 
-	if (new_stripe) {
-		/*
-		 * create a new item
-		 */
-		reiser4_set_extent(&new_ext, UNALLOCATED_EXTENT_START, count);
-		result = insert_by_coord(coord,
-					 init_new_extent(&idata, &new_ext, 1),
-					 key, uf_coord->lh, 0);
-		uf_coord->valid = 0;
-		if (result)
-			return result;
-		goto process_jnodes;
-	}
 	switch (state_of_extent(ext)) {
 	case UNALLOCATED_EXTENT:
 		/*
 		 * last extent unit of the file is unallocated one
+		 * Increase its width by @count
 		 */
-		if (!new_stripe) {
-			/*
-			 * Increase its width by @count
-			 */
-			reiser4_set_extent(ext, UNALLOCATED_EXTENT_START,
-					   extent_get_width(ext) + count);
-			znode_make_dirty(coord->node);
+		reiser4_set_extent(ext, UNALLOCATED_EXTENT_START,
+				   extent_get_width(ext) + count);
+		znode_make_dirty(coord->node);
 
-			/* update coord extension */
-			ext_coord->width += count;
-			ext_coord->pos_in_unit += count;
-			ON_DEBUG(extent_set_width
-				 (&uf_coord->extension.extent.extent,
-				  ext_coord->width));
-			break;
-		}
-		/* new unit should be inserted */
+		/* update coord extension */
+		ext_coord->width += count;
+		ext_coord->pos_in_unit += count;
+		ON_DEBUG(extent_set_width
+			 (&uf_coord->extension.extent.extent,
+			  ext_coord->width));
+		break;
 	case HOLE_EXTENT:
 	case ALLOCATED_EXTENT:
 		/*
@@ -353,7 +302,6 @@ static int append_last_extent(struct inode *inode, uf_coord_t *uf_coord,
 	default:
 		return RETERR(-EIO);
 	}
- process_jnodes:
 	/*
 	 * make sure that we hold long term locked twig node containing all
 	 * jnodes we are about to capture
@@ -392,16 +340,8 @@ static int append_last_extent(struct inode *inode, uf_coord_t *uf_coord,
 	return count;
 }
 
-/**
- * insert_first_hole - inser hole extent into tree
- * @coord:
- * @lh:
- * @key:
- *
- *
- */
-static int insert_first_hole(struct inode *inode, coord_t *coord,
-			     lock_handle *lh, const reiser4_key *key)
+static int insert_first_hole_unix_file(struct inode *inode, coord_t *coord,
+				       lock_handle *lh, const reiser4_key *key)
 {
 	int ret;
 	reiser4_extent new_ext;
@@ -417,9 +357,6 @@ static int insert_first_hole(struct inode *inode, coord_t *coord,
 
 	hole_width = ((get_key_offset(key) + current_blocksize - 1) >>
 		      current_blocksize_bits);
-	/* respect stripes */
-	if (0 && hole_width > current_stripe_blocks)
-		hole_width = current_stripe_blocks;
 	assert("vs-710", hole_width > 0);
 	/*
 	 * compose body of hole extent and insert item into tree
@@ -435,7 +372,7 @@ static int insert_first_hole(struct inode *inode, coord_t *coord,
 
 
 /**
- * insert_first_extent - insert first file item
+ * insert first file item
  * @inode: inode of file
  * @uf_coord: coord to start insertion from
  * @jnodes: array of jnodes
@@ -448,9 +385,10 @@ static int insert_first_hole(struct inode *inode, coord_t *coord,
  * unallocated extent. Calculate a subvolume ID where the data stripe should be
  * stored and set it to jnodes. Returns number of jnodes or error code.
  */
-static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
-			       jnode **jnodes, int count,
-			       struct inode *inode)
+static int insert_first_extent_unix_file(uf_coord_t *uf_coord,
+					 const reiser4_key *key,
+					 jnode **jnodes, int count,
+					 struct inode *inode)
 {
 	int result;
 	int i;
@@ -467,8 +405,8 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	assert("vs-711", coord_is_between_items(&uf_coord->coord));
 
 	if (get_key_offset(key) != 0 && i_size_read(inode) == 0) {
-		result = insert_first_hole(inode, &uf_coord->coord,
-					   uf_coord->lh, key);
+		result = insert_first_hole_unix_file(inode, &uf_coord->coord,
+						     uf_coord->lh, key);
 		uf_coord->valid = 0;
 		uf_info = unix_file_inode_data(inode);
 
@@ -489,11 +427,6 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	}
 	if (count == 0)
 		return 0;
-	if (current_stripe_bits && count > current_stripe_blocks)
-		/*
-		 * reduce the count to respect stripes
-		 */
-		count = current_stripe_blocks;
 
 	inode_add_blocks(mapping_jnode(jnodes[0])->host, count);
 
@@ -548,16 +481,8 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	return count;
 }
 
-#define BLOCK_LEFT_MERGEABLE(__off)					\
-	((current_stripe_bits == 0) ||					\
-	 ((__off & (current_stripe_size - 1)) != 0))
-
-#define BLOCK_RIGHT_MERGEABLE(__off)					\
-	((current_stripe_bits == 0) ||					\
-	 (((__off + current_blocksize) & (current_stripe_size - 1)) != 0))
-
 /**
- * plug_hole - replace hole extent with unallocated and holes
+ * replace hole extent with unallocated and holes
  * @uf_coord:
  * @key:
  * @node:
@@ -566,7 +491,8 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
  * Creates an unallocated extent of width 1 within a hole. In worst case two
  * additional extents can be created.
  */
-static int plug_hole(uf_coord_t *uf_coord, const reiser4_key *key, int *how)
+static int plug_hole_unix_file(uf_coord_t *uf_coord,
+			       const reiser4_key *key, int *how)
 {
 	struct replace_handle rh;
 	reiser4_extent *ext;
@@ -575,7 +501,7 @@ static int plug_hole(uf_coord_t *uf_coord, const reiser4_key *key, int *how)
 	struct extent_coord_extension *ext_coord;
 	int return_inserted_position;
 
- 	check_uf_coord(uf_coord, key);
+	check_uf_coord(uf_coord, key, 0);
 
 	rh.coord = coord_by_uf_coord(uf_coord);
 	rh.lh = uf_coord->lh;
@@ -600,8 +526,7 @@ static int plug_hole(uf_coord_t *uf_coord, const reiser4_key *key, int *how)
 		/* we deal with first element of extent */
 		if (coord->unit_pos) {
 			/* there is an extent to the left */
-			if ((state_of_extent(ext - 1) == UNALLOCATED_EXTENT) &&
-			    BLOCK_LEFT_MERGEABLE(get_key_offset(key))) {
+			if (state_of_extent(ext - 1) == UNALLOCATED_EXTENT) {
 				/*
 				 * left neighboring unit is an unallocated
 				 * extent. Increase its width and decrease
@@ -638,8 +563,7 @@ static int plug_hole(uf_coord_t *uf_coord, const reiser4_key *key, int *how)
 		/* we deal with last element of extent */
 		if (coord->unit_pos < nr_units_extent(coord) - 1) {
 			/* there is an extent unit to the right */
-			if ((state_of_extent(ext + 1) == UNALLOCATED_EXTENT) &&
-			    BLOCK_RIGHT_MERGEABLE(get_key_offset(key))) {
+			if (state_of_extent(ext + 1) == UNALLOCATED_EXTENT) {
 				/*
 				 * right neighboring unit is an unallocated
 				 * extent. Increase its width and decrease
@@ -697,18 +621,14 @@ static int plug_hole(uf_coord_t *uf_coord, const reiser4_key *key, int *how)
 }
 
 /**
- * overwrite_one_block -
- * @uf_coord:
- * @key:
- * @node:
- *
  * If @node corresponds to hole extent - create unallocated extent for it and
  * assign fake block number. If @node corresponds to allocated extent - assign
  * block number of jnode
  */
-static int overwrite_one_block(struct inode *inode, uf_coord_t *uf_coord,
-			       const reiser4_key *key, jnode *node,
-			       int *hole_plugged)
+static int overwrite_one_block_unix_file(struct inode *inode,
+					 uf_coord_t *uf_coord,
+					 const reiser4_key *key, jnode *node,
+					 int *hole_plugged, znode **loaded)
 {
 	int result;
 	struct extent_coord_extension *ext_coord;
@@ -723,7 +643,7 @@ static int overwrite_one_block(struct inode *inode, uf_coord_t *uf_coord,
 
 	result = 0;
 	ext_coord = ext_coord_by_uf_coord(uf_coord);
-	check_uf_coord(uf_coord, NULL);
+	check_uf_coord(uf_coord, NULL, 0);
 	ext = ext_by_ext_coord(uf_coord);
 	assert("", state_of_extent(ext) != UNALLOCATED_EXTENT);
 
@@ -734,7 +654,7 @@ static int overwrite_one_block(struct inode *inode, uf_coord_t *uf_coord,
 
 	case HOLE_EXTENT:
 		inode_add_blocks(mapping_jnode(node)->host, 1);
-		result = plug_hole(uf_coord, key, &how);
+		result = plug_hole_unix_file(uf_coord, key, &how);
 		if (result)
 			return result;
 		block = fake_blocknr_unformatted(1, subv);
@@ -794,19 +714,22 @@ static int move_coord(uf_coord_t *uf_coord)
  * Find cached value of subvolume ID as a component of the item's key
  * and set it to jnodes. Returns number of handled jnodes.
  */
-static int overwrite_extent(struct inode *inode, uf_coord_t *uf_coord,
-			    const reiser4_key *key, jnode **jnodes,
-			    int count, int *plugged_hole)
+int overwrite_extent_generic(struct inode *inode, uf_coord_t *uf_coord,
+			     const reiser4_key *key, jnode **jnodes,
+			     int count, int *plugged_hole, znode **loaded,
+			     int(*overwrite_one_block_fn)(struct inode *inode,
+							  uf_coord_t *uf_coord,
+							  const reiser4_key *key,
+							  jnode *node,
+							  int *hole_plugged,
+							  znode **loaded))
 {
 	int result;
 	reiser4_key k;
 	int i;
 	jnode *node;
 	struct atom_brick_info *abi;
-	reiser4_subvol *subv = find_data_subvol(&uf_coord->coord);
-
-	assert("edward-1935",
-	       subv == calc_data_subvol(inode, get_key_offset(key)));
+	reiser4_subvol *subv = calc_data_subvol(inode, get_key_offset(key));
 
 	result = check_insert_atom_brick_info(subv->id, &abi);
 	if (result)
@@ -816,8 +739,9 @@ static int overwrite_extent(struct inode *inode, uf_coord_t *uf_coord,
 	for (i = 0; i < count; i ++) {
 		node = jnodes[i];
 		if (*jnode_get_block(node) == 0) {
-			result = overwrite_one_block(inode, uf_coord, &k, node,
-						     plugged_hole);
+			result = overwrite_one_block_fn(inode, uf_coord, &k,
+							node, plugged_hole,
+							loaded);
 			if (result)
 				return result;
 		}
@@ -841,7 +765,7 @@ static int overwrite_extent(struct inode *inode, uf_coord_t *uf_coord,
 		if (uf_coord->valid == 0)
 			return i + 1;
 
-		check_uf_coord(uf_coord, &k);
+		check_uf_coord(uf_coord, &k, 0);
 
 		if (move_coord(uf_coord)) {
 			/*
@@ -852,13 +776,27 @@ static int overwrite_extent(struct inode *inode, uf_coord_t *uf_coord,
 			uf_coord->valid = 0;
 			return i + 1;
 		}
-		set_key_offset(&k, get_key_offset(&k) + PAGE_SIZE);
+		/*
+		 * update key for next iteration. Note that updating
+		 * only offset is not enough e.g. for striped files
+		 */
+		key_by_inode_and_offset(inode,
+					get_key_offset(&k) + PAGE_SIZE, &k);
 	}
 	return count;
 }
 
-int reiser4_update_extent(struct inode *inode, jnode *node, loff_t pos,
-		  int *plugged_hole)
+static int overwrite_extent_unix_file(struct inode *inode, uf_coord_t *uf_coord,
+				      const reiser4_key *key, jnode **jnodes,
+				      int count, int *plugged_hole, znode **loaded)
+{
+	return overwrite_extent_generic(inode, uf_coord, key,
+					jnodes, count, plugged_hole, loaded,
+					overwrite_one_block_unix_file);
+}
+
+int update_extent_uf(struct inode *inode, jnode *node, loff_t pos,
+		     int *plugged_hole)
 {
 	int result;
 	znode *loaded;
@@ -891,8 +829,8 @@ int reiser4_update_extent(struct inode *inode, jnode *node, loff_t pos,
 		 */
 		init_coord_extension_extent(&uf_coord,
 					    get_key_offset(&key));
-		result = append_last_extent(inode, &uf_coord, &key,
-					    &node, 1);
+		result = append_last_extent_unix_file(inode, &uf_coord,
+						      &key, &node, 1);
 	} else if (coord->between == AT_UNIT) {
 		/*
 		 * overwrite
@@ -901,25 +839,29 @@ int reiser4_update_extent(struct inode *inode, jnode *node, loff_t pos,
 		 */
 		init_coord_extension_extent(&uf_coord,
 					    get_key_offset(&key));
-		result = overwrite_extent(inode, &uf_coord, &key,
-					  &node, 1, plugged_hole);
+		result = overwrite_extent_unix_file(inode, &uf_coord, &key,
+						    &node, 1, plugged_hole,
+						    &loaded);
 	} else {
 		/*
 		 * there are no items of this file in the tree yet. Create
 		 * first item of the file inserting one unallocated extent of
 		 * width nr_jnodes
 		 */
-		result = insert_first_extent(&uf_coord, &key, &node, 1, inode);
+		result = insert_first_extent_unix_file(&uf_coord, &key,
+						       &node, 1, inode);
 	}
-	assert("", result == 1 || result < 0);
+	assert("edward-2048", result == 1 || result < 0);
+
 	zrelse(loaded);
 	done_lh(&lh);
-	assert("", reiser4_lock_counters()->d_refs == 0);
+	assert("edward-2049", reiser4_lock_counters()->d_refs == 0);
+
 	return (result == 1) ? 0 : result;
 }
 
-static int update_extents(struct file *file, struct inode *inode,
-			  jnode **jnodes, int count, loff_t pos)
+static int update_extents_unix_file(struct file *file, struct inode *inode,
+				    jnode **jnodes, int count, loff_t pos)
 {
 	struct hint hint;
 	reiser4_key key;
@@ -958,8 +900,10 @@ static int update_extents(struct file *file, struct inode *inode,
 				/* NOTE: get statistics on this */
 				init_coord_extension_extent(&hint.ext_coord,
 							  get_key_offset(&key));
-			result = append_last_extent(inode, &hint.ext_coord,
-						    &key, jnodes, count);
+			result = append_last_extent_unix_file(inode,
+							      &hint.ext_coord,
+							      &key, jnodes,
+							      count);
 		} else if (hint.ext_coord.coord.between == AT_UNIT) {
 			/*
 			 * overwrite
@@ -969,17 +913,21 @@ static int update_extents(struct file *file, struct inode *inode,
 			if (hint.ext_coord.valid == 0)
 				/* NOTE: get statistics on this */
 				init_coord_extension_extent(&hint.ext_coord,
-							    get_key_offset(&key));
-			result = overwrite_extent(inode, &hint.ext_coord, &key,
-						  jnodes, count, NULL);
+							  get_key_offset(&key));
+			result = overwrite_extent_unix_file(inode,
+							    &hint.ext_coord,
+							    &key, jnodes,
+							    count, NULL,
+							    &loaded);
 		} else {
 			/*
 			 * there are no items of this file in the tree
 			 * yet. Create first item of the file inserting one
 			 * unallocated extent of * width nr_jnodes
 			 */
-			result = insert_first_extent(&hint.ext_coord, &key,
-						     jnodes, count, inode);
+			result = insert_first_extent_unix_file(&hint.ext_coord,
+							       &key, jnodes,
+							       count, inode);
 		}
 		zrelse(loaded);
 		if (result < 0) {
@@ -1082,19 +1030,22 @@ filemap_copy_from_user(struct page *page, unsigned long offset,
 }
 
 /**
- * reiser4_write_extent - write method of extent item plugin
  * @file: file to write to
  * @buf: address of user-space buffer
  * @count: number of bytes to write
  * @pos: position in file to write to
- *
+ * @update_fn: file plugin specific update_extents method
  */
-/*
- * FIXME-EDWARD: align writes by stripe boundaries,
- * so that we don't need to check atom-brick-info for every jnode
- */
-ssize_t reiser4_write_extent(struct file *file, struct inode * inode,
-			     const char __user *buf, size_t count, loff_t *pos)
+static ssize_t write_extent_generic(struct file *file, struct inode *inode,
+				    const char __user *buf, size_t count,
+				    loff_t *pos,
+				    int(*readpage_fn)(struct file *file,
+						      struct page *page),
+				    int(*update_fn)(struct file *file,
+						    struct inode *inode,
+						    jnode **jnodes,
+						    int count,
+						    loff_t pos))
 {
 	int have_to_update_extent;
 	int nr_pages, nr_dirty;
@@ -1112,20 +1063,11 @@ ssize_t reiser4_write_extent(struct file *file, struct inode * inode,
 
 	if (count == 0) {
 		/* truncate case */
-		update_extents(file, inode, jnodes, 0, *pos);
+		update_fn(file, inode, jnodes, 0, *pos);
 		return 0;
 	}
 	BUG_ON(get_current_context()->trans->atom != NULL);
 
-	if (current_stripe_bits) {
-		/*
-		 * respect stripes
-		 */
-		int to_stripe = current_stripe_size -
-			(*pos & (current_stripe_size - 1));
-		if (count > to_stripe)
-			count = to_stripe;
-	}
 	left = count;
 	index = *pos >> PAGE_SHIFT;
 	/* calculate number of pages which are to be written */
@@ -1176,7 +1118,8 @@ ssize_t reiser4_write_extent(struct file *file, struct inode * inode,
 			 */
 			lock_page(page);
 			if (!PageUptodate(page)) {
-				result = readpage_unix_file(NULL, page);
+				result = readpage_fn(NULL, page);
+				assert("edward-2050", result == 0);
 				BUG_ON(result != 0);
 				/* wait for read completion */
 				lock_page(page);
@@ -1219,10 +1162,9 @@ ssize_t reiser4_write_extent(struct file *file, struct inode * inode,
 		left -= to_page;
 		BUG_ON(get_current_context()->trans->atom != NULL);
 	}
-
-	if (have_to_update_extent) {
-		update_extents(file, inode, jnodes, nr_dirty, *pos);
-	} else {
+	if (have_to_update_extent)
+		update_fn(file, inode, jnodes, nr_dirty, *pos);
+	else {
 		for (i = 0; i < nr_dirty; i ++) {
 			int ret;
 			struct atom_brick_info *abi;
@@ -1257,20 +1199,22 @@ out:
 	return (count - left) ? (count - left) : result;
 }
 
-int reiser4_do_readpage_extent(reiser4_extent * ext, reiser4_block_nr pos,
-			       struct page *page)
+int __reiser4_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos,
+			      struct page *page)
 {
 	jnode *j;
 	struct address_space *mapping;
 	unsigned long index;
 	oid_t oid;
+	int state;
 	reiser4_block_nr block;
 
 	mapping = page->mapping;
 	oid = get_inode_oid(mapping->host);
 	index = page->index;
+	state = (ext != NULL ? state_of_extent(ext) : HOLE_EXTENT);
 
-	switch (state_of_extent(ext)) {
+	switch (state) {
 	case HOLE_EXTENT:
 		/*
 		 * it is possible to have hole page with jnode, if page was
@@ -1336,8 +1280,7 @@ int reiser4_do_readpage_extent(reiser4_extent * ext, reiser4_block_nr pos,
 	return 0;
 }
 
-/* Implements plugin->u.item.s.file.read operation for extent items. */
-int reiser4_read_extent(struct file *file, flow_t *flow, hint_t *hint)
+int read_extent_unix_file(struct file *file, flow_t *flow, hint_t *hint)
 {
 	int result;
 	struct page *page;
@@ -1358,7 +1301,7 @@ int reiser4_read_extent(struct file *file, flow_t *flow, hint_t *hint)
 
 	uf_coord = &hint->ext_coord;
 
-	check_uf_coord(uf_coord, NULL);
+	check_uf_coord(uf_coord, NULL, 0);
 	assert("vs-33", uf_coord->lh == &hint->lh);
 
 	coord = &uf_coord->coord;
@@ -1442,14 +1385,13 @@ int reiser4_read_extent(struct file *file, flow_t *flow, hint_t *hint)
 	return 0;
 }
 
-/*
- * plugin->s.file.readpage
- *
+/**
  * reiser4_read->unix_file_read->page_cache_readahead->
- * ->reiser4_readpage_dispatch->readpage_unix_file->readpage_extent
+ * ->reiser4_readpage_dispatch->readpage_unix_file->
+ * ->reiser4_readpage_extent
  * or
  * filemap_fault->reiser4_readpage_dispatch->readpage_unix_file->
- * ->readpage_extent
+ * ->reiser4_readpage_extent
  *
  * At the beginning: coord->node is read locked, zloaded, page is
  * locked, coord is set to existing unit inside of extent item (it
@@ -1472,11 +1414,11 @@ int reiser4_readpage_extent(void *vp, struct page *page)
 	assert("vs-1047",
 	       page->mapping->host->i_ino ==
 	       get_key_objectid(item_key_by_coord(coord, &key)));
-	check_uf_coord(uf_coord, NULL);
+	check_uf_coord(uf_coord, NULL, 0);
 
-	return reiser4_do_readpage_extent(ext_by_ext_coord(uf_coord),
-				uf_coord->extension.extent.pos_in_unit,
-				page);
+	return __reiser4_readpage_extent(ext_by_ext_coord(uf_coord),
+					 uf_coord->extension.extent.pos_in_unit,
+					 page);
 }
 
 int get_block_address_extent(const coord_t *coord, sector_t block,
@@ -1573,6 +1515,557 @@ void init_coord_extension_extent(uf_coord_t * uf_coord, loff_t lookuped)
 		ext_coord->pos_in_unit =
 		    ((lookuped - offset) >> current_blocksize_bits);
 	}
+}
+
+/**
+ * Hole in a striped file is not represented by any items,
+ * so this function actually does nothing
+ */
+static int append_hole_stripe(uf_coord_t *uf_coord)
+{
+	assert("edward-2051", uf_coord->coord.between != AT_UNIT);
+	uf_coord->valid = 0;
+	return 0;
+}
+
+/**
+ * Put a pointer to one unallocated block at the position determined
+ * by @uf_coord. First try to merge it with existing items of the file
+ * at the left and right (in the logical order). If impossible, then
+ * create a new extent item.
+ */
+static int plug_hole_stripe(struct inode *inode,
+			    uf_coord_t *uf_coord, const reiser4_key *key,
+			    znode **loaded)
+{
+	reiser4_key mkey, tkey;
+	coord_t *coord = &uf_coord->coord;
+	reiser4_extent *ext;
+	reiser4_extent new_ext;
+	reiser4_item_data idata;
+
+	assert("edward-2052", !coord_is_existing_unit(coord));
+
+	if (coord->between != AFTER_UNIT) {
+		/*
+		 * there is no mergeable items at the left,
+		 * look on the right.
+		 */
+		int ret;
+		assert("edward-2053", znode_is_loaded(coord->node));
+		assert("edward-2054", coord->node->level == LEAF_LEVEL);
+		BUG_ON(coord->node->level != LEAF_LEVEL);
+		/*
+		 * construct a key corresponding to the
+		 * next logical block of the file body
+		 */
+		key_by_inode_and_offset(inode,
+					get_key_offset(key) + PAGE_SIZE,
+					&tkey);
+		if (get_key_ordering(key) != get_key_ordering(&tkey)) {
+			/*
+			 * there is no mergeabe items at the right,
+			 * insert a new item right here
+			 */
+			reiser4_set_extent(&new_ext,
+					   UNALLOCATED_EXTENT_START, 1);
+			init_new_extent(&idata, &new_ext, 1);
+			return insert_extent_by_coord(coord, &idata,
+						      key, uf_coord->lh);
+		}
+		/*
+		 * traverse tree with the new key
+		 */
+		zrelse(*loaded);
+		*loaded = NULL;
+		done_lh(uf_coord->lh);
+		uf_coord->valid = 0;
+		coord_init_zero(coord);
+
+		ret = find_file_item_nohint(coord, uf_coord->lh, &tkey,
+					    ZNODE_WRITE_LOCK, inode);
+		if (IS_CBKERR(ret))
+			return ret;
+
+		ret = zload(coord->node);
+		*loaded = coord->node;
+
+		if (coord->between != AT_UNIT) {
+			/*
+			 * there is no mergeable items at the right,
+			 * create a new extent item right here
+			 */
+			assert("edward-2055",
+			       coord->node->level == LEAF_LEVEL);
+			BUG_ON(coord->node->level != LEAF_LEVEL);
+
+			reiser4_set_extent(&new_ext,
+					   UNALLOCATED_EXTENT_START, 1);
+			init_new_extent(&idata, &new_ext, 1);
+			return insert_extent_by_coord(coord, &idata,
+						      key, uf_coord->lh);
+		}
+		/*
+		 * found an item at the right
+		 */
+		assert("edward-2056", coord->node->level == TWIG_LEVEL);
+		goto try_merge_right;
+	}
+	assert("edward-2057", item_is_extent(coord));
+	/*
+	 * current position is an existing item pointing out
+	 * to a logical block of the file body at the left.
+	 * Check, if it is mergeable
+	 */
+	append_key_extent(coord, &mkey);
+	if (!keyeq(key, &mkey))
+		goto go_right;
+	/*
+	 * can merge with an item at the left
+	 */
+	coord->unit_pos = coord_last_unit_pos(coord);
+	ext = extent_by_coord(coord);
+	if ((state_of_extent(ext) == UNALLOCATED_EXTENT)) {
+		/*
+		 * fast paste without carry
+		 */
+		extent_set_width(ext, extent_get_width(ext) + 1);
+		znode_make_dirty(coord->node);
+		return 0;
+	} else {
+		coord->between = AFTER_UNIT;
+		goto paste;
+	}
+ go_right:
+	/*
+	 * move current position to the next item at the right
+	 * and try to merge with that item (if any)
+	 */
+	if (coord_next_item(coord))
+		/* there is no items at the right */
+		goto create;
+	if (!item_is_extent(coord)) {
+		coord->between = BEFORE_ITEM;
+		goto create;
+	}
+	assert("edward-2058", coord->unit_pos == 0);
+
+	key_by_inode_and_offset(inode, get_key_offset(key) + PAGE_SIZE, &tkey);
+	item_key_by_coord(coord, &mkey);
+	if (!keyeq(&tkey, &mkey)) {
+		coord->between = BEFORE_ITEM;
+		goto create;
+	}
+	/*
+	 * can merge with the item to the right
+	 */
+ try_merge_right:
+	ext = extent_by_coord(coord);
+	if ((state_of_extent(ext) == UNALLOCATED_EXTENT)) {
+		/*
+		 * fast paste without carry
+		 */
+		extent_set_width(ext, extent_get_width(ext) + 1);
+		/*
+		 * we paste at the beginning of item, so update its key
+		 */
+		node_plugin_by_node(coord->node)->update_item_key(coord,
+								  key,
+								  NULL);
+		znode_make_dirty(coord->node);
+		return 0;
+	}
+	coord->between = BEFORE_UNIT;
+	/*
+	 * current position is on the twig level
+	 */
+ paste:
+	/*
+	 * paste with carry to an existing item
+	 */
+	reiser4_set_extent(&new_ext, UNALLOCATED_EXTENT_START, 1);
+	init_new_extent(&idata, &new_ext, 1);
+	return insert_into_item(coord, uf_coord->lh, key, &idata, 0);
+ create:
+	/*
+	 * create a new extent item
+	 */
+	reiser4_set_extent(&new_ext, UNALLOCATED_EXTENT_START, 1);
+	init_new_extent(&idata, &new_ext, 1);
+	return insert_by_coord(coord, &idata, key, uf_coord->lh, 0);
+}
+
+static int insert_first_extent_stripe(uf_coord_t *uf_coord,
+				      const reiser4_key *key,
+				      jnode **jnodes, int count,
+				      struct inode *inode)
+{
+	int result;
+	int i;
+	reiser4_extent new_ext;
+	reiser4_item_data idata;
+	reiser4_block_nr block;
+	jnode *node;
+	reiser4_subvol *subv;
+	struct atom_brick_info *abi;
+
+	/* first extent insertion starts at leaf level */
+	assert("edward-2059",
+	       znode_get_level(uf_coord->coord.node) == LEAF_LEVEL);
+	assert("edward-2060", coord_is_between_items(&uf_coord->coord));
+
+	if (count == 0)
+		return 0;
+	inode_add_blocks(mapping_jnode(jnodes[0])->host, count);
+	/*
+	 * prepare for tree modification: compose body of item and item data
+	 * structure needed for insertion
+	 */
+	reiser4_set_extent(&new_ext, UNALLOCATED_EXTENT_START, count);
+	init_new_extent(&idata, &new_ext, 1);
+
+	/* insert extent item into the tree */
+	result = insert_extent_by_coord(&uf_coord->coord, &idata, key,
+					uf_coord->lh);
+	if (result)
+		return result;
+
+	/*
+	 * make sure that we hold long term locked twig node containing all
+	 * jnodes we are about to capture
+	 */
+	check_jnodes(uf_coord->lh->node, key, count);
+	/*
+	 * assign fake block numbers to all jnodes, capture and mark them dirty
+	 */
+	subv = calc_data_subvol(inode, get_key_offset(key));
+
+	result = check_insert_atom_brick_info(subv->id, &abi);
+	if (result)
+		return result;
+
+	block = fake_blocknr_unformatted(count, subv);
+	for (i = 0; i < count; i ++, block ++) {
+		node = jnodes[i];
+		spin_lock_jnode(node);
+		JF_SET(node, JNODE_CREATED);
+
+		assert("edward-1934", node->subvol == subv);
+		//node->subvol = subv;
+
+		jnode_set_block(node, &block);
+		result = reiser4_try_capture(node, ZNODE_WRITE_LOCK, 0);
+		BUG_ON(result != 0);
+		jnode_make_dirty_locked(node);
+		spin_unlock_jnode(node);
+	}
+	/*
+	 * invalidate coordinate, research must be performed to continue
+	 * because write will continue on twig level
+	 */
+	uf_coord->valid = 0;
+	return count;
+}
+
+/*
+ * put a pointer to @count unallocated blocks at the position
+ * determined by @uf_coord.
+ */
+static int append_extent_stripe(struct inode *inode, uf_coord_t *uf_coord,
+				const reiser4_key *key, jnode **jnodes,
+				int count)
+{
+	int i;
+	int result;
+	jnode *node;
+	reiser4_block_nr block;
+	reiser4_key mkey;
+	coord_t *coord = &uf_coord->coord;
+	reiser4_extent *ext;
+	reiser4_extent new_ext;
+	reiser4_item_data idata;
+	reiser4_subvol *subv;
+	struct atom_brick_info *abi;
+
+	assert("edward-2061", coord->between != AT_UNIT);
+
+	uf_coord->valid = 0;
+	if (coord->between != AFTER_UNIT)
+		/*
+		 * file doesn't have items
+		 */
+		return insert_first_extent_stripe(uf_coord, key,
+						  jnodes, count, inode);
+	/*
+	 * try to merge with the file body's last item
+	 * If impossible, then create a new item
+	 */
+	append_key_extent(coord, &mkey);
+	if (!keyeq(&mkey, key))
+		/*
+		 * can not merge
+		 */
+		goto create;
+	/*
+	 * can merge with the last item
+	 */
+	ext = extent_by_coord(coord);
+	switch (state_of_extent(ext)) {
+	case UNALLOCATED_EXTENT:
+		/*
+		 * fast paste without carry
+		 */
+		extent_set_width(ext, extent_get_width(ext) + count);
+		znode_make_dirty(coord->node);
+		goto process_jnodes;
+	case ALLOCATED_EXTENT:
+		/*
+		 * paste with possible carry
+		 */
+		reiser4_set_extent(&new_ext, UNALLOCATED_EXTENT_START, count);
+		init_new_extent(&idata, &new_ext, 1);
+		result = insert_into_item(coord, uf_coord->lh, key, &idata, 0);
+		if (result)
+			return result;
+		goto process_jnodes;
+	default:
+		return RETERR(-EIO);
+	}
+ create:
+	/* create a new item */
+	reiser4_set_extent(&new_ext, UNALLOCATED_EXTENT_START, count);
+	init_new_extent(&idata, &new_ext, 1);
+	result = insert_by_coord(coord, &idata, key, uf_coord->lh, 0);
+	if (result)
+		return result;
+ process_jnodes:
+	assert("edward-2062",
+	       get_key_offset(key) ==
+	       (loff_t)index_jnode(jnodes[0]) * PAGE_SIZE);
+	inode_add_blocks(mapping_jnode(jnodes[0])->host, count);
+	/*
+	 * make sure that we hold long term locked twig node
+	 * containing all jnodes we are about to capture
+	 */
+	check_jnodes(uf_coord->lh->node, key, count);
+	/*
+	 * assign fake block numbers to all jnodes. FIXME: make sure whether
+	 * twig node containing inserted extent item is locked
+	 *
+	 * FIXME-EDWARD: replace calc_data_subvol() with find_data_subvol():
+	 * subvolums should be found by existing, or newly created extent.
+	 */
+	subv = calc_data_subvol(inode, get_key_offset(key));
+
+	result = check_insert_atom_brick_info(subv->id, &abi);
+	if (result)
+		return result;
+
+	for (i = 0; i < count; i ++) {
+		node = jnodes[i];
+		block = fake_blocknr_unformatted(1, subv);
+		spin_lock_jnode(node);
+		JF_SET(node, JNODE_CREATED);
+
+		assert("edward-1954", node->subvol == subv);
+		//node->subvol = subv;
+
+		jnode_set_block(node, &block);
+		result = reiser4_try_capture(node, ZNODE_WRITE_LOCK, 0);
+		BUG_ON(result != 0);
+		jnode_make_dirty_locked(node);
+		spin_unlock_jnode(node);
+	}
+	return count;
+}
+
+static int overwrite_one_block_stripe(struct inode *inode, uf_coord_t *uf_coord,
+				      const reiser4_key *key, jnode *node,
+				      int *hole_plugged, znode **loaded)
+{
+	reiser4_block_nr block;
+
+	if (uf_coord->coord.between != AT_UNIT) {
+		/*
+		 * the case of hole
+		 */
+		int result;
+		reiser4_subvol *subv = node->subvol;
+
+		assert("edward-1784",
+		       subv == calc_data_subvol(inode, get_key_offset(key)));
+
+		uf_coord->valid = 0;
+		inode_add_blocks(mapping_jnode(node)->host, 1);
+		result = plug_hole_stripe(inode, uf_coord, key, loaded);
+		if (result)
+			return result;
+		block = fake_blocknr_unformatted(1, subv);
+		if (hole_plugged)
+			*hole_plugged = 1;
+		JF_SET(node, JNODE_CREATED);
+	} else {
+		reiser4_extent *ext;
+		struct extent_coord_extension *ext_coord;
+
+		ext_coord = ext_coord_by_uf_coord(uf_coord);
+		check_uf_coord(uf_coord, NULL, 1);
+		ext = ext_by_ext_coord(uf_coord);
+
+		if (state_of_extent(ext) != ALLOCATED_EXTENT)
+			return RETERR(-EIO);
+
+		block = extent_get_start(ext) + ext_coord->pos_in_unit;
+	}
+	jnode_set_block(node, &block);
+	return 0;
+}
+
+static int overwrite_extent_stripe(struct inode *inode, uf_coord_t *uf_coord,
+				   const reiser4_key *key, jnode **jnodes,
+				   int count, int *plugged_hole, znode **loaded)
+{
+	return overwrite_extent_generic(inode, uf_coord, key,
+					jnodes, count, plugged_hole, loaded,
+					overwrite_one_block_stripe);
+}
+
+/*
+ * update body of a striped file on write or expanding truncate operations
+ */
+static int __update_extents_stripe(struct hint *hint, struct inode *inode,
+				   jnode **jnodes, int count, loff_t pos,
+				   int *plugged_hole)
+{
+	int result;
+	reiser4_key key;
+
+	if (count != 0)
+		/*
+		 * count == 0 is special case: expanding truncate
+		 */
+		pos = (loff_t)index_jnode(jnodes[0]) << PAGE_SHIFT;
+
+	key_by_inode_and_offset(inode, pos, &key);
+	assert("edward-2063", reiser4_lock_counters()->d_refs == 0);
+
+	do {
+		znode *loaded;
+
+		result = find_file_item_nohint(&hint->ext_coord.coord,
+					       hint->ext_coord.lh, &key,
+					       ZNODE_WRITE_LOCK, inode);
+		if (IS_CBKERR(result)) {
+			assert("edward-2064",
+			       reiser4_lock_counters()->d_refs == 0);
+			return result;
+		}
+		result = zload(hint->ext_coord.coord.node);
+		BUG_ON(result != 0);
+		loaded = hint->ext_coord.coord.node;
+
+		if (pos > round_up(i_size_read(inode), PAGE_SIZE))
+			result = append_hole_stripe(&hint->ext_coord);
+
+		else if (pos == round_up(i_size_read(inode), PAGE_SIZE))
+			result = append_extent_stripe(inode, &hint->ext_coord,
+						      &key, jnodes, count);
+		else
+			result = overwrite_extent_stripe(inode,
+							 &hint->ext_coord,
+							 &key, jnodes, count,
+							 plugged_hole,
+							 &loaded);
+		if (loaded)
+			zrelse(loaded);
+		if (result < 0) {
+			done_lh(hint->ext_coord.lh);
+			break;
+		}
+		jnodes += result;
+		count -= result;
+		pos += result * PAGE_SIZE;
+
+		key_by_inode_and_offset(inode, pos, &key);
+		/*
+		 * seal and unlock znode
+		 */
+		if (hint->ext_coord.valid)
+			reiser4_set_hint(hint, &key, ZNODE_WRITE_LOCK);
+		else
+			reiser4_unset_hint(hint);
+
+		if (count && i_size_read(inode) < get_key_offset(&key))
+			/*
+			 * update file size to not mistakenly
+			 * detect a hole in the next iteration
+			 */
+			INODE_SET_FIELD(inode, i_size, pos);
+	} while (count > 0);
+
+	return result;
+}
+
+static int update_extents_stripe(struct file *file, struct inode *inode,
+				 jnode **jnodes, int count, loff_t pos)
+{
+	int ret;
+	struct hint hint;
+
+	ret = load_file_hint(file, &hint);
+	if (ret)
+		return ret;
+	ret =  __update_extents_stripe(&hint, inode, jnodes, count, pos,
+				       NULL);
+	save_file_hint(file, &hint);
+	assert("edward-2065",
+	       reiser4_lock_counters()->d_refs == 0);
+	return ret;
+}
+
+int update_extent_stripe(struct inode *inode, jnode *node, loff_t pos,
+			 int *plugged_hole)
+{
+	int ret;
+	struct hint hint;
+
+	assert("edward-2066", pos == (loff_t)index_jnode(node) << PAGE_SHIFT);
+
+	hint_init_zero(&hint);
+
+	ret = __update_extents_stripe(&hint, inode, &node, 1,
+				      pos, plugged_hole);
+
+	assert("edward-2067", ret == 1 || ret < 0);
+	assert("edward-2068", reiser4_lock_counters()->d_refs == 0);
+
+	return (ret == 1) ? 0 : ret;
+}
+
+ssize_t write_extent_unix_file(struct file *file, struct inode *inode,
+			       const char __user *buf, size_t count,
+			       loff_t *pos)
+{
+	return write_extent_generic(file, inode, buf, count, pos,
+				    readpage_unix_file,
+				    update_extents_unix_file);
+}
+
+ssize_t write_extent_stripe(struct file *file, struct inode *inode,
+			    const char __user *buf, size_t count,
+			    loff_t *pos)
+{
+	if (current_stripe_bits) {
+		/*
+		 * write data of only one stripe
+		 */
+		int to_stripe = current_stripe_size -
+			(*pos & (current_stripe_size - 1));
+		if (count > to_stripe)
+			count = to_stripe;
+	}
+	return write_extent_generic(file, inode, buf, count, pos,
+				    readpage_stripe, update_extents_stripe);
 }
 
 /*

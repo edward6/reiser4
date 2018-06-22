@@ -191,7 +191,7 @@ static int replace(struct inode *inode, struct page **pages, unsigned nr_pages, 
 		SetPageUptodate(pages[i]);
 		set_page_dirty_notag(pages[i]);
 		unlock_page(pages[i]);
-		result = find_or_create_extent(pages[i]);
+		result = find_or_create_extent_uf(pages[i]);
 		if (result) {
 			/*
 			 * Unsuccess in critical place:
@@ -711,9 +711,9 @@ int extent2tail(struct file * file, struct unix_file_info *uf_info)
 			assert("edward-1538",
 			       file_inode(file) == inode);
 
-			result = reiser4_write_tail_noreserve(file, inode,
-						(char __user *)kmap(page),
-							     count, &pos);
+			result = write_tail_noreserve(file, inode,
+						      (char __user *)kmap(page),
+						      count, &pos);
 			kunmap(page);
 			/*
 			 * FIXME: may be put_file_hint() instead ?

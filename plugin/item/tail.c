@@ -402,18 +402,17 @@ static int do_readpage_tail(uf_coord_t *uf_coord, struct page *page)
 	return result;
 }
 
-/*
- * plugin->s.file.readpage
- *
+/**
  * reiser4_read_dispatch->read_unix_file->page_cache_readahead->
- * ->reiser4_readpage_dispatch->readpage_unix_file->readpage_tail
+ * ->reiser4_readpage_dispatch->readpage_unix_file->readpage_tail_unix_file
  * or
- * filemap_fault->reiser4_readpage_dispatch->readpage_unix_file->readpage_tail
+ * filemap_fault->reiser4_readpage_dispatch->readpage_unix_file->
+ * ->readpage_tail_unix_file
  *
  * At the beginning: coord->node is read locked, zloaded, page is locked,
  * coord is set to existing unit inside of tail item.
  */
-int readpage_tail(void *vp, struct page *page)
+int readpage_tail_unix_file(void *vp, struct page *page)
 {
 	uf_coord_t *uf_coord = vp;
 	ON_DEBUG(coord_t * coord = &uf_coord->coord);
@@ -619,10 +618,10 @@ static loff_t faultin_user_pages(const char __user *buf, size_t count)
 	return faulted;
 }
 
-ssize_t reiser4_write_tail_noreserve(struct file *file,
-				     struct inode * inode,
-				     const char __user *buf,
-				     size_t count, loff_t *pos)
+ssize_t write_tail_noreserve(struct file *file,
+			     struct inode * inode,
+			     const char __user *buf,
+			     size_t count, loff_t *pos)
 {
 	struct hint hint;
 	int result;
@@ -681,7 +680,6 @@ ssize_t reiser4_write_tail_noreserve(struct file *file,
 }
 
 /**
- * reiser4_write_tail - write method of tail item plugin
  * @file: file to write to
  * @buf: address of user-space buffer
  * @count: number of bytes to write
@@ -689,14 +687,12 @@ ssize_t reiser4_write_tail_noreserve(struct file *file,
  *
  * Returns number of written bytes or error code.
  */
-ssize_t reiser4_write_tail(struct file *file,
-			   struct inode * inode,
-			   const char __user *buf,
-			   size_t count, loff_t *pos)
+ssize_t write_tail_unix_file(struct file *file, struct inode * inode,
+			     const char __user *buf, size_t count, loff_t *pos)
 {
 	if (write_tail_reserve_space(inode))
 		return RETERR(-ENOSPC);
-	return reiser4_write_tail_noreserve(file, inode, buf, count, pos);
+	return write_tail_noreserve(file, inode, buf, count, pos);
 }
 
 #if REISER4_DEBUG
@@ -716,8 +712,7 @@ coord_matches_key_tail(const coord_t * coord, const reiser4_key * key)
 
 #endif
 
-/* plugin->u.item.s.file.read */
-int reiser4_read_tail(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
+int read_tail_unix_file(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
 {
 	unsigned count;
 	int item_length;

@@ -1797,11 +1797,9 @@ int reiser4_cut_tree_object(reiser4_tree * tree, const reiser4_key * from_key,
 
 	if (result) {
 		switch (result) {
-		case -E_NO_NEIGHBOR:
-			result = 0;
-			break;
 		case -E_DEADLOCK:
 			result = -E_REPEAT;
+		case -E_NO_NEIGHBOR:
 		case -E_REPEAT:
 		case -ENOMEM:
 		case -ENOENT:
@@ -1827,6 +1825,8 @@ int reiser4_cut_tree(reiser4_tree * tree, const reiser4_key * from,
 	do {
 		result = reiser4_cut_tree_object(tree, from, to, NULL,
 						 inode, truncate, &progress);
+		if (result == -E_NO_NEIGHBOR)
+			result = 0;
 	} while (result == -E_REPEAT);
 
 	return result;

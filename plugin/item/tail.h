@@ -33,13 +33,13 @@ int kill_units_tail(coord_t *, pos_in_node_t from, pos_in_node_t to,
 reiser4_key *unit_key_tail(const coord_t *, reiser4_key *);
 
 /* plugin->u.item.s.* */
-ssize_t reiser4_write_tail_noreserve(struct file *file, struct inode * inode,
-				     const char __user *buf, size_t count,
-				     loff_t *pos);
-ssize_t reiser4_write_tail(struct file *file, struct inode * inode,
-			   const char __user *buf, size_t count, loff_t *pos);
-int reiser4_read_tail(struct file *, flow_t *, hint_t *);
-int readpage_tail(void *vp, struct page *page);
+ssize_t write_tail_noreserve(struct file *file, struct inode * inode,
+			     const char __user *buf, size_t count,
+			     loff_t *pos);
+ssize_t write_tail_unix_file(struct file *file, struct inode * inode,
+			     const char __user *buf, size_t count, loff_t *pos);
+int read_tail_unix_file(struct file *, flow_t *, hint_t *);
+int readpage_tail_unix_file(void *vp, struct page *page);
 reiser4_key *append_key_tail(const coord_t *, reiser4_key *);
 void init_coord_extension_tail(uf_coord_t *, loff_t offset);
 int get_block_address_tail(const coord_t *, sector_t, sector_t *);

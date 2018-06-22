@@ -1279,7 +1279,6 @@ int readpage_cryptcompress(struct file *file, struct page *page)
 {
 	reiser4_context *ctx;
 	struct cluster_handle clust;
-	item_plugin *iplug;
 	int result;
 
 	assert("edward-88", PageLocked(page));
@@ -1303,14 +1302,8 @@ int readpage_cryptcompress(struct file *file, struct page *page)
 	}
 	cluster_init_read(&clust, NULL);
 	clust.file = file;
-	iplug = item_plugin_by_id(CTAIL_ID);
-	if (!iplug->s.file.readpage) {
-		unlock_page(page);
-		put_cluster_handle(&clust);
-		reiser4_exit_context(ctx);
-		return -EINVAL;
-	}
-	result = iplug->s.file.readpage(&clust, page);
+
+	result = readpage_ctail(&clust, page);
 
 	put_cluster_handle(&clust);
 	reiser4_txn_restart(ctx);
@@ -2245,7 +2238,7 @@ int find_disk_cluster(struct cluster_handle * clust,
 			       item_id_by_coord(&hint->ext_coord.coord) ==
 			       CTAIL_ID);
 
-			result = iplug->s.file.read(NULL, &f, hint);
+			result = read_ctail(NULL, &f, hint);
 			if (result) {
 				zrelse(hint->ext_coord.coord.node);
 				goto out;
@@ -3275,11 +3268,11 @@ static int prune_cryptcompress(struct inode *inode,
 		struct cryptcompress_info *info;
 		info = cryptcompress_inode_data(inode);
 
-		result = cut_file_items_simple(inode,
-					       clust_to_off(from_idx, inode),
-					       update_sd,
-					       clust_to_off(to_idx, inode),
-					       update_size_actor);
+		result = cut_file_items(inode,
+					clust_to_off(from_idx, inode),
+					update_sd,
+					clust_to_off(to_idx, inode),
+					update_size_actor);
 		info->trunc_index = ULONG_MAX;
 		if (unlikely(result == CBK_COORD_NOTFOUND))
 			result = 0;

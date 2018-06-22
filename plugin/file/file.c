@@ -123,7 +123,7 @@ void init_uf_coord(uf_coord_t *uf_coord, lock_handle *lh)
 	uf_coord->valid = 0;
 }
 
-static void validate_extended_coord(uf_coord_t *uf_coord, loff_t offset)
+void validate_extended_coord(uf_coord_t *uf_coord, loff_t offset)
 {
 	assert("vs-1333", uf_coord->valid == 0);
 
@@ -341,7 +341,7 @@ static int find_file_state(struct inode *inode, struct unix_file_info *uf_info)
  * @inode: object that the partial page belongs to;
  * @index: index of the partial page.
  */
-static int reserve_partial_page(struct inode *inode, pgoff_t index)
+int reserve_partial_page(struct inode *inode, pgoff_t index)
 {
 	int ret;
 	reiser4_subvol *subv_m = get_meta_subvol();
@@ -365,7 +365,7 @@ static int reserve_partial_page(struct inode *inode, pgoff_t index)
  * estimate and reserve space needed to cut one item and update one stat data
  * @inode: object to cut;
  */
-static int reserve_cut_iteration(struct inode *inode)
+int reserve_cut_iteration(struct inode *inode)
 {
 	reiser4_subvol *subv = get_meta_subvol();
 
@@ -396,19 +396,13 @@ int reiser4_update_file_size(struct inode *inode, loff_t new_size,
 }
 
 /**
- * This is a version of cut_file_items() for simple volumes,
- * where the functon (key -> offset-in-file-body) is monotonic,
- * so when cutting off a file's tail at some offset we know
- * that all items to the right should be cut off, so things
- * can be optimized to not perform many per-item cuts.
- *
- * Cut file items starting from the last one until @new_size of
+ * Cut file body starting from the last item until @new_size of
  * the file is reached. Reserve space and update file stat data
  * on every single cut from the tree.
  */
-int cut_file_items_simple(struct inode *inode, loff_t new_size,
-			  int update_sd, loff_t cur_size,
-			  int (*update_actor) (struct inode *, loff_t, int))
+int cut_file_items(struct inode *inode, loff_t new_size,
+		   int update_sd, loff_t cur_size,
+		   int (*update_actor) (struct inode *, loff_t, int))
 {
 	reiser4_tree *tree;
 	reiser4_key from_key, to_key;
@@ -437,7 +431,9 @@ int cut_file_items_simple(struct inode *inode, loff_t new_size,
 						 &from_key, &to_key,
 						 &smallest_removed, inode, 1,
 						 &progress);
-		if (result == -E_REPEAT) {
+		if (result == -E_NO_NEIGHBOR)
+			result = 0;
+		else if (result == -E_REPEAT) {
 			/**
 			 * -E_REPEAT is a signal to interrupt a long
 			 * file truncation process
@@ -459,10 +455,9 @@ int cut_file_items_simple(struct inode *inode, loff_t new_size,
 			 */
 			reiser4_txn_restart_current();
 			continue;
-		}
-		if (result
-		    && !(result == CBK_COORD_NOTFOUND && new_size == 0
-			 && inode->i_size == 0))
+		} else if (result &&
+			   !(result == CBK_COORD_NOTFOUND && new_size == 0
+			     && inode->i_size == 0))
 			break;
 
 		set_key_offset(&smallest_removed, new_size);
@@ -472,115 +467,6 @@ int cut_file_items_simple(struct inode *inode, loff_t new_size,
 		result = update_actor(inode, get_key_offset(&smallest_removed),
 				      update_sd);
 		break;
-	}
-	/*
-	 * the below does up(sbinfo->delete_mutex). Do not get confused
-	 */
-	reiser4_release_reserved(inode->i_sb);
-
-	return result;
-}
-
-/**
- * This is a version of cut_file_items() for logical volumes,
- * where a file can be scattered among many subvolumes (bricks)
- * and items of the same file are not necessarily grouped together
- * in the tree.
- * So we cut off file's items one by one in a loop until @new_size
- * of the file is reached. At every iteration we reserve space,
- * find the last file's item in the tree, cut it off, and finally
- * update file's stat data.
- */
-int cut_file_items_asym(struct inode *inode, loff_t new_size,
-			int update_sd, loff_t cur_size,
-			int (*update_size_fn) (struct inode *, loff_t, int))
-{
-	reiser4_tree *tree;
-	reiser4_key from_key, to_key;
-	reiser4_key smallest_removed;
-	int result = 0;
-	int progress = 0;
-	/*
-	 * for now we can scatter only files managed by
-	 * unix-file plugin and built on extent items
-	 */
-	assert("edward-2021",
-	       inode_file_plugin(inode) ==
-	       file_plugin_by_id(UNIX_FILE_PLUGIN_ID) &&
-	       inode_formatting_plugin(inode) ==
-	       formatting_plugin_by_id(NEVER_TAILS_FORMATTING_ID));
-
-	tree = meta_subvol_tree();
-
-	while (i_size_read(inode) != new_size) {
-		loff_t from_off;
-		/*
-		 * Cut the last item in the file's body.
-		 * We need to calculate its key and to honestly
-		 * find that item in the tree. This is a "payment"
-		 * for an optimal flush procedure, where we are now
-		 * able to process more than one stripe at one time.
-		 */
-		assert("edward-2020", inode->i_size != 0);
-		/*
-		 * when constructing @to_key, round up file size to
-		 * block size boundary for parse_cut_by_key_range()
-		 * to evaluate cut mode properly
-		 */
-		inode_file_plugin(inode)->key_by_inode(inode,
-			    round_up(i_size_read(inode), current_blocksize) - 1,
-			    &to_key);
-		from_key = to_key;
-		/*
-		 * cut not more than last stripe
-		 */
-		from_off = round_down(i_size_read(inode) - 1,
-				      current_stripe_size);
-		if (from_off < new_size)
-			from_off = new_size;
-		set_key_offset(&from_key, from_off);
-
-		result = reserve_cut_iteration(inode);
-		if (result)
-			break;
-
-		result = reiser4_cut_tree_object(tree,
-						 &from_key, &to_key,
-						 &smallest_removed, inode, 1,
-						 &progress);
-		if (result == -E_REPEAT) {
-			/*
-			 * -E_REPEAT is a signal to interrupt a long
-			 * file truncation process
-			 */
-			if (progress) {
-				result = update_size_fn(inode,
-					      get_key_offset(&smallest_removed),
-					      update_sd);
-				if (result)
-					break;
-			}
-			/*
-			 * the below does up(sbinfo->delete_mutex).
-			 * Take a mental note of this
-			 */
-			reiser4_release_reserved(inode->i_sb);
-			/*
-			 * reiser4_cut_tree_object() was interrupted probably
-			 * because current atom requires commit, we have to
-			 * release transaction handle to allow atom commit.
-			 */
-			reiser4_txn_restart_current();
-			continue;
-		}
-		if (result && !(result == CBK_COORD_NOTFOUND &&
-				new_size == 0 && inode->i_size == 0))
-			break;
-
-		result = update_size_fn(inode,
-					get_key_offset(&smallest_removed),
-					update_sd);
-		all_grabbed2free();
 	}
 	/*
 	 * the below does up(sbinfo->delete_mutex). Do not get confused
@@ -604,10 +490,10 @@ static int shorten_file(struct inode *inode, loff_t new_size)
 	/*
 	 * cut file body using volume-specific method
 	 */
-	result = current_vol_plug()->cut_file_items(inode, new_size,
-					      1, /*update_sd */
-					      get_key_offset(reiser4_max_key()),
-					      reiser4_update_file_size);
+	result = cut_file_items(inode, new_size,
+				1, /* update_sd */
+				get_key_offset(reiser4_max_key()),
+				reiser4_update_file_size);
 	if (result)
 		return result;
 
@@ -669,7 +555,7 @@ static int shorten_file(struct inode *inode, loff_t new_size)
 	 * if page correspons to hole extent unit - unallocated one will be
 	 * created here. This is not necessary
 	 */
-	result = find_or_create_extent(page);
+	result = find_or_create_extent_uf(page);
 
 	/*
 	 * FIXME: cut_file_items has already updated inode. Probably it would
@@ -713,7 +599,7 @@ static int should_have_notail(const struct unix_file_info *uf_info, loff_t new_s
 }
 
 /**
- * truncate_file_body - change length of file
+ * change length of file
  * @inode: inode of file
  * @new_size: new file length
  *
@@ -721,7 +607,7 @@ static int should_have_notail(const struct unix_file_info *uf_info, loff_t new_s
  * items or add them to represent a hole at the end of file. The caller has to
  * obtain exclusive access to the file.
  */
-static int truncate_file_body(struct inode *inode, struct iattr *attr)
+static int truncate_body_unix_file(struct inode *inode, struct iattr *attr)
 {
 	int result;
 	loff_t new_size = attr->ia_size;
@@ -762,20 +648,21 @@ static int truncate_file_body(struct inode *inode, struct iattr *attr)
 						return result;
 				}
 			}
-			result = reiser4_write_extent(NULL, inode, NULL,
-						      0, &new_size);
+			result = write_extent_unix_file(NULL, inode, NULL,
+							0, &new_size);
 			if (result)
 				return result;
 			uf_info->container = UF_CONTAINER_EXTENTS;
 		} else {
 			if (uf_info->container ==  UF_CONTAINER_EXTENTS) {
-				result = reiser4_write_extent(NULL, inode, NULL,
-							      0, &new_size);
+				result = write_extent_unix_file(NULL, inode,
+								NULL, 0,
+								&new_size);
 				if (result)
 					return result;
 			} else {
-				result = reiser4_write_tail(NULL, inode, NULL,
-							    0, &new_size);
+				result = write_tail_unix_file(NULL, inode, NULL,
+							      0, &new_size);
 				if (result)
 					return result;
 				uf_info->container = UF_CONTAINER_TAILS;
@@ -924,7 +811,11 @@ static int hint_validate(hint_t *hint, reiser4_tree *tree,
  * call extent's writepage method to create unallocated extent if
  * it does not exist yet, initialize jnode, capture page
  */
-int find_or_create_extent(struct page *page)
+int find_or_create_extent_generic(struct page *page,
+				  int(*update_extent_fn)(struct inode *,
+							 jnode *node,
+							 loff_t pos,
+							 int *plugged_hole))
 {
 	int result;
 	struct inode *inode;
@@ -947,13 +838,13 @@ int find_or_create_extent(struct page *page)
 
 	if (node->blocknr == 0) {
 		plugged_hole = 0;
-		result = reiser4_update_extent(inode, node, page_offset(page),
-					       &plugged_hole);
+		result = update_extent_fn(inode, node, page_offset(page),
+					  &plugged_hole);
 		if (result) {
  			JF_CLR(node, JNODE_WRITE_PREPARED);
 			jput(node);
 			warning("edward-1549",
-				"reiser4_update_extent failed: %d", result);
+				"failed to update extent (%d)", result);
 			return result;
 		}
 		if (plugged_hole)
@@ -990,6 +881,11 @@ int find_or_create_extent(struct page *page)
 	return 0;
 }
 
+int find_or_create_extent_uf(struct page *page)
+{
+	return find_or_create_extent_generic(page, update_extent_uf);
+}
+
 /**
  * has_anonymous_pages - check whether inode has pages dirtied via mmap
  * @inode: inode to check
@@ -1013,7 +909,7 @@ static int has_anonymous_pages(struct inode *inode)
 /**
  * @page: page to be captured
  */
-static int reserve_capture_page_and_create_extent(struct page *page)
+int reserve_capture_anon_page(struct page *page)
 {
 	reiser4_subvol *subv = get_meta_subvol();
 	/*
@@ -1024,36 +920,6 @@ static int reserve_capture_page_and_create_extent(struct page *page)
 	return reiser4_grab_space(2 *
 				  estimate_one_insert_into_item(&subv->tree),
 				  BA_CAN_COMMIT, subv);
-}
-
-/**
- * capture_page_and_create_extent -
- * @page: page to be captured
- *
- * Grabs space for extent creation and stat data update and calls function to
- * do actual work.
- * Exclusive, or non-exclusive lock must be held.
- */
-static int capture_page_and_create_extent(struct page *page)
-{
-	int ret;
-	struct inode *inode;
-
-	assert("vs-1084", page->mapping && page->mapping->host);
-
-	inode = page->mapping->host;
-
-	assert("vs-1139",
-	       unix_file_inode_data(inode)->container == UF_CONTAINER_EXTENTS);
-	assert("vs-1393", inode->i_size > page_offset(page));
-
-	ret = reserve_capture_page_and_create_extent(page);
-	if (ret)
-		return ret;
-	ret = find_or_create_extent(page);
-	if (ret)
-		SetPageError(page);
-	return ret;
 }
 
 /*
@@ -1078,28 +944,42 @@ static int capture_page_and_create_extent(struct page *page)
  */
 
 /**
- * capture_anonymous_page - involve page into transaction
+ * involve page into transaction
  * @pg: page to deal with
  *
- * Takes care that @page has corresponding metadata in the tree, creates jnode
- * for @page and captures it. On success 1 is returned.
+ * Takes care that @page has corresponding metadata in the tree;
+ * creates jnode for @page and captures it. On success 1 is returned.
+ * Exclusive, or non-exclusive lock must be held.
  */
-static int capture_anonymous_page(struct page *page)
+static int capture_anon_page(struct page *page)
 {
-	int result;
+	int ret;
+	struct inode *inode;
 
 	if (PageWriteback(page))
-		/* FIXME: do nothing? */
+		/*
+		 * FIXME: do nothing?
+		 */
 		return 0;
+	assert("vs-1084", page->mapping && page->mapping->host);
 
-	result = capture_page_and_create_extent(page);
-	if (result == 0) {
-		result = 1;
-	} else
+	inode = page->mapping->host;
+
+	assert("vs-1139",
+	       unix_file_inode_data(inode)->container == UF_CONTAINER_EXTENTS);
+	assert("vs-1393", inode->i_size > page_offset(page));
+
+	ret = reserve_capture_anon_page(page);
+	if (ret)
+		return ret;
+	ret = find_or_create_extent_uf(page);
+	if (ret) {
+		SetPageError(page);
 		warning("nikita-3329",
-				"Cannot capture anon page: %i", result);
-
-	return result;
+			"Cannot capture anon page: %i", ret);
+	} else
+		ret = 1;
+	return ret;
 }
 
 /**
@@ -1107,14 +987,15 @@ static int capture_anonymous_page(struct page *page)
  * @mapping: address space where to look for pages
  * @index: start index
  * @to_capture: maximum number of pages to capture
+ * @capture_anon_page_fn: method to capture one anonymous page
  *
  * Looks for pages tagged REISER4_MOVED starting from the *@index-th page,
  * captures (involves into atom) them, returns number of captured pages,
  * updates @index to next page after the last captured one.
  */
-static int
-capture_anonymous_pages(struct address_space *mapping, pgoff_t *index,
-			unsigned int to_capture)
+static int capture_anon_pages(struct address_space *mapping,
+			      pgoff_t *index, unsigned int to_capture,
+			      int(*capture_anon_page_fn)(struct page *))
 {
 	int result;
 	struct pagevec pvec;
@@ -1152,7 +1033,7 @@ capture_anonymous_pages(struct address_space *mapping, pgoff_t *index,
 	*index = pvec.pages[i - 1]->index + 1;
 
 	for (i = 0; i < pagevec_count(&pvec); i++) {
-		result = capture_anonymous_page(pvec.pages[i]);
+		result = capture_anon_page_fn(pvec.pages[i]);
 		if (result == 1)
 			nr++;
 		else {
@@ -1209,9 +1090,8 @@ capture_anonymous_pages(struct address_space *mapping, pgoff_t *index,
  * the range of indexes @from-@to and captures them, returns number of captured
  * jnodes, updates @from to next jnode after the last captured one.
  */
-static int
-capture_anonymous_jnodes(struct address_space *mapping,
-			 pgoff_t *from, pgoff_t to, int to_capture)
+static int capture_anon_jnodes(struct address_space *mapping,
+			       pgoff_t *from, pgoff_t to, int to_capture)
 {
 	*from = to;
 	return 0;
@@ -1252,7 +1132,7 @@ static int sync_page(struct page *page)
  * Commit atoms of pages on @pages list.
  * call sync_page for each page from mapping's page tree
  */
-static int sync_page_list(struct inode *inode)
+int reiser4_sync_page_list(struct inode *inode)
 {
 	int result;
 	struct address_space *mapping;
@@ -1266,9 +1146,8 @@ static int sync_page_list(struct inode *inode)
 	while (result == 0) {
 		struct page *page;
 
-		found =
-		    radix_tree_gang_lookup(&mapping->page_tree, (void **)&page,
-					   from, 1);
+		found = radix_tree_gang_lookup(&mapping->page_tree,
+					       (void **)&page, from, 1);
 		assert("edward-1550", found < 2);
 		if (found == 0)
 			break;
@@ -1331,7 +1210,7 @@ static int commit_file_atoms(struct inode *inode)
 		     * So for simplicity we just commit ->io_pages and
 		     * ->dirty_pages.
 		     */
-		    sync_page_list(inode);
+		    reiser4_sync_page_list(inode);
 		break;
 	case UF_CONTAINER_TAILS:
 		/*
@@ -1358,16 +1237,14 @@ static int commit_file_atoms(struct inode *inode)
 }
 
 /**
- * writepages_unix_file - writepages of struct address_space_operations
- * @mapping:
- * @wbc:
- *
  * This captures anonymous pages and anonymous jnodes. Anonymous pages are
  * pages which are dirtied via mmapping. Anonymous jnodes are ones which were
  * created by reiser4_writepage.
  */
-int writepages_unix_file(struct address_space *mapping,
-		     struct writeback_control *wbc)
+int reiser4_writepages_generic(struct address_space *mapping,
+			       struct writeback_control *wbc,
+			       int(*capture_anon_page_fn)(struct page *),
+			       int(*commit_file_atoms_fn)(struct inode *))
 {
 	int result;
 	struct unix_file_info *uf_info;
@@ -1438,10 +1315,10 @@ int writepages_unix_file(struct address_space *mapping,
 			assert("vs-1727", jindex <= pindex);
 			if (pindex == jindex) {
 				start = pindex;
-				result =
-				    capture_anonymous_pages(inode->i_mapping,
-							    &pindex,
-							    to_capture);
+				result = capture_anon_pages(inode->i_mapping,
+							  &pindex,
+							  to_capture,
+							  capture_anon_page_fn);
 				if (result <= 0)
 					break;
 				to_capture -= result;
@@ -1453,9 +1330,11 @@ int writepages_unix_file(struct address_space *mapping,
 				if (to_capture <= 0)
 					break;
 			}
-			/* deal with anonymous jnodes between jindex and pindex */
-			result =
-			    capture_anonymous_jnodes(inode->i_mapping, &jindex,
+			/*
+			 * deal with anonymous jnodes between jindex and pindex
+			 */
+			result = capture_anon_jnodes(inode->i_mapping,
+						     &jindex,
 						     pindex, to_capture);
 			if (result < 0)
 				break;
@@ -1481,7 +1360,7 @@ int writepages_unix_file(struct address_space *mapping,
 			reiser4_exit_context(ctx);
 			return 0;
 		}
-		result = commit_file_atoms(inode);
+		result = commit_file_atoms_fn(inode);
 		reiser4_exit_context(ctx);
 		if (pindex >= nr_pages && jindex == pindex)
 			break;
@@ -1501,13 +1380,16 @@ int writepages_unix_file(struct address_space *mapping,
 	return result;
 }
 
+int writepages_unix_file(struct address_space *mapping,
+			 struct writeback_control *wbc)
+{
+	return reiser4_writepages_generic(mapping, wbc,
+					  capture_anon_page,
+					  commit_file_atoms);
+}
+
 /**
- * readpage_unix_file_nolock - readpage of struct address_space_operations
- * @file:
- * @page:
- *
- * Compose a key and search for item containing information about @page
- * data. If item is found - its readpage method is called.
+ * ->readpage() method of address space operations for unix-file plugin
  */
 int readpage_unix_file(struct file *file, struct page *page)
 {
@@ -1515,7 +1397,6 @@ int readpage_unix_file(struct file *file, struct page *page)
 	int result;
 	struct inode *inode;
 	reiser4_key key;
-	item_plugin *iplug;
 	hint_t *hint;
 	lock_handle *lh;
 	coord_t *coord;
@@ -1524,15 +1405,15 @@ int readpage_unix_file(struct file *file, struct page *page)
 	assert("vs-976", !PageUptodate(page));
 	assert("vs-1061", page->mapping && page->mapping->host);
 
-	if (page->mapping->host->i_size <= page_offset(page)) {
+	inode = page->mapping->host;
+
+	if (inode->i_size <= page_offset(page)) {
 		/* page is out of file */
 		zero_user(page, 0, PAGE_SIZE);
 		SetPageUptodate(page);
 		unlock_page(page);
 		return 0;
 	}
-
-	inode = page->mapping->host;
 	ctx = reiser4_init_context(inode->i_sb);
 	if (IS_ERR(ctx)) {
 		unlock_page(page);
@@ -1554,11 +1435,13 @@ int readpage_unix_file(struct file *file, struct page *page)
 		return result;
 	}
 	lh = &hint->lh;
-
-	/* get key of first byte of the page */
+	/*
+	 * construct key of the page's first byte
+	 */
 	key_by_inode_and_offset(inode, page_offset(page), &key);
-
-	/* look for file metadata corresponding to first byte of page */
+	/*
+	 * look for file metadata corresponding to the page's first byte
+	 */
 	get_page(page);
 	unlock_page(page);
 	result = find_file_item(hint, &key, ZNODE_READ_LOCK, inode);
@@ -1567,8 +1450,8 @@ int readpage_unix_file(struct file *file, struct page *page)
 
 	if (page->mapping == NULL) {
 		/*
-		 * readpage allows truncate to run concurrently. Page was
-		 * truncated while it was not locked
+		 * readpage allows truncate to run concurrently.
+		 * Page was truncated while it was not locked
 		 */
 		done_lh(lh);
 		kfree(hint);
@@ -1577,8 +1460,9 @@ int readpage_unix_file(struct file *file, struct page *page)
 		reiser4_exit_context(ctx);
 		return -EINVAL;
 	}
+	if (result != CBK_COORD_FOUND ||
+	    hint->ext_coord.coord.between != AT_UNIT) {
 
-	if (result != CBK_COORD_FOUND || hint->ext_coord.coord.between != AT_UNIT) {
 		if (result == CBK_COORD_FOUND &&
 		    hint->ext_coord.coord.between != AT_UNIT)
 			/* file is truncated */
@@ -1590,10 +1474,9 @@ int readpage_unix_file(struct file *file, struct page *page)
 		reiser4_exit_context(ctx);
 		return result;
 	}
-
 	/*
-	 * item corresponding to page is found. It can not be removed because
-	 * znode lock is held
+	 * item corresponding to page is found.
+	 * It can not be removed because znode lock is held
 	 */
 	if (PageUptodate(page)) {
 		done_lh(lh);
@@ -1603,7 +1486,6 @@ int readpage_unix_file(struct file *file, struct page *page)
 		reiser4_exit_context(ctx);
 		return 0;
 	}
-
 	coord = &hint->ext_coord.coord;
 	result = zload(coord->node);
 	if (result) {
@@ -1614,7 +1496,6 @@ int readpage_unix_file(struct file *file, struct page *page)
 		reiser4_exit_context(ctx);
 		return result;
 	}
-
 	validate_extended_coord(&hint->ext_coord, page_offset(page));
 
 	if (!coord_is_existing_unit(coord)) {
@@ -1632,17 +1513,16 @@ int readpage_unix_file(struct file *file, struct page *page)
 		reiser4_exit_context(ctx);
 		return RETERR(-EIO);
 	}
-
-	/*
-	 * get plugin of found item or use plugin if extent if there are no
-	 * one
-	 */
-	iplug = item_plugin_by_coord(coord);
-	if (iplug->s.file.readpage)
-		result = iplug->s.file.readpage(coord, page);
-	else
+	switch(item_plugin_by_coord(coord)->h.id) {
+	case EXTENT_POINTER_ID:
+		result = reiser4_readpage_extent(coord, page);
+		break;
+	case FORMATTING_ID:
+		result = readpage_tail_unix_file(coord, page);
+		break;
+	default:
 		result = RETERR(-EINVAL);
-
+	}
 	if (!result) {
 		set_key_offset(&key,
 			       (loff_t) (page->index + 1) << PAGE_SHIFT);
@@ -1677,25 +1557,30 @@ struct uf_readpages_context {
 	coord_t coord;
 };
 
-/*
+/**
  * A callback function for readpages_unix_file/read_cache_pages.
  * We don't take non-exclusive access. If an item different from
  * extent pointer is found in some iteration, then return error
  * (-EINVAL).
  *
- * @data -- a pointer to reiser4_readpages_context object,
- *            to save the twig lock and the coord between
- *            read_cache_page iterations.
- * @page -- page to start read.
+ * FIXME-EDWARD: This function is suboptimal. We can collect information
+ * about the next unit/item in the node to save twig lock and hence to
+ * reduce a number of tree searches
+ *
+ * @data -- a pointer to reiser4_readpages_context object, to save the
+ *          twig lock and the coord between read_cache_page iterations.
+ * @page -- page to start read against;
+ * @striped -- if true, then filler is called by striped file plugin.
  */
-static int readpages_filler(void * data, struct page * page)
+int reiser4_readpages_filler_generic(void *data,
+				     struct page *page, int striped)
 {
-	struct uf_readpages_context *rc = data;
-	jnode * node;
 	int ret = 0;
+	jnode *node;
 	reiser4_extent *ext;
 	__u64 ext_index;
 	int cbk_done = 0;
+	struct uf_readpages_context *rc = data;
 	struct address_space *mapping = page->mapping;
 
 	if (PageUptodate(page)) {
@@ -1725,15 +1610,25 @@ static int readpages_filler(void * data, struct page * page)
 	ret = zload(rc->coord.node);
 	if (unlikely(ret))
 		goto unlock;
-	if (!coord_is_existing_item(&rc->coord)) {
-		zrelse(rc->coord.node);
-		ret = RETERR(-ENOENT);
-		goto unlock;
-	}
-	if (!item_is_extent(&rc->coord)) {
+	if (!coord_is_existing_unit(&rc->coord)) {
 		/*
-		 * ->readpages() is not
-		 * defined for tail items
+		 * extent pointer representing that block
+		 * of data not found
+		 */
+		if (striped) {
+			/* hole in a file */
+			ret = __reiser4_readpage_extent(NULL, 0, page);
+			zrelse(rc->coord.node);
+			done_lh(&rc->lh);
+			goto exit;
+		} else {
+			zrelse(rc->coord.node);
+			ret = RETERR(-ENOENT);
+			goto unlock;
+		}
+	} else if (!item_is_extent(&rc->coord)) {
+		/*
+		 * ->readpages() is not defined for tail items
 		 */
 		zrelse(rc->coord.node);
 		ret = RETERR(-EINVAL);
@@ -1741,15 +1636,21 @@ static int readpages_filler(void * data, struct page * page)
 	}
 	ext = extent_by_coord(&rc->coord);
 	ext_index = extent_unit_index(&rc->coord);
+
 	if (page->index < ext_index ||
 	    page->index >= ext_index + extent_get_width(ext)) {
-		/* the page index doesn't belong to the extent unit
-		   which the coord points to - release the lock and
-		   repeat with tree search. */
+		/*
+		 * the page index doesn't belong to the extent unit
+		 * which the coord points to - release the lock and
+		 * repeat with tree search
+		 */
 		zrelse(rc->coord.node);
 		done_lh(&rc->lh);
-		/* we can be here after a CBK call only in case of
-		   corruption of the tree or the tree lookup algorithm bug. */
+		/*
+		 * we can be here after a CBK call only in case of
+		 * corruption of the tree or the tree lookup
+		 * algorithm bug
+		 */
 		if (unlikely(cbk_done)) {
 			ret = RETERR(-EIO);
 			goto unlock;
@@ -1762,7 +1663,7 @@ static int readpages_filler(void * data, struct page * page)
 		ret = PTR_ERR(node);
 		goto unlock;
 	}
-	ret = reiser4_do_readpage_extent(ext, page->index - ext_index, page);
+	ret = __reiser4_readpage_extent(ext, page->index - ext_index, page);
 	jput(node);
 	zrelse(rc->coord.node);
 	if (likely(!ret))
@@ -1774,12 +1675,18 @@ static int readpages_filler(void * data, struct page * page)
 	return ret;
 }
 
+static inline int readpages_filler_uf(void *data, struct page *page)
+{
+	return reiser4_readpages_filler_generic(data, page, 0);
+}
+
 /**
  * readpages_unix_file - called by the readahead code, starts reading for each
  * page of given list of pages
  */
-int readpages_unix_file(struct file *file, struct address_space *mapping,
-			struct list_head *pages, unsigned nr_pages)
+int reiser4_readpages_generic(struct file *file, struct address_space *mapping,
+			      struct list_head *pages, unsigned nr_pages,
+			      int (*filler)(void *data, struct page *page))
 {
 	reiser4_context *ctx;
 	struct uf_readpages_context rc;
@@ -1791,7 +1698,7 @@ int readpages_unix_file(struct file *file, struct address_space *mapping,
 		return PTR_ERR(ctx);
 	}
 	init_lh(&rc.lh);
-	ret = read_cache_pages(mapping, pages,  readpages_filler, &rc);
+	ret = read_cache_pages(mapping, pages, filler, &rc);
 	done_lh(&rc.lh);
 
 	context_set_commit_async(ctx);
@@ -1799,6 +1706,13 @@ int readpages_unix_file(struct file *file, struct address_space *mapping,
 	reiser4_txn_restart(ctx);
 	reiser4_exit_context(ctx);
 	return ret;
+}
+
+int readpages_unix_file(struct file *file, struct address_space *mapping,
+			struct list_head *pages, unsigned nr_pages)
+{
+	return reiser4_readpages_generic(file, mapping, pages, nr_pages,
+					 readpages_filler_uf);
 }
 
 /* this is called with nonexclusive access obtained,
@@ -1856,10 +1770,16 @@ static ssize_t do_read_compound_file(hint_t *hint, struct file *file,
 
 		assert("vs-4", hint->ext_coord.valid == 1);
 		assert("vs-33", hint->ext_coord.lh == &hint->lh);
-		/* call item's read method */
-		result = item_plugin_by_coord(coord)->s.file.read(file,
-								  &flow,
-								  hint);
+
+		switch(item_plugin_by_coord(coord)->h.id) {
+		case EXTENT_POINTER_ID:
+			result = read_extent_unix_file(file, &flow, hint);
+			break;
+		case FORMATTING_ID:
+			result = read_tail_unix_file(file, &flow, hint);
+		default:
+			result = RETERR(-EINVAL);
+		}
 		zrelse(loaded);
 		done_lh(hint->ext_coord.lh);
 	}
@@ -2307,13 +2227,13 @@ ssize_t write_unix_file(struct file *file,
 		/* either EA or NEA is obtained. Choose item write method */
 		if (uf_info->container == UF_CONTAINER_EXTENTS) {
 			/* file is built of extent items */
-			write_op = reiser4_write_extent;
+			write_op = write_extent_unix_file;
 		} else if (uf_info->container == UF_CONTAINER_EMPTY) {
 			/* file is empty */
 			if (should_have_notail(uf_info, new_size))
-				write_op = reiser4_write_extent;
+				write_op = write_extent_unix_file;
 			else
-				write_op = reiser4_write_tail;
+				write_op = write_tail_unix_file;
 		} else {
 			/* file is built of tail items */
 			if (should_have_notail(uf_info, new_size)) {
@@ -2350,7 +2270,7 @@ ssize_t write_unix_file(struct file *file,
 				ea = NEITHER_OBTAINED;
 				continue;
 			}
-			write_op = reiser4_write_tail;
+			write_op = write_tail_unix_file;
 		}
 
 		written = write_op(file, inode, buf, to_write, pos);
@@ -2376,15 +2296,15 @@ ssize_t write_unix_file(struct file *file,
 		if (uf_info->container == UF_CONTAINER_EMPTY) {
 			assert("edward-1553", ea == EA_OBTAINED);
 			uf_info->container =
-				(write_op == reiser4_write_extent) ?
+				(write_op == write_extent_unix_file) ?
 				UF_CONTAINER_EXTENTS : UF_CONTAINER_TAILS;
 		}
 		assert("edward-1554",
 		       ergo(uf_info->container == UF_CONTAINER_EXTENTS,
-			    write_op == reiser4_write_extent));
+			    write_op == write_extent_unix_file));
 		assert("edward-1555",
 		       ergo(uf_info->container == UF_CONTAINER_TAILS,
-			    write_op == reiser4_write_tail));
+			    write_op == write_tail_unix_file));
 		if (*pos + written > inode->i_size) {
 			INODE_SET_FIELD(inode, i_size, *pos + written);
 			update_sd = 1;
@@ -2723,7 +2643,9 @@ owns_item_unix_file(const struct inode *inode /* object to check against */ ,
 	return 1;
 }
 
-static int setattr_truncate(struct inode *inode, struct iattr *attr)
+static int setattr_truncate(struct inode *inode, struct iattr *attr,
+			    int (*truncate_file_body_fn)(struct inode *,
+							 struct iattr *))
 {
 	int result;
 	int s_result;
@@ -2739,7 +2661,7 @@ static int setattr_truncate(struct inode *inode, struct iattr *attr)
 	if (result == 0)
 		result = safe_link_add(inode, SAFE_TRUNCATE);
 	if (result == 0)
-		result = truncate_file_body(inode, attr);
+		result = truncate_file_body_fn(inode, attr);
 	if (result)
 		warning("vs-1588", "truncate_file failed: oid %lli, "
 			"old size %lld, new size %lld, retval %d",
@@ -2759,26 +2681,31 @@ static int setattr_truncate(struct inode *inode, struct iattr *attr)
 	return result;
 }
 
-/* plugin->u.file.setattr method */
-/* This calls inode_setattr and if truncate is in effect it also takes
-   exclusive inode access to avoid races */
-int setattr_unix_file(struct dentry *dentry,	/* Object to change attributes */
-		      struct iattr *attr /* change description */ )
+/**
+ * @dentry: object to change attributes;
+ * @attr: change description;
+ * @truncate_body_fn: method of truncating file body
+ */
+int reiser4_setattr_generic(struct dentry *dentry, struct iattr *attr,
+			    int (*truncate_file_body_fn)(struct inode *,
+							 struct iattr *))
 {
 	int result;
 
 	if (attr->ia_valid & ATTR_SIZE) {
 		reiser4_context *ctx;
 		struct unix_file_info *uf_info;
-
-		/* truncate does reservation itself and requires exclusive
-		   access obtained */
+		/*
+		 * truncate does reservation itself and
+		 * requires exclusive access obtained
+		 */
 		ctx = reiser4_init_context(dentry->d_inode->i_sb);
 		if (IS_ERR(ctx))
 			return PTR_ERR(ctx);
 		uf_info = unix_file_inode_data(dentry->d_inode);
 		get_exclusive_access_careful(uf_info, dentry->d_inode);
-		result = setattr_truncate(dentry->d_inode, attr);
+		result = setattr_truncate(dentry->d_inode,
+					  attr, truncate_file_body_fn);
 		drop_exclusive_access(uf_info);
 		context_set_commit_async(ctx);
 		reiser4_exit_context(ctx);
@@ -2786,6 +2713,11 @@ int setattr_unix_file(struct dentry *dentry,	/* Object to change attributes */
 		result = reiser4_setattr_common(dentry, attr);
 
 	return result;
+}
+
+int setattr_unix_file(struct dentry *dentry, struct iattr *attr)
+{
+	return reiser4_setattr_generic(dentry, attr, truncate_body_unix_file);
 }
 
 /* plugin->u.file.init_inode_data */
@@ -2822,7 +2754,7 @@ int delete_object_unix_file(struct inode *inode)
 	if (reiser4_inode_get_flag(inode, REISER4_NO_SD))
 		return 0;
 
-	/* truncate file bogy first */
+	/* truncate file body first */
 	uf_info = unix_file_inode_data(inode);
 	get_exclusive_access(uf_info);
 	result = shorten_file(inode, 0 /* size */ );
@@ -2837,14 +2769,15 @@ int delete_object_unix_file(struct inode *inode)
 	return reiser4_delete_object_common(inode);
 }
 
-static int do_write_begin(struct file *file, struct page *page,
-			  loff_t pos, unsigned len)
+int do_write_begin_generic(struct file *file, struct page *page,
+			   loff_t pos, unsigned len,
+			   int(*readpage_fn)(struct file *, struct page *))
 {
 	int ret;
 	if (len == PAGE_SIZE || PageUptodate(page))
 		return 0;
 
-	ret = readpage_unix_file(file, page);
+	ret = readpage_fn(file, page);
 	if (ret) {
 		SetPageError(page);
 		ClearPageUptodate(page);
@@ -2898,7 +2831,10 @@ static int reserve_write_begin_unix_file(const struct inode *inode,
 	return ret;
 }
 
-/* plugin->write_begin() */
+/**
+ * implementation of ->write_begin() address space operation
+ * for unix-file plugin
+ */
 int write_begin_unix_file(struct file *file, struct page *page,
 			  loff_t pos, unsigned len, void **fsdata)
 {
@@ -2927,16 +2863,17 @@ int write_begin_unix_file(struct file *file, struct page *page,
 			return ret;
 		}
 	}
-	ret = do_write_begin(file, page, pos, len);
+	ret = do_write_begin_generic(file, page, pos, len,
+				     readpage_unix_file);
 	if (unlikely(ret != 0))
 		drop_exclusive_access(info);
 	/* else exclusive access will be dropped in ->write_end() */
 	return ret;
 }
 
-/* plugin->write_end() */
-int write_end_unix_file(struct file *file, struct page *page,
-			loff_t pos, unsigned copied, void *fsdata)
+int reiser4_write_end_generic(struct file *file, struct page *page,
+			      loff_t pos, unsigned copied, void *fsdata,
+			      int(*find_or_create_extent_fn)(struct page *))
 {
 	int ret;
 	struct inode *inode;
@@ -2946,7 +2883,7 @@ int write_end_unix_file(struct file *file, struct page *page,
 	info = unix_file_inode_data(inode);
 
 	unlock_page(page);
-	ret = find_or_create_extent(page);
+	ret = find_or_create_extent_fn(page);
 	if (ret) {
 		SetPageError(page);
 		goto exit;
@@ -2962,6 +2899,16 @@ int write_end_unix_file(struct file *file, struct page *page,
  exit:
 	drop_exclusive_access(info);
 	return ret;
+}
+
+/**
+ * ->write_end() address space operation for unix-files
+ */
+int write_end_unix_file(struct file *file, struct page *page,
+			loff_t pos, unsigned copied, void *fsdata)
+{
+	return reiser4_write_end_generic(file, page, pos, copied, fsdata,
+					 find_or_create_extent_uf);
 }
 
 /*

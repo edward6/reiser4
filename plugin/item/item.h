@@ -235,12 +235,10 @@ struct dir_entry_iops {
 	int (*max_name_len) (const struct inode * dir);
 };
 
-/* operations specific to items regular (unix) file metadata are built of */
+/*
+ * item specific methods called by regular file plugins
+ */
 struct file_iops{
-	ssize_t (*write) (struct file *, struct inode *,
-			  const char __user *, size_t, loff_t *pos);
-	int (*read) (struct file *, flow_t *, hint_t *);
-	int (*readpage) (void *, struct page *);
 	int (*get_block) (const coord_t *, sector_t, sector_t *);
 	/*
 	 * key of first byte which is not addressed by the item @coord is set
@@ -254,7 +252,6 @@ struct file_iops{
 	 * (LOCALITY,4,OBJID,STARTING-OFFSET + BLK * block_size)
 	 */
 	reiser4_key *(*append_key) (const coord_t *, reiser4_key *);
-
 	void (*init_coord_extension) (uf_coord_t *, loff_t);
 };
 

@@ -167,8 +167,10 @@ int setup_inode_ops(struct inode *inode /* inode to intialize */ ,
 		break;
 	case S_IFREG:
 		assert("vs-46", fplug != NULL);
-		assert("vs-43", (fplug->h.id == UNIX_FILE_PLUGIN_ID ||
-				 fplug->h.id == CRYPTCOMPRESS_FILE_PLUGIN_ID));
+		assert("vs-43",
+		       fplug->h.id == UNIX_FILE_PLUGIN_ID ||
+		       fplug->h.id == CRYPTCOMPRESS_FILE_PLUGIN_ID ||
+		       fplug->h.id == STRIPED_FILE_PLUGIN_ID);
 		inode->i_op = file_plugins[fplug->h.id].inode_ops;
 		inode->i_fop = file_plugins[fplug->h.id].file_ops;
 		inode->i_mapping->a_ops = file_plugins[fplug->h.id].as_ops;

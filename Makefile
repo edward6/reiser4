@@ -69,6 +69,7 @@ reiser4-y := \
 		   plugin/file/file_conversion.o \
 		   plugin/file/symlink.o \
 		   plugin/file/cryptcompress.o \
+		   plugin/file/stripe.o \
 		   plugin/dir_plugin_common.o \
 		   plugin/dir/hashed_dir.o \
 		   plugin/dir/seekable_dir.o \

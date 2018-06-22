@@ -4,4 +4,5 @@ file_plugins-objs :=		\
 	file.o			\
 	tail_conversion.o	\
 	symlink.o		\
-	cryptcompress.o
+	cryptcompress.o		\
+	stripe.o

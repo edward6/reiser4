@@ -140,11 +140,15 @@ void item_stat_extent(const coord_t * coord, void *vp);
 int reiser4_check_extent(const coord_t * coord, const char **error);
 
 /* plugin->u.item.s.file */
-ssize_t reiser4_write_extent(struct file *, struct inode * inode,
-			     const char __user *, size_t, loff_t *);
-int reiser4_read_extent(struct file *, flow_t *, hint_t *);
+ssize_t write_extent_unix_file(struct file *, struct inode * inode,
+			       const char __user *, size_t, loff_t *);
+ssize_t write_extent_stripe(struct file *, struct inode * inode,
+			    const char __user *, size_t, loff_t *);
+int read_extent_unix_file(struct file *, flow_t *, hint_t *);
+int read_extent_stripe(struct file *, flow_t *, hint_t *);
+int readpage_extent_stripe(void *, struct page *);
 int reiser4_readpage_extent(void *, struct page *);
-int reiser4_do_readpage_extent(reiser4_extent*, reiser4_block_nr, struct page*);
+int __reiser4_readpage_extent(reiser4_extent*, reiser4_block_nr, struct page*);
 reiser4_key *append_key_extent(const coord_t *, reiser4_key *);
 void init_coord_extension_extent(uf_coord_t *, loff_t offset);
 int get_block_address_extent(const coord_t *, sector_t block,
@@ -174,8 +178,10 @@ reiser4_block_nr reiser4_extent_size(const coord_t * coord, pos_in_node_t nr);
 extent_state state_of_extent(reiser4_extent * ext);
 void reiser4_set_extent(reiser4_extent *, reiser4_block_nr start,
 			reiser4_block_nr width);
-int reiser4_update_extent(struct inode *, jnode *, loff_t pos,
-			  int *plugged_hole);
+int update_extent_uf(struct inode *, jnode *, loff_t pos,
+		     int *plugged_hole);
+int update_extent_stripe(struct inode *, jnode *, loff_t pos,
+			 int *plugged_hole);
 
 #include "../../coord.h"
 #include "../../lock.h"

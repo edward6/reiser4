@@ -265,7 +265,6 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		},
 		.init_inode_data = init_inode_data_unix_file,
 		.cut_tree_worker = cut_tree_worker_common,
-		.balance = balance_unix_file,
 		.wire = {
 			.write = wire_write_common,
 			.read = wire_read_common,
@@ -457,6 +456,77 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.init_inode_data = init_inode_data_cryptcompress,
 		.cut_tree_worker = cut_tree_worker_cryptcompress,
 		.destroy_inode = destroy_inode_cryptcompress,
+		.wire = {
+			.write = wire_write_common,
+			.read = wire_read_common,
+			.get = wire_get_common,
+			.size = wire_size_common,
+			.done = wire_done_common
+		}
+	},
+	[STRIPED_FILE_PLUGIN_ID] = {
+		.h = {
+			.type_id = REISER4_FILE_PLUGIN_TYPE,
+			.id = STRIPED_FILE_PLUGIN_ID,
+			.groups = (1 << REISER4_REGULAR_FILE),
+			.pops = &file_plugin_ops,
+			.label = "stripe",
+			.desc = "striped file",
+			.linkage = {NULL, NULL},
+		},
+		/*
+		 * invariant vfs ops
+		 */
+		.inode_ops = &regular_file_i_ops,
+		.file_ops = &regular_file_f_ops,
+		.as_ops = &regular_file_a_ops,
+		/*
+		 * private i_ops
+		 */
+		.setattr = setattr_stripe,
+		.open = open_stripe,
+		.read = read_stripe,
+		.write = write_stripe,
+		.ioctl = ioctl_stripe,
+		.mmap = mmap_cryptcompress,
+		.release = release_stripe,
+		/*
+		 * private f_ops
+		 */
+		.readpage = readpage_stripe,
+		.readpages = readpages_stripe,
+		.writepages = writepages_stripe,
+		.write_begin = write_begin_stripe,
+		.write_end = write_end_stripe,
+		/*
+		 * private a_ops
+		 */
+		.bmap = bmap_unix_file,
+		/*
+		 * other private methods
+		 */
+		.write_sd_by_inode = write_sd_by_inode_common,
+		.flow_by_inode = flow_by_inode_unix_file,
+		.key_by_inode = key_by_inode_and_offset,
+		.set_plug_in_inode = set_plug_in_inode_common,
+		.adjust_to_parent = adjust_to_parent_common,
+		.create_object = create_object_stripe,
+		.delete_object = delete_object_stripe,
+		.add_link = reiser4_add_link_common,
+		.rem_link = reiser4_rem_link_common,
+		.owns_item = owns_item_unix_file,
+		.can_add_link = can_add_link_common,
+		.detach = dummyop,
+		.bind = dummyop,
+		.safelink = safelink_common,
+		.estimate = {
+			.create = estimate_create_common,
+			.update = estimate_update_common,
+			.unlink = estimate_unlink_common
+		},
+		.init_inode_data = init_inode_data_unix_file,
+		.cut_tree_worker = cut_tree_worker_common,
+		.balance = balance_stripe,
 		.wire = {
 			.write = wire_write_common,
 			.read = wire_read_common,

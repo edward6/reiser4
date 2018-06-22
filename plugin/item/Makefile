@@ -13,6 +13,3 @@ item_plugins-objs :=		\
 	extent_item_ops.o	\
 	extent_file_ops.o	\
 	extent_flush_ops.o
-
-
-

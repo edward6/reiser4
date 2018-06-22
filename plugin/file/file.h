@@ -2,8 +2,8 @@
  * reiser4/README */
 
 /* this file contains declarations of methods implementing
-   file plugins (UNIX_FILE_PLUGIN_ID, CRYPTCOMPRESS_FILE_PLUGIN_ID
-   and SYMLINK_FILE_PLUGIN_ID) */
+   file plugins (UNIX_FILE_PLUGIN_ID, CRYPTCOMPRESS_FILE_PLUGIN_ID,
+   STRIPED_FILE_PLUGIN_ID and SYMLINK_FILE_PLUGIN_ID) */
 
 #if !defined( __REISER4_FILE_H__ )
 #define __REISER4_FILE_H__
@@ -80,6 +80,10 @@ int release_unix_file(struct inode *, struct file *);
 int readpage_unix_file(struct file *, struct page *);
 int readpages_unix_file(struct file*, struct address_space*, struct list_head*,
 			unsigned);
+int reiser4_writepages_generic(struct address_space *mapping,
+			       struct writeback_control *wbc,
+			       int(*capture_anon_page_fn)(struct page *),
+			       int(*commit_file_atoms_fn)(struct inode *));
 int writepages_unix_file(struct address_space *, struct writeback_control *);
 int write_begin_unix_file(struct file *file, struct page *page,
 			  loff_t pos, unsigned len, void **fsdata);
@@ -140,8 +144,32 @@ int cut_tree_worker_cryptcompress(tap_t *, const reiser4_key * from_key,
 				  reiser4_key * smallest_removed,
 				  struct inode *object, int truncate,
 				  int *progress);
-int balance_unix_file(struct inode *);
 void destroy_inode_cryptcompress(struct inode *);
+
+/*
+ * Private methods of striped-file plugin
+ * (STRIPED_FILE_PLUGIN_ID)
+ */
+int create_object_stripe(struct inode *object, struct inode *parent,
+			 reiser4_object_create_data *data, oid_t *oid);
+int open_stripe(struct inode *, struct file *);
+int release_stripe(struct inode *inode, struct file *file);
+ssize_t read_stripe(struct file *file, char __user *buf,
+		    size_t read_amount, loff_t *off);
+ssize_t write_stripe(struct file *file, const char __user *buf, size_t count,
+		     loff_t *pos, struct dispatch_context *cont);
+int readpages_stripe(struct file *file, struct address_space *mapping,
+		     struct list_head *pages, unsigned nr_pages);
+int readpage_stripe(struct file *file, struct page *page);
+int writepages_stripe(struct address_space *, struct writeback_control *);
+int setattr_stripe(struct dentry *, struct iattr *);
+int delete_object_stripe(struct inode *);
+int write_begin_stripe(struct file *file, struct page *page,
+		       loff_t pos, unsigned len, void **fsdata);
+int write_end_stripe(struct file *file, struct page *page,
+		     loff_t pos, unsigned copied, void *fsdata);
+int ioctl_stripe(struct file *filp, unsigned int cmd, unsigned long arg);
+int balance_stripe(struct inode *);
 
 /*
  * Private methods of symlink file plugin
@@ -272,13 +300,14 @@ void reiser4_set_hint(hint_t *, const reiser4_key *, znode_lock_mode);
 int hint_is_set(const hint_t *);
 void reiser4_unset_hint(hint_t *);
 
+int reiser4_sync_page_list(struct inode *inode);
 int reiser4_update_file_size(struct inode *, loff_t, int update_sd);
-int cut_file_items_simple(struct inode *, loff_t new_size,
-			  int update_sd, loff_t cur_size,
-			  int (*update_actor) (struct inode *, loff_t, int));
-int cut_file_items_asym(struct inode *, loff_t new_size,
-			int update_sd, loff_t cur_size,
-			int (*update_actor) (struct inode *, loff_t, int));
+int reserve_cut_iteration(struct inode *inode);
+int reserve_partial_page(struct inode *inode, pgoff_t index);
+int reserve_capture_anon_page(struct page *page);
+int cut_file_items(struct inode *, loff_t new_size,
+		   int update_sd, loff_t cur_size,
+		   int (*update_actor) (struct inode *, loff_t, int));
 #if REISER4_DEBUG
 
 /* return 1 is exclusive access is obtained, 0 - otherwise */
@@ -298,7 +327,26 @@ int tail2extent(struct unix_file_info *);
 int extent2tail(struct file *, struct unix_file_info *);
 
 int goto_right_neighbor(coord_t *, lock_handle *);
-int find_or_create_extent(struct page *);
+int find_or_create_extent_generic(struct page *page,
+				  int(*update_extent_fn)(struct inode *,
+							 jnode *node,
+							 loff_t pos,
+							 int *plugged_hole));
+int find_or_create_extent_uf(struct page *);
+int reiser4_setattr_generic(struct dentry *dentry, struct iattr *attr,
+			    int (*truncate_file_body_fn)(struct inode *,
+							 struct iattr *));
+int reiser4_readpages_filler_generic(void *data,
+				     struct page *page, int striped);
+int reiser4_readpages_generic(struct file *file, struct address_space *mapping,
+			      struct list_head *pages, unsigned nr_pages,
+			      int (*filler)(void *data, struct page *page));
+int do_write_begin_generic(struct file *file, struct page *page,
+			   loff_t pos, unsigned len,
+			   int(*readpage_fn)(struct file *, struct page *));
+int reiser4_write_end_generic(struct file *file, struct page *page,
+			      loff_t pos, unsigned copied, void *fsdata,
+			      int(*find_or_create_extent_fn)(struct page *));
 int equal_to_ldk(znode *, const reiser4_key *);
 
 void init_uf_coord(uf_coord_t *uf_coord, lock_handle *lh);

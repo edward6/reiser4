@@ -29,6 +29,17 @@ regular_plugin regular_plugins[LAST_REGULAR_ID] = {
 			.linkage = {NULL, NULL}
 		},
 		.id = CRC_FILE_PLUGIN_ID
+	},
+	[SF_REGULAR_ID] = {
+		.h = {
+			.type_id = REISER4_REGULAR_PLUGIN_TYPE,
+			.id = SF_REGULAR_ID,
+			.pops = NULL,
+			.label = "striped-file",
+			.desc = "Striped regular plugin",
+			.linkage = {NULL, NULL}
+		},
+		.id = SF_FILE_PLUGIN_ID
 	}
 };
 

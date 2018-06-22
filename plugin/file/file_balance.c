@@ -156,7 +156,7 @@ static int migrate_data_stripe(struct inode *inode, pgoff_t stripe_off)
 /*
  * Migrate one-by-one all data stripes of the file
  */
-int balance_unix_file(struct inode *inode)
+int balance_stripe(struct inode *inode)
 {
 	int ret;
 	pgoff_t stripe_idx;

@@ -486,7 +486,8 @@ int kill_hook_extent(const coord_t *coord, pos_in_node_t from,
 			 * some jnodes corresponding to this unallocated extent
 			 */
 			assert("edward-1937",
-			       subv == calc_data_subvol(inode, offset));
+			       subv == calc_data_subvol(inode,
+							offset << PAGE_SHIFT));
 
 			fake_allocated2free(length, 0 /* unformatted */, subv);
 			skip = 0;
