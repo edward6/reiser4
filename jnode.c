@@ -425,9 +425,9 @@ static void inode_attach_jnode(jnode * node)
 	if (rtree->rnode == NULL) {
 		/* prevent inode from being pruned when it has jnodes attached
 		   to it */
-		spin_lock_irq(&inode->i_data.tree_lock);
+		xa_lock_irq(&inode->i_data.i_pages);
 		inode->i_data.nrpages++;
-		spin_unlock_irq(&inode->i_data.tree_lock);
+		xa_unlock_irq(&inode->i_data.i_pages);
 	}
 	assert("zam-1049", equi(rtree->rnode != NULL, info->nr_jnodes != 0));
 	check_me("zam-1045",
@@ -455,9 +455,9 @@ static void inode_detach_jnode(jnode * node)
 	check_me("zam-1046", radix_tree_delete(rtree, node->key.j.index));
 	if (rtree->rnode == NULL) {
 		/* inode can be pruned now */
-		spin_lock_irq(&inode->i_data.tree_lock);
+		xa_lock_irq(&inode->i_data.i_pages);
 		inode->i_data.nrpages--;
-		spin_unlock_irq(&inode->i_data.tree_lock);
+		xa_unlock_irq(&inode->i_data.i_pages);
 	}
 }
 
