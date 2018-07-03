@@ -95,34 +95,72 @@ u32 *init_tab_from_scratch(u32 *weights, u32 numb, u32 nums_bits)
 
 /*
  * Construct a "similar" integer vector, which have
- * specified @sum of its components
+ * specified sum @val of its components
  */
-void calibrate_vector(u32 num,
-		      void *vec,
-		      u64 (*vec_el_at)(void *vec, u64 idx),
-		      u32 sum, u32 *result)
+static void calibrate(u64 num, u64 val,
+		      void *vec, u64 (*vec_el_get)(void *vec, u64 idx),
+		      void *ret, u64 (*ret_el_get)(void *ret, u64 idx),
+		      void (ret_el_set)(void *ret, u64 idx, u64 value))
 {
-	u32 i;
-	u32 rest;
-	u32 sum_scaled = 0;
+	u64 i;
+	u64 rest;
+	u64 sum_scaled = 0;
 	u64 sum_not_scaled = 0;
 
 	for (i = 0; i < num; i++)
-		sum_not_scaled += vec_el_at(vec, i);
+		sum_not_scaled += vec_el_get(vec, i);
 	for (i = 0; i < num; i++) {
 		u64 q;
-		q = sum * vec_el_at(vec, i);
-		result[i] = div64_u64(q, sum_not_scaled);
-		sum_scaled += result[i];
+		u64 result;
+
+		q = val * vec_el_get(vec, i);
+		result = div64_u64(q, sum_not_scaled);
+		ret_el_set(ret, i, result);
+		sum_scaled += result;
 	}
-	rest = sum - sum_scaled;
+	rest = val - sum_scaled;
 	/*
-	 * We distribute the rest among the first members.
-	 * NOTE: don't modify this: it will be a format change
+	 * Don't modify this: it will be a format change!
 	 */
 	for (i = 0; i < rest; i++)
-		result[i] ++;
+		ret_el_set(ret, i, ret_el_get(ret, i) + 1);
 	return;
+}
+
+static u64 array32_el_get(void *array, u64 idx)
+{
+	return ((u32 *)array)[idx];
+}
+
+static void array32_el_set(void *array, u64 idx, u64 val)
+{
+	((u32 *)array)[idx] = val;
+}
+
+static u64 array64_el_get(void *array, u64 idx)
+{
+	return ((u64 *)array)[idx];
+}
+
+static void array64_el_set(void *array, u64 idx, u64 val)
+{
+	((u64 *)array)[idx] = val;
+}
+
+static void calibrate32(u32 num, u32 val, void *vec,
+			u64 (*vec_el_get)(void *vec, u64 idx),
+			u32 *ret)
+{
+	calibrate(num, val, vec, vec_el_get,
+		  ret, array32_el_get, array32_el_set);
+}
+
+static void calibrate64(u64 num, u64 val, void *vec,
+			u64 (*vec_el_get)(void *vec, u64 idx),
+			u64 *ret)
+{
+	calibrate(num, val, vec, vec_el_get,
+		  ret, array64_el_get, array64_el_set);
 }
 
 static int create_systab(u32 nums_bits, u32 **tab,
@@ -600,8 +638,7 @@ int initv_fsw32(void *buckets,
 	if (!aid->weights)
 		goto error;
 
-	calibrate_vector(numb, buckets,
-			 ops->cap_at, nums, aid->weights);
+	calibrate32(numb, nums, buckets, ops->cap_at, aid->weights);
 
 	if (aid->tab == NULL) {
 		ret = initr_fsw32(raid, numb, nums_bits);
@@ -676,8 +713,8 @@ int inc_fsw32(reiser4_aid *raid, u64 target_pos, int new)
 		ret = ENOMEM;
 		goto error;
 	}
-	calibrate_vector(new_numb, aid->buckets,
-			 aid->ops->cap_at, nums, new_weights);
+	calibrate32(new_numb, nums,
+		    aid->buckets, aid->ops->cap_at, new_weights);
 	ret = balance_tab_inc(new_numb, aid->tab,
 			      aid->weights, new_weights, target_pos,
 			      aid->buckets, aid->ops->fib_at, new);
@@ -711,6 +748,43 @@ int inc_fsw32(reiser4_aid *raid, u64 target_pos, int new)
 	return ret;
 }
 
+/**
+ * Check free space:
+ * calculate how much space will be occupied on each bucket after
+ * rebalancing and compare it with the new array of capacities.
+ *
+ * @numb: number of buckets after shrinking/removing a bucket
+ * @buckets: new set of buckets with updated capacities after
+ *           shrinking/removal before rebalancing
+ * @used: amount of occupied space on the AID.
+ */
+int cfs_fsw32(reiser4_aid *raid, u64 numb, void *buckets, u64 used)
+{
+	u64 i;
+	int ret = 0;
+	u64 *new_occ;
+	struct fsw32_aid *aid = fsw32_private(raid);
+
+	new_occ = mem_alloc(numb * sizeof(u64));
+	if (!new_occ)
+		return -ENOMEM;
+
+	calibrate64(numb, used, buckets, aid->ops->cap_at, new_occ);
+
+	for (i = 0; i < numb; i++)
+		if (aid->ops->cap_at(buckets, i) < new_occ[i]) {
+			warning("edward-2070",
+	"Not enough capacity (%llu) of data brick %llu (required %llu)",
+				aid->ops->cap_at(buckets, i),
+				i,
+				new_occ[i]);
+			ret = -ENOSPC;
+			break;
+		}
+	mem_free(new_occ);
+	return ret;
+}
+
 /*
  * Decrease capacity of an array.
  * If @victim is not NULL, then the whole bucket has been removed
@@ -738,8 +812,8 @@ int dec_fsw32(reiser4_aid *raid, u64 target_pos, void *victim)
 		ret = ENOMEM;
 		goto error;
 	}
-	calibrate_vector(new_numb, aid->buckets,
-			 aid->ops->cap_at, nums, new_weights);
+	calibrate32(new_numb, nums,
+		    aid->buckets, aid->ops->cap_at, new_weights);
 	ret = balance_tab_dec(old_numb, aid->tab,
 			      aid->weights, new_weights, target_pos,
 			      aid->buckets, aid->ops->fib_at, aid->ops->fib_of,
@@ -785,8 +859,8 @@ int spl_fsw32(reiser4_aid *raid, u32 fact_bits)
 		ret = ENOMEM;
 		goto error;
 	}
-	calibrate_vector(aid->numb, aid->buckets,
-			 aid->ops->cap_at, new_nums, new_weights);
+	calibrate32(aid->numb, new_nums,
+		    aid->buckets, aid->ops->cap_at, new_weights);
 	ret = balance_tab_spl(aid->numb, aid->nums_bits,
 			      &aid->tab,
 			      aid->weights,

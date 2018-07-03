@@ -1768,8 +1768,8 @@ static int insert_first_extent_stripe(uf_coord_t *uf_coord,
 }
 
 /*
- * put a pointer to @count unallocated blocks at the position
- * determined by @uf_coord.
+ * put a pointer to the last (in logical order) @count unallocated
+ * unformatted blocks at the position determined by @uf_coord.
  */
 static int append_extent_stripe(struct inode *inode, uf_coord_t *uf_coord,
 				const reiser4_key *key, jnode **jnodes,
@@ -1792,7 +1792,7 @@ static int append_extent_stripe(struct inode *inode, uf_coord_t *uf_coord,
 	uf_coord->valid = 0;
 	if (coord->between != AFTER_UNIT)
 		/*
-		 * file doesn't have items
+		 * there is no file items on the left
 		 */
 		return insert_first_extent_stripe(uf_coord, key,
 						  jnodes, count, inode);

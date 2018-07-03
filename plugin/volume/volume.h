@@ -20,7 +20,9 @@ static inline int is_meta_brick_id(u64 id)
 
 static inline int is_meta_brick(reiser4_subvol *this)
 {
-	return this == get_meta_subvol();
+	assert("edward-2071", ergo(is_meta_brick_id(this->id),
+				   this == get_meta_subvol()));
+	return is_meta_brick_id(this->id);
 }
 
 /*

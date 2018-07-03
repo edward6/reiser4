@@ -28,11 +28,10 @@ static int filler(void *data, struct page *page)
 }
 
 /**
- * "Cut off" one block from the beginning of extent
- *
- * @coord: coordinate of the extent item to cut from
+ * Cut off one unformatted block from the beginning
+ * of the unit pointed by @coord.
  */
-static int cut_off_head_block(coord_t *coord)
+static int cut_block_from_head(coord_t *coord)
 {
 	reiser4_key from;
 	reiser4_key to;
@@ -43,8 +42,6 @@ static int cut_off_head_block(coord_t *coord)
 
 	return cut_node_content(coord, coord, &from, &to, NULL);
 }
-
-int append_hole(coord_t *coord, lock_handle *lh, const reiser4_key *key);
 
 /*
  * Migrate one block of data pointed by allocated extent
@@ -85,7 +82,7 @@ static int migrate_allocated_extent(coord_t *coord, lock_handle *lh,
 	 * of the extent plugin. The page won't be invalidated
 	 * bacause of REISER4_FILE_BALANCE_IN_PROGRESS flag.
 	 */
-	ret = cut_off_head_block(coord);
+	ret = cut_block_from_head(coord);
 	done_lh(lh);
 	if (ret) {
 		put_page(page);
@@ -107,7 +104,8 @@ static int migrate_allocated_extent(coord_t *coord, lock_handle *lh,
 	node->subvol = current_origin(new_subv_id);
 	unlock_page(page);
 	/*
-	 * append the block to the end of previous item
+	 * put a pointer to one unallocated unformatted block to the new
+	 * location
 	 */
 	ret = update_extent_stripe(inode, node, page_offset(page), NULL);
 	if (ret)

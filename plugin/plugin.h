@@ -579,6 +579,8 @@ struct dist_volume_ops {
 		    struct reiser4_aid_ops *ops, reiser4_aid *new);
 	/* is called at the end of any volume operation */
 	void (*done)(reiser4_aid *raid);
+	/* check if there is enough free space on LV to perform operations */
+	int (*cfs)(reiser4_aid *raid, u64 num, void *bricks, u64 space_used);
 	/* increase capacity of a storage array */
 	int (*inc)(reiser4_aid *raid, u64 target_pos, int new);
 	/* decrease capacity of a storage array */

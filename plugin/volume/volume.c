@@ -600,6 +600,48 @@ static u64 *fib_lenp_at_asym(void *buckets, u64 index)
 	return &current_aid_subvols()[index][0]->fiber_len;
 }
 
+static u64 blocks_free_at(void *buckets, u64 index)
+{
+	return current_aid_subvols()[index][0]->blocks_free;
+}
+
+static u64 data_blocks_occ_at(void *buckets, u64 idx)
+{
+	reiser4_subvol *subv;
+
+	assert("edward-2072", buckets == current_aid_subvols());
+
+	subv = ((reiser4_subvol ***)buckets)[idx][0];
+
+	if (is_meta_brick(subv)) {
+		/*
+		 * In asymmetric LV we don't keep a track of busy
+		 * data blocks on the meta-data brick. However,
+		 * we can calculate it by the portion of busy data
+		 * blocks on the neighboring data brick, it the last
+		 * one exists (if it doesn't exist, then LV is composed
+		 * of only one brick and there is no need to know
+		 * number of busy data blocks).
+		 */
+		u64 m;
+		u64 dr;
+		u64 dr_on_neighbor;
+		u64 dr_occ_on_neighbor;
+
+		assert("edward-2069", current_num_origins() > 1);
+
+		dr = cap_at_asym(buckets, idx);
+		dr_on_neighbor = cap_at_asym(buckets, idx + 1);
+		dr_occ_on_neighbor = data_blocks_occ_at(buckets, idx + 1);
+		m = dr * dr_occ_on_neighbor;
+		return div64_u64(m, dr_on_neighbor);
+	} else
+		/*
+		 * data brick
+		 */
+		return cap_at_asym(buckets, idx) - blocks_free_at(buckets, idx);
+}
+
 /**
  * If the brick with @id can be shrinked on @delta, or removed
  * (if @delta == 0) from the volume @vol, then return 0. Otherwise
@@ -843,11 +885,25 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	return ret;
 }
 
+static u64 get_busy_data_blocks_asym(void)
+{
+	u64 i;
+	u64 ret = 0;
+	reiser4_volume *vol = current_volume();
+
+	txnmgr_force_commit_all(reiser4_get_current_sb(), 0);
+
+	for (i = 0; i < num_aid_subvols(vol); i++)
+		ret += data_blocks_occ_at(current_aid_subvols(), i);
+	return ret;
+}
+
 static int shrink_brick(reiser4_volume *vol, u64 pos, u64 delta,
 			int *need_balance)
 {
 	int ret;
 	distribution_plugin *dist_plug = vol->dist_plug;
+	u64 nr_busy_data_blocks = get_busy_data_blocks_asym();
 
 	current_aid_subvols()[pos][0]->data_room -= delta;
 
@@ -855,24 +911,40 @@ static int shrink_brick(reiser4_volume *vol, u64 pos, u64 delta,
 		*need_balance = 0;
 		return 0;
 	}
+	ret = dist_plug->v.cfs(&vol->aid,
+			       num_aid_subvols(vol),
+			       current_aid_subvols(),
+			       nr_busy_data_blocks);
+	if (ret)
+		goto error;
 	ret = dist_plug->v.dec(&vol->aid, pos, NULL);
 	if (ret)
-		current_aid_subvols()[pos][0]->data_room += delta;
+		goto error;
+	return 0;
+ error:
+	current_aid_subvols()[pos][0]->data_room += delta;
 	return ret;
 }
 
 /*
- * Remove meta-data subvolume from AID
+ * Remove meta-data brick from AID
  */
 static int remove_meta_brick(reiser4_volume *vol, int *need_balance)
 {
 	int ret;
 	reiser4_subvol *mtd_subv = get_meta_subvol();
 	distribution_plugin *dist_plug = vol->dist_plug;
+	u64 nr_busy_data_blocks = get_busy_data_blocks_asym();
 
 	assert("edward-1844", num_aid_subvols(vol) > 1);
 	assert("edward-1826", meta_brick_belongs_aid());
 
+	ret = dist_plug->v.cfs(&vol->aid,
+			       num_aid_subvols(vol) - 1,
+			       &current_aid_subvols()[1],
+			       nr_busy_data_blocks);
+	if (ret)
+		return ret;
 	ret = dist_plug->v.dec(&vol->aid, 0, mtd_subv);
 	if (ret)
 		return ret;
@@ -888,7 +960,7 @@ static int remove_meta_brick(reiser4_volume *vol, int *need_balance)
 }
 
 /*
- * Remove a data subvolume from LV
+ * Remove a data brick from AID
  * @id: intermal ID of a subvolume to be removed
  */
 static int remove_data_brick(reiser4_volume *vol, u64 id, int *need_balance)
@@ -896,6 +968,7 @@ static int remove_data_brick(reiser4_volume *vol, u64 id, int *need_balance)
 	int ret;
 	reiser4_subvol *victim;
 	distribution_plugin *dist_plug = vol->dist_plug;
+	u64 nr_busy_data_blocks = get_busy_data_blocks_asym();
 
 	struct reiser4_subvol ***new;
 	struct reiser4_subvol ***old = vol->subvols;
@@ -919,85 +992,35 @@ static int remove_data_brick(reiser4_volume *vol, u64 id, int *need_balance)
 	vol->subvols = new;
 	vol->num_origins --;
 
+	ret = dist_plug->v.cfs(&vol->aid, vol->num_origins,
+			       new, nr_busy_data_blocks);
+	if (ret)
+		goto error;
 	ret = dist_plug->v.dec(&vol->aid, pos_in_aid, victim);
-	if (ret) {
-		vol->subvols = old;
-		vol->num_origins ++;
-		kfree(new);
-		return ret;
-	}
+	if (ret)
+		goto error;
 	reiser4_deactivate_subvol(reiser4_get_current_sb(), victim);
 	/*
 	 * we don't unregister removed bricks
 	 */
 	kfree(old);
-
 	return 0;
+ error:
+	vol->subvols = old;
+	vol->num_origins ++;
+	kfree(new);
+	return ret;
 }
 
+/*
+ * Remove a brick from AID
+ */
 static int remove_brick(reiser4_volume *vol, u64 id, int *need_balance)
 {
 	if (is_meta_brick_id(id))
 		return remove_meta_brick(vol, need_balance);
 	else
 		return remove_data_brick(vol, id, need_balance);
-}
-
-static u64 get_free_space_volume(struct super_block *sb)
-{
-	u64 subv_id;
-	u64 result = 0;
-
-	spin_lock_reiser4_super(get_super_private(sb));
-	for_each_origin(subv_id)
-		result += current_origin(subv_id)->blocks_free;
-	spin_unlock_reiser4_super(get_super_private(sb));
-	return result;
-}
-
-/**
- * If there is enough free space on the volume to remove, or
- * shrink a brick, then return 0. Otherwise, return error.
- *
- * @id: brick to be shrinked, or removed.
- * @delta: the value to be shrinked on. If @delta == 0,
- * then brick is to be removed.
- */
-static int check_free_space(struct super_block *sb, u64 id, u64 delta)
-{
-	reiser4_subvol *victim;
-
-	if (num_aid_subvols(super_volume(sb)) == 1) {
-		/*
-		 * No data migration will happen, so nothing to check
-		 */
-		assert("edward-1942", is_meta_brick_id(id));
-		return 0;
-	}
-	victim = current_origin(id);
-
-	spin_lock_reiser4_super(get_super_private(sb));
-	if (delta) {
-		if (delta <= victim->blocks_free)
-			return 0;
-		else
-			delta -= victim->blocks_free;
-	} else
-		delta = victim->block_count - victim->blocks_free;
-	spin_unlock_reiser4_super(get_super_private(sb));
-	/*
-	 * check if there is enough space for @delta
-	 * on the rest of LV
-	 */
-	if (delta >= get_free_space_volume(sb))
-		return 0;
-	txnmgr_force_commit_all(sb, 0);
-	/*
-	 * check once again
-	 */
-	if (delta >= get_free_space_volume(sb))
-		return 0;
-	return RETERR(-ENOSPC);
 }
 
 static int remove_or_shrink_brick(reiser4_volume *vol, u64 id, u64 delta)
@@ -1023,9 +1046,6 @@ static int remove_or_shrink_brick(reiser4_volume *vol, u64 id, u64 delta)
 	 * the case of intensive clients IO activity
 	 * diring rebalancing.
 	 */
-	ret = check_free_space(sb, id, delta);
-	if (ret)
-		goto out;
 	ret = dist_plug->v.init(vol,
 				num_aid_subvols(vol), vol->num_sgs_bits,
 				&vol->vol_plug->aid_ops, &vol->aid);
@@ -1103,6 +1123,17 @@ static int balance_volume_simple(struct super_block *sb, int force)
 	return -EINVAL;
 }
 
+static inline u32 get_seed(oid_t oid, reiser4_volume *vol)
+{
+	u32 seed;
+
+	put_unaligned(cpu_to_le64(oid), &oid);
+
+	seed = murmur3_x86_32((const char *)&oid, sizeof(oid), ~0);
+	seed = murmur3_x86_32(vol->uuid, 16, seed);
+	return seed;
+}
+
 static u64 data_subvol_id_calc_asym(oid_t oid, loff_t offset)
 {
 	reiser4_volume *vol;
@@ -1111,11 +1142,16 @@ static u64 data_subvol_id_calc_asym(oid_t oid, loff_t offset)
 
 	vol = current_volume();
 	dist_plug = current_dist_plug();
-	stripe_idx = current_stripe_bits ? offset >> current_stripe_bits : 0;
+
+	if (vol->stripe_bits) {
+		stripe_idx = offset >> vol->stripe_bits;
+		put_unaligned(cpu_to_le64(stripe_idx), &stripe_idx);
+	} else
+		stripe_idx = 0;
 
 	return dist_plug->r.lookup(&vol->aid,
 				   (const char *)&stripe_idx,
-				   sizeof(stripe_idx), (u32)oid);
+				   sizeof(stripe_idx), get_seed(oid, vol));
 }
 
 static u64 body_key_ordering_asym(oid_t oid, loff_t offset)
