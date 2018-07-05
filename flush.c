@@ -1666,9 +1666,10 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t *pos)
 		assert("vs-1468", coord_is_leftmost_unit(&coord));
 		ON_DEBUG(vp = shift_check_prepare(left, coord.node));
 		/*
-		 * Allocate extent in "squeeze context" and append it
-		 * to the @left.
-		 * stop_key is used to find what was copied and what to cut
+		 * Allocate one extent (a unit of reiser4 extent item)
+		 * in "squeeze context" and append it to the @left.
+		 * stop_key is used to find what was copied and what
+		 * to cut
 		 */
 		stop_key = *reiser4_min_key();
 		ret = txmod_plug->squeeze_alloc_unformatted(left,

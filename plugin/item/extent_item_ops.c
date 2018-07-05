@@ -42,10 +42,11 @@ int mergeable_extent(const coord_t * p1, const coord_t * p2)
 	reiser4_key key1, key2;
 
 	assert("vs-299", item_id_by_coord(p1) == EXTENT_POINTER_ID);
-	/* FIXME-VS: Which is it? Assert or return 0 */
-	if (item_id_by_coord(p2) != EXTENT_POINTER_ID) {
+	/*
+	 * FIXME-VS: Which is it? Assert or return 0
+	 */
+	if (item_id_by_coord(p2) != EXTENT_POINTER_ID)
 		return 0;
-	}
 
 	item_key_by_coord(p1, &key1);
 	item_key_by_coord(p2, &key2);
@@ -58,10 +59,6 @@ int mergeable_extent(const coord_t * p1, const coord_t * p2)
 	if (get_key_offset(&key1) +
 	    reiser4_extent_size(p1, nr_units_extent(p1)) !=
 	    get_key_offset(&key2))
-		return 0;
-	if (current_stripe_bits &&
-	    (get_key_offset(&key2) & (current_stripe_size - 1)) == 0)
-		/* don't merge extents at stripe boundary (if any) */
 		return 0;
 	return 1;
 }
