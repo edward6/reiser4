@@ -103,6 +103,7 @@ int shift_node40_common(coord_t *from, znode *to, shift_direction pend,
 int shift_node40(coord_t *from, znode *to, shift_direction pend,
 		 int delete_child, int including_stop_coord,
 		 carry_plugin_info *info);
+void merge_items_node40(coord_t *left, coord_t *right);
 int fast_insert_node40(const coord_t * coord);
 int fast_paste_node40(const coord_t * coord);
 int fast_cut_node40(const coord_t * coord);

@@ -628,7 +628,7 @@ static int plug_hole_unix_file(uf_coord_t *uf_coord,
 static int overwrite_one_block_unix_file(struct inode *inode,
 					 uf_coord_t *uf_coord,
 					 const reiser4_key *key, jnode *node,
-					 int *hole_plugged, znode **loaded)
+					 int *hole_plugged)
 {
 	int result;
 	struct extent_coord_extension *ext_coord;
@@ -716,13 +716,12 @@ static int move_coord(uf_coord_t *uf_coord)
  */
 int overwrite_extent_generic(struct inode *inode, uf_coord_t *uf_coord,
 			     const reiser4_key *key, jnode **jnodes,
-			     int count, int *plugged_hole, znode **loaded,
+			     int count, int *plugged_hole,
 			     int(*overwrite_one_block_fn)(struct inode *inode,
 							  uf_coord_t *uf_coord,
 							  const reiser4_key *key,
 							  jnode *node,
-							  int *hole_plugged,
-							  znode **loaded))
+							  int *hole_plugged))
 {
 	int result;
 	reiser4_key k;
@@ -740,8 +739,7 @@ int overwrite_extent_generic(struct inode *inode, uf_coord_t *uf_coord,
 		node = jnodes[i];
 		if (*jnode_get_block(node) == 0) {
 			result = overwrite_one_block_fn(inode, uf_coord, &k,
-							node, plugged_hole,
-							loaded);
+							node, plugged_hole);
 			if (result)
 				return result;
 		}
@@ -788,10 +786,10 @@ int overwrite_extent_generic(struct inode *inode, uf_coord_t *uf_coord,
 
 static int overwrite_extent_unix_file(struct inode *inode, uf_coord_t *uf_coord,
 				      const reiser4_key *key, jnode **jnodes,
-				      int count, int *plugged_hole, znode **loaded)
+				      int count, int *plugged_hole)
 {
 	return overwrite_extent_generic(inode, uf_coord, key,
-					jnodes, count, plugged_hole, loaded,
+					jnodes, count, plugged_hole,
 					overwrite_one_block_unix_file);
 }
 
@@ -840,8 +838,7 @@ int update_extent_uf(struct inode *inode, jnode *node, loff_t pos,
 		init_coord_extension_extent(&uf_coord,
 					    get_key_offset(&key));
 		result = overwrite_extent_unix_file(inode, &uf_coord, &key,
-						    &node, 1, plugged_hole,
-						    &loaded);
+						    &node, 1, plugged_hole);
 	} else {
 		/*
 		 * there are no items of this file in the tree yet. Create
@@ -917,8 +914,7 @@ static int update_extents_unix_file(struct file *file, struct inode *inode,
 			result = overwrite_extent_unix_file(inode,
 							    &hint.ext_coord,
 							    &key, jnodes,
-							    count, NULL,
-							    &loaded);
+							    count, NULL);
 		} else {
 			/*
 			 * there are no items of this file in the tree
@@ -1528,17 +1524,38 @@ static int append_hole_stripe(uf_coord_t *uf_coord)
 	return 0;
 }
 
+static void try_merge_with_right_item(coord_t *left)
+{
+	coord_t right;
+
+	coord_dup(&right, left);
+
+	if (coord_next_item(&right))
+		/*
+		 * there is no items at the right
+		 */
+		return;
+	if (are_items_mergeable(left, &right)) {
+		node_plugin_by_node(left->node)->merge_items(left, &right);
+		znode_make_dirty(left->node);
+	}
+}
+
 /**
- * Put a pointer to one unallocated block at the position determined
- * by @uf_coord. First try to merge it with existing items of the file
- * at the left and right (in the logical order). If impossible, then
- * create a new extent item.
+ * Push a pointer to one unallocated block to a hole in a
+ * striped file. Location to push is determined by @uf_coord.
+ * First try to push to an existing item at the left (if any).
+ * If impossible, then create a new extent item and try to
+ * merge it with an item at the right.
+ * NOTE: the procedure of hole plugging can lead to appearing
+ * mergeable items in a node. We can not leave them unmerged,
+ * as it will be treated as corruption.
  */
 static int plug_hole_stripe(struct inode *inode,
-			    uf_coord_t *uf_coord, const reiser4_key *key,
-			    znode **loaded)
+			    uf_coord_t *uf_coord, const reiser4_key *key)
 {
-	reiser4_key mkey, tkey;
+	int ret = 0;
+	reiser4_key akey;
 	coord_t *coord = &uf_coord->coord;
 	reiser4_extent *ext;
 	reiser4_extent new_ext;
@@ -1548,151 +1565,100 @@ static int plug_hole_stripe(struct inode *inode,
 
 	if (coord->between != AFTER_UNIT) {
 		/*
-		 * there is no mergeable items at the left,
-		 * look on the right.
+		 * there is no file items at the left (in physical
+		 * order), thus we are on the leaf level, where the
+		 * search procedure has landed. So, use a carry_extent
+		 * primitive to insert a new extent item.
 		 */
-		int ret;
+		znode *twig_node;
 		assert("edward-2053", znode_is_loaded(coord->node));
 		assert("edward-2054", coord->node->level == LEAF_LEVEL);
 		BUG_ON(coord->node->level != LEAF_LEVEL);
-		/*
-		 * construct a key corresponding to the
-		 * next logical block of the file body
-		 */
-		key_by_inode_and_offset(inode,
-					get_key_offset(key) + PAGE_SIZE,
-					&tkey);
-		if (get_key_ordering(key) != get_key_ordering(&tkey)) {
-			/*
-			 * there is no mergeabe items at the right,
-			 * insert a new item right here
-			 */
-			reiser4_set_extent(&new_ext,
-					   UNALLOCATED_EXTENT_START, 1);
-			init_new_extent(&idata, &new_ext, 1);
-			return insert_extent_by_coord(coord, &idata,
-						      key, uf_coord->lh);
-		}
-		/*
-		 * traverse tree with the new key
-		 */
-		zrelse(*loaded);
-		*loaded = NULL;
-		done_lh(uf_coord->lh);
-		uf_coord->valid = 0;
-		coord_init_zero(coord);
 
-		ret = find_file_item_nohint(coord, uf_coord->lh, &tkey,
-					    ZNODE_WRITE_LOCK, inode);
-		if (IS_CBKERR(ret))
+		reiser4_set_extent(&new_ext,
+				   UNALLOCATED_EXTENT_START, 1);
+		init_new_extent(&idata, &new_ext, 1);
+		ret = insert_extent_by_coord(coord, &idata,
+					     key, uf_coord->lh);
+		if (ret)
 			return ret;
+		/*
+		 * A new extent item has been inserted on the twig level.
+		 * To merge it with an item at the right we need to find
+		 * the insertion point, as carry_extent primitive doesn't
+		 * provide it (only lock handle).
+		 */
+		twig_node = uf_coord->lh->node;
+		assert("edward-2073", twig_node != coord->node);
 
-		ret = zload(coord->node);
-		*loaded = coord->node;
+		ret = zload(twig_node);
+		if (ret)
+			return ret;
+		coord_init_zero(coord);
+		ret = node_plugin_by_node(twig_node)->lookup(twig_node,
+							     key,
+							     FIND_EXACT,
+							     coord);
+		BUG_ON(ret != NS_FOUND);
+		assert("edward-2074", twig_node == coord->node);
 
-		if (coord->between != AT_UNIT) {
+		try_merge_with_right_item(coord);
+		zrelse(twig_node);
+
+		return 0;
+	}
+	/*
+	 * We are on the twig level.
+	 * Try to push to the extent item pointed out by @coord
+	 */
+	assert("edward-2057", item_is_extent(coord));
+
+	if (!keyeq(key, append_key_extent(coord, &akey))) {
+		/*
+		 * can not push. Create a new item
+		 */
+		reiser4_set_extent(&new_ext, UNALLOCATED_EXTENT_START, 1);
+		init_new_extent(&idata, &new_ext, 1);
+		ret = insert_by_coord(coord, &idata, key, uf_coord->lh, 0);
+	} else {
+		/*
+		 * can push. Paste at the end of item
+		 */
+		coord->unit_pos = coord_last_unit_pos(coord);
+		ext = extent_by_coord(coord);
+		if ((state_of_extent(ext) == UNALLOCATED_EXTENT)) {
 			/*
-			 * there is no mergeable items at the right,
-			 * create a new extent item right here
+			 * fast paste without carry
 			 */
-			assert("edward-2055",
-			       coord->node->level == LEAF_LEVEL);
-			BUG_ON(coord->node->level != LEAF_LEVEL);
-
+			extent_set_width(ext, extent_get_width(ext) + 1);
+			znode_make_dirty(coord->node);
+		} else {
+			/*
+			 * paste with possible carry
+			 */
+			coord->between = AFTER_UNIT;
 			reiser4_set_extent(&new_ext,
 					   UNALLOCATED_EXTENT_START, 1);
 			init_new_extent(&idata, &new_ext, 1);
-			return insert_extent_by_coord(coord, &idata,
-						      key, uf_coord->lh);
+			ret = insert_into_item(coord, uf_coord->lh,
+					       key, &idata, 0);
 		}
-		/*
-		 * found an item at the right
-		 */
-		assert("edward-2056", coord->node->level == TWIG_LEVEL);
-		goto try_merge_right;
 	}
-	assert("edward-2057", item_is_extent(coord));
+	if (ret)
+		return ret;
+	assert("edward-2075", coord->node == uf_coord->lh->node);
 	/*
-	 * current position is an existing item pointing out
-	 * to a logical block of the file body at the left.
-	 * Check, if it is mergeable
+	 * in this branch @coord gets updated by insertion
+	 * primitives, so there is no need to find insertion
+	 * point, just try to merge right away
 	 */
-	append_key_extent(coord, &mkey);
-	if (!keyeq(key, &mkey))
-		goto go_right;
-	/*
-	 * can merge with an item at the left
-	 */
-	coord->unit_pos = coord_last_unit_pos(coord);
-	ext = extent_by_coord(coord);
-	if ((state_of_extent(ext) == UNALLOCATED_EXTENT)) {
-		/*
-		 * fast paste without carry
-		 */
-		extent_set_width(ext, extent_get_width(ext) + 1);
-		znode_make_dirty(coord->node);
-		return 0;
-	} else {
-		coord->between = AFTER_UNIT;
-		goto paste;
-	}
- go_right:
-	/*
-	 * move current position to the next item at the right
-	 * and try to merge with that item (if any)
-	 */
-	if (coord_next_item(coord))
-		/* there is no items at the right */
-		goto create;
-	if (!item_is_extent(coord)) {
-		coord->between = BEFORE_ITEM;
-		goto create;
-	}
-	assert("edward-2058", coord->unit_pos == 0);
+	ret = zload(coord->node);
+	if (ret)
+		return ret;
+	try_merge_with_right_item(coord);
+	zrelse(coord->node);
 
-	key_by_inode_and_offset(inode, get_key_offset(key) + PAGE_SIZE, &tkey);
-	item_key_by_coord(coord, &mkey);
-	if (!keyeq(&tkey, &mkey)) {
-		coord->between = BEFORE_ITEM;
-		goto create;
-	}
-	/*
-	 * can merge with the item to the right
-	 */
- try_merge_right:
-	ext = extent_by_coord(coord);
-	if ((state_of_extent(ext) == UNALLOCATED_EXTENT)) {
-		/*
-		 * fast paste without carry
-		 */
-		extent_set_width(ext, extent_get_width(ext) + 1);
-		/*
-		 * we paste at the beginning of item, so update its key
-		 */
-		node_plugin_by_node(coord->node)->update_item_key(coord,
-								  key,
-								  NULL);
-		znode_make_dirty(coord->node);
-		return 0;
-	}
-	coord->between = BEFORE_UNIT;
-	/*
-	 * current position is on the twig level
-	 */
- paste:
-	/*
-	 * paste with carry to an existing item
-	 */
-	reiser4_set_extent(&new_ext, UNALLOCATED_EXTENT_START, 1);
-	init_new_extent(&idata, &new_ext, 1);
-	return insert_into_item(coord, uf_coord->lh, key, &idata, 0);
- create:
-	/*
-	 * create a new extent item
-	 */
-	reiser4_set_extent(&new_ext, UNALLOCATED_EXTENT_START, 1);
-	init_new_extent(&idata, &new_ext, 1);
-	return insert_by_coord(coord, &idata, key, uf_coord->lh, 0);
+	return 0;
 }
 
 static int insert_first_extent_stripe(uf_coord_t *uf_coord,
@@ -1779,7 +1745,7 @@ static int append_extent_stripe(struct inode *inode, uf_coord_t *uf_coord,
 	int result;
 	jnode *node;
 	reiser4_block_nr block;
-	reiser4_key mkey;
+	reiser4_key akey;
 	coord_t *coord = &uf_coord->coord;
 	reiser4_extent *ext;
 	reiser4_extent new_ext;
@@ -1800,8 +1766,8 @@ static int append_extent_stripe(struct inode *inode, uf_coord_t *uf_coord,
 	 * try to merge with the file body's last item
 	 * If impossible, then create a new item
 	 */
-	append_key_extent(coord, &mkey);
-	if (!keyeq(&mkey, key))
+	append_key_extent(coord, &akey);
+	if (!keyeq(&akey, key))
 		/*
 		 * can not merge
 		 */
@@ -1879,9 +1845,13 @@ static int append_extent_stripe(struct inode *inode, uf_coord_t *uf_coord,
 	return count;
 }
 
+/*
+ * Overwrite one logical block of file's body. It can be in a hole,
+ * which is not represented by any items.
+ */
 static int overwrite_one_block_stripe(struct inode *inode, uf_coord_t *uf_coord,
 				      const reiser4_key *key, jnode *node,
-				      int *hole_plugged, znode **loaded)
+				      int *hole_plugged)
 {
 	reiser4_block_nr block;
 
@@ -1897,7 +1867,7 @@ static int overwrite_one_block_stripe(struct inode *inode, uf_coord_t *uf_coord,
 
 		uf_coord->valid = 0;
 		inode_add_blocks(mapping_jnode(node)->host, 1);
-		result = plug_hole_stripe(inode, uf_coord, key, loaded);
+		result = plug_hole_stripe(inode, uf_coord, key);
 		if (result)
 			return result;
 		block = fake_blocknr_unformatted(1, subv);
@@ -1923,11 +1893,21 @@ static int overwrite_one_block_stripe(struct inode *inode, uf_coord_t *uf_coord,
 
 static int overwrite_extent_stripe(struct inode *inode, uf_coord_t *uf_coord,
 				   const reiser4_key *key, jnode **jnodes,
-				   int count, int *plugged_hole, znode **loaded)
+				   int count, int *plugged_hole)
 {
 	return overwrite_extent_generic(inode, uf_coord, key,
-					jnodes, count, plugged_hole, loaded,
+					jnodes, count, plugged_hole,
 					overwrite_one_block_stripe);
+}
+
+static void check_node(znode *node)
+{
+	const char *error;
+
+	zload(node);
+	assert("edward-2076",
+	       check_node40(node, REISER4_NODE_TREE_STABLE, &error) == 0);
+	zrelse(node);
 }
 
 /*
@@ -1964,20 +1944,23 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 		BUG_ON(result != 0);
 		loaded = hint->ext_coord.coord.node;
 
-		if (pos > round_up(i_size_read(inode), PAGE_SIZE))
-			result = append_hole_stripe(&hint->ext_coord);
+		check_node(hint->ext_coord.coord.node);
 
-		else if (pos == round_up(i_size_read(inode), PAGE_SIZE))
+		if (pos > round_up(i_size_read(inode), PAGE_SIZE)) {
+			result = append_hole_stripe(&hint->ext_coord);
+			check_node(hint->ext_coord.coord.node);
+		} else if (pos == round_up(i_size_read(inode), PAGE_SIZE)) {
 			result = append_extent_stripe(inode, &hint->ext_coord,
 						      &key, jnodes, count);
-		else
+			check_node(hint->ext_coord.coord.node);
+		} else {
 			result = overwrite_extent_stripe(inode,
 							 &hint->ext_coord,
 							 &key, jnodes, count,
-							 plugged_hole,
-							 &loaded);
-		if (loaded)
-			zrelse(loaded);
+							 plugged_hole);
+			check_node(hint->ext_coord.coord.node);
+		}
+		zrelse(loaded);
 		if (result < 0) {
 			done_lh(hint->ext_coord.lh);
 			break;

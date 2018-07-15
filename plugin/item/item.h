@@ -127,6 +127,11 @@ struct balance_ops {
 			    shift_direction where_is_free_space,
 			    unsigned free_space);
 
+	/* merge bodies of neighboring items pointed out by
+	   @left and @right. Return amount of space freed
+	   after merging */
+	int (*merge) (coord_t *left, coord_t *right);
+
 	int (*create_hook) (const coord_t *, void *);
 	/* do whatever is necessary to do when @count units starting
 	   from @from-th one are removed from the tree */

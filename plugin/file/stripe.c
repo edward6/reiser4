@@ -17,6 +17,11 @@
  * block should be stored. Block pointers with different orderings
  * don't get merged. Holes in a striped file are not represented by
  * any items.
+ *
+ * In the initial implementation any modifying operation takes an
+ * exclusive access to the whole file. It is for simplicity:
+ * further we'll lock only a part of the file covered by a respective
+ * node on the twig level (longterm lock).
  */
 
 #include "../../inode.h"
@@ -247,7 +252,6 @@ int readpage_stripe(struct file *file, struct page *page)
 	result = find_file_item_nohint(&hint->ext_coord.coord,
 				       hint->ext_coord.lh, &key,
 				       ZNODE_READ_LOCK, inode);
-	assert("edward-2031", !IS_CBKERR(result));
 	lock_page(page);
 	put_page(page);
 

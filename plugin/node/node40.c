@@ -774,7 +774,7 @@ void change_item_size_node40(coord_t * coord, int by)
 	/* move item bodies */
 	ih = node40_ih_at_coord(coord);
 	memmove(item_data + item_length + by, item_data + item_length,
-		nh40_get_free_space_start(node40_node_header(coord->node)) -
+		nh40_get_free_space_start(nh) -
 		(ih40_get_offset(ih) + item_length));
 
 	/* update offsets of moved items */
@@ -3062,6 +3062,68 @@ int set_item_plugin_node40(coord_t *coord, item_id id)
 	put_unaligned(cpu_to_le16(id), &ih->plugin_id);
 	coord->iplugid = id;
 	return 0;
+}
+
+/*
+ * Merge neighboring items pointed out by @left and @right
+ * on the same node
+ */
+void merge_items_node40(coord_t *left, coord_t *right)
+{
+	int i;
+	znode *node;
+	size_t freed = 0;
+	node40_header *nh;
+	item_header40 *ih;
+#if REISER4_DEBUG
+	const char *error;
+#endif
+	assert("edward-2077", left->node == right->node);
+	assert("edward-2078", coord_is_existing_item(left));
+	assert("edward-2079", coord_is_existing_item(right));
+	assert("edward-2080", right->item_pos == left->item_pos + 1);
+	assert("edward-2081",
+	       plugin_by_coord_node40(left) ==
+	       plugin_by_coord_node40(right));
+	assert("edward-2082", are_items_mergeable(left, right));
+
+	node = left->node;
+	nh = node40_node_header(node);
+	/*
+	 * Merge item bodies. It will release some space.
+	 */
+	if (plugin_by_coord_node40(left)->b.merge)
+		freed = plugin_by_coord_node40(left)->b.merge(left, right);
+	/*
+	 * Result of merging is an item pointed out by @left.
+	 *
+	 * update offsets of moved items
+	 */
+	if (freed)
+		for (i = right->item_pos + 1;
+		     i < nh40_get_num_items(nh); i++) {
+			ih = node40_ih_at(node, i);
+			ih40_set_offset(ih, ih40_get_offset(ih) - freed);
+		}
+	/*
+	 * Remove all records about the @right from the node.
+	 *
+	 * Move all item headers at the left from @ih_right
+	 * one position to the @right.
+	 */
+	ih = node40_ih_at(node, nh40_get_num_items(nh) - 1);
+	memmove(ih + 1, ih, sizeof(item_header40) *
+		(nh40_get_num_items(nh) - (right->item_pos + 1)));
+	/*
+	 * update_node_header
+	 */
+	nh40_set_free_space(nh, nh40_get_free_space(nh) + freed +
+			    sizeof(item_header40));
+	nh40_set_free_space_start(nh, nh40_get_free_space_start(nh) - freed);
+	node40_set_num_items(node, nh, nh40_get_num_items(nh) - 1);
+
+	assert("edward-2083",
+	       check_node40(node, REISER4_NODE_TREE_STABLE, &error) == 0);
 }
 
 /*

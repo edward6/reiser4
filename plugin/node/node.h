@@ -193,6 +193,10 @@ typedef struct node_plugin {
 	int (*create_item) (coord_t * target, const reiser4_key * key,
 			    reiser4_item_data * data, carry_plugin_info * info);
 
+	/* merge two neighboring mergeable items on the same node.
+	   such items can appear after some operations like plugging a hole */
+	void (*merge_items) (coord_t *left, coord_t *right);
+
 	/* update key of item. */
 	void (*update_item_key) (coord_t * target, const reiser4_key * key,
 				 carry_plugin_info * info);

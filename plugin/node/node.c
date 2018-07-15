@@ -105,6 +105,7 @@ node_plugin node_plugins[LAST_NODE_ID] = {
 #endif
 		.change_item_size = change_item_size_node40,
 		.create_item = create_item_node40,
+		.merge_items = merge_items_node40,
 		.update_item_key = update_item_key_node40,
 		.cut_and_kill = kill_node40,
 		.cut = cut_node40,
@@ -143,6 +144,7 @@ node_plugin node_plugins[LAST_NODE_ID] = {
 #endif
 		.change_item_size = change_item_size_node40,
 		.create_item = create_item_node40,
+		.merge_items = merge_items_node40,
 		.update_item_key = update_item_key_node40,
 		.cut_and_kill = kill_node40,
 		.cut = cut_node40,

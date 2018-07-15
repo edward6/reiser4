@@ -315,7 +315,7 @@ struct carry_level {
 	int nodes_num;
 	/* new root created on this level, if any */
 	znode *new_root;
-	/* This is set by caller (insert_by_key(), rreiser4_esize_item(), etc.)
+	/* This is set by caller (insert_by_key(), reiser4_resize_item(), etc.)
 	   when they want ->tracked to automagically wander to the node where
 	   insertion point moved after insert or paste.
 	 */

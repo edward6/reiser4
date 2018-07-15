@@ -808,7 +808,6 @@ int reiser4_check_extent(const coord_t *coord /* coord of item to check */,
 	unsigned i, j;
 	reiser4_block_nr blk_cnt;
 	unsigned num_units;
-	reiser4_tree *tree;
 	oid_t oid;
 	reiser4_key key;
 	coord_t scan;
@@ -826,7 +825,6 @@ int reiser4_check_extent(const coord_t *coord /* coord of item to check */,
 	}
 	ext = first = extent_item(coord);
 	num_units = coord_num_units(coord);
-	tree = znode_get_tree(coord->node);
 	item_key_by_coord(coord, &key);
 	oid = get_key_objectid(&key);
 	coord_dup(&scan, coord);
@@ -847,7 +845,7 @@ int reiser4_check_extent(const coord_t *coord /* coord of item to check */,
 			for (j = 0; j < extent_get_width(ext); j++) {
 				jnode *node;
 
-				node = jlookup(tree, oid, index + j);
+				node = jlookup(&subv->tree, oid, index + j);
 				if (node == NULL) {
 					print_coord("scan", &scan, 0);
 					*error = "Jnode missing";
