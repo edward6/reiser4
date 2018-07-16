@@ -631,8 +631,7 @@ int release_format40(struct super_block *s, reiser4_subvol *subv)
 	int ret;
 	reiser4_volume *vol = super_volume(s);
 
-	if (!rofs_super(s) &&
-	    !get_current_context()->init_vol_failed) {
+	if (!rofs_super(s) && !subvol_is_set(subv, SUBVOL_IS_NEW)) {
 
 		ret = capture_brick_super(subv);
 		if (ret != 0)

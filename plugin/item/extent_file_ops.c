@@ -1900,6 +1900,7 @@ static int overwrite_extent_stripe(struct inode *inode, uf_coord_t *uf_coord,
 					overwrite_one_block_stripe);
 }
 
+#if REISER4_DEBUG
 static void check_node(znode *node)
 {
 	const char *error;
@@ -1909,6 +1910,9 @@ static void check_node(znode *node)
 	       check_node40(node, REISER4_NODE_TREE_STABLE, &error) == 0);
 	zrelse(node);
 }
+#else
+#define check_node(node) noop
+#endif
 
 /*
  * update body of a striped file on write or expanding truncate operations
@@ -1946,20 +1950,18 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 
 		check_node(hint->ext_coord.coord.node);
 
-		if (pos > round_up(i_size_read(inode), PAGE_SIZE)) {
+		if (pos > round_up(i_size_read(inode), PAGE_SIZE))
 			result = append_hole_stripe(&hint->ext_coord);
-			check_node(hint->ext_coord.coord.node);
-		} else if (pos == round_up(i_size_read(inode), PAGE_SIZE)) {
+		else if (pos == round_up(i_size_read(inode), PAGE_SIZE))
 			result = append_extent_stripe(inode, &hint->ext_coord,
 						      &key, jnodes, count);
-			check_node(hint->ext_coord.coord.node);
-		} else {
+		else
 			result = overwrite_extent_stripe(inode,
 							 &hint->ext_coord,
 							 &key, jnodes, count,
 							 plugged_hole);
-			check_node(hint->ext_coord.coord.node);
-		}
+		check_node(hint->ext_coord.lh->node);
+
 		zrelse(loaded);
 		if (result < 0) {
 			done_lh(hint->ext_coord.lh);

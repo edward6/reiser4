@@ -1100,26 +1100,31 @@ static u64 data_subvol_id_calc_simple(oid_t oid, loff_t offset)
 
 static int shrink_brick_simple(reiser4_volume *vol, u64 id, u64 delta)
 {
+	warning("", "shrink operation is undefined for simple volumes");
 	return -EINVAL;
 }
 
 static int remove_brick_simple(reiser4_volume *vol, u64 id)
 {
+	warning("", "remove_brick operation is undefined for simple volumes");
 	return -EINVAL;
 }
 
 static int expand_brick_simple(reiser4_volume *vol, u64 id, u64 delta)
 {
+	warning("", "expand operation is undefined for simple volumes");
 	return -EINVAL;
 }
 
 static int add_brick_simple(reiser4_volume *vol, reiser4_subvol *new)
 {
+	warning("", "add_brick operation is undefined for simple volumes");
 	return -EINVAL;
 }
 
 static int balance_volume_simple(struct super_block *sb, int force)
 {
+	warning("", "balance operation is undefined for simple volumes");
 	return -EINVAL;
 }
 

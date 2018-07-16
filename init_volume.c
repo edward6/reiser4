@@ -603,8 +603,6 @@ int reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 	u32 orig_id;
 	reiser4_volume *vol;
 
-	get_current_context()->init_vol_failed = 1;
-
 	mutex_lock(&reiser4_volumes_mutex);
 	/*
 	 * First we activate all replicas, as we need to have a
@@ -652,7 +650,6 @@ int reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 			goto deactivate;
 		}
 	}
-	get_current_context()->init_vol_failed = 0;
 	goto out;
  deactivate:
 	__reiser4_deactivate_volume(super);

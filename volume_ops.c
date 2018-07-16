@@ -152,7 +152,8 @@ static int reiser4_add_brick(struct super_block *sb,
 	assert("edward-1970", host_of_new != NULL);
 
 	if (host_of_new != super_volume(sb)) {
-		warning("edward-1971", "Can't add brick of other volume");
+		warning("edward-1971",
+			"Failed to add brick (Inappropriate volume)");
 		ret = -EINVAL;
 		goto out;
 	}
