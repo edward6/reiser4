@@ -742,12 +742,12 @@ static int meta_leaf_should_relocate(jnode *node, flush_scan *left_scan,
    properly rather than restarting, but there are a bunch of cases to audit.
 
    We process not more than one meta-data and one data subvolume in one
-   jnode_flush() call. This is optimal, because all file bodies in the tree
-   are sorted by subvolume IDs due to special key assignment policy (see method
-   ->build_body_key() of asymmetric volume plugin). We store pointer to the
-   data subvolume in flush position (field data_subv). We don't keep a track of
-   meta-data subvolume, as there is only single one per asymmetric LV (other
-   LV types are not supported for now).
+   jnode_flush() call. This is optimal, because file bodies in the tree are
+   sorted by subvolume IDs due to special key assignment policy (see method
+   ->build_body_key() of file plugin). We store pointer to the data subvolume
+   in flush position (field data_subv). We don't keep a track of meta-data
+   subvolume, as there is only single one per asymmetric LV (other LV types
+   are not supported for now).
 */
 
 static int jnode_flush(jnode *node, long nr_to_write, long *nr_written,

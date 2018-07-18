@@ -910,9 +910,9 @@ static int insert_unprepped_ctail(struct cluster_handle * clust,
 	int shift = (int)UCTAIL_SHIFT;
 
 	memset(buf, 0, (size_t) UCTAIL_NR_UNITS);
-	result = key_by_inode_cryptcompress(inode,
-					    clust_to_off(clust->index, inode),
-					    &key);
+	result = build_body_key_cryptcompress(inode,
+					      clust_to_off(clust->index, inode),
+					      &key);
 	if (result)
 		return result;
 	data.user = 0;
@@ -1299,13 +1299,13 @@ static int attach_convert_idata(flush_pos_t * pos, struct inode *inode)
 	inc_item_convert_count(pos);
 
 	/* prepare flow for insertion */
-	fplug->flow_by_inode(inode,
-			     (const char __user *)tfm_stream_data(&clust->tc,
+	flow_by_inode_unix_file(inode,
+				(const char __user *)tfm_stream_data(&clust->tc,
 								 OUTPUT_STREAM),
-			     0 /* kernel space */ ,
-			     clust->tc.len,
-			     clust_to_off(clust->index, inode),
-			     WRITE_OP, &info->flow);
+				0, /* kernel space */
+				clust->tc.len,
+				clust_to_off(clust->index, inode),
+				WRITE_OP, &info->flow);
 	if (clust->tc.hole)
 		info->flow.length = 0;
 

@@ -123,7 +123,7 @@ static int cut_formatting_items(struct inode *inode, loff_t offset, int count)
 	/*
 	 * key of first byte in the range to be cut
 	 */
-	inode_file_plugin(inode)->key_by_inode(inode, offset, &from);
+	build_body_key_unix_file(inode, offset, &from);
 	/*
 	 * key of last byte in that range
 	 */
@@ -297,7 +297,7 @@ static int find_start(struct inode *inode, reiser4_plugin_id id, __u64 *offset)
 	init_lh(&lh);
 	result = 0;
 	found = 0;
-	inode_file_plugin(inode)->key_by_inode(inode, *offset, &key);
+	build_body_key_unix_file(inode, *offset, &key);
 	do {
 		init_lh(&lh);
 		result = find_file_item_nohint(&coord, &lh, &key,
@@ -379,7 +379,7 @@ int tail2extent(struct unix_file_info *uf_info)
 	/*
 	 * get key of first byte of a file
 	 */
-	inode_file_plugin(inode)->key_by_inode(inode, offset, &key);
+	build_body_key_unix_file(inode, offset, &key);
 
 	done = 0;
 	while (done == 0) {
@@ -642,7 +642,7 @@ int extent2tail(struct file * file, struct unix_file_info *uf_info)
 	   (inode->i_size + - offset + PAGE_SIZE - 1) >> PAGE_SHIFT;
 	start_page = offset >> PAGE_SHIFT;
 
-	inode_file_plugin(inode)->key_by_inode(inode, offset, &from);
+	build_body_key_unix_file(inode, offset, &from);
 	to = from;
 
 	result = 0;

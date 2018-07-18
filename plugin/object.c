@@ -61,15 +61,7 @@ int _bugop(void)
 
 #define bugop ((void *)_bugop)
 
-static int flow_by_inode_bugop(struct inode *inode, const char __user *buf,
-			       int user, loff_t size,
-			       loff_t off, rw_op op, flow_t *f)
-{
-	BUG_ON(1);
-	return 0;
-}
-
-static int key_by_inode_bugop(struct inode *inode, loff_t off, reiser4_key *key)
+static int build_body_key_bugop(struct inode *inode, loff_t off, reiser4_key *key)
 {
 	BUG_ON(1);
 	return 0;
@@ -245,8 +237,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		 * other private methods
 		 */
 		.write_sd_by_inode = write_sd_by_inode_common,
-		.flow_by_inode = flow_by_inode_unix_file,
-		.key_by_inode = key_by_inode_and_offset,
+		.calc_data_subvol = calc_data_subvol_unix_file,
+		.build_body_key = build_body_key_unix_file,
 		.set_plug_in_inode = set_plug_in_inode_common,
 		.adjust_to_parent = adjust_to_parent_common,
 		.create_object = reiser4_create_object_common,
@@ -288,8 +280,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.as_ops = &null_a_ops,
 
 		.write_sd_by_inode = write_sd_by_inode_common,
-		.flow_by_inode = flow_by_inode_bugop,
-		.key_by_inode = key_by_inode_bugop,
+		.build_body_key = build_body_key_bugop,
 		.set_plug_in_inode = set_plug_in_inode_common,
 		.adjust_to_parent = adjust_to_parent_common_dir,
 		.create_object = reiser4_create_object_common,
@@ -435,8 +426,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.bmap = bmap_cryptcompress,
 
 		.write_sd_by_inode = write_sd_by_inode_common,
-		.flow_by_inode = flow_by_inode_cryptcompress,
-		.key_by_inode = key_by_inode_cryptcompress,
+		.calc_data_subvol = calc_data_subvol_unix_file,
+		.build_body_key = build_body_key_cryptcompress,
 		.set_plug_in_inode = set_plug_in_inode_common,
 		.adjust_to_parent = adjust_to_parent_cryptcompress,
 		.create_object = create_object_cryptcompress,
@@ -506,8 +497,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		 * other private methods
 		 */
 		.write_sd_by_inode = write_sd_by_inode_common,
-		.flow_by_inode = flow_by_inode_unix_file,
-		.key_by_inode = key_by_inode_and_offset,
+		.calc_data_subvol = calc_data_subvol_stripe,
+		.build_body_key = build_body_key_stripe,
 		.set_plug_in_inode = set_plug_in_inode_common,
 		.adjust_to_parent = adjust_to_parent_common,
 		.create_object = create_object_stripe,

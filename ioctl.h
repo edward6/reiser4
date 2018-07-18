@@ -52,8 +52,10 @@ typedef enum {
 	REISER4_DISCARD = 8,
 	/* disable hole punching at flush time */
 	REISER4_DONT_PUNCH_HOLES = 9,
+	/* volume is ready for regular operations */
+	REISER4_ACTIVATED_VOL = 10,
 	/* some volume operation is not completed */
-	REISER4_UNBALANCED_VOL = 10
+	REISER4_UNBALANCED_VOL = 11
 } reiser4_fs_flag;
 
 #define REISER4_PATH_NAME_MAX 3900 /* FIXME: make it more precise */

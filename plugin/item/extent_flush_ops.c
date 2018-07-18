@@ -699,7 +699,7 @@ int put_unit_to_end(znode *node,
 
 int key_by_offset_extent(struct inode *inode, loff_t off, reiser4_key * key)
 {
-	return key_by_inode_and_offset(inode, off, key);
+	return inode_file_plugin(inode)->build_body_key(inode, off, key);
 }
 
 /*

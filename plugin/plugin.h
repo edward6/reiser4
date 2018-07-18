@@ -252,42 +252,14 @@ typedef struct file_plugin {
 	   reiserfs_update_sd() in 3.x */
 	int (*write_sd_by_inode) (struct inode *, oid_t *oid);
 	/*
-	 * Construct flow into @flow according to user-supplied data.
-	 *
-	 * This is used by read/write methods to construct a flow to
-	 * write/read. ->flow_by_inode() is plugin method, rather than single
-	 * global implementation, because key in a flow used by plugin may
-	 * depend on data in a @buf.
-	 *
-	 * NIKITA-FIXME-HANS: please create statistics on what functions are
-	 * dereferenced how often for the mongo benchmark.  You can supervise
-	 * Elena doing this for you if that helps.  Email me the list of the
-	 * top 10, with their counts, and an estimate of the total number of
-	 * CPU cycles spent dereferencing as a percentage of CPU cycles spent
-	 * processing (non-idle processing).  If the total percent is, say,
-	 * less than 1%, it will make our coding discussions much easier, and
-	 * keep me from questioning whether functions like the below are too
-	 * frequently called to be dereferenced.  If the total percent is more
-	 * than 1%, perhaps private methods should be listed in a "required"
-	 * comment at the top of each plugin (with stern language about how if
-	 * the comment is missing it will not be accepted by the maintainer),
-	 * and implemented using macros not dereferenced functions.  How about
-	 * replacing this whole private methods part of the struct with a
-	 * thorough documentation of what the standard helper functions are for
-	 * use in constructing plugins?  I think users have been asking for
-	 * that, though not in so many words.
+	 * Build file body key by inode and offset
 	 */
-	int (*flow_by_inode) (struct inode *, const char __user *buf,
-			      int user, loff_t size,
-			      loff_t off, rw_op op, flow_t *);
-	/*
-	 * Return the key used to retrieve an offset of a file. It is used by
-	 * default implementation of ->flow_by_inode() method
-	 * (common_build_flow()) and, among other things, to get to the extent
-	 * from jnode of unformatted node.
-	 */
-	int (*key_by_inode) (struct inode *, loff_t off, reiser4_key *);
+	int (*build_body_key) (struct inode *, loff_t off, reiser4_key *);
 
+	/* Return a pointer to data subvolume where file's data at @offset
+	 * should be stored */
+	reiser4_subvol *(*calc_data_subvol)(const struct inode *inode,
+					    loff_t offset);
 	/* NIKITA-FIXME-HANS: this comment is not as clear to others as you
 	 * think.... */
 	/*

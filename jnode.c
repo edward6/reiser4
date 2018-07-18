@@ -1353,7 +1353,7 @@ jnode *jnode_rip_sync(reiser4_tree *tree, jnode *node)
 	return node;
 }
 
-reiser4_key *jnode_build_key(const jnode * node, reiser4_key * key)
+reiser4_key *jnode_build_key(const jnode *node, reiser4_key *key)
 {
 	struct inode *inode;
 	item_plugin *iplug;
@@ -1378,11 +1378,10 @@ reiser4_key *jnode_build_key(const jnode * node, reiser4_key * key)
 
 		fplug = inode_file_plugin(inode);
 		assert("zam-1007", fplug != NULL);
-		assert("zam-1008", fplug->key_by_inode != NULL);
+		assert("zam-1008", fplug->build_body_key != NULL);
 
-		fplug->key_by_inode(inode, off, key);
+		fplug->build_body_key(inode, off, key);
 	}
-
 	return key;
 }
 

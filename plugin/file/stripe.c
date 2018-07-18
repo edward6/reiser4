@@ -40,6 +40,57 @@
 int readpages_filler_generic(void *data,
 			     struct page *page, int striped);
 
+int build_body_key_stripe(struct inode *inode, loff_t off, reiser4_key *key)
+{
+	u64 ordering;
+	volume_plugin *vplug;
+
+	vplug = super_volume(inode->i_sb)->vol_plug;
+	reiser4_key_init(key);
+
+	set_key_locality(key, reiser4_inode_data(inode)->locality_id);
+	set_key_objectid(key, get_inode_oid(inode));
+
+	if (vplug->body_key_ordering)
+		ordering = vplug->body_key_ordering(get_inode_oid(inode), off);
+	else
+		ordering = get_inode_ordering(inode);
+	set_key_ordering(key, ordering);
+	set_key_type(key, KEY_BODY_MINOR);
+	set_key_offset(key, (__u64) off);
+	return 0;
+}
+
+reiser4_subvol *calc_data_subvol_stripe(const struct inode *inode,
+					loff_t offset)
+{
+	volume_plugin *vplug = current_vol_plug();
+
+	return current_origin(vplug->data_subvol_id_calc(get_inode_oid(inode),
+							 offset));
+}
+
+int flow_by_inode_stripe(struct inode *inode,
+			 const char __user *buf, int user,
+			 loff_t size, loff_t off,
+			 rw_op op, flow_t *flow)
+{
+	flow->length = size;
+	memcpy(&flow->data, &buf, sizeof(buf));
+	flow->user = user;
+	flow->op = op;
+	assert("edward-2088",
+	       inode_file_plugin(inode) ==
+	       file_plugin_by_id(STRIPED_FILE_PLUGIN_ID));
+	assert("edward-2089",
+	       inode_file_plugin(inode)->build_body_key ==
+	       build_body_key_stripe);
+	/*
+	 * calculate key of write position and insert it into flow->key
+	 */
+	return build_body_key_stripe(inode, off, &flow->key);
+}
+
 ssize_t read_stripe(struct file *file, char __user *buf,
 		    size_t read_amount, loff_t *off)
 {
@@ -243,7 +294,7 @@ int readpage_stripe(struct file *file, struct page *page)
 	/*
 	 * construct key of the page's first byte
 	 */
-	key_by_inode_and_offset(inode, page_offset(page), &key);
+	build_body_key_stripe(inode, page_offset(page), &key);
 	/*
 	 * look for file metadata corresponding to the page's first byte
 	 */
@@ -307,9 +358,9 @@ int readpage_stripe(struct file *file, struct page *page)
 		unlock_page(page);
 		reiser4_unset_hint(hint);
 	} else {
-		key_by_inode_and_offset(inode,
-					(loff_t)(page->index + 1) << PAGE_SHIFT,
-					&key);
+		build_body_key_stripe(inode,
+				      (loff_t)(page->index + 1) << PAGE_SHIFT,
+				      &key);
 		/* FIXME should call reiser4_set_hint() */
 		reiser4_unset_hint(hint);
 	}
@@ -373,9 +424,9 @@ static int cut_file_items_stripe(struct inode *inode, loff_t new_size,
 		 * block size boundary for parse_cut_by_key_range()
 		 * to evaluate cut mode properly
 		 */
-		inode_file_plugin(inode)->key_by_inode(inode,
-			    round_up(i_size_read(inode), current_blocksize) - 1,
-			    &to_key);
+		build_body_key_stripe(inode,
+		      round_up(i_size_read(inode), current_blocksize) - 1,
+				      &to_key);
 		from_key = to_key;
 		/*
 		 * cut not more than last stripe, as stripes are located

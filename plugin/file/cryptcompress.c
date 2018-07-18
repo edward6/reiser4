@@ -591,10 +591,13 @@ static void set_cluster_nrpages(struct cluster_handle * clust,
 	return;
 }
 
-/* plugin->key_by_inode()
-   build key of a disk cluster */
-int key_by_inode_cryptcompress(struct inode *inode, loff_t off,
-			       reiser4_key * key)
+/**
+ * plugin->build_body_key()
+ *
+ * build key of a disk cluster (item group)
+ */
+int build_body_key_cryptcompress(struct inode *inode, loff_t off,
+				 reiser4_key * key)
 {
 	assert("edward-64", inode != 0);
 
@@ -603,13 +606,10 @@ int key_by_inode_cryptcompress(struct inode *inode, loff_t off,
 	if (inode_crypto_info(inode))
 		off = inode_scaled_offset(inode, off);
 
-	key_by_inode_and_offset(inode, 0, key);
-	set_key_offset(key, (__u64)off);
+	build_body_key_unix_file(inode, off, key);
 	return 0;
 }
 
-/* plugin->flow_by_inode() */
-/* flow is used to read/write disk clusters */
 int flow_by_inode_cryptcompress(struct inode *inode, const char __user * buf,
 				int user,       /* 1: @buf is of user space,
 					           0: kernel space */
@@ -628,8 +628,7 @@ int flow_by_inode_cryptcompress(struct inode *inode, const char __user * buf,
 	memcpy(&f->data, &buf, sizeof(buf));
 	f->user = user;
 	f->op = op;
-
-	return key_by_inode_cryptcompress(inode, off, &f->key);
+	return build_body_key_cryptcompress(inode, off, &f->key);
 }
 
 static int cryptcompress_hint_validate(hint_t *hint, reiser4_tree *tree,
@@ -2011,10 +2010,9 @@ static void set_hint_cluster(struct inode *inode, hint_t * hint,
 	       inode_file_plugin(inode) ==
 	       file_plugin_by_id(CRYPTCOMPRESS_FILE_PLUGIN_ID));
 
-	inode_file_plugin(inode)->key_by_inode(inode,
-					       clust_to_off(index, inode),
-					       &key);
-
+	build_body_key_cryptcompress(inode,
+				     clust_to_off(index, inode),
+				     &key);
 	reiser4_seal_init(&hint->seal, &hint->ext_coord.coord, &key);
 	hint->offset = get_key_offset(&key);
 	hint->mode = mode;
@@ -2183,12 +2181,15 @@ int find_disk_cluster(struct cluster_handle * clust,
 
 	dclust_init_extension(hint);
 
-	/* set key of the first disk cluster item */
-	fplug->flow_by_inode(inode,
-			     (read ? (char __user *)tfm_stream_data(tc, INPUT_STREAM) : NULL),
-			     0 /* kernel space */ ,
-			     inode_scaled_cluster_size(inode),
-			     clust_to_off(clust->index, inode), READ_OP, &f);
+	/*
+	 * set key of the first disk cluster item
+	 */
+	flow_by_inode_cryptcompress(inode,
+	        (read ? (char __user *)tfm_stream_data(tc, INPUT_STREAM) : NULL),
+		0 /* kernel space */ ,
+		inode_scaled_cluster_size(inode),
+		clust_to_off(clust->index, inode), READ_OP, &f);
+
 	if (mode == ZNODE_WRITE_LOCK) {
 		/*
 		 * reserve for flush to make dirty all the leaf nodes
@@ -2304,8 +2305,8 @@ int get_disk_cluster_locked(struct cluster_handle * clust, struct inode *inode,
 			FAKE_DISK_CLUSTER ? CBK_COORD_NOTFOUND :
 			CBK_COORD_FOUND);
 	}
-	key_by_inode_cryptcompress(inode, clust_to_off(clust->index, inode),
-				   &key);
+	build_body_key_cryptcompress(inode, clust_to_off(clust->index, inode),
+				     &key);
 	ra_info.key_to_stop = key;
 	set_key_offset(&ra_info.key_to_stop, get_key_offset(reiser4_max_key()));
 

@@ -74,7 +74,7 @@ static int migrate_data_stripe(struct inode *inode, pgoff_t stripe_off)
 	struct unix_file_info *uf;
 
 	uf = unix_file_inode_data(inode);
-	key_by_inode_and_offset(inode, stripe_off, &key);
+	build_body_key_stripe(inode, stripe_off, &key);
 	set_key_ordering(&key, KEY_ORDERING_MASK);
 	/*
 	 * FIXME: Implement read-ahead per stripe base

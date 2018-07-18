@@ -346,15 +346,25 @@ void reiser4_volume_clear_unbalanced(struct super_block *sb)
 	clear_bit(REISER4_UNBALANCED_VOL, &get_super_private(sb)->fs_flags);
 }
 
+void reiser4_volume_set_activated(struct super_block *sb)
+{
+	assert("edward-2084", sb != NULL);
+	set_bit(REISER4_ACTIVATED_VOL, &get_super_private(sb)->fs_flags);
+}
+
+int reiser4_volume_is_activated(struct super_block *sb)
+{
+	assert("edward-2085", sb != NULL);
+	return reiser4_is_set(sb, REISER4_ACTIVATED_VOL);
+}
+
 /**
  * Calculate data subvolume ID by @inode and @offset,
  * by calling respective volume plugin
  */
 reiser4_subvol *calc_data_subvol(const struct inode *inode, loff_t offset)
 {
-	return current_origin(current_vol_plug()->
-			      data_subvol_id_calc(get_inode_oid(inode),
-						  offset));
+	return inode_file_plugin(inode)->calc_data_subvol(inode, offset);
 }
 
 /**

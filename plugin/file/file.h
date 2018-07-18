@@ -62,6 +62,10 @@ sector_t reiser4_bmap_dispatch(struct address_space *, sector_t lblock);
  * (UNIX_FILE_PLUGIN_ID)
  */
 
+reiser4_subvol *calc_data_subvol_unix_file(const struct inode *inode,
+					   loff_t offset);
+int build_body_key_unix_file(struct inode *inode, loff_t off, reiser4_key *key);
+
 /* private inode operations */
 int setattr_unix_file(struct dentry *, struct iattr *);
 
@@ -131,9 +135,10 @@ int write_end_cryptcompress(struct file *file, struct page *page,
 sector_t bmap_cryptcompress(struct address_space *, sector_t lblock);
 
 /* other private methods */
+
 int flow_by_inode_cryptcompress(struct inode *, const char __user *buf,
 				int user, loff_t, loff_t, rw_op, flow_t *);
-int key_by_inode_cryptcompress(struct inode *, loff_t off, reiser4_key *);
+int build_body_key_cryptcompress(struct inode *, loff_t off, reiser4_key *);
 int create_object_cryptcompress(struct inode *, struct inode *,
 				reiser4_object_create_data *, oid_t *);
 int delete_object_cryptcompress(struct inode *);
@@ -150,6 +155,11 @@ void destroy_inode_cryptcompress(struct inode *);
  * Private methods of striped-file plugin
  * (STRIPED_FILE_PLUGIN_ID)
  */
+reiser4_subvol *calc_data_subvol_stripe(const struct inode *inode,
+					loff_t offset);
+int build_body_key_stripe(struct inode *inode, loff_t off, reiser4_key *key);
+int flow_by_inode_stripe(struct inode *inode, const char __user *buf, int user,
+			 loff_t size, loff_t off, rw_op op, flow_t *flow);
 int create_object_stripe(struct inode *object, struct inode *parent,
 			 reiser4_object_create_data *data, oid_t *oid);
 int open_stripe(struct inode *, struct file *);

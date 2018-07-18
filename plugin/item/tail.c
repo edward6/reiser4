@@ -639,7 +639,7 @@ ssize_t write_tail_noreserve(struct file *file,
 	flow.user = 1;
 	memcpy(&flow.data, &buf, sizeof(buf));
 	flow.op = WRITE_OP;
-	key_by_inode_and_offset(inode, *pos, &flow.key);
+	inode_file_plugin(inode)->build_body_key(inode, *pos, &flow.key);
 
 	result = find_file_item(&hint, &flow.key, ZNODE_WRITE_LOCK, inode);
 	if (IS_CBKERR(result))

@@ -356,7 +356,7 @@ static int cut_disk_cluster(struct inode * inode, cloff_t idx)
 	reiser4_key from, to;
 	assert("edward-1515", inode_file_plugin(inode) ==
 	       file_plugin_by_id(CRYPTCOMPRESS_FILE_PLUGIN_ID));
-	key_by_inode_cryptcompress(inode, clust_to_off(idx, inode), &from);
+	build_body_key_cryptcompress(inode, clust_to_off(idx, inode), &from);
 	to = from;
 	set_key_offset(&to,
 		       get_key_offset(&from) + inode_cluster_size(inode) - 1);

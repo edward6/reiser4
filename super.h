@@ -748,6 +748,8 @@ extern int reiser4_blocknr_is_sane_for(const reiser4_subvol *subv,
 extern int reiser4_done_super(struct super_block *s);
 extern int reiser4_scan_device(const char *path, fmode_t flags, void *holder,
 			       reiser4_subvol **result, reiser4_volume **host);
+extern void reiser4_volume_set_activated(struct super_block *sb);
+extern int reiser4_volume_is_activated(struct super_block *sb);
 extern int reiser4_volume_is_unbalanced(const struct super_block *sb);
 extern void reiser4_volume_set_unbalanced(struct super_block *sb);
 extern int reiser4_volume_test_set_unbalanced(struct super_block *sb);

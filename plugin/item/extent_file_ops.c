@@ -144,7 +144,7 @@ int append_hole_unix_file(struct inode *inode, coord_t *coord,
 	 * last extent
 	 */
 	hole_offset = round_up(i_size_read(inode), current_blocksize);
-	key_by_inode_and_offset(inode, hole_offset, &hole_key);
+	build_body_key_unix_file(inode, hole_offset, &hole_key);
 	/*
 	 * extent item has to be appended with hole. Calculate length of that
 	 * hole
@@ -728,6 +728,7 @@ int overwrite_extent_generic(struct inode *inode, uf_coord_t *uf_coord,
 	int i;
 	jnode *node;
 	struct atom_brick_info *abi;
+	file_plugin *fplug = inode_file_plugin(inode);
 	reiser4_subvol *subv = calc_data_subvol(inode, get_key_offset(key));
 
 	result = check_insert_atom_brick_info(subv->id, &abi);
@@ -778,8 +779,8 @@ int overwrite_extent_generic(struct inode *inode, uf_coord_t *uf_coord,
 		 * update key for next iteration. Note that updating
 		 * only offset is not enough e.g. for striped files
 		 */
-		key_by_inode_and_offset(inode,
-					get_key_offset(&k) + PAGE_SIZE, &k);
+		fplug->build_body_key(inode,
+				      get_key_offset(&k) + PAGE_SIZE, &k);
 	}
 	return count;
 }
@@ -793,6 +794,20 @@ static int overwrite_extent_unix_file(struct inode *inode, uf_coord_t *uf_coord,
 					overwrite_one_block_unix_file);
 }
 
+#if REISER4_DEBUG
+static void check_node(znode *node)
+{
+	const char *error;
+
+	zload(node);
+	assert("edward-2076",
+	       check_node40(node, REISER4_NODE_TREE_STABLE, &error) == 0);
+	zrelse(node);
+}
+#else
+#define check_node(node) noop
+#endif
+
 int update_extent_uf(struct inode *inode, jnode *node, loff_t pos,
 		     int *plugged_hole)
 {
@@ -805,7 +820,7 @@ int update_extent_uf(struct inode *inode, jnode *node, loff_t pos,
 
 	assert("", reiser4_lock_counters()->d_refs == 0);
 
-	key_by_inode_and_offset(inode, pos, &key);
+	build_body_key_unix_file(inode, pos, &key);
 
 	init_uf_coord(&uf_coord, &lh);
 	coord = &uf_coord.coord;
@@ -820,6 +835,8 @@ int update_extent_uf(struct inode *inode, jnode *node, loff_t pos,
 	BUG_ON(result != 0);
 	loaded = coord->node;
 
+	check_node(coord->node);
+
 	if (coord->between == AFTER_UNIT) {
 		/*
 		 * append existing extent item with unallocated extent of width
@@ -829,6 +846,7 @@ int update_extent_uf(struct inode *inode, jnode *node, loff_t pos,
 					    get_key_offset(&key));
 		result = append_last_extent_unix_file(inode, &uf_coord,
 						      &key, &node, 1);
+		check_node(lh.node);
 	} else if (coord->between == AT_UNIT) {
 		/*
 		 * overwrite
@@ -839,6 +857,7 @@ int update_extent_uf(struct inode *inode, jnode *node, loff_t pos,
 					    get_key_offset(&key));
 		result = overwrite_extent_unix_file(inode, &uf_coord, &key,
 						    &node, 1, plugged_hole);
+		check_node(lh.node);
 	} else {
 		/*
 		 * there are no items of this file in the tree yet. Create
@@ -847,6 +866,7 @@ int update_extent_uf(struct inode *inode, jnode *node, loff_t pos,
 		 */
 		result = insert_first_extent_unix_file(&uf_coord, &key,
 						       &node, 1, inode);
+		check_node(lh.node);
 	}
 	assert("edward-2048", result == 1 || result < 0);
 
@@ -873,7 +893,7 @@ static int update_extents_unix_file(struct file *file, struct inode *inode,
 		 * count == 0 is special case: expanding truncate
 		 */
 		pos = (loff_t)index_jnode(jnodes[0]) << PAGE_SHIFT;
-	key_by_inode_and_offset(inode, pos, &key);
+	build_body_key_unix_file(inode, pos, &key);
 
 	assert("", reiser4_lock_counters()->d_refs == 0);
 
@@ -887,6 +907,8 @@ static int update_extents_unix_file(struct file *file, struct inode *inode,
 		result = zload(hint.ext_coord.coord.node);
 		BUG_ON(result != 0);
 		loaded = hint.ext_coord.coord.node;
+
+		check_node(loaded);
 
 		if (hint.ext_coord.coord.between == AFTER_UNIT) {
 			/*
@@ -925,6 +947,8 @@ static int update_extents_unix_file(struct file *file, struct inode *inode,
 							       &key, jnodes,
 							       count, inode);
 		}
+		check_node(hint.ext_coord.lh->node);
+
 		zrelse(loaded);
 		if (result < 0) {
 			done_lh(hint.ext_coord.lh);
@@ -1900,20 +1924,6 @@ static int overwrite_extent_stripe(struct inode *inode, uf_coord_t *uf_coord,
 					overwrite_one_block_stripe);
 }
 
-#if REISER4_DEBUG
-static void check_node(znode *node)
-{
-	const char *error;
-
-	zload(node);
-	assert("edward-2076",
-	       check_node40(node, REISER4_NODE_TREE_STABLE, &error) == 0);
-	zrelse(node);
-}
-#else
-#define check_node(node) noop
-#endif
-
 /*
  * update body of a striped file on write or expanding truncate operations
  */
@@ -1930,7 +1940,7 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 		 */
 		pos = (loff_t)index_jnode(jnodes[0]) << PAGE_SHIFT;
 
-	key_by_inode_and_offset(inode, pos, &key);
+	build_body_key_stripe(inode, pos, &key);
 	assert("edward-2063", reiser4_lock_counters()->d_refs == 0);
 
 	do {
@@ -1971,7 +1981,7 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 		count -= result;
 		pos += result * PAGE_SIZE;
 
-		key_by_inode_and_offset(inode, pos, &key);
+		build_body_key_stripe(inode, pos, &key);
 		/*
 		 * seal and unlock znode
 		 */

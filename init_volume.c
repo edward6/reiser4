@@ -650,6 +650,7 @@ int reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 			goto deactivate;
 		}
 	}
+	reiser4_volume_set_activated(super);
 	goto out;
  deactivate:
 	__reiser4_deactivate_volume(super);

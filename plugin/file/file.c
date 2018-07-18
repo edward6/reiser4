@@ -312,10 +312,13 @@ static int find_file_state(struct inode *inode, struct unix_file_info *uf_info)
 	coord_t coord;
 	lock_handle lh;
 
+	assert("edward-2086",
+	       inode_file_plugin(inode) ==
+	       file_plugin_by_id(UNIX_FILE_PLUGIN_ID));
 	assert("vs-1628", ea_obtained(uf_info));
 
 	if (uf_info->container == UF_CONTAINER_UNKNOWN) {
-		key_by_inode_and_offset(inode, 0, &key);
+		build_body_key_unix_file(inode, 0, &key);
 		init_lh(&lh);
 		result = find_file_item_nohint(&coord, &lh, &key,
 					       ZNODE_READ_LOCK, inode);
@@ -416,7 +419,7 @@ int cut_file_items(struct inode *inode, loff_t new_size,
 	       fplug == file_plugin_by_id(CRYPTCOMPRESS_FILE_PLUGIN_ID));
 
 	tree = meta_subvol_tree();
-	fplug->key_by_inode(inode, new_size, &from_key);
+	fplug->build_body_key(inode, new_size, &from_key);
 	to_key = from_key;
 	set_key_offset(&to_key, cur_size - 1 /*get_key_offset(reiser4_max_key()) */ );
 	/*
@@ -1407,6 +1410,9 @@ int readpage_unix_file(struct file *file, struct page *page)
 
 	inode = page->mapping->host;
 
+	assert("edward-2087", inode_file_plugin(inode) ==
+	       file_plugin_by_id(UNIX_FILE_PLUGIN_ID));
+
 	if (inode->i_size <= page_offset(page)) {
 		/* page is out of file */
 		zero_user(page, 0, PAGE_SIZE);
@@ -1438,7 +1444,7 @@ int readpage_unix_file(struct file *file, struct page *page)
 	/*
 	 * construct key of the page's first byte
 	 */
-	key_by_inode_and_offset(inode, page_offset(page), &key);
+	build_body_key_unix_file(inode, page_offset(page), &key);
 	/*
 	 * look for file metadata corresponding to the page's first byte
 	 */
@@ -1582,6 +1588,7 @@ int reiser4_readpages_filler_generic(void *data,
 	int cbk_done = 0;
 	struct uf_readpages_context *rc = data;
 	struct address_space *mapping = page->mapping;
+	file_plugin *fplug = inode_file_plugin(mapping->host);
 
 	if (PageUptodate(page)) {
 		unlock_page(page);
@@ -1594,8 +1601,9 @@ int reiser4_readpages_filler_generic(void *data,
 		reiser4_key key;
 	repeat:
 		unlock_page(page);
-		key_by_inode_and_offset(mapping->host,
-					page_offset(page), &key);
+
+		fplug->build_body_key(mapping->host, page_offset(page), &key);
+
 		ret = coord_by_key(meta_subvol_tree(),
 				   &key, &rc->coord, &rc->lh,
 				   ZNODE_READ_LOCK, FIND_EXACT,
@@ -1730,9 +1738,6 @@ static ssize_t do_read_compound_file(hint_t *hint, struct file *file,
 	inode = file_inode(file);
 
 	/* build flow */
-	assert("vs-1250",
-	       inode_file_plugin(inode)->flow_by_inode ==
-	       flow_by_inode_unix_file);
 	result = flow_by_inode_unix_file(inode, buf, 1 /* user space */,
 					 count, *off, READ_OP, &flow);
 	if (unlikely(result))
@@ -2036,7 +2041,7 @@ static int find_first_item(struct inode *inode)
 
 	coord_init_zero(&coord);
 	init_lh(&lh);
-	inode_file_plugin(inode)->key_by_inode(inode, 0, &key);
+	inode_file_plugin(inode)->build_body_key(inode, 0, &key);
 	result = find_file_item_nohint(&coord, &lh, &key, ZNODE_READ_LOCK,
 				       inode);
 	if (result == CBK_COORD_FOUND) {
@@ -2550,9 +2555,9 @@ sector_t bmap_unix_file(struct address_space * mapping, sector_t lblock)
 	ctx = reiser4_init_context(inode->i_sb);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
-	key_by_inode_and_offset(inode,
-				(loff_t) lblock * current_blocksize,
-				&key);
+	build_body_key_unix_file(inode,
+				 (loff_t) lblock * current_blocksize,
+				 &key);
 	init_lh(&lh);
 	result =
 	    find_file_item_nohint(&coord, &lh, &key, ZNODE_READ_LOCK, inode);
@@ -2583,7 +2588,53 @@ sector_t bmap_unix_file(struct address_space * mapping, sector_t lblock)
 	return result;
 }
 
+int build_body_key_unix_file(struct inode *inode, loff_t off, reiser4_key *key)
+{
+	u64 ordering;
+	volume_plugin *vplug = current_vol_plug();
+
+	reiser4_key_init(key);
+
+	set_key_locality(key, reiser4_inode_data(inode)->locality_id);
+	set_key_objectid(key, get_inode_oid(inode));	/*FIXME: inode->i_ino */
+
+	if (vplug->body_key_ordering)
+		ordering = 0;
+	else
+		ordering = get_inode_ordering(inode);
+	set_key_ordering(key, ordering);
+	set_key_type(key, KEY_BODY_MINOR);
+	set_key_offset(key, (__u64) off);
+	return 0;
+}
+
+reiser4_subvol *calc_data_subvol_unix_file(const struct inode *inode, loff_t offset)
+{
+	return get_meta_subvol();
+}
+
 /**
+ * Construct flow into @flow according to user-supplied data.
+ * This is used by read/write methods to construct a flow to read/write.
+ *
+ * NIKITA-FIXME-HANS: please create statistics on what functions are
+ * dereferenced how often for the mongo benchmark.  You can supervise
+ * Elena doing this for you if that helps.  Email me the list of the
+ * top 10, with their counts, and an estimate of the total number of
+ * CPU cycles spent dereferencing as a percentage of CPU cycles spent
+ * processing (non-idle processing).  If the total percent is, say,
+ * less than 1%, it will make our coding discussions much easier, and
+ * keep me from questioning whether functions like the below are too
+ * frequently called to be dereferenced.  If the total percent is more
+ * than 1%, perhaps private methods should be listed in a "required"
+ * comment at the top of each plugin (with stern language about how if
+ * the comment is missing it will not be accepted by the maintainer),
+ * and implemented using macros not dereferenced functions.  How about
+ * replacing this whole private methods part of the struct with a
+ * thorough documentation of what the standard helper functions are for
+ * use in constructing plugins?  I think users have been asking for
+ * that, though not in so many words.
+ *
  * flow_by_inode_unix_file - initizlize structure flow
  * @inode: inode of file for which read or write is abou
  * @buf: buffer to perform read to or write from
@@ -2608,10 +2659,12 @@ int flow_by_inode_unix_file(struct inode *inode,
 	flow->op = op;
 	assert("nikita-1931", inode_file_plugin(inode) != NULL);
 	assert("nikita-1932",
-	       inode_file_plugin(inode)->key_by_inode ==
-	       key_by_inode_and_offset);
-	/* calculate key of write position and insert it into flow->key */
-	return key_by_inode_and_offset(inode, off, &flow->key);
+	       inode_file_plugin(inode)->build_body_key ==
+	       build_body_key_unix_file);
+	/*
+	 * calculate key of write position and insert it into flow->key
+	 */
+	return build_body_key_unix_file(inode, off, &flow->key);
 }
 
 /* plugin->u.file.set_plug_in_sd = NULL
