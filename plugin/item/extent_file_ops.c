@@ -100,16 +100,21 @@ static int coord_matches_key_extent(const coord_t *coord,
 				    const reiser4_key *key)
 {
 	reiser4_key item_key;
+	item_plugin *iplug;
 
 	assert("vs-771", coord_is_existing_unit(coord));
+	assert("edward-2090", item_is_extent(coord));
+
+	iplug = item_plugin_by_coord(coord);
+
 	/*
-	 * in simple volumes the function (key -> offset-in-file-body)
-	 * should be monotonic.
+	 * in simple volumes logical order should coincide with
+	 * physical order
 	 */
 	assert("vs-1258",
 	       ergo(current_vol_plug() ==
 		    volume_plugin_by_id(SIMPLE_VOLUME_ID),
-		    keylt(key, append_key_extent(coord, &item_key))));
+		    keylt(key, iplug->s.file.append_key(coord, &item_key))));
 	assert("vs-1259",
 	       ergo(current_vol_plug() ==
 		    volume_plugin_by_id(SIMPLE_VOLUME_ID),
@@ -138,7 +143,7 @@ int append_hole_unix_file(struct inode *inode, coord_t *coord,
 
 	/* last item of file may have to be appended with hole */
 	assert("vs-708", znode_get_level(coord->node) == TWIG_LEVEL);
-	assert("vs-714", item_id_by_coord(coord) == EXTENT_POINTER_ID);
+	assert("vs-714", item_id_by_coord(coord) == EXTENT40_POINTER_ID);
 	/*
 	 * construct key of first byte which is not addressed by the
 	 * last extent
@@ -176,7 +181,7 @@ int append_hole_unix_file(struct inode *inode, coord_t *coord,
 			  state_of_extent(ext) == UNALLOCATED_EXTENT));
 
 	reiser4_set_extent(&new_ext, HOLE_EXTENT_START, hole_width);
-	init_new_extent(&idata, &new_ext, 1);
+	init_new_extent(EXTENT40_POINTER_ID, &idata, &new_ext, 1);
 	ret = insert_into_item(coord, lh, &hole_key, &idata, 0);
 	if (ret < 0)
 		return ret;
@@ -292,7 +297,7 @@ static int append_last_extent_unix_file(struct inode *inode,
 		 * one. Append one unallocated extent of width @count
 		 */
 		reiser4_set_extent(&new_ext, UNALLOCATED_EXTENT_START, count);
-		init_new_extent(&idata, &new_ext, 1);
+		init_new_extent(EXTENT40_POINTER_ID, &idata, &new_ext, 1);
 		result = insert_into_item(coord, uf_coord->lh, key, &idata, 0);
 		uf_coord->valid = 0;
 		if (result)
@@ -362,7 +367,7 @@ static int insert_first_hole_unix_file(struct inode *inode, coord_t *coord,
 	 * compose body of hole extent and insert item into tree
 	 */
 	reiser4_set_extent(&new_ext, HOLE_EXTENT_START, hole_width);
-	init_new_extent(&idata, &new_ext, 1);
+	init_new_extent(EXTENT40_POINTER_ID, &idata, &new_ext, 1);
 	ret = insert_extent_by_coord(coord, &idata, &item_key, lh);
 	if (ret < 0)
 		return ret;
@@ -435,7 +440,7 @@ static int insert_first_extent_unix_file(uf_coord_t *uf_coord,
 	 * structure needed for insertion
 	 */
 	reiser4_set_extent(&new_ext, UNALLOCATED_EXTENT_START, count);
-	init_new_extent(&idata, &new_ext, 1);
+	init_new_extent(EXTENT40_POINTER_ID, &idata, &new_ext, 1);
 
 	/* insert extent item into the tree */
 	result = insert_extent_by_coord(&uf_coord->coord, &idata, key,
@@ -617,7 +622,8 @@ static int plug_hole_unix_file(uf_coord_t *uf_coord,
 		       extent_get_width(&rh.overwrite) * current_blocksize);
 
 	uf_coord->valid = 0;
-	return reiser4_replace_extent(&rh, return_inserted_position);
+	return reiser4_replace_extent(EXTENT40_POINTER_ID,
+				      &rh, return_inserted_position);
 }
 
 /**
@@ -1473,22 +1479,36 @@ int get_block_address_extent(const coord_t *coord, sector_t block,
 }
 
 /**
- * plugin->u.item.s.file.append_key
+ * plugin->u.item.s.file.append_key for simple extent pointers
+ *
  * Build key of first byte of file's body which is the next
  * to last byte addressed by this extent
  */
-reiser4_key *append_key_extent(const coord_t *coord, reiser4_key *key)
+reiser4_key *append_key_extent40(const coord_t *coord, reiser4_key *key)
 {
 	item_key_by_coord(coord, key);
 	set_key_offset(key, get_key_offset(key) +
 		       reiser4_extent_size(coord, nr_units_extent(coord)));
 
-	if (current_vol_plug()->body_key_ordering != NULL)
-		set_key_ordering(key,
-		    current_vol_plug()->body_key_ordering(get_key_objectid(key),
-							  get_key_offset(key)));
 	assert("vs-610", get_key_offset(key) &&
 	       (get_key_offset(key) & (current_blocksize - 1)) == 0);
+	return key;
+}
+
+/**
+ * plugin->u.item.s.file.append_key for distributed extent pointers
+ */
+reiser4_key *append_key_extent41(const coord_t *coord, reiser4_key *key)
+{
+	append_key_extent40(coord, key);
+	/*
+	 * In contrast with simple extent pointers, ordering
+	 * of appended key for distributed extent pointer can
+	 * differ from the key of original item pointed out
+	 * by @coord
+	 */
+	set_key_ordering(key, current_vol_plug()->data_subvol_id_calc
+			 (get_key_objectid(key), get_key_offset(key)));
 	return key;
 }
 
@@ -1601,7 +1621,7 @@ static int plug_hole_stripe(struct inode *inode,
 
 		reiser4_set_extent(&new_ext,
 				   UNALLOCATED_EXTENT_START, 1);
-		init_new_extent(&idata, &new_ext, 1);
+		init_new_extent(EXTENT41_POINTER_ID, &idata, &new_ext, 1);
 		ret = insert_extent_by_coord(coord, &idata,
 					     key, uf_coord->lh);
 		if (ret)
@@ -1637,12 +1657,12 @@ static int plug_hole_stripe(struct inode *inode,
 	 */
 	assert("edward-2057", item_is_extent(coord));
 
-	if (!keyeq(key, append_key_extent(coord, &akey))) {
+	if (!keyeq(key, append_key_extent41(coord, &akey))) {
 		/*
 		 * can not push. Create a new item
 		 */
 		reiser4_set_extent(&new_ext, UNALLOCATED_EXTENT_START, 1);
-		init_new_extent(&idata, &new_ext, 1);
+		init_new_extent(EXTENT41_POINTER_ID, &idata, &new_ext, 1);
 		ret = insert_by_coord(coord, &idata, key, uf_coord->lh, 0);
 	} else {
 		/*
@@ -1663,7 +1683,8 @@ static int plug_hole_stripe(struct inode *inode,
 			coord->between = AFTER_UNIT;
 			reiser4_set_extent(&new_ext,
 					   UNALLOCATED_EXTENT_START, 1);
-			init_new_extent(&idata, &new_ext, 1);
+			init_new_extent(EXTENT41_POINTER_ID,
+					&idata, &new_ext, 1);
 			ret = insert_into_item(coord, uf_coord->lh,
 					       key, &idata, 0);
 		}
@@ -1712,7 +1733,7 @@ static int insert_first_extent_stripe(uf_coord_t *uf_coord,
 	 * structure needed for insertion
 	 */
 	reiser4_set_extent(&new_ext, UNALLOCATED_EXTENT_START, count);
-	init_new_extent(&idata, &new_ext, 1);
+	init_new_extent(EXTENT41_POINTER_ID, &idata, &new_ext, 1);
 
 	/* insert extent item into the tree */
 	result = insert_extent_by_coord(&uf_coord->coord, &idata, key,
@@ -1790,7 +1811,7 @@ static int append_extent_stripe(struct inode *inode, uf_coord_t *uf_coord,
 	 * try to merge with the file body's last item
 	 * If impossible, then create a new item
 	 */
-	append_key_extent(coord, &akey);
+	append_key_extent41(coord, &akey);
 	if (!keyeq(&akey, key))
 		/*
 		 * can not merge
@@ -1813,7 +1834,7 @@ static int append_extent_stripe(struct inode *inode, uf_coord_t *uf_coord,
 		 * paste with possible carry
 		 */
 		reiser4_set_extent(&new_ext, UNALLOCATED_EXTENT_START, count);
-		init_new_extent(&idata, &new_ext, 1);
+		init_new_extent(EXTENT41_POINTER_ID, &idata, &new_ext, 1);
 		result = insert_into_item(coord, uf_coord->lh, key, &idata, 0);
 		if (result)
 			return result;
@@ -1824,7 +1845,7 @@ static int append_extent_stripe(struct inode *inode, uf_coord_t *uf_coord,
  create:
 	/* create a new item */
 	reiser4_set_extent(&new_ext, UNALLOCATED_EXTENT_START, count);
-	init_new_extent(&idata, &new_ext, 1);
+	init_new_extent(EXTENT41_POINTER_ID, &idata, &new_ext, 1);
 	result = insert_by_coord(coord, &idata, key, uf_coord->lh, 0);
 	if (result)
 		return result;

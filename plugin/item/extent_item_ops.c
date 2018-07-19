@@ -34,18 +34,19 @@ can_contain_key_extent(const coord_t * coord, const reiser4_key * key,
 	return 1;
 }
 
-/* item_plugin->b.mergeable
-   first item is of extent type */
-/* Audited by: green(2002.06.13) */
-int mergeable_extent(const coord_t * p1, const coord_t * p2)
+/**
+ * Check if extent @p1 of type @extent_id is mergeable with @p2
+ */
+static inline int mergeable_extent(item_id extent_id,
+				   const coord_t *p1, const coord_t *p2)
 {
 	reiser4_key key1, key2;
 
-	assert("vs-299", item_id_by_coord(p1) == EXTENT_POINTER_ID);
+	assert("vs-299", item_id_by_coord(p1) == extent_id);
 	/*
 	 * FIXME-VS: Which is it? Assert or return 0
 	 */
-	if (item_id_by_coord(p2) != EXTENT_POINTER_ID)
+	if (item_id_by_coord(p2) != extent_id)
 		return 0;
 
 	item_key_by_coord(p1, &key1);
@@ -61,6 +62,19 @@ int mergeable_extent(const coord_t * p1, const coord_t * p2)
 	    get_key_offset(&key2))
 		return 0;
 	return 1;
+}
+
+/**
+ * item_plugin->b.mergeable
+ */
+int mergeable_extent40(const coord_t *p1, const coord_t *p2)
+{
+	return mergeable_extent(EXTENT40_POINTER_ID, p1, p2);
+}
+
+int mergeable_extent41(const coord_t *p1, const coord_t *p2)
+{
+	return mergeable_extent(EXTENT41_POINTER_ID, p1, p2);
 }
 
 /* item_plugin->b.nr_units */

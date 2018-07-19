@@ -5,7 +5,7 @@
  * this file contains implementations of inode/file/address_space/file plugin
  * operations specific for "unix file plugin" (plugin id is
  * UNIX_FILE_PLUGIN_ID). "Unix file" is either built of tail items only
- * (FORMATTING_ID) or of extent items only (EXTENT_POINTER_ID) or empty (have
+ * (FORMATTING_ID) or of extent items only (EXTENT40_POINTER_ID) or empty (have
  * no items but stat data)
  */
 
@@ -1520,7 +1520,7 @@ int readpage_unix_file(struct file *file, struct page *page)
 		return RETERR(-EIO);
 	}
 	switch(item_plugin_by_coord(coord)->h.id) {
-	case EXTENT_POINTER_ID:
+	case EXTENT40_POINTER_ID:
 		result = reiser4_readpage_extent(coord, page);
 		break;
 	case FORMATTING_ID:
@@ -1777,7 +1777,7 @@ static ssize_t do_read_compound_file(hint_t *hint, struct file *file,
 		assert("vs-33", hint->ext_coord.lh == &hint->lh);
 
 		switch(item_plugin_by_coord(coord)->h.id) {
-		case EXTENT_POINTER_ID:
+		case EXTENT40_POINTER_ID:
 			result = read_extent_unix_file(file, &flow, hint);
 			break;
 		case FORMATTING_ID:
@@ -2050,7 +2050,7 @@ static int find_first_item(struct inode *inode)
 			if (result == 0) {
 				result = item_id_by_coord(&coord);
 				zrelse(coord.node);
-				if (result != EXTENT_POINTER_ID &&
+				if (result != EXTENT40_POINTER_ID &&
 				    result != FORMATTING_ID)
 					result = RETERR(-EIO);
 			}
@@ -2104,7 +2104,7 @@ int open_unix_file(struct inode *inode, struct file *file)
 	 * balance dirty pages. Complete the conversion
 	 */
 	result = find_first_item(inode);
-	if (result == EXTENT_POINTER_ID)
+	if (result == EXTENT40_POINTER_ID)
 		/*
 		 * first item is extent, therefore there was incomplete
 		 * tail2extent conversion. Complete it
@@ -2590,19 +2590,11 @@ sector_t bmap_unix_file(struct address_space * mapping, sector_t lblock)
 
 int build_body_key_unix_file(struct inode *inode, loff_t off, reiser4_key *key)
 {
-	u64 ordering;
-	volume_plugin *vplug = current_vol_plug();
-
 	reiser4_key_init(key);
 
 	set_key_locality(key, reiser4_inode_data(inode)->locality_id);
-	set_key_objectid(key, get_inode_oid(inode));	/*FIXME: inode->i_ino */
-
-	if (vplug->body_key_ordering)
-		ordering = 0;
-	else
-		ordering = get_inode_ordering(inode);
-	set_key_ordering(key, ordering);
+	set_key_objectid(key, get_inode_oid(inode));
+	set_key_ordering(key, get_inode_ordering(inode));
 	set_key_type(key, KEY_BODY_MINOR);
 	set_key_offset(key, (__u64) off);
 	return 0;
@@ -2688,10 +2680,10 @@ owns_item_unix_file(const struct inode *inode /* object to check against */ ,
 	if (!result)
 		return 0;
 	if (!plugin_of_group(item_plugin_by_coord(coord),
-			     UNIX_FILE_METADATA_ITEM_TYPE))
+			     FILE_BODY_ITEM_TYPE))
 		return 0;
 	assert("vs-547",
-	       item_id_by_coord(coord) == EXTENT_POINTER_ID ||
+	       item_id_by_coord(coord) == EXTENT40_POINTER_ID ||
 	       item_id_by_coord(coord) == FORMATTING_ID);
 	return 1;
 }

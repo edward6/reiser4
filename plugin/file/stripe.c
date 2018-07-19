@@ -9,14 +9,13 @@
 
 /*
  * Striped files are represented in the storage tree only by extent
- * pointers. In contrast with classic unix-files, their bodies are
- * composed of distribution logical units (stripes). In turn, every
- * stripe is composed of allocation units (extents). Extent pointer's
- * key is calculated like for classic unix files except the ordering
- * component, which contains ID of a brick (subvolume), where that
- * block should be stored. Block pointers with different orderings
- * don't get merged. Holes in a striped file are not represented by
- * any items.
+ * pointers of EXTENT41_POINTER_ID. In contrast with classic unix-files,
+ * their bodies are composed of distribution logical units (stripes).
+ * In turn, every stripe is composed of allocation units (extents).
+ * Extent pointer's key is calculated like for classic unix files except
+ * the ordering component, which contains ID of a brick (subvolume),
+ * where that block should be stored (see build_budy_key_stripe()).
+ * Holes in a striped file are not represented by any items.
  *
  * In the initial implementation any modifying operation takes an
  * exclusive access to the whole file. It is for simplicity:
@@ -46,15 +45,11 @@ int build_body_key_stripe(struct inode *inode, loff_t off, reiser4_key *key)
 	volume_plugin *vplug;
 
 	vplug = super_volume(inode->i_sb)->vol_plug;
-	reiser4_key_init(key);
+	ordering = vplug->data_subvol_id_calc(get_inode_oid(inode), off);
 
+	reiser4_key_init(key);
 	set_key_locality(key, reiser4_inode_data(inode)->locality_id);
 	set_key_objectid(key, get_inode_oid(inode));
-
-	if (vplug->body_key_ordering)
-		ordering = vplug->body_key_ordering(get_inode_oid(inode), off);
-	else
-		ordering = get_inode_ordering(inode);
 	set_key_ordering(key, ordering);
 	set_key_type(key, KEY_BODY_MINOR);
 	set_key_offset(key, (__u64) off);

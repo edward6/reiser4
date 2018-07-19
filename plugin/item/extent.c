@@ -11,15 +11,15 @@
 
 /* prepare structure reiser4_item_data. It is used to put one extent unit into tree */
 /* Audited by: green(2002.06.13) */
-reiser4_item_data *init_new_extent(reiser4_item_data * data, void *ext_unit,
-				   int nr_extents)
+reiser4_item_data *init_new_extent(item_id extent_id, reiser4_item_data *data,
+				   void *ext_unit,  int nr_extents)
 {
 	data->data = ext_unit;
 	/* data->data is kernel space */
 	data->user = 0;
 	data->length = sizeof(reiser4_extent) * nr_extents;
 	data->arg = NULL;
-	data->iplug = item_plugin_by_id(EXTENT_POINTER_ID);
+	data->iplug = item_plugin_by_id(extent_id);
 	return data;
 }
 
@@ -84,7 +84,7 @@ void reiser4_set_extent(reiser4_extent * ext, reiser4_block_nr start,
  * first of newly inserted units, if it is 0 - @un_extent and @lh are returned
  * set to extent which was overwritten.
  */
-int reiser4_replace_extent(struct replace_handle *h,
+int reiser4_replace_extent(item_id extent_id, struct replace_handle *h,
 			   int return_inserted_position)
 {
 	int result;
@@ -99,7 +99,8 @@ int reiser4_replace_extent(struct replace_handle *h,
 			       extent_get_width(&h->new_extents[1]) != 0));
 
 	/* compose structure for paste */
-	init_new_extent(&h->item, &h->new_extents[0], h->nr_new_extents);
+	init_new_extent(extent_id, &h->item,
+			&h->new_extents[0], h->nr_new_extents);
 
 	coord_dup(&h->coord_after, h->coord);
 	init_lh(&h->lh_after);

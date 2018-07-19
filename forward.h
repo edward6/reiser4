@@ -187,11 +187,12 @@ typedef enum {
 	SIMPLE_DIR_ENTRY_ID = 0x1,
 	COMPOUND_DIR_ID = 0x2,
 	NODE_POINTER_ID = 0x3,
-	EXTENT_POINTER_ID = 0x5,
+	EXTENT40_POINTER_ID = 0x5,
 	FORMATTING_ID = 0x6,
 	CTAIL_ID = 0x7,
 	BLACK_BOX_ID = 0x8,
-	LAST_ITEM_ID = 0x9
+	EXTENT41_POINTER_ID = 0x9,
+	LAST_ITEM_ID = 0xa
 } item_id;
 
 /* Flags passed to jnode_flush() to allow it to distinguish default settings

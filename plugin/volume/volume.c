@@ -1159,11 +1159,6 @@ static u64 data_subvol_id_calc_asym(oid_t oid, loff_t offset)
 				   sizeof(stripe_idx), get_seed(oid, vol));
 }
 
-static u64 body_key_ordering_asym(oid_t oid, loff_t offset)
-{
-	return data_subvol_id_calc_asym(oid, offset);
-}
-
 u64 get_meta_subvol_id(void)
 {
 	return current_vol_plug()->meta_subvol_id();
@@ -1190,8 +1185,9 @@ u64 data_subvol_id_find_asym(const coord_t *coord)
 
 	switch(item_id_by_coord(coord)) {
 	case NODE_POINTER_ID:
+	case EXTENT40_POINTER_ID:
 		return METADATA_SUBVOL_ID;
-	case EXTENT_POINTER_ID:
+	case EXTENT41_POINTER_ID:
 		return find_data_subvol_extent(coord);
 	default:
 		impossible("edward-2018", "Bad item ID");
@@ -1425,7 +1421,6 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		.meta_subvol_id = meta_subvol_id_simple,
 		.data_subvol_id_calc = data_subvol_id_calc_simple,
 		.data_subvol_id_find = data_subvol_id_find_simple,
-		.body_key_ordering = NULL,
 		.load_volume = NULL,
 		.done_volume = NULL,
 		.init_volume = NULL,
@@ -1454,7 +1449,6 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		.meta_subvol_id = meta_subvol_id_simple,
 		.data_subvol_id_calc = data_subvol_id_calc_asym,
 		.data_subvol_id_find = data_subvol_id_find_asym,
-		.body_key_ordering = body_key_ordering_asym,
 		.load_volume = load_volume_asym,
 		.done_volume = done_volume_asym,
 		.init_volume = init_volume_asym,

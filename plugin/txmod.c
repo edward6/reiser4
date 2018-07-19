@@ -88,7 +88,7 @@ void assign_real_blocknrs(flush_pos_t *flush_pos, oid_t oid,
 			  unsigned long index, reiser4_block_nr count,
 			  reiser4_block_nr first, reiser4_subvol *subv);
 int convert_extent(coord_t *coord, reiser4_extent *replace);
-int put_unit_to_end(znode *node,
+int put_unit_to_end(item_id extent_id, znode *node,
 		    const reiser4_key *key, reiser4_extent *copy_ext);
 
 /*
@@ -382,7 +382,8 @@ static squeeze_result squeeze_relocate_unformatted(znode *left,
 	 * prepare extent which will be copied to left
 	 */
 	reiser4_set_extent(&copy_extent, first_allocated, allocated);
-	result = put_unit_to_end(left, key, &copy_extent);
+	result = put_unit_to_end(item_id_by_coord(coord),
+				 left, key, &copy_extent);
 
 	if (result == -E_NODE_FULL) {
 		/*
@@ -503,7 +504,8 @@ static squeeze_result squeeze_overwrite_unformatted(znode *left,
 	 */
 	reiser4_set_extent(&copy_extent, start, width);
 
-	result = put_unit_to_end(left, key, &copy_extent);
+	result = put_unit_to_end(item_id_by_coord(coord),
+				 left, key, &copy_extent);
 	if (result == -E_NODE_FULL)
 		return SQUEEZE_TARGET_FULL;
 

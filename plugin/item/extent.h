@@ -109,7 +109,8 @@ struct carry_kill_data;
 reiser4_key *max_key_inside_extent(const coord_t *, reiser4_key *);
 int can_contain_key_extent(const coord_t * coord, const reiser4_key * key,
 			   const reiser4_item_data *);
-int mergeable_extent(const coord_t * p1, const coord_t * p2);
+int mergeable_extent40(const coord_t *p1, const coord_t *p2);
+int mergeable_extent41(const coord_t *p1, const coord_t *p2);
 pos_in_node_t nr_units_extent(const coord_t *);
 lookup_result lookup_extent(const reiser4_key *, lookup_bias, coord_t *);
 void init_coord_extent(coord_t *);
@@ -149,7 +150,8 @@ int read_extent_stripe(struct file *, flow_t *, hint_t *);
 int readpage_extent_stripe(void *, struct page *);
 int reiser4_readpage_extent(void *, struct page *);
 int __reiser4_readpage_extent(reiser4_extent*, reiser4_block_nr, struct page*);
-reiser4_key *append_key_extent(const coord_t *, reiser4_key *);
+reiser4_key *append_key_extent40(const coord_t *, reiser4_key *);
+reiser4_key *append_key_extent41(const coord_t *, reiser4_key *);
 void init_coord_extension_extent(uf_coord_t *, loff_t offset);
 int get_block_address_extent(const coord_t *, sector_t block,
 			     sector_t * result);
@@ -172,8 +174,8 @@ __u64 extent_unit_width(const coord_t * item);	/* Number of blocks in this unit.
 int reiser4_scan_extent(flush_scan * scan);
 extern int key_by_offset_extent(struct inode *, loff_t, reiser4_key *);
 
-reiser4_item_data *init_new_extent(reiser4_item_data * data, void *ext_unit,
-				   int nr_extents);
+reiser4_item_data *init_new_extent(item_id extent_id, reiser4_item_data *data,
+				   void *ext_unit, int nr_extents);
 reiser4_block_nr reiser4_extent_size(const coord_t * coord, pos_in_node_t nr);
 extent_state state_of_extent(reiser4_extent * ext);
 void reiser4_set_extent(reiser4_extent *, reiser4_block_nr start,
@@ -224,7 +226,7 @@ struct make_extent_handle {
 	} u;
 };
 
-int reiser4_replace_extent(struct replace_handle *,
+int reiser4_replace_extent(item_id extent_id, struct replace_handle *,
 			   int return_inserted_position);
 lock_handle *znode_lh(znode *);
 

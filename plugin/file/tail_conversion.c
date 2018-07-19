@@ -620,7 +620,7 @@ int extent2tail(struct file * file, struct unix_file_info *uf_info)
 		 * not complete due to either crash or some error. Find which
 		 * offset tail conversion stopped at
 		 */
-		result = find_start(inode, EXTENT_POINTER_ID, &offset);
+		result = find_start(inode, EXTENT40_POINTER_ID, &offset);
 		if (result == -ENOENT) {
 			/*
 			 * no extent found, everything is converted

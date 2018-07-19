@@ -153,7 +153,7 @@ int mergeable_ctail(const coord_t * p1, const coord_t * p2)
 
 	assert("edward-62", item_id_by_coord(p1) == CTAIL_ID);
 	assert("edward-61", plugin_of_group(item_plugin_by_coord(p1),
-					    UNIX_FILE_METADATA_ITEM_TYPE));
+					    FILE_BODY_ITEM_TYPE));
 
 	if (item_id_by_coord(p2) != CTAIL_ID) {
 		/* second item is of another type */

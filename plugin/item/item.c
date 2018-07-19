@@ -259,10 +259,12 @@ int are_items_mergeable(const coord_t * i1 /* coord of first item */ ,
 	}
 }
 
-int item_is_extent(const coord_t * item)
+int item_is_extent(const coord_t *item)
 {
 	assert("vs-482", coord_is_existing_item(item));
-	return item_id_by_coord(item) == EXTENT_POINTER_ID;
+	return
+		item_id_by_coord(item) == EXTENT40_POINTER_ID ||
+		item_id_by_coord(item) == EXTENT41_POINTER_ID;
 }
 
 int item_is_tail(const coord_t * item)
@@ -508,20 +510,20 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			}
 		}
 	},
-	[EXTENT_POINTER_ID] = {
+	[EXTENT40_POINTER_ID] = {
 		.h = {
 			.type_id = REISER4_ITEM_PLUGIN_TYPE,
-			.id = EXTENT_POINTER_ID,
-			.groups = (1 << UNIX_FILE_METADATA_ITEM_TYPE),
+			.id = EXTENT40_POINTER_ID,
+			.groups = (1 << FILE_BODY_ITEM_TYPE),
 			.pops = NULL,
-			.label = "extent",
-			.desc = "extent item",
+			.label = "extent40",
+			.desc = "simple extent pointer",
 			.linkage = {NULL, NULL}
 		},
 		.b = {
 			.max_key_inside = max_key_inside_extent,
 			.can_contain_key = can_contain_key_extent,
-			.mergeable = mergeable_extent,
+			.mergeable = mergeable_extent40,
 			.nr_units = nr_units_extent,
 			.lookup = lookup_extent,
 			.init = NULL,
@@ -557,7 +559,62 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		.s = {
 			.file = {
 				.get_block = get_block_address_extent,
-				.append_key = append_key_extent,
+				.append_key = append_key_extent40,
+				.init_coord_extension =
+				init_coord_extension_extent
+			}
+		}
+	},
+	[EXTENT41_POINTER_ID] = {
+		.h = {
+			.type_id = REISER4_ITEM_PLUGIN_TYPE,
+			.id = EXTENT41_POINTER_ID,
+			.groups = (1 << FILE_BODY_ITEM_TYPE),
+			.pops = NULL,
+			.label = "extent41",
+			.desc = "distributed extent pointer",
+			.linkage = {NULL, NULL}
+		},
+		.b = {
+			.max_key_inside = max_key_inside_extent,
+			.can_contain_key = can_contain_key_extent,
+			.mergeable = mergeable_extent41, /* differs */
+			.nr_units = nr_units_extent,
+			.lookup = lookup_extent,
+			.init = NULL,
+			.paste = paste_extent,
+			.fast_paste = agree_to_fast_op,
+			.can_shift = can_shift_extent,
+			.create_hook = create_hook_extent,
+			.copy_units = copy_units_extent,
+			.kill_hook = kill_hook_extent,
+			.shift_hook = NULL,
+			.cut_units = cut_units_extent,
+			.kill_units = kill_units_extent,
+			.unit_key = unit_key_extent,
+			.max_unit_key = max_unit_key_extent,
+			.estimate = NULL,
+			.item_data_by_flow = NULL,
+#if REISER4_DEBUG
+			.check = reiser4_check_extent
+#endif
+		},
+		.f = {
+			.utmost_child = utmost_child_extent,
+			.utmost_child_real_block =
+			utmost_child_real_block_extent,
+			.update = NULL,
+			.scan = reiser4_scan_extent,
+			.convert = NULL,
+			.key_by_offset = key_by_offset_extent
+		},
+		.v = {
+			.migrate = reiser4_migrate_extent
+		},
+		.s = {
+			.file = {
+				.get_block = get_block_address_extent,
+				.append_key = append_key_extent41, /* differs */
 				.init_coord_extension =
 				init_coord_extension_extent
 			}
@@ -567,7 +624,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		.h = {
 			.type_id = REISER4_ITEM_PLUGIN_TYPE,
 			.id = FORMATTING_ID,
-			.groups = (1 << UNIX_FILE_METADATA_ITEM_TYPE),
+			.groups = (1 << FILE_BODY_ITEM_TYPE),
 			.pops = NULL,
 			.label = "body",
 			.desc = "body (or tail?) item",
@@ -617,7 +674,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		.h = {
 			.type_id = REISER4_ITEM_PLUGIN_TYPE,
 			.id = CTAIL_ID,
-			.groups = (1 << UNIX_FILE_METADATA_ITEM_TYPE),
+			.groups = (1 << FILE_BODY_ITEM_TYPE),
 			.pops = NULL,
 			.label = "ctail",
 			.desc = "cryptcompress tail item",

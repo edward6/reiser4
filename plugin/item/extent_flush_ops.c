@@ -65,27 +65,31 @@ int utmost_child_extent(const coord_t * coord, sideof side, jnode ** childp)
 		reiser4_tree *tree;
 		unsigned long index;
 
-		if (side == LEFT_SIDE) {
-			/* get key of first byte addressed by the extent */
+		if (side == LEFT_SIDE)
+			/*
+			 * get key of first byte addressed by
+			 * the extent
+			 */
 			item_key_by_coord(coord, &key);
-		} else {
-			/* get key of byte which next after last byte addressed by the extent */
-			append_key_extent(coord, &key);
-		}
-
-		assert("vs-544",
-		       (get_key_offset(&key) >> PAGE_SHIFT) < ~0ul);
-		/* index of first or last (depending on @side) page addressed
-		   by the extent */
-		index =
-		    (unsigned long)(get_key_offset(&key) >> PAGE_SHIFT);
+		else
+			/*
+			 * get key of byte which next after
+			 * last byte addressed by the extent
+			 */
+			item_plugin_by_coord(coord)->s.file.append_key(coord,
+								       &key);
+		assert("vs-544", (get_key_offset(&key) >> PAGE_SHIFT) < ~0ul);
+		/*
+		 * index of first or last (depending on @side)
+		 * page addressed by the extent
+		 */
+		index = (unsigned long)(get_key_offset(&key) >> PAGE_SHIFT);
 		if (side == RIGHT_SIDE)
 			index--;
 
 		tree = &data_subv->tree;
 		*childp = jlookup(tree, get_key_objectid(&key), index);
 	}
-
 	return 0;
 }
 
@@ -358,10 +362,13 @@ int split_allocated_extent(coord_t *coord, reiser4_block_nr pos_in_unit)
 {
 	int result;
 	struct replace_handle *h;
+	item_id extent_id;
 	reiser4_extent *ext;
 	reiser4_block_nr was_grabbed;
 
 	ext = extent_by_coord(coord);
+	extent_id = item_id_by_coord(coord);
+
 	assert("vs-1410", state_of_extent(ext) == ALLOCATED_EXTENT);
 	assert("vs-1411", extent_get_width(ext) > pos_in_unit);
 
@@ -386,8 +393,9 @@ int split_allocated_extent(coord_t *coord, reiser4_block_nr pos_in_unit)
 
 	/* reserve space for extent unit paste, @grabbed is reserved before */
 	was_grabbed = reserve_replace(get_meta_subvol());
-	result = reiser4_replace_extent(h, 0 /* leave @coord set to overwritten
-						extent */);
+	result = reiser4_replace_extent(extent_id, h, 0 /* leave @coord set
+							   to overwritten
+							   extent */);
 	/* restore reserved */
 	grabbed2free_mark(was_grabbed, get_meta_subvol());
 	kfree(h);
@@ -468,11 +476,13 @@ int convert_extent(coord_t *coord, reiser4_extent *replace)
 	int result;
 	struct replace_handle *h;
 	reiser4_extent *ext;
+	item_id extent_id;
 	reiser4_block_nr start, width, new_width;
 	reiser4_block_nr was_grabbed;
 	extent_state state;
 
 	ext = extent_by_coord(coord);
+	extent_id = item_id_by_coord(coord);
 	state = state_of_extent(ext);
 	start = extent_get_start(ext);
 	width = extent_get_width(ext);
@@ -519,8 +529,9 @@ int convert_extent(coord_t *coord, reiser4_extent *replace)
 
 	/* reserve space for extent unit paste, @grabbed is reserved before */
 	was_grabbed = reserve_replace(get_meta_subvol());
-	result = reiser4_replace_extent(h, 0 /* leave @coord set to overwritten
-						extent */);
+	result = reiser4_replace_extent(extent_id, h, 0 /* leave @coord set
+							   to overwritten
+							   extent */);
 	/* restore reserved */
 	grabbed2free_mark(was_grabbed, get_meta_subvol());
 	kfree(h);
@@ -634,14 +645,20 @@ int allocated_extent_slum_size(flush_pos_t *flush_pos, oid_t oid,
 	return nr;
 }
 
-/* if @key is glueable to the item @coord is set to */
-static int must_insert(const coord_t *coord, const reiser4_key *key)
+/*
+ * check if extent unit with @key can be pushed to the item
+ * (at the end) pointed out by @coord
+ */
+static int can_push(item_id extent_id, const coord_t *coord,
+		    const reiser4_key *key)
 {
-	reiser4_key last;
+	reiser4_key akey;
 
-	if (item_id_by_coord(coord) != EXTENT_POINTER_ID)
-		return 1;
-	return !keyeq(append_key_extent(coord, &last), key);
+	if (item_id_by_coord(coord) != extent_id)
+		return 0;
+	item_plugin_by_coord(coord)->s.file.append_key(coord, &akey);
+
+	return keyeq(&akey, key);
 }
 
 /**
@@ -650,7 +667,7 @@ static int must_insert(const coord_t *coord, const reiser4_key *key)
  * or append last item, or modify last unit of last item to have
  * greater width
  */
-int put_unit_to_end(znode *node,
+int put_unit_to_end(item_id extent_id, znode *node,
 		    const reiser4_key *key, reiser4_extent *copy_ext)
 {
 	int result;
@@ -666,9 +683,10 @@ int put_unit_to_end(znode *node,
 	flags = COPI_DONT_SHIFT_LEFT |
 		COPI_DONT_SHIFT_RIGHT | COPI_DONT_ALLOCATE;
 
-	if (must_insert(&coord, key))
+	if (!can_push(extent_id, &coord, key))
 		result = insert_by_coord(&coord,
-					 init_new_extent(&data, copy_ext, 1),
+					 init_new_extent(extent_id,
+							 &data, copy_ext, 1),
 					 key, NULL /*lh */ , flags);
 	else {
 		/*
@@ -690,7 +708,8 @@ int put_unit_to_end(znode *node,
 		 * merge last unit in @node and new unit
 		 */
 		result = insert_into_item(&coord, NULL /*lh */, key,
-					  init_new_extent(&data, copy_ext, 1),
+					  init_new_extent(extent_id,
+							  &data, copy_ext, 1),
 					  flags);
 	}
 	assert("vs-438", result == 0 || result == -E_NODE_FULL);
