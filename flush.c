@@ -1568,6 +1568,8 @@ static int set_preceder(const coord_t *coord_in, flush_pos_t *pos)
 	return ret;
 }
 
+int shift_extent_left_complete(coord_t *to, reiser4_key *to_key, znode *left);
+
 /* MAIN SQUEEZE AND ALLOCATE LOOP (THREE BIG FUNCTIONS) */
 
 /* This procedure implements the outer loop of the flush algorithm. To put this
@@ -1604,25 +1606,12 @@ static int set_preceder(const coord_t *coord_in, flush_pos_t *pos)
 
 /* SQUEEZE CODE */
 
-/* squalloc_right_twig helper function, cut a range of extent items from
-   cut node to->node from the beginning up to coord @to. */
-static int squalloc_right_twig_cut(coord_t *to, reiser4_key * to_key,
-				   znode * left)
-{
-	coord_t from;
-	reiser4_key from_key;
-
-	coord_init_first_unit(&from, to->node);
-	item_key_by_coord(&from, &from_key);
-
-	return cut_node_content(&from, to, &from_key, to_key, NULL);
-}
-
 /* Copy as much of the leading extents from @right to @left, allocating
    unallocated extents as they are copied.  Returns SQUEEZE_TARGET_FULL or
    SQUEEZE_SOURCE_EMPTY when no more can be shifted.  If the next item is an
    internal item it calls shift_one_internal_unit and may then return
    SUBTREE_MOVED. */
+
 static int squeeze_right_twig(znode * left, znode * right, flush_pos_t *pos)
 {
 	int ret = SUBTREE_MOVED;
@@ -1685,7 +1674,7 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t *pos)
 		 */
 		set_key_offset(&stop_key, get_key_offset(&stop_key) - 1);
 		check_me("vs-1466",
-			 squalloc_right_twig_cut(&coord, &stop_key, left) == 0);
+		    shift_extent_left_complete(&coord, &stop_key, left) == 0);
 
 		ON_DEBUG(shift_check(vp, left, coord.node));
 	}
@@ -1693,8 +1682,8 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t *pos)
 	 * @left and @right nodes participated in the
 	 * implicit shift, determined by the pair of
 	 * functions:
-	 * . squeeze_alloc_unformatted() - append units to the @left
-	 * . squalloc_right_twig_cut() - cut the units from @right
+	 * . squeeze_alloc_unformatted() - copy unit from @right to @left
+	 * . shift_extent_left_complete() - cut the original unit from @right
 	 * so update their delimiting keys
 	 */
 	tree = znode_get_tree(left);

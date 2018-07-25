@@ -986,36 +986,6 @@ int is_disk_addr_unallocated(const reiser4_block_nr * addr	/* address to
 	    REISER4_UNALLOCATED_STATUS_VALUE;
 }
 
-/* returns true if removing bytes of given range of key [from_key, to_key]
-   causes removing of whole item @from */
-static int
-item_removed_completely(coord_t * from, const reiser4_key * from_key,
-			const reiser4_key * to_key)
-{
-	item_plugin *iplug;
-	reiser4_key key_in_item;
-
-	assert("umka-325", from != NULL);
-	assert("", item_is_extent(from));
-
-	/* check first key just for case */
-	item_key_by_coord(from, &key_in_item);
-	if (keygt(from_key, &key_in_item))
-		return 0;
-
-	/* check last key */
-	iplug = item_plugin_by_coord(from);
-	assert("vs-611", iplug && iplug->s.file.append_key);
-
-	iplug->s.file.append_key(from, &key_in_item);
-	set_key_offset(&key_in_item, get_key_offset(&key_in_item) - 1);
-
-	if (keylt(to_key, &key_in_item))
-		/* last byte is not removed */
-		return 0;
-	return 1;
-}
-
 /* helper function for prepare_twig_kill(): @left and @right are formatted
  * neighbors of extent item being completely removed. Load and lock neighbors
  * and store lock handles into @cdata for later use by kill_hook_extent() */
@@ -1069,6 +1039,33 @@ static void done_children(carry_kill_data * kdata)
 		zrelse(kdata->right->node);
 		done_lh(kdata->right);
 	}
+}
+
+/**
+ * returns true if removing bytes of given range of key [from_key, to_key]
+ * causes removing of whole item @from
+ */
+static int item_removed_completely(coord_t *from,
+				   const reiser4_key *from_key,
+				   const reiser4_key *to_key)
+{
+	reiser4_key key_in_item;
+
+	assert("umka-325", from != NULL);
+	assert("edward-2093", item_is_extent(from));
+
+	/* check first unit */
+	item_key_by_coord(from, &key_in_item);
+	if (keygt(from_key, &key_in_item))
+		/* first byte is not removed */
+		return 0;
+
+	/* check last key */
+	max_item_key_by_coord(from, &key_in_item);
+	if (keylt(to_key, &key_in_item))
+		/* last byte is not removed */
+		return 0;
+	return 1;
 }
 
 /* part of cut_node. It is called when cut_node is called to remove or cut part
@@ -1179,12 +1176,16 @@ prepare_twig_kill(carry_kill_data * kdata, znode * locked_left_neighbor)
 		result = PTR_ERR(left_child);
 		goto done;
 	}
-
-	/* left child is acquired, calculate new right delimiting key for it
-	   and get right child if it is necessary */
-	if (item_removed_completely
-	    (from, kdata->params.from_key, kdata->params.to_key)) {
-		/* try to get right child of removed item */
+	/*
+	 * left child is acquired, calculate new right delimiting
+	 * key for it and get right child if it is necessary
+	 */
+	if (item_removed_completely(from,
+				    kdata->params.from_key,
+				    kdata->params.to_key)) {
+		/*
+		 * try to get right child of removed item
+		 */
 		coord_t right_coord;
 
 		assert("vs-607",

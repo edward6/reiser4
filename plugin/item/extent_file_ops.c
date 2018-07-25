@@ -96,7 +96,8 @@ static int offset_is_in_unit(const coord_t *coord, loff_t off)
 	return 1;
 }
 
-static int coord_matches_key_extent(const coord_t *coord,
+static int coord_matches_key_extent(struct inode *inode,
+				    const coord_t *coord,
 				    const reiser4_key *key)
 {
 	reiser4_key item_key;
@@ -106,15 +107,15 @@ static int coord_matches_key_extent(const coord_t *coord,
 	assert("edward-2090", item_is_extent(coord));
 
 	iplug = item_plugin_by_coord(coord);
-
 	/*
-	 * in simple volumes logical order should coincide with
+	 * check that in simple volumes logical order coincides with
 	 * physical order
 	 */
 	assert("vs-1258",
 	       ergo(current_vol_plug() ==
 		    volume_plugin_by_id(SIMPLE_VOLUME_ID),
-		    keylt(key, iplug->s.file.append_key(coord, &item_key))));
+		    keylt(key, iplug->s.file.append_key(inode,
+							coord, &item_key))));
 	assert("vs-1259",
 	       ergo(current_vol_plug() ==
 		    volume_plugin_by_id(SIMPLE_VOLUME_ID),
@@ -193,34 +194,44 @@ int append_hole_unix_file(struct inode *inode, coord_t *coord,
 /**
  * @twig: longterm locked twig node
  */
-static void check_jnodes(znode *twig, const reiser4_key *key, int count)
+static void check_jnodes(struct inode *inode,
+			 znode *twig, const reiser4_key *key, int count)
 {
-	coord_t c;
+	coord_t coord;
 	reiser4_key node_key, jnode_key;
 
 	if (current_vol_plug() != volume_plugin_by_id(SIMPLE_VOLUME_ID))
-		/* this check is for simple volumes */
 		return;
 
 	jnode_key = *key;
 
-	assert("", twig != NULL);
-	assert("", znode_get_level(twig) == TWIG_LEVEL);
-	assert("", znode_is_write_locked(twig));
+	assert("edward-2094", twig != NULL);
+	assert("edward-2095", znode_get_level(twig) == TWIG_LEVEL);
+	assert("edward-2096", znode_is_write_locked(twig));
 
 	zload(twig);
 	/* get the smallest key in twig node */
-	coord_init_first_unit(&c, twig);
-	unit_key_by_coord(&c, &node_key);
-	assert("", keyle(&node_key, &jnode_key));
+	coord_init_first_unit(&coord, twig);
+	assert("edward-2097",
+	       item_is_extent(&coord) || item_is_internal(&coord));
 
-	coord_init_last_unit(&c, twig);
-	unit_key_by_coord(&c, &node_key);
-	if (item_plugin_by_coord(&c)->s.file.append_key)
-		item_plugin_by_coord(&c)->s.file.append_key(&c, &node_key);
+	unit_key_by_coord(&coord, &node_key);
+	assert("edward-2098", keyle(&node_key, &jnode_key));
+
+	/* get the greatest key in the twig node */
+	coord_init_last_unit(&coord, twig);
+	assert("edward-2099",
+	       item_is_extent(&coord) || item_is_internal(&coord));
+
+	unit_key_by_coord(&coord, &node_key);
+
+	if (item_is_extent(&coord))
+		item_plugin_by_coord(&coord)->s.file.append_key(inode,
+						   &coord, &node_key);
 	set_key_offset(&jnode_key,
-		       get_key_offset(&jnode_key) + (loff_t)count * PAGE_SIZE - 1);
-	assert("", keylt(&jnode_key, &node_key));
+		       get_key_offset(&jnode_key) +
+		       (loff_t)count * PAGE_SIZE - 1);
+	assert("edward-2100", keylt(&jnode_key, &node_key));
 	zrelse(twig);
 }
 
@@ -311,7 +322,7 @@ static int append_last_extent_unix_file(struct inode *inode,
 	 * make sure that we hold long term locked twig node containing all
 	 * jnodes we are about to capture
 	 */
-	check_jnodes(uf_coord->lh->node, key, count);
+	check_jnodes(inode, uf_coord->lh->node, key, count);
 
 	/*
 	 * assign fake block numbers to all jnodes. FIXME: make sure whether
@@ -452,7 +463,7 @@ static int insert_first_extent_unix_file(uf_coord_t *uf_coord,
 	 * make sure that we hold long term locked twig node containing all
 	 * jnodes we are about to capture
 	 */
-	check_jnodes(uf_coord->lh->node, key, count);
+	check_jnodes(inode, uf_coord->lh->node, key, count);
 	/*
 	 * assign fake block numbers to all jnodes, capture and mark them dirty
 	 */
@@ -754,7 +765,7 @@ int overwrite_extent_generic(struct inode *inode, uf_coord_t *uf_coord,
 		 * make sure that we hold long term locked twig node containing
 		 * all jnodes we are about to capture
 		 */
-		check_jnodes(uf_coord->lh->node, &k, 1);
+		check_jnodes(inode, uf_coord->lh->node, &k, 1);
 		/*
 		 * assign fake block numbers to all jnodes, capture and mark
 		 * them dirty
@@ -1333,8 +1344,8 @@ int read_extent_unix_file(struct file *file, flow_t *flow, hint_t *hint)
 	coord = &uf_coord->coord;
 	assert("vs-1119", znode_is_rlocked(coord->node));
 	assert("vs-1120", znode_is_loaded(coord->node));
-	assert("vs-1256", coord_matches_key_extent(coord, &flow->key));
-
+	assert("vs-1256", coord_matches_key_extent(file_inode(file),
+						   coord, &flow->key));
 	mapping = file_inode(file)->i_mapping;
 	ext_coord = &uf_coord->extension.extent;
 
@@ -1484,7 +1495,8 @@ int get_block_address_extent(const coord_t *coord, sector_t block,
  * Build key of first byte of file's body which is the next
  * to last byte addressed by this extent
  */
-reiser4_key *append_key_extent40(const coord_t *coord, reiser4_key *key)
+reiser4_key *append_key_extent40(struct inode *inode,
+				 const coord_t *coord, reiser4_key *key)
 {
 	item_key_by_coord(coord, key);
 	set_key_offset(key, get_key_offset(key) +
@@ -1498,17 +1510,19 @@ reiser4_key *append_key_extent40(const coord_t *coord, reiser4_key *key)
 /**
  * plugin->u.item.s.file.append_key for distributed extent pointers
  */
-reiser4_key *append_key_extent41(const coord_t *coord, reiser4_key *key)
+reiser4_key *append_key_extent41(struct inode *inode,
+				 const coord_t *coord, reiser4_key *key)
 {
-	append_key_extent40(coord, key);
+	append_key_extent40(inode, coord, key);
 	/*
 	 * In contrast with simple extent pointers, ordering
 	 * of appended key for distributed extent pointer can
 	 * differ from the key of original item pointed out
 	 * by @coord
 	 */
-	set_key_ordering(key, current_vol_plug()->data_subvol_id_calc
-			 (get_key_objectid(key), get_key_offset(key)));
+	set_key_ordering(key,
+			 inode_file_plugin(inode)->calc_data_subvol(inode,
+					   get_key_offset(key))->id);
 	return key;
 }
 
@@ -1657,7 +1671,7 @@ static int plug_hole_stripe(struct inode *inode,
 	 */
 	assert("edward-2057", item_is_extent(coord));
 
-	if (!keyeq(key, append_key_extent41(coord, &akey))) {
+	if (!keyeq(key, append_key_extent41(inode, coord, &akey))) {
 		/*
 		 * can not push. Create a new item
 		 */
@@ -1745,7 +1759,7 @@ static int insert_first_extent_stripe(uf_coord_t *uf_coord,
 	 * make sure that we hold long term locked twig node containing all
 	 * jnodes we are about to capture
 	 */
-	check_jnodes(uf_coord->lh->node, key, count);
+	check_jnodes(inode, uf_coord->lh->node, key, count);
 	/*
 	 * assign fake block numbers to all jnodes, capture and mark them dirty
 	 */
@@ -1811,7 +1825,7 @@ static int append_extent_stripe(struct inode *inode, uf_coord_t *uf_coord,
 	 * try to merge with the file body's last item
 	 * If impossible, then create a new item
 	 */
-	append_key_extent41(coord, &akey);
+	append_key_extent41(inode, coord, &akey);
 	if (!keyeq(&akey, key))
 		/*
 		 * can not merge
@@ -1858,7 +1872,7 @@ static int append_extent_stripe(struct inode *inode, uf_coord_t *uf_coord,
 	 * make sure that we hold long term locked twig node
 	 * containing all jnodes we are about to capture
 	 */
-	check_jnodes(uf_coord->lh->node, key, count);
+	check_jnodes(inode, uf_coord->lh->node, key, count);
 	/*
 	 * assign fake block numbers to all jnodes. FIXME: make sure whether
 	 * twig node containing inserted extent item is locked

@@ -256,7 +256,8 @@ struct file_iops{
 	 *
 	 * (LOCALITY,4,OBJID,STARTING-OFFSET + BLK * block_size)
 	 */
-	reiser4_key *(*append_key) (const coord_t *, reiser4_key *);
+	reiser4_key *(*append_key) (struct inode *,
+				    const coord_t *, reiser4_key *);
 	void (*init_coord_extension) (uf_coord_t *, loff_t);
 };
 

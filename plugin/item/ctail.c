@@ -889,7 +889,8 @@ int readpages_ctail(struct file *file, struct address_space *mapping,
    plugin->u.item.s.file.append_key
    key of the first item of the next disk cluster
 */
-reiser4_key *append_key_ctail(const coord_t * coord, reiser4_key * key)
+reiser4_key *append_key_ctail(struct inode *inode,
+			      const coord_t *coord, reiser4_key *key)
 {
 	assert("edward-1241", item_id_by_coord(coord) == CTAIL_ID);
 	assert("edward-1242", cluster_shift_ok(cluster_shift_by_coord(coord)));
@@ -1299,7 +1300,7 @@ static int attach_convert_idata(flush_pos_t * pos, struct inode *inode)
 	inc_item_convert_count(pos);
 
 	/* prepare flow for insertion */
-	flow_by_inode_unix_file(inode,
+	flow_by_inode_cryptcompress(inode,
 				(const char __user *)tfm_stream_data(&clust->tc,
 								 OUTPUT_STREAM),
 				0, /* kernel space */

@@ -538,13 +538,13 @@ static ssize_t append_tail(struct inode *inode,
 			   flow_t *flow, coord_t *coord, lock_handle *lh)
 {
 	int result;
-	reiser4_key append_key;
+	reiser4_key akey;
 	loff_t to_write;
 
-	if (!keyeq(&flow->key, append_key_tail(coord, &append_key))) {
+	if (!keyeq(&flow->key, append_key_tail(inode, coord, &akey))) {
 		flow->data = NULL;
-		flow->length = get_key_offset(&flow->key) - get_key_offset(&append_key);
-		set_key_offset(&flow->key, get_key_offset(&append_key));
+		flow->length = get_key_offset(&flow->key) - get_key_offset(&akey);
+		set_key_offset(&flow->key, get_key_offset(&akey));
 		/*
 		 * holes in files built of tails are stored just like if there
 		 * were real data which are all zeros.
@@ -696,23 +696,20 @@ ssize_t write_tail_unix_file(struct file *file, struct inode * inode,
 }
 
 #if REISER4_DEBUG
-
-static int
-coord_matches_key_tail(const coord_t * coord, const reiser4_key * key)
+static int coord_matches_key_tail(struct inode *inode,
+				  const coord_t *coord, const reiser4_key *key)
 {
 	reiser4_key item_key;
 
 	assert("vs-1356", coord_is_existing_unit(coord));
-	assert("vs-1354", keylt(key, append_key_tail(coord, &item_key)));
+	assert("vs-1354", keylt(key, append_key_tail(inode, coord, &item_key)));
 	assert("vs-1355", keyge(key, item_key_by_coord(coord, &item_key)));
 	return get_key_offset(key) ==
-	    get_key_offset(&item_key) + coord->unit_pos;
-
+		get_key_offset(&item_key) + coord->unit_pos;
 }
-
 #endif
 
-int read_tail_unix_file(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
+int read_tail_unix_file(struct file *file, flow_t *f, hint_t *hint)
 {
 	unsigned count;
 	int item_length;
@@ -729,8 +726,8 @@ int read_tail_unix_file(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
 	assert("vs-1118", znode_is_loaded(coord->node));
 
 	assert("nikita-3037", reiser4_schedulable());
-	assert("vs-1357", coord_matches_key_tail(coord, &f->key));
-
+	assert("vs-1357", coord_matches_key_tail(file_inode(file),
+						 coord, &f->key));
 	/* calculate number of bytes to read off the item */
 	item_length = item_length_by_coord(coord);
 	count = item_length_by_coord(coord) - coord->unit_pos;
@@ -758,11 +755,12 @@ int read_tail_unix_file(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
 	return 0;
 }
 
-/*
-   plugin->u.item.s.file.append_key
-   key of first byte which is the next to last byte by addressed by this item
-*/
-reiser4_key *append_key_tail(const coord_t * coord, reiser4_key * key)
+/**
+ * plugin->u.item.s.file.append_key
+ * key of first byte which is the next to last byte by addressed by this item
+ */
+reiser4_key *append_key_tail(struct inode *inode,
+			     const coord_t *coord, reiser4_key *key)
 {
 	item_key_by_coord(coord, key);
 	set_key_offset(key, get_key_offset(key) + item_length_by_coord(coord));

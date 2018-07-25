@@ -47,6 +47,7 @@ struct ctail_coord_extension {
 struct cut_list;
 
 /* plugin->item.b.* */
+
 int can_contain_key_ctail(const coord_t *, const reiser4_key *,
 			  const reiser4_item_data *);
 int mergeable_ctail(const coord_t * p1, const coord_t * p2);
@@ -77,7 +78,7 @@ int check_ctail(const coord_t * coord, const char **error);
 int read_ctail(struct file *, flow_t *, hint_t *);
 int readpage_ctail(void *, struct page *);
 int readpages_ctail(struct file *, struct address_space *, struct list_head *);
-reiser4_key *append_key_ctail(const coord_t *, reiser4_key *);
+reiser4_key *append_key_ctail(struct inode *, const coord_t *, reiser4_key *);
 int create_hook_ctail(const coord_t * coord, void *arg);
 int kill_hook_ctail(const coord_t *, pos_in_node_t, pos_in_node_t,
 		    carry_kill_data *);

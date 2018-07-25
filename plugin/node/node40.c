@@ -579,26 +579,19 @@ int check_node40(const znode * node /* node to check */ ,
 
 		}
 	}
-
 	if ((flags & REISER4_NODE_DKEYS) && !node_is_empty(node)) {
 		coord_t coord;
-		item_plugin *iplug;
+		reiser4_key mkey;
 
 		coord_init_last_unit(&coord, node);
-		iplug = item_plugin_by_coord(&coord);
-		if ((item_is_extent(&coord) || item_is_tail(&coord)) &&
-		    iplug->s.file.append_key != NULL) {
-			reiser4_key mkey;
+		max_item_key_by_coord(&coord, &mkey);
 
-			iplug->s.file.append_key(&coord, &mkey);
-			set_key_offset(&mkey, get_key_offset(&mkey) - 1);
-			read_lock_dk(tree);
-			result = keygt(&mkey, znode_get_rd_key((znode *) node));
-			read_unlock_dk(tree);
-			if (result) {
-				*error = "key of rightmost item is too large";
-				return -1;
-			}
+		read_lock_dk(tree);
+		result = keygt(&mkey, znode_get_rd_key((znode *) node));
+		read_unlock_dk(tree);
+		if (result) {
+			*error = "key of rightmost item is too large";
+			return -1;
 		}
 	}
 	if (flags & REISER4_NODE_DKEYS) {

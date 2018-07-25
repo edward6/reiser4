@@ -14,7 +14,7 @@
  * In turn, every stripe is composed of allocation units (extents).
  * Extent pointer's key is calculated like for classic unix files except
  * the ordering component, which contains ID of a brick (subvolume),
- * where that block should be stored (see build_budy_key_stripe()).
+ * where that block should be stored (see build_body_key_stripe()).
  * Holes in a striped file are not represented by any items.
  *
  * In the initial implementation any modifying operation takes an
@@ -36,25 +36,7 @@
 #include <linux/pagevec.h>
 #include <linux/syscalls.h>
 
-int readpages_filler_generic(void *data,
-			     struct page *page, int striped);
-
-int build_body_key_stripe(struct inode *inode, loff_t off, reiser4_key *key)
-{
-	u64 ordering;
-	volume_plugin *vplug;
-
-	vplug = super_volume(inode->i_sb)->vol_plug;
-	ordering = vplug->data_subvol_id_calc(get_inode_oid(inode), off);
-
-	reiser4_key_init(key);
-	set_key_locality(key, reiser4_inode_data(inode)->locality_id);
-	set_key_objectid(key, get_inode_oid(inode));
-	set_key_ordering(key, ordering);
-	set_key_type(key, KEY_BODY_MINOR);
-	set_key_offset(key, (__u64) off);
-	return 0;
-}
+int readpages_filler_generic(void *data, struct page *page, int striped);
 
 reiser4_subvol *calc_data_subvol_stripe(const struct inode *inode,
 					loff_t offset)
@@ -63,6 +45,17 @@ reiser4_subvol *calc_data_subvol_stripe(const struct inode *inode,
 
 	return current_origin(vplug->data_subvol_id_calc(get_inode_oid(inode),
 							 offset));
+}
+
+int build_body_key_stripe(struct inode *inode, loff_t off, reiser4_key *key)
+{
+	reiser4_key_init(key);
+	set_key_locality(key, reiser4_inode_data(inode)->locality_id);
+	set_key_objectid(key, get_inode_oid(inode));
+	set_key_ordering(key, calc_data_subvol_stripe(inode, off)->id);
+	set_key_type(key, KEY_BODY_MINOR);
+	set_key_offset(key, (__u64) off);
+	return 0;
 }
 
 int flow_by_inode_stripe(struct inode *inode,

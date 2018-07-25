@@ -34,10 +34,14 @@ static reiser4_extent *extent_utmost_ext(const coord_t * coord, sideof side,
 	return ext;
 }
 
-/* item_plugin->f.utmost_child */
-/* Return the child. Coord is set to extent item. Find jnode corresponding
-   either to first or to last unformatted node pointed by the item */
-int utmost_child_extent(const coord_t * coord, sideof side, jnode ** childp)
+/**
+ * item_plugin->f.utmost_child
+ *
+ * Return the child. Coord is set to extent item.
+ * Find jnode corresponding either to first or to
+ * last unformatted node pointed by the item
+ */
+int utmost_child_extent(const coord_t *coord, sideof side, jnode **childp)
 {
 	reiser4_extent *ext;
 	reiser4_block_nr pos_in_unit;
@@ -56,34 +60,29 @@ int utmost_child_extent(const coord_t * coord, sideof side, jnode ** childp)
 	case UNALLOCATED_EXTENT:
 		break;
 	default:
-		/* this should never happen */
-		assert("vs-1417", 0);
+		impossible("vs-1417", "Bad state of extent (%d)",
+			   state_of_extent(ext));
+		BUG_ON(1);
 	}
-
 	{
 		reiser4_key key;
+		loff_t offset;
 		reiser4_tree *tree;
 		unsigned long index;
-
-		if (side == LEFT_SIDE)
-			/*
-			 * get key of first byte addressed by
-			 * the extent
-			 */
-			item_key_by_coord(coord, &key);
-		else
-			/*
-			 * get key of byte which next after
-			 * last byte addressed by the extent
-			 */
-			item_plugin_by_coord(coord)->s.file.append_key(coord,
-								       &key);
-		assert("vs-544", (get_key_offset(&key) >> PAGE_SHIFT) < ~0ul);
 		/*
-		 * index of first or last (depending on @side)
-		 * page addressed by the extent
+		 * offset of the first or next after last (depending on
+		 * @side) byte addressed by the extent
 		 */
-		index = (unsigned long)(get_key_offset(&key) >> PAGE_SHIFT);
+		offset = get_key_offset(item_key_by_coord(coord, &key));
+		if (side == RIGHT_SIDE)
+			offset += reiser4_extent_size(coord,
+						      nr_units_extent(coord));
+		assert("vs-544", (offset >> PAGE_SHIFT) < ~0ul);
+		/*
+		 * index of first or last (depending on @side) page
+		 * addressed by the extent
+		 */
+		index = (unsigned long)(offset >> PAGE_SHIFT);
 		if (side == RIGHT_SIDE)
 			index--;
 
@@ -645,75 +644,97 @@ int allocated_extent_slum_size(flush_pos_t *flush_pos, oid_t oid,
 	return nr;
 }
 
-/*
- * check if extent unit with @key can be pushed to the item
- * (at the end) pointed out by @coord
- */
-static int can_push(item_id extent_id, const coord_t *coord,
-		    const reiser4_key *key)
+static inline int are_units_mergeable(reiser4_extent *left,
+				      reiser4_extent *right)
 {
-	reiser4_key akey;
-
-	if (item_id_by_coord(coord) != extent_id)
+	if (state_of_extent(left) != state_of_extent(right))
 		return 0;
-	item_plugin_by_coord(coord)->s.file.append_key(coord, &akey);
-
-	return keyeq(&akey, key);
+	switch (state_of_extent(left)) {
+	case HOLE_EXTENT:
+		return 1;
+	case ALLOCATED_EXTENT:
+		return extent_get_start(left) + extent_get_width(left) ==
+			extent_get_start(right);
+	default:
+		impossible("edward-2092", "Bad extent state (%d)",
+			   state_of_extent(left));
+	}
 }
 
 /**
- * copy extent @copy to the end of @node.
+ * Copy an extent unit @ext at position @coord to the end of
+ * node @dst.
+ * @key is the key of that extent unit.
+ *
  * It may have to either insert new item after the last one,
- * or append last item, or modify last unit of last item to have
- * greater width
+ * or append last item, or modify last unit of last item to
+ * have greater width. If there is no enough spece on the @dst
+ * then return -E_NODE_FULL
  */
-int put_unit_to_end(item_id extent_id, znode *node,
-		    const reiser4_key *key, reiser4_extent *copy_ext)
+int shift_extent_left_begin(znode *dst, const coord_t *coord,
+			    const reiser4_key *key, reiser4_extent *ext)
 {
 	int result;
-	coord_t coord;
+	coord_t dst_coord;
 	cop_insert_flag flags;
-	reiser4_extent *last_ext;
 	reiser4_item_data data;
 
-	/* set coord after last unit in an item */
-	coord_init_last_unit(&coord, node);
-	coord.between = AFTER_UNIT;
+	coord_init_last_unit(&dst_coord, dst);
+	dst_coord.between = AFTER_UNIT;
 
 	flags = COPI_DONT_SHIFT_LEFT |
 		COPI_DONT_SHIFT_RIGHT | COPI_DONT_ALLOCATE;
 
-	if (!can_push(extent_id, &coord, key))
-		result = insert_by_coord(&coord,
-					 init_new_extent(extent_id,
-							 &data, copy_ext, 1),
+	if (!are_items_mergeable(&dst_coord, coord))
+		/*
+		 * create a new item
+		 */
+		result = insert_by_coord(&dst_coord,
+				init_new_extent(item_id_by_coord(coord),
+						&data, ext, 1),
 					 key, NULL /*lh */ , flags);
 	else {
 		/*
-		 * try to glue with last unit
+		 * push to existing item
 		 */
-		last_ext = extent_by_coord(&coord);
-		if (state_of_extent(last_ext) &&
-		    extent_get_start(last_ext) + extent_get_width(last_ext) ==
-		    extent_get_start(copy_ext)) {
-			/* widen last unit of node */
-			extent_set_width(last_ext,
-					 extent_get_width(last_ext) +
-					 extent_get_width(copy_ext));
-			znode_make_dirty(node);
+		reiser4_extent *dst_ext;
+		assert("edward-2091", item_is_extent(&dst_coord));
+
+		dst_ext = extent_by_coord(&dst_coord);
+
+		if (are_units_mergeable(dst_ext, ext)) {
+			/*
+			 * fast paste
+			 */
+			extent_set_width(dst_ext,
+					 extent_get_width(dst_ext) +
+					 extent_get_width(ext));
+			znode_make_dirty(dst);
 			return 0;
 		}
-		/*
-		 * FIXME: put an assertion here that we can not
-		 * merge last unit in @node and new unit
-		 */
-		result = insert_into_item(&coord, NULL /*lh */, key,
-					  init_new_extent(extent_id,
-							  &data, copy_ext, 1),
+		/* paste */
+		result = insert_into_item(&dst_coord, NULL /*lh */, key,
+				init_new_extent(item_id_by_coord(coord),
+						&data, ext, 1),
 					  flags);
 	}
 	assert("vs-438", result == 0 || result == -E_NODE_FULL);
 	return result;
+}
+
+/*
+ * complete shifting started by shift_extent_left_begin(). Cut the original unit.
+ */
+int shift_extent_left_complete(coord_t *to, reiser4_key *to_key,
+			       znode *left)
+{
+	coord_t from;
+	reiser4_key from_key;
+
+	coord_init_first_unit(&from, to->node);
+	item_key_by_coord(&from, &from_key);
+
+	return cut_node_content(&from, to, &from_key, to_key, NULL);
 }
 
 int key_by_offset_extent(struct inode *inode, loff_t off, reiser4_key * key)

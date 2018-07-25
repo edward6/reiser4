@@ -150,8 +150,8 @@ int read_extent_stripe(struct file *, flow_t *, hint_t *);
 int readpage_extent_stripe(void *, struct page *);
 int reiser4_readpage_extent(void *, struct page *);
 int __reiser4_readpage_extent(reiser4_extent*, reiser4_block_nr, struct page*);
-reiser4_key *append_key_extent40(const coord_t *, reiser4_key *);
-reiser4_key *append_key_extent41(const coord_t *, reiser4_key *);
+reiser4_key *append_key_extent40(struct inode *, const coord_t *, reiser4_key *);
+reiser4_key *append_key_extent41(struct inode *, const coord_t *, reiser4_key *);
 void init_coord_extension_extent(uf_coord_t *, loff_t offset);
 int get_block_address_extent(const coord_t *, sector_t block,
 			     sector_t * result);

@@ -40,7 +40,7 @@ ssize_t write_tail_unix_file(struct file *file, struct inode * inode,
 			     const char __user *buf, size_t count, loff_t *pos);
 int read_tail_unix_file(struct file *, flow_t *, hint_t *);
 int readpage_tail_unix_file(void *vp, struct page *page);
-reiser4_key *append_key_tail(const coord_t *, reiser4_key *);
+reiser4_key *append_key_tail(struct inode *, const coord_t *, reiser4_key *);
 void init_coord_extension_tail(uf_coord_t *, loff_t offset);
 int get_block_address_tail(const coord_t *, sector_t, sector_t *);
 

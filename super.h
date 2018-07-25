@@ -517,8 +517,6 @@ static inline void reiser4_unlock_volume(struct super_block *sb)
 
 #define current_stripe_bits (current_volume()->stripe_bits)
 #define current_stripe_size (1 << current_stripe_bits)
-#define current_stripe_blocks \
-	(1 << (current_stripe_bits - current_blocksize_bits))
 
 #define for_each_origin(_subv_id)					\
 	for (_subv_id = 0;						\

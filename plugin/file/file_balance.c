@@ -49,7 +49,7 @@ static int check_stripe_item(reiser4_tree *tree, coord_t *coord,
 	/*
 	 * migration is not needed
 	 */
-	mctx->iplug->s.file.append_key(coord, &key);
+	mctx->iplug->s.file.append_key(mctx->inode, coord, &key);
 
 	if (get_key_offset(&key) != mctx->stripe_off)
 		/*
@@ -83,7 +83,7 @@ static int migrate_data_stripe(struct inode *inode, pgoff_t stripe_off)
 		coord_t coord;
 		lock_handle lh;
 		item_plugin *iplug;
-		reiser4_key append_key;
+		reiser4_key akey;
 		struct iter_migrate_ctx mctx;
 
 		init_lh(&lh);
@@ -108,9 +108,8 @@ static int migrate_data_stripe(struct inode *inode, pgoff_t stripe_off)
 		mctx.stripe_off = stripe_off;
 		mctx.iplug = item_plugin_by_coord(&coord);
 		mctx.new_subvol_id =
-		   current_vol_plug()->data_subvol_id_calc(get_inode_oid(inode),
-							   stripe_off);
-
+			inode_file_plugin(inode)->calc_data_subvol(inode,
+							     stripe_off)->id;
 		ret = reiser4_iterate_tree(meta_subvol_tree(), &coord,
 					   &lh, check_stripe_item,
 					   &mctx, ZNODE_WRITE_LOCK, 0);
@@ -131,8 +130,8 @@ static int migrate_data_stripe(struct inode *inode, pgoff_t stripe_off)
 		}
 		iplug = item_plugin_by_coord(&coord);
 
-		iplug->s.file.append_key(&coord, &append_key);
-		if (get_key_offset(&append_key) != stripe_off)
+		iplug->s.file.append_key(inode, &coord, &akey);
+		if (get_key_offset(&akey) != stripe_off)
 			/*
 			 * last item in the stripe
 			 */
