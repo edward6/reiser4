@@ -1992,8 +1992,7 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 		result = zload(hint->ext_coord.coord.node);
 		BUG_ON(result != 0);
 		loaded = hint->ext_coord.coord.node;
-
-		check_node(hint->ext_coord.coord.node);
+		check_node(loaded);
 
 		if (pos > round_up(i_size_read(inode), PAGE_SIZE))
 			result = append_hole_stripe(&hint->ext_coord);

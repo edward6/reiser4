@@ -8,14 +8,15 @@
 */
 
 /*
- * Striped files are represented in the storage tree only by extent
- * pointers of EXTENT41_POINTER_ID. In contrast with classic unix-files,
- * their bodies are composed of distribution logical units (stripes).
- * In turn, every stripe is composed of allocation units (extents).
- * Extent pointer's key is calculated like for classic unix files except
- * the ordering component, which contains ID of a brick (subvolume),
- * where that block should be stored (see build_body_key_stripe()).
- * Holes in a striped file are not represented by any items.
+ * Bodies of striped files are composed of distribution units (stripes).
+ * Every stripe, in turn, is a set of extents, and every extent is a set
+ * of allocation units (file system blocks) with contiguous disk addresses.
+ * Extents are represented in the storage tree by extent pointers (items)
+ * of EXTENT41_POINTER_ID. Extent pointer's key is calculated like for
+ * classic unix files except the ordering component, which contains ID
+ * of a brick (subvolume), where that block should be stored (see
+ * build_body_key_stripe()). Holes in a striped file are not represented
+ * by any items.
  *
  * In the initial implementation any modifying operation takes an
  * exclusive access to the whole file. It is for simplicity:
@@ -425,10 +426,14 @@ static int cut_file_items_stripe(struct inode *inode, loff_t new_size,
 		 * Better solution is to find the last file item in the
 		 * tree and calculate to_off and from_off by that item.
 		 */
-		from_off = round_down(i_size_read(inode) - 1,
-				      current_stripe_size);
-		if (from_off < new_size)
+		if (current_stripe_bits) {
+			from_off = round_down(i_size_read(inode) - 1,
+					      current_stripe_size);
+			if (from_off < new_size)
+				from_off = new_size;
+		} else
 			from_off = new_size;
+
 		set_key_offset(&from_key, from_off);
 
 		/* the below takes sbinfo->delete_mutex */
