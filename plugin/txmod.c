@@ -81,7 +81,8 @@ static void forward_overwrite_unformatted(flush_pos_t *flush_pos, oid_t oid,
 */
 static void mark_jnode_overwrite(struct list_head *jnodes, jnode *node);
 
-int split_allocated_extent(coord_t *coord, reiser4_block_nr pos_in_unit);
+int split_allocated_extent(coord_t *coord, reiser4_block_nr pos_in_unit,
+			   int return_inserted_pos);
 int allocated_extent_slum_size(flush_pos_t *flush_pos, oid_t oid,
 			       unsigned long index, unsigned long count);
 void assign_real_blocknrs(flush_pos_t *flush_pos, oid_t oid,
@@ -234,7 +235,10 @@ static int forward_relocate_unformatted(flush_pos_t *flush_pos,
 		 * split extent unit into two ones
 		 */
 		result = split_allocated_extent(coord,
-						flush_pos->pos_in_unit);
+						flush_pos->pos_in_unit,
+						0 /* leave @coord set
+						     to overwritten
+						     extent */);
 		flush_pos->pos_in_unit = 0;
 		*exit = 1;
 		return result;

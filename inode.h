@@ -62,7 +62,7 @@ typedef enum {
 	REISER4_PART_IN_CONV = 10,
 	/* This flag indicates that file plugin conversion is in progress */
 	REISER4_FILE_CONV_IN_PROGRESS = 11,
-	REISER4_FILE_BALANCE_IN_PROGRESS = 12,
+	REISER4_FILE_UNBALANCED = 12,
 } reiser4_file_plugin_flags;
 
 /* state associated with each inode.
@@ -114,9 +114,12 @@ struct reiser4_inode {
 	seal_t sd_seal;
 	/* locality id for this file */
 	oid_t locality_id;
+	union {
 #if REISER4_LARGE_KEY
-	__u64 ordering;
+		__u64 ordering;
 #endif
+		void *dstab;
+	} v;
 	/* coord of stat-data in sealed node */
 	coord_t sd_coord;
 	/* bit-mask of stat-data extentions used by this file */
@@ -234,15 +237,26 @@ static inline oid_t get_inode_locality(const struct inode *inode)
 	return reiser4_inode_data(inode)->locality_id;
 }
 
+static inline void *get_inode_dstab(const struct inode *inode)
+{
+	return reiser4_inode_data(inode)->v.dstab;
+}
+
+static inline void set_inode_dstab(const struct inode *inode,
+				   void *dstab)
+{
+	reiser4_inode_data(inode)->v.dstab = dstab;
+}
+
 #if REISER4_LARGE_KEY
 static inline __u64 get_inode_ordering(const struct inode *inode)
 {
-	return reiser4_inode_data(inode)->ordering;
+	return reiser4_inode_data(inode)->v.ordering;
 }
 
 static inline void set_inode_ordering(const struct inode *inode, __u64 ordering)
 {
-	reiser4_inode_data(inode)->ordering = ordering;
+	reiser4_inode_data(inode)->v.ordering = ordering;
 }
 
 #else
@@ -472,6 +486,9 @@ static inline struct list_head *get_readdir_list(const struct inode *inode)
 
 extern void init_inode_ordering(struct inode *inode,
 				reiser4_object_create_data * crd, int create);
+
+extern void inode_set_new_dist(struct inode *inode);
+extern void inode_set_old_dist(struct inode *inode);
 
 static inline struct radix_tree_root *jnode_tree_by_inode(struct inode *inode)
 {

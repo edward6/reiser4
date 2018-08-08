@@ -162,6 +162,8 @@ int flow_by_inode_stripe(struct inode *inode, const char __user *buf, int user,
 			 loff_t size, loff_t off, rw_op op, flow_t *flow);
 int create_object_stripe(struct inode *object, struct inode *parent,
 			 reiser4_object_create_data *data, oid_t *oid);
+void init_inode_data_stripe(struct inode *, reiser4_object_create_data *,
+			    int create);
 int open_stripe(struct inode *, struct file *);
 int release_stripe(struct inode *inode, struct file *file);
 ssize_t read_stripe(struct file *file, char __user *buf,

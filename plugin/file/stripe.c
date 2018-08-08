@@ -45,16 +45,14 @@ reiser4_subvol *calc_data_subvol_stripe(const struct inode *inode,
 	volume_plugin *vplug = current_vol_plug();
 
 	return current_origin(vplug->data_subvol_id_calc(get_inode_oid(inode),
-							 offset));
+						   offset,
+						   get_inode_dstab(inode)));
 }
 
 int build_body_key_stripe(struct inode *inode, loff_t off, reiser4_key *key)
 {
-	reiser4_key_init(key);
-	set_key_locality(key, reiser4_inode_data(inode)->locality_id);
-	set_key_objectid(key, get_inode_oid(inode));
+	build_body_key_common(inode, key);
 	set_key_ordering(key, calc_data_subvol_stripe(inode, off)->id);
-	set_key_type(key, KEY_BODY_MINOR);
 	set_key_offset(key, (__u64) off);
 	return 0;
 }
@@ -78,6 +76,28 @@ int flow_by_inode_stripe(struct inode *inode,
 	 * calculate key of write position and insert it into flow->key
 	 */
 	return build_body_key_stripe(inode, off, &flow->key);
+}
+
+void init_inode_data_stripe(struct inode *inode,
+			    reiser4_object_create_data *crd, int create)
+{
+	struct unix_file_info *data;
+	reiser4_volume *vol;
+
+	vol = current_volume();
+	data = unix_file_inode_data(inode);
+	data->container = create ? UF_CONTAINER_EMPTY : UF_CONTAINER_UNKNOWN;
+	init_rwsem(&data->latch);
+	data->tplug = inode_formatting_plugin(inode);
+	data->exclusive_use = 0;
+
+#if REISER4_DEBUG
+	data->ea_owner = NULL;
+	atomic_set(&data->nr_neas, 0);
+#endif
+	inode_set_old_dist(inode); /* FIXME-EDWARD:
+				      set it by specified volinfo id found
+				      in stat-data */
 }
 
 ssize_t read_stripe(struct file *file, char __user *buf,

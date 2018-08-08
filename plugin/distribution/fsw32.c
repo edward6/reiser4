@@ -579,6 +579,15 @@ void doner_fsw32(reiser4_aid *raid)
 	}
 }
 
+void update_fsw32(reiser4_aid *raid)
+{
+	struct fsw32_aid *aid = fsw32_private(raid);
+
+	mem_free(aid->tab);
+	aid->tab = aid->new_tab;
+	aid->new_tab = NULL;
+}
+
 /*
  *Initialize AID descriptor for regular operations
  */
@@ -677,13 +686,13 @@ int initv_fsw32(void *buckets,
 }
 
 u64 lookup_fsw32m(reiser4_aid *raid, const char *str,
-		  int len, u32 seed)
+		  int len, u32 seed, void *tab)
 {
 	u32 hash;
 	struct fsw32_aid *aid = fsw32_private(raid);
 
 	hash = murmur3_x86_32(str, len, seed);
-	return aid->tab[hash >> (32 - aid->nums_bits)];
+	return ((u32 *)tab)[hash >> (32 - aid->nums_bits)];
 }
 
 /*
@@ -713,14 +722,21 @@ int inc_fsw32(reiser4_aid *raid, u64 target_pos, int new)
 		ret = ENOMEM;
 		goto error;
 	}
+	aid->new_tab = mem_alloc(nums * WORDSIZE);
+	if (!aid->new_tab) {
+		ret = ENOMEM;
+		goto error;
+	}
+	memcpy(aid->new_tab, aid->tab, nums * WORDSIZE);
+
 	calibrate32(new_numb, nums,
 		    aid->buckets, aid->ops->cap_at, new_weights);
-	ret = balance_tab_inc(new_numb, aid->tab,
+	ret = balance_tab_inc(new_numb, aid->new_tab,
 			      aid->weights, new_weights, target_pos,
 			      aid->buckets, aid->ops->fib_at, new);
 	if (ret)
 		goto error;
-	ret = replace_fibers(aid->nums_bits, aid->tab,
+	ret = replace_fibers(aid->nums_bits, aid->new_tab,
 			     old_numb, new_numb,
 			     new_weights, aid->buckets,
 			     aid->ops->fib_at,
@@ -732,7 +748,7 @@ int inc_fsw32(reiser4_aid *raid, u64 target_pos, int new)
 	{
 		int i;
 		for (i = 0; i < new_numb; i++)
-			print_fiber(i, aid->tab,
+			print_fiber(i, aid->new_tab,
 				    nums, aid->ops->fib_at,
 				    aid->ops->fib_lenp_at);
 	}
@@ -745,6 +761,8 @@ int inc_fsw32(reiser4_aid *raid, u64 target_pos, int new)
  error:
 	if (new_weights)
 		mem_free(new_weights);
+	if (aid->new_tab)
+		mem_free(aid->new_tab);
 	return ret;
 }
 
@@ -923,6 +941,13 @@ void dump_fsw32(reiser4_aid *raid, char *to, u64 offset, u32 size)
 	struct fsw32_aid *aid = fsw32_private(raid);
 
 	memcpy(to, aid->tab + offset, size);
+}
+
+void *get_tab_fsw32(reiser4_aid *raid, int new)
+{
+	struct fsw32_aid *aid = fsw32_private(raid);
+
+	return new ? aid->new_tab : aid->tab;
 }
 
 /*

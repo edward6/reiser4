@@ -541,7 +541,8 @@ struct reiser4_aid_ops {
 struct dist_regular_ops {
 	int (*init)(reiser4_aid *aid, int num_buckets, int nums_bits);
 	u64 (*lookup)(reiser4_aid *aid, const char *str,
-		      int len, u32 seed);
+		      int len, u32 seed, void *tab);
+	void (*update)(reiser4_aid *raid);
 	void (*done)(reiser4_aid *raid);
 };
 
@@ -564,6 +565,7 @@ struct dist_volume_ops {
 	/* extract system information from a set of blocks */
 	void (*unpack)(reiser4_aid *raid, char *from, u64 dst_off, u64 count);
 	void (*dump)(reiser4_aid *raid, char *to, u64 offset, u32 size);
+	void *(*get_tab)(reiser4_aid *raid, int new);
 };
 
 typedef struct distribution_plugin {
@@ -581,7 +583,8 @@ typedef struct volume_plugin {
 	/* Return ID of meta-data subvolume */
 	u64 (*meta_subvol_id)(void);
 	/* Calculate ID of data subvolume */
-	u64 (*data_subvol_id_calc)(oid_t oid, loff_t data_offset_in_bytes);
+	u64 (*data_subvol_id_calc)(oid_t oid, loff_t data_offset_in_bytes,
+				   void *tab);
 	/* Return data subvolume ID stored in the item specified by @coord */
 	u64 (*data_subvol_id_find)(const coord_t *coord);
 	/* Load a portion of LV system configuration contained

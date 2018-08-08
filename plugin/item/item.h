@@ -215,7 +215,7 @@ struct flush_ops {
 };
 
 struct volume_ops{
-	int (*migrate)(coord_t *, lock_handle *, struct inode *, u64);
+	int (*migrate)(coord_t *, lock_handle *, struct inode *);
 };
 
 /* operations specific to the directory item */

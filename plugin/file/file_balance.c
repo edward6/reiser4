@@ -11,167 +11,109 @@
 #include "../../super.h"
 #include "../../page_cache.h"
 
-/*
- * Per-iteration migration context
- */
-struct iter_migrate_ctx {
-	item_plugin *iplug;
-	struct inode *inode;
-	loff_t stripe_off;
-	u64 new_subvol_id;
-};
 
 /**
- * check an item specified by @coord,
- * return:
- * 1, iff the item should be migrated;
- * 0, if iteration should be continued;
- * -E_OUTSTEP, if iteration should be terminated.
- */
-static int check_stripe_item(reiser4_tree *tree, coord_t *coord,
-			     lock_handle *lh, void *arg)
-{
-	reiser4_key key;
-	struct iter_migrate_ctx *mctx = arg;
-
-	if (mctx->iplug != item_plugin_by_coord(coord)) {
-		assert("edward-1892", item_is_internal(coord));
-		return 0;
-	}
-	item_key_by_coord(coord, &key);
-	assert("edward-1893", get_key_offset(&key) == mctx->stripe_off);
-
-	if (find_data_subvol(coord)->id != mctx->new_subvol_id)
-		/*
-		 * item should be migrated
-		 */
-		return 1;
-	/*
-	 * migration is not needed
-	 */
-	mctx->iplug->s.file.append_key(mctx->inode, coord, &key);
-
-	if (get_key_offset(&key) != mctx->stripe_off)
-		/*
-		 * @coord is the last item in the stripe,
-		 * terminate iteration
-		 */
-		return -E_OUTSTEP;
-	/*
-	 * next item also belongs to this stripe, continue iteration
-	 */
-	return 0;
-}
-
-/**
- * @stripe_idx: index of the stripe to be migrated
- */
-static int migrate_data_stripe(struct inode *inode, pgoff_t stripe_off)
-{
-	int ret;
-	int done = 0;
-	reiser4_key key;
-	struct unix_file_info *uf;
-
-	uf = unix_file_inode_data(inode);
-	build_body_key_stripe(inode, stripe_off, &key);
-	set_key_ordering(&key, KEY_ORDERING_MASK);
-	/*
-	 * FIXME: Implement read-ahead per stripe base
-	 */
-	while (!done) {
-		coord_t coord;
-		lock_handle lh;
-		item_plugin *iplug;
-		reiser4_key akey;
-		struct iter_migrate_ctx mctx;
-
-		init_lh(&lh);
-		get_exclusive_access(uf);
-		reiser4_inode_set_flag(inode, REISER4_FILE_BALANCE_IN_PROGRESS);
-		/*
-		 * find first non-migrated item of the stripe
-		 */
-		ret = find_file_item_nohint(&coord, &lh, &key,
-					    ZNODE_WRITE_LOCK, inode);
-		if (ret != CBK_COORD_FOUND) {
-			/*
-			 * no items in this stripe
-			 */
-			done_lh(&lh);
-			drop_exclusive_access(uf);
-			return ret;
-		}
-		assert("edward-1894", item_is_extent(&coord));
-
-		mctx.inode = inode;
-		mctx.stripe_off = stripe_off;
-		mctx.iplug = item_plugin_by_coord(&coord);
-		mctx.new_subvol_id =
-			inode_file_plugin(inode)->calc_data_subvol(inode,
-							     stripe_off)->id;
-		ret = reiser4_iterate_tree(meta_subvol_tree(), &coord,
-					   &lh, check_stripe_item,
-					   &mctx, ZNODE_WRITE_LOCK, 0);
-
-		if (ret == -E_NO_NEIGHBOR || ret == -E_OUTSTEP) {
-			/*
-			 * nothing to migrate in this stripe
-			 */
-			ret = 0;
-			done_lh(&lh);
-			drop_exclusive_access(uf);
-			break;
-		}
-		else if (ret < 0) {
-			done_lh(&lh);
-			drop_exclusive_access(uf);
-			break;
-		}
-		iplug = item_plugin_by_coord(&coord);
-
-		iplug->s.file.append_key(inode, &coord, &akey);
-		if (get_key_offset(&akey) != stripe_off)
-			/*
-			 * last item in the stripe
-			 */
-			done = 1;
-		/*
-		 * migrate data pages in asynchronos manner
-		 */
-		if (iplug->v.migrate)
-			ret = iplug->v.migrate(&coord, &lh,
-					       inode, mctx.new_subvol_id);
-		done_lh(&lh);
-		reiser4_inode_clr_flag(inode, REISER4_FILE_BALANCE_IN_PROGRESS);
-		drop_exclusive_access(uf);
-		if (ret)
-			break;
-		reiser4_throttle_write(inode);
-	}
-	return ret;
-}
-
-/*
- * Migrate one-by-one all data stripes of the file
+ * Scan file body from right to left, read all data blocks which get
+ * new location, and make respective pages dirty. In flush time those
+ * pages will get location on new bricks.
  */
 int balance_stripe(struct inode *inode)
 {
 	int ret;
-	pgoff_t stripe_idx;
+	reiser4_key key;
+	struct unix_file_info *uf;
+	reiser4_volume *vol;
+	coord_t coord;
+	lock_handle lh;
+	item_plugin *iplug;
+	reiser4_key ikey;
 
-	for (stripe_idx = 0;; stripe_idx ++) {
+	vol = current_volume();
+	uf = unix_file_inode_data(inode);
+
+	get_exclusive_access(uf);
+	reiser4_inode_set_flag(inode, REISER4_FILE_UNBALANCED);
+
+	build_body_key_common(inode, &key);
+	set_key_ordering(&key, KEY_ORDERING_MASK /* max value */);
+	set_key_offset(&key, get_key_offset(reiser4_max_key()));
+
+	while (1) {
+		loff_t item_off;
+		reiser4_block_nr item_len;
+		znode *loaded;
+
+		init_lh(&lh);
+		ret = coord_by_key(meta_subvol_tree(), &key,
+				   &coord, &lh, ZNODE_WRITE_LOCK,
+				   FIND_MAX_NOT_MORE_THAN,
+				   TWIG_LEVEL, TWIG_LEVEL,
+				   0, NULL);
+		if (IS_CBKERR(ret)) {
+			done_lh(&lh);
+			drop_exclusive_access(uf);
+			return ret;
+		}
+		ret = zload(coord.node);
+		if (ret) {
+			done_lh(&lh);
+			drop_exclusive_access(uf);
+			return ret;
+		}
+		loaded = coord.node;
+
+		assert("edward-2102", coord.between == AFTER_ITEM);
+		coord.between = AT_UNIT;
+		assert("edward-2103", coord_is_existing_item(&coord));
 		/*
-		 * migrate data stripe in asynchronos manner
+		 * check that found item belongs to the file
 		 */
-		ret = migrate_data_stripe(inode,
-					  stripe_idx >> current_stripe_bits);
-		if (ret)
+		if (!inode_file_plugin(inode)->owns_item(inode, &coord)) {
+			zrelse(loaded);
+			goto done;
+		}
+
+		item_key_by_coord(&coord, &ikey);
+		item_off = get_key_offset(&ikey);
+		item_len = reiser4_extent_size(&coord);
+
+		iplug = item_plugin_by_coord(&coord);
+		if (iplug->v.migrate) {
+			/*
+			 * relocate data blocks pointed by found item,
+			 * return amount of processed bytes on success
+			 */
+			ret = iplug->v.migrate(&coord, &lh, inode);
+			zrelse(loaded);
+			if (ret) {
+				done_lh(&lh);
+				drop_exclusive_access(uf);
+				return ret;
+			}
+		} else
+			/*
+			 * item is not migrateable, simply skip it
+			 */
+			zrelse(loaded);
+		if (item_off == 0)
+			/*
+			 * nothing to migrate in this file any more
+			 */
 			break;
+		/*
+		 * look for the next item at the left
+		 */
+		done_lh(&lh);
+		set_key_offset(&ikey, item_off - 1);
 	}
-	if (ret == CBK_COORD_NOTFOUND)
-		ret = 0;
-	return ret;
+ done:
+	assert("edward-2104", reiser4_lock_counters()->d_refs == 0);
+	done_lh(&lh);
+	reiser4_inode_clr_flag(inode, REISER4_FILE_UNBALANCED);
+	inode_set_new_dist(inode);
+	/* FIXME-EDWARD: update stat-data with new volinfo ID */
+	drop_exclusive_access(uf);
+	return 0;
 }
 
 /*

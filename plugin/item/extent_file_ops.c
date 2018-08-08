@@ -1500,7 +1500,7 @@ reiser4_key *append_key_extent40(struct inode *inode,
 {
 	item_key_by_coord(coord, key);
 	set_key_offset(key, get_key_offset(key) +
-		       reiser4_extent_size(coord, nr_units_extent(coord)));
+		       reiser4_extent_size(coord));
 
 	assert("vs-610", get_key_offset(key) &&
 	       (get_key_offset(key) & (current_blocksize - 1)) == 0);
@@ -1976,19 +1976,16 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 		pos = (loff_t)index_jnode(jnodes[0]) << PAGE_SHIFT;
 
 	build_body_key_stripe(inode, pos, &key);
-	assert("edward-2063", reiser4_lock_counters()->d_refs == 0);
-
 	do {
 		znode *loaded;
+		const char *error;
 
 		result = find_file_item_nohint(&hint->ext_coord.coord,
 					       hint->ext_coord.lh, &key,
 					       ZNODE_WRITE_LOCK, inode);
-		if (IS_CBKERR(result)) {
-			assert("edward-2064",
-			       reiser4_lock_counters()->d_refs == 0);
+		if (IS_CBKERR(result))
 			return result;
-		}
+
 		result = zload(hint->ext_coord.coord.node);
 		BUG_ON(result != 0);
 		loaded = hint->ext_coord.coord.node;
@@ -2004,7 +2001,13 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 							 &hint->ext_coord,
 							 &key, jnodes, count,
 							 plugged_hole);
-		check_node(hint->ext_coord.lh->node);
+		//check_node(hint->ext_coord.lh->node);
+
+		zload(hint->ext_coord.lh->node);
+		assert("edward-2105",
+		       check_node40(hint->ext_coord.lh->node,
+				    REISER4_NODE_TREE_STABLE, &error) == 0);
+		zrelse(hint->ext_coord.lh->node);
 
 		zrelse(loaded);
 		if (result < 0) {
@@ -2041,14 +2044,15 @@ static int update_extents_stripe(struct file *file, struct inode *inode,
 	int ret;
 	struct hint hint;
 
+	assert("edward-2063", reiser4_lock_counters()->d_refs == 0);
+
 	ret = load_file_hint(file, &hint);
 	if (ret)
 		return ret;
 	ret =  __update_extents_stripe(&hint, inode, jnodes, count, pos,
 				       NULL);
 	save_file_hint(file, &hint);
-	assert("edward-2065",
-	       reiser4_lock_counters()->d_refs == 0);
+	assert("edward-2065",  reiser4_lock_counters()->d_refs == 0);
 	return ret;
 }
 
@@ -2066,8 +2070,6 @@ int update_extent_stripe(struct inode *inode, jnode *node, loff_t pos,
 				      pos, plugged_hole);
 
 	assert("edward-2067", ret == 1 || ret < 0);
-	assert("edward-2068", reiser4_lock_counters()->d_refs == 0);
-
 	return (ret == 1) ? 0 : ret;
 }
 

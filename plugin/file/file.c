@@ -2590,12 +2590,8 @@ sector_t bmap_unix_file(struct address_space * mapping, sector_t lblock)
 
 int build_body_key_unix_file(struct inode *inode, loff_t off, reiser4_key *key)
 {
-	reiser4_key_init(key);
-
-	set_key_locality(key, reiser4_inode_data(inode)->locality_id);
-	set_key_objectid(key, get_inode_oid(inode));
+	build_body_key_common(inode, key);
 	set_key_ordering(key, get_inode_ordering(inode));
-	set_key_type(key, KEY_BODY_MINOR);
 	set_key_offset(key, (__u64) off);
 	return 0;
 }

@@ -640,6 +640,20 @@ init_inode_ordering(struct inode *inode,
 	set_inode_ordering(inode, get_key_ordering(&key));
 }
 
+void inode_set_new_dist(struct inode *inode)
+{
+	set_inode_dstab(inode,
+	        current_dist_plug()->v.get_tab(&current_volume()->aid,
+					       1 /* new */));
+}
+
+void inode_set_old_dist(struct inode *inode)
+{
+	set_inode_dstab(inode,
+		current_dist_plug()->v.get_tab(&current_volume()->aid,
+					       0 /* old */));
+}
+
 znode *inode_get_vroot(struct inode *inode)
 {
 	reiser4_block_nr blk;

@@ -2629,8 +2629,7 @@ void *shift_check_prepare(const znode * left, const znode * right)
 			case EXTENT40_POINTER_ID:
 			case EXTENT41_POINTER_ID:
 				data[i].u.bytes =
-					reiser4_extent_size(&coord,
-						       coord_num_units(&coord));
+					reiser4_extent_size(&coord);
 				break;
 			case COMPOUND_DIR_ID:
 				data[i].u.entries = coord_num_units(&coord);
@@ -2660,8 +2659,7 @@ void *shift_check_prepare(const znode * left, const znode * right)
 			case EXTENT40_POINTER_ID:
 			case EXTENT41_POINTER_ID:
 				data[i - 1].u.bytes +=
-				    reiser4_extent_size(&coord,
-						coord_num_units(&coord));
+					reiser4_extent_size(&coord);
 				break;
 			case COMPOUND_DIR_ID:
 				data[i - 1].u.entries +=
@@ -2691,8 +2689,7 @@ void *shift_check_prepare(const znode * left, const znode * right)
 			case EXTENT40_POINTER_ID:
 			case EXTENT41_POINTER_ID:
 				data[i].u.bytes =
-				    reiser4_extent_size(&coord,
-						coord_num_units(&coord));
+				    reiser4_extent_size(&coord);
 				break;
 			case COMPOUND_DIR_ID:
 				data[i].u.entries = coord_num_units(&coord);
@@ -2765,9 +2762,7 @@ void shift_check(void *vp, const znode * left, const znode * right)
 			case EXTENT41_POINTER_ID:
 				assert("vs-1593",
 				       data[i].u.bytes ==
-				       reiser4_extent_size(&coord,
-							   coord_num_units
-							   (&coord)));
+				       reiser4_extent_size(&coord));
 				break;
 			case COMPOUND_DIR_ID:
 				assert("vs-1594",
@@ -2787,9 +2782,7 @@ void shift_check(void *vp, const znode * left, const znode * right)
 				break;
 			case EXTENT40_POINTER_ID:
 			case EXTENT41_POINTER_ID:
-				last_bytes =
-				    reiser4_extent_size(&coord,
-						coord_num_units(&coord));
+				last_bytes = reiser4_extent_size(&coord);
 				break;
 			case COMPOUND_DIR_ID:
 				last_bytes = coord_num_units(&coord);
@@ -2821,9 +2814,7 @@ void shift_check(void *vp, const znode * left, const znode * right)
 		case EXTENT41_POINTER_ID:
 			assert("vs-1597",
 			       data[i - 1].u.bytes ==
-			       last_bytes + reiser4_extent_size(&coord,
-								coord_num_units
-								(&coord)));
+			       last_bytes + reiser4_extent_size(&coord));
 			break;
 
 		case COMPOUND_DIR_ID:
@@ -2856,10 +2847,7 @@ void shift_check(void *vp, const znode * left, const znode * right)
 		case EXTENT40_POINTER_ID:
 		case EXTENT41_POINTER_ID:
 			assert("vs-1601",
-			       data[i].u.bytes ==
-			       reiser4_extent_size(&coord,
-						   coord_num_units
-						   (&coord)));
+			       data[i].u.bytes == reiser4_extent_size(&coord));
 			break;
 		case COMPOUND_DIR_ID:
 			assert("vs-1602",

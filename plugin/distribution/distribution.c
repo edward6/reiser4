@@ -15,7 +15,7 @@
 #include "aid.h"
 
 static u64 lookup_triv(reiser4_aid *raid, const char *str,
-		       int len, u32 seed)
+		       int len, u32 seed, void *tab)
 {
 	return 0;
 }
@@ -45,7 +45,8 @@ distribution_plugin distribution_plugins[LAST_DISTRIB_ID] = {
 			.spl = NULL,
 			.pack = NULL,
 			.unpack = NULL,
-			.dump = NULL
+			.dump = NULL,
+			.get_tab = NULL
 		},
 	},
 	[FSW32M_DISTRIB_ID] = {
@@ -61,6 +62,7 @@ distribution_plugin distribution_plugins[LAST_DISTRIB_ID] = {
 		.r = {
 			.init = initr_fsw32,
 			.lookup = lookup_fsw32m,
+			.update = update_fsw32,
 			.done = doner_fsw32
 		},
 		.v = {
@@ -72,7 +74,8 @@ distribution_plugin distribution_plugins[LAST_DISTRIB_ID] = {
 			.spl = spl_fsw32,
 			.pack = pack_fsw32,
 			.unpack = unpack_fsw32,
-			.dump = dump_fsw32
+			.dump = dump_fsw32,
+			.get_tab = get_tab_fsw32
 		}
 	}
 };

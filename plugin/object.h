@@ -39,6 +39,7 @@ int reiser4_release_dir_common(struct inode *, struct file *);
 int reiser4_sync_common(struct file *, loff_t, loff_t, int datasync);
 
 /* file plugin operations: common implementations */
+void build_body_key_common(struct inode *inode, reiser4_key *key);
 int write_sd_by_inode_common(struct inode *, oid_t *oid);
 int set_plug_in_inode_common(struct inode *object, struct inode *parent,
 			     reiser4_object_create_data *);

@@ -75,8 +75,8 @@ int utmost_child_extent(const coord_t *coord, sideof side, jnode **childp)
 		 */
 		offset = get_key_offset(item_key_by_coord(coord, &key));
 		if (side == RIGHT_SIDE)
-			offset += reiser4_extent_size(coord,
-						      nr_units_extent(coord));
+			offset += reiser4_extent_size(coord);
+
 		assert("vs-544", (offset >> PAGE_SHIFT) < ~0ul);
 		/*
 		 * index of first or last (depending on @side) page
@@ -357,7 +357,8 @@ static reiser4_block_nr extent_unit_start(const coord_t * item)
  *
  * replace allocated extent with two allocated extents
  */
-int split_allocated_extent(coord_t *coord, reiser4_block_nr pos_in_unit)
+int split_allocated_extent(coord_t *coord, reiser4_block_nr pos_in_unit,
+			   int return_inserted_pos)
 {
 	int result;
 	struct replace_handle *h;
@@ -392,13 +393,76 @@ int split_allocated_extent(coord_t *coord, reiser4_block_nr pos_in_unit)
 
 	/* reserve space for extent unit paste, @grabbed is reserved before */
 	was_grabbed = reserve_replace(get_meta_subvol());
-	result = reiser4_replace_extent(extent_id, h, 0 /* leave @coord set
-							   to overwritten
-							   extent */);
+	result = reiser4_replace_extent(extent_id, h, return_inserted_pos);
 	/* restore reserved */
 	grabbed2free_mark(was_grabbed, get_meta_subvol());
 	kfree(h);
 	return result;
+}
+
+/**
+ * replace unallocated extent with two unallocated extents
+ */
+int split_unallocated_extent(coord_t *coord, reiser4_block_nr pos_in_unit,
+			     int return_inserted_pos)
+{
+	int result;
+	struct replace_handle *h;
+	item_id extent_id;
+	reiser4_extent *ext;
+	reiser4_block_nr was_grabbed;
+
+	ext = extent_by_coord(coord);
+	extent_id = item_id_by_coord(coord);
+
+	assert("edward-2118", state_of_extent(ext) == UNALLOCATED_EXTENT);
+	assert("edward-2119", extent_get_width(ext) > pos_in_unit);
+
+	h = kmalloc(sizeof(*h), reiser4_ctx_gfp_mask_get());
+	if (h == NULL)
+		return RETERR(-ENOMEM);
+	h->coord = coord;
+	h->lh = znode_lh(coord->node);
+	h->pkey = &h->key;
+	unit_key_by_coord(coord, h->pkey);
+	set_key_offset(h->pkey,
+		       (get_key_offset(h->pkey) +
+			pos_in_unit * current_blocksize));
+	reiser4_set_extent(&h->overwrite, 1, pos_in_unit);
+	reiser4_set_extent(&h->new_extents[0], 1,
+			   extent_get_width(ext) - pos_in_unit);
+	h->nr_new_extents = 1;
+	h->flags = COPI_DONT_SHIFT_LEFT;
+	h->paste_key = h->key;
+	/*
+	 * reserve space for extent unit paste, @grabbed is reserved before
+	 */
+	was_grabbed = reserve_replace(get_meta_subvol());
+	result = reiser4_replace_extent(extent_id, h, return_inserted_pos);
+	/* restore reserved */
+	grabbed2free_mark(was_grabbed, get_meta_subvol());
+	kfree(h);
+	return result;
+}
+
+/**
+ * Split extent unit specified by @coord into 2 extent units.
+ * @pos: position to split;
+ * @adv_to_right: if true, then set @coord to the right extent
+ * unit, otherwise, to the left one
+ */
+int split_extent_unit(coord_t *coord, reiser4_block_nr pos,
+		      int adv_to_right)
+{
+	switch(state_of_extent(extent_by_coord(coord))) {
+	case ALLOCATED_EXTENT:
+		return split_allocated_extent(coord, pos, adv_to_right);
+	case UNALLOCATED_EXTENT:
+		return split_unallocated_extent(coord, pos, adv_to_right);
+	default:
+		impossible("edward-2120", "Bad state of extent");
+	}
+	return -EIO;
 }
 
 /**

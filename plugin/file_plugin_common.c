@@ -12,6 +12,14 @@
 static int insert_new_sd(struct inode *inode, oid_t oid);
 static int update_sd(struct inode *inode);
 
+void build_body_key_common(struct inode *inode, reiser4_key *key)
+{
+	reiser4_key_init(key);
+	set_key_locality(key, reiser4_inode_data(inode)->locality_id);
+	set_key_objectid(key, get_inode_oid(inode));
+	set_key_type(key, KEY_BODY_MINOR);
+}
+
 /**
  * Common implementation of ->write_sd_by_inode() of file plugins.
  * Either insert stat-data or update it.

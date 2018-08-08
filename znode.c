@@ -645,7 +645,14 @@ int zload_ra(znode * node /* znode to load */ , ra_info_t * info)
 /* load content of node into memory */
 int zload(znode *node)
 {
+#if REISER4_DEBUG
+	int ret;
+	ret = zload_ra(node, NULL);
+	assert("edward-2101", ergo(ret != 0, ret < 0));
+	return ret;
+#else
 	return zload_ra(node, NULL);
+#endif
 }
 
 /* call node plugin to initialise newly allocated node. */

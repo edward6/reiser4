@@ -24,7 +24,7 @@ reiser4_item_data *init_new_extent(item_id extent_id, reiser4_item_data *data,
 }
 
 /* how many bytes are addressed by @nr first extents of the extent item */
-reiser4_block_nr reiser4_extent_size(const coord_t * coord, pos_in_node_t nr)
+reiser4_block_nr reiser4_extent_size_at(const coord_t * coord, pos_in_node_t nr)
 {
 	pos_in_node_t i;
 	reiser4_block_nr blocks;
@@ -39,6 +39,11 @@ reiser4_block_nr reiser4_extent_size(const coord_t * coord, pos_in_node_t nr)
 	}
 
 	return blocks * current_blocksize;
+}
+
+reiser4_block_nr reiser4_extent_size(const coord_t *coord)
+{
+	return reiser4_extent_size_at(coord, nr_units_extent(coord));
 }
 
 extent_state state_of_extent(reiser4_extent * ext)

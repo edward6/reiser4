@@ -1093,7 +1093,7 @@ static u64 meta_subvol_id_simple(void)
 	return METADATA_SUBVOL_ID;
 }
 
-static u64 data_subvol_id_calc_simple(oid_t oid, loff_t offset)
+static u64 data_subvol_id_calc_simple(oid_t oid, loff_t offset, void *tab)
 {
 	return METADATA_SUBVOL_ID;
 }
@@ -1139,7 +1139,7 @@ static inline u32 get_seed(oid_t oid, reiser4_volume *vol)
 	return seed;
 }
 
-static u64 data_subvol_id_calc_asym(oid_t oid, loff_t offset)
+static u64 data_subvol_id_calc_asym(oid_t oid, loff_t offset, void *tab)
 {
 	reiser4_volume *vol;
 	distribution_plugin *dist_plug;
@@ -1156,7 +1156,7 @@ static u64 data_subvol_id_calc_asym(oid_t oid, loff_t offset)
 
 	return dist_plug->r.lookup(&vol->aid,
 				   (const char *)&stripe_idx,
-				   sizeof(stripe_idx), get_seed(oid, vol));
+				   sizeof(stripe_idx), get_seed(oid, vol), tab);
 }
 
 u64 get_meta_subvol_id(void)
@@ -1195,185 +1195,229 @@ u64 data_subvol_id_find_asym(const coord_t *coord)
 	}
 }
 
-/**
- * Check if @coord is an extent item.
- * If yes, then store its key in @arg.
- */
-static int iter_check_extent(reiser4_tree *tree, coord_t *coord,
-			lock_handle *lh, void *arg)
-{
-	assert("edward-1877", arg != NULL);
-
-	if (!item_is_extent(coord)) {
-		assert("edward-1878", item_is_internal(coord));
-		return 1;
-	}
-	item_key_by_coord(coord, (reiser4_key *)arg);
-	return 0;
-}
-
 struct reiser4_iterate_context {
-	reiser4_key *curr;
-	reiser4_key *next;
+	reiser4_key curr;
+	reiser4_key next;
 };
 
 /**
- * Check if @coord is an extent item of the next file.
- * If yes, then store its key.
+ * Check if @coord is an extent item.
+ * If yes, then store its key as "current" in the context
+ * and return 0 to terminate iteration
  */
-static int iter_check_extent_next_file(reiser4_tree *tree, coord_t *coord,
-				       lock_handle *lh, void *arg)
+static int iter_find_start(reiser4_tree *tree, coord_t *coord,
+			   lock_handle *lh, void *arg)
 {
-	struct reiser4_iterate_context *iter_ctx = arg;
+	int ret;
+	struct reiser4_iterate_context *ictx = arg;
 
-	assert("edward-1879", iter_ctx != NULL);
+	assert("edward-2121", ictx != NULL);
+
+	ret = zload(coord->node);
+	if (ret)
+		return ret;
 
 	if (!item_is_extent(coord)) {
-		assert("edward-1880", item_is_internal(coord));
+		assert("edward-1878", item_is_internal(coord));
+		/* continue iteration */
+		zrelse(coord->node);
 		return 1;
 	}
-	item_key_by_coord(coord, iter_ctx->next);
+	item_key_by_coord(coord, &ictx->curr);
+	zrelse(coord->node);
+	return 0;
+}
 
-	if (get_key_objectid(iter_ctx->next) ==
-	    get_key_objectid(iter_ctx->curr))
+/**
+ * Check if @coord is an extent item of file, which doesn't
+ * own "current" key in the iteration context. If so, then
+ * store its key as "next" in the context and return 0 to
+ * terminate iteration.
+ */
+static int iter_find_next(reiser4_tree *tree, coord_t *coord,
+			  lock_handle *lh, void *arg)
+{
+	int ret;
+	struct reiser4_iterate_context *ictx = arg;
+
+	assert("edward-1879", ictx != NULL);
+
+	ret = zload(coord->node);
+	if (ret)
+		return ret;
+	if (!item_is_extent(coord)) {
+		assert("edward-1880", item_is_internal(coord));
+		/* continue iteration */
+		zrelse(coord->node);
+		return 1;
+	}
+	item_key_by_coord(coord, &ictx->next);
+	zrelse(coord->node);
+
+	if (get_key_objectid(&ictx->next) ==
+	    get_key_objectid(&ictx->curr))
+		/*
+		 * found chunk of body of same file,
+		 * continue iteration
+		 */
 		return 1;
 	return 0;
 }
 
 /**
- * Online balancing of asymmetric logical volume.
+ * Walk from left to right along the twig level of the storage tree
+ * and for every found regular file (inode) relocate its data blocks.
  *
- * NOTE: correctness of this balancing procedure is guaranteed by our
- * single stupid objectid allocator. If you want to add another one,
- * then please prove the correctness, or write another balancing which
- * works for that new allocator.
+ * Stat-data (on-disk inodes) are located on leaf level, nevertheless
+ * we scan twig level, recovering stat-data from extent items. Simply
+ * because scanning twig level is ~1000 times faster.
+ *
+ * When scanning twig level we obviously miss empty files (i.e. files
+ * without bodies), so every time when performing ->write(), etc.
+ * regular operations we need to check volume status. If balancing is
+ * in proggress, then we update inode's distribution table before
+ * build_body_key() calculation.
+ *
+ * NOTE: correctness of this balancing procedure (i.e. a guarantee
+ * that all files will be processed) is provided by our single stupid
+ * objectid allocator. If you want to add another one, then please
+ * prove the correctness, or write another balancing which works for
+ * that new allocator correctly.
  *
  * @sb: super-block of the volume to be balanced;
- * @force: force to balance volume marked as balanced.
+ * @force: force to run balancing on volume marked as balanced.
  *
- * FIXME: use hint/seal to not traverse tree every time
+ * FIXME: use hint/seal to not traverse tree every time when locking
+ * position determned by the hint ("current" key in the iterate context).
  */
 int balance_volume_asym(struct super_block *super, int force)
 {
 	int ret;
-	int err = 0;
 	coord_t coord;
 	lock_handle lh;
+	reiser4_key start_key;
+	struct reiser4_iterate_context ictx;
+	reiser4_volume *vol = super_volume(super);
 
-	reiser4_key k1, k2;
-	reiser4_key *curr = &k1; /* key of current extent */
-	reiser4_key *next = &k2; /* key of next file extent */
+	start_key = *reiser4_max_key();
+	set_key_objectid(&start_key, 41 /* locality of root dir */);
+	set_key_type(&start_key, KEY_BODY_MINOR);
+	memset(&ictx, 0, sizeof(ictx));
 
 	assert("edward-1881", super != NULL);
 
 	if (!reiser4_volume_is_unbalanced(super) && !force)
 		return 0;
- restart:
+
 	init_lh(&lh);
 	/*
-	 * Prepare start position:
-	 * find leftmost item of the leftmost node on the twig level.
-	 * Such item always exists, even in the case of empty volume
+	 * Prepare start position: find leftmost item on the twig level.
+	 * For meta-data brick of format40 such item always exists, even
+	 * in the case of empty volume
 	 */
-	ret = coord_by_key(meta_subvol_tree(), reiser4_min_key(),
+	ret = coord_by_key(meta_subvol_tree(), &start_key,
 			   &coord, &lh, ZNODE_READ_LOCK,
-			   FIND_EXACT, TWIG_LEVEL, TWIG_LEVEL,
-			   0, NULL /* FIXME: set proper read-ahead info */);
-
-	if (ret != CBK_COORD_NOTFOUND) {
-		err = 1;
-		goto exit;
+			   FIND_MAX_NOT_MORE_THAN, TWIG_LEVEL, TWIG_LEVEL,
+			   0, NULL /* read-ahead info */);
+	if (IS_CBKERR(ret)) {
+		done_lh(&lh);
+		return ret;
 	}
-	assert("edward-1882", coord.item_pos == 0);
-	assert("edward-1883", coord.unit_pos == 0);
-	assert("edward-1884", coord.between == BEFORE_UNIT);
-	/*
-	 * find leftmost extent on the twig level,
-	 * and store its key in @curr
-	 */
+	coord.item_pos = 0;
+	coord.unit_pos = 0;
 	coord.between = AT_UNIT;
+	/*
+	 * find leftmost extent on the twig level
+	 */
 	ret = reiser4_iterate_tree(meta_subvol_tree(), &coord, &lh,
-				   iter_check_extent, curr, ZNODE_READ_LOCK, 0);
+				   iter_find_start, &ictx, ZNODE_READ_LOCK, 0);
 	done_lh(&lh);
 	if (ret < 0) {
-		if (ret != -E_NO_NEIGHBOR)
-			err = 1;
-		/*
-		 * leftmost extent not found,
-		 * so nothing to do any more
-		 */
-		goto exit;
+		if (ret == -E_NO_NEIGHBOR)
+			/* volume doesn't contain data blocks */
+			goto done;
+		return ret;
 	}
-	/*
-	 * leftmost extent found
-	 */
-	assert("edward-1885", get_key_offset(curr) == 0);
-
-	while(1) {
-		int last_iter = 0;
-		reiser4_key *temp;
+	while (1) {
+		int terminate = 0;
+		reiser4_key found;
+		reiser4_key sdkey;
 		struct inode *inode;
-		struct reiser4_iterate_context iter_ctx;
-
-		ret = coord_by_key(meta_subvol_tree(), curr,
+		/*
+		 * look for an object found in previous iteration
+		 */
+		ret = coord_by_key(meta_subvol_tree(), &ictx.curr,
 				   &coord, &lh, ZNODE_READ_LOCK,
-				   FIND_EXACT, TWIG_LEVEL, TWIG_LEVEL,
-				   0, NULL /* FIXME: set proper
-					      read-ahead info */);
-		if (ret == CBK_COORD_NOTFOUND) {
-			/*
-			 * Payment for the "onliness". We have lost scan
-			 * position, because someone deleted extent that
-			 * we found in the previous iteraton.
-			 * If the file still exists, then it doesn't have
-			 * a body, so its system table will be updated by
-			 * insert_first_extent().
-			 */
+				   FIND_MAX_NOT_MORE_THAN,
+				   TWIG_LEVEL, TWIG_LEVEL,
+				   0, NULL /* read-ahead info */);
+		if (IS_CBKERR(ret)) {
 			done_lh(&lh);
-			notice("edward-1886",
-			       "Online balancing restarted on %s", super->s_id);
-			goto restart;
+			warning("edward-1886",
+				"cbk error when balancing (%d)", ret);
+			return ret;
 		}
-		else if (ret != CBK_COORD_FOUND) {
+		ret = zload(coord.node);
+		if (ret) {
 			done_lh(&lh);
-			err = 1;
-			goto exit;
+			return ret;
+		}
+		item_key_by_coord(&coord, &found);
+		zrelse(coord.node);
+
+		if (!keyeq(&found, &ictx.curr)) {
+			/*
+			 * object found at previous iteration is absent
+			 * (truncated by concurrent process), thus current
+			 * position is an item with key <= @ictx.curr,
+			 * that is, we found an object, which was already
+			 * processed, so we just need to find next extent,
+			 * reset &ictx.curr and proceed
+			 */
+			ret = reiser4_iterate_tree(meta_subvol_tree(),
+						   &coord, &lh,
+						   iter_find_start, &ictx,
+						   ZNODE_READ_LOCK, 0);
+			if (ret < 0) {
+				done_lh(&lh);
+				if (ret == -E_NO_NEIGHBOR)
+					break;
+				return ret;
+			}
 		}
 		/*
-		 * find leftmost extent of the next file,
-		 * store its key in @next
+		 * find leftmost extent of the next file and store
+		 * its key as "next" in the iteration context as a
+		 * hint for next iteration
 		 */
-		assert("edward-1887", coord_is_existing_item(&coord));
-
-		iter_ctx.curr = curr;
-		iter_ctx.next = next;
+		assert("edward-1887",
+		       WITH_DATA(coord.node, coord_is_existing_item(&coord)));
 
 		ret = reiser4_iterate_tree(meta_subvol_tree(), &coord,
-					   &lh, iter_check_extent_next_file,
-					   &iter_ctx, ZNODE_READ_LOCK, 0);
+					   &lh, iter_find_next,
+					   &ictx, ZNODE_READ_LOCK, 0);
 		done_lh(&lh);
 
 		if (ret == -E_NO_NEIGHBOR)
 			/*
 			 * next extent not found
 			 */
-			last_iter = 1;
-		else if (ret < 0) {
-			err = 1;
-			goto exit;
-		}
-		else
-			assert("edward-1888", get_key_offset(next) == 0);
+			terminate = 1;
+		else if (ret < 0)
+			return ret;
 		/*
-		 * Construct stat-data key from @curr and get the inode.
-		 * reiser4_iget() wants @curr to be a precise stat-data key.
-		 * However, we don't know ordering of that stat-data, so we
-		 * set maximal possible value.
+		 * construct stat-data key from the "current" key of iteration
+		 * context and read the inode.
+		 * We don't know actual ordering component of stat-data key,
+		 * so we set a maximal one to make sure that search procedure
+		 * will find it correctly
 		 */
-		set_key_ordering(curr, KEY_ORDERING_MASK);
-		set_key_offset(curr, 0);
+		sdkey = ictx.curr;
+		set_key_ordering(&sdkey, KEY_ORDERING_MASK /* max ordering */);
+		set_key_type(&sdkey, KEY_SD_MINOR);
+		set_key_offset(&sdkey, 0);
 
-		inode = reiser4_iget(super, curr, 0);
+		inode = reiser4_iget(super, &sdkey, 0);
 
 		if (!IS_ERR(inode) && inode_file_plugin(inode)->balance) {
 			reiser4_iget_complete(inode);
@@ -1381,31 +1425,29 @@ int balance_volume_asym(struct super_block *super, int force)
 			 * Relocate data of this file.
 			 */
 			ret = inode_file_plugin(inode)->balance(inode);
+			iput(inode);
 			if (ret) {
-				err = 1;
 				warning("edward-1889",
 				      "Inode %lli: data migration failed (%d)",
 				      (unsigned long long)get_inode_oid(inode),
 				      ret);
+				/* FSCK? */
+				return ret;
 			}
-			iput(inode);
 		}
-		if (last_iter)
+		if (terminate)
 			break;
+		ictx.curr = ictx.next;
+	}
+ done:
+	/* update system table */
 
-		temp = curr;
-		curr = next;
-		next = temp;
-	}
- exit:
-	if (!err) {
-		/*
-		 * update in-memory and on-disk balanced status
-		 */
-		reiser4_volume_clear_unbalanced(super);
-		err = capture_brick_super(get_meta_subvol());
-	}
-	return err;
+	vol->dist_plug->r.update(&vol->aid);
+	/*
+	 * update in-memory and on-disk volume status
+	 */
+	reiser4_volume_clear_unbalanced(super);
+	return capture_brick_super(get_meta_subvol());
 }
 
 volume_plugin volume_plugins[LAST_VOLUME_ID] = {

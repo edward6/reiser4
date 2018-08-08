@@ -515,7 +515,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.update = estimate_update_common,
 			.unlink = estimate_unlink_common
 		},
-		.init_inode_data = init_inode_data_unix_file,
+		.init_inode_data = init_inode_data_stripe,
 		.cut_tree_worker = cut_tree_worker_common,
 		.balance = balance_stripe,
 		.wire = {
