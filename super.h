@@ -243,6 +243,7 @@ struct reiser4_super_info_data {
 					See plugin/file_ops_readdir.c for more
 					details */
 	struct crypto_shash *csum_tfm;
+
 	rwlock_t tree_lock; /* lock protecting:
 			       - parent pointers;
 			       - sibling pointers;
@@ -687,10 +688,24 @@ static inline void __write_unlock_tree(reiser4_super_info_data *sbinfo)
 	write_unlock(&(sbinfo->tree_lock));
 }
 
-#define read_lock_tree(tree)    __read_lock_tree(get_current_super_private())
-#define read_unlock_tree(tree)  __read_unlock_tree(get_current_super_private())
-#define write_lock_tree(tree)   __write_lock_tree(get_current_super_private())
-#define write_unlock_tree(tree) __write_unlock_tree(get_current_super_private())
+static inline void read_lock_tree(void)
+{
+	__read_lock_tree(get_current_super_private());
+}
+
+static inline void read_unlock_tree(void)
+{
+	__read_unlock_tree(get_current_super_private());
+}
+static inline void write_lock_tree(void)
+{
+	__write_lock_tree(get_current_super_private());
+}
+
+static inline void write_unlock_tree(void)
+{
+	__write_unlock_tree(get_current_super_private());
+}
 
 extern u64 get_meta_subvol_id(void);
 extern reiser4_subvol *get_meta_subvol(void);

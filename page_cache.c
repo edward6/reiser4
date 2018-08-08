@@ -599,7 +599,7 @@ truncate_jnodes_range(struct inode *inode, pgoff_t from, pgoff_t count)
 
 		assert("nikita-3466", index <= end);
 
-		read_lock_tree(tree);
+		read_lock_tree();
 		taken =
 		    radix_tree_gang_lookup(jnode_tree_by_reiser4_inode(info),
 					   (void **)gang, index,
@@ -611,7 +611,7 @@ truncate_jnodes_range(struct inode *inode, pgoff_t from, pgoff_t count)
 			else
 				gang[i] = NULL;
 		}
-		read_unlock_tree(tree);
+		read_unlock_tree();
 
 		for (i = 0; i < taken; ++i) {
 			node = gang[i];

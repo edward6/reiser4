@@ -794,10 +794,10 @@ void forget_znode(lock_handle * handle)
 	 * right neighbors.  In the next several lines we remove the node from
 	 * the sibling list. */
 
-	write_lock_tree(tree);
+	write_lock_tree();
 	sibling_list_remove(node);
 	znode_remove(node);
-	write_unlock_tree(tree);
+	write_unlock_tree();
 
 	/* Here we set JNODE_DYING and cancel all pending lock requests.  It
 	 * forces all lock requestor threads to repeat iterations of getting
@@ -904,19 +904,19 @@ int find_child_ptr(znode * parent /* parent znode, passed locked */ ,
 	 * not aliased to ->in_parent of some znode. Otherwise,
 	 * parent_coord_to_coord() below would modify data protected by tree
 	 * lock. */
-	read_lock_tree(tree);
+	read_lock_tree();
 	/* fast path. Try to use cached value. Lock tree to keep
 	   node->pos_in_parent and pos->*_blocknr consistent. */
 	if (child->in_parent.item_pos + 1 != 0) {
 		parent_coord_to_coord(&child->in_parent, result);
 		if (check_tree_pointer(result, child) == NS_FOUND) {
-			read_unlock_tree(tree);
+			read_unlock_tree();
 			return NS_FOUND;
 		}
 
 		child->in_parent.item_pos = (unsigned short)~0;
 	}
-	read_unlock_tree(tree);
+	read_unlock_tree();
 
 	/* is above failed, find some key from @child. We are looking for the
 	   least key in a child. */
@@ -934,9 +934,9 @@ int find_child_ptr(znode * parent /* parent znode, passed locked */ ,
 	lookup_res = nplug->lookup(parent, &ld, FIND_EXACT, result);
 	/* update cached pos_in_node */
 	if (lookup_res == NS_FOUND) {
-		write_lock_tree(tree);
+		write_lock_tree();
 		coord_to_parent_coord(result, &child->in_parent);
-		write_unlock_tree(tree);
+		write_unlock_tree();
 		lookup_res = check_tree_pointer(result, child);
 	}
 	if (lookup_res == NS_NOT_FOUND)
@@ -965,9 +965,9 @@ static int find_child_by_addr(znode * parent /* parent znode, passed locked */ ,
 
 	for_all_units(result, parent) {
 		if (check_tree_pointer(result, child) == NS_FOUND) {
-			write_lock_tree(znode_get_tree(parent));
+			write_lock_tree();
 			coord_to_parent_coord(result, &child->in_parent);
-			write_unlock_tree(znode_get_tree(parent));
+			write_unlock_tree();
 			ret = NS_FOUND;
 			break;
 		}
@@ -1484,10 +1484,10 @@ int reiser4_delete_node(znode *node, reiser4_key *smallest_removed,
 	   be zero). */
 
 	tree = znode_get_tree(node);
-	write_lock_tree(tree);
+	write_lock_tree();
 	init_parent_coord(&node->in_parent, NULL);
 	--parent_lock.node->c_count;
-	write_unlock_tree(tree);
+	write_unlock_tree();
 
 	assert("zam-989", item_is_internal(&cut_from));
 
@@ -1506,7 +1506,7 @@ int reiser4_delete_node(znode *node, reiser4_key *smallest_removed,
 	{
 		__u64 start_offset = 0, end_offset = 0;
 
-		read_lock_tree(tree);
+		read_lock_tree();
 		write_lock_dk(tree);
 		if (object) {
 			/* We use @smallest_removed and the left delimiting of
@@ -1525,7 +1525,7 @@ int reiser4_delete_node(znode *node, reiser4_key *smallest_removed,
 		*smallest_removed = *znode_get_ld_key(node);
 
 		write_unlock_dk(tree);
-		read_unlock_tree(tree);
+		read_unlock_tree();
 
 		if (object) {
 			/* we used to perform actions which are to be performed on items on their removal from tree in

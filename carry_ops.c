@@ -50,14 +50,14 @@ static carry_node *find_left_neighbor(carry_op * op	/* node to find left
 	node = op->node;
 	tree = znode_get_tree(node->node);
 
-	read_lock_tree(tree);
+	read_lock_tree();
 	/* first, check whether left neighbor is already in a @doing queue */
 	if (reiser4_carry_real(node)->left != NULL) {
 		/* NOTE: there is locking subtlety here. Look into
 		 * find_right_neighbor() for more info */
 		if (find_carry_node(doing,
 				    reiser4_carry_real(node)->left) != NULL) {
-			read_unlock_tree(tree);
+			read_unlock_tree();
 			left = node;
 			do {
 				left = list_entry(left->header.level_linkage.prev,
@@ -69,7 +69,7 @@ static carry_node *find_left_neighbor(carry_op * op	/* node to find left
 			return left;
 		}
 	}
-	read_unlock_tree(tree);
+	read_unlock_tree();
 
 	left = reiser4_add_carry_skip(doing, POOLO_BEFORE, node);
 	if (IS_ERR(left))
@@ -135,7 +135,7 @@ static carry_node *find_right_neighbor(carry_op * op	/* node to find right
 	node = op->node;
 	tree = znode_get_tree(node->node);
 
-	read_lock_tree(tree);
+	read_lock_tree();
 	/* first, check whether right neighbor is already in a @doing queue */
 	if (reiser4_carry_real(node)->right != NULL) {
 		/*
@@ -160,7 +160,7 @@ static carry_node *find_right_neighbor(carry_op * op	/* node to find right
 		 */
 		if (find_carry_node(doing,
 				    reiser4_carry_real(node)->right) != NULL) {
-			read_unlock_tree(tree);
+			read_unlock_tree();
 			/*
 			 * What we are doing here (this is also applicable to
 			 * the find_left_neighbor()).
@@ -200,7 +200,7 @@ static carry_node *find_right_neighbor(carry_op * op	/* node to find right
 			return right;
 		}
 	}
-	read_unlock_tree(tree);
+	read_unlock_tree();
 
 	flags = GN_CAN_USE_UPPER_LEVELS;
 	if (!(op->u.insert.flags & COPI_LOAD_RIGHT))
@@ -1254,7 +1254,7 @@ static int carry_delete(carry_op *op, carry_level *doing, carry_level *todo)
 	child = op->u.delete.child ?
 		reiser4_carry_real(op->u.delete.child) : op->node->node;
 	tree = znode_get_tree(child);
-	read_lock_tree(tree);
+	read_lock_tree();
 	/*
 	 * @parent was determined when carry entered parent level
 	 * (lock_carry_level/lock_carry_node). Since then, actual parent of
@@ -1266,7 +1266,7 @@ static int carry_delete(carry_op *op, carry_level *doing, carry_level *todo)
 		parent = znode_parent(child);
 		assert("nikita-2581", find_carry_node(doing, parent));
 	}
-	read_unlock_tree(tree);
+	read_unlock_tree();
 
 	assert("nikita-1213", znode_get_level(parent) > LEAF_LEVEL);
 	/*
@@ -1787,9 +1787,9 @@ static int carry_update(carry_op * op /* operation to be performed */ ,
 		left = NULL;
 
 	tree = znode_get_tree(rchild->node);
-	read_lock_tree(tree);
+	read_lock_tree();
 	right = znode_parent(rchild->node);
-	read_unlock_tree(tree);
+	read_unlock_tree();
 
 	if (right != NULL) {
 		result = update_delimiting_key(right,

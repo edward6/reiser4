@@ -94,14 +94,14 @@ static int lock_neighbor(
 		/* protect it from deletion. */
 		zref(neighbor);
 
-		rlocked ? read_unlock_tree(tree) : write_unlock_tree(tree);
+		rlocked ? read_unlock_tree() : write_unlock_tree();
 
 		ret = longterm_lock_znode(result, neighbor, mode, req);
 
 		/* The lock handle obtains its own reference, release the one from above. */
 		zput(neighbor);
 
-		rlocked ? read_lock_tree(tree) : write_lock_tree(tree);
+		rlocked ? read_lock_tree() : write_lock_tree();
 
 		/* restart if node we got reference to is being
 		   invalidated. we should not get reference to this node
@@ -118,9 +118,9 @@ static int lock_neighbor(
 
 		/* znode was locked by mistake; unlock it and restart locking
 		   process from beginning. */
-		rlocked ? read_unlock_tree(tree) : write_unlock_tree(tree);
+		rlocked ? read_unlock_tree() : write_unlock_tree();
 		longterm_unlock_znode(result);
-		rlocked ? read_lock_tree(tree) : write_lock_tree(tree);
+		rlocked ? read_lock_tree() : write_lock_tree();
 	}
 }
 
@@ -133,10 +133,10 @@ int reiser4_get_parent_flags(lock_handle * lh /* resulting lock handle */ ,
 {
 	int result;
 
-	read_lock_tree(znode_get_tree(node));
+	read_lock_tree();
 	result = lock_neighbor(lh, node, PARENT_PTR_OFFSET, mode,
 			       ZNODE_LOCK_HIPRI, flags, 1);
-	read_unlock_tree(znode_get_tree(node));
+	read_unlock_tree();
 	return result;
 }
 
@@ -334,7 +334,7 @@ static int far_next_coord(coord_t * coord, lock_handle * handle, int flags)
 
 	node = handle->node;
 	tree = znode_get_tree(node);
-	write_unlock_tree(tree);
+	write_unlock_tree();
 
 	coord_init_zero(coord);
 
@@ -361,7 +361,7 @@ static int far_next_coord(coord_t * coord, lock_handle * handle, int flags)
 	      error_locked:
 		longterm_unlock_znode(handle);
 	}
-	write_lock_tree(tree);
+	write_lock_tree();
 	return ret;
 }
 
@@ -390,12 +390,12 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child,
 	assert("umka-303", tree != NULL);
 
 	init_lh(handle);
-	write_lock_tree(tree);
+	write_lock_tree();
 	ret = far_next_coord(coord, handle, flags);
 
 	if (ret) {
 		if (ret != -ENOENT) {
-			write_unlock_tree(tree);
+			write_unlock_tree();
 			return ret;
 		}
 	} else {
@@ -412,11 +412,11 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child,
 		iplug = item_plugin_by_coord(coord);
 		if (!item_is_internal(coord)) {
 			link_znodes(child, NULL, to_left);
-			write_unlock_tree(tree);
+			write_unlock_tree();
 			/* we know there can't be formatted neighbor */
 			return RETERR(-E_NO_NEIGHBOR);
 		}
-		write_unlock_tree(tree);
+		write_unlock_tree();
 
 		iplug->s.internal.down_link(coord, NULL, &da);
 
@@ -435,7 +435,7 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child,
 			/* update delimiting keys */
 			set_child_delimiting_keys(coord->node, coord, neighbor);
 
-		write_lock_tree(tree);
+		write_lock_tree();
 	}
 
 	if (likely(neighbor == NULL ||
@@ -449,7 +449,7 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child,
 		ret = RETERR(-EIO);
 	}
 
-	write_unlock_tree(tree);
+	write_unlock_tree();
 
 	/* if GN_NO_ALLOC isn't set we keep reference to neighbor znode */
 	if (neighbor != NULL && (flags & GN_NO_ALLOC))
@@ -530,21 +530,21 @@ int connect_znode(coord_t * parent_coord, znode * child)
 		return ret;
 
 	/* protect `connected' state check by tree_lock */
-	read_lock_tree(tree);
+	read_lock_tree();
 
 	if (!znode_is_right_connected(child)) {
-		read_unlock_tree(tree);
+		read_unlock_tree();
 		/* connect right (default is right) */
 		ret = connect_one_side(parent_coord, child, GN_NO_ALLOC);
 		if (ret)
 			goto zrelse_and_ret;
 
-		read_lock_tree(tree);
+		read_lock_tree();
 	}
 
 	ret = znode_is_left_connected(child);
 
-	read_unlock_tree(tree);
+	read_unlock_tree();
 
 	if (!ret) {
 		ret =
@@ -597,9 +597,9 @@ renew_neighbor(coord_t * coord, znode * node, tree_level level, int flags)
 	   and reference to neighbor znode incremented */
 	neighbor = (flags & GN_GO_LEFT) ? node->left : node->right;
 
-	read_lock_tree(tree);
+	read_lock_tree();
 	ret = znode_is_connected(neighbor);
-	read_unlock_tree(tree);
+	read_unlock_tree();
 	if (ret) {
 		ret = 0;
 		goto out;
@@ -681,9 +681,9 @@ reiser4_get_neighbor(lock_handle * neighbor, znode * node,
       again:
 	/* first, we try to use simple lock_neighbor() which requires sibling
 	   link existence */
-	read_lock_tree(tree);
+	read_lock_tree();
 	ret = lock_side_neighbor(neighbor, node, lock_mode, flags, 1);
-	read_unlock_tree(tree);
+	read_unlock_tree();
 	if (!ret) {
 		/* load znode content if it was specified */
 		if (flags & GN_LOAD_NEIGHBOR) {

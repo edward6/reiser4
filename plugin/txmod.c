@@ -735,9 +735,9 @@ static int forward_try_defragment_locality(znode * node,
 
 		uber = uber_lock.node;
 
-		write_lock_tree(tree);
+		write_lock_tree();
 		tree->root_block = blk;
-		write_unlock_tree(tree);
+		write_unlock_tree();
 
 		znode_make_dirty(uber);
 	}

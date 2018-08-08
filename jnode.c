@@ -413,11 +413,11 @@ jnode *jfind(struct address_space *mapping, unsigned long index)
 	assert("vs-1694", mapping->host != NULL);
 	tree = meta_subvol_tree();
 
-	read_lock_tree(tree);
+	read_lock_tree();
 	node = jfind_nolock(mapping, index);
 	if (node != NULL)
 		jref(node);
-	read_unlock_tree(tree);
+	read_unlock_tree();
 	return node;
 }
 
@@ -528,9 +528,9 @@ void unhash_unformatted_jnode(jnode * node)
 {
 	assert("vs-1445", jnode_is_unformatted(node));
 
-	write_lock_tree(jnode_get_tree(node));
+	write_lock_tree();
 	unhash_unformatted_node_nolock(node);
-	write_unlock_tree(jnode_get_tree(node));
+	write_unlock_tree();
 }
 
 /*
@@ -545,11 +545,9 @@ static jnode *find_get_jnode(struct reiser4_subvol *subvol,
 	jnode *result;
 	jnode *shadow;
 	int preload;
-	reiser4_tree *tree;
 
 	assert("edward-1955", subvol != NULL);
 
-	tree = &subvol->tree;
 	result = jnew_unformatted(subvol);
 
 	if (unlikely(result == NULL))
@@ -559,7 +557,7 @@ static jnode *find_get_jnode(struct reiser4_subvol *subvol,
 	if (preload != 0)
 		return ERR_PTR(preload);
 
-	write_lock_tree(tree);
+	write_lock_tree();
 	shadow = jfind_nolock(mapping, index);
 	if (likely(shadow == NULL)) {
 		/* add new jnode to hash table and inode's radix tree of
@@ -573,7 +571,7 @@ static jnode *find_get_jnode(struct reiser4_subvol *subvol,
 		assert("vs-1498", shadow->key.j.mapping == mapping);
 		result = shadow;
 	}
-	write_unlock_tree(tree);
+	write_unlock_tree();
 
 	assert("nikita-2955",
 	       ergo(result != NULL, jnode_invariant(result, 0, 0)));
@@ -1343,12 +1341,12 @@ jnode *jnode_rip_sync(reiser4_tree *tree, jnode *node)
 	 * jnode.
 	 */
 	if (unlikely(JF_ISSET(node, JNODE_RIP))) {
-		read_lock_tree(tree);
+		read_lock_tree();
 		if (JF_ISSET(node, JNODE_RIP)) {
 			dec_x_ref(node);
 			node = NULL;
 		}
-		read_unlock_tree(tree);
+		read_unlock_tree();
 	}
 	return node;
 }
@@ -1707,7 +1705,7 @@ static int jdelete(jnode * node/* jnode to finish with */)
 
 	tree = jnode_get_tree(node);
 
-	write_lock_tree(tree);
+	write_lock_tree();
 	/* re-check ->x_count under tree lock. */
 	result = jnode_is_busy(node, jtype);
 	if (likely(!result)) {
@@ -1724,7 +1722,7 @@ static int jdelete(jnode * node/* jnode to finish with */)
 		spin_unlock_jnode(node);
 		/* goodbye */
 		jnode_delete(node, jtype);
-		write_unlock_tree(tree);
+		write_unlock_tree();
 		jnode_free(node, jtype);
 		/* @node is no longer valid pointer */
 		if (page != NULL)
@@ -1733,7 +1731,7 @@ static int jdelete(jnode * node/* jnode to finish with */)
 		/* busy check failed: reference was acquired by concurrent
 		 * thread. */
 		JF_CLR(node, JNODE_RIP);
-		write_unlock_tree(tree);
+		write_unlock_tree();
 		spin_unlock_jnode(node);
 		if (page != NULL)
 			unlock_page(page);
@@ -1772,7 +1770,7 @@ int jdrop(jnode *node)
 	page = jnode_lock_page(node);
 	assert_spin_locked(&(node->guard));
 
-	write_lock_tree(NULL);
+	write_lock_tree();
 
 	/* re-check ->x_count under tree lock. */
 	result = jnode_is_busy(node, jtype);
@@ -1787,7 +1785,7 @@ int jdrop(jnode *node)
 		}
 		spin_unlock_jnode(node);
 		jnode_remove(node, jtype);
-		write_unlock_tree(NULL);
+		write_unlock_tree();
 		jnode_free(node, jtype);
 		if (page != NULL)
 			reiser4_drop_page(page);
@@ -1795,7 +1793,7 @@ int jdrop(jnode *node)
 		/* busy check failed: reference was acquired by concurrent
 		 * thread. */
 		JF_CLR(node, JNODE_RIP);
-		write_unlock_tree(NULL);
+		write_unlock_tree();
 		spin_unlock_jnode(node);
 		if (page != NULL)
 			unlock_page(page);
@@ -1994,14 +1992,14 @@ static int jnode_invariant(jnode * node, int tlocked, int jlocked)
 	if (!jlocked && !tlocked)
 		spin_lock_jnode((jnode *) node);
 	if (!tlocked)
-		read_lock_tree(jnode_get_tree(node));
+		read_lock_tree();
 	result = jnode_invariant_f(node, &failed_msg);
 	if (!result) {
 		info_jnode("corrupted node", node);
 		warning("jmacd-555", "Condition %s failed", failed_msg);
 	}
 	if (!tlocked)
-		read_unlock_tree(jnode_get_tree(node));
+		read_unlock_tree();
 	if (!jlocked && !tlocked)
 		spin_unlock_jnode((jnode *) node);
 	return result;

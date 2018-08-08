@@ -2863,9 +2863,9 @@ static int sibling_link_is_ok(const znode *left, const znode *right)
 {
 	int result;
 
-	read_lock_tree(znode_get_tree(left));
+	read_lock_tree();
 	result = (left->right == right && left == right->left);
-	read_unlock_tree(znode_get_tree(left));
+	read_unlock_tree();
 	return result;
 }
 #endif
@@ -3178,9 +3178,9 @@ static int znode_same_parents(znode * a, znode * b)
 
 	/* We lock the whole tree for this check.... I really don't like whole
 	 * tree locks... -Hans */
-	read_lock_tree(znode_get_tree(a));
+	read_lock_tree();
 	result = (znode_parent(a) == znode_parent(b));
-	read_unlock_tree(znode_get_tree(a));
+	read_unlock_tree();
 	return result;
 }
 
@@ -3611,7 +3611,7 @@ static int scan_formatted(flush_scan * scan)
 			break;
 		}
 		/* Lock the tree, check-for and reference the next sibling. */
-		read_lock_tree(znode_get_tree(node));
+		read_lock_tree();
 
 		/* It may be that a node is inserted or removed between a node
 		   and its left sibling while the tree lock is released, but the
@@ -3623,7 +3623,7 @@ static int scan_formatted(flush_scan * scan)
 		if (neighbor != NULL)
 			zref(neighbor);
 
-		read_unlock_tree(znode_get_tree(node));
+		read_unlock_tree();
 		/*
 		 * If neighbor is NULL at the leaf level, need to check for an
 		 * unformatted sibling using the parent--break in any case

@@ -902,13 +902,13 @@ static level_lookup_result cbk_level_lookup(cbk_handle * h/* search handle */)
 	h->coord->between = AT_UNIT;
 
 	if (znode_just_created(active) && (h->coord->node != NULL)) {
-		write_lock_tree(h->tree);
+		write_lock_tree();
 		/* if we are going to load znode right now, setup
 		   ->in_parent: coord where pointer to this node is stored in
 		   parent.
 		 */
 		coord_to_parent_coord(h->coord, &active->in_parent);
-		write_unlock_tree(h->tree);
+		write_unlock_tree();
 	}
 
 	/* check connectedness without holding tree lock---false negatives
@@ -994,7 +994,7 @@ void check_dkeys(znode * node)
 	znode *right;
 	reiser4_tree *tree = znode_get_tree(node);
 
-	read_lock_tree(tree);
+	read_lock_tree();
 	read_lock_dk(tree);
 
 	assert("vs-1710", znode_is_any_locked(node));
@@ -1021,7 +1021,7 @@ void check_dkeys(znode * node)
 			|| ZF_ISSET(right, JNODE_HEARD_BANSHEE)));
 
 	read_unlock_dk(tree);
-	read_unlock_tree(tree);
+	read_unlock_tree();
 }
 #endif
 
@@ -1326,7 +1326,7 @@ static void stale_dk(reiser4_tree * tree, znode * node)
 {
 	znode *right;
 
-	read_lock_tree(tree);
+	read_lock_tree();
 	write_lock_dk(tree);
 	right = node->right;
 
@@ -1336,7 +1336,7 @@ static void stale_dk(reiser4_tree * tree, znode * node)
 		znode_set_rd_key(node, znode_get_ld_key(right));
 
 	write_unlock_dk(tree);
-	read_unlock_tree(tree);
+	read_unlock_tree();
 }
 
 /* check for possibly outdated delimiting keys, and update them if
@@ -1346,7 +1346,7 @@ static void update_stale_dk(reiser4_tree * tree, znode * node)
 	znode *right;
 	reiser4_key rd;
 
-	read_lock_tree(tree);
+	read_lock_tree();
 	read_lock_dk(tree);
 	rd = *znode_get_rd_key(node);
 	right = node->right;
@@ -1355,12 +1355,12 @@ static void update_stale_dk(reiser4_tree * tree, znode * node)
 		     !keyeq(&rd, znode_get_ld_key(right)))) {
 		assert("nikita-38211", ZF_ISSET(node, JNODE_DKSET));
 		read_unlock_dk(tree);
-		read_unlock_tree(tree);
+		read_unlock_tree();
 		stale_dk(tree, node);
 		return;
 	}
 	read_unlock_dk(tree);
-	read_unlock_tree(tree);
+	read_unlock_tree();
 }
 
 /*
@@ -1453,9 +1453,9 @@ static level_lookup_result search_to_left(cbk_handle * h/* search handle */)
 				   reiser4_get_left_neighbor()
 				 */
 				/* FIXME: why do we have to spinlock here? */
-				write_lock_tree(znode_get_tree(neighbor));
+				write_lock_tree();
 				h->coord->node = NULL;
-				write_unlock_tree(znode_get_tree(neighbor));
+				write_unlock_tree();
 				result = LOOKUP_CONT;
 			} else {
 				result = LOOKUP_DONE;

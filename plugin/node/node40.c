@@ -595,7 +595,7 @@ int check_node40(const znode * node /* node to check */ ,
 		}
 	}
 	if (flags & REISER4_NODE_DKEYS) {
-		read_lock_tree(tree);
+		read_lock_tree();
 		read_lock_dk(tree);
 
 		flags |= REISER4_NODE_TREE_STABLE;
@@ -604,7 +604,7 @@ int check_node40(const znode * node /* node to check */ ,
 			if (flags & REISER4_NODE_TREE_STABLE) {
 				*error = "Last key is greater than rdkey";
 				read_unlock_dk(tree);
-				read_unlock_tree(tree);
+				read_unlock_tree();
 				return -1;
 			}
 		}
@@ -613,7 +613,7 @@ int check_node40(const znode * node /* node to check */ ,
 		     znode_get_rd_key((znode *) node))) {
 			*error = "ldkey is greater than rdkey";
 			read_unlock_dk(tree);
-			read_unlock_tree(tree);
+			read_unlock_tree();
 			return -1;
 		}
 		if (ZF_ISSET(node, JNODE_LEFT_CONNECTED) &&
@@ -627,7 +627,7 @@ int check_node40(const znode * node /* node to check */ ,
 				  znode_get_ld_key((znode *) node)))) {
 			*error = "left rdkey or ldkey is wrong";
  			read_unlock_dk(tree);
-			read_unlock_tree(tree);
+			read_unlock_tree();
 			return -1;
 		}
 		if (ZF_ISSET(node, JNODE_RIGHT_CONNECTED) &&
@@ -641,12 +641,12 @@ int check_node40(const znode * node /* node to check */ ,
 				  znode_get_ld_key(node->right)))) {
 			*error = "rdkey or right ldkey is wrong";
  			read_unlock_dk(tree);
-			read_unlock_tree(tree);
+			read_unlock_tree();
 			return -1;
 		}
 
 		read_unlock_dk(tree);
-		read_unlock_tree(tree);
+		read_unlock_tree();
 	}
 
 	return 0;
@@ -2219,13 +2219,13 @@ int prepare_removal_node40(znode * empty, carry_plugin_info * info)
 
 	/* fare thee well */
 	tree = znode_get_tree(empty);
-	read_lock_tree(tree);
+	read_lock_tree();
 	write_lock_dk(tree);
 	znode_set_ld_key(empty, znode_get_rd_key(empty));
 	if (znode_is_left_connected(empty) && empty->left)
 		znode_set_rd_key(empty->left, znode_get_rd_key(empty));
 	write_unlock_dk(tree);
-	read_unlock_tree(tree);
+	read_unlock_tree();
 
 	ZF_SET(empty, JNODE_HEARD_BANSHEE);
 	return 0;

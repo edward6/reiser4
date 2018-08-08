@@ -344,13 +344,13 @@ add_empty_leaf(coord_t *insert_coord, lock_handle *lh,
 					 * neighbor was not known. Do it
 					 * here
 					 */
-					write_lock_tree(tree);
+					write_lock_tree();
 					assert("nikita-3312",
 					       znode_is_right_connected(node));
 					assert("nikita-2984",
 					       node->right == NULL);
 					ZF_CLR(node, JNODE_RIGHT_CONNECTED);
-					write_unlock_tree(tree);
+					write_unlock_tree();
 					result =
 					    connect_znode(insert_coord, node);
 					ON_DEBUG(if (result == 0) check_dkeys(node););

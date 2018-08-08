@@ -389,7 +389,7 @@ int znode_rehash(znode * node /* node to rehash */ ,
 	oldtable = znode_get_htable(node);
 	newtable = get_htable(tree, new_block_nr);
 
-	write_lock_tree(tree);
+	write_lock_tree();
 	/* remove znode from hash-table */
 	z_hash_remove_rcu(oldtable, node);
 
@@ -402,7 +402,7 @@ int znode_rehash(znode * node /* node to rehash */ ,
 
 	/* insert it into hash */
 	z_hash_insert_rcu(newtable, node);
-	write_unlock_tree(tree);
+	write_unlock_tree();
 	return 0;
 }
 
@@ -519,7 +519,7 @@ znode *zget(struct reiser4_subvol *subv,
 		ZJNODE(result)->key.z = *blocknr;
 		result->level = level;
 
-		write_lock_tree(tree);
+		write_lock_tree();
 
 		shadow = z_hash_find_index(zth, hashi, blocknr);
 		if (unlikely(shadow != NULL && !ZF_ISSET(shadow, JNODE_RIP))) {
@@ -536,7 +536,7 @@ znode *zget(struct reiser4_subvol *subv,
 
 		add_x_ref(ZJNODE(result));
 
-		write_unlock_tree(tree);
+		write_unlock_tree();
 	}
 
 	assert("intelfx-6",
@@ -1011,13 +1011,13 @@ int znode_invariant(znode *node)
 	assert("edward-1805", znode_get_subvol(node) != NULL);
 
 	spin_lock_znode(node);
-	read_lock_tree(znode_get_tree(node));
+	read_lock_tree();
 	result = znode_invariant_f(node, &failed_msg);
 	if (!result) {
 		/* print_znode("corrupted node", node); */
 		warning("jmacd-555", "Condition %s failed", failed_msg);
 	}
-	read_unlock_tree(znode_get_tree(node));
+	read_unlock_tree();
 	spin_unlock_znode(node);
 	return result;
 }

@@ -157,7 +157,7 @@ znode *reiser4_add_tree_root(znode * old_root /* existing tree root */ ,
 				znode_make_dirty(fake);
 
 				/* new root is a child of "fake" node */
-				write_lock_tree(tree);
+				write_lock_tree();
 
 				++tree->height;
 
@@ -173,7 +173,7 @@ znode *reiser4_add_tree_root(znode * old_root /* existing tree root */ ,
 				 * balancing are connected after balancing is
 				 * done---useful invariant to check. */
 				sibling_list_insert_nolock(new_root, NULL);
-				write_unlock_tree(tree);
+				write_unlock_tree();
 
 				/* insert into new root pointer to the
 				   @old_root. */
@@ -301,7 +301,7 @@ static int reiser4_kill_root(reiser4_tree * tree /* tree from which root is
 
 		/* don't take long term lock a @new_root. Take spinlock. */
 
-		write_lock_tree(tree);
+		write_lock_tree();
 
 		tree->root_block = *new_root_blk;
 		--tree->height;
@@ -318,7 +318,7 @@ static int reiser4_kill_root(reiser4_tree * tree /* tree from which root is
 		++uber->c_count;
 
 		/* sibling_list_insert_nolock(new_root, NULL); */
-		write_unlock_tree(tree);
+		write_unlock_tree();
 
 		/* reinitialise old root. */
 		result = init_znode(ZJNODE(old_root));

@@ -758,7 +758,7 @@ static void sync_dkeys(znode * spot/* node to update */)
 	assert("nikita-1612", LOCK_CNT_NIL(rw_locked_dk));
 
 	tree = znode_get_tree(spot);
-	read_lock_tree(tree);
+	read_lock_tree();
 	write_lock_dk(tree);
 
 	assert("nikita-2192", znode_is_loaded(spot));
@@ -795,7 +795,7 @@ static void sync_dkeys(znode * spot/* node to update */)
 	}
 
 	write_unlock_dk(tree);
-	read_unlock_tree(tree);
+	read_unlock_tree();
 }
 
 /* unlock all carry nodes in @level */
@@ -943,9 +943,9 @@ int lock_carry_node(carry_level * level /* level @node is in */ ,
 
 		 */
 		tree = znode_get_tree(reference_point);
-		read_lock_tree(tree);
+		read_lock_tree();
 		reference_point = find_begetting_brother(node, level)->node;
-		read_unlock_tree(tree);
+		read_unlock_tree();
 		assert("nikita-1186", reference_point != NULL);
 	}
 	if (node->parent && (result == 0)) {
