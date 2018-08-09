@@ -859,7 +859,7 @@ int reiser4_check_extent(const coord_t *coord /* coord of item to check */,
 			for (j = 0; j < extent_get_width(ext); j++) {
 				jnode *node;
 
-				node = jlookup(&subv->tree, oid, index + j);
+				node = jlookup(oid, index + j);
 				if (node == NULL) {
 					print_coord("scan", &scan, 0);
 					*error = "Jnode missing";

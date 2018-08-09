@@ -439,9 +439,7 @@ static int ctail_convertible(const coord_t * coord)
 		return 1;
 
 	item_key_by_coord(coord, &key);
-	child = jlookup(meta_subvol_tree(),
-			get_key_objectid(&key),
-			off_to_pg(off_by_coord(coord)));
+	child = jlookup(get_key_objectid(&key),	off_to_pg(off_by_coord(coord)));
 	if (!child)
 		return 0;
 	result = JF_ISSET(child, JNODE_DIRTY);
@@ -1354,8 +1352,7 @@ int utmost_child_ctail(const coord_t * coord, sideof side, jnode ** child)
 	if (!is_disk_cluster_key(&key, coord))
 		*child = NULL;
 	else
-		*child = jlookup(meta_subvol_tree(),
-				 get_key_objectid(item_key_by_coord(coord,
+		*child = jlookup(get_key_objectid(item_key_by_coord(coord,
 								    &key)),
 				 off_to_pg(get_key_offset(&key)));
 	return 0;

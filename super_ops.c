@@ -250,6 +250,7 @@ static void reiser4_put_super(struct super_block *super)
 	 * release disk format related resources
 	 */
 	reiser4_deactivate_volume(super);
+	reiser4_jnodes_done();
 	reiser4_done_formatted_fake(super);
 	reiser4_done_csum_tfm(sbinfo->csum_tfm);
 
@@ -555,6 +556,10 @@ static int fill_super(struct super_block *super, void *data, int silent)
 	if ((result = reiser4_init_formatted_fake(super)) != 0)
 		goto failed_init_formatted_fake;
 
+	/* initialize jnode hash table */
+	if ((result = reiser4_jnodes_init()) != 0)
+		goto failed_jnodes_init;
+
 	/* initialize disk formats of all subvolumes */
 	if ((result = reiser4_activate_volume(super, vol_uuid)) != 0)
 		goto failed_activate_volume;
@@ -595,6 +600,8 @@ static int fill_super(struct super_block *super, void *data, int silent)
  failed_init_root_inode:
 	reiser4_deactivate_volume(super);
  failed_activate_volume:
+	reiser4_jnodes_done();
+ failed_jnodes_init:
 	reiser4_done_formatted_fake(super);
  failed_init_formatted_fake:
 	reiser4_done_entd(super);

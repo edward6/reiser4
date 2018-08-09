@@ -179,33 +179,27 @@ struct super_block *jnode_get_super(const jnode *node)
 	return node->subvol->super;
 }
 
-/* call this to initialise jnode hash table */
-int jnodes_tree_init(reiser4_tree * tree/* tree to initialise jnodes for */)
+int reiser4_jnodes_init(void)
 {
-	assert("nikita-2359", tree != NULL);
-	return j_hash_init(&tree->jhash_table, 16384);
+	return j_hash_init(&get_current_super_private()->jhash_table, 16384);
 }
 
 /* call this to destroy jnode hash table. This is called during umount. */
-int jnodes_tree_done(reiser4_tree * tree/* tree to destroy jnodes for */)
+int reiser4_jnodes_done(void)
 {
 	j_hash_table *jtable;
 	jnode *node;
 	jnode *next;
-
-	assert("nikita-2360", tree != NULL);
-
 	/*
 	 * Scan hash table and free all jnodes.
 	 */
-	jtable = &tree->jhash_table;
+	jtable = &get_current_super_private()->jhash_table;
 	if (jtable->_table) {
 		for_all_in_htable(jtable, j, node, next) {
 			assert("nikita-2361", !atomic_read(&node->x_count));
 			jdrop(node);
 		}
-
-		j_hash_done(&tree->jhash_table);
+		j_hash_done(&get_current_super_private()->jhash_table);
 	}
 	return 0;
 }
@@ -372,7 +366,7 @@ static jnode *jnew_unformatted(struct reiser4_subvol *subvol)
 }
 
 /* look for jnode with given mapping and offset within hash table */
-jnode *jlookup(reiser4_tree * tree, oid_t objectid, unsigned long index)
+jnode *jlookup(oid_t objectid, unsigned long index)
 {
 	struct jnode_key jkey;
 	jnode *node;
@@ -386,12 +380,12 @@ jnode *jlookup(reiser4_tree * tree, oid_t objectid, unsigned long index)
 	 */
 
 	rcu_read_lock();
-	node = j_hash_find(&tree->jhash_table, &jkey);
+	node = j_hash_find(&get_current_super_private()->jhash_table, &jkey);
 	if (node != NULL) {
 		/* protect @node from recycling */
 		jref(node);
 		assert("nikita-2955", jnode_invariant(node, 0, 0));
-		node = jnode_rip_check(tree, node);
+		node = jnode_rip_check(node);
 	}
 	rcu_read_unlock();
 	return node;
@@ -492,7 +486,7 @@ hash_unformatted_jnode(jnode * node, struct address_space *mapping,
 	node->key.j.objectid = get_inode_oid(mapping->host);
 	node->key.j.index = index;
 
-	jtable = &jnode_get_tree(node)->jhash_table;
+	jtable = &get_current_super_private()->jhash_table;
 
 	/* race with some other thread inserting jnode into the hash table is
 	 * impossible, because we keep the page lock. */
@@ -513,7 +507,7 @@ static void unhash_unformatted_node_nolock(jnode * node)
 	       get_inode_oid(node->key.j.mapping->host));
 
 	/* remove jnode from hash-table */
-	j_hash_remove_rcu(&jnode_get_tree(node)->jhash_table, node);
+	j_hash_remove_rcu(&get_current_super_private()->jhash_table, node);
 	inode_detach_jnode(node);
 	node->key.j.mapping = NULL;
 	node->key.j.index = (unsigned long)-1;
@@ -1318,7 +1312,7 @@ static unsigned long index_is_address(const jnode * node)
 }
 
 /* resolve race with jput */
-jnode *jnode_rip_sync(reiser4_tree *tree, jnode *node)
+jnode *jnode_rip_sync(jnode *node)
 {
 	/*
 	 * This is used as part of RCU-based jnode handling.

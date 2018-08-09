@@ -352,8 +352,7 @@ extern void done_jnodes(void);
 extern jnode *jalloc(void);
 extern void jfree(jnode * node) NONNULL;
 extern jnode *jclone(jnode *);
-extern jnode *jlookup(reiser4_tree * tree,
-		      oid_t objectid, unsigned long ind) NONNULL;
+extern jnode *jlookup(oid_t objectid, unsigned long ind) NONNULL;
 extern jnode *jfind(struct address_space *, unsigned long index) NONNULL;
 extern jnode *jnode_by_page(struct page *pg) NONNULL;
 extern jnode *jnode_of_page(struct page *pg, int for_data_io) NONNULL;
@@ -433,8 +432,8 @@ extern flush_queue_t *reiser4_pos_fq(flush_pos_t *pos);
 	(znode*) __tmp_x;					\
 })
 
-extern int jnodes_tree_init(reiser4_tree * tree);
-extern int jnodes_tree_done(reiser4_tree * tree);
+extern int reiser4_jnodes_init(void);
+extern int reiser4_jnodes_done(void);
 
 #if REISER4_DEBUG
 
@@ -682,13 +681,13 @@ static inline void jput(jnode * node)
 extern void jrelse(jnode * node);
 extern void jrelse_tail(jnode * node);
 
-extern jnode *jnode_rip_sync(reiser4_tree * t, jnode * node);
+extern jnode *jnode_rip_sync(jnode *node);
 
 /* resolve race with jput */
-static inline jnode *jnode_rip_check(reiser4_tree * tree, jnode * node)
+static inline jnode *jnode_rip_check(jnode *node)
 {
 	if (unlikely(JF_ISSET(node, JNODE_RIP)))
-		node = jnode_rip_sync(tree, node);
+		node = jnode_rip_sync(node);
 	return node;
 }
 

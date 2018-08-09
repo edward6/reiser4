@@ -243,7 +243,8 @@ struct reiser4_super_info_data {
 					See plugin/file_ops_readdir.c for more
 					details */
 	struct crypto_shash *csum_tfm;
-
+	j_hash_table jhash_table; /* hash table to look up jnodes by inode
+				     and offset. */
 	rwlock_t tree_lock; /* lock protecting:
 			       - parent pointers;
 			       - sibling pointers;

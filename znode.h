@@ -317,11 +317,11 @@ static inline struct reiser4_subvol *znode_get_subvol(const znode *node)
 #define znode_get_tree(node) (&znode_get_subvol(node)->tree)
 
 /* resolve race with zput */
-static inline znode *znode_rip_check(reiser4_tree * tree, znode * node)
+static inline znode *znode_rip_check(znode *node)
 {
 	jnode *j;
 
-	j = jnode_rip_sync(tree, ZJNODE(node));
+	j = jnode_rip_sync(ZJNODE(node));
 	if (likely(j != NULL))
 		node = JZNODE(j);
 	else

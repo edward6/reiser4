@@ -67,7 +67,6 @@ int utmost_child_extent(const coord_t *coord, sideof side, jnode **childp)
 	{
 		reiser4_key key;
 		loff_t offset;
-		reiser4_tree *tree;
 		unsigned long index;
 		/*
 		 * offset of the first or next after last (depending on
@@ -86,8 +85,7 @@ int utmost_child_extent(const coord_t *coord, sideof side, jnode **childp)
 		if (side == RIGHT_SIDE)
 			index--;
 
-		tree = &data_subv->tree;
-		*childp = jlookup(tree, get_key_objectid(&key), index);
+		*childp = jlookup(get_key_objectid(&key), index);
 	}
 	return 0;
 }
@@ -143,7 +141,6 @@ int reiser4_scan_extent(flush_scan * scan)
 	__u64 oid;
 	reiser4_key key;
 	int ret = 0, allocated, incr;
-	reiser4_tree *tree;
 
 	if (!JF_ISSET(scan->node, JNODE_DIRTY)) {
 		/*
@@ -194,14 +191,13 @@ int reiser4_scan_extent(flush_scan * scan)
 		scan_dist = scan_max - unit_index;
 		incr = +1;
 	}
-	tree = &scan->data_subv->tree;
 	/*
 	 * If the extent is allocated we have to check each of its blocks.
 	 * If the extent is unallocated we can skip to the scan_max
 	 */
 	if (allocated) {
 		do {
-			neighbor = jlookup(tree, oid, scan_index);
+			neighbor = jlookup(oid, scan_index);
 			if (neighbor == NULL)
 				goto stop_same_parent;
 
@@ -226,7 +222,7 @@ int reiser4_scan_extent(flush_scan * scan)
 		/*
 		 * Optimized case for unallocated extents, skip to the end
 		 */
-		neighbor = jlookup(tree, oid, scan_max /*index */);
+		neighbor = jlookup(oid, scan_max /*index */);
 		if (neighbor == NULL) {
 			/*
 			 * Race with truncate
@@ -617,7 +613,6 @@ void assign_real_blocknrs(flush_pos_t *flush_pos, oid_t oid,
 			  reiser4_block_nr first, reiser4_subvol *subv)
 {
 	unsigned long i;
-	reiser4_tree *tree;
 	txn_atom *atom;
 	int nr;
 
@@ -626,11 +621,10 @@ void assign_real_blocknrs(flush_pos_t *flush_pos, oid_t oid,
 	BUG_ON(atom == NULL);
 
 	nr = 0;
-	tree = &subv->tree;
 	for (i = 0; i < count; ++i, ++index) {
 		jnode *node;
 
-		node = jlookup(tree, oid, index);
+		node = jlookup(oid, index);
 		assert("", node != NULL);
 		BUG_ON(node == NULL);
 
@@ -668,7 +662,6 @@ int allocated_extent_slum_size(flush_pos_t *flush_pos, oid_t oid,
 			       unsigned long index, unsigned long count)
 {
 	unsigned long i;
-	reiser4_tree *tree;
 	txn_atom *atom;
 	int nr;
 
@@ -678,12 +671,11 @@ int allocated_extent_slum_size(flush_pos_t *flush_pos, oid_t oid,
 	assert("vs-1468", atom);
 
 	nr = 0;
-	tree = &flush_pos->data_subv->tree;
 
 	for (i = 0; i < count; ++i, ++index) {
 		jnode *node;
 
-		node = jlookup(tree, oid, index);
+		node = jlookup(oid, index);
 		if (!node)
 			break;
 

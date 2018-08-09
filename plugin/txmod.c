@@ -448,7 +448,7 @@ static void forward_overwrite_unformatted(flush_pos_t *flush_pos, oid_t oid,
 	assert("vs-1478", atom);
 
 	for (i = flush_pos->pos_in_unit; i < width; i++, index++) {
-		node = jlookup(tree, oid, index);
+		node = jlookup(oid, index);
 		if (!node) {
 			flush_pos->state = POS_INVALID;
 			break;

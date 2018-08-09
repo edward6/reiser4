@@ -1875,7 +1875,7 @@ int reiser4_subvol_init_tree(struct super_block *super,
 
 	result = znodes_tree_init(tree);
 	if (result == 0)
-		result = jnodes_tree_init(tree);
+		result = reiser4_jnodes_init();
 	if (result == 0) {
 		tree->uber = zget(subv, &UBER_TREE_ADDR, NULL, 0,
 				  reiser4_ctx_gfp_mask_get());
@@ -1898,7 +1898,6 @@ void reiser4_done_tree(reiser4_tree * tree /* tree to release */ )
 		tree->uber = NULL;
 	}
 	znodes_tree_done(tree);
-	jnodes_tree_done(tree);
 	cbk_cache_done(&tree->cbk_cache);
 }
 

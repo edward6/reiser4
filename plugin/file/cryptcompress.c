@@ -1512,8 +1512,7 @@ static int jnode_truncate_ok(struct inode *inode, cloff_t index,
 			     reiser4_subvol *subv)
 {
 	jnode *node;
-	node = jlookup(&subv->tree, get_inode_oid(inode),
-		       clust_to_pg(index, inode));
+	node = jlookup(get_inode_oid(inode), clust_to_pg(index, inode));
 	if (likely(!node))
 		return 1;
 	jput(node);
@@ -2530,9 +2529,7 @@ void truncate_complete_page_cluster(struct inode *inode, cloff_t index,
 	struct page *pages[MAX_CLUSTER_NRPAGES];
 	reiser4_subvol *subv = get_meta_subvol();
 
-	node = jlookup(&subv->tree,
-		       get_inode_oid(inode),
-		       clust_to_pg(index, inode));
+	node = jlookup(get_inode_oid(inode), clust_to_pg(index, inode));
 	nr_pages = size_in_pages(lbytes(index, inode));
 	assert("edward-1483", nr_pages != 0);
 	if (!node)
