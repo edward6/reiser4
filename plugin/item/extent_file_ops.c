@@ -1004,15 +1004,15 @@ static int update_extents_unix_file(struct file *file, struct inode *inode,
  * Estimates and reserves space which may be required for writing
  * reiser4_write_granularity() pages of file.
  */
-static int reserve_write_extent(struct inode *inode, loff_t offset)
+int reserve_write_extent(struct inode *inode, loff_t offset, int count)
 {
 	int ret;
 	reiser4_subvol *subv_m = get_meta_subvol();
 	reiser4_tree *tree_m = &subv_m->tree;
 	reiser4_subvol *subv_d = calc_data_subvol(inode, offset);
 	/*
-	 * to write reiser4_write_granularity() pages to a file by extents we
-	 * have to reserve disk space for:
+	 * to write @count pages to a file by extents we have to reserve disk
+	 * space for:
 	 *
 	 * 1. find_file_item may have to insert empty node to the tree (empty
 	 * leaf node between two extent items). This requires:
@@ -1028,7 +1028,7 @@ static int reserve_write_extent(struct inode *inode, loff_t offset)
 	 * reserve space for 1(a)
 	 */
 	grab_space_enable();
-	ret = reiser4_grab_space(reiser4_write_granularity(), 0, subv_d);
+	ret = reiser4_grab_space(count, 0, subv_d);
 	if (ret)
 		return ret;
 	/*
@@ -1036,7 +1036,7 @@ static int reserve_write_extent(struct inode *inode, loff_t offset)
 	 */
 	grab_space_enable();
 	ret = reiser4_grab_space(estimate_one_insert_item(tree_m) +
-		     reiser4_write_granularity() * estimate_one_insert_into_item(tree_m) +
+		     count * estimate_one_insert_into_item(tree_m) +
 		     estimate_one_insert_item(tree_m), 0, subv_m);
 	return ret;
 }
@@ -1095,7 +1095,7 @@ static ssize_t write_extent_generic(struct file *file, struct inode *inode,
 	size_t left, written;
 	int result = 0;
 
-	if (reserve_write_extent(inode, *pos))
+	if (reserve_write_extent(inode, *pos, reiser4_write_granularity()))
 		return RETERR(-ENOSPC);
 
 	if (count == 0) {

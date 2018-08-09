@@ -687,7 +687,7 @@ static int capture_anon_page(struct page *page)
 
 	assert("edward-2045", inode->i_size > page_offset(page));
 
-	ret = reserve_capture_anon_page(page);
+	ret = reserve_write_extent(inode, page_offset(page), 1);
 	if (ret)
 		return ret;
 	ret = find_or_create_extent_stripe(page);
