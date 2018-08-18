@@ -512,7 +512,6 @@ static void unhash_unformatted_node_nolock(jnode * node)
 	node->key.j.mapping = NULL;
 	node->key.j.index = (unsigned long)-1;
 	node->key.j.objectid = 0;
-
 }
 
 /* remove jnode from hash table and from inode's tree of jnodes. This is used in

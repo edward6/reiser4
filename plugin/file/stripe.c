@@ -39,6 +39,30 @@
 
 int readpages_filler_generic(void *data, struct page *page, int striped);
 
+static void *get_inode_dstab(const struct inode *inode)
+{
+	return unix_file_inode_data(inode)->dstab;
+}
+
+static void set_inode_dstab(const struct inode *inode, void *dstab)
+{
+	unix_file_inode_data(inode)->dstab = dstab;
+}
+
+void inode_set_new_dist(struct inode *inode)
+{
+	set_inode_dstab(inode,
+	        current_dist_plug()->v.get_tab(&current_volume()->aid,
+					       1 /* new */));
+}
+
+void inode_set_old_dist(struct inode *inode)
+{
+	set_inode_dstab(inode,
+		current_dist_plug()->v.get_tab(&current_volume()->aid,
+					       0 /* old */));
+}
+
 reiser4_subvol *calc_data_subvol_stripe(const struct inode *inode,
 					loff_t offset)
 {
@@ -81,23 +105,8 @@ int flow_by_inode_stripe(struct inode *inode,
 void init_inode_data_stripe(struct inode *inode,
 			    reiser4_object_create_data *crd, int create)
 {
-	struct unix_file_info *data;
-	reiser4_volume *vol;
-
-	vol = current_volume();
-	data = unix_file_inode_data(inode);
-	data->container = create ? UF_CONTAINER_EMPTY : UF_CONTAINER_UNKNOWN;
-	init_rwsem(&data->latch);
-	data->tplug = inode_formatting_plugin(inode);
-	data->exclusive_use = 0;
-
-#if REISER4_DEBUG
-	data->ea_owner = NULL;
-	atomic_set(&data->nr_neas, 0);
-#endif
-	inode_set_old_dist(inode); /* FIXME-EDWARD:
-				      set it by specified volinfo id found
-				      in stat-data */
+	init_inode_data_unix_file(inode, crd, create);
+	inode_set_old_dist(inode);
 }
 
 ssize_t read_stripe(struct file *file, char __user *buf,

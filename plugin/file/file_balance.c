@@ -11,6 +11,8 @@
 #include "../../super.h"
 #include "../../page_cache.h"
 
+void inode_set_new_dist(struct inode *inode);
+void inode_set_old_dist(struct inode *inode);
 
 /**
  * Scan file body from right to left, read all data blocks which get

@@ -1833,8 +1833,7 @@ int reiser4_cut_tree(reiser4_tree * tree, const reiser4_key * from,
 	return result;
 }
 
-int reiser4_subvol_init_tree(struct super_block *super,
-			     struct reiser4_subvol *subv,
+int reiser4_subvol_init_tree(struct reiser4_subvol *subv,
 			     const reiser4_block_nr *root_block,
 			     tree_level height, node_plugin *nplug)
 {
@@ -1844,7 +1843,6 @@ int reiser4_subvol_init_tree(struct super_block *super,
 	assert("nikita-307", root_block != NULL);
 	assert("nikita-308", height > 0);
 	assert("nikita-309", nplug != NULL);
-	assert("zam-587", super != NULL);
 	assert("edward-171", get_current_context() != NULL);
 	/*
 	 * We'll perform costly memory allocations for znode hash table, etc.
@@ -1874,8 +1872,6 @@ int reiser4_subvol_init_tree(struct super_block *super,
 	cbk_cache_init(&tree->cbk_cache);
 
 	result = znodes_tree_init(tree);
-	if (result == 0)
-		result = reiser4_jnodes_init();
 	if (result == 0) {
 		tree->uber = zget(subv, &UBER_TREE_ADDR, NULL, 0,
 				  reiser4_ctx_gfp_mask_get());

@@ -497,7 +497,7 @@ struct dentry *wire_get_common(struct super_block *sb,
 	reiser4_key key;
 
 	extract_key_from_id(&obj->u.std.key_id, &key);
-	inode = reiser4_iget(sb, &key, 1);
+	inode = reiser4_iget(sb, &key, FIND_EXACT, 1);
 	if (!IS_ERR(inode)) {
 		reiser4_iget_complete(inode);
 		dentry = d_obtain_alias(inode);
@@ -552,17 +552,13 @@ check_inode_seal(const struct inode *inode,
 	assert("nikita-2753", get_inode_oid(inode) == get_key_objectid(key));
 }
 
-static void check_sd_coord(coord_t *coord, const reiser4_key * key)
+static void check_sd_coord(coord_t *coord, const reiser4_key *key)
 {
-	reiser4_key ukey;
-
 	coord_clear_iplug(coord);
 	if (zload(coord->node))
 		return;
-
 	if (!coord_is_existing_unit(coord) ||
 	    !item_plugin_by_coord(coord) ||
-	    !keyeq(unit_key_by_coord(coord, &ukey), key) ||
 	    (znode_get_level(coord->node) != LEAF_LEVEL) ||
 	    !item_is_statdata(coord)) {
 		warning("nikita-1901", "Conspicuous seal");
@@ -572,7 +568,6 @@ static void check_sd_coord(coord_t *coord, const reiser4_key * key)
 	}
 	zrelse(coord->node);
 }
-
 #else
 #define check_inode_seal(inode, coord, key) noop
 #define check_sd_coord(coord, key) noop
@@ -706,13 +701,26 @@ static int insert_new_sd(struct inode *inode, oid_t oid)
 	return result;
 }
 
-/* find sd of inode in a tree, deal with errors */
-int lookup_sd(struct inode *inode /* inode to look sd for */ ,
-	      znode_lock_mode lock_mode /* lock mode */ ,
-	      coord_t *coord /* resulting coord */ ,
-	      lock_handle * lh /* resulting lock handle */ ,
-	      const reiser4_key * key /* resulting key */ ,
-	      int silent)
+/**
+ * Find stat-data in a tree by key.
+ *
+ * Sometimes we are not able to construct precise key to look for
+ * stat-data (specifically, its ordering component is unknown).
+ * In this case we set maximal possible ordering value and perform
+ * lookup with FIND_MAX_NOT_MORE_THAN lookup bias.
+ *
+ *@inode: inode to look stat-data for
+ *@key: key of stat-data
+ *@bias: lookup bias -
+ *       FIND_EXACT, if the key is precise,
+ *       FIND_MAX_NOT_MORE_THAN, if we don't know ordering component
+ *       of the key
+ *@coord: resulting coord
+ *@lh: resulting lock handle
+ */
+int lookup_sd(struct inode *inode, znode_lock_mode lock_mode,
+	      coord_t *coord, lock_handle *lh, const reiser4_key *key,
+	      lookup_bias bias, int silent)
 {
 	int result;
 	__u32 flags;
@@ -737,11 +745,32 @@ int lookup_sd(struct inode *inode /* inode to look sd for */ ,
 			      coord,
 			      lh,
 			      lock_mode,
-			      FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, flags, NULL);
-	if (REISER4_DEBUG && result == 0)
+			      bias, LEAF_LEVEL, LEAF_LEVEL, flags, NULL);
+	if (unlikely(IS_CBKERR(result))) {
+		key_warning(key, inode, result);
+		return result;
+	}
+	if (result == CBK_COORD_FOUND) {
 		check_sd_coord(coord, key);
+		return 0;
+	}
+	/* not found */
+	if (bias == FIND_MAX_NOT_MORE_THAN) {
+		/*
+		 * check previous item
+		 */
+		if (coord->between != AFTER_ITEM) {
+			key_warning(key, inode, result);
+			return -EIO;
+		}
+		coord->between = AT_UNIT;
+		coord->unit_pos = 0;
 
-	if (result != 0 && !silent)
+		check_sd_coord(coord, key);
+		return 0;
+	}
+	/* not found by exact key */
+	if (!silent)
 		key_warning(key, inode, result);
 	return result;
 }
@@ -780,7 +809,8 @@ static int locate_inode_sd(struct inode *inode,
 	 * so traverse tree
 	 */
 	coord_init_zero(coord);
-	return lookup_sd(inode, ZNODE_WRITE_LOCK, coord, lh, key, 0);
+	return lookup_sd(inode, ZNODE_WRITE_LOCK, coord, lh, key,
+			 FIND_EXACT, 0);
 }
 
 #if REISER4_DEBUG

@@ -838,7 +838,6 @@ int find_or_create_extent_generic(struct page *page,
 	}
 	JF_SET(node, JNODE_WRITE_PREPARED);
 	unlock_page(page);
-
 	if (node->blocknr == 0) {
 		plugged_hole = 0;
 		result = update_extent_fn(inode, node, page_offset(page),

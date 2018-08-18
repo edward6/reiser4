@@ -103,7 +103,7 @@ reiser4_block_nr dir_estimate_unlink_common(const struct inode *,
 
 /* merely useful functions */
 int lookup_sd(struct inode *, znode_lock_mode, coord_t *, lock_handle * ,
-	      const reiser4_key * , int silent);
+	      const reiser4_key * , lookup_bias bias, int silent);
 
 /* __FS_REISER4_PLUGIN_OBJECT_H__ */
 #endif

@@ -114,12 +114,9 @@ struct reiser4_inode {
 	seal_t sd_seal;
 	/* locality id for this file */
 	oid_t locality_id;
-	union {
 #if REISER4_LARGE_KEY
-		__u64 ordering;
+	__u64 ordering;
 #endif
-		void *dstab;
-	} v;
 	/* coord of stat-data in sealed node */
 	coord_t sd_coord;
 	/* bit-mask of stat-data extentions used by this file */
@@ -237,26 +234,15 @@ static inline oid_t get_inode_locality(const struct inode *inode)
 	return reiser4_inode_data(inode)->locality_id;
 }
 
-static inline void *get_inode_dstab(const struct inode *inode)
-{
-	return reiser4_inode_data(inode)->v.dstab;
-}
-
-static inline void set_inode_dstab(const struct inode *inode,
-				   void *dstab)
-{
-	reiser4_inode_data(inode)->v.dstab = dstab;
-}
-
 #if REISER4_LARGE_KEY
 static inline __u64 get_inode_ordering(const struct inode *inode)
 {
-	return reiser4_inode_data(inode)->v.ordering;
+	return reiser4_inode_data(inode)->ordering;
 }
 
 static inline void set_inode_ordering(const struct inode *inode, __u64 ordering)
 {
-	reiser4_inode_data(inode)->v.ordering = ordering;
+	reiser4_inode_data(inode)->ordering = ordering;
 }
 
 #else
@@ -341,8 +327,8 @@ extern int max_hash_collisions(const struct inode *dir);
 extern void reiser4_unlock_inode(struct inode *inode);
 extern int is_reiser4_inode(const struct inode *inode);
 extern int setup_inode_ops(struct inode *inode, reiser4_object_create_data *);
-extern struct inode *reiser4_iget(struct super_block *super,
-				  const reiser4_key * key, int silent);
+extern struct inode *reiser4_iget(struct super_block *super, const reiser4_key *key,
+				  lookup_bias bias, int silent);
 extern void reiser4_iget_complete(struct inode *inode);
 extern void reiser4_inode_set_flag(struct inode *inode,
 				   reiser4_file_plugin_flags f);

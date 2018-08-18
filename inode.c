@@ -227,16 +227,21 @@ static int init_inode(struct inode *inode /* inode to intialise */ ,
 	return result;
 }
 
-/* read `inode' from the disk. This is what was previously in
-   reiserfs_read_inode2().
-
-   Must be called with inode locked. Return inode still locked.
-*/
-static int read_inode(struct inode *inode /* inode to read from disk */ ,
-		      const reiser4_key * key /* key of stat data */ ,
-		      int silent)
+/**
+ * Read @inode from the disk.
+ * This is what was previously in reiserfs_read_inode2().
+ * Must be called with inode locked. Return inode still locked.
+ *
+ * @key: key of stat-data
+ * @bias: lookup bias -
+ *        FIND_EXACT, if is the key is precise,
+ *        FIND_MAX_NOT_MORE_THAN, if we don't know ordering
+ *        component of the key
+ */
+static int read_inode(struct inode *inode, const reiser4_key *key,
+		      int bias, int silent)
 {
-	int result;
+	int ret;
 	lock_handle lh;
 	reiser4_inode *info;
 	coord_t coord;
@@ -249,41 +254,70 @@ static int read_inode(struct inode *inode /* inode to read from disk */ ,
 
 	coord_init_zero(&coord);
 	init_lh(&lh);
-	/* locate stat-data in a tree and return znode locked */
-	result = lookup_sd(inode, ZNODE_READ_LOCK, &coord, &lh, key, silent);
+	/*
+	 * locate stat-data in a tree and return znode locked
+	 */
+	ret = lookup_sd(inode, ZNODE_READ_LOCK, &coord, &lh,
+			key, bias, silent);
 	assert("nikita-301", !is_inode_loaded(inode));
-	if (result == 0) {
-		/* use stat-data plugin to load sd into inode. */
-		result = init_inode(inode, &coord);
-		if (result == 0) {
-			/* initialize stat-data seal */
-			spin_lock_inode(inode);
-			reiser4_seal_init(&info->sd_seal, &coord, key);
-			info->sd_coord = coord;
-			spin_unlock_inode(inode);
+	if (ret)
+		goto error;
+	/* load stat-data extensions into inode */
+	ret = init_inode(inode, &coord);
+	if (ret)
+		goto error;
+	/* initialize stat-data seal */
+	spin_lock_inode(inode);
+	reiser4_seal_init(&info->sd_seal, &coord, key);
+	info->sd_coord = coord;
+	spin_unlock_inode(inode);
+	/*
+	 * call file plugin's method to initialize plugin
+	 * specific part of inode
+	 */
+	if (inode_file_plugin(inode)->init_inode_data)
+		inode_file_plugin(inode)->init_inode_data(inode, NULL, 0);
+	if (bias == FIND_MAX_NOT_MORE_THAN) {
+		/* check found coord */
+		reiser4_key ikey;
+		reiser4_key sdkey;
 
-			/* call file plugin's method to initialize plugin
-			 * specific part of inode */
-			if (inode_file_plugin(inode)->init_inode_data)
-				inode_file_plugin(inode)->init_inode_data(inode,
-									  NULL,
-									  0);
-			/* load detached directory cursors for stateless
-			 * directory readers (NFS). */
-			reiser4_load_cursors(inode);
+		ret = zload(coord.node);
+		if (ret)
+			goto error;
+		unit_key_by_coord(&coord, &ikey);
+		build_sd_key(inode, &sdkey);
+		zrelse(coord.node);
 
-			/* Check the opened inode for consistency. */
-			result = get_meta_subvol()->df_plug->check_open(inode);
+		if (!keyeq(&ikey, &sdkey)) {
+			warning("edward-xxx",
+				"Bad stat-data found for inode %llu",
+				(unsigned long long)get_inode_oid(inode));
+			reiser4_print_key("found", &ikey);
+			reiser4_print_key("expected", &sdkey);
+			ret = -EIO;
+			goto error;
 		}
 	}
-	/* lookup_sd() doesn't release coord because we want znode
-	   stay read-locked while stat-data fields are accessed in
-	   init_inode() */
-	done_lh(&lh);
+	/*
+	 * load detached directory cursors for
+	 * stateless directory readers (NFS)
+	 */
+	reiser4_load_cursors(inode);
 
-	if (result != 0)
-		reiser4_make_bad_inode(inode);
-	return result;
+	/* check the inode for consistency */
+	ret = get_meta_subvol()->df_plug->check_open(inode);
+	/*
+	 * lookup_sd() doesn't release coord because we want znode
+	 * stay read-locked while stat-data fields are accessed in
+	 * init_inode()
+	 */
+	done_lh(&lh);
+	return 0;
+ error:
+	done_lh(&lh);
+	reiser4_make_bad_inode(inode);
+	return ret;
 }
 
 /* initialise new reiser4 inode being inserted into hash table. */
@@ -369,17 +403,19 @@ static void loading_end(reiser4_inode * info)
 }
 
 /**
- * reiser4_iget - obtain inode via iget5_locked, read from disk if necessary
+ * Obtain inode via iget5_locked, read from disk if necessary.
+ * This is helper function a la iget() called by lookup_common() and
+ * reiser4_read_super(). Return inode locked or error encountered.
+ *
  * @super: super block of filesystem
  * @key: key of inode's stat-data
- * @silent:
- *
- * This is our helper function a la iget(). This is be called by
- * lookup_common() and reiser4_read_super(). Return inode locked or error
- * encountered.
+ * @bias: lookup bias -
+ *        FIND_EXACT, if the key is precise,
+ *        FIND_MAX_NOT_MORE_THAN, if we don't know ordering component
+ *        of the key
  */
 struct inode *reiser4_iget(struct super_block *super, const reiser4_key *key,
-			   int silent)
+			   lookup_bias bias, int silent)
 {
 	struct inode *inode;
 	int result;
@@ -424,7 +460,7 @@ struct inode *reiser4_iget(struct super_block *super, const reiser4_key *key,
 			/* now, inode has objectid as ->i_ino and locality in
 			   reiser4-specific part. This is enough for
 			   read_inode() to read stat data from the disk */
-			result = read_inode(inode, key, silent);
+			result = read_inode(inode, key, bias, silent);
 		} else
 			loading_end(info);
 	}
@@ -442,7 +478,9 @@ struct inode *reiser4_iget(struct super_block *super, const reiser4_key *key,
 
 		assert("vs-1717", result == 0);
 		build_sd_key(inode, &found_key);
-		if (!keyeq(&found_key, key)) {
+
+		if (bias == FIND_EXACT &&
+		    !keyeq(build_sd_key(inode, &found_key), key)) {
 			warning("nikita-305", "Wrong key in sd");
 			reiser4_print_key("sought for", key);
 			reiser4_print_key("found", &found_key);
@@ -638,20 +676,6 @@ init_inode_ordering(struct inode *inode,
 	}
 
 	set_inode_ordering(inode, get_key_ordering(&key));
-}
-
-void inode_set_new_dist(struct inode *inode)
-{
-	set_inode_dstab(inode,
-	        current_dist_plug()->v.get_tab(&current_volume()->aid,
-					       1 /* new */));
-}
-
-void inode_set_old_dist(struct inode *inode)
-{
-	set_inode_dstab(inode,
-		current_dist_plug()->v.get_tab(&current_volume()->aid,
-					       0 /* old */));
 }
 
 znode *inode_get_vroot(struct inode *inode)

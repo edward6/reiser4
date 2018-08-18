@@ -694,9 +694,7 @@ static void get_working_bitmap_blocknr(bmap_nr_t bmap, reiser4_block_nr * bnr)
 }
 
 /* bnode structure initialization */
-static void
-init_bnode(struct bitmap_node *bnode,
-	   struct super_block *super UNUSED_ARG, bmap_nr_t bmap UNUSED_ARG)
+static void init_bnode(struct bitmap_node *bnode, bmap_nr_t bmap UNUSED_ARG)
 {
 	memset(bnode, 0, sizeof(struct bitmap_node));
 
@@ -1517,7 +1515,7 @@ int reiser4_pre_commit_hook_bitmap(void)
  * of reiser4_space_allocator object. It is called on fs mount
  */
 int reiser4_init_allocator_bitmap(reiser4_space_allocator *allocator,
-				  struct super_block *super,
+				  const struct super_block *super,
 				  reiser4_subvol *subv, void *arg)
 {
 	struct bitmap_allocator_data *data = NULL;
@@ -1555,7 +1553,7 @@ int reiser4_init_allocator_bitmap(reiser4_space_allocator *allocator,
 		return RETERR(-ENOMEM);
 	}
 	for (i = 0; i < bitmap_blocks_nr; i++)
-		init_bnode(data->bitmap + i, super, i);
+		init_bnode(data->bitmap + i, i);
 
 	allocator->u.generic = data;
 
@@ -1598,7 +1596,7 @@ int reiser4_init_allocator_bitmap(reiser4_space_allocator *allocator,
  * destructor. It is called on fs unmount
  */
 int reiser4_destroy_allocator_bitmap(reiser4_space_allocator *allocator,
-				     struct super_block *super,
+				     const struct super_block *super,
 				     reiser4_subvol *subv)
 {
 	bmap_nr_t bitmap_blocks_nr;

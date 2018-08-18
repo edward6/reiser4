@@ -654,8 +654,6 @@ static int overwrite_one_block_unix_file(struct inode *inode,
 	int how;
 	reiser4_subvol *subv = node->subvol;
 
-	assert("edward-1784",
-	       subv == calc_data_subvol(inode, get_key_offset(key)));
 	assert("vs-1312", uf_coord->coord.between == AT_UNIT);
 
 	result = 0;
@@ -1310,7 +1308,6 @@ int __reiser4_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos,
 		warning("vs-957", "wrong extent\n");
 		return RETERR(-EIO);
 	}
-
 	BUG_ON(j == 0);
 	reiser4_page_io(page, j, READ, reiser4_ctx_gfp_mask_get());
 	jput(j);

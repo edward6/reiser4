@@ -9,13 +9,13 @@
  * but... */
 #define DEF_SPACE_ALLOCATOR(allocator)											\
 															\
-static inline int sa_init_allocator (reiser4_space_allocator * al, struct super_block *s, 				\
+static inline int sa_init_allocator (reiser4_space_allocator * al, const struct super_block *s, 			\
 				     reiser4_subvol *subv, void * opaque) 						\
 {															\
 	return reiser4_init_allocator_##allocator (al, s, subv, opaque);						\
 }															\
 															\
-static inline void sa_destroy_allocator (reiser4_space_allocator *al, struct super_block *s, 				\
+static inline void sa_destroy_allocator (reiser4_space_allocator *al, const struct super_block *s, 			\
 					 reiser4_subvol *subv)								\
 {															\
 	reiser4_destroy_allocator_##allocator (al, s, subv);								\

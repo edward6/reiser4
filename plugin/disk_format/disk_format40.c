@@ -422,11 +422,14 @@ int try_init_format40(struct super_block *super,
 	if (get_format40_flags(sb_format) & (1 << FORMAT40_HAS_DATA_ROOM))
 		subv->flags |= (1 << SUBVOL_HAS_DATA_ROOM);
 
-	result = oid_init_allocator(super, get_format40_file_count(sb_format),
-				    get_format40_oid(sb_format));
-	if (result) {
-		kfree(sb_format);
-		return result;
+	if (is_meta_brick_id(subv->id)) {
+		result = oid_init_allocator(super,
+					    get_format40_file_count(sb_format),
+					    get_format40_oid(sb_format));
+		if (result) {
+			kfree(sb_format);
+			return result;
+		}
 	}
 	*stage = INIT_OID;
 
@@ -436,8 +439,7 @@ int try_init_format40(struct super_block *super,
 	/*
 	 * initialize storage tree.
 	 */
-	result = reiser4_subvol_init_tree(super, subv,
-					  &root_block, height, nplug);
+	result = reiser4_subvol_init_tree(subv, &root_block, height, nplug);
 	if (result) {
 		kfree(sb_format);
 		return result;

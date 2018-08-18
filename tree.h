@@ -140,8 +140,7 @@ struct reiser4_tree {
 	} carry;
 };
 
-extern int reiser4_subvol_init_tree(struct super_block *super,
-				    struct reiser4_subvol *subvol,
+extern int reiser4_subvol_init_tree(struct reiser4_subvol *subvol,
 				    const reiser4_block_nr *root_block,
 				    tree_level height, node_plugin *nplug);
 extern void reiser4_done_tree(reiser4_tree * tree);

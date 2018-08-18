@@ -1417,12 +1417,12 @@ int balance_volume_asym(struct super_block *super, int force)
 		set_key_type(&sdkey, KEY_SD_MINOR);
 		set_key_offset(&sdkey, 0);
 
-		inode = reiser4_iget(super, &sdkey, 0);
+		inode = reiser4_iget(super, &sdkey, FIND_MAX_NOT_MORE_THAN, 0);
 
 		if (!IS_ERR(inode) && inode_file_plugin(inode)->balance) {
 			reiser4_iget_complete(inode);
 			/*
-			 * Relocate data of this file.
+			 * Relocate data blocks of this file
 			 */
 			ret = inode_file_plugin(inode)->balance(inode);
 			iput(inode);

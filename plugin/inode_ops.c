@@ -86,7 +86,7 @@ struct dentry *reiser4_lookup_common(struct inode *parent,
 		return ERR_PTR(result);
 	}
 
-	inode = reiser4_iget(parent->i_sb, &entry.key, 0);
+	inode = reiser4_iget(parent->i_sb, &entry.key, FIND_EXACT, 0);
 	if (IS_ERR(inode)) {
 		context_set_commit_async(ctx);
 		reiser4_exit_context(ctx);

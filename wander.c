@@ -2048,12 +2048,13 @@ int reiser4_journal_recover_sb_data(struct super_block *s, reiser4_subvol *subv)
 		 */
 		reiser4_subvol_set_free_blocks(subv,
 				  le64_to_cpu(get_unaligned(&jf->free_blocks)));
-		/*
-		 * restore oid allocator state
-		 */
-		oid_init_allocator(s,
-				   le64_to_cpu(get_unaligned(&jf->nr_files)),
-				   le64_to_cpu(get_unaligned(&jf->next_oid)));
+		if (is_meta_brick_id(subv->id))
+			/*
+			 * restore oid allocator state
+			 */
+			oid_init_allocator(s,
+				    le64_to_cpu(get_unaligned(&jf->nr_files)),
+				    le64_to_cpu(get_unaligned(&jf->next_oid)));
 	}
  out:
 	jrelse(subv->journal_footer);

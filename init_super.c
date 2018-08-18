@@ -736,7 +736,8 @@ int reiser4_init_root_inode(struct super_block *super)
 	reiser4_subvol *root_subv = get_meta_subvol();
 
 	inode = reiser4_iget(super,
-			     root_subv->df_plug->root_dir_key(super), 0);
+			     root_subv->df_plug->root_dir_key(super),
+			     FIND_EXACT, 0);
 	if (IS_ERR(inode))
 		return RETERR(PTR_ERR(inode));
 

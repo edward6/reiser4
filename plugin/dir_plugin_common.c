@@ -40,7 +40,7 @@ struct dentry *get_parent_common(struct inode *child)
 	if (result != 0)
 		return ERR_PTR(result);
 
-	parent = reiser4_iget(s, &key, 1);
+	parent = reiser4_iget(s, &key, FIND_EXACT, 1);
 	if (!IS_ERR(parent)) {
 		/*
 		 * FIXME-NIKITA dubious: attributes are inherited from @child

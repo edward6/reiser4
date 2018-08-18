@@ -12,10 +12,11 @@
 /* declarations of functions implementing methods of space allocator plugin for
    bitmap based allocator. The functions themselves are in bitmap.c */
 extern int reiser4_init_allocator_bitmap(reiser4_space_allocator *,
-					 struct super_block *, reiser4_subvol *,
-					 void *);
+					 const struct super_block *,
+					 reiser4_subvol *, void *);
 extern int reiser4_destroy_allocator_bitmap(reiser4_space_allocator *,
-					    struct super_block *, reiser4_subvol *);
+					    const struct super_block *,
+					    reiser4_subvol *);
 extern int reiser4_alloc_blocks_bitmap(reiser4_space_allocator *,
 				       reiser4_blocknr_hint *, int needed,
 				       reiser4_block_nr *start,
