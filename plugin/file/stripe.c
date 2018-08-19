@@ -51,16 +51,18 @@ static void set_inode_dstab(const struct inode *inode, void *dstab)
 
 void inode_set_new_dist(struct inode *inode)
 {
-	set_inode_dstab(inode,
-	        current_dist_plug()->v.get_tab(&current_volume()->aid,
-					       1 /* new */));
+	if (current_dist_plug()->v.get_tab)
+		set_inode_dstab(inode,
+			current_dist_plug()->v.get_tab(&current_volume()->aid,
+						       1 /* new */));
 }
 
 void inode_set_old_dist(struct inode *inode)
 {
-	set_inode_dstab(inode,
-		current_dist_plug()->v.get_tab(&current_volume()->aid,
-					       0 /* old */));
+	if (current_dist_plug()->v.get_tab)
+		set_inode_dstab(inode,
+			current_dist_plug()->v.get_tab(&current_volume()->aid,
+						       0 /* old */));
 }
 
 reiser4_subvol *calc_data_subvol_stripe(const struct inode *inode,
