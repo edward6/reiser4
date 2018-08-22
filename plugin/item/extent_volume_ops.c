@@ -129,7 +129,10 @@ static int reserve_migrate_one_block(struct inode *inode, u32 where)
  * Relocate rightmost block pointed out by an extent item at
  * @mctx.coord to a new brick @mctx.new_loc. During migration
  * we remove an old pointer to that block from the tree and
- * insert a new one in another place determined by the new brick id
+ * insert a new one in another place determined by the new brick id.
+ *
+ * Pre-condition: position in the tree is locked at @mctx.coord
+ * Post-condition: no longterm locks are held.
  */
 static int migrate_one_block(struct extent_migrate_context *mctx)
 {
@@ -188,7 +191,8 @@ static int migrate_one_block(struct extent_migrate_context *mctx)
 	}
 	/*
 	 * at this point our block became orphan and unallocated -
-	 * deallocation happened at kill_hook_extent()
+	 * deallocation happened at kill_hook_extent(). Here we
+	 * assign a new brick
 	 */
 	spin_lock_jnode(node);
 	node->blocknr = 0;
@@ -258,6 +262,8 @@ static int do_migrate_extent(struct extent_migrate_context *mctx)
 		zrelse(loaded);
 		if (ret)
 			break;
+		reiser4_throttle_write(mctx->inode);
+
 		nr_blocks --;
 		if (nr_blocks == 0 && migrate_whole_item)
 			/*
@@ -278,13 +284,15 @@ static int do_migrate_extent(struct extent_migrate_context *mctx)
 
 /**
  * Split an extent item into 2 extent items and stay at the left one.
- * Offset to split at is specified by @coord and by position in the unit
- * @mctx.split_pos.
+ * This can be resulted in carry, if there is no free space on the node.
+ * Offset to split at is specified by @mctx.coord and by position in the
+ * unit @mctx.split_pos.
  */
 static int split_extent_item(struct extent_migrate_context *mctx)
 {
 	int ret;
 	coord_t *coord;
+	coord_t cut_from;
 	coord_t cut_to;
 	char *tail_new;
 	char *tail_orig;
@@ -328,6 +336,8 @@ static int split_extent_item(struct extent_migrate_context *mctx)
 			 */
 			return 0;
 	}
+	assert("edward-2132",
+	       coord->unit_pos < coord_num_units(coord) - 1);
 	/*
 	 * copy the tail (i.e. item's units at the right from the
 	 * split offset) to a temporary memory area
@@ -346,9 +356,12 @@ static int split_extent_item(struct extent_migrate_context *mctx)
 	/*
 	 * cut the tail from the original item
 	 */
+	coord_dup(&cut_from, coord);
 	coord_dup(&cut_to, coord);
-	coord->unit_pos = coord_num_units(coord) - 1;
-	cut_node_content(coord, &cut_to, NULL, NULL, NULL);
+	cut_from.unit_pos = coord->unit_pos + 1;
+	cut_to.unit_pos = coord_num_units(coord) - 1;
+
+	cut_node_content(&cut_from, &cut_to, NULL, NULL, NULL);
 	/*
 	 * create a new item with possible carry
 	 */
@@ -380,9 +393,9 @@ static void what_to_do(struct extent_migrate_context *mctx)
 	coord = mctx->coord;
 	assert("edward-2111", znode_is_loaded(coord->node));
 	/*
-	 * find split offset, i.e. maximal offset, so that data
-	 * bytes at offset and  (offset - 1) belong to different
-	 * bricks in the new logical volume
+	 * find split offset in the item, i.e. maximal offset,
+	 * so that data bytes at offset and (offset - 1) belong
+	 * to different bricks in the new logical volume
 	 */
 	if (current_stripe_bits == 0) {
 		inode_set_new_dist(inode);
@@ -404,12 +417,12 @@ static void what_to_do(struct extent_migrate_context *mctx)
 	mctx->new_loc = fplug->calc_data_subvol(inode, off2)->id;
 
 	while (off1 < off2) {
+		off2 -= current_stripe_size;
 		if (fplug->calc_data_subvol(inode, off2)->id != mctx->new_loc) {
-			split_off = off2;
+			split_off = off2 + current_stripe_size;
 			inode_set_old_dist(inode);
 			goto split_off_found;
 		}
-		off2 -= current_stripe_size;
 	}
 	inode_set_old_dist(inode);
  split_off_not_found:

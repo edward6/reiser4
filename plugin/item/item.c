@@ -587,6 +587,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.can_shift = can_shift_extent,
 			.create_hook = create_hook_extent,
 			.copy_units = copy_units_extent,
+			.merge_units = merge_units_extent,
 			.kill_hook = kill_hook_extent,
 			.shift_hook = NULL,
 			.cut_units = cut_units_extent,

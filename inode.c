@@ -290,7 +290,7 @@ static int read_inode(struct inode *inode, const reiser4_key *key,
 		zrelse(coord.node);
 
 		if (!keyeq(&ikey, &sdkey)) {
-			warning("edward-xxx",
+			warning("edward-2134",
 				"Bad stat-data found for inode %llu",
 				(unsigned long long)get_inode_oid(inode));
 			reiser4_print_key("found", &ikey);

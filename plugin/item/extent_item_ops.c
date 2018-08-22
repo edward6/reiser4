@@ -261,6 +261,53 @@ copy_units_extent(coord_t * target, coord_t * source,
 	memcpy(to_ext, from_ext, free_space);
 }
 
+/**
+ * item_plugin->b.merge_units. See comment in item.h
+ * Don't use this function in other contexts.
+ */
+size_t merge_units_extent(coord_t *left, coord_t *right)
+{
+	coord_t uleft, uright;
+	reiser4_extent *ext_left;
+	reiser4_extent *ext_right;
+	size_t tail_size;
+
+	assert("edward-2129", item_is_extent(left));
+	assert("edward-2135", item_is_extent(right));
+
+	coord_dup(&uleft, left);
+	uleft.unit_pos = coord_num_units(left) - 1;
+	uleft.between = AT_UNIT;
+
+	coord_dup(&uright, right);
+	uright.unit_pos = 0;
+	uright.between = AT_UNIT;
+
+	ext_left = extent_by_coord(&uleft);
+	ext_right = extent_by_coord(&uright);
+
+	assert("edward-2136", ext_right == ext_left + 1);
+
+	if (state_of_extent(ext_left) != state_of_extent(ext_right))
+		/* units are not mergeable */
+		return 0;
+	assert("edward-2131", state_of_extent(ext_left) == UNALLOCATED_EXTENT);
+	/*
+	 * widen @ext_left
+	 */
+	extent_set_width(ext_left,
+			 extent_get_width(ext_left) +
+			 extent_get_width(ext_right));
+	/*
+	 * move units at the right of @ext_right to the left.
+	 * This will drop @ext_right and make the node inconsistent
+	 * (see the comment above)
+	 */
+	tail_size = sizeof(reiser4_extent) * (coord_num_units(right) - 1);
+	memmove(ext_right, ext_right + 1, tail_size);
+	return sizeof(reiser4_extent);
+}
+
 /* item_plugin->b.create_hook
    @arg is znode of leaf node for which we need to update right delimiting key */
 int create_hook_extent(const coord_t * coord, void *arg)

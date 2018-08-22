@@ -126,11 +126,14 @@ struct balance_ops {
 			    unsigned from, unsigned count,
 			    shift_direction where_is_free_space,
 			    unsigned free_space);
-
-	/* merge bodies of neighboring items pointed out by
-	   @left and @right. Return amount of space freed
-	   after merging */
-	int (*merge) (coord_t *left, coord_t *right);
+	/*
+	 * try to merge rightmost unit of item @left with the leftmost
+	 * unit of neighboring item @right located on the same node.
+	 * Return freed space. Must not fail. For performance reasons
+	 * this method leaves the node in inconsistent state and should
+	 * be called only in the context of ->merge_items() method of
+	 * node plugin. Must not be called in other ones.*/
+	size_t (*merge_units) (coord_t *left, coord_t *right);
 
 	int (*create_hook) (const coord_t *, void *);
 	/* do whatever is necessary to do when @count units starting

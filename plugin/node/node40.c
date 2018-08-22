@@ -3053,19 +3053,19 @@ int set_item_plugin_node40(coord_t *coord, item_id id)
 }
 
 /*
- * Merge neighboring items pointed out by @left and @right
- * on the same node
+ * Merge neighboring items @left and @right located on the same node.
+ * In the result number of items in the node gets always decremented.
  */
 void merge_items_node40(coord_t *left, coord_t *right)
 {
-	int i;
 	znode *node;
-	size_t freed = 0;
 	node40_header *nh;
 	item_header40 *ih;
+	size_t freed = 0;
 #if REISER4_DEBUG
 	const char *error;
-#endif
+	int units_before_merge;
+
 	assert("edward-2077", left->node == right->node);
 	assert("edward-2078", coord_is_existing_item(left));
 	assert("edward-2079", coord_is_existing_item(right));
@@ -3075,24 +3075,37 @@ void merge_items_node40(coord_t *left, coord_t *right)
 	       plugin_by_coord_node40(right));
 	assert("edward-2082", are_items_mergeable(left, right));
 
+	units_before_merge = coord_num_units(left) + coord_num_units(right);
+#endif
 	node = left->node;
 	nh = node40_node_header(node);
 	/*
-	 * Merge item bodies. It will release some space.
+	 * Try to merge units at the junction. It may release some space.
 	 */
-	if (plugin_by_coord_node40(left)->b.merge)
-		freed = plugin_by_coord_node40(left)->b.merge(left, right);
-	/*
-	 * Result of merging is an item pointed out by @left.
-	 *
-	 * update offsets of moved items
-	 */
-	if (freed)
+	if (plugin_by_coord_node40(left)->b.merge_units)
+		freed =	plugin_by_coord_node40(left)->b.merge_units(left,
+								    right);
+	if (freed && nh40_get_num_items(nh) > right->item_pos + 1) {
+		/*
+		 * Move bodies of all items at the right of @right to the left
+		 */
+		int i;
+		char *tail;
+		size_t tail_size;
+
+		ih = node40_ih_at(node, right->item_pos + 1);
+		tail = zdata(node) + ih40_get_offset(ih);
+		tail_size = nh40_get_free_space_start(nh) - ih40_get_offset(ih);
+		memmove(tail - freed, tail, tail_size);
+		/*
+		 * Update offsets of moved items
+		 */
 		for (i = right->item_pos + 1;
 		     i < nh40_get_num_items(nh); i++) {
 			ih = node40_ih_at(node, i);
 			ih40_set_offset(ih, ih40_get_offset(ih) - freed);
 		}
+	}
 	/*
 	 * Remove all records about the @right from the node.
 	 *
@@ -3112,6 +3125,8 @@ void merge_items_node40(coord_t *left, coord_t *right)
 
 	assert("edward-2083",
 	       check_node40(node, REISER4_NODE_TREE_STABLE, &error) == 0);
+	assert("edward-2133", coord_num_units(left) ==
+	       freed ? units_before_merge - 1 : units_before_merge);
 }
 
 /*

@@ -122,6 +122,7 @@ int can_shift_extent(unsigned free_space,
 void copy_units_extent(coord_t * target, coord_t * source, unsigned from,
 		       unsigned count, shift_direction where_is_free_space,
 		       unsigned free_space);
+size_t merge_units_extent(coord_t *left, coord_t *right);
 int kill_hook_extent(const coord_t *, pos_in_node_t from, pos_in_node_t count,
 		     struct carry_kill_data *);
 int create_hook_extent(const coord_t * coord, void *arg);
