@@ -907,9 +907,9 @@ void pack_fsw32(reiser4_aid *raid, char *to, u64 src_off, u64 count)
 	struct fsw32_aid *aid = fsw32_private(raid);
 
 	assert("edward-1923", to != NULL);
-	assert("edward-1924", aid->tab != NULL);
+	assert("edward-1924", aid->new_tab != NULL);
 
-	src = aid->tab + src_off;
+	src = aid->new_tab + src_off;
 
 	for (i = 0; i < count; i++) {
 		put_unaligned(cpu_to_le32(*src), (d32 *)to);

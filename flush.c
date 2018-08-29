@@ -1162,6 +1162,7 @@ int flush_current_atom(int flags, long nr_to_write, long *nr_submitted,
 		spin_unlock_atom(*atom);
 	} else {
 		jref(node);
+		assert("edward-2138", jnode_get_super(node) != NULL);
 		BUG_ON((*atom)->super != jnode_get_super(node));
 		spin_unlock_atom(*atom);
 		spin_unlock_jnode(node);

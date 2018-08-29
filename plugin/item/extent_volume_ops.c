@@ -30,6 +30,9 @@ struct extent_migrate_context {
 	u64 size; /* bytes to migrate */
 	reiser4_block_nr split_pos; /* position in unit */
 	lock_handle *lh;
+#if REISER4_DEBUG
+	reiser4_block_nr item_len;
+#endif
 };
 
 int split_extent_unit(coord_t *coord, reiser4_block_nr pos, int adv_to_right);
@@ -226,7 +229,6 @@ static int migrate_one_block(struct extent_migrate_context *mctx)
  * relocate an extent item, or its right part of @mctx.size to another
  * brick @mctx.new_loc.
  * Pre-condition: position in the tree is write-locked
- * If the whole item is to migrate, then the lock will be released
  */
 static int do_migrate_extent(struct extent_migrate_context *mctx)
 {
@@ -278,15 +280,17 @@ static int do_migrate_extent(struct extent_migrate_context *mctx)
 		assert("edward-2108", ret == CBK_COORD_FOUND);
 		BUG_ON(ret != CBK_COORD_FOUND);
 	};
-	done_lh(lh);
 	return ret;
 }
 
 /**
  * Split an extent item into 2 extent items and stay at the left one.
  * This can be resulted in carry, if there is no free space on the node.
- * Offset to split at is specified by @mctx.coord and by position in the
- * unit @mctx.split_pos.
+ *
+ * If @mctx.split_pos != 0, then unit at @mctx.coord will be split at
+ * @mctx.split_pos offset and its right part will become the first unit
+ * in the right item. Otherwise, the unit at @mctx.coord will be the
+ * first unit in the right item.
  */
 static int split_extent_item(struct extent_migrate_context *mctx)
 {
@@ -318,8 +322,8 @@ static int split_extent_item(struct extent_migrate_context *mctx)
 		 * start from splitting the unit
 		 */
 		ret = split_extent_unit(coord,
-					mctx->split_pos, 0 /* stay on the
-							      left extent */);
+					mctx->split_pos,
+					1 /* return inserted pos */);
 		if (ret)
 			return ret;
 		assert("edward-2110",
@@ -336,11 +340,10 @@ static int split_extent_item(struct extent_migrate_context *mctx)
 			 */
 			return 0;
 	}
-	assert("edward-2132",
-	       coord->unit_pos < coord_num_units(coord) - 1);
 	/*
-	 * copy the tail (i.e. item's units at the right from the
-	 * split offset) to a temporary memory area
+	 * @coord is to become the first unit of the right item.
+	 * Copy the tail (i.e. units at the right starting from
+	 * @coord) to a temporary memory area
 	 */
 	tail_num_units = coord_num_units(coord) - coord->unit_pos;
 	tail_len = tail_num_units * sizeof(reiser4_extent);
@@ -354,25 +357,48 @@ static int split_extent_item(struct extent_migrate_context *mctx)
 
 	memcpy(tail_new, tail_orig, tail_len);
 	/*
-	 * cut the tail from the original item
+	 * cut the tail
 	 */
 	coord_dup(&cut_from, coord);
+	cut_from.unit_pos = coord->unit_pos;
 	coord_dup(&cut_to, coord);
-	cut_from.unit_pos = coord->unit_pos + 1;
 	cut_to.unit_pos = coord_num_units(coord) - 1;
 
 	cut_node_content(&cut_from, &cut_to, NULL, NULL, NULL);
 	/*
-	 * create a new item with possible carry
+	 * create a new item. During possible carry
+	 * don't shift left to make sure that @coord
+	 * remains valid, and we can use in the next
+	 * iteration
 	 */
-	init_new_extent(item_id_by_coord(coord),
+	init_new_extent(item_id_by_coord(&cut_from),
 			&idata, tail_new, tail_num_units);
-	coord_init_after_item(coord);
+	coord_init_after_item(&cut_from);
 
-	ret = insert_by_coord(coord, &idata, &split_key,
-			      0 /* stay at the original item */, 0);
+	ret = insert_by_coord(&cut_from, &idata, &split_key,
+			      0 /* lh */, COPI_DONT_SHIFT_LEFT);
 	kfree(tail_new);
 	return 0;
+}
+
+static void init_migration_context(struct extent_migrate_context *mctx,
+				   struct inode *inode, coord_t *coord,
+				   lock_handle *lh)
+{
+	memset(mctx, 0, sizeof(*mctx));
+	mctx->coord = coord;
+	mctx->inode = inode;
+	mctx->lh = lh;
+#if REISER4_DEBUG
+	mctx->item_len = reiser4_extent_size(coord);
+#endif
+}
+
+static void reset_migration_context(struct extent_migrate_context *mctx)
+{
+	mctx->act = INVALID_ACTION;
+	mctx->size = 0;
+	mctx->split_pos = 0;
 }
 
 /**
@@ -391,7 +417,12 @@ static void what_to_do(struct extent_migrate_context *mctx)
 	file_plugin *fplug = inode_file_plugin(inode);
 
 	coord = mctx->coord;
-	assert("edward-2111", znode_is_loaded(coord->node));
+	zload(coord->node);
+	coord_clear_iplug(coord);
+
+	reset_migration_context(mctx);
+
+	assert("edward-2137", mctx->item_len == reiser4_extent_size(coord));
 	/*
 	 * find split offset in the item, i.e. maximal offset,
 	 * so that data bytes at offset and (offset - 1) belong
@@ -432,12 +463,14 @@ static void what_to_do(struct extent_migrate_context *mctx)
 		 * the whole item should be migrated
 		 */
 		mctx->act = MIGRATE_EXTENT;
+		zrelse(coord->node);
 		return;
 	} else {
 		/*
 		 * the item is not to be split, or migrated
 		 */
 		mctx->act = SKIP_EXTENT;
+		zrelse(coord->node);
 		return;
 	}
  split_off_found:
@@ -454,6 +487,7 @@ static void what_to_do(struct extent_migrate_context *mctx)
 		 * a part of item should be migrated
 		 */
 		mctx->act = MIGRATE_EXTENT;
+		zrelse(coord->node);
 		return;
 	}
 	/*
@@ -472,6 +506,7 @@ static void what_to_do(struct extent_migrate_context *mctx)
 	mctx->split_pos =
 		(split_off - get_key_offset(&key)) >> current_blocksize_bits;
 	mctx->act = SPLIT_EXTENT;
+	zrelse(coord->node);
 	return;
 }
 
@@ -481,10 +516,7 @@ int reiser4_migrate_extent(coord_t *coord, lock_handle *lh, struct inode *inode)
 	u64 len = reiser4_extent_size(coord);
 	struct extent_migrate_context mctx;
 
-	memset(&mctx, 0, sizeof(mctx));
-	mctx.coord = coord;
-	mctx.inode = inode;
-	mctx.lh = lh;
+	init_migration_context(&mctx, inode, coord, lh);
 
 	while (len) {
 		what_to_do(&mctx);
@@ -505,6 +537,9 @@ int reiser4_migrate_extent(coord_t *coord, lock_handle *lh, struct inode *inode)
 			break;
 		assert("edward-2117", mctx.size <= len);
 		len -= mctx.size;
+#if REISER4_DEBUG
+		mctx.item_len -= mctx.size;
+#endif
 	}
 	done_lh(lh);
 	return ret;
