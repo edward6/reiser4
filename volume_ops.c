@@ -190,9 +190,16 @@ static int reiser4_add_brick(struct super_block *sb,
 	start = get_seconds();
 
 	ret = super_volume(sb)->vol_plug->balance_volume(sb, 0);
-	if (ret)
-		goto deactivate;
-
+	if (ret) {
+		/*
+		 * it is not possible to deactivate the new
+		 * brick already: there can be IO requests
+		 * issued during re-balancing
+		 */
+		warning("edward-2139",
+			"%s: Balancing aborted (%d)", sb->s_id, ret);
+		goto out;
+	}
 	reiser4_exit_context(ctx);
 
 	printk("reiser4 (%s): Balancing completed in %lu seconds.\n",

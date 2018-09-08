@@ -28,7 +28,6 @@ int balance_stripe(struct inode *inode)
 	coord_t coord;
 	lock_handle lh;
 	item_plugin *iplug;
-	reiser4_key ikey;
 
 	vol = current_volume();
 	uf = unix_file_inode_data(inode);
@@ -41,8 +40,6 @@ int balance_stripe(struct inode *inode)
 	set_key_offset(&key, get_key_offset(reiser4_max_key()));
 
 	while (1) {
-		loff_t item_off;
-		reiser4_block_nr item_len;
 		znode *loaded;
 
 		init_lh(&lh);
@@ -64,7 +61,6 @@ int balance_stripe(struct inode *inode)
 		}
 		loaded = coord.node;
 
-		assert("edward-2102", coord.between == AFTER_ITEM);
 		coord.between = AT_UNIT;
 		assert("edward-2103", coord_is_existing_item(&coord));
 		/*
@@ -74,10 +70,8 @@ int balance_stripe(struct inode *inode)
 			zrelse(loaded);
 			goto done;
 		}
-
-		item_key_by_coord(&coord, &ikey);
-		item_off = get_key_offset(&ikey);
-		item_len = reiser4_extent_size(&coord);
+		/* make key precise */
+		item_key_by_coord(&coord, &key);
 
 		iplug = item_plugin_by_coord(&coord);
 		if (iplug->v.migrate) {
@@ -87,30 +81,36 @@ int balance_stripe(struct inode *inode)
 			 */
 			ret = iplug->v.migrate(&coord, &lh, inode);
 			zrelse(loaded);
-			if (ret) {
-				done_lh(&lh);
-				drop_exclusive_access(uf);
-				return ret;
-			}
-		} else
+			done_lh(&lh);
+			drop_exclusive_access(uf);
+			if (ret && ret != -E_REPEAT)
+				break;
+			/* commit atom */
+			all_grabbed2free();
+			get_exclusive_access(uf);
+
+			if (ret == -E_REPEAT)
+				/* continue with the same key */
+				continue;
+		} else {
 			/*
 			 * item is not migrateable, simply skip it
 			 */
 			zrelse(loaded);
-		if (item_off == 0)
+			done_lh(&lh);
+		}
+		if (get_key_offset(&key) == 0)
 			/*
-			 * nothing to migrate in this file any more
+			 * nothing to migrate any more
 			 */
 			break;
 		/*
 		 * look for the next item at the left
 		 */
-		done_lh(&lh);
-		set_key_offset(&ikey, item_off - 1);
+		set_key_offset(&key, get_key_offset(&key) - 1);
 	}
  done:
 	assert("edward-2104", reiser4_lock_counters()->d_refs == 0);
-	done_lh(&lh);
 	reiser4_inode_clr_flag(inode, REISER4_FILE_UNBALANCED);
 	inode_set_new_dist(inode);
 	/* FIXME-EDWARD: update stat-data with new volinfo ID */

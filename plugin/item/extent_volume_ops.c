@@ -510,9 +510,12 @@ static void what_to_do(struct extent_migrate_context *mctx)
 	return;
 }
 
+#define MIGRATION_GRANULARITY (1024)
+
 int reiser4_migrate_extent(coord_t *coord, lock_handle *lh, struct inode *inode)
 {
 	int ret = 0;
+	reiser4_block_nr blocks_migrated = 0;
 	u64 len = reiser4_extent_size(coord);
 	struct extent_migrate_context mctx;
 
@@ -524,6 +527,9 @@ int reiser4_migrate_extent(coord_t *coord, lock_handle *lh, struct inode *inode)
 		switch(mctx.act) {
 		case MIGRATE_EXTENT:
 			ret = do_migrate_extent(&mctx);
+			if (ret)
+				break;
+			blocks_migrated += (mctx.size >> PAGE_SHIFT);
 			break;
 		case SPLIT_EXTENT:
 			ret = split_extent_item(&mctx);
@@ -540,6 +546,14 @@ int reiser4_migrate_extent(coord_t *coord, lock_handle *lh, struct inode *inode)
 #if REISER4_DEBUG
 		mctx.item_len -= mctx.size;
 #endif
+		if (len && blocks_migrated >= MIGRATION_GRANULARITY) {
+			/*
+			 * migration process will be restarted
+			 * for the same item after atom commit
+			 */
+			ret = -E_REPEAT;
+			break;
+		}
 	}
 	done_lh(lh);
 	return ret;
