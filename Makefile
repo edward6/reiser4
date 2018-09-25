@@ -98,6 +98,7 @@ reiser4-y := \
 		   plugin/item/extent.o \
 		   plugin/item/extent_item_ops.o \
 		   plugin/item/extent_file_ops.o \
+		   plugin/item/extent_stripe_ops.o \
 		   plugin/item/extent_flush_ops.o \
 		   plugin/item/extent_volume_ops.o \
            \
