@@ -378,6 +378,8 @@ static inline reiser4_subvol *jnode_get_subvol(const jnode *node)
 
 	return node->subvol;
 }
+
+#define jnode_get_super(node) (jnode_get_subvol(node)->super)
 #define jnode_get_tree(node) (&jnode_get_subvol(node)->tree)
 
 static inline const reiser4_block_nr *jnode_get_block(const jnode *node)
@@ -527,8 +529,6 @@ extern jnode *reiser4_alloc_volinfo_head(const reiser4_block_nr *block,
 					 reiser4_subvol *subv) NONNULL;
 extern void reiser4_drop_io_head(jnode * node) NONNULL;
 extern void reiser4_drop_volinfo_head(jnode * node) NONNULL;
-extern struct super_block *jnode_get_super(const jnode *node);
-
 extern void pin_jnode_data(jnode *);
 extern void unpin_jnode_data(jnode *);
 
