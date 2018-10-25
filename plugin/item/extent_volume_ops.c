@@ -283,6 +283,21 @@ static int do_migrate_extent(struct extent_migrate_context *mctx)
 	return ret;
 }
 
+/*
+ * Reserve space on a meta-data brick for split_extent operation
+ */
+static int reserve_split_extent_item(void)
+{
+	reiser4_subvol *subv_m = get_meta_subvol();
+
+	grab_space_enable();
+	/*
+	 * a new item will be created during split
+	 */
+	return reiser4_grab_space(estimate_one_insert_item(&subv_m->tree),
+				  0, subv_m);
+}
+
 /**
  * Split an extent item into 2 extent items and stay at the left one.
  * This can be resulted in carry, if there is no free space on the node.
@@ -306,6 +321,9 @@ static int split_extent_item(struct extent_migrate_context *mctx)
 	reiser4_key split_key;
 	reiser4_key item_key;
 
+	ret = reserve_split_extent_item();
+	if (ret)
+		return ret;
 	coord = mctx->coord;
 	assert("edward-2109", znode_is_loaded(coord->node));
 
