@@ -584,17 +584,10 @@ cmp_t de_id_cmp(const de_id * id1 /* first &de_id to compare */ ,
 cmp_t de_id_key_cmp(const de_id * id /* directory entry id to compare */ ,
 		    const reiser4_key * key/* key to compare */)
 {
-	cmp_t result;
 	reiser4_key *k1;
 
 	k1 = (reiser4_key *) (((unsigned long)id) - sizeof key->el[0]);
-	result = KEY_DIFF_EL(k1, key, 1);
-	if (result == EQUAL_TO) {
-		result = KEY_DIFF_EL(k1, key, 2);
-		if (REISER4_LARGE_KEY && result == EQUAL_TO)
-			result = KEY_DIFF_EL(k1, key, 3);
-	}
-	return result;
+	return short_keycmp(k1, key);
 }
 
 /*

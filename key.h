@@ -262,10 +262,12 @@ extern const reiser4_key *reiser4_max_key(void);
 	(e1 < e2) ? LESS_THAN : ((e1 == e2) ? EQUAL_TO : GREATER_THAN);	\
 })
 
-/* compare `k1' and `k2'.  This function is a heart of "key allocation
-    policy". All you need to implement new policy is to add yet another
-    clause here. */
-static inline cmp_t keycmp(const reiser4_key * k1 /* first key to compare */ ,
+/**
+ * compare `k1' and `k2'. The following pair of functions is a heart of
+ * "key allocation policy". All you need to implement new policy is to
+ * add yet another clause here.
+ */
+static inline cmp_t keycmp(const reiser4_key * k1 /* first key to compare */,
 			   const reiser4_key * k2/* second key to compare */)
 {
 	cmp_t result;
@@ -282,25 +284,39 @@ static inline cmp_t keycmp(const reiser4_key * k1 /* first key to compare */ ,
 	 * and constant folding and propagation ensures that only one branch
 	 * is actually compiled in. */
 
+	/* In Plan-A and Plan-B schemes we compare type and locality at once,
+	   because their physical order is identical with the logical one).
+	*/
 	if (REISER4_PLANA_KEY_ALLOCATION) {
-		/* if physical order of fields in a key is identical
-		   with logical order, we can implement key comparison
-		   as three 64bit comparisons. */
-		/* logical order of fields in plan-a:
-		   locality->type->objectid->offset. */
-		/* compare locality and type at once */
+		/* logical order of fields in plan-A:
+		   locality->type->(ordering)->objectid->offset */
+
 		result = KEY_DIFF_EL(k1, k2, 0);
 		if (result == EQUAL_TO) {
-			/* compare objectid (and band if it's there) */
 			result = KEY_DIFF_EL(k1, k2, 1);
-			/* compare offset */
 			if (result == EQUAL_TO) {
 				result = KEY_DIFF_EL(k1, k2, 2);
 				if (REISER4_LARGE_KEY && result == EQUAL_TO)
 					result = KEY_DIFF_EL(k1, k2, 3);
 			}
 		}
+	} else if (REISER4_PLANB_KEY_ALLOCATION) {
+		/* logical order of fields in plan-B:
+		   locality->type->objectid->(ordering)->offset */
+
+		result = KEY_DIFF_EL(k1, k2, 0);
+		if (result == EQUAL_TO) {
+			result = KEY_DIFF_EL(k1, k2, 2);
+			if (result == EQUAL_TO) {
+				result = KEY_DIFF_EL(k1, k2, 1);
+				if (REISER4_LARGE_KEY && result == EQUAL_TO)
+					result = KEY_DIFF_EL(k1, k2, 3);
+			}
+		}
 	} else if (REISER4_3_5_KEY_ALLOCATION) {
+		/* Old good key allocation scheme from ReiserFS(v3)
+		   FIXME: support it in Reiser4progs */
+
 		result = KEY_DIFF(k1, k2, locality);
 		if (result == EQUAL_TO) {
 			result = KEY_DIFF(k1, k2, objectid);
@@ -312,6 +328,32 @@ static inline cmp_t keycmp(const reiser4_key * k1 /* first key to compare */ ,
 		}
 	} else
 		impossible("nikita-441", "Unknown key allocation scheme!");
+	return result;
+}
+
+/**
+ * compare "sub-keys" of @k1 and @k2 (i.e. keys without the first component).
+ */
+static inline cmp_t short_keycmp(const reiser4_key *k1, const reiser4_key *k2)
+{
+	cmp_t result;
+
+	if (REISER4_PLANA_KEY_ALLOCATION) {
+		result = KEY_DIFF_EL(k1, k2, 1);
+		if (result == EQUAL_TO) {
+			result = KEY_DIFF_EL(k1, k2, 2);
+			if (REISER4_LARGE_KEY && result == EQUAL_TO)
+				result = KEY_DIFF_EL(k1, k2, 3);
+		}
+	} else if (REISER4_PLANB_KEY_ALLOCATION) {
+		result = KEY_DIFF_EL(k1, k2, 2);
+		if (result == EQUAL_TO) {
+			result = KEY_DIFF_EL(k1, k2, 1);
+			if (REISER4_LARGE_KEY && result == EQUAL_TO)
+				result = KEY_DIFF_EL(k1, k2, 3);
+		}
+	} else
+		impossible("edward-2142", "Unsupported key allocation scheme!");
 	return result;
 }
 
