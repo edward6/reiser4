@@ -299,13 +299,18 @@ static int reserve_split_extent_item(void)
 }
 
 /**
- * Split an extent item into 2 extent items and stay at the left one.
- * This can be resulted in carry, if there is no free space on the node.
+ * Create a new extent item right after the item specified by @mctx.coord
+ * and move a tail part of the last one to that newly created item. It can
+ * involve carry, if there is no free space on the node.
  *
- * If @mctx.split_pos != 0, then unit at @mctx.coord will be split at
- * @mctx.split_pos offset and its right part will become the first unit
- * in the right item. Otherwise, the unit at @mctx.coord will be the
- * first unit in the right item.
+ * The pair (@mctx.coord and @mctx.split_pos) defines "split position" in
+ * the following sense. If @mctx.split_pos != 0, then unit at @mctx.coord
+ * will be split at @mctx.split_pos offset and its right part will become
+ * the first unit in the new item. Otherwise, that unit will become the
+ * first unit in the new item.
+ *
+ * Upon successfull completion @mctx.coord points out to the same, or
+ * preceding unit.
  */
 static int split_extent_item(struct extent_migrate_context *mctx)
 {
@@ -313,7 +318,7 @@ static int split_extent_item(struct extent_migrate_context *mctx)
 	coord_t *coord;
 	coord_t cut_from;
 	coord_t cut_to;
-	char *tail_new;
+	char *tail_copy;
 	char *tail_orig;
 	int tail_num_units;
 	int tail_len;
@@ -326,6 +331,7 @@ static int split_extent_item(struct extent_migrate_context *mctx)
 		return ret;
 	coord = mctx->coord;
 	assert("edward-2109", znode_is_loaded(coord->node));
+	assert("edward-2143", ergo(mctx->split_pos == 0, coord->unit_pos > 0));
 
 	memset(&idata, 0, sizeof(idata));
 	item_key_by_coord(coord, &item_key);
@@ -334,6 +340,9 @@ static int split_extent_item(struct extent_migrate_context *mctx)
 		       get_key_offset(&split_key) +
 		       (mctx->split_pos << current_blocksize_bits));
 
+	tail_num_units = coord_num_units(coord) - coord->unit_pos;
+	tail_len = tail_num_units * sizeof(reiser4_extent);
+
 	if (mctx->split_pos != 0) {
 		reiser4_key check_key;
 		/*
@@ -341,7 +350,7 @@ static int split_extent_item(struct extent_migrate_context *mctx)
 		 */
 		ret = split_extent_unit(coord,
 					mctx->split_pos,
-					1 /* return inserted pos */);
+					0 /* stay on the original position */);
 		if (ret)
 			return ret;
 		assert("edward-2110",
@@ -357,45 +366,49 @@ static int split_extent_item(struct extent_migrate_context *mctx)
 			 * item was split at specified offset
 			 */
 			return 0;
+		/*
+		 * @coord is the original unit that was split
+		 */
+		tail_orig =
+			node_plugin_by_node(coord->node)->item_by_coord(coord) +
+			(coord->unit_pos + 1) * sizeof(reiser4_extent);
+	} else {
+		/*
+		 * @coord is the original unit that was not
+		 * subjected to splitting
+		 */
+		tail_orig =
+			node_plugin_by_node(coord->node)->item_by_coord(coord) +
+			coord->unit_pos * sizeof(reiser4_extent);
 	}
-	/*
-	 * @coord is to become the first unit of the right item.
-	 * Copy the tail (i.e. units at the right starting from
-	 * @coord) to a temporary memory area
-	 */
-	tail_num_units = coord_num_units(coord) - coord->unit_pos;
-	tail_len = tail_num_units * sizeof(reiser4_extent);
-
-	tail_new = kmalloc(tail_len, reiser4_ctx_gfp_mask_get());
-	if (!tail_new)
+	tail_copy = kmalloc(tail_len, reiser4_ctx_gfp_mask_get());
+	if (!tail_copy)
 		return -ENOMEM;
-
-	tail_orig = node_plugin_by_node(coord->node)->item_by_coord(coord) +
-		coord->unit_pos * sizeof(reiser4_extent);
-
-	memcpy(tail_new, tail_orig, tail_len);
+	memcpy(tail_copy, tail_orig, tail_len);
 	/*
-	 * cut the tail
+	 * cut off the tail from the original item
 	 */
 	coord_dup(&cut_from, coord);
-	cut_from.unit_pos = coord->unit_pos;
+	if (mctx->split_pos)
+		/* the original unit was split */
+		cut_from.unit_pos ++;
 	coord_dup(&cut_to, coord);
 	cut_to.unit_pos = coord_num_units(coord) - 1;
 
 	cut_node_content(&cut_from, &cut_to, NULL, NULL, NULL);
+	/* make sure that @coord is valid after cut operation */
+	if (mctx->split_pos == 0)
+		coord->unit_pos --;
 	/*
-	 * create a new item. During possible carry
-	 * don't shift left to make sure that @coord
-	 * remains valid, and we can use in the next
-	 * iteration
+	 * finally, create a new item
 	 */
 	init_new_extent(item_id_by_coord(&cut_from),
-			&idata, tail_new, tail_num_units);
+			&idata, tail_copy, tail_num_units);
 	coord_init_after_item(&cut_from);
 
 	ret = insert_by_coord(&cut_from, &idata, &split_key,
 			      0 /* lh */, COPI_DONT_SHIFT_LEFT);
-	kfree(tail_new);
+	kfree(tail_copy);
 	return 0;
 }
 
@@ -509,7 +522,7 @@ static void what_to_do(struct extent_migrate_context *mctx)
 		return;
 	}
 	/*
-	 * the item should be splitted, calculate position to split
+	 * the item should be split, calculate position to split
 	 */
 	set_key_offset(&key, split_off);
 	ret = lookup_extent(&key, FIND_EXACT, coord);

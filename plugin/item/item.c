@@ -554,7 +554,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.key_by_offset = key_by_offset_extent
 		},
 		.v = {
-			.migrate = reiser4_migrate_extent
+			.migrate = NULL
 		},
 		.s = {
 			.file = {

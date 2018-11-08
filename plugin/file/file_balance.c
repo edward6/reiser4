@@ -18,6 +18,12 @@ void inode_set_old_dist(struct inode *inode);
  * Scan file body from right to left, read all data blocks which get
  * new location, and make respective pages dirty. In flush time those
  * pages will get location on new bricks.
+ *
+ * IMPORTANT: This implementation assumes that all items of the same
+ * file are next to each other in the storage tree. Currently, it is
+ * achievable only with PLANB_KEY_ALLOCATION scheme. If you need to
+ * balance in other key allocation modes, then write another
+ * implementation, put it here and ifdef it.
  */
 int balance_stripe(struct inode *inode)
 {
@@ -28,6 +34,15 @@ int balance_stripe(struct inode *inode)
 	coord_t coord;
 	lock_handle lh;
 	item_plugin *iplug;
+
+	/* see the comment above */
+	assert("edward-2144", REISER4_PLANB_KEY_ALLOCATION);
+
+	if (inode->i_size == 0)
+		/*
+		 * empty file, nothing to migrate
+		 */
+		return 0;
 
 	vol = current_volume();
 	uf = unix_file_inode_data(inode);
@@ -61,7 +76,7 @@ int balance_stripe(struct inode *inode)
 		}
 		loaded = coord.node;
 
-		coord.between = AT_UNIT;
+		coord_set_to_left(&coord);
 		assert("edward-2103", coord_is_existing_item(&coord));
 		/*
 		 * check that found item belongs to the file
