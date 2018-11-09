@@ -65,7 +65,6 @@ reiser4-y := \
 		   plugin/file_plugin_common.o \
 		   plugin/file/file.o \
 		   plugin/file/tail_conversion.o \
-		   plugin/file/file_balance.o \
 		   plugin/file/file_conversion.o \
 		   plugin/file/symlink.o \
 		   plugin/file/cryptcompress.o \
