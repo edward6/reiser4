@@ -213,9 +213,10 @@ void print_fiber(u32 id, void *vec, u32 num_sgs,
 	u32 *fib = fiber_at(vec, id);
 	u32 fib_len = *fiber_lenp_at(vec, id);
 
-	printk("fiber %d:", id);
+	printk("fiber %d (len %d):", id, fib_len);
 	for (i = 0; i < fib_len; i++)
                 printk("%d", fib[i]);
+	printk("end of fiber %d", id);
 	return;
 }
 #endif
@@ -493,7 +494,7 @@ static int balance_tab_spl(u32 numb, u32 nums_bits,
 
 	if (!num_excess)
 		/* everything is balanced */
-		goto final_update;
+		goto release;
 	/*
 	 * Build "stretched" fibers, which are still disbalanced
 	 */
@@ -531,12 +532,8 @@ static int balance_tab_spl(u32 numb, u32 nums_bits,
 	for (i = 0, k = 0; i < num_shortage; i++)
 		for (j = 0; j < shortage[i]; j++)
 			new_tab[reloc[k++]] = num_excess + i;
- final_update:
-	ret = replace_fibers(nums_bits + fact_bits, new_tab,
-			     numb, numb, new_weights, vec,
-			     fiber_at, fiber_set_at, fiber_lenp_at);
-	if (ret)
-		goto error;
+ release:
+	release_fibers(numb, vec, fiber_at, fiber_set_at);
 	*tabp = new_tab;
 	goto exit;
  error:
@@ -561,8 +558,6 @@ void donev_fsw32(reiser4_aid *raid)
 	if (aid->weights != NULL)
 		mem_free(aid->weights);
 	aid->weights = NULL;
-	release_fibers(aid->numb, aid->buckets,
-		       aid->ops->fib_at, aid->ops->fib_set_at);
 }
 
 /*
@@ -736,23 +731,10 @@ int inc_fsw32(reiser4_aid *raid, u64 target_pos, int new)
 			      aid->buckets, aid->ops->fib_at, new);
 	if (ret)
 		goto error;
-	ret = replace_fibers(aid->nums_bits, aid->new_tab,
-			     old_numb, new_numb,
-			     new_weights, aid->buckets,
-			     aid->ops->fib_at,
-			     aid->ops->fib_set_at,
-			     aid->ops->fib_lenp_at);
-	if (ret)
-		goto error;
-#if 0
-	{
-		int i;
-		for (i = 0; i < new_numb; i++)
-			print_fiber(i, aid->new_tab,
-				    nums, aid->ops->fib_at,
-				    aid->ops->fib_lenp_at);
-	}
-#endif
+
+	release_fibers(old_numb, aid->buckets,
+		       aid->ops->fib_at, aid->ops->fib_set_at);
+
 	mem_free(aid->weights);
 	aid->weights = new_weights;
 	aid->numb = new_numb;
@@ -842,13 +824,6 @@ int dec_fsw32(reiser4_aid *raid, u64 target_pos, void *victim)
 	release_fibers(old_numb,
 		       aid->buckets, aid->ops->fib_at,
 		       aid->ops->fib_set_at);
-	ret = create_fibers(aid->nums_bits, aid->tab,
-			    new_numb, new_weights, aid->buckets,
-			    aid->ops->fib_at, aid->ops->fib_set_at,
-			    aid->ops->fib_lenp_at);
-	if (ret)
-		goto error;
-
 	mem_free(aid->weights);
 	aid->weights = new_weights;
 	aid->numb = new_numb;
