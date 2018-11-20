@@ -10,11 +10,10 @@
 #include "txnmgr.h"
 #include "context.h"
 #include "super.h"
+#include "plugin/volume/volume.h"
 
 #include <linux/slab.h>
 #include <linux/list_sort.h>
-
-#define INVALID_SUBVOL_ID 0xffffffff
 
 static struct kmem_cache *blocknr_list_slab = NULL;
 

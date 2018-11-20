@@ -595,20 +595,22 @@ typedef struct volume_plugin {
 	void (*done_volume)(reiser4_subvol *subv);
 	/* Init LV after loading LV system info from all subvolumes */
 	int (*init_volume)(reiser4_volume *vol);
-	/* Expand brick with internal ID @id */
-	int (*expand_brick)(reiser4_volume *vol, u64 id, u64 delta);
-	/* Add a @new brick to LV */
+	/* Increase capacity of @brick by value @delta */
+	int (*expand_brick)(reiser4_volume *vol, reiser4_subvol *brick,
+			    u64 delta);
+	/* Add @new brick to logical volume @vol */
 	int (*add_brick)(reiser4_volume *vol, reiser4_subvol *new);
-	/* Shrink brick with internal ID @id */
-	int (*shrink_brick)(reiser4_volume *vol, u64 id, u64 delta);
-	/* Remove a brick with internal ID @id from LV */
-	int (*remove_brick)(reiser4_volume *vol, u64 id);
+	/* Decrease capacity of @brick by value @delta */
+	int (*shrink_brick)(reiser4_volume *vol, reiser4_subvol *brick,
+			    u64 delta);
+	/* Remove @brick from logical volume @vol */
+	int (*remove_brick)(reiser4_volume *vol, reiser4_subvol *brick);
 	/* Online balancing of a logical volume specified by @super.
 	 * This procedure is supposed to complete any volume operations
 	 * above. If it returns 0, then the volume is fully balanced.
 	 * Otherwise, the procedure should be repeated in some context.
 	 */
-	int (*balance_volume)(struct super_block *super, int force);
+	int (*balance_volume)(struct super_block *super);
 	struct reiser4_aid_ops aid_ops;
 } volume_plugin;
 

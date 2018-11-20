@@ -570,7 +570,7 @@ static jnode *find_get_jnode(struct reiser4_subvol *subvol,
 /* jget() (a la zget() but for unformatted nodes). Returns (and possibly
    creates) jnode corresponding to page @pg. jnode is attached to page and
    inserted into jnode hash-table. */
-static jnode *do_jget(struct reiser4_subvol *subvol, struct page *pg)
+jnode *do_jget(struct reiser4_subvol *subvol, struct page *pg)
 {
 	/*
 	 * There are two ways to create jnode: starting with pre-existing page

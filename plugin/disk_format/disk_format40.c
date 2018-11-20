@@ -217,7 +217,7 @@ int check_set_core_params(reiser4_subvol *subv,
 	u32 ondisk_num_origins;
 	const char *what_is_wrong;
 
-	if (subvol_is_set(subv, SUBVOL_IS_NEW)) {
+	if (subvol_is_set(subv, SUBVOL_IS_ORPHAN)) {
 		subv->id = INVALID_SUBVOL_ID; /* actual ID will be set
 						 by volume operation */
 		return 0;
@@ -576,6 +576,7 @@ static void pack_format40_super(const struct super_block *s,
 	format40_disk_super_block *format_sb =
 		(format40_disk_super_block *) data;
 	reiser4_volume *vol = super_volume(s);
+	u64 flags;
 
 	assert("zam-591", data != NULL);
 
@@ -604,11 +605,12 @@ static void pack_format40_super(const struct super_block *s,
 
 		put_unaligned(cpu_to_le32(version), &format_sb->version);
 	}
-	if (reiser4_volume_is_unbalanced(s)) {
-		u64 flags = get_format40_flags(format_sb) |
-			(1 << FORMAT40_UNBALANCED_VOLUME);
-		put_unaligned(cpu_to_le64(flags), &format_sb->flags);
-	}
+	flags = get_format40_flags(format_sb);
+	if (reiser4_volume_is_unbalanced(s))
+		flags |= (1 << FORMAT40_UNBALANCED_VOLUME);
+	else
+		flags &= ~(1 << FORMAT40_UNBALANCED_VOLUME);
+	put_unaligned(cpu_to_le64(flags), &format_sb->flags);
 }
 
 /**
@@ -634,7 +636,7 @@ int release_format40(struct super_block *s, reiser4_subvol *subv)
 	reiser4_volume *vol = super_volume(s);
 
 	if (reiser4_volume_is_activated(s) && !rofs_super(s) &&
-	    !subvol_is_set(subv, SUBVOL_IS_NEW)) {
+	    !subvol_is_set(subv, SUBVOL_IS_ORPHAN)) {
 
 		ret = capture_brick_super(subv);
 		if (ret != 0)

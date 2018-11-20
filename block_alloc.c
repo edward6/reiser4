@@ -1106,10 +1106,11 @@ void all_grabbed2free(void)
 		struct ctx_brick_info *cbi;
 
 		cbi = rb_entry(node, struct ctx_brick_info, node);
-		__grabbed2free(cbi,
-			       get_super_private(ctx->super),
-			       cbi->grabbed_blocks,
-			       current_origin(cbi->brick_id));
+		if (cbi->grabbed_blocks)
+			__grabbed2free(cbi,
+				       get_super_private(ctx->super),
+				       cbi->grabbed_blocks,
+				       current_origin(cbi->brick_id));
 	}
 }
 

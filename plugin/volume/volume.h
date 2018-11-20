@@ -47,27 +47,8 @@ static inline int data_brick_belongs_volume(reiser4_subvol *this)
 
 static inline int brick_belongs_aid(reiser4_subvol *this)
 {
-	if (is_meta_brick(this)) {
-		if (meta_brick_belongs_aid())
-			return 1;
-		else
-			return 0;
-	}
-	return data_brick_belongs_volume(this);
-}
-
-static inline int brick_id_belongs_aid(u64 id)
-{
-	if (is_meta_brick_id(id)) {
-		if (meta_brick_belongs_aid())
-			return 1;
-		else
-			return 0;
-	}
-	/*
-	 * data brick
-	 */
-	return id < current_num_origins();
+	return is_meta_brick(this) ? meta_brick_belongs_aid() :
+		data_brick_belongs_volume(this);
 }
 
 /*
@@ -94,6 +75,10 @@ static inline reiser4_subvol ***current_aid_subvols(void)
 
 extern void deactivate_subvol(struct super_block *super, reiser4_subvol *subv);
 extern reiser4_subvol *find_meta_brick(reiser4_volume *vol);
+reiser4_subvol **alloc_mirror_slot(u32 num_mirrors);
+extern void *alloc_mirror_slots(u32 num_origins);
+extern void free_mirror_slot(reiser4_subvol **slot);
+extern void free_mirror_slots(reiser4_subvol ***slots);
 
 /*
   Local variables:

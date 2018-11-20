@@ -128,6 +128,8 @@ static int reserve_migrate_one_block(struct inode *inode, u32 where)
 	return ret;
 }
 
+jnode *do_jget(struct reiser4_subvol *subvol, struct page *pg);
+
 /**
  * Relocate rightmost block pointed out by an extent item at
  * @mctx.coord to a new brick @mctx.new_loc. During migration
@@ -169,11 +171,12 @@ static int migrate_one_block(struct extent_migrate_context *mctx)
 	if (IS_ERR(page))
 		return PTR_ERR(page);
 	lock_page(page);
-	node = jnode_of_page(page, 1 /* for data IO */);
+	node = do_jget(NULL, page);
 	if (IS_ERR(node)) {
 		unlock_page(page);
 		return PTR_ERR(node);
 	}
+	set_page_dirty_notag(page);
 	JF_SET(node, JNODE_WRITE_PREPARED);
 	unlock_page(page);
 

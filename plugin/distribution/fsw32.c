@@ -771,16 +771,21 @@ int cfs_fsw32(reiser4_aid *raid, u64 numb, void *buckets, u64 used)
 
 	calibrate64(numb, used, buckets, aid->ops->cap_at, new_occ);
 
-	for (i = 0; i < numb; i++)
+	for (i = 0; i < numb; i++) {
+		notice("edward-2145",
+		       "Brick %llu: data capacity: %llu, min required: %llu",
+		       i, aid->ops->cap_at(buckets, i), new_occ[i]);
+
 		if (aid->ops->cap_at(buckets, i) < new_occ[i]) {
 			warning("edward-2070",
-	"Not enough capacity (%llu) of data brick %llu (required %llu)",
+	"Not enough data capacity (%llu) of brick %llu (required %llu)",
 				aid->ops->cap_at(buckets, i),
 				i,
 				new_occ[i]);
 			ret = -ENOSPC;
 			break;
 		}
+	}
 	mem_free(new_occ);
 	return ret;
 }
@@ -812,9 +817,16 @@ int dec_fsw32(reiser4_aid *raid, u64 target_pos, void *victim)
 		ret = ENOMEM;
 		goto error;
 	}
+	aid->new_tab = mem_alloc(nums * WORDSIZE);
+	if (!aid->new_tab) {
+		ret = ENOMEM;
+		goto error;
+	}
+	memcpy(aid->new_tab, aid->tab, nums * WORDSIZE);
+
 	calibrate32(new_numb, nums,
 		    aid->buckets, aid->ops->cap_at, new_weights);
-	ret = balance_tab_dec(old_numb, aid->tab,
+	ret = balance_tab_dec(old_numb, aid->new_tab,
 			      aid->weights, new_weights, target_pos,
 			      aid->buckets, aid->ops->fib_at, aid->ops->fib_of,
 			      victim);
@@ -832,6 +844,8 @@ int dec_fsw32(reiser4_aid *raid, u64 target_pos, void *victim)
  error:
 	if (new_weights)
 		mem_free(new_weights);
+	if (aid->new_tab)
+		mem_free(aid->new_tab);
 	return ret;
 }
 

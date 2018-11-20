@@ -46,7 +46,6 @@ static struct reiser4_volume *reiser4_alloc_volume(u8 *uuid,
 	memcpy(vol->uuid, uuid, 16);
 	INIT_LIST_HEAD(&vol->list);
 	INIT_LIST_HEAD(&vol->subvols_list);
-	mutex_init(&vol->vol_mutex);
 	vol->vol_plug = volume_plugin_by_unsafe_id(vol_pid);
 	vol->dist_plug = distribution_plugin_by_unsafe_id(dist_pid);
 	vol->stripe_bits = stripe_bits;
@@ -394,15 +393,35 @@ int reiser4_activate_subvol(struct super_block *super,
 	return ret;
 }
 
-static void *alloc_subvols_set(__u32 num_subvols)
+reiser4_subvol **alloc_mirror_slot(u32 num_mirrors)
 {
-	void *result;
+	reiser4_subvol **result;
 
-	result = kzalloc(num_subvols * sizeof(result), GFP_NOFS);
+	result = kzalloc(num_mirrors * sizeof(*result), GFP_KERNEL);
 	return result;
 }
 
-static void free_subvols_set(reiser4_volume *vol)
+void *alloc_mirror_slots(__u32 num_origins)
+{
+	void *result;
+
+	result = kzalloc(num_origins * sizeof(result), GFP_KERNEL);
+	return result;
+}
+
+void free_mirror_slot(reiser4_subvol **slot)
+{
+	assert("edward-2156", slot != NULL);
+	kfree(slot);
+}
+
+void free_mirror_slots(reiser4_subvol ***slots)
+{
+	assert("edward-2157", slots != NULL);
+	kfree(slots);
+}
+
+void free_subvols_set(reiser4_volume *vol)
 {
 	assert("edward-1754", vol != NULL);
 
@@ -410,8 +429,8 @@ static void free_subvols_set(reiser4_volume *vol)
 		u32 i;
 		for (i = 0; i < vol->num_origins; i++)
 			if (vol->subvols[i])
-				kfree(vol->subvols[i]);
-		kfree(vol->subvols);
+				free_mirror_slot(vol->subvols[i]);
+		free_mirror_slots(vol->subvols);
 		vol->subvols = NULL;
 	}
 }
@@ -515,7 +534,7 @@ static int set_activated_subvol(reiser4_volume *vol, reiser4_subvol *subv)
 		/*
 		 * allocate set for original subvolumes
 		 */
-		vol->subvols = alloc_subvols_set(vol->num_origins);
+		vol->subvols = alloc_mirror_slots(vol->num_origins);
 		if (vol->subvols == NULL) {
 			ret = -ENOMEM;
 			goto out;
@@ -526,7 +545,7 @@ static int set_activated_subvol(reiser4_volume *vol, reiser4_subvol *subv)
 		 * allocate set for mirrors
 		 */
 		vol->subvols[orig_id] =
-			alloc_subvols_set(1 + subv->num_replicas);
+			alloc_mirror_slots(1 + subv->num_replicas);
 		if (vol->subvols[orig_id] == NULL) {
 			ret = -ENOMEM;
 			goto out;
@@ -534,7 +553,7 @@ static int set_activated_subvol(reiser4_volume *vol, reiser4_subvol *subv)
 	}
 	if (vol->subvols[orig_id][mirr_id] != NULL) {
 		warning("edward-1767",
-			"%s and %s have the same (id,mirror_id)=(%llu,%u)",
+			"%s and %s have identical mirror IDs (%llu,%u)",
 			vol->subvols[orig_id][mirr_id]->name,
 			subv->name,
 			orig_id, mirr_id);

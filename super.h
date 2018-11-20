@@ -39,9 +39,9 @@ typedef enum {
 	SUBVOL_ACTIVATED = 3,
 	/* set if subvol participates in the storage array */
 	SUBVOL_HAS_DATA_ROOM = 4,
-	/* set for freshly formatted subvolume, which is
-	   supposed to be added to a logical volume */
-	SUBVOL_IS_NEW
+	/* set for empty subvolume, which is supposed to be
+	   added (removed) to (from) a logical volume */
+	SUBVOL_IS_ORPHAN = 5
 } reiser4_subvol_flag;
 
 /*
@@ -133,14 +133,15 @@ struct commit_handle_subvol
  */
 struct reiser4_subvol {
 	struct list_head list; /* all registered subvolumes are linked */
-	u8 uuid[16]; /* uuid of physical, or logical (LMV) drive */
+	u8 uuid[16]; /* external ID */
 	char *name;
 	fmode_t mode;
 	struct block_device *bdev;
-	u64 id; /* index in the array of original subvolumes */
+	u64 id; /* internal ID (index in the array of subvolumes that LV
+		   is composed of */
 	int mirror_id; /* index in the array of mirrors (0 indicates origin) */
 	int num_replicas; /* number of replicas, (mirrors excluding original) */
-	u64 data_room; /* number of data blocks (for data subvolumes) */
+	u64 data_room; /* number of blocks allocated to store data */
 	u64 fiber_len;
 	reiser4_block_nr volmap_loc; /* location of the first block containing
 					per-subvolume part of system volume info */
@@ -308,7 +309,6 @@ struct reiser4_volume {
 	int num_volmaps;
 	jnode **voltab_nodes;
 	int num_voltabs;
-	struct mutex vol_mutex; /* for serializing volume operations */
 	struct list_head subvols_list;  /* list of registered subvolumes */
 	struct reiser4_subvol ***subvols; /* pointer to a table of activated
 					   * subvolumes, where:
@@ -435,6 +435,8 @@ static inline reiser4_super_info_data *get_current_super_private(void)
 
 static inline reiser4_volume *current_volume(void)
 {
+	assert("edward-2158", get_current_super_private() != NULL);
+
 	return get_current_super_private()->vol;
 }
 
@@ -450,7 +452,9 @@ static inline int current_volume_is_simple(void)
 
 static inline reiser4_subvol ***current_subvols(void)
 {
-	return get_current_super_private()->vol->subvols;
+	assert("edward-2159", current_volume() != NULL);
+
+	return current_volume()->subvols;
 }
 
 static inline struct formatted_ra_params *get_current_super_ra_params(void)
@@ -505,16 +509,6 @@ static inline u32 subvol_num_mirrors(reiser4_subvol *subv)
 static inline u32 current_num_mirrors(u32 orig_id)
 {
 	return 1 + current_num_replicas(orig_id);
-}
-
-static inline int reiser4_trylock_volume(struct super_block *sb)
-{
-	return mutex_trylock(&super_volume(sb)->vol_mutex);
-}
-
-static inline void reiser4_unlock_volume(struct super_block *sb)
-{
-	mutex_unlock(&super_volume(sb)->vol_mutex);
 }
 
 #define current_stripe_bits (current_volume()->stripe_bits)
