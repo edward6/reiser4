@@ -3018,6 +3018,7 @@ jnode_lock_parent_coord(jnode * node,
 		lookup_bias bias = FIND_EXACT;
 
 		assert("edward-168", !(jnode_get_type(node) == JNODE_BITMAP));
+		assert("edward-2163", !jnode_is_volinfo_head(node));
 
 		/* The case when node is not znode, but can have parent coord
 		   (unformatted node, node which represents cluster page,
@@ -3057,8 +3058,10 @@ jnode_lock_parent_coord(jnode * node,
 			assert("edward-1038",
 			       ergo(jnode_is_cluster_page(node),
 				    JF_ISSET(node, JNODE_HEARD_BANSHEE)));
-			if (!JF_ISSET(node, JNODE_HEARD_BANSHEE))
+			if (!JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
+				assert("edward-2164", 0);
 				warning("nikita-3177", "Parent not found");
+			}
 			return ret;
 		case CBK_COORD_FOUND:
 			if (coord->between != AT_UNIT) {

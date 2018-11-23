@@ -488,6 +488,7 @@ static int capture_array_nodes(jnode **start, u64 count, int new)
 	for (i = 0; i < count; i++) {
 		jnode *node;
 		node = start[i];
+		set_page_dirty_notag(jnode_page(node));
 
 		spin_lock_jnode(node);
 		if (new)
@@ -522,10 +523,13 @@ static int capture_voltab_nodes(reiser4_volume *vol, int new)
 
 /**
  * Put created or modified volume info into transaction
+ * and commit it.
  */
 static int capture_volume_info(reiser4_volume *vol)
 {
 	int ret;
+	txn_atom *atom;
+	txn_handle *th;
 
 	if (volinfo_absent()) {
 		ret = create_volinfo_nodes(vol);
@@ -538,6 +542,17 @@ static int capture_volume_info(reiser4_volume *vol)
 			return ret;
 		ret = capture_voltab_nodes(vol, 0);
 	}
+	if (ret)
+		return ret;
+	/*
+	 * write volinfo to disk
+	 */
+	th = get_current_context()->trans;
+	atom = get_current_atom_locked();
+	assert("edward-1988", atom != NULL);
+	spin_lock_txnh(th);
+	ret = force_commit_atom(th);
+
 	release_volinfo_nodes(vol);
 	return ret;
 }
