@@ -26,7 +26,7 @@ static int reiser4_print_volume(struct super_block *sb,
 	reiser4_volume *vol = super_volume(sb);
 
 	args->u.vol.nr_bricks = meta_brick_belongs_aid() ?
-		vol->num_origins : - vol->num_origins;
+		vol_nr_origins(vol) : - vol_nr_origins(vol);
 	memcpy(args->u.vol.id, vol->uuid, 16);
 	args->u.vol.vpid = vol->vol_plug->h.id;
 	args->u.vol.dpid = vol->dist_plug->h.id;
@@ -45,7 +45,7 @@ static int reiser4_print_brick(struct super_block *sb,
 
 	spin_lock_reiser4_super(get_super_private(sb));
 
-	if (id >= vol->num_origins) {
+	if (id >= vol_nr_origins(vol)) {
 		ret = -EINVAL;
 		goto out;
 	}

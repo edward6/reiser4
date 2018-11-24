@@ -46,6 +46,7 @@ static struct reiser4_volume *reiser4_alloc_volume(u8 *uuid,
 	memcpy(vol->uuid, uuid, 16);
 	INIT_LIST_HEAD(&vol->list);
 	INIT_LIST_HEAD(&vol->subvols_list);
+	atomic_set(&vol->nr_origins, 0);
 	vol->vol_plug = volume_plugin_by_unsafe_id(vol_pid);
 	vol->dist_plug = distribution_plugin_by_unsafe_id(dist_pid);
 	vol->stripe_bits = stripe_bits;
@@ -275,7 +276,7 @@ int check_active_replicas(reiser4_subvol *subv)
 {
 	u32 repl_id;
 	assert("edward-1748", !is_replica(subv));
-	assert("edward-1749", super_num_origins(subv->super) != 0);
+	assert("edward-1749", super_nr_origins(subv->super) != 0);
 
 	if (has_replicas(subv) &&
 	    ((super_volume(subv->super)->subvols == NULL) ||
@@ -356,7 +357,7 @@ int reiser4_activate_subvol(struct super_block *super,
 	 * super-block, since the journal hasn't been yet replayed.
 	 *
 	 * FIXME-EDWARD: Provide a guarantee that on-disk data needed
-	 * for that early initialisation (in particular, num_origins)
+	 * for that early initialisation (in particular, nr_origins)
 	 * are really actual.
 	 */
 	page = subv->df_plug->find_format(subv);
@@ -404,11 +405,11 @@ reiser4_subvol **alloc_mirror_slot(u32 num_mirrors)
 	return result;
 }
 
-void *alloc_mirror_slots(__u32 num_origins)
+void *alloc_mirror_slots(__u32 nr_origins)
 {
 	void *result;
 
-	result = kzalloc(num_origins * sizeof(result), GFP_KERNEL);
+	result = kzalloc(nr_origins * sizeof(result), GFP_KERNEL);
 	return result;
 }
 
@@ -430,7 +431,7 @@ void free_subvols_set(reiser4_volume *vol)
 
 	if (vol->subvols != NULL) {
 		u32 i;
-		for (i = 0; i < vol->num_origins; i++)
+		for (i = 0; i < vol_nr_origins(vol)); i++)
 			if (vol->subvols[i])
 				free_mirror_slot(vol->subvols[i]);
 		free_mirror_slots(vol->subvols);
@@ -501,8 +502,7 @@ void __reiser4_deactivate_volume(struct super_block *super)
 
 	free_subvols_set(vol);
 	vol->num_sgs_bits = 0;
-	vol->num_meta_subvols = 0;
-	vol->num_origins = 0;
+	atomic_set(&vol->nr_origins, 0);
 
 	list_for_each_entry(subv, &vol->subvols_list, list) {
 		assert("edward-1763", !subvol_is_set(subv, SUBVOL_ACTIVATED));
@@ -537,7 +537,7 @@ static int set_activated_subvol(reiser4_volume *vol, reiser4_subvol *subv)
 		/*
 		 * allocate set for original subvolumes
 		 */
-		vol->subvols = alloc_mirror_slots(vol->num_origins);
+		vol->subvols = alloc_mirror_slots(vol_nr_origins(vol));
 		if (vol->subvols == NULL) {
 			ret = -ENOMEM;
 			goto out;

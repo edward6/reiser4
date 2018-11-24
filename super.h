@@ -300,8 +300,7 @@ struct reiser4_volume {
 	u8 uuid[16]; /* volume id */
 	int num_sgs_bits; /* logarithm of number of hash space segments */
 	int stripe_bits; /* logarithm of stripe size */
-	int num_meta_subvols; /* number of meta-data subvolumes */
-	u64 num_origins; /* number of original subvolumes (without mirrors) */
+	atomic_t nr_origins; /* number of original subvolumes (w/o replicas) */
 	distribution_plugin *dist_plug;
 	volume_plugin *vol_plug;
 	reiser4_aid aid; /* storage array descriptor */
@@ -392,9 +391,14 @@ static inline reiser4_subvol *sbinfo_origin(reiser4_super_info_data *info,
 	return sbinfo_mirror(info, id, 0);
 }
 
-static inline u32 sbinfo_num_origins(reiser4_super_info_data *info)
+static inline u32 vol_nr_origins(reiser4_volume *vol)
 {
-	return info->vol->num_origins;
+	return atomic_read(&vol->nr_origins);
+}
+
+static inline u32 sbinfo_nr_origins(reiser4_super_info_data *info)
+{
+	return vol_nr_origins(info->vol);
 }
 
 static inline reiser4_subvol *super_origin(const struct super_block *super,
@@ -403,9 +407,9 @@ static inline reiser4_subvol *super_origin(const struct super_block *super,
 	return sbinfo_origin(get_super_private(super), id);
 }
 
-static inline u32 super_num_origins(const struct super_block *super)
+static inline u32 super_nr_origins(const struct super_block *super)
 {
-	return sbinfo_num_origins(get_super_private(super));
+	return sbinfo_nr_origins(get_super_private(super));
 }
 
 /* get ent context for the @super */
@@ -488,9 +492,9 @@ static inline struct reiser4_subvol *current_origin(u32 id)
 	return sbinfo_origin(get_current_super_private(), id);
 }
 
-static inline u32 current_num_origins(void)
+static inline u32 current_nr_origins(void)
 {
-	return sbinfo_num_origins(get_current_super_private());
+	return sbinfo_nr_origins(get_current_super_private());
 }
 
 static inline u32 current_num_replicas(u32 orig_id)
@@ -516,7 +520,7 @@ static inline u32 current_num_mirrors(u32 orig_id)
 
 #define for_each_origin(_subv_id)					\
 	for (_subv_id = 0;						\
-	     _subv_id < current_num_origins();				\
+	     _subv_id < current_nr_origins();				\
 	     _subv_id ++)
 
 #define for_each_mirror(_orig_id, _mirr_id)				\

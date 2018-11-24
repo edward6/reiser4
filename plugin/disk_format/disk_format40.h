@@ -59,7 +59,7 @@ typedef struct format40_disk_super_block {
 	/* Reiser5 fields */
 	d64 origin_id;    /* internal ID: serial (ordered) number of the
 			     subvolume in the logical volume */
-	d64 num_origins;  /* total number of original subvolumes in LV */
+	d64 nr_origins;   /* total number of original subvolumes in LV */
 	d64 data_room;    /* data capacity of the subvolume */
 	d64 volinfo_loc;  /* location of the first block of system LV info */
 	d8  num_sgs_bits; /* logarithm of total number of the hash-space

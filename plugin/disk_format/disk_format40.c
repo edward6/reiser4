@@ -94,9 +94,9 @@ static __u64 get_format40_origin_id(const format40_disk_super_block * sb)
 	return le64_to_cpu(get_unaligned(&sb->origin_id));
 }
 
-static __u64 get_format40_num_origins(const format40_disk_super_block * sb)
+static __u64 get_format40_nr_origins(const format40_disk_super_block * sb)
 {
-	return le64_to_cpu(get_unaligned(&sb->num_origins));
+	return le64_to_cpu(get_unaligned(&sb->nr_origins));
 }
 
 static int get_format40_num_sgs_bits(const format40_disk_super_block * sb)
@@ -214,7 +214,7 @@ int check_set_core_params(reiser4_subvol *subv,
 			  format40_disk_super_block *sb_format)
 {
 	reiser4_volume *vol;
-	u32 ondisk_num_origins;
+	u32 ondisk_nr_origins;
 	const char *what_is_wrong;
 
 	if (subvol_is_set(subv, SUBVOL_IS_ORPHAN)) {
@@ -223,19 +223,19 @@ int check_set_core_params(reiser4_subvol *subv,
 		return 0;
 	}
 	vol = super_volume(subv->super);
-	ondisk_num_origins = get_format40_num_origins(sb_format);
+	ondisk_nr_origins = get_format40_nr_origins(sb_format);
 
-	if (ondisk_num_origins == 0)
+	if (ondisk_nr_origins == 0)
 		/*
 		 * This is a subvolume of format 4.0.Y
 		 * We handle this special case for backward compatibility:
 		 * guess number of subvolumes
 		 */
-		ondisk_num_origins = 1;
+		ondisk_nr_origins = 1;
 
-	if (vol->num_origins == 0)
-		vol->num_origins = ondisk_num_origins;
-	else if (vol->num_origins != ondisk_num_origins) {
+	if (vol_nr_origins(vol) == 0)
+		atomic_set(&vol->nr_origins, ondisk_nr_origins);
+	else if (vol_nr_origins(vol) != ondisk_nr_origins) {
 		what_is_wrong = "different numbers of original subvolumes";
 		goto error;
 	}
@@ -246,7 +246,7 @@ int check_set_core_params(reiser4_subvol *subv,
 		goto error;
 	}
 	subv->id = get_format40_origin_id(sb_format);
-	if (subv->id >= vol->num_origins) {
+	if (subv->id >= vol_nr_origins(vol)) {
 		what_is_wrong = "that subvolume ID is too large";
 		goto error;
 	}
@@ -573,10 +573,10 @@ int init_format_format40(struct super_block *s, reiser4_subvol *subv)
 static void pack_format40_super(const struct super_block *s,
 				reiser4_subvol *subv, char *data)
 {
+	u64 flags;
 	format40_disk_super_block *format_sb =
 		(format40_disk_super_block *) data;
 	reiser4_volume *vol = super_volume(s);
-	u64 flags;
 
 	assert("zam-591", data != NULL);
 
@@ -594,7 +594,7 @@ static void pack_format40_super(const struct super_block *s,
 
 	put_unaligned(cpu_to_le64(subv->volmap_loc), &format_sb->volinfo_loc);
 
-	put_unaligned(cpu_to_le64(vol->num_origins), &format_sb->num_origins);
+	put_unaligned(cpu_to_le64(vol_nr_origins(vol)), &format_sb->nr_origins);
 
 	put_unaligned(cpu_to_le64(subv->id), &format_sb->origin_id);
 

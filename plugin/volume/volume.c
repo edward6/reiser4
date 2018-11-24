@@ -177,10 +177,10 @@ static int load_volume_info(reiser4_subvol *subv)
 	assert("edward-1984", subv->id == METADATA_SUBVOL_ID);
 
 	if (subvol_is_set(subv, SUBVOL_HAS_DATA_ROOM))
-		num_aid_bricks = vol->num_origins;
+		num_aid_bricks = vol_nr_origins(vol);
 	else {
-		assert("edward-1985", vol->num_origins > 1);
-		num_aid_bricks = vol->num_origins - 1;
+		assert("edward-1985", vol_nr_origins(vol) > 1);
+		num_aid_bricks = vol_nr_origins(vol) - 1;
 	}
 	if (dist_plug->r.init) {
 		ret = dist_plug->r.init(&vol->aid,
@@ -190,7 +190,7 @@ static int load_volume_info(reiser4_subvol *subv)
 			return ret;
 	}
 	if (volmap_loc == 0) {
-		assert("edward-1847", vol->num_origins == 1);
+		assert("edward-1847", vol_nr_origins(vol) == 1);
 		return 0;
 	}
 	vol->num_volmaps = num_volmap_nodes(vol, vol->num_sgs_bits);
@@ -641,7 +641,7 @@ static u64 data_blocks_occ_at(void *buckets, u64 idx)
 		u64 dr_on_neighbor;
 		u64 dr_occ_on_neighbor;
 
-		assert("edward-2069", current_num_origins() > 1);
+		assert("edward-2069", current_nr_origins() > 1);
 
 		dr = cap_at_asym(buckets, idx);
 		dr_on_neighbor = cap_at_asym(buckets, idx + 1);
@@ -713,7 +713,7 @@ int add_data_brick(reiser4_volume *vol, reiser4_subvol *this)
 	reiser4_aid *raid = &vol->aid;
 	struct reiser4_subvol ***new;
 	struct reiser4_subvol ***old = vol->subvols;
-	u64 old_num_subvols = vol->num_origins;
+	u64 old_num_subvols = vol_nr_origins(vol);
 	u64 pos_in_vol;
 	u64 pos_in_aid;
 
@@ -744,13 +744,13 @@ int add_data_brick(reiser4_volume *vol, reiser4_subvol *this)
 
 	/* FIXME: Add protection of volume fields */
 	vol->subvols = new;
-	vol->num_origins ++;
+	atomic_inc(&vol->nr_origins);
 
 	ret = vol->dist_plug->v.inc(raid, pos_in_aid, 1);
 	if (ret) {
 		/* roll back */
 		vol->subvols = old;
-		vol->num_origins --;
+		atomic_dec(&vol->nr_origins);
 		free_mirror_slot(new[pos_in_vol]);
 		free_mirror_slots(new);
 		return ret;
@@ -945,7 +945,7 @@ static int remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim,
 
 	struct reiser4_subvol ***new;
 	struct reiser4_subvol ***old = vol->subvols;
-	u64 old_num_subvols = vol->num_origins;
+	u64 old_num_subvols = vol_nr_origins(vol);
 	u64 pos_in_vol;
 	u64 pos_in_aid;
 
@@ -971,7 +971,7 @@ static int remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim,
 	memcpy(new + pos_in_vol, old + pos_in_vol + 1,
 	       sizeof(*new) * (old_num_subvols - pos_in_vol - 1));
 
-	ret = dist_plug->v.cfs(&vol->aid, vol->num_origins,
+	ret = dist_plug->v.cfs(&vol->aid, vol_nr_origins(vol),
 			       new, nr_busy_data_blocks);
 	if (ret)
 		goto error;
@@ -1080,9 +1080,9 @@ static int remove_or_shrink_brick(reiser4_volume *vol, reiser4_subvol *victim,
 
 		old_slots = vol->subvols;
 		vol->subvols = new_slots;
-		vol->num_origins --;
+		atomic_dec(&vol->nr_origins);
 
-		free_mirror_slot(old_slots[vol->num_origins]);
+		free_mirror_slot(old_slots[vol_nr_origins(vol)]);
 		free_mirror_slots(old_slots);
 	}
  out:
