@@ -325,9 +325,12 @@ static int coord_adjust_items(coord_t *coord, unsigned items, int is_next)
 	return 0;
 }
 
-/* Advances the coordinate by one unit to the right.  If empty, no change.  If
-   coord_is_rightmost_unit, advances to AFTER THE LAST ITEM.  Returns 0 if new
-   position is an existing unit. */
+/**
+ * Advances the coordinate by one unit to the right in a node.
+ * If node is empty, no change. If @coord is the rightmost unit
+ * in the node, advances to AFTER THE LAST ITEM.  Returns 0 if
+ * new position is an existing unit
+ */
 int coord_next_unit(coord_t *coord)
 {
 	unsigned items = coord_num_items(coord);
@@ -922,7 +925,7 @@ void move_flow_forward(flow_t *f, unsigned count)
    mode-name: "LC"
    c-basic-offset: 8
    tab-width: 8
-   fill-column: 120
+   fill-column: 80
    scroll-step: 1
    End:
 */

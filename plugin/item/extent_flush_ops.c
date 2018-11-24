@@ -566,10 +566,11 @@ int convert_extent(coord_t *coord, reiser4_extent *replace)
 		 * @replace was merged with left neighbor.
 		 * Current unit is either removed or narrowed
 		 */
-		coord_t tcoord;
-		coord_dup(&tcoord, coord);
-
-		if (width == new_width && !coord_next_unit(&tcoord)) {
+		if (width == new_width &&
+		    coord->unit_pos < coord_last_unit_pos(coord)) {
+			coord_t tcoord;
+			coord_dup(&tcoord, coord);
+			tcoord.unit_pos ++;
 			/*
 			 * Current unit has been removed and now @coord
 			 * is pointing out to the unit that it was merged
@@ -584,8 +585,6 @@ int convert_extent(coord_t *coord, reiser4_extent *replace)
 		return 0;
 	}
 	if (width == new_width) {
-		coord_t tcoord;
-		coord_dup(&tcoord, coord);
 		/*
 		 * replace current extent with @replace
 		 */
@@ -595,7 +594,11 @@ int convert_extent(coord_t *coord, reiser4_extent *replace)
 		 * mergeable with the right unit (if there is one).
 		 * If so, then merge them.
 		 */
-		if (!coord_next_unit(&tcoord)) {
+		if (coord->unit_pos < coord_last_unit_pos(coord)) {
+			coord_t tcoord;
+			coord_dup(&tcoord, coord);
+			tcoord.unit_pos ++;
+
 			try_to_merge_with_left(&tcoord,
 					       extent_by_coord(&tcoord),
 					       extent_by_coord(&tcoord));
