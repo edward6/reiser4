@@ -462,12 +462,12 @@ int split_extent_unit(coord_t *coord, reiser4_block_nr pos,
 }
 
 /**
- * replace extent @ext by extent @replace.
+ * Pre-condition: We want to replace extent @ext by extent @replace.
  * Try to merge @replace with previous extent of the item (if there is one).
- * Return 1 if it succeeded, 0 - otherwise
+ * Return 1 if merging succeeded, 0 - otherwise.
  */
 static int try_to_merge_with_left(coord_t *coord, reiser4_extent *ext,
-		       reiser4_extent *replace)
+				  reiser4_extent *replace)
 {
 	reiser4_key key;
 
@@ -501,19 +501,29 @@ static int try_to_merge_with_left(coord_t *coord, reiser4_extent *ext,
 				 extent_get_width(ext) -
 				 extent_get_width(replace));
 	} else {
-		/* current extent completely glued with its left neighbor, remove it */
+		/*
+		 * current extent completely glued with its left
+		 * neighbor, remove it
+		 */
 		coord_t from, to;
 
 		coord_dup(&from, coord);
 		from.unit_pos = nr_units_extent(coord) - 1;
 		coord_dup(&to, &from);
-
-		/* currently cut from extent can cut either from the beginning or from the end. Move place which got
-		   freed after unit removal to end of item */
+		/*
+		 * Currently extent can be cut either from the
+		 * beginning or from the end. Our unit can be
+		 * in the middle, however. So we work around
+		 * this. Move place which got freed after unit
+		 * removal to end of item
+		 */
 		memmove(ext, ext + 1,
 			(from.unit_pos -
 			 coord->unit_pos) * sizeof(reiser4_extent));
-		/* wipe part of item which is going to be cut, so that node_check will not be confused */
+		/*
+		 * wipe part of item which is going to be cut, so that
+		 * check_node() will not be confused
+		 */
 		cut_node_content(&from, &to, NULL, NULL, NULL);
 	}
 	znode_make_dirty(coord->node);
@@ -556,11 +566,40 @@ int convert_extent(coord_t *coord, reiser4_extent *replace)
 		 * @replace was merged with left neighbor.
 		 * Current unit is either removed or narrowed
 		 */
+		coord_t tcoord;
+		coord_dup(&tcoord, coord);
+
+		if (width == new_width && !coord_next_unit(&tcoord)) {
+			/*
+			 * Current unit has been removed and now @coord
+			 * is pointing out to the unit that it was merged
+			 * with. Here it can happen that the last one is
+			 * mergeable with the right unit (pointed out by
+			 * @tcoord). If so, then merge them.
+			 */
+			try_to_merge_with_left(&tcoord,
+					       extent_by_coord(&tcoord),
+					       extent_by_coord(&tcoord));
+		}
 		return 0;
 	}
 	if (width == new_width) {
-		/* replace current extent with @replace */
+		coord_t tcoord;
+		coord_dup(&tcoord, coord);
+		/*
+		 * replace current extent with @replace
+		 */
 		*ext = *replace;
+		/*
+		 * After replacing it can happen that the unit is
+		 * mergeable with the right unit (if there is one).
+		 * If so, then merge them.
+		 */
+		if (!coord_next_unit(&tcoord)) {
+			try_to_merge_with_left(&tcoord,
+					       extent_by_coord(&tcoord),
+					       extent_by_coord(&tcoord));
+		}
 		znode_make_dirty(coord->node);
 		return 0;
 	}
@@ -650,13 +689,9 @@ void assign_real_blocknrs(flush_pos_t *flush_pos, oid_t oid,
 }
 
 /**
- * allocated_extent_slum_size
- * @flush_pos:
- * @oid:
- * @index:
- * @count:
- *
- *
+ * Find out how many adjacent blocks of an allocated extent (specified
+ * by @index and @count) belong to the atom and are not "flushprepped".
+ * It is used by the flush procedure when making reallocation decisions
  */
 int allocated_extent_slum_size(flush_pos_t *flush_pos, oid_t oid,
 			       unsigned long index, unsigned long count)
