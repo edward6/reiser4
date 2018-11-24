@@ -250,10 +250,16 @@ static int reiser4_remove_brick(struct super_block *sb,
 	if (ret)
 		return ret;
 
-	victim->id = INVALID_SUBVOL_ID;
-	victim->flags |= (1 << SUBVOL_IS_ORPHAN);
-	reiser4_deactivate_subvol(sb, victim);
-
+	if (!is_meta_brick(victim)) {
+		victim->id = INVALID_SUBVOL_ID;
+		victim->flags |= (1 << SUBVOL_IS_ORPHAN);
+		reiser4_deactivate_subvol(sb, victim);
+		reiser4_unregister_subvol(victim);
+		/*
+		 * now the block device can be safely removed
+		 * from the machine
+		 */
+	}
 	reiser4_volume_clear_unbalanced(sb);
 	/*
 	 * clear unbalanced status in format super-block

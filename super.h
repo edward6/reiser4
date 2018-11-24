@@ -772,6 +772,7 @@ int reiser4_activate_subvol(struct super_block *super, reiser4_subvol *subv);
 void reiser4_deactivate_subvol(struct super_block *super, reiser4_subvol *subv);
 extern int reiser4_activate_volume(struct super_block *, u8 *vol_uuid);
 extern void reiser4_deactivate_volume(struct super_block *);
+extern void reiser4_unregister_subvol(struct reiser4_subvol *subv);
 extern void reiser4_unregister_volumes(void);
 extern struct reiser4_volume *reiser4_search_volume(u8 *vol_uuid);
 extern int reiser4_read_master(struct super_block *, int silent, u8 *vol_uuid);

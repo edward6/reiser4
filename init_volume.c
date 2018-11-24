@@ -174,7 +174,7 @@ static void reiser4_put_volume(struct reiser4_volume *vol)
 	kfree(vol);
 }
 
-static void reiser4_put_subvol(struct reiser4_subvol *subv)
+void reiser4_unregister_subvol(struct reiser4_subvol *subv)
 {
 	assert("edward-1742", subv->bdev == NULL);
 	assert("edward-1743", subv->fiber == NULL);
@@ -182,7 +182,10 @@ static void reiser4_put_subvol(struct reiser4_subvol *subv)
 	assert("edward-1745", list_empty_careful(&subv->ch.overwrite_set));
 	assert("edward-1746", list_empty_careful(&subv->ch.tx_list));
 	assert("edward-1747", list_empty_careful(&subv->ch.wander_map));
-
+	/*
+	 * remove subvolume from volume's subvols_list
+	 */
+	list_del_init(&subv->list);
 	if (subv->name)
 		kfree(subv->name);
 	kfree(subv);
@@ -198,7 +201,7 @@ void reiser4_unregister_volumes(void)
 
 	list_for_each_entry(vol, &reiser4_volumes, list) {
 		list_for_each_entry(sub, &vol->subvols_list, list)
-			reiser4_put_subvol(sub);
+			reiser4_unregister_subvol(sub);
 		reiser4_put_volume(vol);
 	}
 }

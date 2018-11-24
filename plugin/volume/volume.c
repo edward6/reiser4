@@ -910,9 +910,6 @@ static int shrink_brick(reiser4_volume *vol, reiser4_subvol *victim,
 	return ret;
 }
 
-/*
- * Remove meta-data brick from AID
- */
 static int remove_meta_brick(reiser4_volume *vol)
 {
 	int ret;
@@ -936,17 +933,9 @@ static int remove_meta_brick(reiser4_volume *vol)
 	clear_bit(SUBVOL_HAS_DATA_ROOM, &mtd_subv->flags);
 
 	assert("edward-1827", !meta_brick_belongs_aid());
-	/*
-	 * Meta-data brick remains to be active after
-	 * removal from AID
-	 */
 	return 0;
 }
 
-/*
- * Remove a data brick from AID
- * @id: intermal ID of a subvolume to be removed
- */
 static int remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim,
 			     void **newp)
 {
@@ -963,8 +952,12 @@ static int remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim,
 	assert("edward-1842", num_aid_subvols(vol) > 1);
 
 	if (victim->id != old_num_subvols - 1) {
-		warning("edward-2162",
-			"Can't remove brick with ID %llu: not the last in LV",
+		/*
+		 * Currently we add/remove data bricks in
+		 * stackable manner - temporal restriction
+		 * added for simplicity
+		 */
+		warning("edward-2162", "Can't remove brick %llu: not LIFO",
 			victim->id);
 		return RETERR(-EINVAL);
 	}
@@ -985,7 +978,7 @@ static int remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim,
 	ret = dist_plug->v.dec(&vol->aid, pos_in_aid, victim);
 	if (ret) {
 		warning("edward-2146",
-			"Failed to update distribution info (%d)", ret);
+			"Failed to update distribution config (%d)", ret);
 		goto error;
 	}
 	*newp = new;
@@ -1002,7 +995,8 @@ static int remove_brick(reiser4_volume *vol, reiser4_subvol *victim,
 			void **newp)
 {
 	if (num_aid_subvols(vol) == 1) {
-		warning("edward-1941", "Can't remove last brick from AID");
+		warning("edward-1941",
+			"Can't remove the single brick from AID");
 		return -EINVAL;
 	}
 	if (is_meta_brick(victim))
