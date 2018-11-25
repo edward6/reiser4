@@ -505,9 +505,8 @@ static int capture_volinfo_nodes(reiser4_volume *vol, int new)
 {
 	int ret;
 	/*
-	 * Format superblock of meta-data brick should be overwritten
-	 * with updated data room size and location of the first volmap
-	 * block. So, put them to the transaction.
+	 * Capture format superblock of meta-data brick with
+	 * updated location of the first volmap block.
 	 */
 	ret = capture_brick_super(current_origin(METADATA_SUBVOL_ID));
 	if (ret)
@@ -523,7 +522,7 @@ static int capture_voltab_nodes(reiser4_volume *vol, int new)
 
 /**
  * Put created or modified volume info into transaction
- * and commit it.
+ * and commit the last one.
  */
 static int capture_volume_info(reiser4_volume *vol)
 {
@@ -689,9 +688,6 @@ static int expand_brick(reiser4_volume *vol, reiser4_subvol *this,
 	return ret;
 }
 
-/*
- * Add a meta-data subvolume to AID
- */
 static int add_meta_brick(reiser4_volume *vol, reiser4_subvol *new)
 {
 	assert("edward-1820", is_meta_brick(new));
@@ -704,9 +700,6 @@ static int add_meta_brick(reiser4_volume *vol, reiser4_subvol *new)
 	return vol->dist_plug->v.inc(&vol->aid, 0, 1);
 }
 
-/*
- * Add an activated original data brick to LV
- */
 int add_data_brick(reiser4_volume *vol, reiser4_subvol *this)
 {
 	int ret = -ENOMEM;
@@ -742,7 +735,6 @@ int add_data_brick(reiser4_volume *vol, reiser4_subvol *this)
 	memcpy(new + pos_in_vol + 1, old + pos_in_vol,
 	       sizeof(*new) * (old_num_subvols - pos_in_vol));
 
-	/* FIXME: Add protection of volume fields */
 	vol->subvols = new;
 	atomic_inc(&vol->nr_origins);
 
@@ -759,9 +751,6 @@ int add_data_brick(reiser4_volume *vol, reiser4_subvol *this)
 	return 0;
 }
 
-/*
- * Add a new brick to AID
- */
 static int add_brick(reiser4_volume *vol, reiser4_subvol *this)
 {
 	assert("edward-1959", vol != NULL);
@@ -794,32 +783,24 @@ static int expand_brick_asym(reiser4_volume *vol, reiser4_subvol *this,
 				num_aid_subvols(vol), vol->num_sgs_bits,
 				&vol->vol_plug->aid_ops, raid);
 	if (ret)
-		goto out;
+		return ret;
 	ret = expand_brick(vol, this, delta, &need_balance);
-	if (ret) {
-		dist_plug->v.done(raid);
+	if (ret)
 		goto out;
-	}
 	if (need_balance) {
 		ret = capture_volume_info(vol);
-		if (ret) {
-			dist_plug->v.done(raid);
+		if (ret)
 			goto out;
-		}
-		/* set unbalanced status to format super-block
-		 */
+		reiser4_volume_set_unbalanced(sb);
 		ret = capture_brick_super(get_meta_subvol());
 	}
-	dist_plug->v.done(raid);
  out:
-	if (ret || !need_balance)
-		reiser4_volume_clear_unbalanced(sb);
+	dist_plug->v.done(raid);
 	return ret;
 }
 
 /**
- * Add a brick to an asymmetric logical volume
- * @new: brick to add
+ * Add a @new brick to asymmetric logical volume @vol
  */
 static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 {
@@ -837,9 +818,6 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 		warning("edward-1963", "Can't add brick to AID twice");
 		return -EINVAL;
 	}
-	/*
-	 * FIXME: Reserve space for volinfo creation if needed
-	 */
 	ret = dist_plug->v.init(vol,
 				num_aid_subvols(vol), vol->num_sgs_bits,
 				&vol->vol_plug->aid_ops, raid);
@@ -855,15 +833,14 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	 * if volinfo doesn't exist, then it will be created at this step
 	 */
 	ret = capture_volume_info(vol);
-	if (ret) {
-		dist_plug->v.done(raid);
-		return ret;
-	}
-	/* set unbalanced status to format super-block
-	 */
-	ret = capture_brick_super(get_meta_subvol());
 	dist_plug->v.done(raid);
-	return ret;
+	if (ret)
+		return ret;
+	/*
+	 * set unbalanced status and propagate it to format super-block
+	 */
+	reiser4_volume_set_unbalanced(reiser4_get_current_sb());
+	return capture_brick_super(get_meta_subvol());
 }
 
 static u64 get_busy_data_blocks_asym(void)
@@ -1044,17 +1021,19 @@ static int remove_or_shrink_brick(reiser4_volume *vol, reiser4_subvol *victim,
 		goto out;
 	if (need_balance) {
 		time_t start;
+
 		ret = capture_volume_info(vol);
 		if (ret)
 			goto out;
 		/*
-		 * set unbalanced status to format super-block
+		 * set unbalanced status and propagate it to format
+		 * super-block
 		 */
+		reiser4_volume_set_unbalanced(sb);
 		ret = capture_brick_super(get_meta_subvol());
 		if (ret)
 			goto out;
-		notice("",
-		       "%s: Brick %s has been removed. Started balancing...\n",
+		printk("reiser4 (%s): Brick %s has been removed. Started balancing...\n",
 		       sb->s_id, victim->name);
 		start = get_seconds();
 		ret = balance_volume_asym(sb);
@@ -1063,7 +1042,7 @@ static int remove_or_shrink_brick(reiser4_volume *vol, reiser4_subvol *victim,
 				"%s: Balancing aborted (%d)", sb->s_id, ret);
 			goto out;
 		}
-		notice("", "(%s): Balancing completed in %lu seconds.\n",
+		printk("reiser4 (%s): Balancing completed in %lu seconds.\n",
 		       sb->s_id, get_seconds() - start);
 	}
 	if (new_slots) {
@@ -1466,12 +1445,8 @@ int balance_volume_asym(struct super_block *super)
 	}
  done:
 	/* update system table */
-
 	vol->dist_plug->r.update(&vol->aid);
-	/*
-	 * update in-memory and on-disk volume status
-	 */
-	return capture_brick_super(get_meta_subvol());
+	return 0;
  error:
 	warning("edward-2155", "Failed to balance volume %s", super->s_id);
 	return ret;

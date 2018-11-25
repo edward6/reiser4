@@ -431,7 +431,7 @@ void free_subvols_set(reiser4_volume *vol)
 
 	if (vol->subvols != NULL) {
 		u32 i;
-		for (i = 0; i < vol_nr_origins(vol)); i++)
+		for (i = 0; i < vol_nr_origins(vol); i++)
 			if (vol->subvols[i])
 				free_mirror_slot(vol->subvols[i]);
 		free_mirror_slots(vol->subvols);

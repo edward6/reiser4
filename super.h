@@ -762,11 +762,15 @@ extern int reiser4_scan_device(const char *path, fmode_t flags, void *holder,
 			       reiser4_subvol **result, reiser4_volume **host);
 extern void reiser4_volume_set_activated(struct super_block *sb);
 extern int reiser4_volume_is_activated(struct super_block *sb);
+
+extern int reiser4_volume_is_busy(const struct super_block *sb);
+extern void reiser4_volume_set_busy(struct super_block *sb);
+extern int reiser4_volume_test_set_busy(struct super_block *sb);
+extern void reiser4_volume_clear_busy(struct super_block *sb);
+
 extern int reiser4_volume_is_unbalanced(const struct super_block *sb);
 extern void reiser4_volume_set_unbalanced(struct super_block *sb);
-extern int reiser4_volume_test_set_unbalanced(struct super_block *sb);
 extern void reiser4_volume_clear_unbalanced(struct super_block *sb);
-
 
 /* step of fill super */
 extern int reiser4_init_fs_info(struct super_block *);

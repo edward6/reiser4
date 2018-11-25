@@ -772,10 +772,11 @@ int cfs_fsw32(reiser4_aid *raid, u64 numb, void *buckets, u64 used)
 	calibrate64(numb, used, buckets, aid->ops->cap_at, new_occ);
 
 	for (i = 0; i < numb; i++) {
+#if REISER4_DEBUG
 		notice("edward-2145",
 		       "Brick %llu: data capacity: %llu, min required: %llu",
 		       i, aid->ops->cap_at(buckets, i), new_occ[i]);
-
+#endif
 		if (aid->ops->cap_at(buckets, i) < new_occ[i]) {
 			warning("edward-2070",
 	"Not enough data capacity (%llu) of brick %llu (required %llu)",

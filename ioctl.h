@@ -54,8 +54,10 @@ typedef enum {
 	REISER4_DONT_PUNCH_HOLES = 9,
 	/* volume is ready for regular operations */
 	REISER4_ACTIVATED_VOL = 10,
-	/* some volume operation is not completed */
-	REISER4_UNBALANCED_VOL = 11
+	/* this is to serialize online volume operations */
+	REISER4_BUSY_VOL = 11,
+	/* volume is in unbalanced state */
+	REISER4_UNBALANCED_VOL = 12
 } reiser4_fs_flag;
 
 #define REISER4_PATH_NAME_MAX 3900 /* FIXME: make it more precise */
