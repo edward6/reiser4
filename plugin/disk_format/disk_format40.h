@@ -57,14 +57,17 @@ typedef struct format40_disk_super_block {
 	/*  84 */ d32 node_pid; /* formatted node plugin id */
 
 	/* Reiser5 fields */
-	d64 origin_id;    /* internal ID: serial (ordered) number of the
-			     subvolume in the logical volume */
-	d64 nr_origins;   /* total number of original subvolumes in LV */
-	d64 data_room;    /* data capacity of the subvolume */
-	d64 volinfo_loc;  /* location of the first block of system LV info */
-	d8  num_sgs_bits; /* logarithm of total number of the hash-space
-			     segments */
-	/*  123 */ char not_used[389];
+	/*  88 */ d64 origin_id;    /* internal ID: serial (ordered) number of the
+				       subvolume in the logical volume */
+	/*  96 */ d64 nr_origins;   /* total number of original subvolumes in LV */
+	/* 104 */ d64 data_room;    /* data capacity of the subvolume */
+	/* 112 */ d64 volinfo_loc;  /* location of the first block of system LV info */
+	/* 120 */ d8  num_sgs_bits; /* logarithm of total number of the hash-space
+				       segments */
+	/* 121 */ d64 volinfo_gen;  /* volinfo generation number */
+	/* 129 */ d64 new_volinfo_loc; /* location of the first block of new volume
+				          configuration (for unbalanced volumes) */
+	char not_used[375];
 } format40_disk_super_block;
 
 /* Defines for journal header and footer respectively. */

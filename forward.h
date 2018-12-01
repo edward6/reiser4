@@ -41,6 +41,7 @@ typedef struct ctx_brick_info ctx_brick_info;
 typedef struct carry_level carry_level;
 typedef struct blocknr_set_entry blocknr_set_entry;
 typedef struct blocknr_list_entry blocknr_list_entry;
+typedef struct reiser4_volinfo reiser4_volinfo;
 typedef struct reiser4_volume reiser4_volume;
 typedef struct reiser4_subvol reiser4_subvol;
 /* super_block->s_fs_info points to this */

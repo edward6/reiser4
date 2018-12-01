@@ -539,7 +539,7 @@ struct reiser4_aid_ops {
 };
 
 struct dist_regular_ops {
-	int (*init)(reiser4_aid *aid, int num_buckets, int nums_bits);
+	int (*init)(reiser4_aid *aid, int num_buckets, int nums_bits, int new);
 	u64 (*lookup)(reiser4_aid *aid, const char *str,
 		      int len, u32 seed, void *tab);
 	void (*update)(reiser4_aid *raid);
@@ -561,10 +561,10 @@ struct dist_volume_ops {
 	/* increase maximal capacity of a storage array */
 	int (*spl)(reiser4_aid *raid, u32 fact_bits);
 	/* pack system information to a set of blocks */
-	void (*pack)(reiser4_aid *raid, char *to, u64 src_off, u64 count);
+	void (*pack)(reiser4_aid *raid, char *to, u64 src_off, u64 count, int new);
 	/* extract system information from a set of blocks */
-	void (*unpack)(reiser4_aid *raid, char *from, u64 dst_off, u64 count);
-	void (*dump)(reiser4_aid *raid, char *to, u64 offset, u32 size);
+	void (*unpack)(reiser4_aid *raid, char *from, u64 dst_off, u64 count, int new);
+	void (*dump)(reiser4_aid *raid, char *to, u64 offset, u32 size, int new);
 	void *(*get_tab)(reiser4_aid *raid, int new);
 };
 

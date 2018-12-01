@@ -114,6 +114,16 @@ static __u64 get_format40_volinfo_loc(const format40_disk_super_block * sb)
 	return le64_to_cpu(get_unaligned(&sb->volinfo_loc));
 }
 
+static __u64 get_format40_new_volinfo_loc(const format40_disk_super_block * sb)
+{
+	return le64_to_cpu(get_unaligned(&sb->new_volinfo_loc));
+}
+
+static __u64 get_format40_volinfo_gen(const format40_disk_super_block * sb)
+{
+	return le64_to_cpu(get_unaligned(&sb->volinfo_gen));
+}
+
 static __u32 get_format40_version(const format40_disk_super_block * sb)
 {
 	return le32_to_cpu(get_unaligned(&sb->version)) &
@@ -430,6 +440,8 @@ int try_init_format40(struct super_block *super,
 			kfree(sb_format);
 			return result;
 		}
+		if (get_format40_flags(sb_format) & (1 << FORMAT40_UNBALANCED_VOLUME))
+			reiser4_volume_set_unbalanced(super);
 	}
 	*stage = INIT_OID;
 
@@ -508,10 +520,12 @@ int try_init_format40(struct super_block *super,
 
 	reiser4_subvol_set_data_room(subv, get_format40_data_room(sb_format));
 	/*
-	 * load volume system information, or its part, which was stored
-	 * on that subvolume
+	 * load addresses of volume configs
 	 */
-	subv->volmap_loc = get_format40_volinfo_loc(sb_format);
+	subv->volmap_loc[CUR_VOL_CONF] = get_format40_volinfo_loc(sb_format);
+	subv->volmap_loc[NEW_VOL_CONF] = get_format40_new_volinfo_loc(sb_format);
+	subv->volinfo_gen = get_format40_volinfo_gen(sb_format);
+
 	if (vol->vol_plug->load_volume)
 		result = vol->vol_plug->load_volume(subv);
 	kfree(sb_format);
@@ -573,7 +587,6 @@ int init_format_format40(struct super_block *s, reiser4_subvol *subv)
 static void pack_format40_super(const struct super_block *s,
 				reiser4_subvol *subv, char *data)
 {
-	u64 flags;
 	format40_disk_super_block *format_sb =
 		(format40_disk_super_block *) data;
 	reiser4_volume *vol = super_volume(s);
@@ -592,8 +605,6 @@ static void pack_format40_super(const struct super_block *s,
 
 	put_unaligned(cpu_to_le16(subv->tree.height), &format_sb->tree_height);
 
-	put_unaligned(cpu_to_le64(subv->volmap_loc), &format_sb->volinfo_loc);
-
 	put_unaligned(cpu_to_le64(vol_nr_origins(vol)), &format_sb->nr_origins);
 
 	put_unaligned(cpu_to_le64(subv->id), &format_sb->origin_id);
@@ -605,12 +616,18 @@ static void pack_format40_super(const struct super_block *s,
 
 		put_unaligned(cpu_to_le32(version), &format_sb->version);
 	}
-	flags = get_format40_flags(format_sb);
-	if (reiser4_volume_is_unbalanced(s))
-		flags |= (1 << FORMAT40_UNBALANCED_VOLUME);
-	else
-		flags &= ~(1 << FORMAT40_UNBALANCED_VOLUME);
-	put_unaligned(cpu_to_le64(flags), &format_sb->flags);
+	if (is_meta_brick(subv)) {
+		u64 flags;
+		flags = get_format40_flags(format_sb);
+		if (reiser4_volume_is_unbalanced(s))
+			flags |= (1 << FORMAT40_UNBALANCED_VOLUME);
+		else
+			flags &= ~(1 << FORMAT40_UNBALANCED_VOLUME);
+		put_unaligned(cpu_to_le64(flags), &format_sb->flags);
+		put_unaligned(cpu_to_le64(subv->volmap_loc[0]), &format_sb->volinfo_loc);
+		put_unaligned(cpu_to_le64(subv->volmap_loc[1]), &format_sb->new_volinfo_loc);
+		put_unaligned(cpu_to_le64(subv->volinfo_gen), &format_sb->volinfo_gen);
+	}
 }
 
 /**

@@ -143,9 +143,10 @@ struct reiser4_subvol {
 	int num_replicas; /* number of replicas, (mirrors excluding original) */
 	u64 data_room; /* number of blocks allocated to store data */
 	u64 fiber_len;
-	reiser4_block_nr volmap_loc; /* location of the first block containing
-					per-subvolume part of system volume info */
-	void *fiber; /* per-subvolume part of system volume info */
+	reiser4_block_nr volmap_loc[2]; /* location of first voltab blocks for
+					   current and new volume configs */
+	u64 volinfo_gen; /* generation number of current volume config */
+	void *fiber; /* per-subvolume part of volume configuration */
 	reiser4_subv_type type; /* type of this subvolume */
 	unsigned long flags; /* subvolume-wide flags, see subvol_flags enum */
 	disk_format_plugin *df_plug; /* disk format of this subvolume */
@@ -293,6 +294,20 @@ static inline struct reiser4_super_info_data *sbinfo_by_vol(struct reiser4_volum
 }
 
 /*
+ * In-memory volume configuraion
+ */
+struct reiser4_volinfo {
+	u64 volinfo_gen; /* generation number */
+	jnode **volmap_nodes;
+	int num_volmaps;
+	jnode **voltab_nodes;
+	int num_voltabs;
+};
+
+#define CUR_VOL_CONF 0
+#define NEW_VOL_CONF 1
+
+/*
  * In-memory header of compound (logical) volume.
  */
 struct reiser4_volume {
@@ -304,10 +319,8 @@ struct reiser4_volume {
 	distribution_plugin *dist_plug;
 	volume_plugin *vol_plug;
 	reiser4_aid aid; /* storage array descriptor */
-	jnode **volmap_nodes;
-	int num_volmaps;
-	jnode **voltab_nodes;
-	int num_voltabs;
+	reiser4_volinfo volinfo[2]; /* volume configs: current and new (for
+					unbalanced volumes) */
 	struct list_head subvols_list;  /* list of registered subvolumes */
 	struct reiser4_subvol ***subvols; /* pointer to a table of activated
 					   * subvolumes, where:

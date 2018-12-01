@@ -177,6 +177,28 @@ static int create_systab(u32 nums_bits, u32 **tab,
 	return 0;
 }
 
+static int clone_systab(struct fsw32_aid *aid)
+{
+	assert("edward-2169", aid != NULL);
+	assert("edward-2170", aid->tab[CUR_VOL_CONF] != NULL);
+	assert("edward-2171", aid->tab[NEW_VOL_CONF] == NULL);
+
+	aid->tab[NEW_VOL_CONF] = mem_alloc((1 << aid->nums_bits) * WORDSIZE);
+	if (!aid->tab[NEW_VOL_CONF])
+		return ENOMEM;
+	memcpy(aid->tab[NEW_VOL_CONF], aid->tab[CUR_VOL_CONF],
+	       (1 << aid->nums_bits) * WORDSIZE);
+	return 0;
+}
+
+static void free_cloned_systab(struct fsw32_aid *aid)
+{
+	if (aid->tab[NEW_VOL_CONF]) {
+		mem_free(aid->tab[NEW_VOL_CONF]);
+		aid->tab[NEW_VOL_CONF] = NULL;
+	}
+}
+
 static int create_fibers(u32 nums_bits, u32 *tab,
 			 u32 new_numb, u32 *new_weights, void *vec,
 			 void *(*fiber_at)(void *vec, u64 idx),
@@ -448,7 +470,7 @@ static int balance_tab_spl(u32 numb, u32 nums_bits,
 	u32 i,j,k = 0;
 	u32 nums;
 
-	u32 *new_tab = NULL;
+	u32 *tab = NULL;
 	u32 *excess = NULL;
 	u32 num_excess;
 	u32 *shortage = NULL;
@@ -481,14 +503,14 @@ static int balance_tab_spl(u32 numb, u32 nums_bits,
 	/*
 	 * "stretch" system table with the @factor
 	 */
-	new_tab = mem_alloc(nums * factor * WORDSIZE);
-	if (!new_tab) {
+	tab = mem_alloc(nums * factor * WORDSIZE);
+	if (!tab) {
 		ret = ENOMEM;
 		goto error;
 	}
 	for(i = 0; i < nums; i++)
 		for(j = 0; j < factor; j++)
-			new_tab[i * factor + j] = (*tabp)[i];
+			tab[i * factor + j] = (*tabp)[i];
 	mem_free(*tabp);
 	*tabp = NULL;
 
@@ -501,7 +523,7 @@ static int balance_tab_spl(u32 numb, u32 nums_bits,
 	for (i = 0; i < numb; i++)
 		old_weights[i] *= factor;
 
-	ret = replace_fibers(nums_bits + fact_bits, new_tab,
+	ret = replace_fibers(nums_bits + fact_bits, tab,
 			     numb, numb, old_weights, vec,
 			     fiber_at, fiber_set_at, fiber_lenp_at);
 	if (ret)
@@ -531,14 +553,14 @@ static int balance_tab_spl(u32 numb, u32 nums_bits,
 	 */
 	for (i = 0, k = 0; i < num_shortage; i++)
 		for (j = 0; j < shortage[i]; j++)
-			new_tab[reloc[k++]] = num_excess + i;
+			tab[reloc[k++]] = num_excess + i;
  release:
 	release_fibers(numb, vec, fiber_at, fiber_set_at);
-	*tabp = new_tab;
+	*tabp = tab;
 	goto exit;
  error:
-	if (new_tab)
-		mem_free(new_tab);
+	if (tab)
+		mem_free(tab);
  exit:
 	if (excess)
 		mem_free(excess);
@@ -560,38 +582,44 @@ void donev_fsw32(reiser4_aid *raid)
 	aid->weights = NULL;
 }
 
-/*
- * Release AID descriptor for regular operations.
- * Normally is called at umount time
+/**
+ * Release AID descriptor allocated for regular operations.
+ * Normally it is called at umount time.
  */
 void doner_fsw32(reiser4_aid *raid)
 {
+	int i;
 	struct fsw32_aid *aid = fsw32_private(raid);
 
-	if (aid->tab) {
-		mem_free(aid->tab);
-		aid->tab = NULL;
-	}
+	for (i = 0; i < 2; i++)
+		if (aid->tab[i]) {
+			mem_free(aid->tab[i]);
+			aid->tab[i] = NULL;
+		}
 }
 
+/**
+ * Replace current AID descriptor with the new one.
+ * It is called after re-balancing completion.
+ */
 void update_fsw32(reiser4_aid *raid)
 {
 	struct fsw32_aid *aid = fsw32_private(raid);
+	u32 *old_tab = aid->tab[CUR_VOL_CONF];
 
-	mem_free(aid->tab);
-	aid->tab = aid->new_tab;
-	aid->new_tab = NULL;
+	aid->tab[CUR_VOL_CONF] = aid->tab[NEW_VOL_CONF];
+	aid->tab[NEW_VOL_CONF] = NULL;
+	mem_free(old_tab);
 }
 
-/*
- *Initialize AID descriptor for regular operations
+/**
+ * Initialize AID descriptor for regular operations
  */
-
-int initr_fsw32(reiser4_aid *raid, int numb, int nums_bits)
+int initr_fsw32(reiser4_aid *raid, int numb, int nums_bits, int new)
 {
 	struct fsw32_aid *aid = fsw32_private(raid);
 
-	if (aid->tab != NULL)
+	if (aid->tab[new] != NULL)
 		return 0;
 
 	if (nums_bits < MIN_NUMS_BITS) {
@@ -601,8 +629,8 @@ int initr_fsw32(reiser4_aid *raid, int numb, int nums_bits)
 			1ull << nums_bits, 1ull << MIN_NUMS_BITS);
 		return -EINVAL;
 	}
-	aid->tab = mem_alloc((1 << nums_bits) * sizeof(u32));
-	if (aid->tab == NULL)
+	aid->tab[new] = mem_alloc((1 << nums_bits) * sizeof(u32));
+	if (aid->tab[new] == NULL)
 		return -ENOMEM;
 
 	aid->numb = numb;
@@ -611,7 +639,7 @@ int initr_fsw32(reiser4_aid *raid, int numb, int nums_bits)
 	return 0;
 }
 
-/*
+/**
  * Initialize AID descriptor @raid for volume operations
  *
  * @buckets: set of abstract buckets;
@@ -636,6 +664,7 @@ int initv_fsw32(void *buckets,
 
 	aid = fsw32_private(raid);
 
+	assert("edward-2172", aid->tab[NEW_VOL_CONF] == NULL);
 	assert("edward-1922", aid->weights == NULL);
 
 	aid->weights = mem_alloc(numb * WORDSIZE);
@@ -644,17 +673,19 @@ int initv_fsw32(void *buckets,
 
 	calibrate32(numb, nums, buckets, ops->cap_at, aid->weights);
 
-	if (aid->tab == NULL) {
-		ret = initr_fsw32(raid, numb, nums_bits);
+	if (aid->tab[CUR_VOL_CONF] == NULL) {
+		ret = initr_fsw32(raid, numb, nums_bits, CUR_VOL_CONF);
 		if (ret)
 			goto error;
 	}
-	if (aid->tab == NULL)
-		ret = create_systab(nums_bits, &aid->tab,
+	assert("edward-2173", aid->tab[CUR_VOL_CONF] != NULL);
+
+	if (aid->tab[CUR_VOL_CONF] == NULL)
+		ret = create_systab(nums_bits, &aid->tab[CUR_VOL_CONF],
 				    numb, aid->weights, buckets,
 				    ops->fib_at);
 	else
-		ret = create_fibers(nums_bits, aid->tab,
+		ret = create_fibers(nums_bits, aid->tab[CUR_VOL_CONF],
 				    numb, aid->weights, buckets,
 				    ops->fib_at,
 				    ops->fib_set_at,
@@ -669,7 +700,7 @@ int initv_fsw32(void *buckets,
 	{
 		int i;
 		for (i = 0; i < numb; i++)
-			print_fiber(i, aid->tab,
+			print_fiber(i, aid->tab[CUR_VOL_CONF],
 				    nums, ops->fib_at, ops->fib_lenp_at);
 	}
 #endif
@@ -690,7 +721,7 @@ u64 lookup_fsw32m(reiser4_aid *raid, const char *str,
 	return ((u32 *)tab)[hash >> (32 - aid->nums_bits)];
 }
 
-/*
+/**
  * Increase capacity of an array.
  * If @new != NULL, then the whole bucket @new has been inserted
  * to the array at @target_pos
@@ -717,16 +748,13 @@ int inc_fsw32(reiser4_aid *raid, u64 target_pos, int new)
 		ret = ENOMEM;
 		goto error;
 	}
-	aid->new_tab = mem_alloc(nums * WORDSIZE);
-	if (!aid->new_tab) {
-		ret = ENOMEM;
+	ret = clone_systab(aid);
+	if (ret)
 		goto error;
-	}
-	memcpy(aid->new_tab, aid->tab, nums * WORDSIZE);
 
 	calibrate32(new_numb, nums,
 		    aid->buckets, aid->ops->cap_at, new_weights);
-	ret = balance_tab_inc(new_numb, aid->new_tab,
+	ret = balance_tab_inc(new_numb, aid->tab[NEW_VOL_CONF],
 			      aid->weights, new_weights, target_pos,
 			      aid->buckets, aid->ops->fib_at, new);
 	if (ret)
@@ -739,12 +767,10 @@ int inc_fsw32(reiser4_aid *raid, u64 target_pos, int new)
 	aid->weights = new_weights;
 	aid->numb = new_numb;
 	return 0;
-
  error:
 	if (new_weights)
 		mem_free(new_weights);
-	if (aid->new_tab)
-		mem_free(aid->new_tab);
+	free_cloned_systab(aid);
 	return ret;
 }
 
@@ -818,16 +844,13 @@ int dec_fsw32(reiser4_aid *raid, u64 target_pos, void *victim)
 		ret = ENOMEM;
 		goto error;
 	}
-	aid->new_tab = mem_alloc(nums * WORDSIZE);
-	if (!aid->new_tab) {
-		ret = ENOMEM;
+	ret = clone_systab(aid);
+	if (ret)
 		goto error;
-	}
-	memcpy(aid->new_tab, aid->tab, nums * WORDSIZE);
 
 	calibrate32(new_numb, nums,
 		    aid->buckets, aid->ops->cap_at, new_weights);
-	ret = balance_tab_dec(old_numb, aid->new_tab,
+	ret = balance_tab_dec(old_numb, aid->tab[NEW_VOL_CONF],
 			      aid->weights, new_weights, target_pos,
 			      aid->buckets, aid->ops->fib_at, aid->ops->fib_of,
 			      victim);
@@ -841,12 +864,10 @@ int dec_fsw32(reiser4_aid *raid, u64 target_pos, void *victim)
 	aid->weights = new_weights;
 	aid->numb = new_numb;
 	return 0;
-
  error:
 	if (new_weights)
 		mem_free(new_weights);
-	if (aid->new_tab)
-		mem_free(aid->new_tab);
+	free_cloned_systab(aid);
 	return ret;
 }
 
@@ -870,7 +891,7 @@ int spl_fsw32(reiser4_aid *raid, u32 fact_bits)
 	calibrate32(aid->numb, new_nums,
 		    aid->buckets, aid->ops->cap_at, new_weights);
 	ret = balance_tab_spl(aid->numb, aid->nums_bits,
-			      &aid->tab,
+			      &aid->tab[NEW_VOL_CONF],
 			      aid->weights,
 			      new_weights,
 			      fact_bits,
@@ -890,16 +911,17 @@ int spl_fsw32(reiser4_aid *raid, u32 fact_bits)
 	return ret;
 }
 
-void pack_fsw32(reiser4_aid *raid, char *to, u64 src_off, u64 count)
+void pack_fsw32(reiser4_aid *raid, char *to, u64 src_off, u64 count, int new)
 {
 	u64 i;
 	u32 *src;
 	struct fsw32_aid *aid = fsw32_private(raid);
 
 	assert("edward-1923", to != NULL);
-	assert("edward-1924", aid->new_tab != NULL);
+	assert("edward-2174", new == NEW_VOL_CONF);
+	assert("edward-1924", aid->tab[new] != NULL);
 
-	src = aid->new_tab + src_off;
+	src = aid->tab[new] + src_off;
 
 	for (i = 0; i < count; i++) {
 		put_unaligned(cpu_to_le32(*src), (d32 *)to);
@@ -908,16 +930,17 @@ void pack_fsw32(reiser4_aid *raid, char *to, u64 src_off, u64 count)
 	}
 }
 
-void unpack_fsw32(reiser4_aid *raid, char *from, u64 dst_off, u64 count)
+void unpack_fsw32(reiser4_aid *raid,
+		  char *from, u64 dst_off, u64 count, int new)
 {
 	u64 i;
 	u32 *dst;
 	struct fsw32_aid *aid = fsw32_private(raid);
 
 	assert("edward-1925", from != NULL);
-	assert("edward-1926", aid->tab != NULL);
+	assert("edward-1926", aid->tab[new] != NULL);
 
-	dst = aid->tab + dst_off;
+	dst = aid->tab[new] + dst_off;
 
 	for (i = 0; i < count; i++) {
 		*dst = le32_to_cpu(get_unaligned((d32 *)from));
@@ -926,18 +949,18 @@ void unpack_fsw32(reiser4_aid *raid, char *from, u64 dst_off, u64 count)
 	}
 }
 
-void dump_fsw32(reiser4_aid *raid, char *to, u64 offset, u32 size)
+void dump_fsw32(reiser4_aid *raid, char *to, u64 offset, u32 size, int new)
 {
 	struct fsw32_aid *aid = fsw32_private(raid);
 
-	memcpy(to, aid->tab + offset, size);
+	memcpy(to, aid->tab[new] + offset, size);
 }
 
 void *get_tab_fsw32(reiser4_aid *raid, int new)
 {
 	struct fsw32_aid *aid = fsw32_private(raid);
 
-	return new ? aid->new_tab : aid->tab;
+	return aid->tab[new];
 }
 
 /*
