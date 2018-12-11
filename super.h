@@ -322,7 +322,8 @@ struct reiser4_volume {
 	reiser4_volinfo volinfo[2]; /* volume configs: current and new (for
 					unbalanced volumes) */
 	struct list_head subvols_list;  /* list of registered subvolumes */
-	struct reiser4_subvol ***subvols; /* pointer to a table of activated
+	u32 nr_slots; /* number of columns in the matrix below */
+	slot_t *subvols; /* pointer to a table of activated
 					   * subvolumes, where:
 					   * subvols[i] - i-th original;
 					   * subvols[i][j] - its j-th mirror,

@@ -124,6 +124,11 @@ static __u64 get_format40_volinfo_gen(const format40_disk_super_block * sb)
 	return le64_to_cpu(get_unaligned(&sb->volinfo_gen));
 }
 
+static __u64 get_format40_nr_slots(const format40_disk_super_block * sb)
+{
+	return le64_to_cpu(get_unaligned(&sb->nr_slots));
+}
+
 static __u32 get_format40_version(const format40_disk_super_block * sb)
 {
 	return le32_to_cpu(get_unaligned(&sb->version)) &
@@ -220,16 +225,25 @@ static int check_key_format(const format40_disk_super_block *sb_copy)
 	return 0;
 }
 
-int check_set_core_params(reiser4_subvol *subv,
-			  format40_disk_super_block *sb_format)
+/**
+ * Read and check parameters which define volume configuration.
+ * Set it to brick header @subv.
+ */
+int check_set_volume_params(reiser4_subvol *subv,
+			    format40_disk_super_block *sb_format)
 {
 	reiser4_volume *vol;
 	u32 ondisk_nr_origins;
 	const char *what_is_wrong;
 
 	if (subvol_is_set(subv, SUBVOL_IS_ORPHAN)) {
-		subv->id = INVALID_SUBVOL_ID; /* actual ID will be set
-						 by volume operation */
+		/*
+		 * Don't check parameters of new brick
+		 * as they are invalid (to be set later).
+		 * Set invalid brick ID to not confuse
+		 * the new brick with meta-data brick
+		 */
+		subv->id = INVALID_SUBVOL_ID;
 		return 0;
 	}
 	vol = super_volume(subv->super);
@@ -255,14 +269,20 @@ int check_set_core_params(reiser4_subvol *subv,
 		what_is_wrong = "different numbers of hash space segments";
 		goto error;
 	}
+	if (vol->nr_slots == 0)
+		vol->nr_slots = get_format40_nr_slots(sb_format);
+	else if (vol->nr_slots != get_format40_nr_slots(sb_format)) {
+		what_is_wrong = "different numbers of slots";
+		goto error;
+	}
 	subv->id = get_format40_origin_id(sb_format);
 	if (subv->id >= vol_nr_origins(vol)) {
-		what_is_wrong = "that subvolume ID is too large";
+		what_is_wrong = "subvolume ID is too large";
 		goto error;
 	}
 	return 0;
  error:
-	warning("edward-1787", "%s: Found %s. Fsck?",
+	warning("edward-1787", "%s: inconsistent volume (%s).",
 		subv->super->s_id, what_is_wrong);
 	return -EINVAL;
 }
@@ -308,7 +328,7 @@ struct page *find_format_format40(reiser4_subvol *subv)
 		put_page(page);
 		return ERR_PTR(RETERR(-EINVAL));
 	}
-	ret = check_set_core_params(subv, disk_sb);
+	ret = check_set_volume_params(subv, disk_sb);
 	if (ret) {
 		kunmap(page);
 		put_page(page);
@@ -611,18 +631,26 @@ static void pack_format40_super(const struct super_block *s,
 
 	put_unaligned(cpu_to_le64(subv->data_room), &format_sb->data_room);
 
+	put_unaligned(cpu_to_le64(vol->nr_slots), &format_sb->nr_slots);
+
 	if (update_disk_version_minor(format_sb)) {
 		__u32 version = PLUGIN_LIBRARY_VERSION | FORMAT40_UPDATE_BACKUP;
 
 		put_unaligned(cpu_to_le32(version), &format_sb->version);
 	}
 	if (is_meta_brick(subv)) {
-		u64 flags;
-		flags = get_format40_flags(format_sb);
+		u64 flags = get_format40_flags(format_sb);
+
 		if (reiser4_volume_is_unbalanced(s))
 			flags |= (1 << FORMAT40_UNBALANCED_VOLUME);
 		else
 			flags &= ~(1 << FORMAT40_UNBALANCED_VOLUME);
+
+		if (subv->flags & (1 << SUBVOL_HAS_DATA_ROOM))
+			flags |= (1 << FORMAT40_HAS_DATA_ROOM);
+		else
+			flags &= ~(1 << FORMAT40_HAS_DATA_ROOM);
+
 		put_unaligned(cpu_to_le64(flags), &format_sb->flags);
 		put_unaligned(cpu_to_le64(subv->volmap_loc[0]), &format_sb->volinfo_loc);
 		put_unaligned(cpu_to_le64(subv->volmap_loc[1]), &format_sb->new_volinfo_loc);

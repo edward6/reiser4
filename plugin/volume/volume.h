@@ -20,6 +20,7 @@ static inline int is_meta_brick_id(u64 id)
 
 static inline int is_meta_brick(reiser4_subvol *this)
 {
+	assert("edward-2189", subvol_is_set(this, SUBVOL_ACTIVATED));
 	assert("edward-2071", ergo(is_meta_brick_id(this->id),
 				   this == get_meta_subvol()));
 	return is_meta_brick_id(this->id);
@@ -65,19 +66,25 @@ static inline u64 num_aid_subvols(reiser4_volume *vol)
 /*
  * Returns matrix of subvolumes participating in AID
  */
-static inline reiser4_subvol ***current_aid_subvols(void)
+
+static inline slot_t *aid_subvols(slot_t *subvols)
 {
 	if (meta_brick_belongs_aid())
-		return current_subvols();
+		return subvols;
 	else
-		return current_subvols() + 1;
+		return subvols + 1;
+}
+
+static inline slot_t *current_aid_subvols(void)
+{
+	return aid_subvols(current_subvols());
 }
 
 extern void deactivate_subvol(struct super_block *super, reiser4_subvol *subv);
-extern reiser4_subvol *find_meta_brick(reiser4_volume *vol);
-reiser4_subvol **alloc_mirror_slot(u32 num_mirrors);
-extern void *alloc_mirror_slots(u32 nr_origins);
-extern void free_mirror_slot(reiser4_subvol **slot);
+extern reiser4_subvol *find_meta_brick_by_id(reiser4_volume *vol);
+extern slot_t alloc_one_mirror_slot(u32 nr_mirrors);
+extern slot_t *alloc_mirror_slots(u32 nr_slots);
+extern void free_mirror_slot_at(reiser4_volume *vol, u64 idx);
 extern void free_mirror_slots(reiser4_subvol ***slots);
 
 /*

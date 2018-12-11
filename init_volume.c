@@ -40,7 +40,7 @@ static struct reiser4_volume *reiser4_alloc_volume(u8 *uuid,
 			"bad stripe_bits (%d)n", stripe_bits);
 		return NULL;
 	}
-	vol = kzalloc(sizeof(*vol), GFP_NOFS);
+	vol = kzalloc(sizeof(*vol), GFP_KERNEL);
 	if (!vol)
 		return NULL;
 	memcpy(vol->uuid, uuid, 16);
@@ -60,7 +60,7 @@ struct reiser4_subvol *reiser4_alloc_subvol(u8 *uuid, const char *path,
 {
 	struct reiser4_subvol *subv;
 
-	subv = kzalloc(sizeof(*subv), GFP_NOFS);
+	subv = kzalloc(sizeof(*subv), GFP_KERNEL);
 	if (!subv)
 		return NULL;
 	memcpy(subv->uuid, uuid, 16);
@@ -76,7 +76,7 @@ struct reiser4_subvol *reiser4_alloc_subvol(u8 *uuid, const char *path,
 		kfree(subv);
 		return NULL;
 	}
-	subv->name = kstrdup(path, GFP_NOFS);
+	subv->name = kstrdup(path, GFP_KERNEL);
 	if (!subv->name) {
 		kfree(subv);
 		return NULL;
@@ -233,7 +233,7 @@ int reiser4_scan_device(const char *path, fmode_t flags, void *holder,
 	 */
 	page = read_cache_page_gfp(bdev->bd_inode->i_mapping,
 				   REISER4_MAGIC_OFFSET >> PAGE_SHIFT,
-				   GFP_NOFS);
+				   GFP_KERNEL);
 	if (IS_ERR_OR_NULL(page))
 		goto bdev_put;
 	master = kmap(page);
@@ -397,31 +397,26 @@ int reiser4_activate_subvol(struct super_block *super,
 	return ret;
 }
 
-reiser4_subvol **alloc_mirror_slot(u32 num_mirrors)
+mirror_t *alloc_one_mirror_slot(u32 nr_mirrors)
 {
-	reiser4_subvol **result;
-
-	result = kzalloc(num_mirrors * sizeof(*result), GFP_KERNEL);
-	return result;
+	return kzalloc(nr_mirrors * sizeof(mirror_t), GFP_KERNEL);
 }
 
-void *alloc_mirror_slots(__u32 nr_origins)
+slot_t *alloc_mirror_slots(u32 nr_slots)
 {
-	void *result;
-
-	result = kzalloc(nr_origins * sizeof(result), GFP_KERNEL);
-	return result;
+	return kzalloc(nr_slots * sizeof(slot_t), GFP_KERNEL);
 }
 
-void free_mirror_slot(reiser4_subvol **slot)
+void free_mirror_slot_at(reiser4_volume *vol, int idx)
 {
-	assert("edward-2156", slot != NULL);
-	kfree(slot);
+	assert("edward-2190", vol->subvols[idx] != NULL);
+
+	kfree(vol->subvols[idx]);
+	vol->subvols[idx] = NULL;
 }
 
-void free_mirror_slots(reiser4_subvol ***slots)
+void free_mirror_slots(slot_t *slots)
 {
-	assert("edward-2157", slots != NULL);
 	kfree(slots);
 }
 
@@ -431,9 +426,9 @@ void free_subvols_set(reiser4_volume *vol)
 
 	if (vol->subvols != NULL) {
 		u32 i;
-		for (i = 0; i < vol_nr_origins(vol); i++)
+		for (i = 0; i < vol->nr_slots; i++)
 			if (vol->subvols[i])
-				free_mirror_slot(vol->subvols[i]);
+				free_mirror_slot_at(vol, i);
 		free_mirror_slots(vol->subvols);
 		vol->subvols = NULL;
 	}
@@ -523,9 +518,9 @@ void reiser4_deactivate_volume(struct super_block *super)
 }
 
 /**
- * Set a registered subvolume @subv to the table
- * of activated subvolumes of logical volume @vol.
- * Allocate arrays of pointers, if needed.
+ * Set a pointer to registered subvolume @subv to the respective
+ * cell in the matrix of activated subvolumes of logical volume @vol.
+ * Allocate column of the matrix, if needed.
  */
 static int set_activated_subvol(reiser4_volume *vol, reiser4_subvol *subv)
 {
@@ -535,20 +530,26 @@ static int set_activated_subvol(reiser4_volume *vol, reiser4_subvol *subv)
 
 	if (vol->subvols == NULL) {
 		/*
-		 * allocate set for original subvolumes
+		 * allocate array of pointers to columns
 		 */
-		vol->subvols = alloc_mirror_slots(vol_nr_origins(vol));
+		u32 count;
+
+		count = vol->nr_slots;
+		if (!count)
+			count = 1;
+		vol->subvols = alloc_mirror_slots(count);
 		if (vol->subvols == NULL) {
 			ret = -ENOMEM;
 			goto out;
 		}
+		vol->nr_slots = count;
 	}
 	if (vol->subvols[orig_id] == NULL) {
 		/*
-		 * allocate set for mirrors
+		 * allocate a column (array of pointers to mirrors)
 		 */
 		vol->subvols[orig_id] =
-			alloc_mirror_slots(1 + subv->num_replicas);
+			alloc_one_mirror_slot(1 + subv->num_replicas);
 		if (vol->subvols[orig_id] == NULL) {
 			ret = -ENOMEM;
 			goto out;

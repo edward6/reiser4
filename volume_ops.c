@@ -32,6 +32,7 @@ static int reiser4_print_volume(struct super_block *sb,
 	args->u.vol.vpid = vol->vol_plug->h.id;
 	args->u.vol.dpid = vol->dist_plug->h.id;
 	args->u.vol.fs_flags = get_super_private(sb)->fs_flags;
+	args->u.vol.nr_slots = vol->nr_slots;
 	args->u.vol.nr_volinfo_blocks = vinfo->num_volmaps + vinfo->num_voltabs;
 	return 0;
 }
@@ -207,6 +208,8 @@ static int reiser4_add_brick(struct super_block *sb,
 		reiser4_unregister_subvol(new);
 		return ret;
 	}
+	clear_bit(SUBVOL_IS_ORPHAN, &new->flags);
+
 	printk("reiser4 (%s): Brick %s has been added. Started balancing...\n",
 	       sb->s_id, new->name);
 
@@ -225,8 +228,6 @@ static int reiser4_add_brick(struct super_block *sb,
 	}
 	printk("reiser4 (%s): Balancing completed in %lu seconds.\n",
 	       sb->s_id, get_seconds() - start);
-
-	clear_bit(SUBVOL_IS_ORPHAN, &new->flags);
 
 	reiser4_volume_clear_unbalanced(sb);
 	return capture_brick_super(get_meta_subvol());

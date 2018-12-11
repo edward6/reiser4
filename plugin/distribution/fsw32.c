@@ -3,7 +3,7 @@
   Inventor, Author: Eduard O. Shishkin
   Implementation over 32-bit hash.
 
-  Copyright (c) 2014-2017 Eduard O. Shishkin
+  Copyright (c) 2014-2018 Eduard O. Shishkin
 
   This file is licensed to you under your choice of the GNU Lesser
   General Public License, version 3 or any later version (LGPLv3 or
@@ -22,6 +22,7 @@
 #define MAX_BUCKETS    (1u << MAX_SHIFT)
 #define MIN_NUMS_BITS  (10)
 #define WORDSIZE       (sizeof(u32))
+#define FSW32_LAZY     (1)
 
 static inline void *mem_alloc(u64 len)
 {
@@ -44,8 +45,8 @@ static inline struct fsw32_aid *fsw32_private(reiser4_aid *aid)
 static void init_fibers_by_tab(u32 numb,
 			       u32 nums_bits,
 			       u32 *tab,
-			       void *vec,
-			       void *(*fiber_at)(void *vec, u64 idx),
+			       bucket_t *vec,
+			       void *(*fiber_at)(bucket_t *vec, u64 idx),
 			       u32 *weights)
 {
 	u32 i;
@@ -64,8 +65,8 @@ static void init_fibers_by_tab(u32 numb,
 
 static void init_tab_by_fibers(u32 numb,
 			       u32 *tab,
-			       void *vec,
-			       void *(*fiber_at)(void *vec, u64 idx),
+			       bucket_t *vec,
+			       void *(*fiber_at)(bucket_t *vec, u64 idx),
 			       u32 *weights)
 {
 	u32 i, j;
@@ -98,7 +99,7 @@ u32 *init_tab_from_scratch(u32 *weights, u32 numb, u32 nums_bits)
  * specified sum @val of its components
  */
 static void calibrate(u64 num, u64 val,
-		      void *vec, u64 (*vec_el_get)(void *vec, u64 idx),
+		      bucket_t *vec, u64 (*vec_el_get)(bucket_t *vec, u64 idx),
 		      void *ret, u64 (*ret_el_get)(void *ret, u64 idx),
 		      void (ret_el_set)(void *ret, u64 idx, u64 value))
 {
@@ -147,16 +148,16 @@ static void array64_el_set(void *array, u64 idx, u64 val)
 	((u64 *)array)[idx] = val;
 }
 
-static void calibrate32(u32 num, u32 val, void *vec,
-			u64 (*vec_el_get)(void *vec, u64 idx),
+static void calibrate32(u32 num, u32 val, bucket_t *vec,
+			u64 (*vec_el_get)(bucket_t *vec, u64 idx),
 			u32 *ret)
 {
 	calibrate(num, val, vec, vec_el_get,
 		  ret, array32_el_get, array32_el_set);
 }
 
-static void calibrate64(u64 num, u64 val, void *vec,
-			u64 (*vec_el_get)(void *vec, u64 idx),
+static void calibrate64(u64 num, u64 val, bucket_t *vec,
+			u64 (*vec_el_get)(bucket_t *vec, u64 idx),
 			u64 *ret)
 {
 	calibrate(num, val, vec, vec_el_get,
@@ -164,8 +165,8 @@ static void calibrate64(u64 num, u64 val, void *vec,
 }
 
 static int create_systab(u32 nums_bits, u32 **tab,
-			 u32 numb, u32 *weights, void *vec,
-			 void *(*fiber_at)(void *vec, u64 idx))
+			 u32 numb, u32 *weights, bucket_t *vec,
+			 void *(*fiber_at)(bucket_t *vec, u64 idx))
 {
 	u32 nums = 1 << nums_bits;
 
@@ -200,10 +201,10 @@ static void free_cloned_systab(struct fsw32_aid *aid)
 }
 
 static int create_fibers(u32 nums_bits, u32 *tab,
-			 u32 new_numb, u32 *new_weights, void *vec,
-			 void *(*fiber_at)(void *vec, u64 idx),
-			 void (*fiber_set_at)(void *vec, u64 idx, void *fib),
-			 u64 *(*fiber_lenp_at)(void *vec, u64 idx))
+			 u32 new_numb, u32 *new_weights, bucket_t *vec,
+			 void *(*fiber_at)(bucket_t *vec, u64 idx),
+			 void (*fiber_set_at)(bucket_t *vec, u64 idx, void *fib),
+			 u64 *(*fiber_lenp_at)(bucket_t *vec, u64 idx))
 {
 	u32 i;
 	for(i = 0; i < new_numb; i++) {
@@ -227,9 +228,9 @@ static int create_fibers(u32 nums_bits, u32 *tab,
 }
 
 #if REISER4_DEBUG
-void print_fiber(u32 id, void *vec, u32 num_sgs,
-		 void *(*fiber_at)(void *vec, u64 idx),
-		 u64 *(*fiber_lenp_at)(void *vec, u64 idx))
+void print_fiber(u32 id, bucket_t *vec,
+		 void *(*fiber_at)(bucket_t *vec, u64 idx),
+		 u64 *(*fiber_lenp_at)(bucket_t *vec, u64 idx))
 {
 	u32 i;
 	u32 *fib = fiber_at(vec, id);
@@ -243,9 +244,10 @@ void print_fiber(u32 id, void *vec, u32 num_sgs,
 }
 #endif
 
-static void release_fibers(u32 numb, void *vec,
-			   void *(*fiber_at)(void *vec, u64 idx),
-			   void (*fiber_set_at)(void *vec, u64 idx, void *fib))
+static void release_fibers(u32 numb, bucket_t *vec,
+			   void *(*fiber_at)(bucket_t *vec, u64 idx),
+			   void (*fiber_set_at)(bucket_t *vec, u64 idx,
+						void *fib))
 {
 	u32 i;
 
@@ -259,27 +261,26 @@ static void release_fibers(u32 numb, void *vec,
 
 static int replace_fibers(u32 nums_bits, u32 *tab,
 			  u32 old_numb, u32 new_numb,
-			  u32 *new_weights, void *vec,
-			  void *(*fiber_at)(void *vec, u64 idx),
-			  void (*fiber_set_at)(void *vec, u64 idx, void *fib),
-			  u64 *(*fiber_lenp_at)(void *vec, u64 idx))
+			  u32 *new_weights, bucket_t *vec,
+			  void *(*fiber_at)(bucket_t *vec, u64 idx),
+			  void (*fiber_set_at)(bucket_t *vec, u64 idx, void *fib),
+			  u64 *(*fiber_lenp_at)(bucket_t *vec, u64 idx))
 {
 	release_fibers(old_numb, vec, fiber_at, fiber_set_at);
 	return create_fibers(nums_bits, tab, new_numb, new_weights, vec,
 			     fiber_at, fiber_set_at, fiber_lenp_at);
 }
 
-/*
- * Fix up system when performing increase operation.
- * if @new is true, then a new bucket has been inserted at @target_pos.
+/**
+ * If @new is true, then a new bucket has been inserted at @target_pos.
  * @vec points to a new set of buckets
  */
-static int balance_tab_inc(u32 new_numb, u32 *tab,
-			   u32 *old_weights, u32 *new_weights,
-			   u32 target_pos,
-			   void *vec,
-			   void *(*fiber_at)(void *vec, u64 idx),
-			   int new)
+static int balance_fibers_inc(u32 new_numb, u32 *tab,
+			      u32 *old_weights, u32 *new_weights,
+			      u32 target_pos,
+			      bucket_t *vec,
+			      void *(*fiber_at)(bucket_t *vec, u64 idx),
+			      int new)
 {
 	int ret = 0;
 	u32 i, j;
@@ -317,13 +318,12 @@ static int balance_tab_inc(u32 new_numb, u32 *tab,
 	 * steal segments of all fibers to the right of target_pos
 	 */
 	for(i = target_pos + 1; i < new_numb; i++)
-		if (new) {
+		if (new && !FSW32_LAZY) {
 			/*
-			 * a new bucket has been inserted, so
-			 * internal id of all buckets to the right of
-			 * target_pos (in the new set of buckets!)
-			 * get incremented, thus system table needs
-			 * corrections
+			 * after inserting a new bucket, internal IDs
+			 * of all buckets to the right of @target_pos
+			 * (in the new set of buckets!) get incremented,
+			 * thus system table needs corrections
 			 */
 			for(j = 0; j < new_weights[i]; j++) {
 				u32 *fib;
@@ -359,18 +359,17 @@ static int balance_tab_inc(u32 new_numb, u32 *tab,
 }
 
 /**
- * Fix up system table when performing decrease.
  * @removed (if not NULL) points to the bucket that has been
  * removed from @target_pos at AID;
  * @vec points to the new set of buckets.
  */
-static int balance_tab_dec(u32 old_numb, u32 *tab,
-			   u32 *old_weights, u32 *new_weights,
-			   u32 target_pos,
-			   void *vec,
-			   void *(*fiber_at)(void *vec, u64 idx),
-			   void *(*fiber_of)(void *bucket),
-			   void *removed)
+static int balance_fibers_dec(u32 old_numb, u32 *tab,
+			      u32 *old_weights, u32 *new_weights,
+			      u32 target_pos,
+			      void *vec,
+			      void *(*fiber_at)(bucket_t *vec, u64 idx),
+			      void *(*fiber_of)(bucket_t bucket),
+			      bucket_t removed)
 {
 	int ret = 0;
 	u32 i, j;
@@ -417,7 +416,7 @@ static int balance_tab_dec(u32 old_numb, u32 *tab,
 	 * distribute segments among all fibers to the right of target_pos
 	 */
 	for(i = target_pos + 1; i < old_numb; i++) {
-		if (removed) {
+		if (removed && !FSW32_LAZY) {
 			/*
 			 * internal ID of all buckets to the right of
 			 * target_pos get decremented, so that system
@@ -457,14 +456,15 @@ static int balance_tab_dec(u32 old_numb, u32 *tab,
 /**
  * Fix up system table after splitting segments with factor (1 << @fact_bits)
  */
-static int balance_tab_spl(u32 numb, u32 nums_bits,
-			   u32 **tabp,
-			   u32 *old_weights, u32 *new_weights,
-			   u32 fact_bits,
-			   void *vec,
-			   void *(*fiber_at)(void *vec, u64 idx),
-			   void (*fiber_set_at)(void *vec, u64 idx, void *fib),
-			   u64 *(*fiber_lenp_at)(void *vec, u64 idx))
+static int balance_fibers_spl(u32 numb, u32 nums_bits,
+			      u32 **tabp,
+			      u32 *old_weights, u32 *new_weights,
+			      u32 fact_bits,
+			      void *vec,
+			      void *(*fiber_at)(bucket_t *vec, u64 idx),
+			      void (*fiber_set_at)(bucket_t *vec,
+						   u64 idx, void *fib),
+			      u64 *(*fiber_lenp_at)(bucket_t *vec, u64 idx))
 {
 	u32 ret = 0;
 	u32 i,j,k = 0;
@@ -577,9 +577,14 @@ void donev_fsw32(reiser4_aid *raid)
 
 	aid = fsw32_private(raid);
 
-	if (aid->weights != NULL)
+	if (aid->weights != NULL) {
 		mem_free(aid->weights);
-	aid->weights = NULL;
+		aid->weights = NULL;
+	}
+	if (aid->buckets) {
+		kfree(aid->buckets);
+		aid->buckets = NULL;
+	}
 }
 
 /**
@@ -646,7 +651,7 @@ int initr_fsw32(reiser4_aid *raid, int numb, int nums_bits, int new)
  * @ops: operations to access the buckets;
  * @raid: AID descriptor to initialize.
  */
-int initv_fsw32(void *buckets,
+int initv_fsw32(bucket_t *vec,
 		u64 numb, int nums_bits,
 		struct reiser4_aid_ops *ops,
 		reiser4_aid *raid)
@@ -671,7 +676,7 @@ int initv_fsw32(void *buckets,
 	if (!aid->weights)
 		goto error;
 
-	calibrate32(numb, nums, buckets, ops->cap_at, aid->weights);
+	calibrate32(numb, nums, vec, ops->cap_at, aid->weights);
 
 	if (aid->tab[CUR_VOL_CONF] == NULL) {
 		ret = initr_fsw32(raid, numb, nums_bits, CUR_VOL_CONF);
@@ -682,26 +687,26 @@ int initv_fsw32(void *buckets,
 
 	if (aid->tab[CUR_VOL_CONF] == NULL)
 		ret = create_systab(nums_bits, &aid->tab[CUR_VOL_CONF],
-				    numb, aid->weights, buckets,
+				    numb, aid->weights, vec,
 				    ops->fib_at);
 	else
 		ret = create_fibers(nums_bits, aid->tab[CUR_VOL_CONF],
-				    numb, aid->weights, buckets,
+				    numb, aid->weights, vec,
 				    ops->fib_at,
 				    ops->fib_set_at,
 				    ops->fib_lenp_at);
 	if (ret)
 		goto error;
 
-	aid->buckets = buckets;
+	aid->buckets = vec;
 	aid->ops = ops;
 
 #if 0
 	{
 		int i;
 		for (i = 0; i < numb; i++)
-			print_fiber(i, aid->tab[CUR_VOL_CONF],
-				    nums, ops->fib_at, ops->fib_lenp_at);
+			print_fiber(i, aid->buckets,
+				    ops->fib_at, ops->fib_lenp_at);
 	}
 #endif
 	return 0;
@@ -754,9 +759,9 @@ int inc_fsw32(reiser4_aid *raid, u64 target_pos, int new)
 
 	calibrate32(new_numb, nums,
 		    aid->buckets, aid->ops->cap_at, new_weights);
-	ret = balance_tab_inc(new_numb, aid->tab[NEW_VOL_CONF],
-			      aid->weights, new_weights, target_pos,
-			      aid->buckets, aid->ops->fib_at, new);
+	ret = balance_fibers_inc(new_numb, aid->tab[NEW_VOL_CONF],
+				 aid->weights, new_weights, target_pos,
+				 aid->buckets, aid->ops->fib_at, new);
 	if (ret)
 		goto error;
 
@@ -766,6 +771,22 @@ int inc_fsw32(reiser4_aid *raid, u64 target_pos, int new)
 	mem_free(aid->weights);
 	aid->weights = new_weights;
 	aid->numb = new_numb;
+
+#if 0
+	create_fibers(aid->nums_bits, aid->tab[NEW_VOL_CONF],
+		      new_numb, new_weights, aid->buckets,
+		      aid->ops->fib_at, aid->ops->fib_set_at,
+		      aid->ops->fib_lenp_at);
+	{
+		int i;
+		for (i = 0; i < new_numb; i++)
+			print_fiber(i, aid->buckets,
+				    aid->ops->fib_at,
+				    aid->ops->fib_lenp_at);
+	}
+	release_fibers(new_numb, aid->buckets,
+		       aid->ops->fib_at, aid->ops->fib_set_at);
+#endif
 	return 0;
  error:
 	if (new_weights)
@@ -780,33 +801,32 @@ int inc_fsw32(reiser4_aid *raid, u64 target_pos, int new)
  * rebalancing and compare it with the new array of capacities.
  *
  * @numb: number of buckets after shrinking/removing a bucket
- * @buckets: new set of buckets with updated capacities after
- *           shrinking/removal before rebalancing
  * @used: amount of occupied space on the AID.
  */
-int cfs_fsw32(reiser4_aid *raid, u64 numb, void *buckets, u64 used)
+int cfs_fsw32(reiser4_aid *raid, u64 numb, u64 used)
 {
 	u64 i;
 	int ret = 0;
 	u64 *new_occ;
 	struct fsw32_aid *aid = fsw32_private(raid);
+	bucket_t *vec = aid->buckets;
 
 	new_occ = mem_alloc(numb * sizeof(u64));
 	if (!new_occ)
 		return -ENOMEM;
 
-	calibrate64(numb, used, buckets, aid->ops->cap_at, new_occ);
+	calibrate64(numb, used, vec, aid->ops->cap_at, new_occ);
 
 	for (i = 0; i < numb; i++) {
 #if REISER4_DEBUG
 		notice("edward-2145",
 		       "Brick %llu: data capacity: %llu, min required: %llu",
-		       i, aid->ops->cap_at(buckets, i), new_occ[i]);
+		       i, aid->ops->cap_at(vec, i), new_occ[i]);
 #endif
-		if (aid->ops->cap_at(buckets, i) < new_occ[i]) {
+		if (aid->ops->cap_at(vec, i) < new_occ[i]) {
 			warning("edward-2070",
 	"Not enough data capacity (%llu) of brick %llu (required %llu)",
-				aid->ops->cap_at(buckets, i),
+				aid->ops->cap_at(vec, i),
 				i,
 				new_occ[i]);
 			ret = -ENOSPC;
@@ -822,7 +842,7 @@ int cfs_fsw32(reiser4_aid *raid, u64 numb, void *buckets, u64 used)
  * If @victim is not NULL, then the whole bucket has been removed
  * from @target_pos.
  */
-int dec_fsw32(reiser4_aid *raid, u64 target_pos, void *victim)
+int dec_fsw32(reiser4_aid *raid, u64 target_pos, bucket_t victim)
 {
 	int ret = 0;
 	u32 nums;
@@ -850,16 +870,20 @@ int dec_fsw32(reiser4_aid *raid, u64 target_pos, void *victim)
 
 	calibrate32(new_numb, nums,
 		    aid->buckets, aid->ops->cap_at, new_weights);
-	ret = balance_tab_dec(old_numb, aid->tab[NEW_VOL_CONF],
-			      aid->weights, new_weights, target_pos,
-			      aid->buckets, aid->ops->fib_at, aid->ops->fib_of,
-			      victim);
+	ret = balance_fibers_dec(old_numb, aid->tab[NEW_VOL_CONF],
+				 aid->weights, new_weights, target_pos,
+				 aid->buckets, aid->ops->fib_at,
+				 aid->ops->fib_of, victim);
 	if (ret)
 		goto error;
 
-	release_fibers(old_numb,
+	release_fibers(new_numb,
 		       aid->buckets, aid->ops->fib_at,
 		       aid->ops->fib_set_at);
+	release_fibers(1,
+		       &victim, aid->ops->fib_at,
+		       aid->ops->fib_set_at);
+
 	mem_free(aid->weights);
 	aid->weights = new_weights;
 	aid->numb = new_numb;
@@ -890,15 +914,15 @@ int spl_fsw32(reiser4_aid *raid, u32 fact_bits)
 	}
 	calibrate32(aid->numb, new_nums,
 		    aid->buckets, aid->ops->cap_at, new_weights);
-	ret = balance_tab_spl(aid->numb, aid->nums_bits,
-			      &aid->tab[NEW_VOL_CONF],
-			      aid->weights,
-			      new_weights,
-			      fact_bits,
-			      aid->buckets,
-			      aid->ops->fib_at,
-			      aid->ops->fib_set_at,
-			      aid->ops->fib_lenp_at);
+	ret = balance_fibers_spl(aid->numb, aid->nums_bits,
+				 &aid->tab[NEW_VOL_CONF],
+				 aid->weights,
+				 new_weights,
+				 fact_bits,
+				 aid->buckets,
+				 aid->ops->fib_at,
+				 aid->ops->fib_set_at,
+				 aid->ops->fib_lenp_at);
 	if (ret)
 		goto error;
 	mem_free(aid->weights);
@@ -961,6 +985,13 @@ void *get_tab_fsw32(reiser4_aid *raid, int new)
 	struct fsw32_aid *aid = fsw32_private(raid);
 
 	return aid->tab[new];
+}
+
+bucket_t *get_buckets_fsw32(reiser4_aid *raid)
+{
+	struct fsw32_aid *aid = fsw32_private(raid);
+
+	return aid->buckets;
 }
 
 /*

@@ -543,10 +543,6 @@ int kill_hook_extent(const coord_t *coord, pos_in_node_t from,
 			/*
 			 * some jnodes corresponding to this unallocated extent
 			 */
-			assert("edward-1937",
-			       subv == calc_data_subvol(inode,
-							offset << PAGE_SHIFT));
-
 			fake_allocated2free(length, 0 /* unformatted */, subv);
 			skip = 0;
 			offset += length;
@@ -562,10 +558,6 @@ int kill_hook_extent(const coord_t *coord, pos_in_node_t from,
 			 * BA_DEFER bit parameter is turned on because blocks
 			 * which get freed are not safe to be freed immediately
 			 */
-			assert("edward-1938",
-			       subv == calc_data_subvol(inode,
-							offset << PAGE_SHIFT));
-
 			reiser4_dealloc_blocks(&start, &length,
 					       0, /* not used */
 					       BA_DEFER, /* unformatted with defer */

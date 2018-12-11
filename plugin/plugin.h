@@ -524,18 +524,18 @@ typedef struct txmod_plugin {
 struct reiser4_aid_ops {
 	/* Get capacity of a bucket with serial number @idx
 	   in the array @buckets */
-	u64 (*cap_at)(void *buckets, u64 idx);
+	u64 (*cap_at)(bucket_t *buckets, u64 idx);
 	/* Get fiber of specified @bucket */
-	void *(*fib_of)(void *bucket);
+	void *(*fib_of)(bucket_t bucket);
 	/* Get fiber of a bucket with serial number @idx
 	   in the array @buckets */
-	void *(*fib_at)(void *buckets, u64 idx);
+	void *(*fib_at)(bucket_t *buckets, u64 idx);
 	/* Set fiber @fib of a bucket with serial number @idx
 	   in the array @buckets*/
-	void (*fib_set_at)(void *buckets, u64 idx, void *fib);
+	void (*fib_set_at)(bucket_t *buckets, u64 idx, void *fib);
 	/* Get a pointer to fiber length of a bucket with
 	   serial number @idx in the array @buckets */
-	u64 *(*fib_lenp_at)(void *buckets, u64 idx);
+	u64 *(*fib_lenp_at)(bucket_t *buckets, u64 idx);
 };
 
 struct dist_regular_ops {
@@ -548,12 +548,12 @@ struct dist_regular_ops {
 
 struct dist_volume_ops {
 	/* is called at the beginning of any volume operation */
-	int (*init)(void *buckets, u64 num_buckets, int num_sgs_bits,
-		    struct reiser4_aid_ops *ops, reiser4_aid *new);
+	int (*init)(bucket_t *buckets, u64 num_buckets, int num_sgs_bits,
+		    struct reiser4_aid_ops *ops, reiser4_aid *raid);
 	/* is called at the end of any volume operation */
 	void (*done)(reiser4_aid *raid);
 	/* check if there is enough free space on LV to perform operations */
-	int (*cfs)(reiser4_aid *raid, u64 num, void *bricks, u64 space_used);
+	int (*cfs)(reiser4_aid *raid, u64 num, u64 space_used);
 	/* increase capacity of a storage array */
 	int (*inc)(reiser4_aid *raid, u64 target_pos, int new);
 	/* decrease capacity of a storage array */
@@ -566,6 +566,7 @@ struct dist_volume_ops {
 	void (*unpack)(reiser4_aid *raid, char *from, u64 dst_off, u64 count, int new);
 	void (*dump)(reiser4_aid *raid, char *to, u64 offset, u32 size, int new);
 	void *(*get_tab)(reiser4_aid *raid, int new);
+	bucket_t *(*get_buckets)(reiser4_aid *raid);
 };
 
 typedef struct distribution_plugin {

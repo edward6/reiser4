@@ -648,7 +648,7 @@ static struct dentry *reiser4_mount(struct file_system_type *fs_type, int flags,
 		/*
 		 * Scan all registered bricks to find meta-data brick
 		 */
-		subv = find_meta_brick(host);
+		subv = find_meta_brick_by_id(host);
 		if (subv == NULL) {
 			warning("edward-1968",
 				"%s: Can't find meta-data brick.", dev_name);

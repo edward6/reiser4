@@ -75,7 +75,8 @@ distribution_plugin distribution_plugins[LAST_DISTRIB_ID] = {
 			.pack = pack_fsw32,
 			.unpack = unpack_fsw32,
 			.dump = dump_fsw32,
-			.get_tab = get_tab_fsw32
+			.get_tab = get_tab_fsw32,
+			.get_buckets = get_buckets_fsw32
 		}
 	}
 };
