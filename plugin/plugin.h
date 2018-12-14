@@ -536,6 +536,10 @@ struct reiser4_aid_ops {
 	/* Get a pointer to fiber length of a bucket with
 	   serial number @idx in the array @buckets */
 	u64 *(*fib_lenp_at)(bucket_t *buckets, u64 idx);
+	/* translate index in DSA to brick ID */
+	u64 (*idx2id)(u32 idx);
+	/* translate brick ID to index in DSA */
+	u32 (*id2idx)(u64 id);
 };
 
 struct dist_regular_ops {

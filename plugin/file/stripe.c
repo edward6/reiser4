@@ -873,7 +873,7 @@ int balance_stripe(struct inode *inode)
 				   &coord, &lh, ZNODE_WRITE_LOCK,
 				   FIND_MAX_NOT_MORE_THAN,
 				   TWIG_LEVEL, TWIG_LEVEL,
-				   0, NULL);
+				   CBK_UNIQUE, NULL);
 		if (IS_CBKERR(ret)) {
 			done_lh(&lh);
 			drop_exclusive_access(uf);

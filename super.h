@@ -137,9 +137,9 @@ struct reiser4_subvol {
 	char *name;
 	fmode_t mode;
 	struct block_device *bdev;
-	u64 id; /* internal ID (index in the array of subvolumes that LV
-		   is composed of */
+	u64 id; /* internal ID (index in the array of slots) */
 	int mirror_id; /* index in the array of mirrors (0 indicates origin) */
+	u32 dsa_idx; /* index in Data Storage Array (DSA) */
 	int num_replicas; /* number of replicas, (mirrors excluding original) */
 	u64 data_room; /* number of blocks allocated to store data */
 	u64 fiber_len;

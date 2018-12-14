@@ -13,6 +13,14 @@
 #define INVALID_SUBVOL_ID   (0xffffffff)
 #define METADATA_SUBVOL_ID  (0)
 
+extern void deactivate_subvol(struct super_block *super, reiser4_subvol *subv);
+extern reiser4_subvol *find_meta_brick_by_id(reiser4_volume *vol);
+extern slot_t alloc_one_mirror_slot(u32 nr_mirrors);
+extern slot_t *alloc_mirror_slots(u32 nr_slots);
+extern void free_mirror_slot_at(reiser4_volume *vol, u64 idx);
+extern void free_mirror_slots(reiser4_subvol ***slots);
+extern int brick_belongs_volume(reiser4_volume *vol, reiser4_subvol *subv);
+
 static inline int is_meta_brick_id(u64 id)
 {
 	return id == METADATA_SUBVOL_ID;
@@ -35,21 +43,10 @@ static inline int meta_brick_belongs_aid(void)
 	return subvol_is_set(get_meta_subvol(), SUBVOL_HAS_DATA_ROOM);
 }
 
-static inline int data_brick_belongs_volume(reiser4_subvol *this)
-{
-	u64 orig_id, mirr_id;
-
-	for (orig_id = 1; orig_id < current_nr_origins(); orig_id ++)
-		for_each_mirror(orig_id, mirr_id)
-			if (this == current_origin(mirr_id))
-				return 1;
-	return 0;
-}
-
-static inline int brick_belongs_aid(reiser4_subvol *this)
+static inline int brick_belongs_aid(reiser4_volume *vol, reiser4_subvol *this)
 {
 	return is_meta_brick(this) ? meta_brick_belongs_aid() :
-		data_brick_belongs_volume(this);
+		brick_belongs_volume(vol, this);
 }
 
 /*
@@ -79,13 +76,6 @@ static inline slot_t *current_aid_subvols(void)
 {
 	return aid_subvols(current_subvols());
 }
-
-extern void deactivate_subvol(struct super_block *super, reiser4_subvol *subv);
-extern reiser4_subvol *find_meta_brick_by_id(reiser4_volume *vol);
-extern slot_t alloc_one_mirror_slot(u32 nr_mirrors);
-extern slot_t *alloc_mirror_slots(u32 nr_slots);
-extern void free_mirror_slot_at(reiser4_volume *vol, u64 idx);
-extern void free_mirror_slots(reiser4_subvol ***slots);
 
 /*
   Local variables:

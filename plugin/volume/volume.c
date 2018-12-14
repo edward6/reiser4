@@ -112,29 +112,43 @@ reiser4_subvol *find_meta_brick_by_id(reiser4_volume *vol)
 
 /**
  * Construct an array of abstract buckets by logical volume @vol.
- * The notion of bucket encapsulates an original brick (without replicas).
+ * The notion of bucket encapsulates an original brick (without
+ * replicas). That array should include only DSA members.
  */
-static bucket_t *create_buckets(reiser4_volume *vol, u32 nr)
+static bucket_t *create_buckets(reiser4_volume *vol, u32 nr_buckets)
 {
-	u32 i;
 	bucket_t *ret;
+	u32 i, j, off;
+#if REISER4_DEBUG
+	u32 nr_dsa_bricks = num_aid_subvols(vol);
 
 	assert("edward-2180",
-	       nr == atomic_read(&vol->nr_origins) ||
-	       nr == atomic_read(&vol->nr_origins) + 1);
+	       nr_buckets == nr_dsa_bricks ||
+	       nr_buckets == nr_dsa_bricks + 1);
+#endif
+	off = meta_brick_belongs_aid() ? 0 : 1;
 
-	ret = kzalloc(nr * sizeof(*ret), GFP_KERNEL);
+	ret = kzalloc(nr_buckets * sizeof(*ret), GFP_KERNEL);
 	if (!ret)
 		return NULL;
 
-	for (i = 0; i < vol->nr_slots; i++) {
-		if (vol->subvols[i] == NULL)
+	for (i = 0, j = 0; i < vol->nr_slots - off; i++) {
+		if (vol->subvols[i + off] == NULL)
 			continue;
-		ret[i] = vol->subvols[i][0];
+		ret[j] = vol->subvols[i + off][0];
+		/*
+		 * set index in DSA
+		 */
+		vol->subvols[i + off][0]->dsa_idx = j;
+		j++;
 	}
 #if REISER4_DEBUG
-	for (i = 0; i < atomic_read(&vol->nr_origins); i++)
+	assert("edward-2194", j == nr_dsa_bricks);
+	for (i = 0; i < nr_dsa_bricks; i++) {
 		assert("edward-2181", ret[i] != NULL);
+		assert("edward-2195",
+		       ((reiser4_subvol *)ret[i])->dsa_idx == i);
+	}
 #endif
 	return (bucket_t *)ret;
 }
@@ -145,8 +159,16 @@ static bucket_t *create_buckets(reiser4_volume *vol, u32 nr)
  */
 static void remove_bucket(reiser4_volume *vol, u32 numb, u32 pos)
 {
+	u32 i;
 	bucket_t *buckets = vol->dist_plug->v.get_buckets(&vol->aid);
-
+	/*
+	 * indexes of all buckets at the right to @pos got decremented
+	 */
+	for (i = pos + 1; i < numb; i++) {
+		assert("edward-2196",
+		       ((reiser4_subvol *)(buckets[i]))->dsa_idx != 0);
+		((reiser4_subvol *)(buckets[i]))->dsa_idx --;
+	}
 	memmove(buckets + pos, buckets + pos + 1,
 		(numb - pos - 1) * sizeof(*buckets));
 	buckets[numb - 1] = NULL;
@@ -158,11 +180,31 @@ static void remove_bucket(reiser4_volume *vol, u32 numb, u32 pos)
  */
 static void insert_bucket(reiser4_volume *vol, bucket_t this, u32 numb, u32 pos)
 {
+	u32 i;
 	bucket_t *buckets = vol->dist_plug->v.get_buckets(&vol->aid);
+	/*
+	 * indexes of all buckets at @pos and at the right to @pos
+	 * got incremented
+	 */
+	for (i = pos; i < numb; i++)
+		((reiser4_subvol *)(buckets[i]))->dsa_idx ++;
 
 	memmove(buckets + pos + 1, buckets + pos,
 		(numb - pos) * sizeof(*buckets));
 	buckets[pos] = this;
+}
+
+static u32 id2idx(u64 id)
+{
+	return current_subvols()[id][0]->dsa_idx;
+}
+
+static u64 idx2id(u32 idx)
+{
+	reiser4_volume *vol = current_volume();
+	bucket_t *vec = vol->dist_plug->v.get_buckets(&vol->aid);
+
+	return ((reiser4_subvol *)(vec[idx]))->id;
 }
 
 static int num_voltab_nodes(reiser4_volume *vol, int nums_bits)
@@ -783,17 +825,23 @@ static u64 data_blocks_occ_at(slot_t *slots, u64 idx)
  */
 static u64 get_pos_in_vol(reiser4_volume *vol, reiser4_subvol *subv)
 {
-	u64 i = 0;
+	u64 i, j;
 
-	while (1) {
+	for (i = 0, j = 0; i < vol->nr_slots; i++) {
 		if (!vol->subvols[i])
 			continue;
 		if (vol->subvols[i][0] == subv)
-			break;
-		i++;
-		assert("edward-2182", i < vol->nr_slots);
+			return j;
+		j++;
 	}
-	return i;
+	assert("edward-2197", i == vol->nr_slots);
+	assert("edward-2198", j == vol_nr_origins(vol));
+	return j;
+}
+
+int brick_belongs_volume(reiser4_volume *vol, reiser4_subvol *subv)
+{
+	return get_pos_in_vol(vol, subv) < vol_nr_origins(vol);
 }
 
 /**
@@ -858,8 +906,13 @@ static u32 find_first_empty_slot(reiser4_volume *vol)
 {
 	u32 i;
 
+	assert("edward-2200", vol->subvols[0] != NULL);
+	/*
+	 * slot #0 is always busy (it is occupied by meta-data
+	 * brick), so we start to find from the slot #1
+	 */
 	for (i = 1; i < vol->nr_slots; i++)
-		if (vol->subvols[i] == 0)
+		if (vol->subvols[i] == NULL)
 			return i;
 	assert("edward-2183", vol->nr_slots == vol_nr_origins(vol));
 	return vol->nr_slots;
@@ -984,7 +1037,7 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 		warning("edward-1962", "Can't add brick of zero capacity");
 		return -EINVAL;
 	}
-	if (brick_belongs_aid(new)) {
+	if (brick_belongs_aid(vol, new)) {
 		warning("edward-1963", "Can't add brick to AID twice");
 		return -EINVAL;
 	}
@@ -1109,6 +1162,7 @@ static int remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim,
 	assert("edward-1842", num_aid_subvols(vol) > 1);
 
 	pos_in_vol = get_pos_in_vol(vol, victim);
+	assert("edward-2199", pos_in_vol < old_num_subvols);
 	pos_in_aid = get_pos_in_aid(pos_in_vol);
 
 	if (pos_in_vol == old_num_subvols - 1) {
@@ -1727,7 +1781,9 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 			.fib_of = fib_of_asym,
 			.fib_at = fib_at_asym,
 			.fib_set_at = fib_set_at_asym,
-			.fib_lenp_at = fib_lenp_at_asym
+			.fib_lenp_at = fib_lenp_at_asym,
+			.idx2id = idx2id,
+			.id2idx = id2idx,
 		}
 	}
 };

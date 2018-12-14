@@ -167,7 +167,7 @@ static int reiser4_add_brick(struct super_block *sb,
 			     struct reiser4_vol_op_args *args)
 {
 	int ret;
-	time_t start;
+	int activated_here = 0;
 	reiser4_subvol *new = NULL;
 	reiser4_volume *host_of_new = NULL;
 
@@ -193,41 +193,39 @@ static int reiser4_add_brick(struct super_block *sb,
 			"Failed to add brick (Inappropriate volume)");
 		return -EINVAL;
 	}
-	new->flags |= (1 << SUBVOL_IS_ORPHAN);
+	if (!subvol_is_set(new, SUBVOL_ACTIVATED)) {
+		new->flags |= (1 << SUBVOL_IS_ORPHAN);
 
-	ret = reiser4_activate_subvol(sb, new);
-	if (ret)
-		return ret;
+		ret = reiser4_activate_subvol(sb, new);
+		if (ret)
+			return ret;
+		activated_here = 1;
+	}
 	/*
 	 * add activated new brick
 	 */
 	ret = super_volume(sb)->vol_plug->add_brick(super_volume(sb),
 						    new);
 	if (ret) {
-		reiser4_deactivate_subvol(sb, new);
-		reiser4_unregister_subvol(new);
+		if (activated_here) {
+			reiser4_deactivate_subvol(sb, new);
+			reiser4_unregister_subvol(new);
+		}
 		return ret;
 	}
 	clear_bit(SUBVOL_IS_ORPHAN, &new->flags);
 
-	printk("reiser4 (%s): Brick %s has been added. Started balancing...\n",
-	       sb->s_id, new->name);
-
-	start = get_seconds();
+	printk("reiser4 (%s): Brick %s has been added.", sb->s_id, new->name);
 
 	ret = super_volume(sb)->vol_plug->balance_volume(sb);
-	if (ret) {
+	if (ret)
 		/*
 		 * it is not possible to deactivate the new
 		 * brick already: there can be IO requests
 		 * issued at the beginning of re-balancing
 		 */
-		warning("edward-2139",
-			"%s: Balancing aborted (%d)", sb->s_id, ret);
 		return ret;
-	}
-	printk("reiser4 (%s): Balancing completed in %lu seconds.\n",
-	       sb->s_id, get_seconds() - start);
+	reiser4_txn_restart_current();
 
 	reiser4_volume_clear_unbalanced(sb);
 	return capture_brick_super(get_meta_subvol());

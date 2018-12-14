@@ -455,8 +455,6 @@ static void what_to_do(struct extent_migrate_context *mctx)
 	coord_clear_iplug(coord);
 
 	reset_migration_context(mctx);
-
-	assert("edward-2137", mctx->item_len == reiser4_extent_size(coord));
 	/*
 	 * find split offset in the item, i.e. maximal offset,
 	 * so that data bytes at offset and (offset - 1) belong
