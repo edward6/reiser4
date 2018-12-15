@@ -196,6 +196,9 @@ static void insert_bucket(reiser4_volume *vol, bucket_t this, u32 numb, u32 pos)
 
 static u32 id2idx(u64 id)
 {
+	assert("edward-2202", current_subvols() != NULL);
+	assert("edward-2203", current_subvols()[id]!= NULL);
+
 	return current_subvols()[id][0]->dsa_idx;
 }
 
@@ -468,7 +471,11 @@ static int update_volume_config(reiser4_volume *vol)
 
 	mtd_subv->volmap_loc[CUR_VOL_CONF] = mtd_subv->volmap_loc[NEW_VOL_CONF];
 	mtd_subv->volmap_loc[NEW_VOL_CONF] = 0;
-	mtd_subv->volinfo_gen ++;
+	if (mtd_subv->volmap_loc[CUR_VOL_CONF] != 0)
+		mtd_subv->volinfo_gen ++;
+	else
+		/* absent config - reset generation counter */
+		mtd_subv->volinfo_gen = 0;
 	assert("edward-2176",
 	       mtd_subv->volinfo_gen == vol->volinfo[CUR_VOL_CONF].volinfo_gen);
 
@@ -701,10 +708,10 @@ static int load_volume_asym(reiser4_subvol *subv)
 		 * is stored only in meta-data subvolume
 		 */
 		return 0;
-	if (subv->volmap_loc[CUR_VOL_CONF] == 0) {
-		assert("edward-1847", vol_nr_origins(vol) == 1);
+	if (subv->volmap_loc[CUR_VOL_CONF] == 0)
+		/* configuration is absent */
 		return 0;
-	}
+
 	ret = load_volume_config(subv, CUR_VOL_CONF);
 	if (ret)
 		return ret;
@@ -1229,10 +1236,12 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	dist_plug->v.done(&vol->aid);
 	if (ret)
 		return ret;
-	ret = make_volume_config(vol);
-	if (ret) {
-		free_mirror_slots(new);
-		return ret;
+	if (num_aid_subvols(vol) > 2) {
+		ret = make_volume_config(vol);
+		if (ret) {
+			free_mirror_slots(new);
+			return ret;
+		}
 	}
 	/*
 	 * set unbalanced status and write it to disk

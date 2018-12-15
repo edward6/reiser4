@@ -686,6 +686,9 @@ int initv_fsw32(bucket_t *vec,
 	assert("edward-2172", aid->tab[NEW_VOL_CONF] == NULL);
 	assert("edward-1922", aid->weights == NULL);
 
+	aid->buckets = vec;
+	aid->ops = ops;
+
 	aid->weights = mem_alloc(numb * WORDSIZE);
 	if (!aid->weights)
 		goto error;
@@ -693,9 +696,13 @@ int initv_fsw32(bucket_t *vec,
 	calibrate32(numb, nums, vec, ops->cap_at, aid->weights);
 
 	if (aid->tab[CUR_VOL_CONF] == NULL) {
+		u32 i;
+		assert("edward-2201", numb == 1);
 		ret = initr_fsw32(raid, numb, nums_bits, CUR_VOL_CONF);
 		if (ret)
 			goto error;
+		for (i = 0; i < nums; i++)
+			aid->tab[CUR_VOL_CONF][i] = ops->idx2id(0);
 	}
 	assert("edward-2173", aid->tab[CUR_VOL_CONF] != NULL);
 
@@ -713,9 +720,6 @@ int initv_fsw32(bucket_t *vec,
 				    ops->id2idx);
 	if (ret)
 		goto error;
-
-	aid->buckets = vec;
-	aid->ops = ops;
 
 #if 0
 	{
