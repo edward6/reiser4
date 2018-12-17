@@ -1414,9 +1414,11 @@ static u64 data_subvol_id_calc_asym(oid_t oid, loff_t offset, void *tab)
 	distribution_plugin *dist_plug;
 	u64 stripe_idx;
 
-	if (!tab)
-		return METADATA_SUBVOL_ID;
-
+	if (!tab) {
+		assert("edward-2204",
+		       num_aid_subvols(current_volume()) == 1);
+		return current_aid_subvols()[0][0]->id;
+	}
 	vol = current_volume();
 	dist_plug = current_dist_plug();
 
