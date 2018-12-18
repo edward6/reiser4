@@ -249,8 +249,9 @@ struct dir_entry_iops {
 struct file_iops{
 	int (*get_block) (const coord_t *, sector_t, sector_t *);
 	/*
-	 * key of first byte which is not addressed by the item @coord is set
-	 * to.
+	 * key of first byte which is not addressed by the item
+	 * @coord is set to, but is mergeable with that item.
+	 *
 	 * For example, for extent item with the key
 	 *
 	 * (LOCALITY,4,OBJID,STARTING-OFFSET), and length BLK blocks,

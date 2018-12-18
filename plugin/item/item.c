@@ -559,7 +559,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		.s = {
 			.file = {
 				.get_block = get_block_address_extent,
-				.append_key = append_key_extent40,
+				.append_key = append_key_extent,
 				.init_coord_extension =
 				init_coord_extension_extent
 			}
@@ -615,7 +615,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		.s = {
 			.file = {
 				.get_block = get_block_address_extent,
-				.append_key = append_key_extent41, /* differs */
+				.append_key = append_key_extent,
 				.init_coord_extension =
 				init_coord_extension_extent
 			}

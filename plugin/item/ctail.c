@@ -883,10 +883,6 @@ int readpages_ctail(struct file *file, struct address_space *mapping,
 	return ret;
 }
 
-/*
-   plugin->u.item.s.file.append_key
-   key of the first item of the next disk cluster
-*/
 reiser4_key *append_key_ctail(struct inode *inode,
 			      const coord_t *coord, reiser4_key *key)
 {

@@ -755,10 +755,6 @@ int read_tail_unix_file(struct file *file, flow_t *f, hint_t *hint)
 	return 0;
 }
 
-/**
- * plugin->u.item.s.file.append_key
- * key of first byte which is the next to last byte by addressed by this item
- */
 reiser4_key *append_key_tail(struct inode *inode,
 			     const coord_t *coord, reiser4_key *key)
 {

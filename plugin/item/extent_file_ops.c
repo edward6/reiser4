@@ -1453,14 +1453,8 @@ int get_block_address_extent(const coord_t *coord, sector_t block,
 	return 0;
 }
 
-/**
- * plugin->u.item.s.file.append_key for simple extent pointers
- *
- * Build key of first byte of file's body which is the next
- * to last byte addressed by this extent
- */
-reiser4_key *append_key_extent40(struct inode *inode,
-				 const coord_t *coord, reiser4_key *key)
+reiser4_key *append_key_extent(struct inode *inode,
+			       const coord_t *coord, reiser4_key *key)
 {
 	item_key_by_coord(coord, key);
 	set_key_offset(key, get_key_offset(key) +
@@ -1468,25 +1462,6 @@ reiser4_key *append_key_extent40(struct inode *inode,
 
 	assert("vs-610", get_key_offset(key) &&
 	       (get_key_offset(key) & (current_blocksize - 1)) == 0);
-	return key;
-}
-
-/**
- * plugin->u.item.s.file.append_key for distributed extent pointers
- */
-reiser4_key *append_key_extent41(struct inode *inode,
-				 const coord_t *coord, reiser4_key *key)
-{
-	append_key_extent40(inode, coord, key);
-	/*
-	 * In contrast with simple extent pointers, ordering
-	 * of appended key for distributed extent pointer can
-	 * differ from the key of original item pointed out
-	 * by @coord
-	 */
-	set_key_ordering(key,
-			 inode_file_plugin(inode)->calc_data_subvol(inode,
-					   get_key_offset(key))->id);
 	return key;
 }
 

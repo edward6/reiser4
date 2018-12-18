@@ -181,7 +181,7 @@ static int plug_hole_stripe(struct inode *inode,
 	 */
 	assert("edward-2057", item_is_extent(coord));
 
-	if (!keyeq(key, append_key_extent41(inode, coord, &akey))) {
+	if (!keyeq(key, append_key_extent(inode, coord, &akey))) {
 		/*
 		 * can not push. Create a new item
 		 */
@@ -335,7 +335,7 @@ static int append_extent_stripe(struct inode *inode, uf_coord_t *uf_coord,
 	 * try to merge with the file body's last item
 	 * If impossible, then create a new item
 	 */
-	append_key_extent41(inode, coord, &akey);
+	append_key_extent(inode, coord, &akey);
 	if (!keyeq(&akey, key))
 		/*
 		 * can not merge
