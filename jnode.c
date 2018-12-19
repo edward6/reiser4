@@ -1341,9 +1341,9 @@ jnode *jnode_rip_sync(jnode *node)
 
 reiser4_key *jnode_build_key(const jnode *node, reiser4_key *key)
 {
-	struct inode *inode;
-	item_plugin *iplug;
 	loff_t off;
+	struct inode *inode;
+	file_plugin *fplug;
 
 	assert("nikita-3092", node != NULL);
 	assert("nikita-3093", key != NULL);
@@ -1351,23 +1351,12 @@ reiser4_key *jnode_build_key(const jnode *node, reiser4_key *key)
 
 	off = ((loff_t) index_jnode(node)) << PAGE_SHIFT;
 	inode = mapping_jnode(node)->host;
+	fplug = inode_file_plugin(inode);
 
-	if (node->parent_item_id != 0)
-		iplug = item_plugin_by_id(node->parent_item_id);
-	else
-		iplug = NULL;
+	assert("zam-1007", fplug != NULL);
+	assert("zam-1008", fplug->build_body_key != NULL);
 
-	if (iplug != NULL && iplug->f.key_by_offset)
-		iplug->f.key_by_offset(inode, off, key);
-	else {
-		file_plugin *fplug;
-
-		fplug = inode_file_plugin(inode);
-		assert("zam-1007", fplug != NULL);
-		assert("zam-1008", fplug->build_body_key != NULL);
-
-		fplug->build_body_key(inode, off, key);
-	}
+	fplug->build_body_key(inode, off, key, READ_OP);
 	return key;
 }
 

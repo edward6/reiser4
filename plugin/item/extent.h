@@ -157,7 +157,6 @@ int get_block_address_extent(const coord_t *, sector_t block,
 			     sector_t * result);
 
 /* plugin->u.item.s.vol */
-u64 find_data_subvol_extent(const coord_t *coord);
 int reiser4_migrate_extent(coord_t *coord, lock_handle *lh, struct inode *inode);
 /* these are used in flush.c
    FIXME-VS: should they be somewhere in item_plugin? */
@@ -171,7 +170,6 @@ __u64 extent_unit_width(const coord_t * item);	/* Number of blocks in this unit.
 
 /* plugin->u.item.f. */
 int reiser4_scan_extent(flush_scan * scan);
-extern int key_by_offset_extent(struct inode *, loff_t, reiser4_key *);
 
 reiser4_item_data *init_new_extent(item_id extent_id, reiser4_item_data *data,
 				   void *ext_unit, int nr_extents);

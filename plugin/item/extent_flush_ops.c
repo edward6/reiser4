@@ -831,11 +831,6 @@ int shift_extent_left_complete(coord_t *to, reiser4_key *to_key,
 	return cut_node_content(&from, to, &from_key, to_key, NULL);
 }
 
-int key_by_offset_extent(struct inode *inode, loff_t off, reiser4_key * key)
-{
-	return inode_file_plugin(inode)->build_body_key(inode, off, key);
-}
-
 /*
  * Local variables:
  * c-indentation-style: "K&R"

@@ -318,7 +318,7 @@ static int find_file_state(struct inode *inode, struct unix_file_info *uf_info)
 	assert("vs-1628", ea_obtained(uf_info));
 
 	if (uf_info->container == UF_CONTAINER_UNKNOWN) {
-		build_body_key_unix_file(inode, 0, &key);
+		build_body_key_unix_file(inode, 0, &key, READ_OP);
 		init_lh(&lh);
 		result = find_file_item_nohint(&coord, &lh, &key,
 					       ZNODE_READ_LOCK, inode);
@@ -419,7 +419,7 @@ int cut_file_items(struct inode *inode, loff_t new_size,
 	       fplug == file_plugin_by_id(CRYPTCOMPRESS_FILE_PLUGIN_ID));
 
 	tree = meta_subvol_tree();
-	fplug->build_body_key(inode, new_size, &from_key);
+	fplug->build_body_key(inode, new_size, &from_key, READ_OP);
 	to_key = from_key;
 	set_key_offset(&to_key, cur_size - 1 /*get_key_offset(reiser4_max_key()) */ );
 	/*
@@ -1443,7 +1443,7 @@ int readpage_unix_file(struct file *file, struct page *page)
 	/*
 	 * construct key of the page's first byte
 	 */
-	build_body_key_unix_file(inode, page_offset(page), &key);
+	build_body_key_unix_file(inode, page_offset(page), &key, READ_OP);
 	/*
 	 * look for file metadata corresponding to the page's first byte
 	 */
@@ -1601,7 +1601,9 @@ int reiser4_readpages_filler_generic(void *data,
 	repeat:
 		unlock_page(page);
 
-		fplug->build_body_key(mapping->host, page_offset(page), &key);
+		fplug->build_body_key(mapping->host,
+				      page_offset(page), &key,
+				      READ_OP);
 
 		ret = coord_by_key(meta_subvol_tree(),
 				   &key, &rc->coord, &rc->lh,
@@ -2040,7 +2042,7 @@ static int find_first_item(struct inode *inode)
 
 	coord_init_zero(&coord);
 	init_lh(&lh);
-	inode_file_plugin(inode)->build_body_key(inode, 0, &key);
+	inode_file_plugin(inode)->build_body_key(inode, 0, &key, READ_OP);
 	result = find_file_item_nohint(&coord, &lh, &key, ZNODE_READ_LOCK,
 				       inode);
 	if (result == CBK_COORD_FOUND) {
@@ -2556,7 +2558,7 @@ sector_t bmap_unix_file(struct address_space * mapping, sector_t lblock)
 		return PTR_ERR(ctx);
 	build_body_key_unix_file(inode,
 				 (loff_t) lblock * current_blocksize,
-				 &key);
+				 &key, READ_OP);
 	init_lh(&lh);
 	result =
 	    find_file_item_nohint(&coord, &lh, &key, ZNODE_READ_LOCK, inode);
@@ -2587,7 +2589,8 @@ sector_t bmap_unix_file(struct address_space * mapping, sector_t lblock)
 	return result;
 }
 
-int build_body_key_unix_file(struct inode *inode, loff_t off, reiser4_key *key)
+int build_body_key_unix_file(struct inode *inode, loff_t off, reiser4_key *key,
+			     rw_op op)
 {
 	build_body_key_common(inode, key);
 	set_key_ordering(key, get_inode_ordering(inode));
@@ -2645,13 +2648,10 @@ int flow_by_inode_unix_file(struct inode *inode,
 	flow->user = user;
 	flow->op = op;
 	assert("nikita-1931", inode_file_plugin(inode) != NULL);
-	assert("nikita-1932",
-	       inode_file_plugin(inode)->build_body_key ==
-	       build_body_key_unix_file);
 	/*
 	 * calculate key of write position and insert it into flow->key
 	 */
-	return build_body_key_unix_file(inode, off, &flow->key);
+	return build_body_key_unix_file(inode, off, &flow->key, WRITE_OP);
 }
 
 /* plugin->u.file.set_plug_in_sd = NULL

@@ -61,7 +61,8 @@ int _bugop(void)
 
 #define bugop ((void *)_bugop)
 
-static int build_body_key_bugop(struct inode *inode, loff_t off, reiser4_key *key)
+static int build_body_key_bugop(struct inode *inode, loff_t off,
+				reiser4_key *key, rw_op op)
 {
 	BUG_ON(1);
 	return 0;

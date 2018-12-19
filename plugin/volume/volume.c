@@ -1455,6 +1455,7 @@ u64 data_subvol_id_find_simple(const coord_t *coord)
 
 u64 data_subvol_id_find_asym(const coord_t *coord)
 {
+	reiser4_key key;
 	assert("edward-1957", coord != NULL);
 
 	switch(item_id_by_coord(coord)) {
@@ -1462,7 +1463,7 @@ u64 data_subvol_id_find_asym(const coord_t *coord)
 	case EXTENT40_POINTER_ID:
 		return METADATA_SUBVOL_ID;
 	case EXTENT41_POINTER_ID:
-		return find_data_subvol_extent(coord);
+		return get_key_ordering(item_key_by_coord(coord, &key));
 	default:
 		impossible("edward-2018", "Bad item ID");
 		return METADATA_SUBVOL_ID;
@@ -1548,9 +1549,7 @@ static int iter_find_next(reiser4_tree *tree, coord_t *coord,
  *
  * When scanning twig level we obviously miss empty files (i.e. files
  * without bodies), so every time when performing ->write(), etc.
- * regular operations we need to check volume status. If balancing is
- * in proggress, then we update inode's distribution table before
- * build_body_key() calculation.
+ * regular operations we need to check volume status.
  *
  * NOTE: correctness of this balancing procedure (i.e. a guarantee
  * that all files will be processed) is provided by our single stupid

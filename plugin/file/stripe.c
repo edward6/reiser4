@@ -75,10 +75,20 @@ reiser4_subvol *calc_data_subvol_stripe(const struct inode *inode,
 						   get_inode_dstab(inode)));
 }
 
-int build_body_key_stripe(struct inode *inode, loff_t off, reiser4_key *key)
+int build_body_key_stripe(struct inode *inode, loff_t off, reiser4_key *key,
+			  rw_op op)
 {
 	build_body_key_common(inode, key);
-	set_key_ordering(key, calc_data_subvol_stripe(inode, off)->id);
+	switch (op) {
+	case WRITE_OP:
+		set_key_ordering(key, calc_data_subvol_stripe(inode, off)->id);
+		break;
+	case READ_OP:
+		set_key_ordering(key, KEY_ORDERING_MASK /* max value */);
+		break;
+	default:
+		impossible("edward-2205", "Bad rw_op");
+	}
 	set_key_offset(key, (__u64) off);
 	return 0;
 }
@@ -92,16 +102,10 @@ int flow_by_inode_stripe(struct inode *inode,
 	memcpy(&flow->data, &buf, sizeof(buf));
 	flow->user = user;
 	flow->op = op;
-	assert("edward-2088",
-	       inode_file_plugin(inode) ==
-	       file_plugin_by_id(STRIPED_FILE_PLUGIN_ID));
-	assert("edward-2089",
-	       inode_file_plugin(inode)->build_body_key ==
-	       build_body_key_stripe);
 	/*
 	 * calculate key of write position and insert it into flow->key
 	 */
-	return build_body_key_stripe(inode, off, &flow->key);
+	return build_body_key_stripe(inode, off, &flow->key, WRITE_OP);
 }
 
 void init_inode_data_stripe(struct inode *inode,
@@ -314,7 +318,7 @@ int readpage_stripe(struct file *file, struct page *page)
 	/*
 	 * construct key of the page's first byte
 	 */
-	build_body_key_stripe(inode, page_offset(page), &key);
+	build_body_key_stripe(inode, page_offset(page), &key, READ_OP);
 	/*
 	 * look for file metadata corresponding to the page's first byte
 	 */
@@ -380,7 +384,7 @@ int readpage_stripe(struct file *file, struct page *page)
 	} else {
 		build_body_key_stripe(inode,
 				      (loff_t)(page->index + 1) << PAGE_SHIFT,
-				      &key);
+				      &key, READ_OP);
 		/* FIXME should call reiser4_set_hint() */
 		reiser4_unset_hint(hint);
 	}
@@ -446,7 +450,7 @@ static int cut_file_items_stripe(struct inode *inode, loff_t new_size,
 		 */
 		build_body_key_stripe(inode,
 		      round_up(i_size_read(inode), current_blocksize) - 1,
-				      &to_key);
+				      &to_key, WRITE_OP);
 		from_key = to_key;
 		/*
 		 * cut not more than last stripe, as stripes are located
@@ -861,10 +865,8 @@ int balance_stripe(struct inode *inode)
 	get_exclusive_access(uf);
 	reiser4_inode_set_flag(inode, REISER4_FILE_UNBALANCED);
 
-	build_body_key_common(inode, &key);
-	set_key_ordering(&key, KEY_ORDERING_MASK /* max value */);
-	set_key_offset(&key, get_key_offset(reiser4_max_key()));
-
+	build_body_key_stripe(inode, get_key_offset(reiser4_max_key()),
+			      &key, READ_OP);
 	while (1) {
 		znode *loaded;
 

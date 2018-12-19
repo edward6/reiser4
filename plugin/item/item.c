@@ -551,7 +551,6 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.update = NULL,
 			.scan = reiser4_scan_extent,
 			.convert = NULL,
-			.key_by_offset = key_by_offset_extent
 		},
 		.v = {
 			.migrate = NULL
@@ -607,7 +606,6 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.update = NULL,
 			.scan = reiser4_scan_extent,
 			.convert = NULL,
-			.key_by_offset = key_by_offset_extent
 		},
 		.v = {
 			.migrate = reiser4_migrate_extent

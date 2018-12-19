@@ -140,7 +140,7 @@ int append_hole_unix_file(struct inode *inode, coord_t *coord,
 	 * last extent
 	 */
 	hole_offset = round_up(i_size_read(inode), current_blocksize);
-	build_body_key_unix_file(inode, hole_offset, &hole_key);
+	build_body_key_unix_file(inode, hole_offset, &hole_key, WRITE_OP);
 	/*
 	 * extent item has to be appended with hole. Calculate length of that
 	 * hole
@@ -785,7 +785,8 @@ int overwrite_extent_generic(struct inode *inode, uf_coord_t *uf_coord,
 		 * only offset is not enough e.g. for striped files
 		 */
 		fplug->build_body_key(inode,
-				      get_key_offset(&k) + PAGE_SIZE, &k);
+				      get_key_offset(&k) + PAGE_SIZE, &k,
+				      WRITE_OP);
 	}
 	return count;
 }
@@ -811,7 +812,7 @@ int update_extent_uf(struct inode *inode, jnode *node, loff_t pos,
 
 	assert("", reiser4_lock_counters()->d_refs == 0);
 
-	build_body_key_unix_file(inode, pos, &key);
+	build_body_key_unix_file(inode, pos, &key, WRITE_OP);
 
 	init_uf_coord(&uf_coord, &lh);
 	coord = &uf_coord.coord;
@@ -879,7 +880,7 @@ static int update_extents_unix_file(struct file *file, struct inode *inode,
 		 * count == 0 is special case: expanding truncate
 		 */
 		pos = (loff_t)index_jnode(jnodes[0]) << PAGE_SHIFT;
-	build_body_key_unix_file(inode, pos, &key);
+	build_body_key_unix_file(inode, pos, &key, WRITE_OP);
 
 	assert("", reiser4_lock_counters()->d_refs == 0);
 

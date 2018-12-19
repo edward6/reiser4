@@ -592,12 +592,10 @@ static void set_cluster_nrpages(struct cluster_handle * clust,
 }
 
 /**
- * plugin->build_body_key()
- *
  * build key of a disk cluster (item group)
  */
 int build_body_key_cryptcompress(struct inode *inode, loff_t off,
-				 reiser4_key * key)
+				 reiser4_key *key, rw_op op)
 {
 	assert("edward-64", inode != 0);
 
@@ -606,7 +604,7 @@ int build_body_key_cryptcompress(struct inode *inode, loff_t off,
 	if (inode_crypto_info(inode))
 		off = inode_scaled_offset(inode, off);
 
-	build_body_key_unix_file(inode, off, key);
+	build_body_key_unix_file(inode, off, key, op);
 	return 0;
 }
 
@@ -628,7 +626,7 @@ int flow_by_inode_cryptcompress(struct inode *inode, const char __user * buf,
 	memcpy(&f->data, &buf, sizeof(buf));
 	f->user = user;
 	f->op = op;
-	return build_body_key_cryptcompress(inode, off, &f->key);
+	return build_body_key_cryptcompress(inode, off, &f->key, WRITE_OP);
 }
 
 static int cryptcompress_hint_validate(hint_t *hint, reiser4_tree *tree,
@@ -2011,7 +2009,7 @@ static void set_hint_cluster(struct inode *inode, hint_t * hint,
 
 	build_body_key_cryptcompress(inode,
 				     clust_to_off(index, inode),
-				     &key);
+				     &key, WRITE_OP);
 	reiser4_seal_init(&hint->seal, &hint->ext_coord.coord, &key);
 	hint->offset = get_key_offset(&key);
 	hint->mode = mode;
@@ -2305,7 +2303,7 @@ int get_disk_cluster_locked(struct cluster_handle * clust, struct inode *inode,
 			CBK_COORD_FOUND);
 	}
 	build_body_key_cryptcompress(inode, clust_to_off(clust->index, inode),
-				     &key);
+				     &key, WRITE_OP);
 	ra_info.key_to_stop = key;
 	set_key_offset(&ra_info.key_to_stop, get_key_offset(reiser4_max_key()));
 

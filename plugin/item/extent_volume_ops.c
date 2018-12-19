@@ -39,14 +39,6 @@ int split_extent_unit(coord_t *coord, reiser4_block_nr pos, int adv_to_right);
 void inode_set_new_dist(struct inode *inode);
 void inode_set_old_dist(struct inode *inode);
 
-u64 find_data_subvol_extent(const coord_t *coord)
-{
-	reiser4_key key;
-
-	item_key_by_coord(coord, &key);
-	return get_key_ordering(&key);
-}
-
 /*
  * read the last page pointed out by extent item
  */

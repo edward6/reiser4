@@ -227,9 +227,10 @@ static inline void set_key_ordering(reiser4_key * key, __u64 val)
 #endif /* REISER4_LARGE_KEY */
 
 /* key comparison result */
-typedef enum { LESS_THAN = -1,	/* if first key is less than second */
-	EQUAL_TO = 0,		/* if keys are equal */
-	GREATER_THAN = +1	/* if first key is greater than second */
+typedef enum {
+	LESS_THAN = -1,   /* if first key is less than second */
+	EQUAL_TO = 0,	  /* if keys are equal */
+	GREATER_THAN = +1 /* if first key is greater than second */
 } cmp_t;
 
 void reiser4_key_init(reiser4_key * key);
@@ -302,15 +303,15 @@ static inline cmp_t keycmp(const reiser4_key * k1 /* first key to compare */,
 		}
 	} else if (REISER4_PLANB_KEY_ALLOCATION) {
 		/* logical order of fields in plan-B:
-		   locality->type->objectid->(ordering)->offset */
+		   locality->type->objectid->offset->(ordering) */
 
 		result = KEY_DIFF_EL(k1, k2, 0);
 		if (result == EQUAL_TO) {
 			result = KEY_DIFF_EL(k1, k2, 2);
 			if (result == EQUAL_TO) {
-				result = KEY_DIFF_EL(k1, k2, 1);
+				result = KEY_DIFF_EL(k1, k2, 3);
 				if (REISER4_LARGE_KEY && result == EQUAL_TO)
-					result = KEY_DIFF_EL(k1, k2, 3);
+					result = KEY_DIFF_EL(k1, k2, 1);
 			}
 		}
 	} else if (REISER4_3_5_KEY_ALLOCATION) {
@@ -348,9 +349,9 @@ static inline cmp_t short_keycmp(const reiser4_key *k1, const reiser4_key *k2)
 	} else if (REISER4_PLANB_KEY_ALLOCATION) {
 		result = KEY_DIFF_EL(k1, k2, 2);
 		if (result == EQUAL_TO) {
-			result = KEY_DIFF_EL(k1, k2, 1);
+			result = KEY_DIFF_EL(k1, k2, 3);
 			if (REISER4_LARGE_KEY && result == EQUAL_TO)
-				result = KEY_DIFF_EL(k1, k2, 3);
+				result = KEY_DIFF_EL(k1, k2, 1);
 		}
 	} else
 		impossible("edward-2142", "Unsupported key allocation scheme!");

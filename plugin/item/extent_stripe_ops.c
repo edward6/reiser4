@@ -488,7 +488,7 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 		 */
 		pos = (loff_t)index_jnode(jnodes[0]) << PAGE_SHIFT;
 
-	build_body_key_stripe(inode, pos, &key);
+	build_body_key_stripe(inode, pos, &key, WRITE_OP);
 	do {
 		znode *loaded;
 		const char *error;
@@ -531,7 +531,7 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 		count -= result;
 		pos += result * PAGE_SIZE;
 
-		build_body_key_stripe(inode, pos, &key);
+		build_body_key_stripe(inode, pos, &key, WRITE_OP);
 		/*
 		 * seal and unlock znode
 		 */

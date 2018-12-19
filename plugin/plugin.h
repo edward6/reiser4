@@ -252,10 +252,12 @@ typedef struct file_plugin {
 	   reiserfs_update_sd() in 3.x */
 	int (*write_sd_by_inode) (struct inode *, oid_t *oid);
 	/*
-	 * Build file body key by inode and offset
+	 * Build file body key by inode and offset.
+	 * If @op is READ_OP, then that key is for lookup.
+	 * If @op is WRITE_OP, then that key is to be stored on disk.
 	 */
-	int (*build_body_key) (struct inode *, loff_t off, reiser4_key *);
-
+	int (*build_body_key) (struct inode *, loff_t off, reiser4_key *,
+			       rw_op op);
 	/* Return a pointer to data subvolume where file's data at @offset
 	 * should be stored */
 	reiser4_subvol *(*calc_data_subvol)(const struct inode *inode,
