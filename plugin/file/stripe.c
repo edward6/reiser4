@@ -927,7 +927,7 @@ int balance_stripe(struct inode *inode)
 			zrelse(loaded);
 			done_lh(&lh);
 		}
-		if (get_key_offset(&key) == 0 && get_key_ordering(&key) == 0)
+		if (get_key_offset(&key) == 0)
 			/*
 			 * nothing to migrate any more
 			 */
@@ -935,12 +935,7 @@ int balance_stripe(struct inode *inode)
 		/*
 		 * look for the next item at the left
 		 */
-		if (get_key_offset(&key) != 0)
-			set_key_offset(&key, get_key_offset(&key) - 1);
-		else {
-			set_key_ordering(&key, get_key_ordering(&key) - 1);
-			set_key_offset(&key, get_key_offset(reiser4_max_key()));
-		}
+		set_key_offset(&key, get_key_offset(&key) - 1);
 	}
  done:
 	assert("edward-2104", reiser4_lock_counters()->d_refs == 0);
