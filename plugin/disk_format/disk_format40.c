@@ -276,7 +276,7 @@ int check_set_volume_params(reiser4_subvol *subv,
 		goto error;
 	}
 	subv->id = get_format40_origin_id(sb_format);
-	if (subv->id >= vol_nr_origins(vol)) {
+	if (subv->id > vol->nr_slots) {
 		what_is_wrong = "subvolume ID is too large";
 		goto error;
 	}

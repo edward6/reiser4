@@ -1565,8 +1565,11 @@ int txnmgr_force_commit_all(struct super_block *super, int commit_all_atoms)
 		u32 subv_id;
 		reiser4_super_info_data *sbinfo = get_super_private(super);
 		spin_lock_reiser4_super(sbinfo);
-		for_each_origin(subv_id) {
+		for_each_vslot(subv_id) {
 			reiser4_subvol *subv;
+
+			if (super_mirrors(super, subv_id) == NULL)
+				continue;
 			subv = super_origin(super, subv_id);
 			assert("zam-813",
 			       subv->blocks_fake_allocated_unformatted == 0);

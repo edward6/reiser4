@@ -109,8 +109,8 @@ struct reiser4_vol_op_args
 	reiser4_vol_op opcode;
 	u64 delta;
 	union {
-		u64 brick_id;
-		u64 voltab_nr;
+		u64 idx_lv; /* index of brick in logical volume */
+		u64 voltab_nr; /* index of voltab unformatted block */
 	}s;
 	union {
 		char name[REISER4_PATH_NAME_MAX + 1];

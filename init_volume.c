@@ -624,6 +624,7 @@ int reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 {
 	int ret;
 	u32 orig_id;
+	u32 nr_origins = 0;
 	reiser4_volume *vol;
 
 	mutex_lock(&reiser4_volumes_mutex);
@@ -646,24 +647,28 @@ int reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 	 * check_active_replicas()). Now make sure that all
 	 * original bricks have been activated.
 	 */
-	for_each_origin(orig_id) {
-		if (super_mirrors(super, orig_id) == NULL ||
-		    super_origin(super, orig_id) == NULL) {
-			warning("edward-1772",
-				"%s: original brick #%u is not registered.",
-				super->s_id, orig_id);
-			ret = -EINVAL;
-			goto deactivate;
+	for_each_vslot(orig_id) {
+		if (super_mirrors(super, orig_id) != NULL &&
+		    super_origin(super, orig_id) != NULL) {
+			assert("edward-1773",
+			       subvol_is_set(super_origin(super, orig_id),
+					     SUBVOL_ACTIVATED));
+			nr_origins ++;
 		}
-		assert("edward-1773",
-		       subvol_is_set(super_origin(super, orig_id),
-				     SUBVOL_ACTIVATED));
+	}
+	vol = get_super_private(super)->vol;
+	assert("edward-2207", vol!= NULL);
+
+	if (nr_origins != atomic_read(&vol->nr_origins)) {
+		warning("edward-1772",
+			"%s: not all bricks are registered (%u instead of %u)",
+			super->s_id, nr_origins, atomic_read(&vol->nr_origins));
+		ret = -EINVAL;
+		goto deactivate;
 	}
 	/*
 	 * initialize logical volume after activating all subvolumes
 	 */
-	vol = get_super_private(super)->vol;
-
 	if (vol->vol_plug->init_volume != NULL) {
 		ret = vol->vol_plug->init_volume(vol);
 		if (ret) {

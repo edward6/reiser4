@@ -155,43 +155,41 @@ static bucket_t *create_buckets(reiser4_volume *vol, u32 nr_buckets)
 
 /**
  * Remove an abstract bucket at position @pos from the array
- * of @numb @buckets
+ * @vec of @numb buckets
  */
-static void remove_bucket(reiser4_volume *vol, u32 numb, u32 pos)
+static void remove_bucket(bucket_t *vec, u32 numb, u32 pos)
 {
 	u32 i;
-	bucket_t *buckets = vol->dist_plug->v.get_buckets(&vol->aid);
 	/*
 	 * indexes of all buckets at the right to @pos got decremented
 	 */
 	for (i = pos + 1; i < numb; i++) {
 		assert("edward-2196",
-		       ((reiser4_subvol *)(buckets[i]))->dsa_idx != 0);
-		((reiser4_subvol *)(buckets[i]))->dsa_idx --;
+		       ((reiser4_subvol *)(vec[i]))->dsa_idx != 0);
+		((reiser4_subvol *)(vec[i]))->dsa_idx --;
 	}
-	memmove(buckets + pos, buckets + pos + 1,
-		(numb - pos - 1) * sizeof(*buckets));
-	buckets[numb - 1] = NULL;
+	memmove(vec + pos, vec + pos + 1,
+		(numb - pos - 1) * sizeof(*vec));
+	vec[numb - 1] = NULL;
 }
 
 /**
  * Insert an abstract bucket @this at position @pos in the array
- * of @numb @buckets
+ * @vec of @numb buckets
  */
-static void insert_bucket(reiser4_volume *vol, bucket_t this, u32 numb, u32 pos)
+static void insert_bucket(bucket_t *vec, bucket_t this, u32 numb, u32 pos)
 {
 	u32 i;
-	bucket_t *buckets = vol->dist_plug->v.get_buckets(&vol->aid);
 	/*
 	 * indexes of all buckets at @pos and at the right to @pos
 	 * got incremented
 	 */
 	for (i = pos; i < numb; i++)
-		((reiser4_subvol *)(buckets[i]))->dsa_idx ++;
+		((reiser4_subvol *)(vec[i]))->dsa_idx ++;
 
-	memmove(buckets + pos + 1, buckets + pos,
-		(numb - pos) * sizeof(*buckets));
-	buckets[pos] = this;
+	memmove(vec + pos + 1, vec + pos,
+		(numb - pos) * sizeof(*vec));
+	vec[pos] = this;
 }
 
 static u32 id2idx(u64 id)
@@ -878,7 +876,7 @@ static int expand_brick(reiser4_volume *vol, reiser4_subvol *this,
 		*need_balance = 0;
 		return 0;
 	}
-	ret = dist_plug->v.inc(&vol->aid, get_pos_in_aid(this->id), 0);
+	ret = dist_plug->v.inc(&vol->aid, get_pos_in_aid(this->id), NULL);
 	if (ret)
 		/* roll back */
 		this->data_room -= delta;
@@ -894,10 +892,8 @@ static int add_meta_brick(reiser4_volume *vol, reiser4_subvol *new)
 	 * We don't need to activate meta-data brick:
 	 * it is always active in the mount session of the logical volume.
 	 */
-	insert_bucket(vol, (bucket_t)new, num_aid_subvols(vol),
-		      METADATA_SUBVOL_ID /* pos */);
 	ret = vol->dist_plug->v.inc(&vol->aid,
-				    METADATA_SUBVOL_ID /* pos */, 1);
+				    METADATA_SUBVOL_ID /* pos */, new);
 	if (ret)
 		return ret;
 	new->flags |= (1 << SUBVOL_HAS_DATA_ROOM);
@@ -944,8 +940,7 @@ int add_data_brick(reiser4_volume *vol, reiser4_subvol *this)
 	 * Assign internal ID for the new brick
 	 */
 	this->id = pos_in_vol;
-	insert_bucket(vol, (bucket_t)this, num_aid_subvols(vol), pos_in_aid);
-	ret = vol->dist_plug->v.inc(raid, pos_in_aid, 1);
+	ret = vol->dist_plug->v.inc(raid, pos_in_aid, this);
 	if (ret)
 		return ret;
 	/*
@@ -1004,9 +999,11 @@ static int expand_brick_asym(reiser4_volume *vol, reiser4_subvol *this,
 
 	ret = dist_plug->v.init(buckets,
 				num_aid_subvols(vol), vol->num_sgs_bits,
-				&vol->vol_plug->aid_ops, raid);
-	if (ret)
+				&vol->vol_plug->bucket_ops, raid);
+	if (ret) {
+		kfree(buckets);
 		return ret;
+	}
 	ret = expand_brick(vol, this, delta, &need_balance);
 	dist_plug->v.done(raid);
 	if (ret)
@@ -1053,7 +1050,7 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 		return -ENOMEM;
 	ret = dist_plug->v.init(buckets, num_aid_subvols(vol),
 				vol->num_sgs_bits,
-				&vol->vol_plug->aid_ops, &vol->aid);
+				&vol->vol_plug->bucket_ops, &vol->aid);
 	if (ret)
 		return ret;
 
@@ -1079,7 +1076,7 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	return 0;
 }
 
-static u64 get_busy_data_blocks_asym(void)
+static u64 data_blocks_occupied(void)
 {
 	u64 i;
 	u64 ret = 0;
@@ -1097,7 +1094,6 @@ static int shrink_brick(reiser4_volume *vol, reiser4_subvol *victim,
 {
 	int ret;
 	distribution_plugin *dist_plug = vol->dist_plug;
-	u64 nr_busy_data_blocks = get_busy_data_blocks_asym();
 
 	assert("edward-2191", victim->data_room > delta);
 	/*
@@ -1109,11 +1105,6 @@ static int shrink_brick(reiser4_volume *vol, reiser4_subvol *victim,
 		*need_balance = 0;
 		return 0;
 	}
-	ret = dist_plug->v.cfs(&vol->aid,
-			       num_aid_subvols(vol),
-			       nr_busy_data_blocks);
-	if (ret)
-		goto error;
 	ret = dist_plug->v.dec(&vol->aid,
 			       get_pos_in_aid(victim->id), NULL);
 	if (ret)
@@ -1129,19 +1120,9 @@ static int remove_meta_brick(reiser4_volume *vol)
 	int ret;
 	reiser4_subvol *mtd_subv = get_meta_subvol();
 	distribution_plugin *dist_plug = vol->dist_plug;
-	u64 nr_busy_data_blocks = get_busy_data_blocks_asym();
 
 	assert("edward-1844", num_aid_subvols(vol) > 1);
 	assert("edward-1826", meta_brick_belongs_aid());
-
-	remove_bucket(vol, num_aid_subvols(vol), METADATA_SUBVOL_ID /* pos */);
-	ret = dist_plug->v.cfs(&vol->aid,
-			       num_aid_subvols(vol) - 1,
-			       nr_busy_data_blocks);
-	if (ret)
-		return ret;
-	insert_bucket(vol, mtd_subv, num_aid_subvols(vol) - 1,
-		      METADATA_SUBVOL_ID /* pos */);
 
 	ret = dist_plug->v.dec(&vol->aid, METADATA_SUBVOL_ID, mtd_subv);
 	if (ret)
@@ -1158,8 +1139,6 @@ static int remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim,
 {
 	int ret;
 	distribution_plugin *dist_plug = vol->dist_plug;
-	u64 nr_busy_data_blocks = get_busy_data_blocks_asym();
-
 	slot_t *new = NULL;
 	slot_t *old = vol->subvols;
 	u64 old_num_subvols = vol_nr_origins(vol);
@@ -1181,13 +1160,6 @@ static int remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim,
 			return RETERR(-ENOMEM);
 		memcpy(new, old, pos_in_vol * sizeof(*old));
 	}
-	remove_bucket(vol, num_aid_subvols(vol), pos_in_aid);
-	ret = dist_plug->v.cfs(&vol->aid, num_aid_subvols(vol) - 1,
-			       nr_busy_data_blocks);
-	if (ret)
-		goto error;
-	insert_bucket(vol, victim, num_aid_subvols(vol) - 1, pos_in_aid);
-
 	ret = dist_plug->v.dec(&vol->aid, pos_in_aid, victim);
 	if (ret) {
 		warning("edward-2146",
@@ -1211,21 +1183,22 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	distribution_plugin *dist_plug = vol->dist_plug;
 	struct super_block *sb = reiser4_get_current_sb();
 	bucket_t *buckets;
+	u32 old_nr_dsa_bricks = num_aid_subvols(vol);
 
 	assert("edward-1830", vol != NULL);
 	assert("edward-1846", dist_plug != NULL);
 
-	if (num_aid_subvols(vol) == 1) {
+	if (old_nr_dsa_bricks == 1) {
 		warning("edward-1941",
 			"Can't remove the single brick from AID");
 		return -EINVAL;
 	}
-	buckets = create_buckets(vol, num_aid_subvols(vol));
+	buckets = create_buckets(vol, old_nr_dsa_bricks);
 	if (!buckets)
 		return -ENOMEM;
-	ret = dist_plug->v.init(buckets, num_aid_subvols(vol),
+	ret = dist_plug->v.init(buckets, old_nr_dsa_bricks,
 				vol->num_sgs_bits,
-				&vol->vol_plug->aid_ops, &vol->aid);
+				&vol->vol_plug->bucket_ops, &vol->aid);
 	if (ret)
 		return ret;
 
@@ -1236,7 +1209,7 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	dist_plug->v.done(&vol->aid);
 	if (ret)
 		return ret;
-	if (num_aid_subvols(vol) > 2) {
+	if (old_nr_dsa_bricks > 2) {
 		ret = make_volume_config(vol);
 		if (ret) {
 			free_mirror_slots(new);
@@ -1321,7 +1294,7 @@ static int shrink_brick_asym(reiser4_volume *vol, reiser4_subvol *victim,
 
 	ret = dist_plug->v.init((bucket_t *)current_aid_subvols(),
 				num_aid_subvols(vol), vol->num_sgs_bits,
-				&vol->vol_plug->aid_ops, &vol->aid);
+				&vol->vol_plug->bucket_ops, &vol->aid);
 	if (ret)
 		return ret;
 
@@ -1468,6 +1441,79 @@ u64 data_subvol_id_find_asym(const coord_t *coord)
 		impossible("edward-2018", "Bad item ID");
 		return METADATA_SUBVOL_ID;
 	}
+}
+
+int print_volume_asym(struct super_block *sb, struct reiser4_vol_op_args *args)
+{
+	reiser4_volume *vol = super_volume(sb);
+	reiser4_volinfo *vinfo = &vol->volinfo[CUR_VOL_CONF];
+
+	args->u.vol.nr_bricks = meta_brick_belongs_aid() ?
+		vol_nr_origins(vol) : - vol_nr_origins(vol);
+	memcpy(args->u.vol.id, vol->uuid, 16);
+	args->u.vol.vpid = vol->vol_plug->h.id;
+	args->u.vol.dpid = vol->dist_plug->h.id;
+	args->u.vol.fs_flags = get_super_private(sb)->fs_flags;
+	args->u.vol.nr_slots = vol->nr_slots;
+	args->u.vol.nr_volinfo_blocks = vinfo->num_volmaps + vinfo->num_voltabs;
+	return 0;
+}
+
+int print_brick_asym(struct super_block *sb, struct reiser4_vol_op_args *args)
+{
+	int ret = 0;
+	u64 id;      /* internal ID */
+	u64 idx_lv;  /* index in logical volume */
+
+	reiser4_volume *vol = super_volume(sb);
+	reiser4_subvol *subv;
+	bucket_t *buckets;
+
+	buckets = create_buckets(vol, num_aid_subvols(vol));
+	if (!buckets)
+		return -ENOMEM;
+
+	ret = vol->dist_plug->v.init(buckets,
+				     num_aid_subvols(vol), vol->num_sgs_bits,
+				     &vol->vol_plug->bucket_ops, &vol->aid);
+	if (ret) {
+		kfree(buckets);
+		return ret;
+	}
+	spin_lock_reiser4_super(get_super_private(sb));
+
+	idx_lv = args->s.idx_lv;
+	if (idx_lv >= vol_nr_origins(vol)) {
+		ret = -EINVAL;
+		goto out;
+	}
+	/* translate index in LV to brick ID */
+
+	if (is_meta_brick_id(idx_lv))
+		id = idx_lv;
+	else if (meta_brick_belongs_aid())
+		id = vol->vol_plug->bucket_ops.idx2id(idx_lv);
+	else
+		id = vol->vol_plug->bucket_ops.idx2id(idx_lv - 1);
+
+	assert("edward-2206", vol->subvols[id] != NULL);
+
+	subv = vol->subvols[id][0];
+	strncpy(args->d.name, subv->name, REISER4_PATH_NAME_MAX + 1);
+	memcpy(args->u.brick.ext_id, subv->uuid, 16);
+	args->u.brick.int_id = subv->id;
+	args->u.brick.nr_replicas = subv->num_replicas;
+	args->u.brick.block_count = subv->block_count;
+	args->u.brick.data_room = subv->data_room;
+	args->u.brick.blocks_used = subv->blocks_used;
+	args->u.brick.volinfo_addr = subv->volmap_loc[CUR_VOL_CONF];
+ out:
+	spin_unlock_reiser4_super(get_super_private(sb));
+	/*
+	 * this will release buckets
+	 */
+	vol->dist_plug->v.done(&vol->aid);
+	return ret;
 }
 
 struct reiser4_iterate_context {
@@ -1758,7 +1804,7 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		.shrink_brick = shrink_brick_simple,
 		.remove_brick = remove_brick_simple,
 		.balance_volume = balance_volume_simple,
-		.aid_ops = {
+		.bucket_ops = {
 			.cap_at = NULL,
 			.fib_of = NULL,
 			.fib_at = NULL,
@@ -1785,8 +1831,10 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		.add_brick = add_brick_asym,
 		.shrink_brick = shrink_brick_asym,
 		.remove_brick = remove_brick_asym,
+		.print_brick = print_brick_asym,
+		.print_volume = print_volume_asym,
 		.balance_volume = balance_volume_asym,
-		.aid_ops = {
+		.bucket_ops = {
 			.cap_at = cap_at_asym,
 			.fib_of = fib_of_asym,
 			.fib_at = fib_at_asym,
@@ -1794,6 +1842,9 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 			.fib_lenp_at = fib_lenp_at_asym,
 			.idx2id = idx2id,
 			.id2idx = id2idx,
+			.insert_bucket = insert_bucket,
+			.remove_bucket = remove_bucket,
+			.space_occupied = data_blocks_occupied
 		}
 	}
 };

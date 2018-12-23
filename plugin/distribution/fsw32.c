@@ -281,12 +281,14 @@ static int replace_fibers(u32 nums_bits, u32 *tab,
  * If @new is true, then a new bucket has been inserted at @target_pos.
  * @vec points to a new set of buckets
  */
-static int balance_fibers_inc(u32 new_numb, u32 *tab,
+static int balance_fibers_inc(struct fsw32_aid *aid,
+			      u32 new_numb, u32 *tab,
 			      u32 *old_weights, u32 *new_weights,
 			      u32 target_pos,
 			      bucket_t *vec,
 			      void *(*fiber_at)(bucket_t *vec, u64 idx),
-			      u64 (*idx2id)(u32 idx), int new)
+			      u64 (*idx2id)(u32 idx),
+			      bucket_t new)
 {
 	int ret = 0;
 	u32 i, j;
@@ -297,6 +299,8 @@ static int balance_fibers_inc(u32 new_numb, u32 *tab,
 		ret = ENOMEM;
 		goto exit;
 	}
+	aid->excess = excess;
+
 	for (i = 0; i < target_pos; i++)
 		excess[i] = old_weights[i] - new_weights[i];
 
@@ -367,17 +371,19 @@ static int balance_fibers_inc(u32 new_numb, u32 *tab,
 }
 
 /**
- * @removed (if not NULL) points to the bucket that has been
- * removed from @target_pos at AID;
- * @vec points to the new set of buckets.
+ * @removeme (if not NULL) points to the bucket, which is to be
+ * removed from @vec, that points to the old array of buckets.
+ * @target_pos is index (in @vec) of bucket to remove (shrink).
  */
-static int balance_fibers_dec(u32 old_numb, u32 *tab,
+static int balance_fibers_dec(struct fsw32_aid *aid,
+			      u32 old_numb, u32 *tab,
 			      u32 *old_weights, u32 *new_weights,
 			      u32 target_pos,
 			      bucket_t *vec,
 			      void *(*fiber_at)(bucket_t *vec, u64 idx),
 			      void *(*fiber_of)(bucket_t bucket),
-			      u64 (*idx2id)(u32 idx), bucket_t removed)
+			      u64 (*idx2id)(u32 idx),
+			      bucket_t removeme)
 {
 	int ret = 0;
 	u32 i, j;
@@ -386,27 +392,28 @@ static int balance_fibers_dec(u32 old_numb, u32 *tab,
 	u32 *target;
 
 	assert("edward-2193",
-	       ergo(removed != NULL, vec[target_pos] == removed));
+	       ergo(removeme != NULL, vec[target_pos] == removeme));
 
 	shortage = mem_alloc(old_numb * WORDSIZE);
 	if (!shortage) {
 		ret = ENOMEM;
 		goto exit;
 	}
+	aid->shortage = shortage;
 
 	for(i = 0; i < target_pos; i++)
 		shortage[i] = new_weights[i] - old_weights[i];
 
 	for(i = target_pos + 1; i < old_numb; i++) {
-		if (removed)
+		if (removeme)
 			shortage[i] = new_weights[i-1] - old_weights[i];
 		else
 			shortage[i] = new_weights[i]   - old_weights[i];
 	}
 	assert("edward-1915", shortage[target_pos] == 0);
 
-	if (removed) {
-		target = fiber_of(removed);
+	if (removeme) {
+		target = fiber_of(removeme);
 		off_in_target = 0;
 	} else {
 		target = fiber_at(vec, target_pos);
@@ -426,7 +433,7 @@ static int balance_fibers_dec(u32 old_numb, u32 *tab,
 	 * distribute segments among all fibers to the right of target_pos
 	 */
 	for(i = target_pos + 1; i < old_numb; i++) {
-		if (removed && FSW32_PRECISE) {
+		if (removeme && FSW32_PRECISE) {
 			/*
 			 * FSW modification when idx2id() and id2idx
 			 * are identical functions.
@@ -667,7 +674,7 @@ int initr_fsw32(reiser4_aid *raid, int numb, int nums_bits, int new)
  */
 int initv_fsw32(bucket_t *vec,
 		u64 numb, int nums_bits,
-		struct reiser4_aid_ops *ops,
+		struct bucket_ops *ops,
 		reiser4_aid *raid)
 {
 	int ret = -ENOMEM;
@@ -751,7 +758,7 @@ u64 lookup_fsw32m(reiser4_aid *raid, const char *str,
  * If @new != NULL, then the whole bucket @new has been inserted
  * to the array at @target_pos
  */
-int inc_fsw32(reiser4_aid *raid, u64 target_pos, int new)
+int inc_fsw32(reiser4_aid *raid, u64 target_pos, bucket_t new)
 {
 	int ret = 0;
 	u32 *new_weights;
@@ -762,6 +769,8 @@ int inc_fsw32(reiser4_aid *raid, u64 target_pos, int new)
 	if (new) {
 		if (old_numb == MAX_BUCKETS)
 			return EINVAL;
+		aid->ops->insert_bucket(aid->buckets, new,
+					old_numb, target_pos);
 		new_numb ++;
 	}
 	nums = 1 << aid->nums_bits;
@@ -773,13 +782,16 @@ int inc_fsw32(reiser4_aid *raid, u64 target_pos, int new)
 		ret = ENOMEM;
 		goto error;
 	}
+	aid->new_weights = new_weights;
+
 	ret = clone_systab(aid);
 	if (ret)
 		goto error;
 
 	calibrate32(new_numb, nums,
 		    aid->buckets, aid->ops->cap_at, new_weights);
-	ret = balance_fibers_inc(new_numb, aid->tab[NEW_VOL_CONF],
+	ret = balance_fibers_inc(aid,
+				 new_numb, aid->tab[NEW_VOL_CONF],
 				 aid->weights, new_weights, target_pos,
 				 aid->buckets, aid->ops->fib_at,
 				 aid->ops->idx2id, new);
@@ -793,21 +805,6 @@ int inc_fsw32(reiser4_aid *raid, u64 target_pos, int new)
 	aid->weights = new_weights;
 	aid->numb = new_numb;
 
-#if 0
-	create_fibers(aid->nums_bits, aid->tab[NEW_VOL_CONF],
-		      new_numb, new_weights, aid->buckets,
-		      aid->ops->fib_at, aid->ops->fib_set_at,
-		      aid->ops->fib_lenp_at, aid->ops->id2idx);
-	{
-		int i;
-		for (i = 0; i < new_numb; i++)
-			print_fiber(i, aid->buckets,
-				    aid->ops->fib_at,
-				    aid->ops->fib_lenp_at);
-	}
-	release_fibers(new_numb, aid->buckets,
-		       aid->ops->fib_at, aid->ops->fib_set_at);
-#endif
 	return 0;
  error:
 	if (new_weights)
@@ -858,17 +855,17 @@ int cfs_fsw32(reiser4_aid *raid, u64 numb, u64 used)
 	return ret;
 }
 
-/*
- * Decrease capacity of an array.
- * If @victim is not NULL, then the whole bucket has been removed
- * from @target_pos.
+/**
+ * Decrease capacity of an array of buckets.
+ * If @removeme is not NULL, then the whole bucket at @target_pos
+ * is to be removed.
  */
-int dec_fsw32(reiser4_aid *raid, u64 target_pos, bucket_t victim)
+int dec_fsw32(reiser4_aid *raid, u64 target_pos, bucket_t removeme)
 {
 	int ret = 0;
 	u32 nums;
 	u32 old_numb, new_numb;
-	u32 *new_weights;
+	u32 *new_weights = NULL;
 	struct fsw32_aid *aid = fsw32_private(raid);
 
 	assert("edward-1908", aid->numb >= 1);
@@ -876,8 +873,13 @@ int dec_fsw32(reiser4_aid *raid, u64 target_pos, bucket_t victim)
 	assert("edward-1927", aid->numb > 1);
 
 	new_numb = old_numb = aid->numb;
-	if (victim != NULL)
+	if (removeme) {
 		new_numb --;
+		aid->ops->remove_bucket(aid->buckets, aid->numb, target_pos);
+	}
+	ret = cfs_fsw32(raid, new_numb, aid->ops->space_occupied());
+	if (ret)
+		goto error;
 
 	nums = 1 << aid->nums_bits;
 	new_weights = mem_alloc(new_numb * WORDSIZE);
@@ -885,17 +887,25 @@ int dec_fsw32(reiser4_aid *raid, u64 target_pos, bucket_t victim)
 		ret = ENOMEM;
 		goto error;
 	}
+	aid->new_weights = new_weights;
+
 	ret = clone_systab(aid);
 	if (ret)
 		goto error;
 
 	calibrate32(new_numb, nums,
 		    aid->buckets, aid->ops->cap_at, new_weights);
-	ret = balance_fibers_dec(old_numb, aid->tab[NEW_VOL_CONF],
+
+	if (removeme)
+		aid->ops->insert_bucket(aid->buckets, removeme,
+					new_numb, target_pos);
+
+	ret = balance_fibers_dec(aid,
+				 old_numb, aid->tab[NEW_VOL_CONF],
 				 aid->weights, new_weights, target_pos,
 				 aid->buckets, aid->ops->fib_at,
 				 aid->ops->fib_of, aid->ops->idx2id,
-				 victim);
+				 removeme);
 	if (ret)
 		goto error;
 
@@ -903,7 +913,7 @@ int dec_fsw32(reiser4_aid *raid, u64 target_pos, bucket_t victim)
 		       aid->buckets, aid->ops->fib_at,
 		       aid->ops->fib_set_at);
 	release_fibers(1,
-		       &victim, aid->ops->fib_at,
+		       &removeme, aid->ops->fib_at,
 		       aid->ops->fib_set_at);
 
 	mem_free(aid->weights);

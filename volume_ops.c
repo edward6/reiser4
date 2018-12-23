@@ -23,46 +23,13 @@ static int reiser4_register_brick(struct super_block *sb,
 static int reiser4_print_volume(struct super_block *sb,
 			       struct reiser4_vol_op_args *args)
 {
-	reiser4_volume *vol = super_volume(sb);
-	reiser4_volinfo *vinfo = &vol->volinfo[CUR_VOL_CONF];
-
-	args->u.vol.nr_bricks = meta_brick_belongs_aid() ?
-		vol_nr_origins(vol) : - vol_nr_origins(vol);
-	memcpy(args->u.vol.id, vol->uuid, 16);
-	args->u.vol.vpid = vol->vol_plug->h.id;
-	args->u.vol.dpid = vol->dist_plug->h.id;
-	args->u.vol.fs_flags = get_super_private(sb)->fs_flags;
-	args->u.vol.nr_slots = vol->nr_slots;
-	args->u.vol.nr_volinfo_blocks = vinfo->num_volmaps + vinfo->num_voltabs;
-	return 0;
+	return super_volume(sb)->vol_plug->print_volume(sb, args);
 }
 
 static int reiser4_print_brick(struct super_block *sb,
 			       struct reiser4_vol_op_args *args)
 {
-	int ret = 0;
-	u64 id = args->s.brick_id;
-	reiser4_volume *vol = super_volume(sb);
-	reiser4_subvol *subv;
-
-	spin_lock_reiser4_super(get_super_private(sb));
-
-	if (id >= vol_nr_origins(vol)) {
-		ret = -EINVAL;
-		goto out;
-	}
-	subv = vol->subvols[id][0];
-	strncpy(args->d.name, subv->name, REISER4_PATH_NAME_MAX + 1);
-	memcpy(args->u.brick.ext_id, subv->uuid, 16);
-	args->u.brick.int_id = subv->id;
-	args->u.brick.nr_replicas = subv->num_replicas;
-	args->u.brick.block_count = subv->block_count;
-	args->u.brick.data_room = subv->data_room;
-	args->u.brick.blocks_used = subv->blocks_used;
-	args->u.brick.volinfo_addr = subv->volmap_loc[CUR_VOL_CONF];
- out:
-	spin_unlock_reiser4_super(get_super_private(sb));
-	return ret;
+	return super_volume(sb)->vol_plug->print_brick(sb, args);
 }
 
 /**
@@ -85,12 +52,15 @@ static int reiser4_print_voltab(struct super_block *sb,
 /**
  * find activated brick by @name
  */
-static reiser4_subvol *find_active_brick(char *name)
+static reiser4_subvol *find_active_brick(struct super_block *super,
+					 char *name)
 {
 	u32 subv_id;
 	reiser4_subvol *result = NULL;
 
-	for_each_origin(subv_id) {
+	for_each_vslot(subv_id) {
+		if (super_mirrors(super, subv_id) == NULL)
+			continue;
 		if (!strcmp(current_origin(subv_id)->name, name)) {
 			result = current_origin(subv_id);
 			break;
@@ -112,7 +82,7 @@ static int reiser4_expand_brick(struct super_block *sb,
 			sb->s_id);
 		return -EINVAL;
 	}
-	victim = find_active_brick(args->d.name);
+	victim = find_active_brick(sb, args->d.name);
 	if (!victim) {
 		warning("edward-2147",
 			"Brick %s doesn't belong to volume %s. Can not expand.",
@@ -144,7 +114,7 @@ static int reiser4_shrink_brick(struct super_block *sb,
 			sb->s_id);
 		return -EINVAL;
 	}
-	victim = find_active_brick(args->d.name);
+	victim = find_active_brick(sb, args->d.name);
 	if (!victim) {
 		warning("edward-2148",
 			"Brick %s doesn't belong to volume %s. Can not shrink.",
@@ -243,7 +213,7 @@ static int reiser4_remove_brick(struct super_block *sb,
 			sb->s_id);
 		return -EINVAL;
 	}
-	victim = find_active_brick(args->d.name);
+	victim = find_active_brick(sb, args->d.name);
 	if (!victim) {
 		warning("edward-2149",
 			"Brick %s doesn't belong to volume %s. Can not remove.",

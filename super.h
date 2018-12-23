@@ -386,7 +386,7 @@ static inline reiser4_subvol *sbinfo_mirror(reiser4_super_info_data *info,
 	return sbinfo_mirrors(info, id)[mirror_id];
 }
 
-static inline reiser4_subvol **super_mirrors(struct super_block *super,
+static inline reiser4_subvol **super_mirrors(const struct super_block *super,
 					     u32 id)
 {
 	return sbinfo_mirrors(get_super_private(super), id);
@@ -532,9 +532,9 @@ static inline u32 current_num_mirrors(u32 orig_id)
 #define current_stripe_bits (current_volume()->stripe_bits)
 #define current_stripe_size (1 << current_stripe_bits)
 
-#define for_each_origin(_subv_id)					\
+#define for_each_vslot(_subv_id)					\
 	for (_subv_id = 0;						\
-	     _subv_id < current_nr_origins();				\
+	     _subv_id < current_volume()->nr_slots;			\
 	     _subv_id ++)
 
 #define for_each_mirror(_orig_id, _mirr_id)				\

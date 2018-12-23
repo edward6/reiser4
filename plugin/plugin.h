@@ -11,6 +11,7 @@
 #include "../debug.h"
 #include "../dformat.h"
 #include "../key.h"
+#include "../ioctl.h"
 #include "compress/compress.h"
 #include "crypto/cipher.h"
 #include "plugin_header.h"
@@ -523,7 +524,7 @@ typedef struct txmod_plugin {
 				reiser4_key *stop_key); // was_squalloc_extent
 } txmod_plugin;
 
-struct reiser4_aid_ops {
+struct bucket_ops {
 	/* Get capacity of a bucket with serial number @idx
 	   in the array @buckets */
 	u64 (*cap_at)(bucket_t *buckets, u64 idx);
@@ -538,10 +539,18 @@ struct reiser4_aid_ops {
 	/* Get a pointer to fiber length of a bucket with
 	   serial number @idx in the array @buckets */
 	u64 *(*fib_lenp_at)(bucket_t *buckets, u64 idx);
-	/* translate index in DSA to brick ID */
+	/* translate index in the array of buckets to bucket ID */
 	u64 (*idx2id)(u32 idx);
-	/* translate brick ID to index in DSA */
+	/* translate bucket ID to index in the array of buckets */
 	u32 (*id2idx)(u64 id);
+	/* insert a bucket @new into a set of buckets @vec
+	   at position pos */
+	void (*insert_bucket)(bucket_t *vec, bucket_t new, u32 numb, u32 pos);
+	/* remove a bucket located at position @pos from
+	   the set of buckets @vec */
+	void (*remove_bucket)(bucket_t *vec, u32 numb, u32 pos);
+	/* return total space currently occupied in all buckets */
+	u64 (*space_occupied)(void);
 };
 
 struct dist_regular_ops {
@@ -555,15 +564,15 @@ struct dist_regular_ops {
 struct dist_volume_ops {
 	/* is called at the beginning of any volume operation */
 	int (*init)(bucket_t *buckets, u64 num_buckets, int num_sgs_bits,
-		    struct reiser4_aid_ops *ops, reiser4_aid *raid);
+		    struct bucket_ops *ops, reiser4_aid *raid);
 	/* is called at the end of any volume operation */
 	void (*done)(reiser4_aid *raid);
 	/* check if there is enough free space on LV to perform operations */
 	int (*cfs)(reiser4_aid *raid, u64 num, u64 space_used);
 	/* increase capacity of a storage array */
-	int (*inc)(reiser4_aid *raid, u64 target_pos, int new);
+	int (*inc)(reiser4_aid *raid, u64 target_pos, bucket_t new);
 	/* decrease capacity of a storage array */
-	int (*dec)(reiser4_aid *raid, u64 target_pos, void *victim);
+	int (*dec)(reiser4_aid *raid, u64 target_pos, bucket_t old);
 	/* increase maximal capacity of a storage array */
 	int (*spl)(reiser4_aid *raid, u32 fact_bits);
 	/* pack system information to a set of blocks */
@@ -612,13 +621,19 @@ typedef struct volume_plugin {
 			    u64 delta);
 	/* Remove @brick from logical volume @vol */
 	int (*remove_brick)(reiser4_volume *vol, reiser4_subvol *brick);
-	/* Online balancing of a logical volume specified by @super.
+	/* Print brick info */
+	int (*print_brick)(struct super_block *sb,
+			   struct reiser4_vol_op_args *args);
+	/* Print volume info */
+	int (*print_volume)(struct super_block *sb,
+			    struct reiser4_vol_op_args *args);
+	/* Balance a logical volume specified by @super.
 	 * This procedure is supposed to complete any volume operations
 	 * above. If it returns 0, then the volume is fully balanced.
-	 * Otherwise, the procedure should be repeated in some context.
+	 * Otherwise, the procedure should be resumed in some context.
 	 */
 	int (*balance_volume)(struct super_block *super);
-	struct reiser4_aid_ops aid_ops;
+	struct bucket_ops bucket_ops;
 } volume_plugin;
 
 typedef struct hash_plugin {
