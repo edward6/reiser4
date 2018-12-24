@@ -834,11 +834,8 @@ int write_end_stripe(struct file *file, struct page *page,
  * new location, and make respective pages dirty. In flush time those
  * pages will get location on new bricks.
  *
- * IMPORTANT: This implementation assumes that all items of the same
- * file are next to each other in the storage tree. Currently, it is
- * achievable only with PLANB_KEY_ALLOCATION scheme. If you need to
- * balance in other key allocation modes, then write another
- * implementation, put it here and ifdef it.
+ * IMPORTANT: This implementation assumes that physical order of file
+ * data bytes coincides with their logical order.
  */
 int balance_stripe(struct inode *inode)
 {

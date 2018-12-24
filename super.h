@@ -537,6 +537,11 @@ static inline u32 current_num_mirrors(u32 orig_id)
 	     _subv_id < current_volume()->nr_slots;			\
 	     _subv_id ++)
 
+#define for_each_data_vslot(_subv_id)					\
+	for (_subv_id = 1;						\
+	     _subv_id < current_volume()->nr_slots;			\
+	     _subv_id ++)
+
 #define for_each_mirror(_orig_id, _mirr_id)				\
 	for (_mirr_id = 0;						\
 	     _mirr_id < current_num_mirrors(_orig_id);			\

@@ -814,44 +814,49 @@ int inc_fsw32(reiser4_aid *raid, u64 target_pos, bucket_t new)
 }
 
 /**
- * Check free space:
- * calculate how much space will be occupied on each bucket after
- * rebalancing and compare it with the new array of capacities.
+ * Check if there is enough space on remaining buckets for successful
+ * completion of a bucket operation.
  *
- * @numb: number of buckets after shrinking/removing a bucket
- * @used: amount of occupied space on the AID.
+ * @numb: number of buckets upon succesfull completion.
+ * @occ: total amount of space occupied on all buckets
  */
-int cfs_fsw32(reiser4_aid *raid, u64 numb, u64 used)
+static int check_space(reiser4_aid *raid, u64 numb, u64 occ)
 {
 	u64 i;
 	int ret = 0;
-	u64 *new_occ;
+	u64 *vec_new_occ;
 	struct fsw32_aid *aid = fsw32_private(raid);
 	bucket_t *vec = aid->buckets;
 
-	new_occ = mem_alloc(numb * sizeof(u64));
-	if (!new_occ)
+	/*
+	 * For each bucket: calculate how much space will be
+	 * occupied on the bucket after successful completion
+	 * of the volume operation and compare it with the
+	 * bucket's capacity
+	 */
+	vec_new_occ = mem_alloc(numb * sizeof(u64));
+	if (!vec_new_occ)
 		return -ENOMEM;
 
-	calibrate64(numb, used, vec, aid->ops->cap_at, new_occ);
+	calibrate64(numb, occ, vec, aid->ops->cap_at, vec_new_occ);
 
 	for (i = 0; i < numb; i++) {
 #if REISER4_DEBUG
 		notice("edward-2145",
 		       "Brick %llu: data capacity: %llu, min required: %llu",
-		       i, aid->ops->cap_at(vec, i), new_occ[i]);
+		       i, aid->ops->cap_at(vec, i), vec_new_occ[i]);
 #endif
-		if (aid->ops->cap_at(vec, i) < new_occ[i]) {
+		if (aid->ops->cap_at(vec, i) < vec_new_occ[i]) {
 			warning("edward-2070",
 	"Not enough data capacity (%llu) of brick %llu (required %llu)",
 				aid->ops->cap_at(vec, i),
 				i,
-				new_occ[i]);
+				vec_new_occ[i]);
 			ret = -ENOSPC;
 			break;
 		}
 	}
-	mem_free(new_occ);
+	mem_free(vec_new_occ);
 	return ret;
 }
 
@@ -877,7 +882,7 @@ int dec_fsw32(reiser4_aid *raid, u64 target_pos, bucket_t removeme)
 		new_numb --;
 		aid->ops->remove_bucket(aid->buckets, aid->numb, target_pos);
 	}
-	ret = cfs_fsw32(raid, new_numb, aid->ops->space_occupied());
+	ret = check_space(raid, new_numb, aid->ops->space_occupied());
 	if (ret)
 		goto error;
 
