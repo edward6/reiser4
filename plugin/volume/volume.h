@@ -61,23 +61,6 @@ static inline u64 num_aid_subvols(reiser4_volume *vol)
 }
 
 /*
- * Returns matrix of subvolumes participating in AID
- */
-
-static inline slot_t *aid_subvols(slot_t *subvols)
-{
-	if (meta_brick_belongs_aid())
-		return subvols;
-	else
-		return subvols + 1;
-}
-
-static inline slot_t *current_aid_subvols(void)
-{
-	return aid_subvols(current_subvols());
-}
-
-/*
   Local variables:
   c-indentation-style: "K&R"
   mode-name: "LC"

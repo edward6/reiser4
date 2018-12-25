@@ -1424,12 +1424,17 @@ static u64 data_subvol_id_calc_asym(oid_t oid, loff_t offset, void *tab)
 	distribution_plugin *dist_plug;
 	u64 stripe_idx;
 
-	if (!tab) {
-		assert("edward-2204",
-		       num_aid_subvols(current_volume()) == 1);
-		return current_aid_subvols()[0][0]->id;
-	}
 	vol = current_volume();
+
+	if (!tab) {
+		assert("edward-2204", num_aid_subvols(vol) == 1);
+		/*
+		 * the single data brick is always in the last slot
+		 */
+		assert("edward-2212",
+		       current_subvols()[vol->nr_slots - 1] != NULL);
+		return current_subvols()[vol->nr_slots - 1][0]->id;
+	}
 	dist_plug = current_dist_plug();
 
 	if (vol->stripe_bits) {
