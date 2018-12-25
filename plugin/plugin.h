@@ -342,8 +342,8 @@ typedef struct file_plugin {
 	 * (read_inode) and when file is created (common_create_child) so that
 	 * file plugin could initialize its inode data
 	 */
-	void (*init_inode_data) (struct inode *, reiser4_object_create_data * ,
-				 int);
+	void (*init_inode_data) (struct inode *, reiser4_object_create_data *,
+				 const reiser4_key *, int);
 
 	/*
 	 * This method performs progressive deletion of items and whole nodes

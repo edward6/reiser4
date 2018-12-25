@@ -643,7 +643,7 @@ static int do_create_vfs_child(reiser4_object_create_data *data,
 	 * inode
 	 */
 	if (obj_plug->init_inode_data)
-		obj_plug->init_inode_data(object, data, 1/*create */);
+		obj_plug->init_inode_data(object, data, NULL, 1 /*create */);
 	/*
 	 * obtain directory plugin (if any) for new object
 	 */

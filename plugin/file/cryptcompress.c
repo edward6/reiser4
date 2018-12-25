@@ -57,10 +57,9 @@ struct cryptcompress_info *cryptcompress_inode_data(const struct inode *inode)
 	return &reiser4_inode_data(inode)->file_plugin_data.cryptcompress_info;
 }
 
-/* plugin->u.file.init_inode_data */
 void init_inode_data_cryptcompress(struct inode *inode,
 				   reiser4_object_create_data * crd,
-				   int create)
+				   const reiser4_key *sd_key, int create)
 {
 	struct cryptcompress_info *data;
 
@@ -73,7 +72,7 @@ void init_inode_data_cryptcompress(struct inode *inode,
 	data->trunc_index = ULONG_MAX;
 	turn_on_compression(data);
 	set_lattice_factor(data, MIN_LATTICE_FACTOR);
-	init_inode_ordering(inode, crd, create);
+	init_inode_ordering(inode, crd, sd_key, create);
 }
 
 /* The following is a part of reiser4 cipher key manager

@@ -102,7 +102,7 @@ int flow_by_inode_unix_file(struct inode *, const char __user *buf,
 			    int user, loff_t, loff_t, rw_op, flow_t *);
 int owns_item_unix_file(const struct inode *, const coord_t *);
 void init_inode_data_unix_file(struct inode *, reiser4_object_create_data *,
-			       int create);
+			       const reiser4_key *sd_key, int create);
 
 /*
  * Private methods of cryptcompress file plugin
@@ -145,7 +145,7 @@ int create_object_cryptcompress(struct inode *, struct inode *,
 				reiser4_object_create_data *, oid_t *);
 int delete_object_cryptcompress(struct inode *);
 void init_inode_data_cryptcompress(struct inode *, reiser4_object_create_data *,
-				   int create);
+				   const reiser4_key *sd_key, int create);
 int cut_tree_worker_cryptcompress(tap_t *, const reiser4_key * from_key,
 				  const reiser4_key * to_key,
 				  reiser4_key * smallest_removed,
@@ -166,7 +166,7 @@ int flow_by_inode_stripe(struct inode *inode, const char __user *buf, int user,
 int create_object_stripe(struct inode *object, struct inode *parent,
 			 reiser4_object_create_data *data, oid_t *oid);
 void init_inode_data_stripe(struct inode *, reiser4_object_create_data *,
-			    int create);
+			    const reiser4_key *sd_key, int create);
 int open_stripe(struct inode *, struct file *);
 int release_stripe(struct inode *inode, struct file *file);
 ssize_t read_stripe(struct file *file, char __user *buf,

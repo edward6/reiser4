@@ -109,9 +109,10 @@ int flow_by_inode_stripe(struct inode *inode,
 }
 
 void init_inode_data_stripe(struct inode *inode,
-			    reiser4_object_create_data *crd, int create)
+			    reiser4_object_create_data *crd,
+			    const reiser4_key *sd_key, int create)
 {
-	init_inode_data_unix_file(inode, crd, create);
+	init_inode_data_unix_file(inode, crd, sd_key, create);
 	inode_set_old_dist(inode);
 }
 
@@ -395,9 +396,7 @@ int readpage_stripe(struct file *file, struct page *page)
 	zrelse(coord->node);
 	done_lh(lh);
 
-	save_file_hint(file, hint);
 	kfree(hint);
-
 	/*
 	 * FIXME: explain why it is needed. HINT: page allocation in write can
 	 * not be done when atom is not NULL because reiser4_writepage can not

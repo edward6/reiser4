@@ -262,11 +262,38 @@ static int read_inode(struct inode *inode, const reiser4_key *key,
 	assert("nikita-301", !is_inode_loaded(inode));
 	if (ret)
 		goto error;
-	/* load stat-data extensions into inode */
+
+	if (bias == FIND_MAX_NOT_MORE_THAN) {
+		reiser4_key ikey;
+		/*
+		 * check found coord -
+		 * make sure that key of found item coincides
+		 * with @key in all components except ordering
+		 */
+		ret = zload(coord.node);
+		if (ret)
+			goto error;
+		unit_key_by_coord(&coord, &ikey);
+		zrelse(coord.node);
+
+		set_key_ordering((reiser4_key *)key, get_key_ordering(&ikey));
+
+		if (!keyeq(&ikey, key)) {
+			warning("edward-2134",
+				"Bad stat-data found for inode %llu",
+				(unsigned long long)get_inode_oid(inode));
+			reiser4_print_key("found", &ikey);
+			ret = -EIO;
+			goto error;
+		}
+	}
+	/*
+	 * load stat-data extensions into inode
+	 */
 	ret = init_inode(inode, &coord);
 	if (ret)
 		goto error;
-	/* initialize stat-data seal */
+
 	spin_lock_inode(inode);
 	reiser4_seal_init(&info->sd_seal, &coord, key);
 	info->sd_coord = coord;
@@ -276,29 +303,7 @@ static int read_inode(struct inode *inode, const reiser4_key *key,
 	 * specific part of inode
 	 */
 	if (inode_file_plugin(inode)->init_inode_data)
-		inode_file_plugin(inode)->init_inode_data(inode, NULL, 0);
-	if (bias == FIND_MAX_NOT_MORE_THAN) {
-		/* check found coord */
-		reiser4_key ikey;
-		reiser4_key sdkey;
-
-		ret = zload(coord.node);
-		if (ret)
-			goto error;
-		unit_key_by_coord(&coord, &ikey);
-		build_sd_key(inode, &sdkey);
-		zrelse(coord.node);
-
-		if (!keyeq(&ikey, &sdkey)) {
-			warning("edward-2134",
-				"Bad stat-data found for inode %llu",
-				(unsigned long long)get_inode_oid(inode));
-			reiser4_print_key("found", &ikey);
-			reiser4_print_key("expected", &sdkey);
-			ret = -EIO;
-			goto error;
-		}
-	}
+		inode_file_plugin(inode)->init_inode_data(inode, NULL, key, 0);
 	/*
 	 * load detached directory cursors for
 	 * stateless directory readers (NFS)
@@ -646,36 +651,29 @@ void inode_check_scale(struct inode *inode, __u64 old, __u64 new)
 	spin_unlock_inode(inode);
 }
 
-/*
+/**
  * initialize ->ordering field of inode. This field defines how file stat-data
  * and body is ordered within a tree with respect to other objects within the
  * same parent directory.
  */
-void
-init_inode_ordering(struct inode *inode,
-		    reiser4_object_create_data * crd, int create)
+void init_inode_ordering(struct inode *inode, reiser4_object_create_data *crd,
+			 const reiser4_key *sd_key, int create)
 {
-	reiser4_key key;
-
 	if (create) {
+		reiser4_key key;
 		struct inode *parent;
 
+		assert("edward-2210", crd != NULL);
 		parent = crd->parent;
 		assert("nikita-3224", inode_dir_plugin(parent) != NULL);
 		inode_dir_plugin(parent)->build_entry_key(parent,
 							  &crd->dentry->d_name,
 							  &key);
+		set_inode_ordering(inode, get_key_ordering(&key));
 	} else {
-		coord_t *coord;
-
-		coord = &reiser4_inode_data(inode)->sd_coord;
-		coord_clear_iplug(coord);
-		/* safe to use ->sd_coord, because node is under long term
-		 * lock */
-		WITH_DATA(coord->node, item_key_by_coord(coord, &key));
+		assert("edward-2211", sd_key != NULL);
+		set_inode_ordering(inode, get_key_ordering(sd_key));
 	}
-
-	set_inode_ordering(inode, get_key_ordering(&key));
 }
 
 znode *inode_get_vroot(struct inode *inode)

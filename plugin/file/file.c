@@ -723,7 +723,7 @@ int load_file_hint(struct file *file, hint_t *hint)
 }
 
 /**
- * save_file_hint - copy hint to reiser4 private struct file's part
+ * Copy hint to reiser4 private struct file's part
  * @file: file to save hint in
  * @hint: hint to save
  *
@@ -2760,10 +2760,9 @@ int setattr_unix_file(struct dentry *dentry, struct iattr *attr)
 	return reiser4_setattr_generic(dentry, attr, truncate_body_unix_file);
 }
 
-/* plugin->u.file.init_inode_data */
-void
-init_inode_data_unix_file(struct inode *inode,
-			  reiser4_object_create_data * crd, int create)
+void init_inode_data_unix_file(struct inode *inode,
+			       reiser4_object_create_data *crd,
+			       const reiser4_key *sd_key, int create)
 {
 	struct unix_file_info *data;
 
@@ -2777,7 +2776,7 @@ init_inode_data_unix_file(struct inode *inode,
 	data->ea_owner = NULL;
 	atomic_set(&data->nr_neas, 0);
 #endif
-	init_inode_ordering(inode, crd, create);
+	init_inode_ordering(inode, crd, sd_key, create);
 }
 
 /**

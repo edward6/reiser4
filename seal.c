@@ -46,13 +46,14 @@
 static znode *seal_node(const seal_t *seal, reiser4_tree *tree);
 static int seal_matches(const seal_t *seal, znode * node);
 
-/* initialise seal. This can be called several times on the same seal. @coord
-   and @key can be NULL.  */
-void reiser4_seal_init(seal_t *seal /* seal to initialise */ ,
-		       const coord_t *coord /* coord @seal will be
-					      *	attached to */ ,
-		       const reiser4_key * key UNUSED_ARG /* key @seal will be
-							   * attached to */ )
+/**
+ * Initialise seal.
+ * This can be called several times on the same seal.
+ * @coord: coord @seal will be attached to. Can be NULL.
+ * @key: key @seal will be attached to. Can be NULL.
+ */
+void reiser4_seal_init(seal_t *seal, const coord_t *coord,
+		       const reiser4_key *key )
 {
 	assert("nikita-1886", seal != NULL);
 	memset(seal, 0, sizeof *seal);

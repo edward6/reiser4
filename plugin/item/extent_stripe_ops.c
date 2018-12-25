@@ -564,7 +564,6 @@ static int update_extents_stripe(struct file *file, struct inode *inode,
 		return ret;
 	ret =  __update_extents_stripe(&hint, inode, jnodes, count, pos,
 				       NULL);
-	save_file_hint(file, &hint);
 	assert("edward-2065",  reiser4_lock_counters()->d_refs == 0);
 	return ret;
 }

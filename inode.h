@@ -471,7 +471,8 @@ static inline struct list_head *get_readdir_list(const struct inode *inode)
 }
 
 extern void init_inode_ordering(struct inode *inode,
-				reiser4_object_create_data * crd, int create);
+				reiser4_object_create_data *crd,
+				const reiser4_key *sd_key, int create);
 
 extern void inode_set_new_dist(struct inode *inode);
 extern void inode_set_old_dist(struct inode *inode);

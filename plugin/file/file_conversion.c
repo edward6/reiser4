@@ -123,8 +123,6 @@ static int __cryptcompress2unixfile(struct file *file, struct inode * inode)
 
 	reiser4_inode_clr_flag(inode, REISER4_SDLEN_KNOWN);
 
-	/* FIXME use init_inode_data_unix_file() instead,
-	   but aviod init_inode_ordering() */
 	/* Init unix-file specific part of inode */
 	uf = unix_file_inode_data(inode);
 	uf->container = UF_CONTAINER_UNKNOWN;
