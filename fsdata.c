@@ -149,7 +149,7 @@ void reiser4_done_super_d_info(struct super_block *super)
 	for_all_in_htable(&d_info->table, d_cursor, cursor, next)
 		kill_cursor(cursor);
 
-	BUG_ON(d_info->tree.rnode != NULL);
+	BUG_ON(!radix_tree_empty(&d_info->tree));
 	d_cursor_hash_done(&d_info->table);
 }
 
