@@ -3712,6 +3712,7 @@ int write_begin_cryptcompress(struct file *file, struct page *page,
 	if (ret) {
 		SetPageError(page);
 		ClearPageUptodate(page);
+		unlock_page(page);
 		goto err0;
 	}
 	/*
