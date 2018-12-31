@@ -831,7 +831,7 @@ int find_or_create_extent_generic(struct page *page,
 	inode = page->mapping->host;
 
 	lock_page(page);
-	node = jnode_of_page(page, 1 /* for data IO */);
+	node = jnode_of_page(page);
 	if (IS_ERR(node)) {
 		unlock_page(page);
 		return PTR_ERR(node);
@@ -1581,7 +1581,6 @@ int reiser4_readpages_filler_generic(void *data,
 				     struct page *page, int striped)
 {
 	int ret = 0;
-	jnode *node;
 	reiser4_extent *ext;
 	__u64 ext_index;
 	int cbk_done = 0;
@@ -1626,7 +1625,7 @@ int reiser4_readpages_filler_generic(void *data,
 		 */
 		if (striped) {
 			/* hole in a file */
-			ret = __reiser4_readpage_extent(NULL, 0, page);
+			ret = __reiser4_readpage_extent(NULL, NULL, 0, page);
 			zrelse(rc->coord.node);
 			done_lh(&rc->lh);
 			goto exit;
@@ -1666,14 +1665,9 @@ int reiser4_readpages_filler_generic(void *data,
 		}
 		goto repeat;
 	}
-	node = jnode_of_page(page, 1 /* for data IO */);
-	if (unlikely(IS_ERR(node))) {
-		zrelse(rc->coord.node);
-		ret = PTR_ERR(node);
-		goto unlock;
-	}
-	ret = __reiser4_readpage_extent(ext, page->index - ext_index, page);
-	jput(node);
+	ret = __reiser4_readpage_extent(&rc->coord,
+					ext, page->index - ext_index,
+					page);
 	zrelse(rc->coord.node);
 	if (likely(!ret))
 		goto exit;

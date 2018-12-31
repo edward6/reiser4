@@ -273,7 +273,7 @@ static int insert_first_extent_stripe(uf_coord_t *uf_coord,
 	/*
 	 * assign fake block numbers to all jnodes, capture and mark them dirty
 	 */
-	subv = calc_data_subvol(inode, get_key_offset(key));
+	subv = current_origin(get_key_ordering(key));
 
 	result = check_insert_atom_brick_info(subv->id, &abi);
 	if (result)
@@ -285,10 +285,9 @@ static int insert_first_extent_stripe(uf_coord_t *uf_coord,
 		spin_lock_jnode(node);
 		JF_SET(node, JNODE_CREATED);
 
-		assert("edward-1934", node->subvol == subv);
-		//node->subvol = subv;
-
+		jnode_set_subvol(node, subv);
 		jnode_set_block(node, &block);
+
 		result = reiser4_try_capture(node, ZNODE_WRITE_LOCK, 0);
 		BUG_ON(result != 0);
 		jnode_make_dirty_locked(node);
@@ -386,11 +385,8 @@ static int append_extent_stripe(struct inode *inode, uf_coord_t *uf_coord,
 	/*
 	 * assign fake block numbers to all jnodes. FIXME: make sure whether
 	 * twig node containing inserted extent item is locked
-	 *
-	 * FIXME-EDWARD: replace calc_data_subvol() with find_data_subvol():
-	 * subvolums should be found by existing, or newly created extent.
 	 */
-	subv = calc_data_subvol(inode, get_key_offset(key));
+	subv = current_origin(get_key_ordering(key));
 
 	result = check_insert_atom_brick_info(subv->id, &abi);
 	if (result)
@@ -402,10 +398,9 @@ static int append_extent_stripe(struct inode *inode, uf_coord_t *uf_coord,
 		spin_lock_jnode(node);
 		JF_SET(node, JNODE_CREATED);
 
-		assert("edward-1954", node->subvol == subv);
-		//node->subvol = subv;
-
+		jnode_set_subvol(node, subv);
 		jnode_set_block(node, &block);
+
 		result = reiser4_try_capture(node, ZNODE_WRITE_LOCK, 0);
 		BUG_ON(result != 0);
 		jnode_make_dirty_locked(node);
@@ -429,23 +424,32 @@ static int overwrite_one_block_stripe(struct inode *inode, uf_coord_t *uf_coord,
 		 * the case of hole
 		 */
 		int result;
-		reiser4_subvol *subv = node->subvol;
-
-		assert("edward-1784",
-		       subv == calc_data_subvol(inode, get_key_offset(key)));
+		reiser4_subvol *subv;
 
 		uf_coord->valid = 0;
 		inode_add_blocks(mapping_jnode(node)->host, 1);
 		result = plug_hole_stripe(inode, uf_coord, key);
 		if (result)
 			return result;
+		subv = current_origin(get_key_ordering(key));
 		block = fake_blocknr_unformatted(1, subv);
 		if (hole_plugged)
 			*hole_plugged = 1;
 		JF_SET(node, JNODE_CREATED);
+		if (node->subvol == NULL)
+			jnode_set_subvol(node, subv);
+		else
+			assert("edward-2219", node->subvol == subv);
 	} else {
 		reiser4_extent *ext;
 		struct extent_coord_extension *ext_coord;
+
+		assert("edward-2220",
+		       jnode_get_subvol(node) ==
+		       find_data_subvol(&uf_coord->coord));
+		assert("edward-2221",
+		       jnode_get_subvol(node)->id ==
+		       get_key_ordering(key));
 
 		ext_coord = ext_coord_by_uf_coord(uf_coord);
 		check_uf_coord_stripe(uf_coord, NULL);

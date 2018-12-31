@@ -234,7 +234,6 @@ void check_jnodes(struct inode *inode,
  * There is already at least one extent item of file @inode in the tree.
  * Append the last of them with unallocated extent unit of width @count.
  * Assign fake block numbers to jnodes corresponding to the inserted extent.
- * Set pointer to subvolume where the data stripe should be stored to jnodes.
  */
 static int append_last_extent_unix_file(struct inode *inode,
 					uf_coord_t *uf_coord,
@@ -250,7 +249,6 @@ static int append_last_extent_unix_file(struct inode *inode,
 	reiser4_block_nr block;
 	jnode *node;
 	int i;
-	reiser4_subvol *subv;
 	struct atom_brick_info *abi;
 
 	coord = &uf_coord->coord;
@@ -313,31 +311,23 @@ static int append_last_extent_unix_file(struct inode *inode,
 	 * jnodes we are about to capture
 	 */
 	check_jnodes(inode, uf_coord->lh->node, key, count);
-
 	/*
 	 * assign fake block numbers to all jnodes. FIXME: make sure whether
 	 * twig node containing inserted extent item is locked
 	 */
-	/*
-	 * FIXME-EDWARD: replace calc_data_subvol() with find_data_subvol():
-	 * subvolums should be found by existing, or newly created extent.
-	 */
-	subv = calc_data_subvol(inode, get_key_offset(key));
-
-	result = check_insert_atom_brick_info(subv->id, &abi);
+	result = check_insert_atom_brick_info(get_meta_subvol()->id, &abi);
 	if (result)
 		return result;
 
 	for (i = 0; i < count; i ++) {
 		node = jnodes[i];
-		block = fake_blocknr_unformatted(1, subv);
+		block = fake_blocknr_unformatted(1, get_meta_subvol());
 		spin_lock_jnode(node);
 		JF_SET(node, JNODE_CREATED);
 
-		assert("edward-1954", node->subvol == subv);
-		//node->subvol = subv;
-
+		jnode_set_subvol(node, get_meta_subvol());
 		jnode_set_block(node, &block);
+
  		result = reiser4_try_capture(node, ZNODE_WRITE_LOCK, 0);
 		BUG_ON(result != 0);
 		jnode_make_dirty_locked(node);
@@ -388,8 +378,7 @@ static int insert_first_hole_unix_file(struct inode *inode, coord_t *coord,
  * There are no items of file @inode in the tree yet. Insert unallocated extent
  * of width @count into tree or hole extent if writing not to the
  * beginning. Assign fake block numbers to jnodes corresponding to the inserted
- * unallocated extent. Calculate a subvolume ID where the data stripe should be
- * stored and set it to jnodes. Returns number of jnodes or error code.
+ * unallocated extent. Returns number of jnodes or error code.
  */
 static int insert_first_extent_unix_file(uf_coord_t *uf_coord,
 					 const reiser4_key *key,
@@ -403,7 +392,6 @@ static int insert_first_extent_unix_file(uf_coord_t *uf_coord,
 	reiser4_block_nr block;
 	struct unix_file_info *uf_info;
 	jnode *node;
-	reiser4_subvol *subv;
 	struct atom_brick_info *abi;
 
 	/* first extent insertion starts at leaf level */
@@ -457,22 +445,21 @@ static int insert_first_extent_unix_file(uf_coord_t *uf_coord,
 	/*
 	 * assign fake block numbers to all jnodes, capture and mark them dirty
 	 */
-	subv = calc_data_subvol(inode, get_key_offset(key));
-
-	result = check_insert_atom_brick_info(subv->id, &abi);
+	result = check_insert_atom_brick_info(get_meta_subvol()->id, &abi);
 	if (result)
 		return result;
 
-	block = fake_blocknr_unformatted(count, subv);
+	block = fake_blocknr_unformatted(count, get_meta_subvol());
 	for (i = 0; i < count; i ++, block ++) {
 		node = jnodes[i];
 		spin_lock_jnode(node);
 		JF_SET(node, JNODE_CREATED);
-
-		assert("edward-1934", node->subvol == subv);
-		//node->subvol = subv;
-
+		/*
+		 * unix file plugin stores everything in meta-data brick
+		 */
+		jnode_set_subvol(node, get_meta_subvol());
 		jnode_set_block(node, &block);
+
  		result = reiser4_try_capture(node, ZNODE_WRITE_LOCK, 0);
 		BUG_ON(result != 0);
 		jnode_make_dirty_locked(node);
@@ -642,7 +629,6 @@ static int overwrite_one_block_unix_file(struct inode *inode,
 	reiser4_extent *ext;
 	reiser4_block_nr block;
 	int how;
-	reiser4_subvol *subv = node->subvol;
 
 	assert("vs-1312", uf_coord->coord.between == AT_UNIT);
 
@@ -654,18 +640,23 @@ static int overwrite_one_block_unix_file(struct inode *inode,
 
 	switch (state_of_extent(ext)) {
 	case ALLOCATED_EXTENT:
+		assert("edward-2215", node->subvol == get_meta_subvol());
+
 		block = extent_get_start(ext) + ext_coord->pos_in_unit;
 		break;
 
 	case HOLE_EXTENT:
+		assert("edward-2216", node->subvol == NULL);
+
 		inode_add_blocks(mapping_jnode(node)->host, 1);
 		result = plug_hole_unix_file(uf_coord, key, &how);
 		if (result)
 			return result;
-		block = fake_blocknr_unformatted(1, subv);
+		block = fake_blocknr_unformatted(1, get_meta_subvol());
 		if (hole_plugged)
 			*hole_plugged = 1;
 		JF_SET(node, JNODE_CREATED);
+		jnode_set_subvol(node, get_meta_subvol());
 		break;
 
 	default:
@@ -734,7 +725,13 @@ int overwrite_extent_generic(struct inode *inode, uf_coord_t *uf_coord,
 	jnode *node;
 	struct atom_brick_info *abi;
 	file_plugin *fplug = inode_file_plugin(inode);
-	reiser4_subvol *subv = calc_data_subvol(inode, get_key_offset(key));
+	reiser4_subvol *subv;
+
+	/* FIXME: This is rather ugly */
+	if (fplug == file_plugin_by_id(UNIX_FILE_PLUGIN_ID))
+		subv = get_meta_subvol();
+	else
+		subv = current_origin(get_key_ordering(key));
 
 	result = check_insert_atom_brick_info(subv->id, &abi);
 	if (result)
@@ -760,7 +757,7 @@ int overwrite_extent_generic(struct inode *inode, uf_coord_t *uf_coord,
 		 */
 		spin_lock_jnode(node);
 		assert("edward-1936", node->subvol == subv);
-		//node->subvol = subv;
+
 		result = reiser4_try_capture(node, ZNODE_WRITE_LOCK, 0);
 		BUG_ON(result != 0);
 		jnode_make_dirty_locked(node);
@@ -1089,7 +1086,7 @@ ssize_t write_extent_generic(struct file *file, struct inode *inode,
 			goto out;
 		}
 
-		jnodes[i] = jnode_of_page(page, 1 /* for data IO */);
+		jnodes[i] = jnode_of_page(page);
 		if (IS_ERR(jnodes[i])) {
 			unlock_page(page);
 			put_page(page);
@@ -1171,7 +1168,9 @@ ssize_t write_extent_generic(struct file *file, struct inode *inode,
 		for (i = 0; i < nr_dirty; i ++) {
 			int ret;
 			struct atom_brick_info *abi;
-
+			/*
+			 * update_fn() had to set subvolume
+			 */
 			assert("edward-1983", jnodes[i]->subvol != NULL);
 
 			spin_lock_jnode(jnodes[i]);
@@ -1202,7 +1201,8 @@ out:
 	return (count - left) ? (count - left) : result;
 }
 
-int __reiser4_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos,
+int __reiser4_readpage_extent(const coord_t *coord,
+			      reiser4_extent *ext, reiser4_block_nr pos,
 			      struct page *page)
 {
 	jnode *j;
@@ -1219,10 +1219,6 @@ int __reiser4_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos,
 
 	switch (state) {
 	case HOLE_EXTENT:
-		/*
-		 * it is possible to have hole page with jnode, if page was
-		 * eflushed previously.
-		 */
 		j = jfind(mapping, index);
 		if (j == NULL) {
 			zero_user(page, 0, PAGE_SIZE);
@@ -1246,12 +1242,25 @@ int __reiser4_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos,
 			jput(j);
 			return 0;
 		}
+		/*
+		 * page was eflushed previously
+		 * (currently eflush is not supported)
+		 */
+		assert("edward-2213", 0);
 		break;
-
 	case ALLOCATED_EXTENT:
-		j = jnode_of_page(page, 1 /* for data IO */);
+		j = jnode_of_page(page);
 		if (IS_ERR(j))
 			return PTR_ERR(j);
+		/*
+		 * set "IO address" - a pair (subvolume, block number)
+		 */
+		if (j->subvol == NULL)
+			jnode_set_subvol(j, find_data_subvol(coord));
+		else
+			assert("edward-2217",
+			       j->subvol == find_data_subvol(coord));
+
 		if (*jnode_get_block(j) == 0) {
 			reiser4_block_nr blocknr;
 
@@ -1263,6 +1272,7 @@ int __reiser4_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos,
 		break;
 
 	case UNALLOCATED_EXTENT:
+		assert("edward-2214", 0);
 		j = jfind(mapping, index);
 		assert("nikita-2688", j);
 		assert("vs-1426", jnode_page(j) == NULL);
@@ -1418,7 +1428,8 @@ int reiser4_readpage_extent(void *vp, struct page *page)
 	       get_key_objectid(item_key_by_coord(coord, &key)));
 	check_uf_coord(uf_coord, NULL);
 
-	return __reiser4_readpage_extent(ext_by_ext_coord(uf_coord),
+	return __reiser4_readpage_extent(&uf_coord->coord,
+					 ext_by_ext_coord(uf_coord),
 					 uf_coord->extension.extent.pos_in_unit,
 					 page);
 }

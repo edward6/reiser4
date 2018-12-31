@@ -1381,9 +1381,7 @@ int grab_page_cluster(struct inode * inode,
 			break;
 		}
 		if (i == 0 && rw == WRITE_OP) {
-			node = jnode_of_page(clust->pages[i],
-					     0 /* not for IO, just to keep a
-						  track of transaction */);
+			node = jnode_of_page(clust->pages[i]);
 			if (IS_ERR(node)) {
 				result = PTR_ERR(node);
 				unlock_page(clust->pages[i]);
@@ -1391,6 +1389,20 @@ int grab_page_cluster(struct inode * inode,
 			}
 			JF_SET(node, JNODE_CLUSTER_PAGE);
 			assert("edward-920", jprivate(clust->pages[0]));
+			/*
+			 * this jnode doesn't participate in IO -
+			 * we need it only to track transactions.
+			 * We'll make it dirty and respectively
+			 * need to reserve disk space for that.
+			 * By design we reserve space on meta-data
+			 * subvolume. So we set meta-data subvolume
+			 * for reservation issues.
+			 */
+			if (node->subvol == NULL)
+				node->subvol = get_meta_subvol();
+			else
+				assert("edward-2225",
+				       node->subvol == get_meta_subvol());
 		}
 		INODE_PGCOUNT_INC(inode);
 		unlock_page(clust->pages[i]);
@@ -1505,8 +1517,7 @@ static int pages_truncate_ok(struct inode *inode, pgoff_t start)
 #define pages_truncate_ok(inode, start) 1
 #endif
 
-static int jnode_truncate_ok(struct inode *inode, cloff_t index,
-			     reiser4_subvol *subv)
+static int jnode_truncate_ok(struct inode *inode, cloff_t index)
 {
 	jnode *node;
 	node = jlookup(get_inode_oid(inode), clust_to_pg(index, inode));
@@ -2534,7 +2545,7 @@ void truncate_complete_page_cluster(struct inode *inode, cloff_t index,
 	found = find_get_pages(inode->i_mapping, &page_index,
 			       cluster_nrpages(inode), pages);
 	if (!found) {
-		assert("edward-1484", jnode_truncate_ok(inode, index, subv));
+		assert("edward-1484", jnode_truncate_ok(inode, index));
 		return;
 	}
 	lock_cluster(node);
@@ -2575,7 +2586,7 @@ void truncate_complete_page_cluster(struct inode *inode, cloff_t index,
 	assert("edward-1201",
 	       ergo(!reiser4_inode_get_flag(inode,
 					    REISER4_FILE_CONV_IN_PROGRESS),
-		    jnode_truncate_ok(inode, index, subv)));
+		    jnode_truncate_ok(inode, index)));
 	return;
 }
 

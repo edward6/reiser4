@@ -55,7 +55,8 @@ static int filler(void *data, struct page *page)
 	       page->index + 1);
 #endif
 	ext = extent_by_coord(coord);
-	return __reiser4_readpage_extent(ext, extent_get_width(ext) - 1, page);
+	return __reiser4_readpage_extent(coord, ext,
+					 extent_get_width(ext) - 1, page);
 }
 
 /**
@@ -120,7 +121,7 @@ static int reserve_migrate_one_block(struct inode *inode, u32 where)
 	return ret;
 }
 
-jnode *do_jget(struct reiser4_subvol *subvol, struct page *pg);
+jnode *do_jget(struct page *pg);
 
 /**
  * Relocate rightmost block pointed out by an extent item at
@@ -163,7 +164,7 @@ static int migrate_one_block(struct extent_migrate_context *mctx)
 	if (IS_ERR(page))
 		return PTR_ERR(page);
 	lock_page(page);
-	node = do_jget(NULL, page);
+	node = do_jget(page);
 	if (IS_ERR(node)) {
 		unlock_page(page);
 		return PTR_ERR(node);

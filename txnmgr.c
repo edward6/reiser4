@@ -2681,8 +2681,10 @@ static void do_jnode_make_dirty(jnode *node, txn_atom *atom)
 	assert_spin_locked(&(node->guard));
 	assert_spin_locked(&(atom->alock));
 	assert("jmacd-3981", !JF_ISSET(node, JNODE_DIRTY));
+	assert("edward-2226", node->subvol != NULL);
 	assert("edward-2017",
-	       find_atom_brick_info(&atom->bricks_info, node->subvol->id) != NULL);
+	       find_atom_brick_info(&atom->bricks_info,
+				    jnode_get_subvol(node)->id) != NULL);
 
 	JF_SET(node, JNODE_DIRTY);
 
@@ -2733,6 +2735,7 @@ static void do_jnode_make_dirty(jnode *node, txn_atom *atom)
 void jnode_make_dirty_locked(jnode * node)
 {
 	assert("umka-204", node != NULL);
+	assert("edward-2227", node->subvol != NULL);
 	assert_spin_locked(&(node->guard));
 
 	if (REISER4_DEBUG && rofs_jnode(node)) {

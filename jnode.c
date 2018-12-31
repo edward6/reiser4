@@ -342,7 +342,7 @@ static inline void jnode_free(jnode * node, jnode_type jtype)
 }
 
 /* allocate new unformatted jnode */
-static jnode *jnew_unformatted(struct reiser4_subvol *subvol)
+static jnode *jnew_unformatted(void)
 {
 	jnode *jal;
 
@@ -350,7 +350,7 @@ static jnode *jnew_unformatted(struct reiser4_subvol *subvol)
 	if (jal == NULL)
 		return NULL;
 
-	jnode_init(jal, subvol, JNODE_UNFORMATTED_BLOCK);
+	jnode_init(jal, NULL, JNODE_UNFORMATTED_BLOCK);
 	jal->key.j.mapping = NULL;
 	jal->key.j.index = (unsigned long)-1;
 	jal->key.j.objectid = 0;
@@ -524,8 +524,7 @@ void unhash_unformatted_jnode(jnode *node)
  * allocate new jnode, insert it, and also insert into radix tree for the
  * given inode/mapping.
  */
-static jnode *find_get_jnode(struct reiser4_subvol *subvol,
-			     struct address_space *mapping,
+static jnode *find_get_jnode(struct address_space *mapping,
 			     oid_t oid, unsigned long index)
 {
 	jnode *result;
@@ -533,10 +532,8 @@ static jnode *find_get_jnode(struct reiser4_subvol *subvol,
 	int preload;
 	reiser4_super_info_data *info;
 
-	assert("edward-1955", subvol != NULL);
-
 	info = get_super_private(mapping->host->i_sb);
-	result = jnew_unformatted(subvol);
+	result = jnew_unformatted();
 
 	if (unlikely(result == NULL))
 		return ERR_PTR(RETERR(-ENOMEM));
@@ -570,7 +567,7 @@ static jnode *find_get_jnode(struct reiser4_subvol *subvol,
 /* jget() (a la zget() but for unformatted nodes). Returns (and possibly
    creates) jnode corresponding to page @pg. jnode is attached to page and
    inserted into jnode hash-table. */
-jnode *do_jget(struct reiser4_subvol *subvol, struct page *pg)
+jnode *do_jget(struct page *pg)
 {
 	/*
 	 * There are two ways to create jnode: starting with pre-existing page
@@ -607,7 +604,7 @@ jnode *do_jget(struct reiser4_subvol *subvol, struct page *pg)
 
 	/* since page is locked, jnode should be allocated with GFP_NOFS flag */
 	reiser4_ctx_gfp_mask_force(GFP_NOFS);
-	result = find_get_jnode(subvol, pg->mapping, oid, pg->index);
+	result = find_get_jnode(pg->mapping, oid, pg->index);
 	if (unlikely(IS_ERR(result)))
 		return result;
 	/* attach jnode to page */
@@ -623,26 +620,13 @@ jnode *do_jget(struct reiser4_subvol *subvol, struct page *pg)
  * @for_data_io: true, if jnode is to be bound with a data page and
  * to participate in IO;
  */
-jnode *jnode_of_page(struct page *pg, int for_data_io)
+jnode *jnode_of_page(struct page *pg)
 {
 	jnode *result;
-	reiser4_subvol *subv;
 
 	assert("nikita-2394", PageLocked(pg));
 
-	if (for_data_io)
-		/*
-		  FIXME-EDWARD: data subvolume should be set
-		  to jnode later by the item plugin. Specifically,
-		  . insert_first_extent() - calculate subvol ID;
-		  . append_last_extent() - calculate subvol ID;
-		  . overwrite_extent() - find subvol ID by item.
-		*/
-		subv = calc_data_subvol(pg->mapping->host, page_offset(pg));
-	else
-		subv = get_meta_subvol();
-
-	result = do_jget(subv, pg);
+	result = do_jget(pg);
 
 	if (REISER4_DEBUG && !IS_ERR(result)) {
 		assert("nikita-3210", result == jprivate(pg));
@@ -1148,8 +1132,6 @@ static void jnode_finish_io(jnode * node)
 void jput_final(jnode *node)
 {
 	int r_i_p;
-
-	assert("edward-2022", jnode_get_subvol(node) != NULL);
 
 	/* A fast check for keeping node in cache. We always keep node in cache
 	 * if its page is present and node was not marked for deletion */
@@ -1957,16 +1939,12 @@ static void info_jnode(const char *prefix /* prefix to print */ ,
 }
 
 /* debugging aid: check znode invariant and panic if it doesn't hold */
-static int jnode_invariant(jnode * node, int tlocked, int jlocked)
+static int jnode_invariant(jnode *node, int tlocked, int jlocked)
 {
 	char const *failed_msg;
 	int result;
-	reiser4_tree *tree;
-
-	tree = jnode_get_tree(node);
 
 	assert("umka-063312", node != NULL);
-	assert("umka-064321", tree != NULL);
 
 	if (!jlocked && !tlocked)
 		spin_lock_jnode((jnode *) node);

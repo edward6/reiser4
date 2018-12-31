@@ -618,7 +618,7 @@ static inline int rofs_inode(struct inode *inode)
  */
 static inline int rofs_jnode(jnode *node)
 {
-	return rofs_super(node->subvol->super);
+	return rofs_super(jnode_get_subvol(node)->super);
 }
 
 extern void build_object_ops(struct super_block *super, struct object_ops *ops);

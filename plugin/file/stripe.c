@@ -376,7 +376,7 @@ int readpage_stripe(struct file *file, struct page *page)
 		assert("edward-2032", result == 0);
 	} else {
 		/* hole in the file */
-		result = __reiser4_readpage_extent(NULL, 0, page);
+		result = __reiser4_readpage_extent(NULL, NULL, 0, page);
 		assert("edward-2033", result == 0);
 	}
 	if (result) {

@@ -145,9 +145,8 @@ struct jnode {
 	 */
 	/*   40 */ void *data;
 
-	/* Subvolume, where IO is going to/from is set
-	   for metadata pages: by do_jget()
-	   for data pages: by item plugin managing file's body
+	/* Subvolume, where IO is going to/from.
+	   The pair (subvol, blocknr) defines "IO address"
 	*/
 	/*   44 */ struct reiser4_subvol *subvol;
 
@@ -355,13 +354,13 @@ extern jnode *jclone(jnode *);
 extern jnode *jlookup(oid_t objectid, unsigned long ind) NONNULL;
 extern jnode *jfind(struct address_space *, unsigned long index) NONNULL;
 extern jnode *jnode_by_page(struct page *pg) NONNULL;
-extern jnode *jnode_of_page(struct page *pg, int for_data_io) NONNULL;
+extern jnode *jnode_of_page(struct page *pg) NONNULL;
 void jnode_attach_page(jnode * node, struct page *pg);
 
 void unhash_unformatted_jnode(jnode *);
 extern jnode *page_next_jnode(jnode * node) NONNULL;
 extern void jnode_init(jnode *node,
-		       struct reiser4_subvol *sub, jnode_type) NONNULL;
+		       struct reiser4_subvol *sub, jnode_type);
 extern void jnode_init_tail(jnode *node) NONNULL;
 extern void jnode_make_dirty(jnode * node) NONNULL;
 extern void jnode_make_clean(jnode * node) NONNULL;
@@ -377,6 +376,15 @@ static inline reiser4_subvol *jnode_get_subvol(const jnode *node)
 	assert("edward-1872", node->subvol != NULL);
 
 	return node->subvol;
+}
+
+static inline void jnode_set_subvol(jnode *node, reiser4_subvol *subv)
+{
+	assert("edward-2222", node != NULL);
+	assert("edward-2224", subv != NULL);
+	assert("edward-2223", ergo(node->subvol != NULL, node->subvol == subv));
+
+	node->subvol = subv;
 }
 
 #define jnode_get_super(node) (jnode_get_subvol(node)->super)

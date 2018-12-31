@@ -676,6 +676,7 @@ void assign_real_blocknrs(flush_pos_t *flush_pos, oid_t oid,
 		assert("vs-1476", atomic_read(&node->x_count) > 0);
 
 		JF_CLR(node, JNODE_FLUSH_RESERVED);
+		assert("edward-2218", node->subvol != NULL);
 		jnode_set_block(node, &first);
 		unformatted_make_reloc(node, flush_pos->fq);
 		ON_DEBUG(count_jnode(node->atom, node, NODE_LIST(node),
