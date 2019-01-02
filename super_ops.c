@@ -173,12 +173,19 @@ static void reiser4_dirty_inode(struct inode *inode, int flags)
 
 	if (!is_in_reiser4_context())
 		return;
+	ctx = get_current_context();
+
+	if (ctx->ro) {
+		warning("edward-2200",
+			"failed to make inode %llu dirty (read-only FS)",
+			(unsigned long long)get_inode_oid(inode));
+		return;
+	}
 	assert("edward-1606", !IS_RDONLY(inode));
 	assert("edward-1607",
 	       (inode_file_plugin(inode)->estimate.update(inode) <=
-		get_current_context()->grabbed_blocks));
+		ctx->grabbed_blocks));
 
-	ctx = get_current_context();
 	if (ctx->locked_page)
 		unlock_page(ctx->locked_page);
 

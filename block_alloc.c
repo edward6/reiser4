@@ -273,6 +273,7 @@ reiser4_grab(reiser4_context * ctx, __u64 count, reiser4_ba_flags_t flags)
 	/* Do not grab anything on ro-mounted fs. */
 	if (rofs_super(ctx->super)) {
 		ctx->grab_enabled = 0;
+		ctx->ro = 1;
 		return 0;
 	}
 

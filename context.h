@@ -62,6 +62,8 @@ struct reiser4_context {
 	/* this bit is used on reiser4_done_context to decide whether context is
 	   kmalloc-ed and has to be kfree-ed */
 	unsigned int on_stack:1;
+	/* file system is read-only */
+	unsigned int ro:1;
 
 	/* count non-trivial jnode_set_dirty() calls */
 	unsigned long nr_marked_dirty;
