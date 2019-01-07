@@ -204,12 +204,10 @@ static int migrate_one_block(struct extent_migrate_context *mctx)
 	 * will be captures and made dirty. At flush time our block
 	 * will get new location on the new brick.
 	 */
-	inode_set_new_dist(inode);
 	assert("edward-2127",
 	       node->subvol == calc_data_subvol(inode, page_offset(page)));
 
 	ret = update_extent_stripe(inode, node, page_offset(page), NULL);
-	inode_set_old_dist(inode);
 	if (ret)
 		warning("edward-1897",
 			"Failed to migrate block %lu of inode %llu (%d)",
@@ -454,10 +452,7 @@ static void what_to_do(struct extent_migrate_context *mctx)
 	 * to different bricks in the new logical volume
 	 */
 	if (current_stripe_bits == 0) {
-		inode_set_new_dist(inode);
 		mctx->new_loc = fplug->calc_data_subvol(inode, 0)->id;
-		inode_set_old_dist(inode);
-
 		goto split_off_not_found;
 	}
 	/* offset of the leftmost byte */
@@ -469,18 +464,15 @@ static void what_to_do(struct extent_migrate_context *mctx)
 	off1 = off1 - (off1 & (current_stripe_size - 1));
 	off2 = off2 - (off2 & (current_stripe_size - 1));
 
-	inode_set_new_dist(inode);
 	mctx->new_loc = fplug->calc_data_subvol(inode, off2)->id;
 
 	while (off1 < off2) {
 		off2 -= current_stripe_size;
 		if (fplug->calc_data_subvol(inode, off2)->id != mctx->new_loc) {
 			split_off = off2 + current_stripe_size;
-			inode_set_old_dist(inode);
 			goto split_off_found;
 		}
 	}
-	inode_set_old_dist(inode);
  split_off_not_found:
 	mctx->size = reiser4_extent_size(coord);
 	if (mctx->new_loc != get_key_ordering(&key)) {

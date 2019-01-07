@@ -848,6 +848,8 @@ int balance_stripe(struct inode *inode)
 	/* see the comment above */
 	assert("edward-2144", REISER4_PLANB_KEY_ALLOCATION);
 
+	inode_set_new_dist(inode);
+
 	if (inode->i_size == 0)
 		/*
 		 * empty file, nothing to migrate
@@ -935,8 +937,6 @@ int balance_stripe(struct inode *inode)
 	assert("edward-2104", reiser4_lock_counters()->d_refs == 0);
 	done_lh(&lh);
 	reiser4_inode_clr_flag(inode, REISER4_FILE_UNBALANCED);
-	inode_set_new_dist(inode);
-	/* FIXME-EDWARD: update stat-data with new volinfo ID */
 	drop_exclusive_access(uf);
 	return 0;
 }
