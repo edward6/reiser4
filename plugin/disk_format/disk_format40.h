@@ -67,7 +67,7 @@ typedef struct format40_disk_super_block {
 	/* 121 */ d64 volinfo_gen;  /* volinfo generation number */
 	/* 129 */ d64 new_volinfo_loc; /* location of the first block of new volume
 				          configuration (for unbalanced volumes) */
-	/* 137 */ d64 nr_slots;     /* number of slots (== maximal brick ID + 1) */
+	/* 137 */ d64 nr_mslots;    /* number of mslots (== maximal brick ID + 1) */
 	char not_used[367];
 } format40_disk_super_block;
 

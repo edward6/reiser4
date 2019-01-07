@@ -57,12 +57,13 @@ static reiser4_subvol *find_active_brick(struct super_block *super,
 {
 	u32 subv_id;
 	reiser4_subvol *result = NULL;
+	lv_conf *conf = super_conf(super);
 
-	for_each_vslot(subv_id) {
-		if (super_mirrors(super, subv_id) == NULL)
+	for_each_mslot(conf, subv_id) {
+		if (!conf_mslot_at(conf, subv_id))
 			continue;
-		if (!strcmp(current_origin(subv_id)->name, name)) {
-			result = current_origin(subv_id);
+		if (!strcmp(conf_origin(conf, subv_id)->name, name)) {
+			result = conf_origin(conf, subv_id);
 			break;
 		}
 	}

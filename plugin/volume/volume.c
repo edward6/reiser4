@@ -117,6 +117,7 @@ reiser4_subvol *find_meta_brick_by_id(reiser4_volume *vol)
  */
 static bucket_t *create_buckets(reiser4_volume *vol, u32 nr_buckets)
 {
+	lv_conf *conf = vol->conf;
 	bucket_t *ret;
 	u32 i, j, off;
 #if REISER4_DEBUG
@@ -132,14 +133,14 @@ static bucket_t *create_buckets(reiser4_volume *vol, u32 nr_buckets)
 	if (!ret)
 		return NULL;
 
-	for (i = 0, j = 0; i < vol->nr_slots - off; i++) {
-		if (vol->subvols[i + off] == NULL)
+	for (i = 0, j = 0; i < conf->nr_mslots - off; i++) {
+		if (conf->mslots[i + off] == NULL)
 			continue;
-		ret[j] = vol->subvols[i + off][0];
+		ret[j] = conf->mslots[i + off][0];
 		/*
 		 * set index in DSA
 		 */
-		vol->subvols[i + off][0]->dsa_idx = j;
+		conf->mslots[i + off][0]->dsa_idx = j;
 		j++;
 	}
 #if REISER4_DEBUG
@@ -192,12 +193,15 @@ static void insert_bucket(bucket_t *vec, bucket_t this, u32 numb, u32 pos)
 	vec[pos] = this;
 }
 
+static void free_buckets(bucket_t *vec)
+{
+	assert("edward-2233", vec != NULL);
+	kfree(vec);
+}
+
 static u32 id2idx(u64 id)
 {
-	assert("edward-2202", current_subvols() != NULL);
-	assert("edward-2203", current_subvols()[id]!= NULL);
-
-	return current_subvols()[id][0]->dsa_idx;
+	return current_origin(id)->dsa_idx;
 }
 
 static u64 idx2id(u32 idx)
@@ -799,11 +803,11 @@ static u64 capacity_at(slot_t slot)
 static slot_t find_first_nonempty_data_slot(void)
 {
 	u32 subv_id;
-	struct super_block *sb = reiser4_get_current_sb();
+	lv_conf *conf = current_lv_conf();
 
-	for_each_data_vslot(subv_id)
-		if (super_mirrors(sb, subv_id))
-			return super_mirrors(sb, subv_id);
+	for_each_data_mslot(conf, subv_id)
+		if (conf->mslots[subv_id])
+			return conf->mslots[subv_id];
 	return NULL;
 }
 
@@ -841,15 +845,16 @@ static u64 space_occupied_at(slot_t slot)
 static u64 get_pos_in_vol(reiser4_volume *vol, reiser4_subvol *subv)
 {
 	u64 i, j;
+	lv_conf *conf = vol->conf;
 
-	for (i = 0, j = 0; i < vol->nr_slots; i++) {
-		if (!vol->subvols[i])
+	for (i = 0, j = 0; i < conf->nr_mslots; i++) {
+		if (!conf->mslots[i])
 			continue;
-		if (vol->subvols[i][0] == subv)
+		if (conf->mslots[i][0] == subv)
 			return j;
 		j++;
 	}
-	assert("edward-2197", i == vol->nr_slots);
+	assert("edward-2197", i == conf->nr_mslots);
 	assert("edward-2198", j == vol_nr_origins(vol));
 	return j;
 }
@@ -918,23 +923,22 @@ static int add_meta_brick(reiser4_volume *vol, reiser4_subvol *new)
 static u32 find_first_empty_slot_off(void)
 {
 	u32 subv_id;
-	struct super_block *sb = reiser4_get_current_sb();
+	lv_conf *conf = current_lv_conf();
 
-	for_each_data_vslot(subv_id)
-		if (super_mirrors(sb, subv_id) == NULL)
+	for_each_data_mslot(conf, subv_id)
+		if (conf->mslots[subv_id] == NULL)
 			return subv_id;
 
-	assert("edward-2183",
-	       current_volume()->nr_slots == current_nr_origins());
-	return current_nr_origins();
+	assert("edward-2183", conf->nr_mslots == current_nr_origins());
+	return conf->nr_mslots;
 }
 
 int add_data_brick(reiser4_volume *vol, reiser4_subvol *this)
 {
 	int ret;
 	reiser4_aid *raid = &vol->aid;
-	slot_t *new_set = NULL;
-	slot_t *old_set = vol->subvols;
+	lv_conf *new_conf = NULL;
+	lv_conf *old_conf = vol->conf;
 	u64 old_num_subvols = vol_nr_origins(vol);
 	u64 pos_in_vol;
 	u64 pos_in_aid;
@@ -954,31 +958,32 @@ int add_data_brick(reiser4_volume *vol, reiser4_subvol *this)
 	/*
 	 * Allocate array of mirrors and set the new brick to that set
 	 */
-	new_slot = alloc_one_mirror_slot(1 + this->num_replicas);
+	new_slot = alloc_mslot(1 + this->num_replicas);
 	if (!new_slot)
 		return -ENOMEM;
 	((mirror_t *)new_slot)[this->mirror_id] = this;
 
-	if (pos_in_vol == vol->nr_slots) {
+	if (pos_in_vol == old_conf->nr_mslots) {
 		/*
 		 * there is no free slot -
-		 * the set of slots will be replaced with a larger one
+		 * volume conf will be replaced with a new one
+		 * with a larger number of slots
 		 */
-		new_set = alloc_mirror_slots(1 + old_num_subvols);
-		if (!new_set) {
-			kfree(new_slot);
+		new_conf = alloc_lv_conf(1 + old_num_subvols);
+		if (!new_conf) {
+			free_mslot(new_slot);
 			return -ENOMEM;
 		}
-		memcpy(new_set, old_set, sizeof(*new_set) * old_num_subvols);
+		memcpy(new_conf->mslots, old_conf->mslots,
+		       sizeof(slot_t) * old_num_subvols);
 
-		new_set[pos_in_vol] = new_slot;
-		vol->nr_slots ++;
-		vol->subvols = new_set;
-		free_mirror_slots(old_set);
+		new_conf->mslots[pos_in_vol] = new_slot;
+		vol->conf = new_conf;
+		free_lv_conf(old_conf);
 	} else {
-		/* use existing slot */
-		assert("edward-2184", old_set[pos_in_vol] == NULL);
-		old_set[pos_in_vol] = new_slot;
+		/* use existing conf */
+		assert("edward-2184", old_conf->mslots[pos_in_vol] == NULL);
+		old_conf->mslots[pos_in_vol] = new_slot;
 	}
 	atomic_inc(&vol->nr_origins);
 	return 0;
@@ -1009,7 +1014,7 @@ static int expand_brick_asym(reiser4_volume *vol, reiser4_subvol *this,
 				num_aid_subvols(vol), vol->num_sgs_bits,
 				&vol->vol_plug->bucket_ops, raid);
 	if (ret) {
-		kfree(buckets);
+		free_buckets(buckets);
 		return ret;
 	}
 	ret = expand_brick(vol, this, delta, &need_balance);
@@ -1088,14 +1093,14 @@ static u64 space_occupied(void)
 {
 	u64 ret = 0;
 	u64 subv_id;
-	struct super_block *sb = reiser4_get_current_sb();
+	lv_conf *conf = current_lv_conf();
 
-	txnmgr_force_commit_all(sb, 0);
+	txnmgr_force_commit_all(reiser4_get_current_sb(), 0);
 
-	for_each_vslot(subv_id) {
-		if (super_mirrors(sb, subv_id) == NULL)
+	for_each_mslot(conf, subv_id) {
+		if (!conf->mslots[subv_id])
 			continue;
-		ret += space_occupied_at(super_mirrors(sb, subv_id));
+		ret += space_occupied_at(conf->mslots[subv_id]);
 	}
 	return ret;
 }
@@ -1149,15 +1154,15 @@ static int remove_meta_brick(reiser4_volume *vol)
  * Find rightmost non-empty slot different from the last one.
  * If not found, return 0. Otherwise return slot's offset + 1.
  */
-static u32 get_new_nr_slots(void)
+static u32 get_new_nr_mslots(void)
 {
 	u32 i;
-	reiser4_volume *vol = current_volume();
+	lv_conf *conf = current_lv_conf();
 
-	assert("edward-2208", vol->nr_slots > 1);
+	assert("edward-2208", conf->nr_mslots > 1);
 
-	for (i = vol->nr_slots - 2;; i--) {
-		if (vol->subvols[i])
+	for (i = conf->nr_mslots - 2;; i--) {
+		if (conf->mslots[i])
 			return i + 1;
 		if (i == 0)
 			break;
@@ -1166,16 +1171,16 @@ static u32 get_new_nr_slots(void)
 }
 
 static int remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim,
-			     slot_t **newp, u32 *new_nr_slots)
+			     lv_conf **new)
 {
 	int ret;
 	distribution_plugin *dist_plug = vol->dist_plug;
-	slot_t *new = NULL;
-	slot_t *old = vol->subvols;
+	lv_conf *old = vol->conf;
 	u64 old_num_subvols = vol_nr_origins(vol);
 	u64 pos_in_vol;
 	u64 pos_in_aid;
 
+	assert("edward-2234", *new == NULL);
 	assert("edward-1842", num_aid_subvols(vol) > 1);
 
 	pos_in_vol = get_pos_in_vol(vol, victim);
@@ -1185,36 +1190,33 @@ static int remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim,
 	if (pos_in_vol == old_num_subvols - 1) {
 		/*
 		 * removing the rightmost brick -
-		 * the set of slots will be replaced with a smaller one.
+		 * config will be replaced with a new one
+		 * with a smaller number of slots.
 		 */
-		*new_nr_slots = get_new_nr_slots();
-		BUG_ON(*new_nr_slots == 0);
-		new = alloc_mirror_slots(*new_nr_slots);
-		if (!new)
+		u32 new_nr_mslots = get_new_nr_mslots();
+		BUG_ON(new_nr_mslots == 0);
+		*new = alloc_lv_conf(new_nr_mslots);
+		if (*new == NULL)
 			return RETERR(-ENOMEM);
-		memcpy(new, old, *new_nr_slots * sizeof(*old));
+		memcpy((*new)->mslots, old->mslots,
+		       new_nr_mslots * sizeof(slot_t));
 	}
 	ret = dist_plug->v.dec(&vol->aid, pos_in_aid, victim);
 	if (ret) {
 		warning("edward-2146",
 			"Failed to update distribution config (%d)", ret);
-		goto error;
+		if (*new)
+			free_lv_conf(*new);
+		return ret;
 	}
-	if (new)
-		*newp = new;
 	return 0;
- error:
-	if (new)
-		free_mirror_slots(new);
-	return ret;
 }
 
 static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 {
 	int ret;
-	slot_t *new = NULL;
-	slot_t *old = vol->subvols;
-	u32 new_nr_slots = 0;
+	lv_conf *new = NULL;
+	lv_conf *old = vol->conf;
 	distribution_plugin *dist_plug = vol->dist_plug;
 	struct super_block *sb = reiser4_get_current_sb();
 	bucket_t *buckets;
@@ -1240,14 +1242,14 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	if (is_meta_brick(victim))
 		ret = remove_meta_brick(vol);
 	else
-		ret = remove_data_brick(vol, victim, &new, &new_nr_slots);
+		ret = remove_data_brick(vol, victim, &new);
 	dist_plug->v.done(&vol->aid);
 	if (ret)
 		return ret;
 	if (old_nr_dsa_bricks > 2) {
 		ret = make_volume_config(vol);
 		if (ret) {
-			free_mirror_slots(new);
+			free_lv_conf(new);
 			return ret;
 		}
 	}
@@ -1257,7 +1259,7 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	reiser4_volume_set_unbalanced(sb);
 	ret = capture_brick_super(get_meta_subvol());
 	if (ret) {
-		free_mirror_slots(new);
+		free_lv_conf(new);
 		return ret;
 	}
 	reiser4_txn_restart_current();
@@ -1272,7 +1274,7 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	 * volume.reiser4 utility in the next mount session.
 	 */
 	if (ret) {
-		free_mirror_slots(new);
+		free_lv_conf(new);
 		return ret;
 	}
 	if (is_meta_brick(victim))
@@ -1288,17 +1290,16 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	 * It is safe to release victim with replicas, as
 	 * now nobody is aware about them
 	 */
-	free_mirror_slot_at(vol, victim->id);
+	free_mslot_at(old, victim->id);
 	atomic_dec(&vol->nr_origins);
 	if (new) {
 		/* replace slots array with a new one of
 		 * smaller size
 		 */
-		assert("edward-2209", new_nr_slots != 0);
+		assert("edward-2209", new->nr_mslots != 0);
 
-		vol->subvols = new;
-		free_mirror_slots(old);
-		vol->nr_slots = new_nr_slots;
+		vol->conf = new;
+		free_lv_conf(old);
 	} else
 		((mirror_t *)old)[victim->id] = NULL;
 	return 0;
@@ -1423,8 +1424,10 @@ static u64 data_subvol_id_calc_asym(oid_t oid, loff_t offset, void *tab)
 	reiser4_volume *vol;
 	distribution_plugin *dist_plug;
 	u64 stripe_idx;
+	lv_conf *conf;
 
 	vol = current_volume();
+	conf = vol->conf;
 
 	if (!tab) {
 		assert("edward-2204", num_aid_subvols(vol) == 1);
@@ -1432,8 +1435,9 @@ static u64 data_subvol_id_calc_asym(oid_t oid, loff_t offset, void *tab)
 		 * the single data brick is always in the last slot
 		 */
 		assert("edward-2212",
-		       current_subvols()[vol->nr_slots - 1] != NULL);
-		return current_subvols()[vol->nr_slots - 1][0]->id;
+		       conf_mslot_at(conf, conf_nr_mslots(conf) - 1) != NULL);
+
+		return conf_origin(conf, conf->nr_mslots - 1)->id;
 	}
 	dist_plug = current_dist_plug();
 
@@ -1488,6 +1492,7 @@ u64 data_subvol_id_find_asym(const coord_t *coord)
 int print_volume_asym(struct super_block *sb, struct reiser4_vol_op_args *args)
 {
 	reiser4_volume *vol = super_volume(sb);
+	lv_conf *conf = vol->conf;
 	reiser4_volinfo *vinfo = &vol->volinfo[CUR_VOL_CONF];
 
 	args->u.vol.nr_bricks = meta_brick_belongs_aid() ?
@@ -1496,7 +1501,7 @@ int print_volume_asym(struct super_block *sb, struct reiser4_vol_op_args *args)
 	args->u.vol.vpid = vol->vol_plug->h.id;
 	args->u.vol.dpid = vol->dist_plug->h.id;
 	args->u.vol.fs_flags = get_super_private(sb)->fs_flags;
-	args->u.vol.nr_slots = vol->nr_slots;
+	args->u.vol.nr_mslots = conf->nr_mslots;
 	args->u.vol.nr_volinfo_blocks = vinfo->num_volmaps + vinfo->num_voltabs;
 	return 0;
 }
@@ -1508,6 +1513,7 @@ int print_brick_asym(struct super_block *sb, struct reiser4_vol_op_args *args)
 	u64 idx_lv;  /* index in logical volume */
 
 	reiser4_volume *vol = super_volume(sb);
+	lv_conf *conf = vol->conf;
 	reiser4_subvol *subv;
 	bucket_t *buckets;
 
@@ -1519,7 +1525,7 @@ int print_brick_asym(struct super_block *sb, struct reiser4_vol_op_args *args)
 				     num_aid_subvols(vol), vol->num_sgs_bits,
 				     &vol->vol_plug->bucket_ops, &vol->aid);
 	if (ret) {
-		kfree(buckets);
+		free_buckets(buckets);
 		return ret;
 	}
 	spin_lock_reiser4_super(get_super_private(sb));
@@ -1538,9 +1544,9 @@ int print_brick_asym(struct super_block *sb, struct reiser4_vol_op_args *args)
 	else
 		id = vol->vol_plug->bucket_ops.idx2id(idx_lv - 1);
 
-	assert("edward-2206", vol->subvols[id] != NULL);
+	assert("edward-2206", conf->mslots[id] != NULL);
 
-	subv = vol->subvols[id][0];
+	subv = conf->mslots[id][0];
 	strncpy(args->d.name, subv->name, REISER4_PATH_NAME_MAX + 1);
 	memcpy(args->u.brick.ext_id, subv->uuid, 16);
 	args->u.brick.int_id = subv->id;

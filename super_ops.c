@@ -512,6 +512,7 @@ static int fill_super(struct super_block *super, void *data, int silent)
 	reiser4_context ctx;
 	int result;
 	reiser4_super_info_data *sbinfo;
+	lv_conf *conf;
 	u8 vol_uuid[16];
 
 	assert("zam-989", super != NULL);
@@ -569,10 +570,12 @@ static int fill_super(struct super_block *super, void *data, int silent)
 	sbinfo->nr_files_committed = oids_used(super);
 
 	/* calculate total number of blocks in the logical volume */
-	for_each_vslot(subv_id) {
-		if (super_mirrors(super, subv_id) == NULL)
+	conf = sbinfo_conf(sbinfo);
+	for_each_mslot(conf, subv_id) {
+		if (!conf_mslot_at(conf, subv_id))
 			continue;
-		sbinfo->vol_block_count += current_origin(subv_id)->block_count;
+		sbinfo->vol_block_count +=
+			conf_origin(conf, subv_id)->block_count;
 	}
 	/* get inode of root directory */
 	if ((result = reiser4_init_root_inode(super)) != 0)

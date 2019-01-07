@@ -55,6 +55,7 @@ typedef struct flush_position flush_pos_t;
 
 typedef unsigned short pos_in_node_t;
 
+typedef struct lv_conf lv_conf;
 typedef reiser4_subvol *mirror_t;
 typedef mirror_t *slot_t;
 typedef void *bucket_t;

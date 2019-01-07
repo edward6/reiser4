@@ -15,10 +15,12 @@
 
 extern void deactivate_subvol(struct super_block *super, reiser4_subvol *subv);
 extern reiser4_subvol *find_meta_brick_by_id(reiser4_volume *vol);
-extern slot_t alloc_one_mirror_slot(u32 nr_mirrors);
-extern slot_t *alloc_mirror_slots(u32 nr_slots);
-extern void free_mirror_slot_at(reiser4_volume *vol, u64 idx);
-extern void free_mirror_slots(reiser4_subvol ***slots);
+extern lv_conf *alloc_lv_conf(u32 nr_slots);
+extern void free_lv_conf(lv_conf *conf);
+extern void release_lv_conf(lv_conf *conf);
+extern slot_t alloc_mslot(u32 nr_mirrors);
+extern void free_mslot(slot_t slot);
+extern void free_mslot_at(lv_conf *conf, u64 idx);
 extern int brick_belongs_volume(reiser4_volume *vol, reiser4_subvol *subv);
 
 static inline int is_meta_brick_id(u64 id)

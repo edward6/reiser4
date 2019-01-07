@@ -1095,11 +1095,8 @@ void all_grabbed2free(void)
 	struct rb_root *root = &ctx->bricks_info;
 	struct rb_node *node;
 
-	if (get_current_super_private() == NULL)
-		return;
-
-	if (current_subvols() == NULL)
-		/* not active volume */
+	if (!get_current_super_private() || !current_lv_conf())
+		/* volume hasn't been activated */
 		return;
 
 	for (node = rb_first(root); node; node = rb_next(node)) {
@@ -1317,10 +1314,12 @@ static int apply_dset(txn_atom *atom UNUSED_ARG, const reiser4_block_nr *a,
 	reiser4_super_info_data *sbinfo;
 
 	sbinfo = get_current_super_private();
-	subv = sbinfo_origin(sbinfo, subv_id);
+	assert("zam-552", sbinfo != NULL);
+
+	subv = current_origin(subv_id);
 
 	assert("zam-877", atom->stage >= ASTAGE_PRE_COMMIT);
-	assert("zam-552", sbinfo != NULL);
+
 
 	if (b != NULL)
 		len = *b;

@@ -169,9 +169,9 @@ static int reiser4_register_subvol(const char *path,
 	return 0;
 }
 
-static void reiser4_put_volume(struct reiser4_volume *vol)
+static void reiser4_free_volume(struct reiser4_volume *vol)
 {
-	assert("edward-1741", vol->subvols == NULL);
+	assert("edward-1741", vol->conf == NULL);
 	kfree(vol);
 }
 
@@ -203,7 +203,7 @@ void reiser4_unregister_volumes(void)
 	list_for_each_entry(vol, &reiser4_volumes, list) {
 		list_for_each_entry(sub, &vol->subvols_list, list)
 			reiser4_unregister_subvol(sub);
-		reiser4_put_volume(vol);
+		reiser4_free_volume(vol);
 	}
 }
 
@@ -268,19 +268,26 @@ int reiser4_scan_device(const char *path, fmode_t flags, void *holder,
 }
 
 /**
+ * Make sure that all replicas of the original subvolume
+ * @subv has been activated.
+ *
  * Pre-conditions:
- * @subv: original subvolume to check replicas of.
  * Disk format superblock of the subvolume was found
  */
 int check_active_replicas(reiser4_subvol *subv)
 {
 	u32 repl_id;
+	lv_conf *conf;
+
+	assert("edward-2235", subv->super != NULL);
 	assert("edward-1748", !is_replica(subv));
+	assert("edward-1751", super_volume(subv->super) != NULL);
 	assert("edward-1749", super_nr_origins(subv->super) != 0);
 
+	conf = super_conf(subv->super);
+
 	if (has_replicas(subv) &&
-	    ((super_volume(subv->super)->subvols == NULL) ||
-	     (super_volume(subv->super)->subvols[subv->id] == NULL))) {
+	    (conf == NULL || conf_mslot_at(conf, subv->id) == NULL)) {
 
 		warning("edward-1750",
 			"%s requires replicas, which "
@@ -288,7 +295,6 @@ int check_active_replicas(reiser4_subvol *subv)
 			subv->name);
 		return -EINVAL;
 	}
-	assert("edward-1751", super_volume(subv->super) != NULL);
 
 	__for_each_replica(subv, repl_id) {
 		reiser4_subvol *repl;
@@ -397,40 +403,58 @@ int reiser4_activate_subvol(struct super_block *super,
 	return ret;
 }
 
-mirror_t *alloc_one_mirror_slot(u32 nr_mirrors)
+mirror_t *alloc_mslot(u32 nr_mirrors)
 {
 	return kzalloc(nr_mirrors * sizeof(mirror_t), GFP_KERNEL);
 }
 
-slot_t *alloc_mirror_slots(u32 nr_slots)
+void free_mslot(slot_t slot)
 {
-	return kzalloc(nr_slots * sizeof(slot_t), GFP_KERNEL);
+	assert("edward-2229", slot != NULL);
+	kfree(slot);
 }
 
-void free_mirror_slot_at(reiser4_volume *vol, int idx)
+lv_conf *alloc_lv_conf(u32 nr_mslots)
 {
-	assert("edward-2190", vol->subvols[idx] != NULL);
+	lv_conf *ret;
 
-	kfree(vol->subvols[idx]);
-	vol->subvols[idx] = NULL;
+	ret = kzalloc(sizeof(*ret) + nr_mslots * sizeof(slot_t),
+		      GFP_KERNEL);
+	if (ret)
+		ret->nr_mslots = nr_mslots;
+	return ret;
 }
 
-void free_mirror_slots(slot_t *slots)
+void free_lv_conf(lv_conf *conf)
 {
-	kfree(slots);
+	if (conf != NULL)
+		kfree(conf);
 }
 
-void free_subvols_set(reiser4_volume *vol)
+void free_mslot_at(lv_conf *conf, int idx)
 {
+	assert("edward-2231", conf != NULL);
+	assert("edward-2190", conf->mslots[idx] != NULL);
+
+	free_mslot(conf->mslots[idx]);
+	conf->mslots[idx] = NULL;
+}
+
+void release_lv_conf(reiser4_volume *vol)
+{
+	lv_conf *conf;
+
 	assert("edward-1754", vol != NULL);
 
-	if (vol->subvols != NULL) {
+	conf = vol->conf;
+
+	if (conf != NULL) {
 		u32 i;
-		for (i = 0; i < vol->nr_slots; i++)
-			if (vol->subvols[i])
-				free_mirror_slot_at(vol, i);
-		free_mirror_slots(vol->subvols);
-		vol->subvols = NULL;
+		for (i = 0; i < conf->nr_mslots; i++)
+			if (conf->mslots[i])
+				free_mslot_at(conf, i);
+		free_lv_conf(conf);
+		vol->conf = NULL;
 	}
 }
 
@@ -495,7 +519,7 @@ void __reiser4_deactivate_volume(struct super_block *super)
 	if (vol->dist_plug->r.done)
 		vol->dist_plug->r.done(&vol->aid);
 
-	free_subvols_set(vol);
+	release_lv_conf(vol);
 	vol->num_sgs_bits = 0;
 	atomic_set(&vol->nr_origins, 0);
 
@@ -527,44 +551,30 @@ static int set_activated_subvol(reiser4_volume *vol, reiser4_subvol *subv)
 	int ret = 0;
 	u64 orig_id = subv->id;
 	u16 mirr_id = subv->mirror_id;
+	lv_conf *conf = vol->conf;
 
-	if (vol->subvols == NULL) {
-		/*
-		 * allocate array of pointers to columns
-		 */
-		u32 count;
+	assert("edward-2232", conf != NULL);
 
-		count = vol->nr_slots;
-		if (!count)
-			count = 1;
-		vol->subvols = alloc_mirror_slots(count);
-		if (vol->subvols == NULL) {
-			ret = -ENOMEM;
-			goto out;
-		}
-		vol->nr_slots = count;
-	}
-	if (vol->subvols[orig_id] == NULL) {
+	if (conf->mslots[orig_id] == NULL) {
 		/*
-		 * allocate a column (array of pointers to mirrors)
+		 * allocate array of pointers to mirrors
 		 */
-		vol->subvols[orig_id] =
-			alloc_one_mirror_slot(1 + subv->num_replicas);
-		if (vol->subvols[orig_id] == NULL) {
+		conf->mslots[orig_id] = alloc_mslot(1 + subv->num_replicas);
+		if (conf->mslots[orig_id] == NULL) {
 			ret = -ENOMEM;
 			goto out;
 		}
 	}
-	if (vol->subvols[orig_id][mirr_id] != NULL) {
+	if (conf->mslots[orig_id][mirr_id] != NULL) {
 		warning("edward-1767",
 			"%s and %s have identical mirror IDs (%llu,%u)",
-			vol->subvols[orig_id][mirr_id]->name,
+			conf->mslots[orig_id][mirr_id]->name,
 			subv->name,
 			orig_id, mirr_id);
 		ret = -EINVAL;
 		goto out;
 	}
-	vol->subvols[orig_id][mirr_id] = subv;
+	conf->mslots[orig_id][mirr_id] = subv;
  out:
 	return ret;
 }
@@ -626,6 +636,7 @@ int reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 	u32 orig_id;
 	u32 nr_origins = 0;
 	reiser4_volume *vol;
+	lv_conf *conf;
 
 	mutex_lock(&reiser4_volumes_mutex);
 	/*
@@ -647,18 +658,19 @@ int reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 	 * check_active_replicas()). Now make sure that all
 	 * original bricks have been activated.
 	 */
-	for_each_vslot(orig_id) {
-		if (super_mirrors(super, orig_id) != NULL &&
-		    super_origin(super, orig_id) != NULL) {
+
+	vol = get_super_private(super)->vol;
+	assert("edward-2207", vol!= NULL);
+
+	conf = vol->conf;
+	for_each_mslot(conf, orig_id) {
+		if (conf_mslot_at(conf, orig_id) && conf_origin(conf, orig_id)){
 			assert("edward-1773",
-			       subvol_is_set(super_origin(super, orig_id),
+			       subvol_is_set(conf_origin(conf, orig_id),
 					     SUBVOL_ACTIVATED));
 			nr_origins ++;
 		}
 	}
-	vol = get_super_private(super)->vol;
-	assert("edward-2207", vol!= NULL);
-
 	if (nr_origins != atomic_read(&vol->nr_origins)) {
 		warning("edward-1772",
 			"%s: not all bricks are registered (%u instead of %u)",

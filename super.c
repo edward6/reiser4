@@ -49,16 +49,19 @@ __u64 reiser4_subvol_block_count(const reiser4_subvol *subv)
 /* get number of blocks in logical volume */
 __u64 reiser4_volume_block_count(const struct super_block *super)
 {
+	lv_conf *conf;
 	__u32 subv_id;
 	__u64 result = 0;
 
 	assert("edward-1794", super != NULL);
 
-	for_each_vslot(subv_id) {
-		if (super_mirrors(super, subv_id) == NULL)
+	conf = super_conf(super);
+
+	for_each_mslot(conf, subv_id) {
+		if (!conf_mslot_at(conf, subv_id))
 			continue;
-		result += reiser4_subvol_block_count(super_origin(super,
-								  subv_id));
+		result += reiser4_subvol_block_count(conf_origin(conf,
+								 subv_id));
 	}
 	return result;
 }
@@ -93,16 +96,19 @@ __u64 reiser4_subvol_blocks_reserved(const reiser4_subvol *subv)
 
 __u64 reiser4_volume_blocks_reserved(const struct super_block *super)
 {
+	lv_conf *conf;
 	__u32 subv_id;
 	__u64 result = 0;
 
 	assert("edward-1795", super != NULL);
 
-	for_each_vslot(subv_id) {
-		if (super_mirrors(super, subv_id) == NULL)
+	conf = super_conf(super);
+
+	for_each_mslot(conf, subv_id) {
+		if (!conf_mslot_at(conf, subv_id))
 			continue;
-		result += reiser4_subvol_blocks_reserved(super_origin(super,
-								      subv_id));
+		result += reiser4_subvol_blocks_reserved(conf_origin(conf,
+								     subv_id));
 	}
 	return result;
 }
@@ -152,16 +158,19 @@ void reiser4_subvol_set_data_room(reiser4_subvol *subv, __u64 value)
 /* amount of free blocks in logical volume */
 __u64 reiser4_volume_free_blocks(const struct super_block *super)
 {
+	lv_conf *conf;
 	__u32 subv_id;
 	__u64 result = 0;
 
 	assert("edward-1798", super != NULL);
 
-	for_each_vslot(subv_id) {
-		if (super_mirrors(super, subv_id) == NULL)
+	conf = super_conf(super);
+
+	for_each_mslot(conf, subv_id) {
+		if (!conf_mslot_at(conf, subv_id))
 			continue;
-		result += reiser4_subvol_free_blocks(super_origin(super,
-								  subv_id));
+		result += reiser4_subvol_free_blocks(conf_origin(conf,
+								 subv_id));
 	}
 	return result;
 
@@ -203,17 +212,20 @@ long reiser4_volume_reserved4user(const struct super_block *super,
 				  uid_t uid, /* user id */
 				  gid_t gid  /* group id */)
 {
+	lv_conf *conf;
 	__u32 subv_id;
 	__u64 result = 0;
 
 	assert("edward-1799", super != NULL);
 
-	for_each_vslot(subv_id) {
-		if (super_mirrors(super, subv_id) == NULL)
+	conf = super_conf(super);
+
+	for_each_mslot(conf, subv_id) {
+		if (!conf_mslot_at(conf, subv_id))
 			continue;
 		result +=
-			reiser4_subvol_reserved4user(super_origin(super, subv_id),
-					     uid, gid);
+			reiser4_subvol_reserved4user(conf_origin(conf, subv_id),
+						     uid, gid);
 	}
 	return result;
 }

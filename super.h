@@ -294,7 +294,7 @@ static inline struct reiser4_super_info_data *sbinfo_by_vol(struct reiser4_volum
 }
 
 /*
- * In-memory volume configuraion
+ * On-disk volume configuraion
  */
 struct reiser4_volinfo {
 	u64 volinfo_gen; /* generation number */
@@ -308,32 +308,23 @@ struct reiser4_volinfo {
 #define NEW_VOL_CONF 1
 
 /*
- * In-memory header of compound (logical) volume.
+ * In-memory volume configuration
  */
-struct reiser4_volume {
-	struct list_head list;
-	u8 uuid[16]; /* volume id */
-	int num_sgs_bits; /* logarithm of number of hash space segments */
-	int stripe_bits; /* logarithm of stripe size */
-	atomic_t nr_origins; /* number of original subvolumes (w/o replicas) */
-	distribution_plugin *dist_plug;
-	volume_plugin *vol_plug;
-	reiser4_aid aid; /* storage array descriptor */
-	reiser4_volinfo volinfo[2]; /* volume configs: current and new (for
-					unbalanced volumes) */
-	struct list_head subvols_list;  /* list of registered subvolumes */
-	u32 nr_slots; /* number of columns in the matrix below */
-	slot_t *subvols; /* pointer to a table of activated
-					   * subvolumes, where:
-					   * subvols[i] - i-th original;
-					   * subvols[i][j] - its j-th mirror,
-					   * see the picture below. */
+struct lv_conf {
+	u32 nr_mslots;    /* number of columns in the table of activated
+			   * subvolumes. Each column represents a set of
+			   * mirrors (see the picture below) */
+	slot_t mslots[0]; /* pointer to a table of activated subvolumes,
+			   * where:
+			   * mslots[i]   : array of mirrors at the i-th slot;
+			   * mslots[i][j]: j-th mirror in the array above
+			   * (see the picture below) */
 };
 
 /*
  Table of activated subvolumes:
 
- ******* <- @subvols
+ ******* <- @mslots
  ooo o o
  o o
    o
@@ -345,6 +336,25 @@ struct reiser4_volume {
  An original subvolume always have mirror_id = 0. Replicas have
  mirror_id > 0.
 */
+
+/*
+ * In-memory header of compound (logical) volume.
+ */
+struct reiser4_volume {
+	struct list_head list;
+	u8 uuid[16]; /* volume id */
+	int num_sgs_bits; /* logarithm of number of hash space segments */
+	int stripe_bits; /* logarithm of stripe size */
+	atomic_t nr_origins; /* number of original subvolumes (w/o replicas) */
+	distribution_plugin *dist_plug;
+	volume_plugin *vol_plug;
+	reiser4_aid aid; /* storage array descriptor */
+	reiser4_volinfo volinfo[2]; /* on-disk volume configurations: current
+				       and new (for volume operations) */
+	struct list_head subvols_list; /* list of registered subvolumes */
+	struct lv_conf *conf; /* in-memory volume configuration.
+				 RCU-protected */
+};
 
 extern reiser4_super_info_data *get_super_private_nocheck(const struct
 							  super_block *super);
@@ -368,41 +378,50 @@ static inline volume_plugin *super_vol_plug(const struct super_block *super)
 	return super_volume(super)->vol_plug;
 }
 
-static inline reiser4_subvol **sbinfo_mirrors(reiser4_super_info_data *info,
-					      u32 id)
+static inline lv_conf *sbinfo_conf(reiser4_super_info_data *info)
 {
 	assert("edward-1719", info != NULL);
 	assert("edward-1720", info->vol != NULL);
-	assert("edward-1981", info->vol->subvols != NULL);
 
-	return info->vol->subvols[id];
+	return info->vol->conf;
 }
 
-static inline reiser4_subvol *sbinfo_mirror(reiser4_super_info_data *info,
-					    u32 id, u32 mirror_id)
+static inline slot_t *conf_mslots(lv_conf *conf)
 {
-	assert("edward-1721", sbinfo_mirrors(info, id) != NULL);
-
-	return sbinfo_mirrors(info, id)[mirror_id];
+	return conf->mslots;
 }
 
-static inline reiser4_subvol **super_mirrors(const struct super_block *super,
-					     u32 id)
+static inline u32 conf_nr_mslots(lv_conf *conf)
 {
-	return sbinfo_mirrors(get_super_private(super), id);
+	return conf->nr_mslots;
+}
+
+static inline mirror_t *conf_mslot_at(lv_conf *conf, u32 id)
+{
+	return conf_mslots(conf)[id];
+}
+
+static inline reiser4_subvol *conf_mirror(lv_conf *conf,
+					  u32 slot_idx, u32 mirr_id)
+{
+	return ((mirror_t *)conf_mslot_at(conf, slot_idx))[mirr_id];
+}
+
+static inline reiser4_subvol *conf_origin(lv_conf *conf, u32 subv_id)
+{
+	return conf_mirror(conf, subv_id, 0);
+}
+
+static inline lv_conf *super_conf(const struct super_block *sb)
+{
+	return sbinfo_conf(get_super_private(sb));
 }
 
 static inline reiser4_subvol *super_mirror(struct super_block *super,
-					   u32 id, u32 mirror_id)
+					   u32 slot_idx, u32 mirror_id)
 {
 	assert("edward-1722", super != NULL);
-	return sbinfo_mirror(get_super_private(super), id, mirror_id);
-}
-
-static inline reiser4_subvol *sbinfo_origin(reiser4_super_info_data *info,
-					    u32 id)
-{
-	return sbinfo_mirror(info, id, 0);
+	return conf_mirror(super_conf(super), slot_idx, mirror_id);
 }
 
 static inline u32 vol_nr_origins(reiser4_volume *vol)
@@ -418,7 +437,7 @@ static inline u32 sbinfo_nr_origins(reiser4_super_info_data *info)
 static inline reiser4_subvol *super_origin(const struct super_block *super,
 					   u32 id)
 {
-	return sbinfo_origin(get_super_private(super), id);
+	return conf_origin(super_conf(super), id);
 }
 
 static inline u32 super_nr_origins(const struct super_block *super)
@@ -463,16 +482,9 @@ static inline volume_plugin *current_vol_plug(void)
 	return current_volume()->vol_plug;
 }
 
-static inline int current_volume_is_simple(void)
+static inline lv_conf *current_lv_conf(void)
 {
-	return current_vol_plug() == volume_plugin_by_id(SIMPLE_VOLUME_ID);
-}
-
-static inline reiser4_subvol ***current_subvols(void)
-{
-	assert("edward-2159", current_volume() != NULL);
-
-	return current_volume()->subvols;
+	return sbinfo_conf(get_current_super_private());
 }
 
 static inline struct formatted_ra_params *get_current_super_ra_params(void)
@@ -480,30 +492,20 @@ static inline struct formatted_ra_params *get_current_super_ra_params(void)
 	return &(get_current_super_private()->ra_params);
 }
 
-static inline struct distribution_plugin *private_dist_plug(reiser4_super_info_data *info)
-{
-	return info->vol->dist_plug;
-}
-
-static inline struct distribution_plugin *super_dist_plug(struct super_block *s)
-{
-	return get_super_private(s)->vol->dist_plug;
-}
-
 static inline struct distribution_plugin *current_dist_plug(void)
 {
 	return get_current_super_private()->vol->dist_plug;
 }
 
-static inline struct reiser4_subvol *current_mirror(u32 id,
-					    u32 mirror_id)
+static inline struct reiser4_subvol *current_mirror(u32 slot_idx,
+						    u32 mirror_id)
 {
-	return sbinfo_mirror(get_current_super_private(), id, mirror_id);
+	return conf_mirror(current_lv_conf(), slot_idx, mirror_id);
 }
 
-static inline struct reiser4_subvol *current_origin(u32 id)
+static inline struct reiser4_subvol *current_origin(u32 slot_idx)
 {
-	return sbinfo_origin(get_current_super_private(), id);
+	return conf_origin(current_lv_conf(), slot_idx);
 }
 
 static inline u32 current_nr_origins(void)
@@ -532,14 +534,14 @@ static inline u32 current_num_mirrors(u32 orig_id)
 #define current_stripe_bits (current_volume()->stripe_bits)
 #define current_stripe_size (1 << current_stripe_bits)
 
-#define for_each_vslot(_subv_id)					\
+#define for_each_mslot(_conf, _subv_id)					\
 	for (_subv_id = 0;						\
-	     _subv_id < current_volume()->nr_slots;			\
+	     _subv_id < _conf->nr_mslots;				\
 	     _subv_id ++)
 
-#define for_each_data_vslot(_subv_id)					\
+#define for_each_data_mslot(_conf, _subv_id)				\
 	for (_subv_id = 1;						\
-	     _subv_id < current_volume()->nr_slots;			\
+	     _subv_id < _conf->nr_mslots;				\
 	     _subv_id ++)
 
 #define for_each_mirror(_orig_id, _mirr_id)				\

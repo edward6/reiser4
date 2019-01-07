@@ -841,7 +841,6 @@ int balance_stripe(struct inode *inode)
 	int ret;
 	reiser4_key key;
 	struct unix_file_info *uf;
-	reiser4_volume *vol;
 	coord_t coord;
 	lock_handle lh;
 	item_plugin *iplug;
@@ -855,7 +854,6 @@ int balance_stripe(struct inode *inode)
 		 */
 		return 0;
 
-	vol = current_volume();
 	uf = unix_file_inode_data(inode);
 
 	get_exclusive_access(uf);

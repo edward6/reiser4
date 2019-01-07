@@ -124,9 +124,9 @@ static __u64 get_format40_volinfo_gen(const format40_disk_super_block * sb)
 	return le64_to_cpu(get_unaligned(&sb->volinfo_gen));
 }
 
-static __u64 get_format40_nr_slots(const format40_disk_super_block * sb)
+static __u64 get_format40_nr_mslots(const format40_disk_super_block * sb)
 {
-	return le64_to_cpu(get_unaligned(&sb->nr_slots));
+	return le64_to_cpu(get_unaligned(&sb->nr_mslots));
 }
 
 static __u32 get_format40_version(const format40_disk_super_block * sb)
@@ -234,6 +234,7 @@ int check_set_volume_params(reiser4_subvol *subv,
 {
 	reiser4_volume *vol;
 	u32 ondisk_nr_origins;
+	u32 nr_mslots;
 	const char *what_is_wrong;
 
 	if (subvol_is_set(subv, SUBVOL_IS_ORPHAN)) {
@@ -269,14 +270,21 @@ int check_set_volume_params(reiser4_subvol *subv,
 		what_is_wrong = "different numbers of hash space segments";
 		goto error;
 	}
-	if (vol->nr_slots == 0)
-		vol->nr_slots = get_format40_nr_slots(sb_format);
-	else if (vol->nr_slots != get_format40_nr_slots(sb_format)) {
-		what_is_wrong = "different numbers of slots";
+	nr_mslots = get_format40_nr_mslots(sb_format);
+	if (!vol->conf) {
+		if (nr_mslots == 0) {
+			assert("edward-2228", ondisk_nr_origins == 1);
+			nr_mslots = 1;
+		}
+		vol->conf = alloc_lv_conf(nr_mslots);
+		if (!vol->conf)
+			return -ENOMEM;
+	} else if (nr_mslots && nr_mslots != vol->conf->nr_mslots) {
+		what_is_wrong = "different numbers of mslots";
 		goto error;
 	}
 	subv->id = get_format40_origin_id(sb_format);
-	if (subv->id > vol->nr_slots) {
+	if (subv->id > vol->conf->nr_mslots) {
 		what_is_wrong = "subvolume ID is too large";
 		goto error;
 	}
@@ -610,6 +618,7 @@ static void pack_format40_super(const struct super_block *s,
 	format40_disk_super_block *format_sb =
 		(format40_disk_super_block *) data;
 	reiser4_volume *vol = super_volume(s);
+	lv_conf *conf = vol->conf;
 
 	assert("zam-591", data != NULL);
 
@@ -631,7 +640,7 @@ static void pack_format40_super(const struct super_block *s,
 
 	put_unaligned(cpu_to_le64(subv->data_room), &format_sb->data_room);
 
-	put_unaligned(cpu_to_le64(vol->nr_slots), &format_sb->nr_slots);
+	put_unaligned(cpu_to_le64(conf->nr_mslots), &format_sb->nr_mslots);
 
 	if (update_disk_version_minor(format_sb)) {
 		__u32 version = PLUGIN_LIBRARY_VERSION | FORMAT40_UPDATE_BACKUP;
