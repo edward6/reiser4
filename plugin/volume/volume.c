@@ -1574,8 +1574,8 @@ int print_volume_asym(struct super_block *sb, struct reiser4_vol_op_args *args)
 int print_brick_asym(struct super_block *sb, struct reiser4_vol_op_args *args)
 {
 	int ret = 0;
-	u64 id;      /* internal ID */
-	u64 idx_lv;  /* index in logical volume */
+	u64 id;        /* internal ID */
+	u64 brick_idx; /* index of the brick in logical volume */
 
 	reiser4_volume *vol = super_volume(sb);
 	lv_conf *conf = vol->conf;
@@ -1595,19 +1595,19 @@ int print_brick_asym(struct super_block *sb, struct reiser4_vol_op_args *args)
 	}
 	spin_lock_reiser4_super(get_super_private(sb));
 
-	idx_lv = args->s.idx_lv;
-	if (idx_lv >= vol_nr_origins(vol)) {
+	brick_idx = args->s.brick_idx;
+	if (brick_idx >= vol_nr_origins(vol)) {
 		ret = -EINVAL;
 		goto out;
 	}
 	/* translate index in LV to brick ID */
 
-	if (is_meta_brick_id(idx_lv))
-		id = idx_lv;
+	if (is_meta_brick_id(brick_idx))
+		id = brick_idx;
 	else if (meta_brick_belongs_aid())
-		id = vol->vol_plug->bucket_ops.idx2id(idx_lv);
+		id = vol->vol_plug->bucket_ops.idx2id(brick_idx);
 	else
-		id = vol->vol_plug->bucket_ops.idx2id(idx_lv - 1);
+		id = vol->vol_plug->bucket_ops.idx2id(brick_idx - 1);
 
 	assert("edward-2206", conf->mslots[id] != NULL);
 
