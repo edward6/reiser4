@@ -474,9 +474,6 @@ extern void init_inode_ordering(struct inode *inode,
 				reiser4_object_create_data *crd,
 				const reiser4_key *sd_key, int create);
 
-extern void inode_set_new_dist(struct inode *inode);
-extern void inode_set_old_dist(struct inode *inode);
-
 static inline struct radix_tree_root *jnode_tree_by_inode(struct inode *inode)
 {
 	return &reiser4_inode_data(inode)->jnodes_tree;

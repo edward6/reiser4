@@ -45,7 +45,6 @@ distribution_plugin distribution_plugins[LAST_DISTRIB_ID] = {
 			.pack = NULL,
 			.unpack = NULL,
 			.dump = NULL,
-			.get_tab = NULL
 		},
 	},
 	[FSW32M_DISTRIB_ID] = {
@@ -61,7 +60,8 @@ distribution_plugin distribution_plugins[LAST_DISTRIB_ID] = {
 		.r = {
 			.init = initr_fsw32,
 			.lookup = lookup_fsw32m,
-			.update = update_fsw32,
+			.replace = replace_fsw32,
+			.free = free_fsw32,
 			.done = doner_fsw32
 		},
 		.v = {
@@ -73,7 +73,6 @@ distribution_plugin distribution_plugins[LAST_DISTRIB_ID] = {
 			.pack = pack_fsw32,
 			.unpack = unpack_fsw32,
 			.dump = dump_fsw32,
-			.get_tab = get_tab_fsw32,
 			.get_buckets = get_buckets_fsw32
 		}
 	}

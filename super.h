@@ -139,13 +139,13 @@ struct reiser4_subvol {
 	struct block_device *bdev;
 	u64 id; /* internal ID (index in the array of slots) */
 	int mirror_id; /* index in the array of mirrors (0 indicates origin) */
-	u32 dsa_idx; /* index in Data Storage Array (DSA) */
+	u32 dsa_idx; /* index in Data Storage Array (DSA). That index is set
+			by ->create_buckets() operation */
 	int num_replicas; /* number of replicas, (mirrors excluding original) */
 	u64 data_room; /* number of blocks allocated to store data */
 	u64 fiber_len;
 	reiser4_block_nr volmap_loc[2]; /* location of first voltab blocks for
 					   current and new volume configs */
-	u64 volinfo_gen; /* generation number of current volume config */
 	void *fiber; /* per-subvolume part of volume configuration */
 	reiser4_subv_type type; /* type of this subvolume */
 	unsigned long flags; /* subvolume-wide flags, see subvol_flags enum */
@@ -297,7 +297,6 @@ static inline struct reiser4_super_info_data *sbinfo_by_vol(struct reiser4_volum
  * On-disk volume configuraion
  */
 struct reiser4_volinfo {
-	u64 volinfo_gen; /* generation number */
 	jnode **volmap_nodes;
 	int num_volmaps;
 	jnode **voltab_nodes;
@@ -311,6 +310,7 @@ struct reiser4_volinfo {
  * In-memory volume configuration
  */
 struct lv_conf {
+	void *tab;        /* distribution config */
 	u32 nr_mslots;    /* number of columns in the table of activated
 			   * subvolumes. Each column represents a set of
 			   * mirrors (see the picture below) */
@@ -350,10 +350,14 @@ struct reiser4_volume {
 	volume_plugin *vol_plug;
 	reiser4_aid aid; /* storage array descriptor */
 	reiser4_volinfo volinfo[2]; /* on-disk volume configurations: current
-				       and new (for volume operations) */
+				       and new (for volume operations). They
+				       need co-exist some time until we make
+				       sure that new info is written to disk
+				       successfully */
 	struct list_head subvols_list; /* list of registered subvolumes */
-	struct lv_conf *conf; /* in-memory volume configuration.
-				 RCU-protected */
+	struct lv_conf *conf; /* current working in-memory volume
+				 configuration */
+	struct lv_conf *new_conf; /* new volume configuration */
 };
 
 extern reiser4_super_info_data *get_super_private_nocheck(const struct

@@ -242,7 +242,6 @@ struct unix_file_info {
 	atomic_t nr_neas;
 	void *last_reader;
 #endif
-	void *dstab;
 };
 
 struct unix_file_info *unix_file_inode_data(const struct inode *inode);

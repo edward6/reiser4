@@ -37,6 +37,16 @@ static inline void mem_free(void *p)
 	vfree(p);
 }
 
+static inline u32 **cur_tabp(struct fsw32_aid *aid)
+{
+	return aid->ops->tabp();
+}
+
+static inline u32 *cur_tab(struct fsw32_aid *aid)
+{
+	return *cur_tabp(aid);
+}
+
 static inline struct fsw32_aid *fsw32_private(reiser4_aid *aid)
 {
 	return &aid->fsw32;
@@ -167,7 +177,7 @@ static void calibrate64(u64 num, u64 val, bucket_t *vec,
 		  ret, array64_el_get, array64_el_set);
 }
 
-static int create_systab(u32 nums_bits, u32 **tab,
+int create_systab(u32 nums_bits, u32 **tab,
 			 u32 numb, u32 *weights, bucket_t *vec,
 			 void *(*fiber_at)(bucket_t *vec, u64 idx),
 			 u64 (*idx2id)(u32 idx))
@@ -185,22 +195,21 @@ static int create_systab(u32 nums_bits, u32 **tab,
 static int clone_systab(struct fsw32_aid *aid)
 {
 	assert("edward-2169", aid != NULL);
-	assert("edward-2170", aid->tab[CUR_VOL_CONF] != NULL);
-	assert("edward-2171", aid->tab[NEW_VOL_CONF] == NULL);
+	assert("edward-2170", cur_tab(aid) != NULL);
+	assert("edward-2171", aid->tab == NULL);
 
-	aid->tab[NEW_VOL_CONF] = mem_alloc((1 << aid->nums_bits) * WORDSIZE);
-	if (!aid->tab[NEW_VOL_CONF])
+	aid->tab = mem_alloc((1 << aid->nums_bits) * WORDSIZE);
+	if (!aid->tab)
 		return ENOMEM;
-	memcpy(aid->tab[NEW_VOL_CONF], aid->tab[CUR_VOL_CONF],
-	       (1 << aid->nums_bits) * WORDSIZE);
+	memcpy(aid->tab, cur_tab(aid), (1 << aid->nums_bits) * WORDSIZE);
 	return 0;
 }
 
 static void free_cloned_systab(struct fsw32_aid *aid)
 {
-	if (aid->tab[NEW_VOL_CONF]) {
-		mem_free(aid->tab[NEW_VOL_CONF]);
-		aid->tab[NEW_VOL_CONF] = NULL;
+	if (aid->tab) {
+		mem_free(aid->tab);
+		aid->tab = NULL;
 	}
 }
 
@@ -614,38 +623,45 @@ void donev_fsw32(reiser4_aid *raid)
  */
 void doner_fsw32(reiser4_aid *raid)
 {
-	int i;
 	struct fsw32_aid *aid = fsw32_private(raid);
 
-	for (i = 0; i < 2; i++)
-		if (aid->tab[i]) {
-			mem_free(aid->tab[i]);
-			aid->tab[i] = NULL;
-		}
+	if (!cur_tab(aid))
+		return;
+	mem_free(cur_tab(aid));
+	*cur_tabp(aid) = NULL;
 }
 
 /**
- * Replace current AID descriptor with the new one.
- * It is called after re-balancing completion.
+ * Set newly created distribution table to @target
  */
-void update_fsw32(reiser4_aid *raid)
+void replace_fsw32(reiser4_aid *raid, void **target)
 {
 	struct fsw32_aid *aid = fsw32_private(raid);
-	u32 *old_tab = aid->tab[CUR_VOL_CONF];
 
-	aid->tab[CUR_VOL_CONF] = aid->tab[NEW_VOL_CONF];
-	aid->tab[NEW_VOL_CONF] = NULL;
-	mem_free(old_tab);
+	assert("edward-2236", target != NULL);
+	assert("edward-2237", *target == NULL);
+
+	*target = aid->tab;
+	aid->tab = NULL;
 }
 
 /**
- * Initialize AID descriptor for regular operations
+ * Free system table specified by @tab
  */
-int initr_fsw32(reiser4_aid *raid, int numb, int nums_bits, int new)
+void free_fsw32(void *tab)
+{
+	assert("edward-2238", tab != NULL);
+	mem_free(tab);
+}
+
+/**
+ * Initialize distribution context for regular file operations
+ */
+int initr_fsw32(reiser4_aid *raid, int numb, int nums_bits)
 {
 	struct fsw32_aid *aid = fsw32_private(raid);
 
-	if (aid->tab[new] != NULL)
+	if (cur_tab(aid))
 		return 0;
 
 	if (nums_bits < MIN_NUMS_BITS) {
@@ -655,8 +671,8 @@ int initr_fsw32(reiser4_aid *raid, int numb, int nums_bits, int new)
 			1ull << nums_bits, 1ull << MIN_NUMS_BITS);
 		return -EINVAL;
 	}
-	aid->tab[new] = mem_alloc((1 << nums_bits) * sizeof(u32));
-	if (aid->tab[new] == NULL)
+	*cur_tabp(aid) = mem_alloc((1 << nums_bits) * sizeof(u32));
+	if (*cur_tabp(aid) == NULL)
 		return -ENOMEM;
 
 	aid->numb = numb;
@@ -666,7 +682,7 @@ int initr_fsw32(reiser4_aid *raid, int numb, int nums_bits, int new)
 }
 
 /**
- * Initialize AID descriptor @raid for volume operations
+ * Initialize distribution context for volume operations
  *
  * @buckets: set of abstract buckets;
  * @ops: operations to access the buckets;
@@ -690,7 +706,7 @@ int initv_fsw32(bucket_t *vec,
 
 	aid = fsw32_private(raid);
 
-	assert("edward-2172", aid->tab[NEW_VOL_CONF] == NULL);
+	assert("edward-2172", aid->tab == NULL);
 	assert("edward-1922", aid->weights == NULL);
 
 	aid->buckets = vec;
@@ -702,40 +718,25 @@ int initv_fsw32(bucket_t *vec,
 
 	calibrate32(numb, nums, vec, ops->cap_at, aid->weights);
 
-	if (aid->tab[CUR_VOL_CONF] == NULL) {
+	if (!cur_tab(aid)) {
 		u32 i;
 		assert("edward-2201", numb == 1);
-		ret = initr_fsw32(raid, numb, nums_bits, CUR_VOL_CONF);
+		ret = initr_fsw32(raid, numb, nums_bits);
 		if (ret)
 			goto error;
 		for (i = 0; i < nums; i++)
-			aid->tab[CUR_VOL_CONF][i] = ops->idx2id(0);
+			cur_tab(aid)[i] = ops->idx2id(0);
 	}
-	assert("edward-2173", aid->tab[CUR_VOL_CONF] != NULL);
+	assert("edward-2173", cur_tab(aid) != NULL);
 
-	if (aid->tab[CUR_VOL_CONF] == NULL)
-		ret = create_systab(nums_bits, &aid->tab[CUR_VOL_CONF],
-				    numb, aid->weights, vec,
-				    ops->fib_at,
-				    ops->idx2id);
-	else
-		ret = create_fibers(nums_bits, aid->tab[CUR_VOL_CONF],
-				    numb, aid->weights, vec,
-				    ops->fib_at,
-				    ops->fib_set_at,
-				    ops->fib_lenp_at,
-				    ops->id2idx);
+	ret = create_fibers(nums_bits, cur_tab(aid),
+			    numb, aid->weights, vec,
+			    ops->fib_at,
+			    ops->fib_set_at,
+			    ops->fib_lenp_at,
+			    ops->id2idx);
 	if (ret)
 		goto error;
-
-#if 0
-	{
-		int i;
-		for (i = 0; i < numb; i++)
-			print_fiber(i, aid->buckets,
-				    ops->fib_at, ops->fib_lenp_at);
-	}
-#endif
 	return 0;
  error:
 	doner_fsw32(raid);
@@ -791,7 +792,7 @@ int inc_fsw32(reiser4_aid *raid, u64 target_pos, bucket_t new)
 	calibrate32(new_numb, nums,
 		    aid->buckets, aid->ops->cap_at, new_weights);
 	ret = balance_fibers_inc(aid,
-				 new_numb, aid->tab[NEW_VOL_CONF],
+				 new_numb, aid->tab,
 				 aid->weights, new_weights, target_pos,
 				 aid->buckets, aid->ops->fib_at,
 				 aid->ops->idx2id, new);
@@ -906,7 +907,7 @@ int dec_fsw32(reiser4_aid *raid, u64 target_pos, bucket_t removeme)
 					new_numb, target_pos);
 
 	ret = balance_fibers_dec(aid,
-				 old_numb, aid->tab[NEW_VOL_CONF],
+				 old_numb, aid->tab,
 				 aid->weights, new_weights, target_pos,
 				 aid->buckets, aid->ops->fib_at,
 				 aid->ops->fib_of, aid->ops->idx2id,
@@ -952,7 +953,7 @@ int spl_fsw32(reiser4_aid *raid, u32 fact_bits)
 	calibrate32(aid->numb, new_nums,
 		    aid->buckets, aid->ops->cap_at, new_weights);
 	ret = balance_fibers_spl(aid->numb, aid->nums_bits,
-				 &aid->tab[NEW_VOL_CONF],
+				 &aid->tab,
 				 aid->weights,
 				 new_weights,
 				 fact_bits,
@@ -974,17 +975,16 @@ int spl_fsw32(reiser4_aid *raid, u32 fact_bits)
 	return ret;
 }
 
-void pack_fsw32(reiser4_aid *raid, char *to, u64 src_off, u64 count, int new)
+void pack_fsw32(reiser4_aid *raid, char *to, u64 src_off, u64 count)
 {
 	u64 i;
 	u32 *src;
 	struct fsw32_aid *aid = fsw32_private(raid);
 
 	assert("edward-1923", to != NULL);
-	assert("edward-2174", new == NEW_VOL_CONF);
-	assert("edward-1924", aid->tab[new] != NULL);
+	assert("edward-1924", aid->tab != NULL);
 
-	src = aid->tab[new] + src_off;
+	src = aid->tab + src_off;
 
 	for (i = 0; i < count; i++) {
 		put_unaligned(cpu_to_le32(*src), (d32 *)to);
@@ -993,17 +993,16 @@ void pack_fsw32(reiser4_aid *raid, char *to, u64 src_off, u64 count, int new)
 	}
 }
 
-void unpack_fsw32(reiser4_aid *raid,
-		  char *from, u64 dst_off, u64 count, int new)
+void unpack_fsw32(reiser4_aid *raid, char *from, u64 dst_off, u64 count)
 {
 	u64 i;
 	u32 *dst;
 	struct fsw32_aid *aid = fsw32_private(raid);
 
 	assert("edward-1925", from != NULL);
-	assert("edward-1926", aid->tab[new] != NULL);
+	assert("edward-1926", cur_tab(aid) != NULL);
 
-	dst = aid->tab[new] + dst_off;
+	dst = cur_tab(aid) + dst_off;
 
 	for (i = 0; i < count; i++) {
 		*dst = le32_to_cpu(get_unaligned((d32 *)from));
@@ -1012,18 +1011,12 @@ void unpack_fsw32(reiser4_aid *raid,
 	}
 }
 
-void dump_fsw32(reiser4_aid *raid, char *to, u64 offset, u32 size, int new)
+void dump_fsw32(reiser4_aid *raid, char *to, u64 offset, u32 size)
 {
 	struct fsw32_aid *aid = fsw32_private(raid);
+	u32 *tab = cur_tab(aid);
 
-	memcpy(to, aid->tab[new] + offset, size);
-}
-
-void *get_tab_fsw32(reiser4_aid *raid, int new)
-{
-	struct fsw32_aid *aid = fsw32_private(raid);
-
-	return aid->tab[new];
+	memcpy(to, tab + offset, size);
 }
 
 bucket_t *get_buckets_fsw32(reiser4_aid *raid)

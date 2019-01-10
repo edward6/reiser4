@@ -64,11 +64,8 @@ typedef struct format40_disk_super_block {
 	/* 112 */ d64 volinfo_loc;  /* location of the first block of system LV info */
 	/* 120 */ d8  num_sgs_bits; /* logarithm of total number of the hash-space
 				       segments */
-	/* 121 */ d64 volinfo_gen;  /* volinfo generation number */
-	/* 129 */ d64 new_volinfo_loc; /* location of the first block of new volume
-				          configuration (for unbalanced volumes) */
-	/* 137 */ d64 nr_mslots;    /* number of mslots (== maximal brick ID + 1) */
-	char not_used[367];
+	/* 121 */ d64 nr_mslots;    /* number of mslots (== maximal brick ID + 1) */
+	char not_used[383];
 } format40_disk_super_block;
 
 /* Defines for journal header and footer respectively. */

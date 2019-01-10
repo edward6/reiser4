@@ -39,32 +39,6 @@
 
 int readpages_filler_generic(void *data, struct page *page, int striped);
 
-static void *get_inode_dstab(const struct inode *inode)
-{
-	return unix_file_inode_data(inode)->dstab;
-}
-
-static void set_inode_dstab(const struct inode *inode, void *dstab)
-{
-	unix_file_inode_data(inode)->dstab = dstab;
-}
-
-void inode_set_new_dist(struct inode *inode)
-{
-	if (current_dist_plug()->v.get_tab)
-		set_inode_dstab(inode,
-			current_dist_plug()->v.get_tab(&current_volume()->aid,
-						       NEW_VOL_CONF));
-}
-
-void inode_set_old_dist(struct inode *inode)
-{
-	if (current_dist_plug()->v.get_tab)
-		set_inode_dstab(inode,
-			current_dist_plug()->v.get_tab(&current_volume()->aid,
-						       CUR_VOL_CONF));
-}
-
 reiser4_subvol *calc_data_subvol_stripe(const struct inode *inode,
 					loff_t offset)
 {
@@ -72,7 +46,7 @@ reiser4_subvol *calc_data_subvol_stripe(const struct inode *inode,
 
 	return current_origin(vplug->data_subvol_id_calc(get_inode_oid(inode),
 						   offset,
-						   get_inode_dstab(inode)));
+						   current_lv_conf()->tab));
 }
 
 int build_body_key_stripe(struct inode *inode, loff_t off, reiser4_key *key,
@@ -106,14 +80,6 @@ int flow_by_inode_stripe(struct inode *inode,
 	 * calculate key of write position and insert it into flow->key
 	 */
 	return build_body_key_stripe(inode, off, &flow->key, WRITE_OP);
-}
-
-void init_inode_data_stripe(struct inode *inode,
-			    reiser4_object_create_data *crd,
-			    const reiser4_key *sd_key, int create)
-{
-	init_inode_data_unix_file(inode, crd, sd_key, create);
-	inode_set_old_dist(inode);
 }
 
 ssize_t read_stripe(struct file *file, char __user *buf,
@@ -847,8 +813,6 @@ int balance_stripe(struct inode *inode)
 
 	/* see the comment above */
 	assert("edward-2144", REISER4_PLANB_KEY_ALLOCATION);
-
-	inode_set_new_dist(inode);
 
 	if (inode->i_size == 0)
 		/*

@@ -232,11 +232,6 @@ static int num_volmap_nodes(reiser4_volume *vol, int nums_bits)
 	return result;
 }
 
-static int volinfo_absent(void)
-{
-	return get_meta_subvol()->volmap_loc == 0;
-}
-
 static void release_volinfo_nodes(reiser4_volinfo *vinfo, int dealloc)
 {
 	u64 i;
@@ -270,12 +265,11 @@ static void done_volume_asym(reiser4_subvol *subv)
 }
 
 /**
- * Load system volume configutation to memory.
- * @id is either 0 (to load current config), or 1 (to load new
- * config for unbalanced volumes).
+ * Load system volume configutation from disk to memory.
  */
-static int load_volume_config(reiser4_subvol *subv, int id)
+static int load_volume_config(reiser4_subvol *subv)
 {
+	int id = CUR_VOL_CONF;
 	int ret;
 	int i, j;
 	u32 num_aid_bricks;
@@ -298,7 +292,7 @@ static int load_volume_config(reiser4_subvol *subv, int id)
 	if (dist_plug->r.init) {
 		ret = dist_plug->r.init(&vol->aid,
 					num_aid_bricks,
-					vol->num_sgs_bits, id);
+					vol->num_sgs_bits);
 		if (ret)
 			return ret;
 	}
@@ -362,8 +356,7 @@ static int load_volume_config(reiser4_subvol *subv, int id)
 			dist_plug->v.unpack(&vol->aid,
 					    jdata(vinfo->voltab_nodes[j]),
 					    packed_segments,
-					    segments_per_block(vol),
-					    id);
+					    segments_per_block(vol));
 			jrelse(vinfo->voltab_nodes[j]);
 
 			packed_segments += segments_per_block(vol);
@@ -371,7 +364,6 @@ static int load_volume_config(reiser4_subvol *subv, int id)
 		volmap_loc = get_next_volmap_addr(volmap);
 		jrelse(vinfo->volmap_nodes[i]);
 	}
-	vinfo->volinfo_gen = subv->volinfo_gen + id;
  unpin:
 	release_volinfo_nodes(vinfo, 0);
 	return ret;
@@ -456,7 +448,7 @@ static int release_volume_config(reiser4_volume *vol, int id)
 }
 
 /**
- * Release old volume configuration and make new volume
+ * Release old on-disk volume configuration and make the new
  * configuration as "current one".
  */
 static int update_volume_config(reiser4_volume *vol)
@@ -473,15 +465,7 @@ static int update_volume_config(reiser4_volume *vol)
 
 	mtd_subv->volmap_loc[CUR_VOL_CONF] = mtd_subv->volmap_loc[NEW_VOL_CONF];
 	mtd_subv->volmap_loc[NEW_VOL_CONF] = 0;
-	if (mtd_subv->volmap_loc[CUR_VOL_CONF] != 0)
-		mtd_subv->volinfo_gen ++;
-	else
-		/* absent config - reset generation counter */
-		mtd_subv->volinfo_gen = 0;
-	assert("edward-2176",
-	       mtd_subv->volinfo_gen == vol->volinfo[CUR_VOL_CONF].volinfo_gen);
 
-	vol->dist_plug->r.update(&vol->aid);
 	return 0;
 }
 
@@ -587,8 +571,7 @@ noinline int create_volume_config(reiser4_volume *vol, int id)
 			dist_plug->v.pack(&vol->aid,
 					  jdata(vinfo->voltab_nodes[j]),
 					  packed_segments,
-					  segments_per_block(vol),
-					  id);
+					  segments_per_block(vol));
 			jrelse(vinfo->voltab_nodes[j]);
 
 			packed_segments += segments_per_block(vol);
@@ -613,7 +596,6 @@ noinline int create_volume_config(reiser4_volume *vol, int id)
 		 */
 		jrelse(vinfo->volmap_nodes[i]);
 	}
-	vinfo->volinfo_gen = meta_subv->volinfo_gen + id;
 	return 0;
  unpin:
 	release_volinfo_nodes(vinfo, 1 /* release disk addresses */);
@@ -671,7 +653,7 @@ static int make_volume_config(reiser4_volume *vol)
 	int ret;
 	txn_atom *atom;
 	txn_handle *th;
-	int id = volinfo_absent() ? CUR_VOL_CONF : NEW_VOL_CONF;
+	int id = NEW_VOL_CONF;
 
 	ret = create_volume_config(vol, id);
 	if (ret)
@@ -702,7 +684,6 @@ static int make_volume_config(reiser4_volume *vol)
 static int load_volume_asym(reiser4_subvol *subv)
 {
 	int ret;
-	reiser4_volume *vol = super_volume(subv->super);
 
 	if (subv->id != METADATA_SUBVOL_ID)
 		/*
@@ -714,28 +695,17 @@ static int load_volume_asym(reiser4_subvol *subv)
 		/* configuration is absent */
 		return 0;
 
-	ret = load_volume_config(subv, CUR_VOL_CONF);
+	ret = load_volume_config(subv);
 	if (ret)
 		return ret;
-
-	if (subv->volmap_loc[NEW_VOL_CONF] == 0) {
-		assert("edward-2178",
-		       !reiser4_volume_is_unbalanced(subv->super));
-		return 0;
-	}
-	assert("edward-2179",
-	       reiser4_volume_is_unbalanced(subv->super));
 	/*
 	 * FIXME-EDWARD: complete data migration of partially
 	 * migrated files (if any).
 	 */
-	printk("reiser4 (%s): Volume is unbalanced. Run volume.reiser4 -b",
-	       subv->super->s_id);
-
-	ret = load_volume_config(subv, NEW_VOL_CONF);
-	if (ret)
-		release_volinfo_nodes(&vol->volinfo[CUR_VOL_CONF], 0);
-	return ret;
+	if (reiser4_volume_is_unbalanced(subv->super))
+		printk("reiser4 (%s): Volume is unbalanced. Run volume.reiser4 -b",
+		       subv->super->s_id);
+	return 0;
 }
 
 /*
@@ -756,6 +726,11 @@ static int init_volume_asym(reiser4_volume *vol)
  * Bucket operations.
  * The following methods translate bucket_t to mirror_t
  */
+static void *tabp_asym(void)
+{
+	return &current_lv_conf()->tab;
+}
+
 static u64 cap_at_asym(bucket_t *buckets, u64 idx)
 {
 	return ((mirror_t *)buckets)[idx]->data_room;
@@ -898,6 +873,22 @@ static int expand_brick(reiser4_volume *vol, reiser4_subvol *this,
 	return ret;
 }
 
+/**
+ * Create a config, which is similar to @old except the pointer
+ * to distribution table (which is NULL for the clone).
+ */
+static lv_conf *clone_lv_conf(lv_conf *old)
+{
+	lv_conf *new;
+
+	new = alloc_lv_conf(old->nr_mslots);
+	if (new) {
+		memcpy(new->mslots, old->mslots,
+		       sizeof(slot_t) * old->nr_mslots);
+	}
+	return new;
+}
+
 static int add_meta_brick(reiser4_volume *vol, reiser4_subvol *new)
 {
 	int ret;
@@ -906,12 +897,21 @@ static int add_meta_brick(reiser4_volume *vol, reiser4_subvol *new)
 	/*
 	 * We don't need to activate meta-data brick:
 	 * it is always active in the mount session of the logical volume.
+	 *
+	 * Number of bricks and slots in the logical volume remains the same.
+	 * Create new distribution table.
 	 */
-	ret = vol->dist_plug->v.inc(&vol->aid,
-				    METADATA_SUBVOL_ID /* pos */, new);
+	ret = vol->dist_plug->v.inc(&vol->aid, METADATA_SUBVOL_ID /* pos */,
+				    new);
 	if (ret)
 		return ret;
 	new->flags |= (1 << SUBVOL_HAS_DATA_ROOM);
+	/*
+	 * Clone in-memory volume config
+	 */
+	vol->new_conf = clone_lv_conf(vol->conf);
+	if (vol->new_conf == NULL)
+		return -ENOMEM;
 	return 0;
 }
 
@@ -937,9 +937,8 @@ int add_data_brick(reiser4_volume *vol, reiser4_subvol *this)
 {
 	int ret;
 	reiser4_aid *raid = &vol->aid;
-	lv_conf *new_conf = NULL;
 	lv_conf *old_conf = vol->conf;
-	u64 old_num_subvols = vol_nr_origins(vol);
+	u64 old_nr_mslots = old_conf->nr_mslots;
 	u64 pos_in_vol;
 	u64 pos_in_aid;
 	slot_t new_slot;
@@ -952,39 +951,37 @@ int add_data_brick(reiser4_volume *vol, reiser4_subvol *this)
 	 * Assign internal ID for the new brick
 	 */
 	this->id = pos_in_vol;
+	/*
+	 * Create new distribution table
+	 */
 	ret = vol->dist_plug->v.inc(raid, pos_in_aid, this);
 	if (ret)
 		return ret;
 	/*
-	 * Allocate array of mirrors and set the new brick to that set
+	 * Create new in-memory volume config
 	 */
 	new_slot = alloc_mslot(1 + this->num_replicas);
 	if (!new_slot)
 		return -ENOMEM;
+
 	((mirror_t *)new_slot)[this->mirror_id] = this;
 
-	if (pos_in_vol == old_conf->nr_mslots) {
+	if (pos_in_vol == old_nr_mslots)
 		/*
-		 * there is no free slot -
-		 * volume conf will be replaced with a new one
-		 * with a larger number of slots
+		 * There is no free slots in the old config -
+		 * create a new one with a larger number of slots
 		 */
-		new_conf = alloc_lv_conf(1 + old_num_subvols);
-		if (!new_conf) {
-			free_mslot(new_slot);
-			return -ENOMEM;
-		}
-		memcpy(new_conf->mslots, old_conf->mslots,
-		       sizeof(slot_t) * old_num_subvols);
-
-		new_conf->mslots[pos_in_vol] = new_slot;
-		vol->conf = new_conf;
-		free_lv_conf(old_conf);
-	} else {
-		/* use existing conf */
-		assert("edward-2184", old_conf->mslots[pos_in_vol] == NULL);
-		old_conf->mslots[pos_in_vol] = new_slot;
+		vol->new_conf = alloc_lv_conf(1 + old_nr_mslots);
+	else
+		vol->new_conf = alloc_lv_conf(old_nr_mslots);
+	if (!vol->new_conf) {
+		free_mslot(new_slot);
+		return -ENOMEM;
 	}
+	memcpy(vol->new_conf->mslots, old_conf->mslots,
+	       sizeof(slot_t) * old_nr_mslots);
+	vol->new_conf->mslots[pos_in_vol] = new_slot;
+
 	atomic_inc(&vol->nr_origins);
 	return 0;
 }
@@ -1047,8 +1044,11 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	int ret;
 	distribution_plugin *dist_plug = vol->dist_plug;
 	bucket_t *buckets;
+	lv_conf *old_conf = vol->conf;
+	lv_conf *new_conf;
 
 	assert("edward-1931", dist_plug != NULL);
+	assert("edward-2239", vol->new_conf == NULL);
 
 	if (new->data_room == 0) {
 		warning("edward-1962", "Can't add brick of zero capacity");
@@ -1066,27 +1066,47 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 				&vol->vol_plug->bucket_ops, &vol->aid);
 	if (ret)
 		return ret;
-
+	/*
+	 * Create new in-memory volume config
+	 */
 	if (new == get_meta_subvol())
 		ret = add_meta_brick(vol, new);
 	else
 		ret = add_data_brick(vol, new);
+
+	new_conf = vol->new_conf;
+	assert("edward-2240", new_conf != NULL);
+
 	dist_plug->v.done(&vol->aid);
 	if (ret)
 		return ret;
 	ret = make_volume_config(vol);
 	if (ret)
-		return ret;
+		goto error;
+	ret = update_volume_config(vol);
+	if (ret)
+		goto error;
 	ret = capture_brick_super(new);
 	if (ret)
-		return ret;
+		goto error;
+	dist_plug->r.replace(&vol->aid, &new_conf->tab);
 
 	reiser4_volume_set_unbalanced(reiser4_get_current_sb());
 	ret = capture_brick_super(get_meta_subvol());
 	if (ret)
-		return ret;
+		goto error;
 	reiser4_txn_restart_current();
+	/*
+	 * Now publish the new config
+	 */
+	vol->conf = new_conf;
+	/* synchronize_rcu() */
+	free_lv_conf(old_conf);
+	vol->new_conf = NULL;
 	return 0;
+ error:
+	free_lv_conf(new_conf);
+	return ret;
 }
 
 static u64 space_occupied(void)
@@ -1145,8 +1165,13 @@ static int remove_meta_brick(reiser4_volume *vol)
 		return ret;
 
 	clear_bit(SUBVOL_HAS_DATA_ROOM, &mtd_subv->flags);
-
 	assert("edward-1827", !meta_brick_belongs_aid());
+	/*
+	 * Clone in-memory volume config
+	 */
+	vol->new_conf = clone_lv_conf(vol->conf);
+	if (vol->new_conf == NULL)
+		return -ENOMEM;
 	return 0;
 }
 
@@ -1170,8 +1195,7 @@ static u32 get_new_nr_mslots(void)
 	return 0;
 }
 
-static int remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim,
-			     lv_conf **new)
+static int remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim)
 {
 	int ret;
 	distribution_plugin *dist_plug = vol->dist_plug;
@@ -1179,8 +1203,8 @@ static int remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim,
 	u64 old_num_subvols = vol_nr_origins(vol);
 	u64 pos_in_vol;
 	u64 pos_in_aid;
+	u32 new_nr_mslots;
 
-	assert("edward-2234", *new == NULL);
 	assert("edward-1842", num_aid_subvols(vol) > 1);
 
 	pos_in_vol = get_pos_in_vol(vol, victim);
@@ -1193,20 +1217,31 @@ static int remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim,
 		 * config will be replaced with a new one
 		 * with a smaller number of slots.
 		 */
-		u32 new_nr_mslots = get_new_nr_mslots();
+		new_nr_mslots = get_new_nr_mslots();
 		BUG_ON(new_nr_mslots == 0);
-		*new = alloc_lv_conf(new_nr_mslots);
-		if (*new == NULL)
-			return RETERR(-ENOMEM);
-		memcpy((*new)->mslots, old->mslots,
-		       new_nr_mslots * sizeof(slot_t));
+	} else
+		new_nr_mslots = old->nr_mslots;
+
+	vol->new_conf = alloc_lv_conf(new_nr_mslots);
+	if (!vol->new_conf)
+		return RETERR(-ENOMEM);
+	memcpy(vol->new_conf->mslots, old->mslots,
+	       new_nr_mslots * sizeof(slot_t));
+
+	if (pos_in_vol != old_num_subvols - 1) {
+		/*
+		 * In the new config mark respective slot as empty
+		 */
+		assert("edward-2241",
+		       vol->new_conf->mslots[victim->id] != NULL);
+		vol->new_conf->mslots[victim->id] = NULL;
 	}
 	ret = dist_plug->v.dec(&vol->aid, pos_in_aid, victim);
 	if (ret) {
 		warning("edward-2146",
 			"Failed to update distribution config (%d)", ret);
-		if (*new)
-			free_lv_conf(*new);
+		free_lv_conf(vol->new_conf);
+		vol->new_conf = NULL;
 		return ret;
 	}
 	return 0;
@@ -1215,8 +1250,8 @@ static int remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim,
 static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 {
 	int ret;
-	lv_conf *new = NULL;
-	lv_conf *old = vol->conf;
+	lv_conf *tmp_conf;
+	lv_conf *old_conf = vol->conf;
 	distribution_plugin *dist_plug = vol->dist_plug;
 	struct super_block *sb = reiser4_get_current_sb();
 	bucket_t *buckets;
@@ -1242,66 +1277,96 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	if (is_meta_brick(victim))
 		ret = remove_meta_brick(vol);
 	else
-		ret = remove_data_brick(vol, victim, &new);
+		ret = remove_data_brick(vol, victim);
 	dist_plug->v.done(&vol->aid);
 	if (ret)
 		return ret;
+	assert("edward-2242", vol->new_conf != NULL);
+
 	if (old_nr_dsa_bricks > 2) {
 		ret = make_volume_config(vol);
 		if (ret) {
-			free_lv_conf(new);
+			free_lv_conf(vol->new_conf);
+			vol->new_conf = NULL;
 			return ret;
 		}
 	}
+	ret = update_volume_config(vol);
+	if (ret) {
+		free_lv_conf(vol->new_conf);
+		vol->new_conf = NULL;
+		return ret;
+	}
+	dist_plug->r.replace(&vol->aid, &vol->new_conf->tab);
 	/*
 	 * set unbalanced status and write it to disk
 	 */
 	reiser4_volume_set_unbalanced(sb);
 	ret = capture_brick_super(get_meta_subvol());
 	if (ret) {
-		free_lv_conf(new);
+		free_lv_conf(vol->new_conf);
 		return ret;
 	}
 	reiser4_txn_restart_current();
+	/*
+	 * Publish a temporal config with updated
+	 * distribution table.
+	 */
+	tmp_conf = clone_lv_conf(old_conf);
+	if (!tmp_conf) {
+		free_lv_conf(vol->new_conf);
+		return -ENOMEM;
+	}
+	tmp_conf->tab = vol->new_conf->tab;
+	vol->conf = tmp_conf;
+	/* synchronize_rcu() */
+	free_lv_conf(old_conf);
+
 	printk("reiser4 (%s): Brick %s has been removed.\n",
 	       sb->s_id, victim->name);
-
+	/*
+	 * Re-balance the volume with the temporal config
+	 */
 	ret = balance_volume_asym(sb);
 	/*
-	 * New volume config has been stored on disk.
 	 * If balancing was interrupted for some reasons (system
 	 * crash, etc), then user just need to resume it by
 	 * volume.reiser4 utility in the next mount session.
+	 * The new config at vol->new_conf should be published
+	 * only after successful re-balancing completion.
 	 */
-	if (ret) {
-		free_lv_conf(new);
+	if (ret)
 		return ret;
-	}
-	if (is_meta_brick(victim))
-		return 0;
 	/*
 	 * We are about to release @victim with replicas.
 	 * Before this, it is absolutely necessarily to
 	 * commit everything to make sure that there is
-	 * no pending IOs addressed to the @victim.
+	 * no pending IOs addressed to the @victim and its
+	 * replicas.
 	 */
 	txnmgr_force_commit_all(sb, 1);
 	/*
-	 * It is safe to release victim with replicas, as
-	 * now nobody is aware about them
+	 * Publish final config with updated set of slots
 	 */
-	free_mslot_at(old, victim->id);
-	atomic_dec(&vol->nr_origins);
-	if (new) {
-		/* replace slots array with a new one of
-		 * smaller size
-		 */
-		assert("edward-2209", new->nr_mslots != 0);
+	if (!is_meta_brick(victim))
+		atomic_dec(&vol->nr_origins);
+	/*
+	 * Publish final config with updated set of slots
+	 */
+	vol->conf = vol->new_conf;
+	/*
+	 * Release victim with replicas. It is safe, as
+	 * at this point nobody is aware about them after
+	 * rebalancing with the following commit above
+	 */
+	if (!is_meta_brick(victim))
+		free_mslot_at(tmp_conf, victim->id);
 
-		vol->conf = new;
-		free_lv_conf(old);
-	} else
-		((mirror_t *)old)[victim->id] = NULL;
+	/* synchronize_rcu() */
+	tmp_conf->tab = NULL;
+	free_lv_conf(tmp_conf);
+
+	vol->new_conf = NULL;
 	return 0;
 }
 
@@ -1664,7 +1729,6 @@ int balance_volume_asym(struct super_block *super)
 	lock_handle lh;
 	reiser4_key start_key;
 	struct reiser4_iterate_context ictx;
-	reiser4_volume *vol = super_volume(super);
 	time_t start;
 	/*
 	 * Set a start key (key of the leftmost object on the
@@ -1820,9 +1884,6 @@ int balance_volume_asym(struct super_block *super)
 		ictx.curr = ictx.next;
 	}
  done:
-	ret = update_volume_config(vol);
-	if (ret)
-		goto error;
 	printk("reiser4 (%s): Balancing completed in %lu seconds.\n",
 	       super->s_id, get_seconds() - start);
 	return 0;
@@ -1883,6 +1944,7 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		.print_volume = print_volume_asym,
 		.balance_volume = balance_volume_asym,
 		.bucket_ops = {
+			.tabp = tabp_asym,
 			.cap_at = cap_at_asym,
 			.fib_of = fib_of_asym,
 			.fib_at = fib_at_asym,

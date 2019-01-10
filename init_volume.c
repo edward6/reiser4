@@ -427,8 +427,11 @@ lv_conf *alloc_lv_conf(u32 nr_mslots)
 
 void free_lv_conf(lv_conf *conf)
 {
-	if (conf != NULL)
-		kfree(conf);
+	if (conf == NULL)
+		return;
+	if (conf->tab)
+		current_dist_plug()->r.free(conf->tab);
+	kfree(conf);
 }
 
 void free_mslot_at(lv_conf *conf, int idx)
@@ -440,21 +443,14 @@ void free_mslot_at(lv_conf *conf, int idx)
 	conf->mslots[idx] = NULL;
 }
 
-void release_lv_conf(reiser4_volume *vol)
+void release_lv_conf(lv_conf *conf)
 {
-	lv_conf *conf;
-
-	assert("edward-1754", vol != NULL);
-
-	conf = vol->conf;
-
 	if (conf != NULL) {
 		u32 i;
 		for (i = 0; i < conf->nr_mslots; i++)
 			if (conf->mslots[i])
 				free_mslot_at(conf, i);
 		free_lv_conf(conf);
-		vol->conf = NULL;
 	}
 }
 
@@ -519,7 +515,8 @@ void __reiser4_deactivate_volume(struct super_block *super)
 	if (vol->dist_plug->r.done)
 		vol->dist_plug->r.done(&vol->aid);
 
-	release_lv_conf(vol);
+	release_lv_conf(vol->conf);
+	vol->conf = NULL;
 	vol->num_sgs_bits = 0;
 	atomic_set(&vol->nr_origins, 0);
 

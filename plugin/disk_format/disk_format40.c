@@ -114,16 +114,6 @@ static __u64 get_format40_volinfo_loc(const format40_disk_super_block * sb)
 	return le64_to_cpu(get_unaligned(&sb->volinfo_loc));
 }
 
-static __u64 get_format40_new_volinfo_loc(const format40_disk_super_block * sb)
-{
-	return le64_to_cpu(get_unaligned(&sb->new_volinfo_loc));
-}
-
-static __u64 get_format40_volinfo_gen(const format40_disk_super_block * sb)
-{
-	return le64_to_cpu(get_unaligned(&sb->volinfo_gen));
-}
-
 static __u64 get_format40_nr_mslots(const format40_disk_super_block * sb)
 {
 	return le64_to_cpu(get_unaligned(&sb->nr_mslots));
@@ -551,8 +541,6 @@ int try_init_format40(struct super_block *super,
 	 * load addresses of volume configs
 	 */
 	subv->volmap_loc[CUR_VOL_CONF] = get_format40_volinfo_loc(sb_format);
-	subv->volmap_loc[NEW_VOL_CONF] = get_format40_new_volinfo_loc(sb_format);
-	subv->volinfo_gen = get_format40_volinfo_gen(sb_format);
 
 	if (vol->vol_plug->load_volume)
 		result = vol->vol_plug->load_volume(subv);
@@ -661,9 +649,7 @@ static void pack_format40_super(const struct super_block *s,
 			flags &= ~(1 << FORMAT40_HAS_DATA_ROOM);
 
 		put_unaligned(cpu_to_le64(flags), &format_sb->flags);
-		put_unaligned(cpu_to_le64(subv->volmap_loc[0]), &format_sb->volinfo_loc);
-		put_unaligned(cpu_to_le64(subv->volmap_loc[1]), &format_sb->new_volinfo_loc);
-		put_unaligned(cpu_to_le64(subv->volinfo_gen), &format_sb->volinfo_gen);
+		put_unaligned(cpu_to_le64(subv->volmap_loc[CUR_VOL_CONF]), &format_sb->volinfo_loc);
 	}
 }
 

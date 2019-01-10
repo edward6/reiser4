@@ -36,9 +36,6 @@ struct extent_migrate_context {
 };
 
 int split_extent_unit(coord_t *coord, reiser4_block_nr pos, int adv_to_right);
-void inode_set_new_dist(struct inode *inode);
-void inode_set_old_dist(struct inode *inode);
-
 /*
  * read the last page pointed out by extent item
  */
