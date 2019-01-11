@@ -22,6 +22,7 @@ extern slot_t alloc_mslot(u32 nr_mirrors);
 extern void free_mslot(slot_t slot);
 extern void free_mslot_at(lv_conf *conf, u64 idx);
 extern int brick_belongs_volume(reiser4_volume *vol, reiser4_subvol *subv);
+extern void remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *subv);
 
 static inline int is_meta_brick_id(u64 id)
 {

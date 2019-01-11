@@ -698,13 +698,13 @@ static int load_volume_asym(reiser4_subvol *subv)
 	ret = load_volume_config(subv);
 	if (ret)
 		return ret;
-	/*
-	 * FIXME-EDWARD: complete data migration of partially
-	 * migrated files (if any).
-	 */
-	if (reiser4_volume_is_unbalanced(subv->super))
+	if (reiser4_volume_is_unbalanced(subv->super)) {
 		printk("reiser4 (%s): Volume is unbalanced. Run volume.reiser4 -b",
 		       subv->super->s_id);
+		/*
+		 * Check if volume operation was completed
+		 */
+	}
 	return 0;
 }
 
@@ -1337,6 +1337,18 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	 */
 	if (ret)
 		return ret;
+	remove_brick_tail_asym(vol, victim);
+	return 0;
+}
+
+/**
+ * Complete brick removal procedure. Post new volume config.
+ * Pre-condition: logical volume is fully balanced, but
+ * unbalanced status is not yet cleared up.
+ */
+void remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
+{
+	lv_conf *cur_conf = vol->conf;
 	/*
 	 * We are about to release @victim with replicas.
 	 * Before this, it is absolutely necessarily to
@@ -1344,7 +1356,7 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	 * no pending IOs addressed to the @victim and its
 	 * replicas.
 	 */
-	txnmgr_force_commit_all(sb, 1);
+	txnmgr_force_commit_all(victim->super, 1);
 	/*
 	 * Publish final config with updated set of slots
 	 */
@@ -1360,14 +1372,13 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	 * rebalancing with the following commit above
 	 */
 	if (!is_meta_brick(victim))
-		free_mslot_at(tmp_conf, victim->id);
+		free_mslot_at(cur_conf, victim->id);
 
 	/* synchronize_rcu() */
-	tmp_conf->tab = NULL;
-	free_lv_conf(tmp_conf);
+	cur_conf->tab = NULL;
+	free_lv_conf(cur_conf);
 
 	vol->new_conf = NULL;
-	return 0;
 }
 
 static int shrink_brick_asym(reiser4_volume *vol, reiser4_subvol *victim,
