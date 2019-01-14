@@ -24,7 +24,8 @@ struct fsw32_aid {
 
 extern u32 murmur3_x86_32(const char *data, int len, int seed);
 
-extern int initr_fsw32(reiser4_aid *raid, int num_buckets, int nums_bits);
+extern int initr_fsw32(reiser4_aid *raid, struct bucket_ops *ops,
+		       int num_buckets, int nums_bits);
 extern void replace_fsw32(reiser4_aid *raid, void **target);
 extern void free_fsw32(void *tab);
 extern void doner_fsw32(reiser4_aid *raid);

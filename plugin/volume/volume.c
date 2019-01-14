@@ -83,6 +83,8 @@ static void set_next_volmap_addr(struct volmap *vmap, reiser4_block_nr val)
 }
 
 static int balance_volume_asym(struct super_block *sb);
+static int __remove_data_brick(reiser4_volume *vol,
+			       reiser4_subvol *subv, u32 *pos_in_dsa);
 
 static int voltab_nodes_per_block(void)
 {
@@ -291,6 +293,7 @@ static int load_volume_config(reiser4_subvol *subv)
 	}
 	if (dist_plug->r.init) {
 		ret = dist_plug->r.init(&vol->aid,
+					&vol->vol_plug->bucket_ops,
 					num_aid_bricks,
 					vol->num_sgs_bits);
 		if (ret)
@@ -683,8 +686,6 @@ static int make_volume_config(reiser4_volume *vol)
  */
 static int load_volume_asym(reiser4_subvol *subv)
 {
-	int ret;
-
 	if (subv->id != METADATA_SUBVOL_ID)
 		/*
 		 * system configuration of assymetric LV
@@ -695,30 +696,70 @@ static int load_volume_asym(reiser4_subvol *subv)
 		/* configuration is absent */
 		return 0;
 
-	ret = load_volume_config(subv);
-	if (ret)
-		return ret;
-	if (reiser4_volume_is_unbalanced(subv->super)) {
-		printk("reiser4 (%s): Volume is unbalanced. Run volume.reiser4 -b",
-		       subv->super->s_id);
-		/*
-		 * Check if volume operation was completed
-		 */
-	}
-	return 0;
+	return load_volume_config(subv);
 }
 
 /*
  * Init volume system info, which has been already loaded
  * diring disk formats inialization of subvolumes (components).
  */
-static int init_volume_asym(reiser4_volume *vol)
+static int init_volume_asym(struct super_block *sb, reiser4_volume *vol)
 {
+	int ret;
+	u32 subv_id;
+	lv_conf *cur_conf;
+	u32 nr_victims = 0;
+	u32 pos_in_dsa;
+
 	if (!REISER4_PLANB_KEY_ALLOCATION) {
 		warning("edward-2161",
 			"Asymmetric LV requires Plan-B key allocation scheme");
 		return RETERR(-EINVAL);
 	}
+	if (!reiser4_volume_is_unbalanced(sb))
+		return 0;
+	/*
+	 * Rebalancing has to be completed on this volume
+	 */
+	assert("edward-2250", current_volume() == vol);
+	/*
+	 * Check for uncompleted brick removal that possibly
+	 * was started in previous mount session.
+	 */
+	assert("edward-2244", vol->new_conf == NULL);
+	cur_conf = vol->conf;
+
+	for_each_mslot(cur_conf, subv_id) {
+		reiser4_subvol *subv;
+
+		if (!conf_mslot_at(cur_conf, subv_id))
+			continue;
+		subv = conf_origin(cur_conf, subv_id);
+		if (subvol_is_set(subv, SUBVOL_TO_BE_REMOVED)) {
+			vol->victim = subv;
+			nr_victims ++;
+		}
+	}
+	if (nr_victims > 1) {
+		warning("edward-2246", "Too many bricks (%u) to be removed",
+			nr_victims);
+		return -EIO;
+	} else if (nr_victims == 0)
+		goto out;
+
+	assert("edward-2251", vol->victim != NULL);
+	assert("edward-2252", !is_meta_brick(vol->victim));
+	/*
+	 * new config will be created here
+	 */
+	ret = __remove_data_brick(vol, vol->victim, &pos_in_dsa);
+	if (ret)
+		return ret;
+
+	reiser4_volume_set_incomplete_op(sb);
+ out:
+	printk("reiser4 (%s): Volume is unbalanced. Please run volume.reiser4 -b\n",
+	       sb->s_id);
 	return 0;
 }
 
@@ -1195,21 +1236,20 @@ static u32 get_new_nr_mslots(void)
 	return 0;
 }
 
-static int remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim)
+static int __remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim,
+			       u32 *pos_in_dsa)
 {
-	int ret;
-	distribution_plugin *dist_plug = vol->dist_plug;
 	lv_conf *old = vol->conf;
 	u64 old_num_subvols = vol_nr_origins(vol);
 	u64 pos_in_vol;
-	u64 pos_in_aid;
 	u32 new_nr_mslots;
 
 	assert("edward-1842", num_aid_subvols(vol) > 1);
+	assert("edward-2253", vol->new_conf == NULL);
 
 	pos_in_vol = get_pos_in_vol(vol, victim);
 	assert("edward-2199", pos_in_vol < old_num_subvols);
-	pos_in_aid = get_pos_in_aid(pos_in_vol);
+	*pos_in_dsa = get_pos_in_aid(pos_in_vol);
 
 	if (pos_in_vol == old_num_subvols - 1) {
 		/*
@@ -1236,7 +1276,18 @@ static int remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim)
 		       vol->new_conf->mslots[victim->id] != NULL);
 		vol->new_conf->mslots[victim->id] = NULL;
 	}
-	ret = dist_plug->v.dec(&vol->aid, pos_in_aid, victim);
+	return 0;
+}
+
+static int remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim)
+{
+	int ret;
+	u32 pos_in_dsa;
+
+	ret = __remove_data_brick(vol, victim, &pos_in_dsa);
+	if (ret)
+		return ret;
+	ret = vol->dist_plug->v.dec(&vol->aid, pos_in_dsa, victim);
 	if (ret) {
 		warning("edward-2146",
 			"Failed to update distribution config (%d)", ret);
@@ -1244,6 +1295,7 @@ static int remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim)
 		vol->new_conf = NULL;
 		return ret;
 	}
+	victim->flags |= (1 << SUBVOL_TO_BE_REMOVED);
 	return 0;
 }
 
@@ -1283,13 +1335,11 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 		return ret;
 	assert("edward-2242", vol->new_conf != NULL);
 
-	if (old_nr_dsa_bricks > 2) {
-		ret = make_volume_config(vol);
-		if (ret) {
-			free_lv_conf(vol->new_conf);
-			vol->new_conf = NULL;
-			return ret;
-		}
+	ret = make_volume_config(vol);
+	if (ret) {
+		free_lv_conf(vol->new_conf);
+		vol->new_conf = NULL;
+		return ret;
 	}
 	ret = update_volume_config(vol);
 	if (ret) {
@@ -1298,8 +1348,16 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 		return ret;
 	}
 	dist_plug->r.replace(&vol->aid, &vol->new_conf->tab);
+
+	if (!is_meta_brick(victim))
+		/*
+		 * put format super-block of data brick
+		 * we want to remove to the transaction
+		 */
+		capture_brick_super(victim);
 	/*
-	 * set unbalanced status and write it to disk
+	 * set unbalanced status and put format super-block
+	 * of meta-data brick to the transaction
 	 */
 	reiser4_volume_set_unbalanced(sb);
 	ret = capture_brick_super(get_meta_subvol());
@@ -1337,19 +1395,27 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	 */
 	if (ret)
 		return ret;
-	remove_brick_tail_asym(vol, victim);
-	return 0;
+	return remove_brick_tail_asym(vol, victim);
 }
 
 /**
- * Complete brick removal procedure. Post new volume config.
- * Pre-condition: logical volume is fully balanced, but
- * unbalanced status is not yet cleared up.
+ * Brick removal procedure completion. Publish new volume config.
+ * Pre-condition: logical volume is fully balanced, but unbalanced
+ * status is not yet cleared up.
  */
-void remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
+int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 {
+	int ret;
 	lv_conf *cur_conf = vol->conf;
+
+	if (!is_meta_brick(victim)) {
+		clear_bit(SUBVOL_TO_BE_REMOVED, &victim->flags);
+		ret = capture_brick_super(victim);
+		if (ret)
+			return ret;
+	}
 	/*
+	 * Here we respect a "barrier".
 	 * We are about to release @victim with replicas.
 	 * Before this, it is absolutely necessarily to
 	 * commit everything to make sure that there is
@@ -1379,6 +1445,7 @@ void remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	free_lv_conf(cur_conf);
 
 	vol->new_conf = NULL;
+	return 0;
 }
 
 static int shrink_brick_asym(reiser4_volume *vol, reiser4_subvol *victim,
@@ -1923,6 +1990,7 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		.add_brick = add_brick_simple,
 		.shrink_brick = shrink_brick_simple,
 		.remove_brick = remove_brick_simple,
+		.remove_brick_tail = NULL,
 		.balance_volume = balance_volume_simple,
 		.bucket_ops = {
 			.cap_at = NULL,
@@ -1951,6 +2019,7 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		.add_brick = add_brick_asym,
 		.shrink_brick = shrink_brick_asym,
 		.remove_brick = remove_brick_asym,
+		.remove_brick_tail = remove_brick_tail_asym,
 		.print_brick = print_brick_asym,
 		.print_volume = print_volume_asym,
 		.balance_volume = balance_volume_asym,

@@ -109,6 +109,7 @@ extern struct ctx_brick_info *find_context_brick_info(reiser4_context *ctx,
 extern int insert_context_brick_info(reiser4_context *ctx,
 				     struct ctx_brick_info *data);
 extern struct ctx_brick_info *alloc_context_brick_info(void);
+extern void free_context_brick_info(struct ctx_brick_info *cbi);
 static inline ctx_brick_info *context_meta_brick_info(reiser4_context *ctx)
 {
 	return &ctx->mcbi;

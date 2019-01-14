@@ -515,6 +515,9 @@ void __reiser4_deactivate_volume(struct super_block *super)
 	if (vol->dist_plug->r.done)
 		vol->dist_plug->r.done(&vol->aid);
 
+	assert("edward-2254", vol->new_conf == NULL);
+	assert("edward-2255", vol->victim == NULL);
+
 	release_lv_conf(vol->conf);
 	vol->conf = NULL;
 	vol->num_sgs_bits = 0;
@@ -679,7 +682,7 @@ int reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 	 * initialize logical volume after activating all subvolumes
 	 */
 	if (vol->vol_plug->init_volume != NULL) {
-		ret = vol->vol_plug->init_volume(vol);
+		ret = vol->vol_plug->init_volume(super, vol);
 		if (ret) {
 			warning("edward-1770",
 				"(%s): failed to init logical volume (%d)\n",

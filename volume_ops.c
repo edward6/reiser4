@@ -202,6 +202,45 @@ static int reiser4_add_brick(struct super_block *sb,
 	return capture_brick_super(get_meta_subvol());
 }
 
+static int reiser4_detach_brick(reiser4_subvol *victim)
+{
+	int ret;
+	txn_atom *atom;
+	txn_handle *th;
+
+	reiser4_context *ctx = get_current_context();
+	struct rb_root *root = &ctx->bricks_info;
+	struct ctx_brick_info *cbi;
+	reiser4_super_info_data *sbinfo = get_current_super_private();
+
+	th = ctx->trans;
+	atom = get_current_atom_locked();
+	assert("edward-2256", atom != NULL);
+	spin_lock_txnh(th);
+	ret = force_commit_atom(th);
+	if (ret)
+		return ret;
+
+	cbi = find_context_brick_info(ctx, victim->id);
+
+	assert("edward-2257", cbi != NULL);
+
+	__grabbed2free(cbi, sbinfo, cbi->grabbed_blocks, victim);
+
+	rb_erase(&cbi->node, root);
+	RB_CLEAR_NODE(&cbi->node);
+	free_context_brick_info(cbi);
+
+	printk("reiser4: Device %s can be safely detached.\n",
+	       victim->name);
+
+	victim->id = INVALID_SUBVOL_ID;
+	victim->flags |= (1 << SUBVOL_IS_ORPHAN);
+	reiser4_deactivate_subvol(victim->super, victim);
+	reiser4_unregister_subvol(victim);
+	return 0;
+}
+
 static int reiser4_remove_brick(struct super_block *sb,
 				struct reiser4_vol_op_args *args)
 {
@@ -227,35 +266,60 @@ static int reiser4_remove_brick(struct super_block *sb,
 	if (ret)
 		return ret;
 
-	if (!is_meta_brick(victim)) {
-		victim->id = INVALID_SUBVOL_ID;
-		victim->flags |= (1 << SUBVOL_IS_ORPHAN);
-		reiser4_deactivate_subvol(sb, victim);
-		reiser4_unregister_subvol(victim);
-		/*
-		 * now the block device can be safely removed
-		 * from the machine
-		 */
-	}
 	reiser4_volume_clear_unbalanced(sb);
-	return capture_brick_super(get_meta_subvol());
+
+	if (!is_meta_brick(victim)) {
+		ret = capture_brick_super(get_meta_subvol());
+		if (ret)
+			return ret;
+		return reiser4_detach_brick(victim);
+	} else
+		return capture_brick_super(get_meta_subvol());
 }
 
 static int reiser4_balance_volume(struct super_block *sb)
 {
 	int ret;
+	reiser4_volume *vol;
 
 	if (!reiser4_volume_is_unbalanced(sb))
 		return 0;
+	vol = super_volume(sb);
 	/*
 	 * volume must have two distribution configs:
 	 * old and new ones
 	 */
-	ret = super_volume(sb)->vol_plug->balance_volume(sb);
+	ret = vol->vol_plug->balance_volume(sb);
 	if (ret)
 		return ret;
 	reiser4_volume_clear_unbalanced(sb);
-	return capture_brick_super(get_meta_subvol());
+
+	if (reiser4_volume_has_incomplete_op(sb)) {
+		/*
+		 * finish unfinished brick removal
+		 * detected at volume initialization time,
+		 * see ->init_volume() method for details
+		 */
+		assert("edward-2258", vol->new_conf != NULL);
+		assert("edward-2259", vol->victim != NULL);
+
+		ret = vol->vol_plug->remove_brick_tail(vol, vol->victim);
+		if (ret)
+			return ret;
+		printk("reiser4 (%s): Brick ID %llu removal completed.\n",
+		       sb->s_id, vol->victim->id);
+		reiser4_volume_clear_incomplete_op(sb);
+
+		ret = capture_brick_super(get_meta_subvol());
+		if (ret)
+			return ret;
+		ret = reiser4_detach_brick(vol->victim);
+		if (ret)
+			return ret;
+		vol->victim = NULL;
+		return 0;
+	} else
+		return capture_brick_super(get_meta_subvol());
 }
 
 int reiser4_volume_op(struct super_block *sb, struct reiser4_vol_op_args *args)

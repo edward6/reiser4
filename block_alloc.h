@@ -100,6 +100,8 @@ reiser4_block_nr fake_blocknr_unformatted(int, reiser4_subvol *subv);
 
 int reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags, reiser4_subvol *);
 void all_grabbed2free(void);
+void __grabbed2free(struct ctx_brick_info *cbi, reiser4_super_info_data *sbinfo,
+		    __u64 count, reiser4_subvol *subv);
 void grabbed2free(reiser4_context *, reiser4_super_info_data *, __u64 count,
 		  reiser4_subvol *);
 void fake_allocated2free(__u64 count,

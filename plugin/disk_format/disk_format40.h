@@ -18,7 +18,8 @@
 typedef enum {
 	FORMAT40_LARGE_KEYS,
 	FORMAT40_UNBALANCED_VOLUME,
-	FORMAT40_HAS_DATA_ROOM
+	FORMAT40_HAS_DATA_ROOM,
+	FORMAT40_TO_BE_REMOVED,
 } format40_flags;
 
 /* ondisk super block for format 40. It is 512 bytes long */

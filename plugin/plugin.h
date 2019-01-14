@@ -556,7 +556,8 @@ struct bucket_ops {
 };
 
 struct dist_regular_ops {
-	int (*init)(reiser4_aid *aid, int num_buckets, int nums_bits);
+	int (*init)(reiser4_aid *aid, struct bucket_ops *ops,
+		    int num_buckets, int nums_bits);
 	u64 (*lookup)(reiser4_aid *aid, const char *str,
 		      int len, u32 seed, void *tab);
 	void (*replace)(reiser4_aid *raid, void **target);
@@ -612,7 +613,7 @@ typedef struct volume_plugin {
 	   subvolume @subv. Normally is called at umount time */
 	void (*done_volume)(reiser4_subvol *subv);
 	/* Init LV after loading LV system info from all subvolumes */
-	int (*init_volume)(reiser4_volume *vol);
+	int (*init_volume)(struct super_block *sb, reiser4_volume *vol);
 	/* Increase capacity of @brick by value @delta */
 	int (*expand_brick)(reiser4_volume *vol, reiser4_subvol *brick,
 			    u64 delta);
@@ -623,6 +624,12 @@ typedef struct volume_plugin {
 			    u64 delta);
 	/* Remove @brick from logical volume @vol */
 	int (*remove_brick)(reiser4_volume *vol, reiser4_subvol *brick);
+
+	/* The second half of ->remove_brick() above. Should be called
+	   if ->remove_brick() was aborted on rebalancing while unbalanced
+	   volume status reached the disk */
+	int (*remove_brick_tail)(reiser4_volume *vol, reiser4_subvol *brick);
+
 	/* Print brick info */
 	int (*print_brick)(struct super_block *sb,
 			   struct reiser4_vol_op_args *args);

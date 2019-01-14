@@ -450,6 +450,9 @@ int try_init_format40(struct super_block *super,
 	if (get_format40_flags(sb_format) & (1 << FORMAT40_HAS_DATA_ROOM))
 		subv->flags |= (1 << SUBVOL_HAS_DATA_ROOM);
 
+	if (get_format40_flags(sb_format) & (1 << FORMAT40_TO_BE_REMOVED))
+		subv->flags |= (1 << SUBVOL_TO_BE_REMOVED);
+
 	if (is_meta_brick_id(subv->id)) {
 		result = oid_init_allocator(super,
 					    get_format40_file_count(sb_format),
@@ -607,6 +610,7 @@ static void pack_format40_super(const struct super_block *s,
 		(format40_disk_super_block *) data;
 	reiser4_volume *vol = super_volume(s);
 	lv_conf *conf = vol->conf;
+	u64 format_flags = get_format40_flags(format_sb);
 
 	assert("zam-591", data != NULL);
 
@@ -635,22 +639,25 @@ static void pack_format40_super(const struct super_block *s,
 
 		put_unaligned(cpu_to_le32(version), &format_sb->version);
 	}
-	if (is_meta_brick(subv)) {
-		u64 flags = get_format40_flags(format_sb);
+	if (subv->flags & (1 << SUBVOL_TO_BE_REMOVED))
+		format_flags |= (1 << FORMAT40_TO_BE_REMOVED);
+	else
+		format_flags &= ~(1 << FORMAT40_TO_BE_REMOVED);
 
+	if (is_meta_brick(subv)) {
 		if (reiser4_volume_is_unbalanced(s))
-			flags |= (1 << FORMAT40_UNBALANCED_VOLUME);
+			format_flags |= (1 << FORMAT40_UNBALANCED_VOLUME);
 		else
-			flags &= ~(1 << FORMAT40_UNBALANCED_VOLUME);
+			format_flags &= ~(1 << FORMAT40_UNBALANCED_VOLUME);
 
 		if (subv->flags & (1 << SUBVOL_HAS_DATA_ROOM))
-			flags |= (1 << FORMAT40_HAS_DATA_ROOM);
+			format_flags |= (1 << FORMAT40_HAS_DATA_ROOM);
 		else
-			flags &= ~(1 << FORMAT40_HAS_DATA_ROOM);
+			format_flags &= ~(1 << FORMAT40_HAS_DATA_ROOM);
 
-		put_unaligned(cpu_to_le64(flags), &format_sb->flags);
 		put_unaligned(cpu_to_le64(subv->volmap_loc[CUR_VOL_CONF]), &format_sb->volinfo_loc);
 	}
+	put_unaligned(cpu_to_le64(format_flags), &format_sb->flags);
 }
 
 /**

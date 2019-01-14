@@ -625,6 +625,8 @@ void doner_fsw32(reiser4_aid *raid)
 {
 	struct fsw32_aid *aid = fsw32_private(raid);
 
+	if (!aid->ops)
+		return;
 	if (!cur_tab(aid))
 		return;
 	mem_free(cur_tab(aid));
@@ -657,9 +659,12 @@ void free_fsw32(void *tab)
 /**
  * Initialize distribution context for regular file operations
  */
-int initr_fsw32(reiser4_aid *raid, int numb, int nums_bits)
+int initr_fsw32(reiser4_aid *raid, struct bucket_ops *ops,
+		int numb, int nums_bits)
 {
 	struct fsw32_aid *aid = fsw32_private(raid);
+
+	aid->ops = ops;
 
 	if (cur_tab(aid))
 		return 0;
@@ -721,7 +726,7 @@ int initv_fsw32(bucket_t *vec,
 	if (!cur_tab(aid)) {
 		u32 i;
 		assert("edward-2201", numb == 1);
-		ret = initr_fsw32(raid, numb, nums_bits);
+		ret = initr_fsw32(raid, ops, numb, nums_bits);
 		if (ret)
 			goto error;
 		for (i = 0; i < nums; i++)

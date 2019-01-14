@@ -39,9 +39,13 @@ typedef enum {
 	SUBVOL_ACTIVATED = 3,
 	/* set if subvol participates in the storage array */
 	SUBVOL_HAS_DATA_ROOM = 4,
-	/* set for empty subvolume, which is supposed to be
-	   added (removed) to (from) a logical volume */
-	SUBVOL_IS_ORPHAN = 5
+	/* set for an empty subvolume at the latest [earliest]
+	   stage of brick removal [addition]. Indicates that
+	   there is no pending IOs issued for that subvolume */
+	SUBVOL_IS_ORPHAN = 5,
+	/* set at the early stage of brick removal.
+	   Brick may be not empty and may accept IOs */
+	SUBVOL_TO_BE_REMOVED = 6,
 } reiser4_subvol_flag;
 
 /*
@@ -358,6 +362,7 @@ struct reiser4_volume {
 	struct lv_conf *conf; /* current working in-memory volume
 				 configuration */
 	struct lv_conf *new_conf; /* new volume configuration */
+	reiser4_subvol *victim; /* brick to be removed from the volume */
 };
 
 extern reiser4_super_info_data *get_super_private_nocheck(const struct
@@ -796,6 +801,10 @@ extern void reiser4_volume_clear_busy(struct super_block *sb);
 extern int reiser4_volume_is_unbalanced(const struct super_block *sb);
 extern void reiser4_volume_set_unbalanced(struct super_block *sb);
 extern void reiser4_volume_clear_unbalanced(struct super_block *sb);
+
+extern int reiser4_volume_has_incomplete_op(const struct super_block *sb);
+extern void reiser4_volume_set_incomplete_op(struct super_block *sb);
+extern void reiser4_volume_clear_incomplete_op(struct super_block *sb);
 
 /* step of fill super */
 extern int reiser4_init_fs_info(struct super_block *);

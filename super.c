@@ -376,6 +376,24 @@ void reiser4_volume_clear_unbalanced(struct super_block *sb)
 	clear_bit(REISER4_UNBALANCED_VOL, &get_super_private(sb)->fs_flags);
 }
 
+int reiser4_volume_has_incomplete_op(const struct super_block *sb)
+{
+	assert("edward-2247", sb != NULL);
+	return reiser4_is_set(sb, REISER4_INCOMPLETE_BRICK_REMOVAL);
+}
+
+void reiser4_volume_set_incomplete_op(struct super_block *sb)
+{
+	assert("edward-2248", sb != NULL);
+	set_bit(REISER4_INCOMPLETE_BRICK_REMOVAL, &get_super_private(sb)->fs_flags);
+}
+
+void reiser4_volume_clear_incomplete_op(struct super_block *sb)
+{
+	assert("edward-2249", sb != NULL);
+	clear_bit(REISER4_INCOMPLETE_BRICK_REMOVAL, &get_super_private(sb)->fs_flags);
+}
+
 void reiser4_volume_set_activated(struct super_block *sb)
 {
 	assert("edward-2084", sb != NULL);
