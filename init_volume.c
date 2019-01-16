@@ -443,15 +443,28 @@ void free_mslot_at(lv_conf *conf, int idx)
 	conf->mslots[idx] = NULL;
 }
 
-void release_lv_conf(lv_conf *conf)
+void release_lv_conf(reiser4_volume *vol, lv_conf *conf)
 {
-	if (conf != NULL) {
-		u32 i;
-		for (i = 0; i < conf->nr_mslots; i++)
-			if (conf->mslots[i])
-				free_mslot_at(conf, i);
-		free_lv_conf(conf);
-	}
+	u32 i;
+
+	assert("edward-2263", vol->conf == conf);
+
+	if (!conf)
+		return;
+	/*
+	 * release distribution table
+	 */
+	if (vol->dist_plug->r.done)
+		vol->dist_plug->r.done(&conf->tab);
+
+	assert("edward-2264", conf->tab == NULL);
+	/*
+	 * release content of mslots
+	 */
+	for (i = 0; i < conf->nr_mslots; i++)
+		if (conf->mslots[i])
+			free_mslot_at(conf, i);
+	free_lv_conf(conf);
 }
 
 /**
@@ -512,13 +525,10 @@ void __reiser4_deactivate_volume(struct super_block *super)
 	deactivate_subvolumes_of_type(super, REISER4_SUBV_ORIGIN);
 	deactivate_subvolumes_of_type(super, REISER4_SUBV_REPLICA);
 
-	if (vol->dist_plug->r.done)
-		vol->dist_plug->r.done(&vol->aid);
-
 	assert("edward-2254", vol->new_conf == NULL);
 	assert("edward-2255", vol->victim == NULL);
 
-	release_lv_conf(vol->conf);
+	release_lv_conf(vol, vol->conf);
 	vol->conf = NULL;
 	vol->num_sgs_bits = 0;
 	atomic_set(&vol->nr_origins, 0);

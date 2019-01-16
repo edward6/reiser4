@@ -525,8 +525,6 @@ typedef struct txmod_plugin {
 } txmod_plugin;
 
 struct bucket_ops {
-	/* Get a pointer to current working distribution table */
-	void *(*tabp)(void);
 	/* Get capacity of a bucket with serial number @idx
 	   in the array @buckets */
 	u64 (*cap_at)(bucket_t *buckets, u64 idx);
@@ -556,33 +554,36 @@ struct bucket_ops {
 };
 
 struct dist_regular_ops {
-	int (*init)(reiser4_aid *aid, struct bucket_ops *ops,
+	int (*init)(reiser4_aid *aid, void **tab,
 		    int num_buckets, int nums_bits);
 	u64 (*lookup)(reiser4_aid *aid, const char *str,
 		      int len, u32 seed, void *tab);
 	void (*replace)(reiser4_aid *raid, void **target);
 	void (*free)(void *tab);
-	void (*done)(reiser4_aid *raid);
+	void (*done)(void **tab);
 };
 
 struct dist_volume_ops {
 	/* is called at the beginning of any volume operation */
-	int (*init)(bucket_t *buckets, u64 num_buckets, int num_sgs_bits,
+	int (*init)(bucket_t *buckets, void **tab,
+		    u64 num_buckets, int num_sgs_bits,
 		    struct bucket_ops *ops, reiser4_aid *raid);
 	/* is called at the end of any volume operation */
 	void (*done)(reiser4_aid *raid);
 	/* increase capacity of a storage array */
-	int (*inc)(reiser4_aid *raid, u64 target_pos, bucket_t new);
+	int (*inc)(reiser4_aid *raid, void *tab, u64 target_pos, bucket_t new);
 	/* decrease capacity of a storage array */
-	int (*dec)(reiser4_aid *raid, u64 target_pos, bucket_t old);
+	int (*dec)(reiser4_aid *raid, void *tab, u64 target_pos, bucket_t old);
 	/* increase maximal capacity of a storage array */
 	int (*spl)(reiser4_aid *raid, u32 fact_bits);
 	/* pack system information to a set of blocks */
 	void (*pack)(reiser4_aid *raid, char *to, u64 src_off, u64 count);
 	/* extract system information from a set of blocks */
-	void (*unpack)(reiser4_aid *raid, char *from, u64 dst_off, u64 count);
+	void (*unpack)(reiser4_aid *raid, void *tab,
+		       char *from, u64 dst_off, u64 count);
 	/* print system table */
-	void (*dump)(reiser4_aid *raid, char *to, u64 offset, u32 size);
+	void (*dump)(reiser4_aid *raid, void *tab,
+		     char *to, u64 offset, u32 size);
 	/* return a pointer to the array of abstract buckets */
 	bucket_t *(*get_buckets)(reiser4_aid *raid);
 };

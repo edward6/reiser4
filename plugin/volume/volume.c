@@ -293,7 +293,7 @@ static int load_volume_config(reiser4_subvol *subv)
 	}
 	if (dist_plug->r.init) {
 		ret = dist_plug->r.init(&vol->aid,
-					&vol->vol_plug->bucket_ops,
+					&vol->conf->tab,
 					num_aid_bricks,
 					vol->num_sgs_bits);
 		if (ret)
@@ -307,10 +307,9 @@ static int load_volume_config(reiser4_subvol *subv)
 		kzalloc((vinfo->num_volmaps + vinfo->num_voltabs) *
 			sizeof(*vinfo->volmap_nodes), GFP_KERNEL);
 
-	if (!vinfo->volmap_nodes) {
-		dist_plug->r.done(&vol->aid);
+	if (!vinfo->volmap_nodes)
 		return -ENOMEM;
-	}
+
 	vinfo->voltab_nodes = vinfo->volmap_nodes + vinfo->num_volmaps;
 
 	for (i = 0; i < vinfo->num_volmaps; i++) {
@@ -321,15 +320,13 @@ static int load_volume_config(reiser4_subvol *subv)
 		vinfo->volmap_nodes[i] =
 			reiser4_alloc_volinfo_head(&volmap_loc, subv);
 		if (!vinfo->volmap_nodes[i]) {
-			dist_plug->r.done(&vol->aid);
 			ret = -ENOMEM;
 			goto unpin;
 		}
 		ret = jload(vinfo->volmap_nodes[i]);
-		if (ret) {
-			dist_plug->r.done(&vol->aid);
+		if (ret)
 			goto unpin;
-		}
+
 		volmap = (struct volmap *)jdata(vinfo->volmap_nodes[i]);
 		/*
 		 * load all voltabs pointed by current volmap
@@ -348,15 +345,13 @@ static int load_volume_config(reiser4_subvol *subv)
 							   subv);
 			if (!vinfo->voltab_nodes[j]) {
 				ret = -ENOMEM;
-				dist_plug->r.done(&vol->aid);
 				goto unpin;
 			}
 			ret = jload(vinfo->voltab_nodes[j]);
-			if (ret) {
-				dist_plug->r.done(&vol->aid);
+			if (ret)
 				goto unpin;
-			}
-			dist_plug->v.unpack(&vol->aid,
+
+			dist_plug->v.unpack(&vol->aid, vol->conf->tab,
 					    jdata(vinfo->voltab_nodes[j]),
 					    packed_segments,
 					    segments_per_block(vol));
@@ -767,11 +762,6 @@ static int init_volume_asym(struct super_block *sb, reiser4_volume *vol)
  * Bucket operations.
  * The following methods translate bucket_t to mirror_t
  */
-static void *tabp_asym(void)
-{
-	return &current_lv_conf()->tab;
-}
-
 static u64 cap_at_asym(bucket_t *buckets, u64 idx)
 {
 	return ((mirror_t *)buckets)[idx]->data_room;
@@ -907,7 +897,8 @@ static int expand_brick(reiser4_volume *vol, reiser4_subvol *this,
 		*need_balance = 0;
 		return 0;
 	}
-	ret = dist_plug->v.inc(&vol->aid, get_pos_in_aid(this->id), NULL);
+	ret = dist_plug->v.inc(&vol->aid, vol->conf->tab,
+			       get_pos_in_aid(this->id), NULL);
 	if (ret)
 		/* roll back */
 		this->data_room -= delta;
@@ -942,8 +933,8 @@ static int add_meta_brick(reiser4_volume *vol, reiser4_subvol *new)
 	 * Number of bricks and slots in the logical volume remains the same.
 	 * Create new distribution table.
 	 */
-	ret = vol->dist_plug->v.inc(&vol->aid, METADATA_SUBVOL_ID /* pos */,
-				    new);
+	ret = vol->dist_plug->v.inc(&vol->aid, vol->conf->tab,
+				    METADATA_SUBVOL_ID /* pos */, new);
 	if (ret)
 		return ret;
 	new->flags |= (1 << SUBVOL_HAS_DATA_ROOM);
@@ -995,7 +986,8 @@ int add_data_brick(reiser4_volume *vol, reiser4_subvol *this)
 	/*
 	 * Create new distribution table
 	 */
-	ret = vol->dist_plug->v.inc(raid, pos_in_aid, this);
+	ret = vol->dist_plug->v.inc(raid, vol->conf->tab,
+				    pos_in_aid, this);
 	if (ret)
 		return ret;
 	/*
@@ -1048,7 +1040,7 @@ static int expand_brick_asym(reiser4_volume *vol, reiser4_subvol *this,
 	if (!buckets)
 		return -ENOMEM;
 
-	ret = dist_plug->v.init(buckets,
+	ret = dist_plug->v.init(buckets, &vol->conf->tab,
 				num_aid_subvols(vol), vol->num_sgs_bits,
 				&vol->vol_plug->bucket_ops, raid);
 	if (ret) {
@@ -1089,6 +1081,7 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	lv_conf *new_conf;
 
 	assert("edward-1931", dist_plug != NULL);
+	assert("edward-2262", vol->conf != NULL);
 	assert("edward-2239", vol->new_conf == NULL);
 
 	if (new->data_room == 0) {
@@ -1102,7 +1095,8 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	buckets = create_buckets(vol, num_aid_subvols(vol) + 1);
 	if (!buckets)
 		return -ENOMEM;
-	ret = dist_plug->v.init(buckets, num_aid_subvols(vol),
+	ret = dist_plug->v.init(buckets, &vol->conf->tab,
+				num_aid_subvols(vol),
 				vol->num_sgs_bits,
 				&vol->vol_plug->bucket_ops, &vol->aid);
 	if (ret)
@@ -1182,7 +1176,7 @@ static int shrink_brick(reiser4_volume *vol, reiser4_subvol *victim,
 		*need_balance = 0;
 		return 0;
 	}
-	ret = dist_plug->v.dec(&vol->aid,
+	ret = dist_plug->v.dec(&vol->aid, vol->conf->tab,
 			       get_pos_in_aid(victim->id), NULL);
 	if (ret)
 		goto error;
@@ -1201,7 +1195,8 @@ static int remove_meta_brick(reiser4_volume *vol)
 	assert("edward-1844", num_aid_subvols(vol) > 1);
 	assert("edward-1826", meta_brick_belongs_aid());
 
-	ret = dist_plug->v.dec(&vol->aid, METADATA_SUBVOL_ID, mtd_subv);
+	ret = dist_plug->v.dec(&vol->aid, vol->conf->tab,
+			       METADATA_SUBVOL_ID, mtd_subv);
 	if (ret)
 		return ret;
 
@@ -1287,7 +1282,8 @@ static int remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim)
 	ret = __remove_data_brick(vol, victim, &pos_in_dsa);
 	if (ret)
 		return ret;
-	ret = vol->dist_plug->v.dec(&vol->aid, pos_in_dsa, victim);
+	ret = vol->dist_plug->v.dec(&vol->aid, vol->conf->tab,
+				    pos_in_dsa, victim);
 	if (ret) {
 		warning("edward-2146",
 			"Failed to update distribution config (%d)", ret);
@@ -1320,8 +1316,8 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	buckets = create_buckets(vol, old_nr_dsa_bricks);
 	if (!buckets)
 		return -ENOMEM;
-	ret = dist_plug->v.init(buckets, old_nr_dsa_bricks,
-				vol->num_sgs_bits,
+	ret = dist_plug->v.init(buckets, &vol->conf->tab,
+				old_nr_dsa_bricks, vol->num_sgs_bits,
 				&vol->vol_plug->bucket_ops, &vol->aid);
 	if (ret)
 		return ret;
@@ -1473,7 +1469,7 @@ static int shrink_brick_asym(reiser4_volume *vol, reiser4_subvol *victim,
 	if (!buckets)
 		return -ENOMEM;
 
-	ret = dist_plug->v.init(buckets,
+	ret = dist_plug->v.init(buckets, &vol->conf->tab,
 				num_aid_subvols(vol), vol->num_sgs_bits,
 				&vol->vol_plug->bucket_ops, &vol->aid);
 	if (ret)
@@ -1664,7 +1660,7 @@ int print_brick_asym(struct super_block *sb, struct reiser4_vol_op_args *args)
 	if (!buckets)
 		return -ENOMEM;
 
-	ret = vol->dist_plug->v.init(buckets,
+	ret = vol->dist_plug->v.init(buckets, &vol->conf->tab,
 				     num_aid_subvols(vol), vol->num_sgs_bits,
 				     &vol->vol_plug->bucket_ops, &vol->aid);
 	if (ret) {
@@ -2024,7 +2020,6 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		.print_volume = print_volume_asym,
 		.balance_volume = balance_volume_asym,
 		.bucket_ops = {
-			.tabp = tabp_asym,
 			.cap_at = cap_at_asym,
 			.fib_of = fib_of_asym,
 			.fib_at = fib_at_asym,

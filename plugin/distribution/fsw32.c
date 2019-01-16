@@ -37,16 +37,6 @@ static inline void mem_free(void *p)
 	vfree(p);
 }
 
-static inline u32 **cur_tabp(struct fsw32_aid *aid)
-{
-	return aid->ops->tabp();
-}
-
-static inline u32 *cur_tab(struct fsw32_aid *aid)
-{
-	return *cur_tabp(aid);
-}
-
 static inline struct fsw32_aid *fsw32_private(reiser4_aid *aid)
 {
 	return &aid->fsw32;
@@ -192,16 +182,16 @@ int create_systab(u32 nums_bits, u32 **tab,
 	return 0;
 }
 
-static int clone_systab(struct fsw32_aid *aid)
+static int clone_systab(struct fsw32_aid *aid, void *tab)
 {
 	assert("edward-2169", aid != NULL);
-	assert("edward-2170", cur_tab(aid) != NULL);
+	assert("edward-2170", tab != NULL);
 	assert("edward-2171", aid->tab == NULL);
 
 	aid->tab = mem_alloc((1 << aid->nums_bits) * WORDSIZE);
 	if (!aid->tab)
 		return ENOMEM;
-	memcpy(aid->tab, cur_tab(aid), (1 << aid->nums_bits) * WORDSIZE);
+	memcpy(aid->tab, tab, (1 << aid->nums_bits) * WORDSIZE);
 	return 0;
 }
 
@@ -618,22 +608,6 @@ void donev_fsw32(reiser4_aid *raid)
 }
 
 /**
- * Release AID descriptor allocated for regular operations.
- * Normally it is called at umount time.
- */
-void doner_fsw32(reiser4_aid *raid)
-{
-	struct fsw32_aid *aid = fsw32_private(raid);
-
-	if (!aid->ops)
-		return;
-	if (!cur_tab(aid))
-		return;
-	mem_free(cur_tab(aid));
-	*cur_tabp(aid) = NULL;
-}
-
-/**
  * Set newly created distribution table to @target
  */
 void replace_fsw32(reiser4_aid *raid, void **target)
@@ -659,14 +633,12 @@ void free_fsw32(void *tab)
 /**
  * Initialize distribution context for regular file operations
  */
-int initr_fsw32(reiser4_aid *raid, struct bucket_ops *ops,
-		int numb, int nums_bits)
+int initr_fsw32(reiser4_aid *raid, void **tab, int numb, int nums_bits)
 {
 	struct fsw32_aid *aid = fsw32_private(raid);
 
-	aid->ops = ops;
-
-	if (cur_tab(aid))
+	if (*tab != NULL)
+		/* already initialized */
 		return 0;
 
 	if (nums_bits < MIN_NUMS_BITS) {
@@ -676,14 +648,23 @@ int initr_fsw32(reiser4_aid *raid, struct bucket_ops *ops,
 			1ull << nums_bits, 1ull << MIN_NUMS_BITS);
 		return -EINVAL;
 	}
-	*cur_tabp(aid) = mem_alloc((1 << nums_bits) * sizeof(u32));
-	if (*cur_tabp(aid) == NULL)
+	*tab = mem_alloc((1 << nums_bits) * sizeof(u32));
+	if (*tab == NULL)
 		return -ENOMEM;
 
 	aid->numb = numb;
 	aid->nums_bits = nums_bits;
-
 	return 0;
+}
+
+void doner_fsw32(void **tab)
+{
+	assert("edward-2260", tab != NULL);
+
+	if (*tab) {
+		mem_free(*tab);
+		*tab = NULL;
+	}
 }
 
 /**
@@ -693,10 +674,8 @@ int initr_fsw32(reiser4_aid *raid, struct bucket_ops *ops,
  * @ops: operations to access the buckets;
  * @raid: AID descriptor to initialize.
  */
-int initv_fsw32(bucket_t *vec,
-		u64 numb, int nums_bits,
-		struct bucket_ops *ops,
-		reiser4_aid *raid)
+int initv_fsw32(bucket_t *vec, void **tab, u64 numb, int nums_bits,
+		struct bucket_ops *ops, reiser4_aid *raid)
 {
 	int ret = -ENOMEM;
 	u32 nums;
@@ -713,6 +692,7 @@ int initv_fsw32(bucket_t *vec,
 
 	assert("edward-2172", aid->tab == NULL);
 	assert("edward-1922", aid->weights == NULL);
+	assert("edward-2261", tab != NULL);
 
 	aid->buckets = vec;
 	aid->ops = ops;
@@ -723,18 +703,18 @@ int initv_fsw32(bucket_t *vec,
 
 	calibrate32(numb, nums, vec, ops->cap_at, aid->weights);
 
-	if (!cur_tab(aid)) {
+	if (*tab == NULL) {
 		u32 i;
 		assert("edward-2201", numb == 1);
-		ret = initr_fsw32(raid, ops, numb, nums_bits);
+		ret = initr_fsw32(raid, tab, numb, nums_bits);
 		if (ret)
 			goto error;
 		for (i = 0; i < nums; i++)
-			cur_tab(aid)[i] = ops->idx2id(0);
+			(*(u32 **)tab)[i] = ops->idx2id(0);
 	}
-	assert("edward-2173", cur_tab(aid) != NULL);
+	assert("edward-2173", *tab != NULL);
 
-	ret = create_fibers(nums_bits, cur_tab(aid),
+	ret = create_fibers(nums_bits, *tab,
 			    numb, aid->weights, vec,
 			    ops->fib_at,
 			    ops->fib_set_at,
@@ -744,7 +724,7 @@ int initv_fsw32(bucket_t *vec,
 		goto error;
 	return 0;
  error:
-	doner_fsw32(raid);
+	doner_fsw32(tab);
 	donev_fsw32(raid);
 	return ret;
 }
@@ -764,7 +744,7 @@ u64 lookup_fsw32m(reiser4_aid *raid, const char *str,
  * If @new != NULL, then the whole bucket @new has been inserted
  * to the array at @target_pos
  */
-int inc_fsw32(reiser4_aid *raid, u64 target_pos, bucket_t new)
+int inc_fsw32(reiser4_aid *raid, void *tab, u64 target_pos, bucket_t new)
 {
 	int ret = 0;
 	u32 *new_weights;
@@ -790,7 +770,7 @@ int inc_fsw32(reiser4_aid *raid, u64 target_pos, bucket_t new)
 	}
 	aid->new_weights = new_weights;
 
-	ret = clone_systab(aid);
+	ret = clone_systab(aid, tab);
 	if (ret)
 		goto error;
 
@@ -871,7 +851,7 @@ static int check_space(reiser4_aid *raid, u64 numb, u64 occ)
  * If @removeme is not NULL, then the whole bucket at @target_pos
  * is to be removed.
  */
-int dec_fsw32(reiser4_aid *raid, u64 target_pos, bucket_t removeme)
+int dec_fsw32(reiser4_aid *raid, void *tab, u64 target_pos, bucket_t removeme)
 {
 	int ret = 0;
 	u32 nums;
@@ -900,7 +880,7 @@ int dec_fsw32(reiser4_aid *raid, u64 target_pos, bucket_t removeme)
 	}
 	aid->new_weights = new_weights;
 
-	ret = clone_systab(aid);
+	ret = clone_systab(aid, tab);
 	if (ret)
 		goto error;
 
@@ -998,16 +978,16 @@ void pack_fsw32(reiser4_aid *raid, char *to, u64 src_off, u64 count)
 	}
 }
 
-void unpack_fsw32(reiser4_aid *raid, char *from, u64 dst_off, u64 count)
+void unpack_fsw32(reiser4_aid *raid, void *tab,
+		  char *from, u64 dst_off, u64 count)
 {
 	u64 i;
 	u32 *dst;
-	struct fsw32_aid *aid = fsw32_private(raid);
 
 	assert("edward-1925", from != NULL);
-	assert("edward-1926", cur_tab(aid) != NULL);
+	assert("edward-1926", tab != NULL);
 
-	dst = cur_tab(aid) + dst_off;
+	dst = (u32 *)tab + dst_off;
 
 	for (i = 0; i < count; i++) {
 		*dst = le32_to_cpu(get_unaligned((d32 *)from));
@@ -1016,12 +996,9 @@ void unpack_fsw32(reiser4_aid *raid, char *from, u64 dst_off, u64 count)
 	}
 }
 
-void dump_fsw32(reiser4_aid *raid, char *to, u64 offset, u32 size)
+void dump_fsw32(reiser4_aid *raid, void *tab, char *to, u64 offset, u32 size)
 {
-	struct fsw32_aid *aid = fsw32_private(raid);
-	u32 *tab = cur_tab(aid);
-
-	memcpy(to, tab + offset, size);
+	memcpy(to, (u32 *)tab + offset, size);
 }
 
 bucket_t *get_buckets_fsw32(reiser4_aid *raid)
