@@ -11,6 +11,28 @@
 #include "super.h"
 #include "plugin/volume/volume.h"
 
+/**
+ * put super-blocks of all bricks of the logical volume to the transaction
+ */
+static int capture_all_bricks_super(reiser4_volume *vol)
+{
+	int ret;
+	u32 subv_id;
+	lv_conf *conf = vol->conf;
+
+	for_each_mslot(conf, subv_id) {
+		reiser4_subvol *subv;
+
+		if (!conf_mslot_at(conf, subv_id))
+			continue;
+		subv = conf_origin(conf, subv_id);
+		ret = capture_brick_super(subv);
+		if (ret)
+			return ret;
+	}
+	return 0;
+}
+
 static int reiser4_register_brick(struct super_block *sb,
 				  struct reiser4_vol_op_args *args)
 {
@@ -139,9 +161,12 @@ static int reiser4_add_brick(struct super_block *sb,
 			     struct reiser4_vol_op_args *args)
 {
 	int ret;
+	reiser4_volume *vol = super_volume(sb);
 	int activated_here = 0;
 	reiser4_subvol *new = NULL;
 	reiser4_volume *host_of_new = NULL;
+	txn_atom *atom;
+	txn_handle *th;
 
 	if (reiser4_volume_is_unbalanced(sb)) {
 		warning("edward-2167",
@@ -160,7 +185,7 @@ static int reiser4_add_brick(struct super_block *sb,
 	assert("edward-1969", new != NULL);
 	assert("edward-1970", host_of_new != NULL);
 
-	if (host_of_new != super_volume(sb)) {
+	if (host_of_new != vol) {
 		warning("edward-1971",
 			"Failed to add brick (Inappropriate volume)");
 		return -EINVAL;
@@ -176,8 +201,7 @@ static int reiser4_add_brick(struct super_block *sb,
 	/*
 	 * add activated new brick
 	 */
-	ret = super_volume(sb)->vol_plug->add_brick(super_volume(sb),
-						    new);
+	ret = vol->vol_plug->add_brick(super_volume(sb), new);
 	if (ret) {
 		if (activated_here) {
 			reiser4_deactivate_subvol(sb, new);
@@ -185,19 +209,35 @@ static int reiser4_add_brick(struct super_block *sb,
 		}
 		return ret;
 	}
+	/*
+	 * now it is not possible to deactivate the new
+	 * brick: since we posted a new config, there can
+	 * be IOs issued against that brick.
+	 *
+	 * Push super-blocks of all bricks (including the
+	 * new one) to the transaction
+	 */
+	ret = capture_all_bricks_super(vol);
+	if (ret)
+		return ret;
+	/*
+	 * write unbalanced status to disk
+	 */
+	th = get_current_context()->trans;
+	atom = get_current_atom_locked();
+	assert("edward-2265", atom != NULL);
+	spin_lock_txnh(th);
+	ret = force_commit_atom(th);
+	if (ret)
+		return ret;
+
 	clear_bit(SUBVOL_IS_ORPHAN, &new->flags);
 
 	printk("reiser4 (%s): Brick %s has been added.", sb->s_id, new->name);
 
 	ret = super_volume(sb)->vol_plug->balance_volume(sb);
 	if (ret)
-		/*
-		 * it is not possible to deactivate the new
-		 * brick already: there can be IO requests
-		 * issued at the beginning of re-balancing
-		 */
 		return ret;
-	reiser4_txn_restart_current();
 
 	reiser4_volume_clear_unbalanced(sb);
 	return capture_brick_super(get_meta_subvol());
@@ -205,22 +245,10 @@ static int reiser4_add_brick(struct super_block *sb,
 
 static int reiser4_detach_brick(reiser4_subvol *victim)
 {
-	int ret;
-	txn_atom *atom;
-	txn_handle *th;
-
+	struct ctx_brick_info *cbi;
 	reiser4_context *ctx = get_current_context();
 	struct rb_root *root = &ctx->bricks_info;
-	struct ctx_brick_info *cbi;
 	reiser4_super_info_data *sbinfo = get_current_super_private();
-
-	th = ctx->trans;
-	atom = get_current_atom_locked();
-	assert("edward-2256", atom != NULL);
-	spin_lock_txnh(th);
-	ret = force_commit_atom(th);
-	if (ret)
-		return ret;
 
 	cbi = find_context_brick_info(ctx, victim->id);
 
@@ -246,6 +274,7 @@ static int reiser4_remove_brick(struct super_block *sb,
 				struct reiser4_vol_op_args *args)
 {
 	int ret;
+	reiser4_volume *vol;
 	reiser4_subvol *victim;
 
 	if (reiser4_volume_is_unbalanced(sb)) {
@@ -262,20 +291,23 @@ static int reiser4_remove_brick(struct super_block *sb,
 			reiser4_get_current_sb()->s_id);
 		return -EINVAL;
 	}
-	ret = super_volume(sb)->vol_plug->remove_brick(super_volume(sb),
-						       victim);
+	vol = super_volume(sb);
+
+	ret = vol->vol_plug->remove_brick(vol, victim);
 	if (ret)
 		return ret;
-
+	/*
+	 * unbalanced status was written to disk when
+	 * committing everything in remove_brick_tail()
+	 */
 	reiser4_volume_clear_unbalanced(sb);
 
 	if (!is_meta_brick(victim)) {
-		ret = capture_brick_super(get_meta_subvol());
+		ret = reiser4_detach_brick(victim);
 		if (ret)
 			return ret;
-		return reiser4_detach_brick(victim);
-	} else
-		return capture_brick_super(get_meta_subvol());
+	}
+	return capture_all_bricks_super(vol);
 }
 
 static int reiser4_balance_volume(struct super_block *sb)

@@ -41,7 +41,7 @@ typedef enum {
 	SUBVOL_HAS_DATA_ROOM = 4,
 	/* set for an empty subvolume at the latest [earliest]
 	   stage of brick removal [addition]. Indicates that
-	   there is no pending IOs issued for that subvolume */
+	   subvolume doesn't accept any IOs */
 	SUBVOL_IS_ORPHAN = 5,
 	/* set at the early stage of brick removal.
 	   Brick may be not empty and may accept IOs */

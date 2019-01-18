@@ -1121,16 +1121,10 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	ret = update_volume_config(vol);
 	if (ret)
 		goto error;
-	ret = capture_brick_super(new);
-	if (ret)
-		goto error;
+
 	dist_plug->r.replace(&vol->aid, &new_conf->tab);
 
 	reiser4_volume_set_unbalanced(reiser4_get_current_sb());
-	ret = capture_brick_super(get_meta_subvol());
-	if (ret)
-		goto error;
-	reiser4_txn_restart_current();
 	/*
 	 * Now publish the new config
 	 */
@@ -1361,7 +1355,6 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 		free_lv_conf(vol->new_conf);
 		return ret;
 	}
-	reiser4_txn_restart_current();
 	/*
 	 * Publish a temporal config with updated
 	 * distribution table.
@@ -1411,7 +1404,6 @@ int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 			return ret;
 	}
 	/*
-	 * Here we respect a "barrier".
 	 * We are about to release @victim with replicas.
 	 * Before this, it is absolutely necessarily to
 	 * commit everything to make sure that there is
