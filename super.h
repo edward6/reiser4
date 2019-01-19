@@ -46,6 +46,8 @@ typedef enum {
 	/* set at the early stage of brick removal.
 	   Brick may be not empty and may accept IOs */
 	SUBVOL_TO_BE_REMOVED = 6,
+	/* set at the end of brick removal operation */
+	SUBVOL_WAS_REMOVED = 7,
 } reiser4_subvol_flag;
 
 /*

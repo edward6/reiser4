@@ -453,6 +453,9 @@ int try_init_format40(struct super_block *super,
 	if (get_format40_flags(sb_format) & (1 << FORMAT40_TO_BE_REMOVED))
 		subv->flags |= (1 << SUBVOL_TO_BE_REMOVED);
 
+	if (get_format40_flags(sb_format) & (1 << FORMAT40_WAS_REMOVED))
+		subv->flags |= (1 << SUBVOL_WAS_REMOVED);
+
 	if (is_meta_brick_id(subv->id)) {
 		result = oid_init_allocator(super,
 					    get_format40_file_count(sb_format),
@@ -643,6 +646,11 @@ static void pack_format40_super(const struct super_block *s,
 		format_flags |= (1 << FORMAT40_TO_BE_REMOVED);
 	else
 		format_flags &= ~(1 << FORMAT40_TO_BE_REMOVED);
+
+	if (subv->flags & (1 << SUBVOL_WAS_REMOVED))
+		format_flags |= (1 << FORMAT40_WAS_REMOVED);
+	else
+		format_flags &= ~(1 << FORMAT40_WAS_REMOVED);
 
 	if (is_meta_brick(subv)) {
 		if (reiser4_volume_is_unbalanced(s))

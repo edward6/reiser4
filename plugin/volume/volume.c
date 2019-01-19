@@ -1399,6 +1399,8 @@ int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 
 	if (!is_meta_brick(victim)) {
 		clear_bit(SUBVOL_TO_BE_REMOVED, &victim->flags);
+		set_bit(SUBVOL_WAS_REMOVED, &victim->flags);
+
 		ret = capture_brick_super(victim);
 		if (ret)
 			return ret;
@@ -1409,6 +1411,9 @@ int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	 * commit everything to make sure that there is
 	 * no pending IOs addressed to the @victim and its
 	 * replicas.
+	 *
+	 * During this commit @victim gets the last IO
+	 * request as a member of the logical volume.
 	 */
 	txnmgr_force_commit_all(victim->super, 1);
 	/*
@@ -1417,13 +1422,13 @@ int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	if (!is_meta_brick(victim))
 		atomic_dec(&vol->nr_origins);
 	/*
-	 * Publish final config with updated set of slots
+	 * Publish final config with updated set of slots,
+	 * which doesn't contain @victim
 	 */
 	vol->conf = vol->new_conf;
 	/*
-	 * Release victim with replicas. It is safe, as
-	 * at this point nobody is aware about them after
-	 * rebalancing with the following commit above
+	 * Release victim with replicas. It is safe,
+	 * as at this point nobody is aware of them
 	 */
 	if (!is_meta_brick(victim))
 		free_mslot_at(cur_conf, victim->id);

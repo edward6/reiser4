@@ -675,9 +675,17 @@ int reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 	conf = vol->conf;
 	for_each_mslot(conf, orig_id) {
 		if (conf_mslot_at(conf, orig_id) && conf_origin(conf, orig_id)){
+			reiser4_subvol *subv = conf_origin(conf, orig_id);
 			assert("edward-1773",
-			       subvol_is_set(conf_origin(conf, orig_id),
-					     SUBVOL_ACTIVATED));
+			       subvol_is_set(subv, SUBVOL_ACTIVATED));
+
+			if (subvol_is_set(subv, SUBVOL_WAS_REMOVED)) {
+				warning("edward-2266",
+					"%s: Brick %s is inappropriate.",
+					super->s_id, subv->name);
+				ret = -EINVAL;
+				goto deactivate;
+			}
 			nr_origins ++;
 		}
 	}
