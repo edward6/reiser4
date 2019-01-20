@@ -231,6 +231,12 @@ static int reiser4_add_brick(struct super_block *sb,
 	ret = force_commit_atom(th);
 	if (ret)
 		return ret;
+	/*
+	 * new volume configuration has been written to disk,
+	 * so release all volinfo jnodes - they are not needed
+	 * any more
+	 */
+	release_volinfo_nodes(&vol->volinfo[CUR_VOL_CONF], 0);
 
 	clear_bit(SUBVOL_IS_ORPHAN, &new->flags);
 
@@ -297,6 +303,8 @@ static int reiser4_remove_brick(struct super_block *sb,
 	ret = vol->vol_plug->remove_brick(vol, victim);
 	if (ret)
 		return ret;
+
+	release_volinfo_nodes(&vol->volinfo[CUR_VOL_CONF], 0);
 	/*
 	 * unbalanced status was written to disk when
 	 * committing everything in remove_brick_tail()

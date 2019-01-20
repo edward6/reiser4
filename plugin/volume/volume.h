@@ -18,6 +18,7 @@ extern reiser4_subvol *find_meta_brick_by_id(reiser4_volume *vol);
 extern lv_conf *alloc_lv_conf(u32 nr_slots);
 extern void free_lv_conf(lv_conf *conf);
 extern void release_lv_conf(lv_conf *conf);
+extern void release_volinfo_nodes(reiser4_volinfo *vinfo, int dealloc);
 extern slot_t alloc_mslot(u32 nr_mirrors);
 extern void free_mslot(slot_t slot);
 extern void free_mslot_at(lv_conf *conf, u64 idx);

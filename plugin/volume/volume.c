@@ -234,7 +234,7 @@ static int num_volmap_nodes(reiser4_volume *vol, int nums_bits)
 	return result;
 }
 
-static void release_volinfo_nodes(reiser4_volinfo *vinfo, int dealloc)
+void release_volinfo_nodes(reiser4_volinfo *vinfo, int dealloc)
 {
 	u64 i;
 
@@ -259,11 +259,10 @@ static void release_volinfo_nodes(reiser4_volinfo *vinfo, int dealloc)
 
 static void done_volume_asym(reiser4_subvol *subv)
 {
-	int i;
 	reiser4_volume *vol = super_volume(subv->super);
 
-	for (i = 0; i < 2; i++)
-		release_volinfo_nodes(&vol->volinfo[i], 0);
+	release_volinfo_nodes(&vol->volinfo[CUR_VOL_CONF], 0);
+	release_volinfo_nodes(&vol->volinfo[NEW_VOL_CONF], 0);
 }
 
 /**
@@ -649,30 +648,17 @@ static int capture_volume_config(reiser4_volume *vol, int id)
 static int make_volume_config(reiser4_volume *vol)
 {
 	int ret;
-	txn_atom *atom;
-	txn_handle *th;
-	int id = NEW_VOL_CONF;
 
-	ret = create_volume_config(vol, id);
+	ret = create_volume_config(vol, NEW_VOL_CONF);
 	if (ret)
 		return ret;
-	ret = capture_volume_config(vol, id);
+	ret = capture_volume_config(vol, NEW_VOL_CONF);
 	if (ret)
 		goto error;
-	/*
-	 * write volinfo to disk
-	 */
-	th = get_current_context()->trans;
-	atom = get_current_atom_locked();
-	assert("edward-1988", atom != NULL);
-	spin_lock_txnh(th);
-	ret = force_commit_atom(th);
-	if (ret)
-		goto error;
-	release_volinfo_nodes(&vol->volinfo[id], 0);
 	return 0;
  error:
-	release_volinfo_nodes(&vol->volinfo[id], 1);
+	release_volinfo_nodes(&vol->volinfo[NEW_VOL_CONF],
+			      1 /* release disk addresses */);
 	return ret;
 }
 
