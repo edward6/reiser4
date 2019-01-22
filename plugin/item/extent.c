@@ -67,11 +67,11 @@ int extent_is_unallocated(const coord_t * item)
 }
 
 /* set extent's start and width */
-void reiser4_set_extent(reiser4_extent * ext, reiser4_block_nr start,
-			reiser4_block_nr width)
+void reiser4_set_extent(reiser4_subvol *subv, reiser4_extent *ext,
+			reiser4_block_nr start, reiser4_block_nr width)
 {
-	extent_set_start(ext, start);
-	extent_set_width(ext, width);
+	extent_set_start(subv, ext, start);
+	extent_set_width(subv, ext, width);
 }
 
 /**

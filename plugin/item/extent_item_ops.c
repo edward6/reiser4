@@ -295,7 +295,7 @@ size_t merge_units_extent(coord_t *left, coord_t *right)
 	/*
 	 * widen @ext_left
 	 */
-	extent_set_width(ext_left,
+	extent_set_width(find_data_subvol(&uleft), ext_left,
 			 extent_get_width(ext_left) +
 			 extent_get_width(ext_right));
 	/*
@@ -652,7 +652,7 @@ kill_units_extent(coord_t * coord, pos_in_node_t from, pos_in_node_t to,
 		if (off) {
 			/* unit @from is to be cut partially. Its width decreases */
 			ext = extent_item(coord) + from;
-			extent_set_width(ext,
+			extent_set_width(find_data_subvol(coord), ext,
 					 (off + PAGE_SIZE -
 					  1) >> PAGE_SHIFT);
 			count--;
@@ -685,12 +685,12 @@ kill_units_extent(coord_t * coord, pos_in_node_t from, pos_in_node_t to,
 			assert("", extent_get_width(ext) > rest);
 
 			if (state_of_extent(ext) == ALLOCATED_EXTENT)
-				extent_set_start(ext,
+				extent_set_start(find_data_subvol(coord), ext,
 						 extent_get_start(ext) +
 						 (extent_get_width(ext) -
 						  rest));
 
-			extent_set_width(ext, rest);
+			extent_set_width(find_data_subvol(coord), ext, rest);
 			count--;
 		}
 	}
@@ -793,7 +793,8 @@ cut_units_extent(coord_t * coord, pos_in_node_t from, pos_in_node_t to,
 		/* tail of unit @from is to be cut partially. Its width decreases */
 		assert("vs-1582", new_first == NULL);
 		ext = extent_item(coord) + from;
-		extent_set_width(ext, off >> PAGE_SHIFT);
+		extent_set_width(find_data_subvol(coord), ext,
+				 off >> PAGE_SHIFT);
 		count--;
 	}
 
@@ -811,12 +812,13 @@ cut_units_extent(coord_t * coord, pos_in_node_t from, pos_in_node_t to,
 		assert("vs-1583", (off & (PAGE_SIZE - 1)) == 0);
 		ext = extent_item(coord) + to;
 		if (state_of_extent(ext) == ALLOCATED_EXTENT)
-			extent_set_start(ext,
+			extent_set_start(find_data_subvol(coord), ext,
 					 extent_get_start(ext) +
 					 (extent_get_width(ext) -
 					  (off >> PAGE_SHIFT)));
 
-		extent_set_width(ext, (off >> PAGE_SHIFT));
+		extent_set_width(find_data_subvol(coord), ext,
+				 (off >> PAGE_SHIFT));
 		count--;
 	}
 	return count * sizeof(reiser4_extent);

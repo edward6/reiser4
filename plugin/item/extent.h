@@ -28,7 +28,6 @@ typedef enum {
 
 #define HOLE_EXTENT_START 0
 #define UNALLOCATED_EXTENT_START 1
-#define UNALLOCATED_EXTENT_START2 2
 
 struct extent_coord_extension {
 	reiser4_block_nr pos_in_unit;
@@ -52,36 +51,34 @@ static inline reiser4_block_nr extent_get_width(const reiser4_extent * ext)
 	return le64_to_cpu(ext->width);
 }
 
-static inline void extent_set_start(reiser4_extent *ext, reiser4_block_nr start)
+extern __u64 reiser4_subvol_block_count(const reiser4_subvol *);
+
+static inline void extent_set_start(reiser4_subvol *subv, reiser4_extent *ext,
+				    reiser4_block_nr start)
 {
 	cassert(sizeof(ext->start) == 8);
-#if 0
-	/*
-	 * This useful check doesn't work for logical volumes:
-	 * It is impossible to determine a subvolume only by a
-	 * block number, as it should be "salted" with object id
-         * and other things, which are not known in some situations
-	 * (e.g. flush can move bodies of files, which are not
-	 * used at that moment by anybody, etc. - Edward.
-	 */
-	assert("nikita-2510",
-	       ergo(start > 1, start < reiser4_subvol_block_count()));
-#endif
+
+	assert("edward-2269", subv != NULL);
+	assert("nikita-2510", ergo(start > 1,
+				   start < reiser4_subvol_block_count(subv)));
+
 	put_unaligned(cpu_to_le64(start), &ext->start);
 }
 
-static inline void extent_set_width(reiser4_extent *ext, reiser4_block_nr width)
+static inline void extent_set_width(reiser4_subvol *subv,
+				    reiser4_extent *ext,
+				    reiser4_block_nr width)
 {
 	cassert(sizeof(ext->width) == 8);
-	assert("", width > 0);
+	assert("edward-2270", width > 0);
+	assert("edward-2271", subv != NULL);
+
 	put_unaligned(cpu_to_le64(width), &ext->width);
-#if 0
-	/* see the comment above */
+
 	assert("nikita-2511",
 	       ergo(extent_get_start(ext) > 1,
 		    extent_get_start(ext) + width <=
-		    reiser4_subvol_block_count()));
-#endif
+		    reiser4_subvol_block_count(subv)));
 }
 
 #define extent_item(coord) 					\
@@ -177,8 +174,8 @@ reiser4_item_data *init_new_extent(item_id extent_id, reiser4_item_data *data,
 reiser4_block_nr reiser4_extent_size_at(const coord_t *coord, pos_in_node_t nr);
 reiser4_block_nr reiser4_extent_size(const coord_t *coord);
 extent_state state_of_extent(reiser4_extent * ext);
-void reiser4_set_extent(reiser4_extent *, reiser4_block_nr start,
-			reiser4_block_nr width);
+void reiser4_set_extent(reiser4_subvol *subv, reiser4_extent *,
+			reiser4_block_nr start,	reiser4_block_nr width);
 int update_extent_uf(struct inode *, jnode *, loff_t pos,
 		     int *plugged_hole);
 int update_extent_stripe(struct inode *, jnode *, loff_t pos,

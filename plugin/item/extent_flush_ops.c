@@ -378,9 +378,9 @@ int split_allocated_extent(coord_t *coord, reiser4_block_nr pos_in_unit,
 	set_key_offset(h->pkey,
 		       (get_key_offset(h->pkey) +
 			pos_in_unit * current_blocksize));
-	reiser4_set_extent(&h->overwrite, extent_get_start(ext),
-			   pos_in_unit);
-	reiser4_set_extent(&h->new_extents[0],
+	reiser4_set_extent(find_data_subvol(coord), &h->overwrite,
+			   extent_get_start(ext), pos_in_unit);
+	reiser4_set_extent(find_data_subvol(coord), &h->new_extents[0],
 			   extent_get_start(ext) + pos_in_unit,
 			   extent_get_width(ext) - pos_in_unit);
 	h->nr_new_extents = 1;
@@ -424,8 +424,10 @@ int split_unallocated_extent(coord_t *coord, reiser4_block_nr pos_in_unit,
 	set_key_offset(h->pkey,
 		       (get_key_offset(h->pkey) +
 			pos_in_unit * current_blocksize));
-	reiser4_set_extent(&h->overwrite, 1, pos_in_unit);
-	reiser4_set_extent(&h->new_extents[0], 1,
+	reiser4_set_extent(find_data_subvol(coord), &h->overwrite,
+			   UNALLOCATED_EXTENT_START, pos_in_unit);
+	reiser4_set_extent(find_data_subvol(coord), &h->new_extents[0],
+			   UNALLOCATED_EXTENT_START,
 			   extent_get_width(ext) - pos_in_unit);
 	h->nr_new_extents = 1;
 	h->flags = COPI_DONT_SHIFT_LEFT;
@@ -488,16 +490,16 @@ static int try_to_merge_with_left(coord_t *coord, reiser4_extent *ext,
 	/*
 	 * we can glue, widen previous unit
 	 */
-	extent_set_width(ext - 1,
+	extent_set_width(find_data_subvol(coord), ext - 1,
 			 extent_get_width(ext - 1) + extent_get_width(replace));
 
 	if (extent_get_width(ext) != extent_get_width(replace)) {
 		/* make current extent narrower */
 		if (state_of_extent(ext) == ALLOCATED_EXTENT)
-			extent_set_start(ext,
+			extent_set_start(find_data_subvol(coord), ext,
 					 extent_get_start(ext) +
 					 extent_get_width(replace));
-		extent_set_width(ext,
+		extent_set_width(find_data_subvol(coord), ext,
 				 extent_get_width(ext) -
 				 extent_get_width(replace));
 	} else {
@@ -619,7 +621,8 @@ int convert_extent(coord_t *coord, reiser4_extent *replace)
 	h->overwrite = *replace;
 
 	/* replace @ext with @replace and padding extent */
-	reiser4_set_extent(&h->new_extents[0],
+	reiser4_set_extent(find_data_subvol(coord),
+			   &h->new_extents[0],
 			   (state == ALLOCATED_EXTENT) ?
 			   (start + new_width) :
 			   UNALLOCATED_EXTENT_START,
@@ -801,7 +804,7 @@ int shift_extent_left_begin(znode *dst, const coord_t *coord,
 			/*
 			 * fast paste
 			 */
-			extent_set_width(dst_ext,
+			extent_set_width(find_data_subvol(&dst_coord), dst_ext,
 					 extent_get_width(dst_ext) +
 					 extent_get_width(ext));
 			znode_make_dirty(dst);

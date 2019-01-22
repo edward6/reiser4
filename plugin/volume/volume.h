@@ -64,6 +64,11 @@ static inline u64 num_aid_subvols(reiser4_volume *vol)
 		return vol_nr_origins(vol) - 1;
 }
 
+static inline reiser4_subvol *subvol_by_key(const reiser4_key *key)
+{
+	return current_origin(get_key_ordering(key));
+}
+
 /*
   Local variables:
   c-indentation-style: "K&R"

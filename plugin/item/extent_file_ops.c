@@ -4,7 +4,7 @@
 #include "../../inode.h"
 #include "../../page_cache.h"
 #include "../object.h"
-
+#include "../volume/volume.h"
 #include <linux/swap.h>
 
 static inline reiser4_extent *ext_by_offset(const znode *node, int offset)
@@ -160,7 +160,7 @@ int append_hole_unix_file(struct inode *inode, coord_t *coord,
 		 * @hole_width blocks. Note that we do not worry about
 		 * overflowing - extent width is 64 bits
 		 */
-		reiser4_set_extent(ext, HOLE_EXTENT_START,
+		reiser4_set_extent(get_meta_subvol(), ext, HOLE_EXTENT_START,
 				   extent_get_width(ext) + hole_width);
 		znode_make_dirty(coord->node);
 		goto update_file_size;
@@ -171,7 +171,8 @@ int append_hole_unix_file(struct inode *inode, coord_t *coord,
 	assert("vs-713", (state_of_extent(ext) == ALLOCATED_EXTENT ||
 			  state_of_extent(ext) == UNALLOCATED_EXTENT));
 
-	reiser4_set_extent(&new_ext, HOLE_EXTENT_START, hole_width);
+	reiser4_set_extent(get_meta_subvol(), &new_ext,
+			   HOLE_EXTENT_START, hole_width);
 	init_new_extent(EXTENT40_POINTER_ID, &idata, &new_ext, 1);
 	ret = insert_into_item(coord, lh, &hole_key, &idata, 0);
 	if (ret < 0)
@@ -278,16 +279,17 @@ static int append_last_extent_unix_file(struct inode *inode,
 		 * last extent unit of the file is unallocated one
 		 * Increase its width by @count
 		 */
-		reiser4_set_extent(ext, UNALLOCATED_EXTENT_START,
+		reiser4_set_extent(get_meta_subvol(), ext,
+				   UNALLOCATED_EXTENT_START,
 				   extent_get_width(ext) + count);
 		znode_make_dirty(coord->node);
 
 		/* update coord extension */
 		ext_coord->width += count;
 		ext_coord->pos_in_unit += count;
-		ON_DEBUG(extent_set_width
-			 (&uf_coord->extension.extent.extent,
-			  ext_coord->width));
+		ON_DEBUG(extent_set_width(get_meta_subvol(),
+					  &uf_coord->extension.extent.extent,
+					  ext_coord->width));
 		break;
 	case HOLE_EXTENT:
 	case ALLOCATED_EXTENT:
@@ -295,7 +297,8 @@ static int append_last_extent_unix_file(struct inode *inode,
 		 * last extent unit of the file is either hole or allocated
 		 * one. Append one unallocated extent of width @count
 		 */
-		reiser4_set_extent(&new_ext, UNALLOCATED_EXTENT_START, count);
+		reiser4_set_extent(get_meta_subvol(), &new_ext,
+				   UNALLOCATED_EXTENT_START, count);
 		init_new_extent(EXTENT40_POINTER_ID, &idata, &new_ext, 1);
 		result = insert_into_item(coord, uf_coord->lh, key, &idata, 0);
 		uf_coord->valid = 0;
@@ -357,7 +360,8 @@ static int insert_first_hole_unix_file(struct inode *inode, coord_t *coord,
 	/*
 	 * compose body of hole extent and insert item into tree
 	 */
-	reiser4_set_extent(&new_ext, HOLE_EXTENT_START, hole_width);
+	reiser4_set_extent(get_meta_subvol(), &new_ext,
+			   HOLE_EXTENT_START, hole_width);
 	init_new_extent(EXTENT40_POINTER_ID, &idata, &new_ext, 1);
 	ret = insert_extent_by_coord(coord, &idata, &item_key, lh);
 	if (ret < 0)
@@ -428,7 +432,8 @@ static int insert_first_extent_unix_file(uf_coord_t *uf_coord,
 	 * prepare for tree modification: compose body of item and item data
 	 * structure needed for insertion
 	 */
-	reiser4_set_extent(&new_ext, UNALLOCATED_EXTENT_START, count);
+	reiser4_set_extent(get_meta_subvol(), &new_ext,
+			   UNALLOCATED_EXTENT_START, count);
 	init_new_extent(EXTENT40_POINTER_ID, &idata, &new_ext, 1);
 
 	/* insert extent item into the tree */
@@ -509,7 +514,8 @@ static int plug_hole_unix_file(uf_coord_t *uf_coord,
 
 	*how = 0;
 	if (width == 1) {
-		reiser4_set_extent(ext, UNALLOCATED_EXTENT_START, 1);
+		reiser4_set_extent(get_meta_subvol(), ext,
+				   UNALLOCATED_EXTENT_START, 1);
 		znode_make_dirty(coord->node);
 		/* update uf_coord */
 		ON_DEBUG(ext_coord->extent = *ext);
@@ -525,9 +531,10 @@ static int plug_hole_unix_file(uf_coord_t *uf_coord,
 				 * extent. Increase its width and decrease
 				 * width of hole
 				 */
-				extent_set_width(ext - 1,
+				extent_set_width(get_meta_subvol(), ext - 1,
 						 extent_get_width(ext - 1) + 1);
-				extent_set_width(ext, width - 1);
+				extent_set_width(get_meta_subvol(), ext,
+						 width - 1);
 				znode_make_dirty(coord->node);
 
 				/* update coord extension */
@@ -542,9 +549,11 @@ static int plug_hole_unix_file(uf_coord_t *uf_coord,
 			}
 		}
 		/* extent for replace */
-		reiser4_set_extent(&rh.overwrite, UNALLOCATED_EXTENT_START, 1);
+		reiser4_set_extent(get_meta_subvol(), &rh.overwrite,
+				   UNALLOCATED_EXTENT_START, 1);
 		/* extent to be inserted */
-		reiser4_set_extent(&rh.new_extents[0], HOLE_EXTENT_START,
+		reiser4_set_extent(get_meta_subvol(), &rh.new_extents[0],
+				   HOLE_EXTENT_START,
 				   width - 1);
 		rh.nr_new_extents = 1;
 
@@ -562,9 +571,11 @@ static int plug_hole_unix_file(uf_coord_t *uf_coord,
 				 * extent. Increase its width and decrease
 				 * width of hole
 				 */
-				extent_set_width(ext + 1,
+				extent_set_width(get_meta_subvol(),
+						 ext + 1,
 						 extent_get_width(ext + 1) + 1);
-				extent_set_width(ext, width - 1);
+				extent_set_width(get_meta_subvol(),
+						 ext, width - 1);
 				znode_make_dirty(coord->node);
 
 				/* update coord extension */
@@ -579,10 +590,11 @@ static int plug_hole_unix_file(uf_coord_t *uf_coord,
 			}
 		}
 		/* extent for replace */
-		reiser4_set_extent(&rh.overwrite, HOLE_EXTENT_START, width - 1);
+		reiser4_set_extent(get_meta_subvol(), &rh.overwrite,
+				   HOLE_EXTENT_START, width - 1);
 		/* extent to be inserted */
-		reiser4_set_extent(&rh.new_extents[0], UNALLOCATED_EXTENT_START,
-				   1);
+		reiser4_set_extent(get_meta_subvol(), &rh.new_extents[0],
+				   UNALLOCATED_EXTENT_START, 1);
 		rh.nr_new_extents = 1;
 
 		/* have reiser4_replace_extent to return with @coord and
@@ -591,13 +603,13 @@ static int plug_hole_unix_file(uf_coord_t *uf_coord,
 		*how = 5;
 	} else {
 		/* extent for replace */
-		reiser4_set_extent(&rh.overwrite, HOLE_EXTENT_START,
-				   pos_in_unit);
+		reiser4_set_extent(get_meta_subvol(), &rh.overwrite,
+				   HOLE_EXTENT_START, pos_in_unit);
 		/* extents to be inserted */
-		reiser4_set_extent(&rh.new_extents[0], UNALLOCATED_EXTENT_START,
-				   1);
-		reiser4_set_extent(&rh.new_extents[1], HOLE_EXTENT_START,
-				   width - pos_in_unit - 1);
+		reiser4_set_extent(get_meta_subvol(), &rh.new_extents[0],
+				   UNALLOCATED_EXTENT_START, 1);
+		reiser4_set_extent(get_meta_subvol(), &rh.new_extents[1],
+				   HOLE_EXTENT_START, width - pos_in_unit - 1);
 		rh.nr_new_extents = 2;
 
 		/* have reiser4_replace_extent to return with @coord and
@@ -731,7 +743,7 @@ int overwrite_extent_generic(struct inode *inode, uf_coord_t *uf_coord,
 	if (fplug == file_plugin_by_id(UNIX_FILE_PLUGIN_ID))
 		subv = get_meta_subvol();
 	else
-		subv = current_origin(get_key_ordering(key));
+		subv = subvol_by_key(key);
 
 	result = check_insert_atom_brick_info(subv->id, &abi);
 	if (result)

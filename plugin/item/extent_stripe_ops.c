@@ -11,6 +11,7 @@
 #include "../../inode.h"
 #include "../../page_cache.h"
 #include "../object.h"
+#include "../volume/volume.h"
 
 void check_uf_coord(const uf_coord_t *uf_coord, const reiser4_key *key);
 void check_jnodes(struct inode *inode, znode *twig, const reiser4_key *key,
@@ -143,7 +144,7 @@ static int plug_hole_stripe(struct inode *inode,
 		assert("edward-2054", coord->node->level == LEAF_LEVEL);
 		BUG_ON(coord->node->level != LEAF_LEVEL);
 
-		reiser4_set_extent(&new_ext,
+		reiser4_set_extent(subvol_by_key(key), &new_ext,
 				   UNALLOCATED_EXTENT_START, 1);
 		init_new_extent(EXTENT41_POINTER_ID, &idata, &new_ext, 1);
 		ret = insert_extent_by_coord(coord, &idata,
@@ -185,7 +186,8 @@ static int plug_hole_stripe(struct inode *inode,
 		/*
 		 * can not push. Create a new item
 		 */
-		reiser4_set_extent(&new_ext, UNALLOCATED_EXTENT_START, 1);
+		reiser4_set_extent(subvol_by_key(key), &new_ext,
+				   UNALLOCATED_EXTENT_START, 1);
 		init_new_extent(EXTENT41_POINTER_ID, &idata, &new_ext, 1);
 		ret = insert_by_coord(coord, &idata, key, uf_coord->lh, 0);
 	} else {
@@ -194,18 +196,23 @@ static int plug_hole_stripe(struct inode *inode,
 		 */
 		coord->unit_pos = coord_last_unit_pos(coord);
 		ext = extent_by_coord(coord);
+
+		assert("edward-2267",
+		       subvol_by_key(key) == find_data_subvol(coord));
+
 		if ((state_of_extent(ext) == UNALLOCATED_EXTENT)) {
 			/*
 			 * fast paste without carry
 			 */
-			extent_set_width(ext, extent_get_width(ext) + 1);
+			extent_set_width(subvol_by_key(key), ext,
+					 extent_get_width(ext) + 1);
 			znode_make_dirty(coord->node);
 		} else {
 			/*
 			 * paste with possible carry
 			 */
 			coord->between = AFTER_UNIT;
-			reiser4_set_extent(&new_ext,
+			reiser4_set_extent(subvol_by_key(key), &new_ext,
 					   UNALLOCATED_EXTENT_START, 1);
 			init_new_extent(EXTENT41_POINTER_ID,
 					&idata, &new_ext, 1);
@@ -256,7 +263,8 @@ static int insert_first_extent_stripe(uf_coord_t *uf_coord,
 	 * prepare for tree modification: compose body of item and item data
 	 * structure needed for insertion
 	 */
-	reiser4_set_extent(&new_ext, UNALLOCATED_EXTENT_START, count);
+	reiser4_set_extent(subvol_by_key(key), &new_ext,
+			   UNALLOCATED_EXTENT_START, count);
 	init_new_extent(EXTENT41_POINTER_ID, &idata, &new_ext, 1);
 
 	/* insert extent item into the tree */
@@ -343,20 +351,25 @@ static int append_extent_stripe(struct inode *inode, uf_coord_t *uf_coord,
 	/*
 	 * can merge with the last item
 	 */
+	assert("edward-2268",
+	       subvol_by_key(key) == find_data_subvol(coord));
+
 	ext = extent_by_coord(coord);
 	switch (state_of_extent(ext)) {
 	case UNALLOCATED_EXTENT:
 		/*
 		 * fast paste without carry
 		 */
-		extent_set_width(ext, extent_get_width(ext) + count);
+		extent_set_width(subvol_by_key(key), ext,
+				 extent_get_width(ext) + count);
 		znode_make_dirty(coord->node);
 		goto process_jnodes;
 	case ALLOCATED_EXTENT:
 		/*
 		 * paste with possible carry
 		 */
-		reiser4_set_extent(&new_ext, UNALLOCATED_EXTENT_START, count);
+		reiser4_set_extent(subvol_by_key(key), &new_ext,
+				   UNALLOCATED_EXTENT_START, count);
 		init_new_extent(EXTENT41_POINTER_ID, &idata, &new_ext, 1);
 		result = insert_into_item(coord, uf_coord->lh, key, &idata, 0);
 		if (result)
@@ -367,7 +380,8 @@ static int append_extent_stripe(struct inode *inode, uf_coord_t *uf_coord,
 	}
  create:
 	/* create a new item */
-	reiser4_set_extent(&new_ext, UNALLOCATED_EXTENT_START, count);
+	reiser4_set_extent(subvol_by_key(key), &new_ext,
+			   UNALLOCATED_EXTENT_START, count);
 	init_new_extent(EXTENT41_POINTER_ID, &idata, &new_ext, 1);
 	result = insert_by_coord(coord, &idata, key, uf_coord->lh, 0);
 	if (result)

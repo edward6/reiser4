@@ -296,7 +296,8 @@ static int forward_relocate_unformatted(flush_pos_t *flush_pos,
 			     allocated, first_allocated, flush_pos->data_subv);
 
 	/* prepare extent which will replace current one */
-	reiser4_set_extent(&replace_ext, first_allocated, allocated);
+	reiser4_set_extent(flush_pos->data_subv, &replace_ext,
+			   first_allocated, allocated);
 
 	/* adjust extent item */
 	result = convert_extent(coord, &replace_ext);
@@ -385,7 +386,8 @@ static squeeze_result squeeze_relocate_unformatted(znode *left,
 	/*
 	 * prepare extent which will be copied to left
 	 */
-	reiser4_set_extent(&copy_extent, first_allocated, allocated);
+	reiser4_set_extent(flush_pos->data_subv, &copy_extent,
+			   first_allocated, allocated);
 	result = shift_extent_left_begin(left, coord, key, &copy_extent);
 
 	if (result == -E_NODE_FULL) {
@@ -505,7 +507,7 @@ static squeeze_result squeeze_overwrite_unformatted(znode *left,
 	 * and make all first not flushprepped nodes
 	 * overwrite nodes
 	 */
-	reiser4_set_extent(&copy_extent, start, width);
+	reiser4_set_extent(flush_pos->data_subv, &copy_extent, start, width);
 
 	result = shift_extent_left_begin(left, coord, key, &copy_extent);
 	if (result == -E_NODE_FULL)
