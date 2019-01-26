@@ -603,8 +603,8 @@ typedef struct volume_plugin {
 	/* Return ID of meta-data subvolume */
 	u64 (*meta_subvol_id)(void);
 	/* Calculate ID of data subvolume */
-	u64 (*data_subvol_id_calc)(oid_t oid, loff_t data_offset_in_bytes,
-				   void *tab);
+	u64 (*data_subvol_id_calc)(lv_conf *conf,
+				   oid_t oid, loff_t data_offset_in_bytes);
 	/* Return data subvolume ID stored in the item specified by @coord */
 	u64 (*data_subvol_id_find)(const coord_t *coord);
 	/* Load a portion of LV system configuration contained

@@ -1114,8 +1114,8 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	/*
 	 * Now publish the new config
 	 */
-	vol->conf = new_conf;
-	/* synchronize_rcu() */
+	rcu_assign_pointer(vol->conf, new_conf);
+	synchronize_rcu();
 	free_lv_conf(old_conf);
 	vol->new_conf = NULL;
 	return 0;
@@ -1351,8 +1351,8 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 		return -ENOMEM;
 	}
 	tmp_conf->tab = vol->new_conf->tab;
-	vol->conf = tmp_conf;
-	/* synchronize_rcu() */
+	rcu_assign_pointer(vol->conf, tmp_conf);
+	synchronize_rcu();
 	free_lv_conf(old_conf);
 
 	printk("reiser4 (%s): Brick %s has been removed.\n",
@@ -1411,7 +1411,7 @@ int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	 * Publish final config with updated set of slots,
 	 * which doesn't contain @victim
 	 */
-	vol->conf = vol->new_conf;
+	rcu_assign_pointer(vol->conf, vol->new_conf);
 	/*
 	 * Release victim with replicas. It is safe,
 	 * as at this point nobody is aware of them
@@ -1419,7 +1419,7 @@ int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	if (!is_meta_brick(victim))
 		free_mslot_at(cur_conf, victim->id);
 
-	/* synchronize_rcu() */
+	synchronize_rcu();
 	cur_conf->tab = NULL;
 	free_lv_conf(cur_conf);
 
@@ -1493,7 +1493,7 @@ static u64 meta_subvol_id_simple(void)
 	return METADATA_SUBVOL_ID;
 }
 
-static u64 data_subvol_id_calc_simple(oid_t oid, loff_t offset, void *tab)
+static u64 data_subvol_id_calc_simple(lv_conf *conf, oid_t oid, loff_t offset)
 {
 	return METADATA_SUBVOL_ID;
 }
@@ -1541,37 +1541,37 @@ static inline u32 get_seed(oid_t oid, reiser4_volume *vol)
 	return seed;
 }
 
-static u64 data_subvol_id_calc_asym(oid_t oid, loff_t offset, void *tab)
+static u64 data_subvol_id_calc_asym(lv_conf *conf, oid_t oid, loff_t offset)
 {
-	reiser4_volume *vol;
-	distribution_plugin *dist_plug;
-	u64 stripe_idx;
-	lv_conf *conf;
+	u64 ret;
+	reiser4_volume *vol = current_volume();
 
-	vol = current_volume();
-	conf = vol->conf;
+	assert("edward-2267", conf != NULL);
 
-	if (!tab) {
-		assert("edward-2204", num_aid_subvols(vol) == 1);
+	if (!conf->tab) {
 		/*
 		 * the single data brick is always in the last slot
 		 */
 		assert("edward-2212",
 		       conf_mslot_at(conf, conf_nr_mslots(conf) - 1) != NULL);
 
-		return conf_origin(conf, conf->nr_mslots - 1)->id;
+		ret = conf_origin(conf, conf->nr_mslots - 1)->id;
+	} else {
+		u64 stripe_idx;
+		distribution_plugin *dist_plug = current_dist_plug();
+
+		if (vol->stripe_bits) {
+			stripe_idx = offset >> vol->stripe_bits;
+			put_unaligned(cpu_to_le64(stripe_idx), &stripe_idx);
+		} else
+			stripe_idx = 0;
+
+		ret = dist_plug->r.lookup(&vol->aid,
+					  (const char *)&stripe_idx,
+					  sizeof(stripe_idx),
+					  get_seed(oid, vol), conf->tab);
 	}
-	dist_plug = current_dist_plug();
-
-	if (vol->stripe_bits) {
-		stripe_idx = offset >> vol->stripe_bits;
-		put_unaligned(cpu_to_le64(stripe_idx), &stripe_idx);
-	} else
-		stripe_idx = 0;
-
-	return dist_plug->r.lookup(&vol->aid,
-				   (const char *)&stripe_idx,
-				   sizeof(stripe_idx), get_seed(oid, vol), tab);
+	return ret;
 }
 
 u64 get_meta_subvol_id(void)
@@ -1764,14 +1764,17 @@ static int iter_find_next(reiser4_tree *tree, coord_t *coord,
  * because scanning twig level is ~1000 times faster.
  *
  * When scanning twig level we obviously miss empty files (i.e. files
- * without bodies), so every time when performing ->write(), etc.
- * regular operations we need to check volume status.
+ * without bodies). It shouldn't lead to any problems as balancing is
+ * always performed _after_ installing a new distribution table (see
+ * pre-condition below).
  *
  * NOTE: correctness of this balancing procedure (i.e. a guarantee
  * that all files will be processed) is provided by our single stupid
- * objectid allocator. If you want to add another one, then please
- * prove the correctness, or write another balancing which works for
- * that new allocator correctly.
+ * objectid allocator. If you want to add another allocator, then please
+ * prove that it makes a friendship with the balancing procedure, or
+ * write another one which works for that new allocator correctly.
+ *
+ * Pre-condition: a new volume configuration is installed.
  *
  * @sb: super-block of the volume to be balanced;
  * @force: force to run balancing on volume marked as balanced.

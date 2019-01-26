@@ -1573,20 +1573,6 @@ static int setup_delimiting_keys(cbk_handle * h/* search handle */)
 	return 0;
 }
 
-/*
- * true if @block makes sense for the @tree.
- * Used to detect corrupted node pointers
- */
-static int block_nr_is_correct(reiser4_block_nr *block, reiser4_subvol *subv)
-{
-	assert("nikita-757", block != NULL);
-	assert("nikita-758", subv != NULL);
-	/*
-	 * check to see if it exceeds the size of the device
-	 */
-	return reiser4_blocknr_is_sane_for(subv, block);
-}
-
 /* check consistency of fields */
 static int sanity_check(cbk_handle * h/* search handle */)
 {
@@ -1596,7 +1582,8 @@ static int sanity_check(cbk_handle * h/* search handle */)
 		h->error = "Buried under leaves";
 		h->result = RETERR(-EIO);
 		return LOOKUP_DONE;
-	} else if (!block_nr_is_correct(&h->block, h->tree->subvol)) {
+	} else if (!reiser4_subvol_blocknr_is_sane(h->tree->subvol,
+						   &h->block)) {
 		h->error = "bad block number";
 		h->result = RETERR(-EIO);
 		return LOOKUP_DONE;

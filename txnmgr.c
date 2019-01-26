@@ -1560,26 +1560,7 @@ int txnmgr_force_commit_all(struct super_block *super, int commit_all_atoms)
 
 		spin_unlock_atom(atom);
 	}
-#if REISER4_DEBUG
-	if (commit_all_atoms) {
-		u32 subv_id;
-		reiser4_super_info_data *sbinfo = get_super_private(super);
-		lv_conf *conf = sbinfo_conf(sbinfo);
-
-		spin_lock_reiser4_super(sbinfo);
-		for_each_mslot(conf, subv_id) {
-			reiser4_subvol *subv;
-
-			if (!conf_mslot_at(conf, subv_id))
-				continue;
-			subv = conf_origin(conf, subv_id);
-			assert("zam-813",
-			       subv->blocks_fake_allocated_unformatted == 0);
-			assert("zam-812", subv->blocks_fake_allocated == 0);
-		}
-		spin_unlock_reiser4_super(sbinfo);
-	}
-#endif
+	assert("edward-2273", reiser4_volume_fake_allocated(super) == 0);
 	spin_unlock_txnmgr(mgr);
 	return 0;
 }

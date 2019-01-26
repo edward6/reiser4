@@ -428,13 +428,6 @@ static inline lv_conf *super_conf(const struct super_block *sb)
 	return sbinfo_conf(get_super_private(sb));
 }
 
-static inline reiser4_subvol *super_mirror(struct super_block *super,
-					   u32 slot_idx, u32 mirror_id)
-{
-	assert("edward-1722", super != NULL);
-	return conf_mirror(super_conf(super), slot_idx, mirror_id);
-}
-
 static inline u32 vol_nr_origins(reiser4_volume *vol)
 {
 	return atomic_read(&vol->nr_origins);
@@ -445,10 +438,30 @@ static inline u32 sbinfo_nr_origins(reiser4_super_info_data *info)
 	return vol_nr_origins(info->vol);
 }
 
+/**
+ * Return a pointer to a subvolume.
+ * The caller should have a guarantee that subvolume will be valid
+ * while working with it.
+ */
+static inline reiser4_subvol *super_mirror(const struct super_block *super,
+					   u32 slot_idx, u32 mirror_id)
+{
+	lv_conf *conf;
+	reiser4_subvol *ret;
+	reiser4_volume *vol = super_volume(super);
+
+	rcu_read_lock();
+	conf = rcu_dereference(vol->conf);
+	ret = conf_mirror(conf, slot_idx, mirror_id);
+	rcu_read_unlock();
+
+	return ret;
+}
+
 static inline reiser4_subvol *super_origin(const struct super_block *super,
 					   u32 id)
 {
-	return conf_origin(super_conf(super), id);
+	return super_mirror(super, id, 0);
 }
 
 static inline u32 super_nr_origins(const struct super_block *super)
@@ -511,12 +524,12 @@ static inline struct distribution_plugin *current_dist_plug(void)
 static inline struct reiser4_subvol *current_mirror(u32 slot_idx,
 						    u32 mirror_id)
 {
-	return conf_mirror(current_lv_conf(), slot_idx, mirror_id);
+	return super_mirror(reiser4_get_current_sb(), slot_idx, mirror_id);
 }
 
 static inline struct reiser4_subvol *current_origin(u32 slot_idx)
 {
-	return conf_origin(current_lv_conf(), slot_idx);
+	return current_mirror(slot_idx, 0);
 }
 
 static inline u32 current_nr_origins(void)
@@ -738,6 +751,7 @@ static inline void write_unlock_tree(void)
 	__write_unlock_tree(get_current_super_private());
 }
 
+/* operations on subvolume */
 extern u64 get_meta_subvol_id(void);
 extern reiser4_subvol *get_meta_subvol(void);
 static inline reiser4_tree *meta_subvol_tree(void)
@@ -749,49 +763,35 @@ extern reiser4_subvol *calc_data_subvol(const struct inode *inode, loff_t offset
 extern reiser4_subvol *find_data_subvol(const coord_t *coord);
 
 struct file_system_type *get_reiser4_fs_type(void);
-
-extern __u64 reiser4_flush_reserved(const reiser4_subvol *);
-extern int reiser4_is_set(const struct super_block *super, reiser4_fs_flag f);
 extern long reiser4_statfs_type(const struct super_block *super);
+extern int reiser4_is_set(const struct super_block *super, reiser4_fs_flag f);
+
+extern __u64 reiser4_subvol_flush_reserved(const reiser4_subvol *);
 extern __u64 reiser4_subvol_block_count(const reiser4_subvol *);
-extern __u64 reiser4_volume_block_count(const struct super_block *);
 extern void reiser4_subvol_set_block_count(reiser4_subvol *subv, __u64 nr);
 extern __u64 reiser4_subvol_blocks_reserved(const reiser4_subvol *subv);
-extern __u64 reiser4_volume_blocks_reserved(const struct super_block *super);
 extern __u64 reiser4_subvol_used_blocks(const reiser4_subvol *);
 extern void reiser4_subvol_set_used_blocks(reiser4_subvol *, __u64 nr);
 extern __u64 reiser4_subvol_free_blocks(const reiser4_subvol *);
 extern void reiser4_subvol_set_free_blocks(reiser4_subvol *, __u64 nr);
 extern __u64 reiser4_subvol_data_room(reiser4_subvol *);
 extern void reiser4_subvol_set_data_room(reiser4_subvol *, __u64 len);
-
-extern __u64 reiser4_volume_free_blocks(const struct super_block *super);
-extern __u32 reiser4_mkfs_id(const struct super_block *super, __u32 subv_id);
 extern __u64 reiser4_subvol_free_committed_blocks(const reiser4_subvol *);
-extern __u64 reiser4_grabbed_blocks(const reiser4_subvol *);
-extern __u64 reiser4_fake_allocated(const reiser4_subvol *);
-extern __u64 reiser4_fake_allocated_unformatted(const reiser4_subvol *);
-extern __u64 reiser4_clustered_blocks(const reiser4_subvol *);
-
+extern __u64 reiser4_subvol_grabbed_blocks(const reiser4_subvol *);
+extern __u64 reiser4_subvol_fake_allocated_fmt(const reiser4_subvol *);
+extern __u64 reiser4_subvol_fake_allocated_unf(const reiser4_subvol *);
+extern __u64 reiser4_subvol_clustered_blocks(const reiser4_subvol *);
 extern long reiser4_subvol_reserved4user(const reiser4_subvol *,
 					 uid_t uid, gid_t gid);
+extern int reiser4_subvol_blocknr_is_sane(const reiser4_subvol *subv,
+					  const reiser4_block_nr *blk);
+/* operations on volume */
+extern __u64 reiser4_volume_block_count(const struct super_block *);
+extern __u64 reiser4_volume_blocks_reserved(const struct super_block *super);
+extern __u64 reiser4_volume_free_blocks(const struct super_block *super);
+extern __u64 reiser4_volume_fake_allocated(const struct super_block *sb);
 extern long reiser4_volume_reserved4user(const struct super_block *,
 					 uid_t uid, gid_t gid);
-extern reiser4_space_allocator * reiser4_get_space_allocator(reiser4_subvol *);
-extern reiser4_oid_allocator *
-reiser4_get_oid_allocator(const struct super_block *super);
-extern struct inode *reiser4_get_super_fake(const struct super_block *super);
-extern struct inode *reiser4_get_cc_fake(const struct super_block *super);
-extern struct inode *reiser4_get_bitmap_fake(const struct super_block *super);
-extern int is_reiser4_super(const struct super_block *super);
-
-extern int reiser4_blocknr_is_sane(const reiser4_subvol *subv,
-				   const reiser4_block_nr * blk);
-extern int reiser4_blocknr_is_sane_for(const reiser4_subvol *subv,
-				       const reiser4_block_nr *blk);
-extern int reiser4_done_super(struct super_block *s);
-extern int reiser4_scan_device(const char *path, fmode_t flags, void *holder,
-			       reiser4_subvol **result, reiser4_volume **host);
 extern void reiser4_volume_set_activated(struct super_block *sb);
 extern int reiser4_volume_is_activated(struct super_block *sb);
 
@@ -807,6 +807,18 @@ extern void reiser4_volume_clear_unbalanced(struct super_block *sb);
 extern int reiser4_volume_has_incomplete_op(const struct super_block *sb);
 extern void reiser4_volume_set_incomplete_op(struct super_block *sb);
 extern void reiser4_volume_clear_incomplete_op(struct super_block *sb);
+
+extern __u32 reiser4_mkfs_id(const struct super_block *super, __u32 subv_id);
+extern reiser4_space_allocator * reiser4_get_space_allocator(reiser4_subvol *);
+extern reiser4_oid_allocator *
+reiser4_get_oid_allocator(const struct super_block *super);
+extern struct inode *reiser4_get_super_fake(const struct super_block *super);
+extern struct inode *reiser4_get_cc_fake(const struct super_block *super);
+extern struct inode *reiser4_get_bitmap_fake(const struct super_block *super);
+extern int is_reiser4_super(const struct super_block *super);
+extern int reiser4_done_super(struct super_block *s);
+extern int reiser4_scan_device(const char *path, fmode_t flags, void *holder,
+			       reiser4_subvol **result, reiser4_volume **host);
 
 /* step of fill super */
 extern int reiser4_init_fs_info(struct super_block *);

@@ -18,9 +18,9 @@
 #include <linux/types.h>	/* for __u??  */
 #include <linux/fs.h>		/* for struct super_block  */
 
-static __u64 reserved_for_gid(const reiser4_subvol *subv, gid_t gid);
-static __u64 reserved_for_uid(const reiser4_subvol *subv, uid_t uid);
-static __u64 reserved_for_root(const reiser4_subvol *subv);
+static __u64 reserved_for_gid(const struct super_block *sb, gid_t gid);
+static __u64 reserved_for_uid(const struct super_block *sb, uid_t uid);
+static __u64 reserved_for_root(const struct super_block *subv);
 
 /* Return reiser4-specific part of super block */
 reiser4_super_info_data *get_super_private_nocheck(const struct super_block *super)
@@ -46,24 +46,47 @@ __u64 reiser4_subvol_block_count(const reiser4_subvol *subv)
 	return subv->block_count;
 }
 
+/**
+ * Scan mslots and collect statistics from each subvolume of a logical volume
+ */
+u64 reiser4_collect_super_stat(const struct super_block *sb,
+			       u64 (*subvol_get_stat)(const reiser4_subvol *))
+{
+	u64 slot;
+	u64 result = 0;
+
+	for (slot = 0;; slot++) {
+		u64 cnt;
+		lv_conf *conf;
+		reiser4_subvol *subv;
+
+		rcu_read_lock();
+		conf = super_conf(sb);
+
+		if (slot >= conf->nr_mslots) {
+			rcu_read_unlock();
+			break;
+		}
+		if (!conf_mslot_at(conf, slot)) {
+			rcu_read_unlock();
+			continue;
+		}
+		subv = conf_origin(conf, slot);
+		assert("edward-2272", subv != NULL);
+
+		cnt = subvol_get_stat(subv);
+		rcu_read_unlock();
+
+		result += cnt;
+	}
+	return result;
+}
+
 /* get number of blocks in logical volume */
 __u64 reiser4_volume_block_count(const struct super_block *super)
 {
-	lv_conf *conf;
-	__u32 subv_id;
-	__u64 result = 0;
-
-	assert("edward-1794", super != NULL);
-
-	conf = super_conf(super);
-
-	for_each_mslot(conf, subv_id) {
-		if (!conf_mslot_at(conf, subv_id))
-			continue;
-		result += reiser4_subvol_block_count(conf_origin(conf,
-								 subv_id));
-	}
-	return result;
+	return reiser4_collect_super_stat(super,
+					  reiser4_subvol_block_count);
 }
 
 /*
@@ -96,21 +119,8 @@ __u64 reiser4_subvol_blocks_reserved(const reiser4_subvol *subv)
 
 __u64 reiser4_volume_blocks_reserved(const struct super_block *super)
 {
-	lv_conf *conf;
-	__u32 subv_id;
-	__u64 result = 0;
-
-	assert("edward-1795", super != NULL);
-
-	conf = super_conf(super);
-
-	for_each_mslot(conf, subv_id) {
-		if (!conf_mslot_at(conf, subv_id))
-			continue;
-		result += reiser4_subvol_blocks_reserved(conf_origin(conf,
-								     subv_id));
-	}
-	return result;
+	return reiser4_collect_super_stat(super,
+					  reiser4_subvol_blocks_reserved);
 }
 
 /* amount of blocks used (allocated for data or meta-data) in subvolume */
@@ -158,22 +168,8 @@ void reiser4_subvol_set_data_room(reiser4_subvol *subv, __u64 value)
 /* amount of free blocks in logical volume */
 __u64 reiser4_volume_free_blocks(const struct super_block *super)
 {
-	lv_conf *conf;
-	__u32 subv_id;
-	__u64 result = 0;
-
-	assert("edward-1798", super != NULL);
-
-	conf = super_conf(super);
-
-	for_each_mslot(conf, subv_id) {
-		if (!conf_mslot_at(conf, subv_id))
-			continue;
-		result += reiser4_subvol_free_blocks(conf_origin(conf,
-								 subv_id));
-	}
-	return result;
-
+	return reiser4_collect_super_stat(super,
+					  reiser4_subvol_free_blocks);
 }
 
 /* get mkfs unique identifier */
@@ -189,56 +185,35 @@ __u64 reiser4_subvol_free_committed_blocks(const reiser4_subvol *subv)
 	return subv->blocks_free_committed;
 }
 
-/* amount of blocks in subvolume reserved for @uid and @gid */
-long reiser4_subvol_reserved4user(const reiser4_subvol *subv,
+/**
+ * amount of blocks reserved for @uid and @gid in a volume
+ */
+long reiser4_volume_reserved4user(const struct super_block *sb,
 				  uid_t uid, /* user id */
 				  gid_t gid  /* group id */)
 {
 	long reserved = 0;
 
-	assert("nikita-456", subv != NULL);
+	assert("nikita-456", sb != NULL);
 
 	if (REISER4_SUPPORT_GID_SPACE_RESERVATION)
-		reserved += reserved_for_gid(subv, gid);
+		reserved += reserved_for_gid(sb, gid);
 	if (REISER4_SUPPORT_UID_SPACE_RESERVATION)
-		reserved += reserved_for_uid(subv, uid);
+		reserved += reserved_for_uid(sb, uid);
 	if (REISER4_SUPPORT_ROOT_SPACE_RESERVATION && (uid == 0))
-		reserved += reserved_for_root(subv);
+		reserved += reserved_for_root(sb);
 	return reserved;
 }
 
-/* amount of blocks in volume reserved for @uid and @gid */
-long reiser4_volume_reserved4user(const struct super_block *super,
-				  uid_t uid, /* user id */
-				  gid_t gid  /* group id */)
-{
-	lv_conf *conf;
-	__u32 subv_id;
-	__u64 result = 0;
-
-	assert("edward-1799", super != NULL);
-
-	conf = super_conf(super);
-
-	for_each_mslot(conf, subv_id) {
-		if (!conf_mslot_at(conf, subv_id))
-			continue;
-		result +=
-			reiser4_subvol_reserved4user(conf_origin(conf, subv_id),
-						     uid, gid);
-	}
-	return result;
-}
-
 /* get/set value of/to grabbed blocks counter */
-__u64 reiser4_grabbed_blocks(const reiser4_subvol *subv)
+__u64 reiser4_subvol_grabbed_blocks(const reiser4_subvol *subv)
 {
 	assert("zam-512", subv != NULL);
 
 	return subv->blocks_grabbed;
 }
 
-__u64 reiser4_flush_reserved(const reiser4_subvol *subv)
+__u64 reiser4_subvol_flush_reserved(const reiser4_subvol *subv)
 {
 	assert("vpf-285", subv != NULL);
 
@@ -246,7 +221,7 @@ __u64 reiser4_flush_reserved(const reiser4_subvol *subv)
 }
 
 /* get/set value of/to counter of fake allocated formatted blocks */
-__u64 reiser4_fake_allocated(const reiser4_subvol *subv)
+__u64 reiser4_subvol_fake_allocated_fmt(const reiser4_subvol *subv)
 {
 	assert("zam-516", subv != NULL);
 
@@ -254,7 +229,7 @@ __u64 reiser4_fake_allocated(const reiser4_subvol *subv)
 }
 
 /* get/set value of/to counter of fake allocated unformatted blocks */
-__u64 reiser4_fake_allocated_unformatted(const reiser4_subvol *subv)
+__u64 reiser4_subvol_fake_allocated_unf(const reiser4_subvol *subv)
 {
 	assert("zam-516", subv != NULL);
 
@@ -262,7 +237,7 @@ __u64 reiser4_fake_allocated_unformatted(const reiser4_subvol *subv)
 }
 
 /* get/set value of/to counter of clustered blocks */
-__u64 reiser4_clustered_blocks(const reiser4_subvol *subv)
+__u64 reiser4_subvol_clustered_blocks(const reiser4_subvol *subv)
 {
 	assert("edward-601", subv != NULL);
 
@@ -311,31 +286,35 @@ int reiser4_is_set(const struct super_block *super, reiser4_fs_flag f)
 	return test_bit((int)f, &get_super_private(super)->fs_flags);
 }
 
-/* amount of blocks reserved for given group in file system */
-static __u64 reserved_for_gid(const reiser4_subvol *subv UNUSED_ARG,
-			      gid_t gid UNUSED_ARG/* group id */)
-{
-	return 0;
-}
-
-/* amount of blocks reserved for given user in file system */
-static __u64 reserved_for_uid(const reiser4_subvol *subv UNUSED_ARG,
-			      uid_t uid UNUSED_ARG/* user id */)
-{
-	return 0;
-}
-
-/* amount of blocks reserved for super user in file system */
-static __u64 reserved_for_root(const reiser4_subvol *subv UNUSED_ARG)
-{
-	return 0;
-}
-
-/*
- * true if block number @blk makes sense for the file system at @super.
+/**
+ * amount of blocks reserved for given group in file system
  */
-int reiser4_blocknr_is_sane_for(const reiser4_subvol *subv,
-				const reiser4_block_nr *blk)
+static __u64 reserved_for_gid(const struct super_block *sb, gid_t gid)
+{
+	return 0;
+}
+
+/**
+ * amount of blocks reserved for given user in file system
+ */
+static __u64 reserved_for_uid(const struct super_block *sb, uid_t uid)
+{
+	return 0;
+}
+
+/**
+ * amount of blocks reserved for super user in file system
+ */
+static __u64 reserved_for_root(const struct super_block *sb)
+{
+	return 0;
+}
+
+/**
+ * true if block number @blk makes sense for the file system at @subv.
+ */
+int reiser4_subvol_blocknr_is_sane(const reiser4_subvol *subv,
+				   const reiser4_block_nr *blk)
 {
 	assert("nikita-2957", subv != NULL);
 	assert("nikita-2958", blk != NULL);
@@ -344,6 +323,24 @@ int reiser4_blocknr_is_sane_for(const reiser4_subvol *subv,
 		return 1;
 	return *blk < reiser4_subvol_block_count(subv);
 }
+
+#if REISER4_DEBUG
+static u64 reiser4_subvol_fake_allocated(const reiser4_subvol *subv)
+{
+	return reiser4_subvol_fake_allocated_fmt(subv) +
+		reiser4_subvol_fake_allocated_unf(subv);
+}
+
+u64 reiser4_volume_fake_allocated(const struct super_block *sb)
+{
+	u64 ret;
+	spin_lock_reiser4_super(get_super_private(sb));
+	ret = reiser4_collect_super_stat(sb,
+					 reiser4_subvol_fake_allocated);
+	spin_unlock_reiser4_super(get_super_private(sb));
+	return ret;
+}
+#endif
 
 int reiser4_volume_test_set_busy(struct super_block *sb)
 {
@@ -407,8 +404,7 @@ int reiser4_volume_is_activated(struct super_block *sb)
 }
 
 /**
- * Calculate data subvolume ID by @inode and @offset,
- * by calling respective volume plugin
+ * Calculate data subvolume by @inode and @offset
  */
 reiser4_subvol *calc_data_subvol(const struct inode *inode, loff_t offset)
 {
@@ -416,7 +412,7 @@ reiser4_subvol *calc_data_subvol(const struct inode *inode, loff_t offset)
 }
 
 /**
- * Find stored value of data subvolume ID, by calling respective volume plugin
+ * Return data subvolume by its ID stored on disk
  */
 reiser4_subvol *find_data_subvol(const coord_t *coord)
 {

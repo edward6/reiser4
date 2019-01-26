@@ -42,11 +42,17 @@ int readpages_filler_generic(void *data, struct page *page, int striped);
 reiser4_subvol *calc_data_subvol_stripe(const struct inode *inode,
 					loff_t offset)
 {
-	volume_plugin *vplug = current_vol_plug();
+	reiser4_subvol *ret;
+	lv_conf *conf;
+	reiser4_volume *vol = current_volume();
 
-	return current_origin(vplug->data_subvol_id_calc(get_inode_oid(inode),
-						   offset,
-						   current_lv_conf()->tab));
+	rcu_read_lock();
+	conf = rcu_dereference(vol->conf);
+	ret = conf_origin(conf, vol->vol_plug->data_subvol_id_calc(conf,
+						    get_inode_oid(inode),
+						    offset));
+	rcu_read_unlock();
+	return ret;
 }
 
 int build_body_key_stripe(struct inode *inode, loff_t off, reiser4_key *key,

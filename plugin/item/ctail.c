@@ -1078,7 +1078,8 @@ int ctail_insert_unprepped_cluster(struct cluster_handle * clust,
 	assert("edward-1251", !result);
 	assert("edward-1252", cryptcompress_inode_ok(inode));
 	assert("edward-1253", znode_is_write_locked(clust->hint->lh.node));
-	assert("edward-1254", reiser4_clustered_blocks(get_meta_subvol()));
+	assert("edward-1254",
+	       reiser4_subvol_clustered_blocks(get_meta_subvol()) != 0);
 	assert("edward-1255",
 	       znode_convertible(clust->hint->ext_coord.coord.node));
 

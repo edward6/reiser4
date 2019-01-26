@@ -281,13 +281,14 @@ int subvol_check_block_counters(const reiser4_subvol *subv)
 {
 	__u64 sum;
 
-	sum = reiser4_grabbed_blocks(subv) +
+	sum =
+		reiser4_subvol_grabbed_blocks(subv) +
 		reiser4_subvol_free_blocks(subv) +
 		reiser4_subvol_used_blocks(subv) +
-		reiser4_fake_allocated(subv) +
-		reiser4_fake_allocated_unformatted(subv) +
-		reiser4_flush_reserved(subv) +
-		reiser4_clustered_blocks(subv);
+		reiser4_subvol_fake_allocated_fmt(subv) +
+		reiser4_subvol_fake_allocated_unf(subv) +
+		reiser4_subvol_flush_reserved(subv) +
+		reiser4_subvol_clustered_blocks(subv);
 
 	if (reiser4_subvol_block_count(subv) != sum) {
 		printk("subvol (%s) block counters: "
@@ -299,11 +300,11 @@ int subvol_check_block_counters(const reiser4_subvol *subv)
 		       subv->name,
 		       (unsigned long long)reiser4_subvol_used_blocks(subv),
 		       (unsigned long long)reiser4_subvol_free_blocks(subv),
-		       (unsigned long long)reiser4_grabbed_blocks(subv),
-		       (unsigned long long)reiser4_fake_allocated(subv),
-		       (unsigned long long)reiser4_fake_allocated_unformatted(subv),
-		       (unsigned long long)reiser4_flush_reserved(subv),
-		       (unsigned long long)reiser4_clustered_blocks(subv),
+		       (unsigned long long)reiser4_subvol_grabbed_blocks(subv),
+		       (unsigned long long)reiser4_subvol_fake_allocated_fmt(subv),
+		       (unsigned long long)reiser4_subvol_fake_allocated_unf(subv),
+		       (unsigned long long)reiser4_subvol_flush_reserved(subv),
+		       (unsigned long long)reiser4_subvol_clustered_blocks(subv),
 		       (unsigned long long)sum,
 		       (unsigned long long)reiser4_subvol_block_count(subv));
 		return 0;
