@@ -320,7 +320,7 @@ int reiser4_update_file_size(struct inode *, loff_t, int update_sd);
 int reserve_cut_iteration(struct inode *inode);
 int reserve_partial_page(struct inode *inode, pgoff_t index);
 int reserve_write_extent(struct inode *inode, loff_t offset, int count);
-
+int reserve_write_begin_generic(const struct inode *inode, pgoff_t index);
 int reserve_capture_anon_page(struct page *page);
 int cut_file_items(struct inode *, loff_t new_size,
 		   int update_sd, loff_t cur_size,

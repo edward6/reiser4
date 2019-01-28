@@ -2847,8 +2847,7 @@ int do_write_begin_generic(struct file *file, struct page *page,
  * @inode: object that the page belongs to;
  * @index: index of the page.
  */
-static int reserve_write_begin_unix_file(const struct inode *inode,
-					 pgoff_t index)
+int reserve_write_begin_generic(const struct inode *inode, pgoff_t index)
 {
 	int ret;
 	reiser4_subvol *subv_m = get_meta_subvol();
@@ -2878,7 +2877,7 @@ int write_begin_unix_file(struct file *file, struct page *page,
 	inode = file_inode(file);
 	info = unix_file_inode_data(inode);
 
-	ret = reserve_write_begin_unix_file(inode, page->index);
+	ret = reserve_write_begin_generic(inode, page->index);
 	if (ret)
 		return ret;
 	get_exclusive_access(info);

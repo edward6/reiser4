@@ -366,9 +366,7 @@ static int reserve_cryptcompress2unixfile(struct inode *inode)
 {
 	int ret;
 	reiser4_block_nr num_unformatted = cluster_nrpages(inode);
-	reiser4_subvol *subv_d = calc_data_subvol(inode, 0);
-	reiser4_subvol *subv_m = get_meta_subvol();
-	reiser4_tree *tree_m = &subv_m->tree;
+	reiser4_subvol *subv = get_meta_subvol();
 	/*
 	 * space required for one iteration of extent->tail conversion:
 	 *
@@ -386,20 +384,19 @@ static int reserve_cryptcompress2unixfile(struct inode *inode)
 	 * reserve for 2
 	 */
 	grab_space_enable();
-	ret = reiser4_grab_space(num_unformatted, BA_CAN_COMMIT, subv_d);
+	ret = reiser4_grab_space(num_unformatted, BA_CAN_COMMIT, subv);
 	if (ret)
 		return ret;
 	/*
 	 * reserve for 1,3,4,5
 	 */
 	grab_space_enable();
-	ret = reiser4_grab_space(2 * tree_m->height +
+	ret = reiser4_grab_space(2 * subv->tree.height +
 			       num_unformatted *
-			       estimate_one_insert_into_item(tree_m) +
-			       1 + estimate_one_insert_item(tree_m) +
+			       estimate_one_insert_into_item(&subv->tree) +
+			       1 + estimate_one_insert_item(&subv->tree) +
 			       inode_file_plugin(inode)->estimate.update(inode),
-			       BA_CAN_COMMIT,
-			       subv_m);
+			       BA_CAN_COMMIT, subv);
 	return ret;
 }
 

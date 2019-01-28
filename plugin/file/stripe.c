@@ -732,31 +732,6 @@ int ioctl_stripe(struct file *filp, unsigned int cmd,
 }
 
 /**
- * Estimate and reserve disk space needed for write_end_stripe():
- * one block for page itself, and one item insertion which may
- * happen if page corresponds to hole extent and unallocated one
- * will have to be created.
- * @inode: object that the page belongs to;
- * @index: index of the page.
- */
-static int reserve_write_begin_stripe(const struct inode *inode,
-				      pgoff_t index)
-{
-	int ret;
-	reiser4_subvol *subv_m = get_meta_subvol();
-	reiser4_subvol *subv_d = calc_data_subvol(inode,
-						  index << PAGE_SHIFT);
-	grab_space_enable();
-	ret = reiser4_grab_space(1, BA_CAN_COMMIT, subv_d);
-	if (ret)
-		return ret;
-	grab_space_enable();
-	ret = reiser4_grab_space(estimate_one_insert_into_item(&subv_m->tree),
-				 BA_CAN_COMMIT, subv_m);
-	return ret;
-}
-
-/**
  * implementation of ->write_begin() address space operation
  * for striped-file plugin
  */
@@ -770,7 +745,7 @@ int write_begin_stripe(struct file *file, struct page *page,
 	inode = file_inode(file);
 	info = unix_file_inode_data(inode);
 
-	ret = reserve_write_begin_stripe(inode, page->index);
+	ret = reserve_write_begin_generic(inode, page->index);
 	if (ret)
 		return ret;
 	get_exclusive_access(info);
