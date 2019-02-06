@@ -757,11 +757,16 @@ static int __init init_reiser4(void)
 	if ((result = ctx_brick_info_init_static()) != 0)
 		goto failed_init_ctx_brick_info;
 
+	/* initialize cache of ctx_stack_info */
+	if ((result = ctx_stack_info_init_static()) != 0)
+		goto failed_init_ctx_stack_info;
+
 	if ((result = register_filesystem(&reiser4_fs_type)) == 0) {
 		reiser4_debugfs_root = debugfs_create_dir("reiser4", NULL);
 		return 0;
 	}
-
+	ctx_stack_info_done_static();
+ failed_init_ctx_stack_info:
 	ctx_brick_info_done_static();
  failed_init_ctx_brick_info:
 	blocknr_list_done_static();
@@ -803,6 +808,8 @@ static void __exit done_reiser4(void)
 	debugfs_remove(reiser4_debugfs_root);
 	result = unregister_filesystem(&reiser4_fs_type);
 	BUG_ON(result != 0);
+	ctx_stack_info_done_static();
+	ctx_brick_info_done_static();
 	blocknr_list_done_static();
 	blocknr_set_done_static();
 	reiser4_done_d_cursor();

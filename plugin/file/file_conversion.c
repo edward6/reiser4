@@ -440,7 +440,7 @@ static int cryptcompress2unixfile(struct file *file, struct inode *inode,
 		assert("edward-1519", cont->pages[i]);
 		assert("edward-1520", PageUptodate(cont->pages[i]));
 
-		result = find_or_create_extent_uf(cont->pages[i]);
+		result = find_or_create_extent_uf(cont->pages[i], 0);
 		if (result)
 			break;
 	}

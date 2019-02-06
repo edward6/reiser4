@@ -335,12 +335,26 @@ static int find_file_state(struct inode *inode, struct unix_file_info *uf_info)
 }
 
 /**
+ * Set data subvolume to current context.
+ * Grab one data block from the reserved area on that subvolume.
+ */
+static int grab_data_block_reserved(reiser4_subvol *data_subv)
+{
+	set_current_data_subvol(data_subv);
+	grab_space_enable();
+	return reiser4_grab_reserved(reiser4_get_current_sb(),
+				     1, BA_CAN_COMMIT, data_subv);
+}
+
+/**
  * Estimate and reserve space needed to truncate page
- * which gets partially truncated: one block for page
- * itself, stat-data update (estimate_one_insert_into_item)
- * and one item insertion (estimate_one_insert_into_item)
- * which may happen if page corresponds to hole extent and
- * unallocated one will have to be created.
+ * which gets partially truncated:
+ * 1) one block for page itself;
+ * 2) stat-data update (estimate_one_insert_into_item);
+ * 3) one item insertion (estimate_one_insert_into_item)
+ *    which may happen if page corresponds to hole extent
+ *    and unallocated one will have to be created.
+ *
  * @inode: object that the partial page belongs to;
  * @index: index of the partial page.
  */
@@ -348,14 +362,16 @@ int reserve_partial_page(struct inode *inode, pgoff_t index)
 {
 	int ret;
 	reiser4_subvol *subv_m = get_meta_subvol();
-	reiser4_subvol *subv_d = calc_data_subvol(inode,
-						 index << PAGE_SHIFT);
-	grab_space_enable();
-	ret = reiser4_grab_reserved(reiser4_get_current_sb(),
-				    1,
-				    BA_CAN_COMMIT, subv_d);
+	reiser4_subvol *subv_d = calc_data_subvol(inode, index << PAGE_SHIFT);
+	/*
+	 * reserve space for (1)
+	 */
+	ret = grab_data_block_reserved(subv_d);
 	if (ret)
 		return ret;
+	/*
+	 * reserve space for (2),(3)
+	 */
 	grab_space_enable();
 	ret = reiser4_grab_reserved(reiser4_get_current_sb(),
 				   2 *
@@ -558,7 +574,7 @@ static int shorten_file(struct inode *inode, loff_t new_size)
 	 * if page correspons to hole extent unit - unallocated one will be
 	 * created here. This is not necessary
 	 */
-	result = find_or_create_extent_uf(page);
+	result = find_or_create_extent_uf(page, 1 /* truncate */);
 
 	/*
 	 * FIXME: cut_file_items has already updated inode. Probably it would
@@ -814,7 +830,7 @@ static int hint_validate(hint_t *hint, reiser4_tree *tree,
  * call extent's writepage method to create unallocated extent if
  * it does not exist yet, initialize jnode, capture page
  */
-int find_or_create_extent_generic(struct page *page,
+int find_or_create_extent_generic(struct page *page, int truncate,
 				  int(*update_extent_fn)(struct inode *,
 							 jnode *node,
 							 loff_t pos,
@@ -842,6 +858,31 @@ int find_or_create_extent_generic(struct page *page,
 		plugged_hole = 0;
 		result = update_extent_fn(inode, node, page_offset(page),
 					  &plugged_hole);
+		if (result == -EAGAIN) {
+			/*
+			 * data blocks reservation was invalidated by a
+			 * concurent volume operation (add/remove/etc brick).
+			 * Repeat reservation and call update_fn() again.
+			 */
+			reiser4_subvol *dsubv;
+
+			dsubv = calc_data_subvol(inode, page_offset(page));
+
+			if (truncate) {
+				/* grab from reserved area */
+				assert("edward-2275",
+				       get_current_super_private()->
+				       delete_mutex_owner == current);
+
+				result = grab_data_block_reserved(dsubv);
+			} else
+				/* grab by regular way */
+				result = grab_data_blocks(dsubv, 1);
+			if (!result)
+				result = update_extent_fn(inode, node,
+							  page_offset(page),
+							  &plugged_hole);
+		}
 		if (result) {
  			JF_CLR(node, JNODE_WRITE_PREPARED);
 			jput(node);
@@ -862,8 +903,10 @@ int find_or_create_extent_generic(struct page *page,
 
 		result = check_insert_atom_brick_info(node->subvol->id,
 						      &abi);
-		if (result)
+		if (result) {
+			jput(node);
 			return result;
+		}
 		spin_lock_jnode(node);
 		jnode_make_dirty_locked(node);
 		spin_unlock_jnode(node);
@@ -883,9 +926,10 @@ int find_or_create_extent_generic(struct page *page,
 	return 0;
 }
 
-int find_or_create_extent_uf(struct page *page)
+int find_or_create_extent_uf(struct page *page, int truncate)
 {
-	return find_or_create_extent_generic(page, update_extent_uf);
+	return find_or_create_extent_generic(page, truncate,
+					     update_extent_uf);
 }
 
 /**
@@ -913,15 +957,24 @@ static int has_anonymous_pages(struct inode *inode)
  */
 int reserve_capture_anon_page(struct page *page)
 {
-	reiser4_subvol *subv = get_meta_subvol();
+	int ret;
+	reiser4_subvol *msubv = get_meta_subvol();
+	reiser4_subvol *dsubv = calc_data_subvol(page->mapping->host,
+						 page_offset(page));
+	/*
+	 * grab disk space for the page itself
+	 */
+	ret = grab_data_blocks(dsubv, 1);
+	if (ret)
+		return ret;
 	/*
 	 * page capture may require extent creation (if it does not exist yet)
 	 * and stat data's update (number of blocks changes on extent creation)
 	 */
 	grab_space_enable();
 	return reiser4_grab_space(2 *
-				  estimate_one_insert_into_item(&subv->tree),
-				  BA_CAN_COMMIT, subv);
+				  estimate_one_insert_into_item(&msubv->tree),
+				  BA_CAN_COMMIT, msubv);
 }
 
 /*
@@ -974,7 +1027,7 @@ static int capture_anon_page(struct page *page)
 	ret = reserve_capture_anon_page(page);
 	if (ret)
 		return ret;
-	ret = find_or_create_extent_uf(page);
+	ret = find_or_create_extent_uf(page, 0);
 	if (ret) {
 		SetPageError(page);
 		warning("nikita-3329",
@@ -2853,8 +2906,8 @@ int reserve_write_begin_generic(const struct inode *inode, pgoff_t index)
 	reiser4_subvol *subv_m = get_meta_subvol();
 	reiser4_subvol *subv_d = calc_data_subvol(inode,
 						  index << PAGE_SHIFT);
-	grab_space_enable();
-	ret = reiser4_grab_space(1, BA_CAN_COMMIT, subv_d);
+
+	ret = grab_data_blocks(subv_d, 1);
 	if (ret)
 		return ret;
 	grab_space_enable();
@@ -2905,7 +2958,8 @@ int write_begin_unix_file(struct file *file, struct page *page,
 
 int reiser4_write_end_generic(struct file *file, struct page *page,
 			      loff_t pos, unsigned copied, void *fsdata,
-			      int(*find_or_create_extent_fn)(struct page *))
+			      int(*find_or_create_extent_fn)(struct page *,
+							     int truncate))
 {
 	int ret;
 	struct inode *inode;
@@ -2915,7 +2969,7 @@ int reiser4_write_end_generic(struct file *file, struct page *page,
 	info = unix_file_inode_data(inode);
 
 	unlock_page(page);
-	ret = find_or_create_extent_fn(page);
+	ret = find_or_create_extent_fn(page, 0);
 	if (ret) {
 		SetPageError(page);
 		goto exit;

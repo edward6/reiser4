@@ -318,6 +318,7 @@ void reiser4_unset_hint(hint_t *);
 int reiser4_sync_page_list(struct inode *inode);
 int reiser4_update_file_size(struct inode *, loff_t, int update_sd);
 int reserve_cut_iteration(struct inode *inode);
+int grab_data_blocks(reiser4_subvol *data_subv, int count);
 int reserve_partial_page(struct inode *inode, pgoff_t index);
 int reserve_write_extent(struct inode *inode, loff_t offset, int count);
 int reserve_write_begin_generic(const struct inode *inode, pgoff_t index);
@@ -344,12 +345,12 @@ int tail2extent(struct unix_file_info *);
 int extent2tail(struct file *, struct unix_file_info *);
 
 int goto_right_neighbor(coord_t *, lock_handle *);
-int find_or_create_extent_generic(struct page *page,
+int find_or_create_extent_generic(struct page *page, int truncate,
 				  int(*update_extent_fn)(struct inode *,
 							 jnode *node,
 							 loff_t pos,
 							 int *plugged_hole));
-int find_or_create_extent_uf(struct page *);
+int find_or_create_extent_uf(struct page *, int truncate);
 int reiser4_setattr_generic(struct dentry *dentry, struct iattr *attr,
 			    int (*truncate_file_body_fn)(struct inode *,
 							 struct iattr *));
@@ -363,7 +364,8 @@ int do_write_begin_generic(struct file *file, struct page *page,
 			   int(*readpage_fn)(struct file *, struct page *));
 int reiser4_write_end_generic(struct file *file, struct page *page,
 			      loff_t pos, unsigned copied, void *fsdata,
-			      int(*find_or_create_extent_fn)(struct page *));
+			      int(*find_or_create_extent_fn)(struct page *,
+							     int truncate));
 int equal_to_ldk(znode *, const reiser4_key *);
 
 void init_uf_coord(uf_coord_t *uf_coord, lock_handle *lh);

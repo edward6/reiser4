@@ -809,6 +809,60 @@ static int overwrite_extent_unix_file(struct inode *inode, uf_coord_t *uf_coord,
 					overwrite_one_block_unix_file);
 }
 
+/**
+ * Return pointer to data subvolume which is set at the top
+ * of context stack info
+ */
+reiser4_subvol *get_current_data_subvol(void)
+{
+	return get_current_csi()->data_subv;
+}
+
+/**
+ * Set the pointer to data subvolume at the top of context stack info
+ */
+void set_current_data_subvol(reiser4_subvol *subv)
+{
+	assert("edward-2285", get_current_data_subvol() == NULL);
+
+	get_current_csi()->data_subv = subv;
+}
+
+/**
+ * Unset the pointer to data subvolume at the top of context stack info
+ */
+void unset_current_data_subvol(void)
+{
+	assert("edward-2286", get_current_data_subvol() != NULL);
+
+	get_current_csi()->data_subv = NULL;
+}
+
+/**
+ * Set a data subvolume by @inode and @offset.
+ * Reserve @count blocks on that subvolume by a regular way.
+ */
+int grab_data_blocks(reiser4_subvol *dsubv, int count)
+{
+	set_current_data_subvol(dsubv);
+	grab_space_enable();
+	return reiser4_grab_space(count, BA_CAN_COMMIT, dsubv);
+}
+
+/**
+ * Validate disk space reservation for data
+ * for files managed by unix-file plugin.
+ */
+static int validate_data_reservation_uf(void)
+{
+	assert("edward-2277", get_current_data_subvol() == get_meta_subvol());
+	/*
+	 * for unix files data reservation is always valid
+	 * because it is always performed on meta-data subvolume
+	 */
+	return 0;
+}
+
 int update_extent_uf(struct inode *inode, jnode *node, loff_t pos,
 		     int *plugged_hole)
 {
@@ -831,6 +885,7 @@ int update_extent_uf(struct inode *inode, jnode *node, loff_t pos,
 		assert("", reiser4_lock_counters()->d_refs == 0);
 		return result;
 	}
+	validate_data_reservation_uf();
 
 	result = zload(coord->node);
 	BUG_ON(result != 0);
@@ -838,8 +893,7 @@ int update_extent_uf(struct inode *inode, jnode *node, loff_t pos,
 
 	if (coord->between == AFTER_UNIT) {
 		/*
-		 * append existing extent item with unallocated extent of width
-		 * nr_jnodes
+		 * append existing extent item with unallocated extent
 		 */
 		init_coord_extension_extent(&uf_coord,
 					    get_key_offset(&key));
@@ -847,9 +901,9 @@ int update_extent_uf(struct inode *inode, jnode *node, loff_t pos,
 						      &key, &node, 1);
 	} else if (coord->between == AT_UNIT) {
 		/*
-		 * overwrite
-		 * not optimal yet. Will be optimized if new write will show
-		 * performance win.
+		 * overwrite existing extent
+		 * FIXME: not optimal yet. Will be optimized if new
+		 * write will show performance win.
 		 */
 		init_coord_extension_extent(&uf_coord,
 					    get_key_offset(&key));
@@ -857,9 +911,9 @@ int update_extent_uf(struct inode *inode, jnode *node, loff_t pos,
 						    &node, 1, plugged_hole);
 	} else {
 		/*
-		 * there are no items of this file in the tree yet. Create
-		 * first item of the file inserting one unallocated extent of
-		 * width nr_jnodes
+		 * there are no items of this file in the tree yet.
+		 * Create first item of the file inserting one
+		 * unallocated extent
 		 */
 		result = insert_first_extent_unix_file(&uf_coord, &key,
 						       &node, 1, inode);
@@ -868,6 +922,7 @@ int update_extent_uf(struct inode *inode, jnode *node, loff_t pos,
 
 	zrelse(loaded);
 	done_lh(&lh);
+	unset_current_data_subvol();
 	assert("edward-2049", reiser4_lock_counters()->d_refs == 0);
 
 	return (result == 1) ? 0 : result;
@@ -899,6 +954,7 @@ static int update_extents_unix_file(struct file *file, struct inode *inode,
 			assert("", reiser4_lock_counters()->d_refs == 0);
 			return result;
 		}
+		validate_data_reservation_uf();
 
 		result = zload(hint.ext_coord.coord.node);
 		BUG_ON(result != 0);
@@ -967,17 +1023,16 @@ static int update_extents_unix_file(struct file *file, struct inode *inode,
 	} while (count > 0);
 
 	save_file_hint(file, &hint);
+	unset_current_data_subvol();
 	assert("", reiser4_lock_counters()->d_refs == 0);
 	return result;
 }
 
 /**
- * write_extent_reserve_space - reserve space for extent write operation
+ * Estimate and reserve space for extent write operation
  * @inode: inode of the file to write to;
- * @offset: write position.
- *
- * Estimates and reserves space which may be required for writing
- * reiser4_write_granularity() pages of file.
+ * @offset: write position;
+ * @count: number of written pages.
  */
 int reserve_write_extent(struct inode *inode, loff_t offset, int count)
 {
@@ -989,30 +1044,33 @@ int reserve_write_extent(struct inode *inode, loff_t offset, int count)
 	 * to write @count pages to a file by extents we have to reserve disk
 	 * space for:
 	 *
-	 * 1. find_file_item may have to insert empty node to the tree (empty
-	 * leaf node between two extent items). This requires:
-	 * (a) 1 block;
-	 * (b) number of blocks which are necessary to perform insertion of an
-	 * internal item into twig level.
-	 * 2. for each of written pages there might be needed 1 block and
-	 * number of blocks which might be necessary to perform insertion of or
+	 * 1. find_file_item() may have to insert empty node to the tree
+	 * (empty leaf node between two extent items). This requires:
+	 * (a) 1 block for the leaf node;
+	 * (b) number of formatted blocks which are necessary to perform
+	 * insertion of an internal item into twig level.
+	 *
+	 * 2. for each of written pages there might be needed:
+	 * (a) 1 unformatted block for the page itself;
+	 * (b) number of blocks which might be necessary to insert or
 	 * paste to an extent item.
 	 *
 	 * 3. stat data update
-	 *
-	 * reserve space for 1(a)
 	 */
-	grab_space_enable();
-	ret = reiser4_grab_space(count, 0, subv_d);
+
+	/*
+	 * reserve space for 2(a).
+	 */
+	ret = grab_data_blocks(subv_d, count);
 	if (ret)
 		return ret;
 	/*
-	 * reserve space for 1(b), 2, 3
+	 * reserve space for 1,2(b),3.
 	 */
 	grab_space_enable();
 	ret = reiser4_grab_space(estimate_one_insert_item(tree_m) +
 		     count * estimate_one_insert_into_item(tree_m) +
-		     estimate_one_insert_item(tree_m), 0, subv_m);
+		     estimate_one_insert_item(tree_m), BA_CAN_COMMIT, subv_m);
 	return ret;
 }
 
@@ -1074,7 +1132,7 @@ ssize_t write_extent_generic(struct file *file, struct inode *inode,
 		return RETERR(-ENOSPC);
 
 	if (count == 0) {
-		/* truncate case */
+		/* case of expanding truncate */
 		update_fn(file, inode, jnodes, 0, *pos);
 		return 0;
 	}
@@ -1174,11 +1232,30 @@ ssize_t write_extent_generic(struct file *file, struct inode *inode,
 		left -= to_page;
 		BUG_ON(get_current_context()->trans->atom != NULL);
 	}
-	if (have_to_update_extent)
-		update_fn(file, inode, jnodes, nr_dirty, *pos);
-	else {
+	if (have_to_update_extent) {
+		result = update_fn(file, inode, jnodes, nr_dirty, *pos);
+		if (result == -EAGAIN) {
+			/*
+			 * data blocks reservation was invalidated by a
+			 * concurent volume operation (add/remove/etc brick).
+			 * Repeat reservation and call update_fn() again.
+			 */
+			result = grab_data_blocks(calc_data_subvol(inode, *pos),
+						  nr_dirty);
+			if (result)
+				goto out;
+			result = update_fn(file, inode, jnodes, nr_dirty, *pos);
+		}
+		assert("edward-2278", result >= 0);
+		if (result < 0)
+			goto out;
+	} else {
+		/*
+		 * the hint about data subvolume is not needed
+		 */
+		unset_current_data_subvol();
+
 		for (i = 0; i < nr_dirty; i ++) {
-			int ret;
 			struct atom_brick_info *abi;
 			/*
 			 * update_fn() had to set subvolume
@@ -1186,15 +1263,15 @@ ssize_t write_extent_generic(struct file *file, struct inode *inode,
 			assert("edward-1983", jnodes[i]->subvol != NULL);
 
 			spin_lock_jnode(jnodes[i]);
-			ret = reiser4_try_capture(jnodes[i],
+			result = reiser4_try_capture(jnodes[i],
 						     ZNODE_WRITE_LOCK, 0);
 			spin_unlock_jnode(jnodes[i]);
-			BUG_ON(ret != 0);
+			BUG_ON(result != 0);
 
-			ret = check_insert_atom_brick_info(jnodes[i]->subvol->id,
-							   &abi);
-			if (ret)
-				return ret;
+			result = check_insert_atom_brick_info(jnodes[i]->subvol->id,
+							     &abi);
+			if (result)
+				goto out;
 			spin_lock_jnode(jnodes[i]);
 			jnode_make_dirty_locked(jnodes[i]);
 			spin_unlock_jnode(jnodes[i]);

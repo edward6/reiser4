@@ -93,23 +93,24 @@ static int reserve_migrate_one_block(struct inode *inode, u32 where)
 	 *
 	 * 1. find_file_item may have to insert empty node to the tree (empty
 	 * leaf node between two extent items). This requires:
-	 * (a) 1 block;
+	 * (a) 1 block for that leaf node;
 	 * (b) number of blocks which are necessary to perform insertion of an
 	 * internal item into twig level.
-	 * 2. for each of written pages there might be needed 1 block and
-	 * number of blocks which might be necessary to perform insertion of or
-	 * paste to an extent item.
-	 *
+	 * 2. for each of written pages there might be needed:
+	 * (a) 1 block for the page itself
+	 * (b) number of blocks which might be necessary to perform insertion
+	 * of or paste to an extent item.
 	 * 3. stat data update
 	 *
-	 * reserve space for 1(a)
+	 * reserve space for 2(a)
 	 */
+	set_current_data_subvol(subv_d);
 	grab_space_enable();
 	ret = reiser4_grab_space(1, 0, subv_d);
 	if (ret)
 		return ret;
 	/*
-	 * reserve space for 1(b), 2, 3
+	 * reserve space for 1, 2(b), 3
 	 */
 	grab_space_enable();
 	ret = reiser4_grab_space(estimate_one_insert_item(tree_m) +
@@ -198,7 +199,7 @@ static int migrate_one_block(struct extent_migrate_context *mctx)
 	 * create a pointer to the orphan unallocated unformatted
 	 * block at the new location. It will be performed as hole
 	 * plugging operation, see plug_hole_stripe() - our jnode
-	 * will be captures and made dirty. At flush time our block
+	 * will be captured and made dirty. At flush time our block
 	 * will get new location on the new brick.
 	 */
 	assert("edward-2127",

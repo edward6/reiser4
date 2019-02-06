@@ -19,6 +19,21 @@
 #include <linux/rbtree.h>
 
 /*
+ * Info specific for a child (stack element)
+ */
+struct ctx_stack_info {
+	struct ctx_stack_info *next; /* pointer to the next element
+					in the stack */
+	reiser4_subvol *data_subv; /* This is a hint for update_extents(s).
+				      Set by set_current_data_subvol().
+				      Check by validate_data_reservation().
+				      Unset by unset_current_data_subvol()
+				      as soon as it is not needed.
+				   */
+	/* put here other info specific for reiser4 context nesting level */
+};
+
+/*
  * Brick-specific part of context
  */
 struct ctx_brick_info {
@@ -99,11 +114,19 @@ struct reiser4_context {
 #endif
 	void *vp;
 	gfp_t gfp_mask;
+	struct ctx_stack_info csi; /* "stackable" part of context. It grows when
+				      we enter and shorten when we exit context.
+				      This points to the "top" of the stack */
 };
 
 extern reiser4_context *get_context_by_lock_stack(lock_stack *);
 extern int ctx_brick_info_init_static(void);
 extern void ctx_brick_info_done_static(void);
+extern int ctx_stack_info_init_static(void);
+extern void ctx_stack_info_done_static(void);
+extern reiser4_subvol *get_current_data_subvol(void);
+extern void set_current_data_subvol(reiser4_subvol *subv);
+extern void unset_current_data_subvol(void);
 extern struct ctx_brick_info *find_context_brick_info(reiser4_context *ctx,
 						      u32 brick_id);
 extern int insert_context_brick_info(reiser4_context *ctx,
@@ -171,6 +194,11 @@ static inline reiser4_context *get_current_context(void);	/* __attribute__((cons
 static inline reiser4_context *get_current_context(void)
 {
 	return get_context(current);
+}
+
+static inline struct ctx_stack_info *get_current_csi(void)
+{
+	return &get_context(current)->csi;
 }
 
 static inline gfp_t reiser4_ctx_gfp_mask_get(void)

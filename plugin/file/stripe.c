@@ -497,9 +497,10 @@ static int cut_file_items_stripe(struct inode *inode, loff_t new_size,
 	return ret;
 }
 
-int find_or_create_extent_stripe(struct page *page)
+static int find_or_create_extent_stripe(struct page *page, int truncate)
 {
-	return find_or_create_extent_generic(page, update_extent_stripe);
+	return find_or_create_extent_generic(page, truncate,
+					     update_extent_stripe);
 }
 
 static int shorten_stripe(struct inode *inode, loff_t new_size)
@@ -563,7 +564,7 @@ static int shorten_stripe(struct inode *inode, loff_t new_size)
 	assert("edward-2036", PageLocked(page));
 	zero_user_segment(page, padd_from, PAGE_SIZE);
 	unlock_page(page);
-	result = find_or_create_extent_stripe(page);
+	result = find_or_create_extent_stripe(page, 1 /* truncate */);
 	put_page(page);
 	/*
 	 * the below does up(sbinfo->delete_mutex).
@@ -676,7 +677,7 @@ static int capture_anon_page(struct page *page)
 	ret = reserve_write_extent(inode, page_offset(page), 1);
 	if (ret)
 		return ret;
-	ret = find_or_create_extent_stripe(page);
+	ret = find_or_create_extent_stripe(page, 0);
 	if (ret) {
 		SetPageError(page);
 		warning("edward-2046",

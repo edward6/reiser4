@@ -490,6 +490,33 @@ static int overwrite_extent_stripe(struct inode *inode, uf_coord_t *uf_coord,
 					overwrite_one_block_stripe);
 }
 
+/**
+ * Check that data reservation is still valid.
+ *
+ * Pre-condition: lognterm lock is held at the position
+ * where the extent(s) are supposed to be updated.
+ * If reservation is valid, then return 0.
+ * Otherwise, return -EAGAIN.
+ */
+static int validate_data_reservation_stripe(struct inode *inode, loff_t pos)
+{
+	assert("edward-2279", get_current_csi()->data_subv != NULL);
+
+	if (get_current_csi()->data_subv != calc_data_subvol(inode, pos)) {
+		/*
+		 * disk space reservation has become invalid
+		 * because volume configuratin was changed by a
+		 * concurent volume operation (add/remove/etc
+		 * brick), so we need to perform reservation
+		 * once again for the new configuration
+		 */
+		notice("edward-2280", "Data reservation became invalid");
+		get_current_csi()->data_subv = NULL;
+		return -EAGAIN;
+	}
+	return 0;
+}
+
 /*
  * update body of a striped file on write or expanding truncate operations
  */
@@ -506,7 +533,7 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 		 */
 		pos = (loff_t)index_jnode(jnodes[0]) << PAGE_SHIFT;
 
-	build_body_key_stripe(inode, pos, &key, WRITE_OP);
+	build_body_key_stripe(inode, pos, &key, READ_OP);
 	do {
 		znode *loaded;
 		const char *error;
@@ -515,7 +542,17 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 					       hint->ext_coord.lh, &key,
 					       ZNODE_WRITE_LOCK, inode);
 		if (IS_CBKERR(result))
+			return -EIO;
+
+		result = validate_data_reservation_stripe(inode, pos);
+		if (result) {
+			done_lh(hint->ext_coord.lh);
 			return result;
+		}
+		assert("edward-2284", get_current_data_subvol() != NULL);
+
+		/* make key precise */
+		set_key_ordering(&key, get_current_data_subvol()->id);
 
 		result = zload(hint->ext_coord.coord.node);
 		BUG_ON(result != 0);
@@ -532,24 +569,23 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 							 &hint->ext_coord,
 							 &key, jnodes, count,
 							 plugged_hole);
-		//check_node(hint->ext_coord.lh->node);
-
-		zload(hint->ext_coord.lh->node);
-		assert("edward-2105",
-		       check_node40(hint->ext_coord.lh->node,
-				    REISER4_NODE_TREE_STABLE, &error) == 0);
-		zrelse(hint->ext_coord.lh->node);
-
 		zrelse(loaded);
 		if (result < 0) {
 			done_lh(hint->ext_coord.lh);
 			break;
 		}
+#if REISER4_DEBUG
+		zload(hint->ext_coord.lh->node);
+		assert("edward-2105",
+		       check_node40(hint->ext_coord.lh->node,
+				    REISER4_NODE_TREE_STABLE, &error) == 0);
+		zrelse(hint->ext_coord.lh->node);
+#endif
 		jnodes += result;
 		count -= result;
 		pos += result * PAGE_SIZE;
 
-		build_body_key_stripe(inode, pos, &key, WRITE_OP);
+		set_key_offset(&key, pos);
 		/*
 		 * seal and unlock znode
 		 */
@@ -566,6 +602,7 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 			INODE_SET_FIELD(inode, i_size, pos);
 	} while (count > 0);
 
+	unset_current_data_subvol();
 	return result;
 }
 
