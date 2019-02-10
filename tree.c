@@ -1094,9 +1094,9 @@ prepare_twig_kill(carry_kill_data * kdata, znode * locked_left_neighbor)
 	assert("umka-326", from != NULL);
 	assert("umka-327", kdata->params.to != NULL);
 
-	/* for one extent item only yet */
 	assert("vs-591", item_is_extent(from));
-	assert("vs-592", from->item_pos == kdata->params.to->item_pos);
+	assert("vs-592", ergo(item_id_by_coord(from) == EXTENT40_POINTER_ID,
+			      from->item_pos == kdata->params.to->item_pos));
 
 	if ((kdata->params.from_key
 	     && keygt(kdata->params.from_key, item_key_by_coord(from, &key)))

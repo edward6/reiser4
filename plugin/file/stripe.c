@@ -379,120 +379,165 @@ int readpage_stripe(struct file *file, struct page *page)
 	return result;
 }
 
+#define CUT_TREE_MIN_ITERATIONS 64
+
+int cut_tree_worker_stripe(tap_t *tap, const reiser4_key *from_key,
+			   const reiser4_key *to_key,
+			   reiser4_key *smallest_removed, struct inode *object,
+			   int truncate, int *progress)
+{
+	int ret;
+	coord_t left_coord;
+	reiser4_key left_key;
+	reiser4_key right_key;
+	lock_handle next_node_lock;
+
+	assert("edward-2287", tap->coord->node != NULL);
+	assert("edward-2288", znode_is_write_locked(tap->coord->node));
+
+	*progress = 0;
+	init_lh(&next_node_lock);
+
+	while (1) {
+		znode *node = tap->coord->node;
+
+		ret = reiser4_get_left_neighbor(&next_node_lock, node,
+						ZNODE_WRITE_LOCK,
+						GN_CAN_USE_UPPER_LEVELS);
+		if (ret != 0 && ret != -E_NO_NEIGHBOR)
+			break;
+		ret = reiser4_tap_load(tap);
+		if (ret)
+			break;
+		if (*progress)
+			/* prepare right point */
+			coord_init_last_unit(tap->coord, node);
+		/* prepare left point */
+		ret = node_plugin_by_node(node)->lookup(node, from_key,
+							FIND_MAX_NOT_MORE_THAN,
+							&left_coord);
+		if (IS_CBKERR(ret))
+			break;
+		/*
+		 * adjust coordinates so that they are set to existing units
+		 */
+		if (coord_set_to_right(&left_coord) ||
+		    coord_set_to_left(tap->coord)) {
+			ret = CBK_COORD_NOTFOUND;
+			break;
+		}
+		if (coord_compare(&left_coord, tap->coord) ==
+		    COORD_CMP_ON_RIGHT) {
+			/* no keys of [from_key, @to_key] in the tree */
+			ret = CBK_COORD_NOTFOUND;
+			break;
+		}
+		/*
+		 * Make keys precise.
+		 * Set right_key to last byte of the item at tap->coord
+		 */
+		item_key_by_coord(tap->coord, &right_key);
+		set_key_offset(&right_key,
+			       get_key_offset(&right_key) +
+			       reiser4_extent_size(tap->coord) - 1);
+		assert("edward-2289",
+		       get_key_offset(&right_key) <= get_key_offset(to_key));
+		assert("edward-2290",
+		       get_key_offset(from_key) <= get_key_offset(&right_key));
+		/*
+		 * @from_key may not exist in the tree
+		 */
+		unit_key_by_coord(&left_coord, &left_key);
+
+		if (get_key_offset(&left_key) < get_key_offset(from_key))
+			set_key_offset(&left_key, get_key_offset(from_key));
+
+		/* cut data from one node */
+		ret = kill_node_content(&left_coord, tap->coord,
+					&left_key, &right_key,
+					smallest_removed,
+					next_node_lock.node /* left neighbor */,
+					object, truncate);
+		reiser4_tap_relse(tap);
+		if (ret)
+			break;
+		(*progress)++;
+		if (keyle(smallest_removed, from_key))
+			break;
+		if (next_node_lock.node == NULL)
+			break;
+		ret = reiser4_tap_move(tap, &next_node_lock);
+		done_lh(&next_node_lock);
+		if (ret)
+			break;
+		/* break long truncate if atom requires commit */
+
+		if (*progress > CUT_TREE_MIN_ITERATIONS &&
+		    current_atom_should_commit()) {
+			ret = -E_REPEAT;
+			break;
+		}
+	}
+	done_lh(&next_node_lock);
+	return ret;
+}
+
 /**
- * Cut body of a striped file. Items of such file are grouped in
- * the storage tree by subvolume IDs. In each group they are ordered
- * by offsets.
- *
- * We cut off file's items one by one in a loop until @new_size
- * of the file is reached. At every iteration we reserve space,
- * find the last file's item in the tree, cut it off, and finally
- * update file's stat data.
+ * Cut body of a striped file
  */
 static int cut_file_items_stripe(struct inode *inode, loff_t new_size,
 				 int update_sd, loff_t cur_size,
 				 int (*update_size_fn) (struct inode *,
 							loff_t, int))
 {
-	reiser4_tree *tree;
+	int ret = 0;
 	reiser4_key from_key, to_key;
 	reiser4_key smallest_removed;
-	int ret = 0;
-	int progress = 0;
-	/*
-	 * for now we can scatter only files managed by
-	 * unix-file plugin and built on extent items
-	 */
+	reiser4_tree *tree = meta_subvol_tree();
+
 	assert("edward-2021", inode_file_plugin(inode) ==
 	       file_plugin_by_id(STRIPED_FILE_PLUGIN_ID));
 
-	tree = meta_subvol_tree();
+	build_body_key_common(inode, &to_key);
+	set_key_ordering(&to_key, KEY_ORDERING_MASK);
+	from_key = to_key;
+	set_key_offset(&to_key, cur_size - 1);
+	set_key_offset(&from_key, new_size);
 
-	while (i_size_read(inode) != new_size) {
-		loff_t from_off;
+	while (1) {
+		int progress = 0;
 		/*
-		 * Cut the last stripe of the file's body.
+		 * this takes sbinfo->delete_mutex
 		 */
-		assert("edward-2020", inode->i_size != 0);
-		/*
-		 * when constructing @to_key, round up file size to
-		 * block size boundary for parse_cut_by_key_range()
-		 * to evaluate cut mode properly
-		 */
-		build_body_key_stripe(inode,
-		      round_up(i_size_read(inode), current_blocksize) - 1,
-				      &to_key, WRITE_OP);
-		from_key = to_key;
-		/*
-		 * cut not more than last stripe, as stripes are located
-		 * in the tree not in the logical order.
-		 *
-		 * FIXME: It is suboptimal: in the case of large holes
-		 * it will lead to large number of iterations.
-		 * Better solution is to find the last file item in the
-		 * tree and calculate to_off and from_off by that item.
-		 */
-		if (current_stripe_bits) {
-			from_off = round_down(i_size_read(inode) - 1,
-					      current_stripe_size);
-			if (from_off < new_size)
-				from_off = new_size;
-		} else
-			from_off = new_size;
-
-		set_key_offset(&from_key, from_off);
-
-		/* the below takes sbinfo->delete_mutex */
 		ret = reserve_cut_iteration(inode);
 		if (ret)
 			return ret;
+
 		ret = reiser4_cut_tree_object(tree,
 					      &from_key, &to_key,
-					      &smallest_removed, inode, 1,
-					      &progress);
+					      &smallest_removed, inode,
+					      1 /* truncate */, &progress);
+		assert("edward-2291", ret != -E_NO_NEIGHBOR);
+
 		if (ret == -E_REPEAT) {
-			/*
-			 * -E_REPEAT is a signal to interrupt a long
-			 * file truncation process
-			 */
 			if (progress) {
 				ret = update_size_fn(inode,
-					      get_key_offset(&smallest_removed),
-					      update_sd);
+					 get_key_offset(&smallest_removed),
+						   update_sd);
 				if (ret)
 					break;
-			} else {
-				/*
-				 * reiser4_cut_tree_object() was interrupted
-				 * probably because current atom requires
-				 * commit, we have to release transaction
-				 * handle to allow atom commit.
-				 */
-				all_grabbed2free();
-				/* release sbinfo->delete_mutex */
-				reiser4_release_reserved(inode->i_sb);
-				reiser4_txn_restart_current();
-				continue;
 			}
-		} else if (ret == CBK_COORD_NOTFOUND || !progress) {
-			ret = update_size_fn(inode, from_off, update_sd);
-		} else if (ret == -E_NO_NEIGHBOR) {
+			/* this releases sbinfo->delete_mutex */
+
+			reiser4_release_reserved(inode->i_sb);
+			reiser4_txn_restart_current();
+			continue;
+		} else if (ret == 0 || ret == CBK_COORD_NOTFOUND)
 			ret = update_size_fn(inode, new_size, update_sd);
-			break;
-		} else if (ret == 0) {
-			ret = update_size_fn(inode,
-					     get_key_offset(&smallest_removed),
-					     update_sd);
-			if (ret)
-				break;
-		} else
-			break;
-		all_grabbed2free();
-		/* release sbinfo->delete_mutex) */
-		reiser4_release_reserved(inode->i_sb);
+		break;
 	}
-	all_grabbed2free();
-	/* release sbinfo->delete_mutex */
+	/* this releases sbinfo->delete_mutex */
+
 	reiser4_release_reserved(inode->i_sb);
 	return ret;
 }

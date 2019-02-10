@@ -179,6 +179,11 @@ int readpage_stripe(struct file *file, struct page *page);
 int writepages_stripe(struct address_space *, struct writeback_control *);
 int setattr_stripe(struct dentry *, struct iattr *);
 int delete_object_stripe(struct inode *);
+int cut_tree_worker_stripe(tap_t *, const reiser4_key * from_key,
+			   const reiser4_key * to_key,
+			   reiser4_key * smallest_removed,
+			   struct inode *object, int truncate,
+			   int *progress);
 int write_begin_stripe(struct file *file, struct page *page,
 		       loff_t pos, unsigned len, void **fsdata);
 int write_end_stripe(struct file *file, struct page *page,
