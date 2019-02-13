@@ -17,11 +17,6 @@
  * of a brick (subvolume), where that block should be stored (see
  * build_body_key_stripe()). Holes in a striped file are not represented
  * by any items.
- *
- * In the initial implementation any modifying operation takes an
- * exclusive access to the whole file. It is for simplicity:
- * further we'll lock only a part of the file covered by a respective
- * node on the twig level (longterm lock).
  */
 
 #include "../../inode.h"
@@ -111,9 +106,7 @@ ssize_t read_stripe(struct file *file, char __user *buf,
 		goto out;
 	uf_info = unix_file_inode_data(inode);
 
-	get_nonexclusive_access(uf_info);
 	result = new_sync_read(file, buf, read_amount, off);
-	drop_nonexclusive_access(uf_info);
  out:
 	context_set_commit_async(ctx);
 	reiser4_exit_context(ctx);
@@ -154,13 +147,16 @@ ssize_t write_stripe(struct file *file,
 		int update_sd = 0;
 		if (left < to_write)
 			to_write = left;
-
-		get_exclusive_access(uf_info);
-
+		/*
+		 * write not more than stripe_size bytes per iteration
+		 */
 		written = write_extent_stripe(file, inode, buf,
 					      to_write, pos);
+		assert("edward-2292",
+		       ergo(written >= 0 && current_stripe_bits != 0,
+			    written <= current_stripe_size));
+
 		if (written == -ENOSPC && !enospc) {
-			drop_exclusive_access(uf_info);
 			txnmgr_force_commit_all(inode->i_sb, 0);
 			enospc = 1;
 			continue;
@@ -172,7 +168,6 @@ ssize_t write_stripe(struct file *file,
 			 * once again.
 			 */
 			result = written;
-			drop_exclusive_access(uf_info);
 			break;
 		}
 		enospc = 0;
@@ -198,11 +193,9 @@ ssize_t write_stripe(struct file *file,
 					"Can not update stat-data: %i. FSCK?",
 					result);
 				context_set_commit_async(ctx);
-				drop_exclusive_access(uf_info);
 				break;
 			}
 		}
-		drop_exclusive_access(uf_info);
 		/*
 		 * tell VM how many pages were dirtied. Maybe number of pages
 		 * which were dirty already should not be counted
@@ -583,7 +576,8 @@ static int shorten_stripe(struct inode *inode, loff_t new_size)
 	index = (inode->i_size >> PAGE_SHIFT);
 	result = reserve_partial_page(inode, index);
 	if (result) {
-		reiser4_release_reserved(inode->i_sb);
+		assert("edward-2295",
+		       get_current_super_private()->delete_mutex_owner == NULL);
 		return result;
 	}
 	page = read_mapping_page(inode->i_mapping, index, NULL);
@@ -650,9 +644,8 @@ int delete_object_stripe(struct inode *inode)
 
 	/* truncate file body first */
 	uf_info = unix_file_inode_data(inode);
-	get_exclusive_access(uf_info);
+
 	result = shorten_stripe(inode, 0 /* new size */);
-	drop_exclusive_access(uf_info);
 
 	if (unlikely(result != 0))
 		warning("edward-2037",
@@ -785,25 +778,13 @@ int write_begin_stripe(struct file *file, struct page *page,
 		       loff_t pos, unsigned len, void **fsdata)
 {
 	int ret;
-	struct inode * inode;
-	struct unix_file_info *info;
 
-	inode = file_inode(file);
-	info = unix_file_inode_data(inode);
-
-	ret = reserve_write_begin_generic(inode, page->index);
+	ret = reserve_write_begin_generic(file_inode(file), page->index);
 	if (ret)
 		return ret;
-	get_exclusive_access(info);
-	ret = do_write_begin_generic(file, page, pos, len,
-				     readpage_stripe);
-	if (unlikely(ret != 0))
-		drop_exclusive_access(info);
-	/*
-	 * on success the acquired exclusive access
-	 * will be dropped by ->write_end()
-	 */
-	return ret;
+
+	return  do_write_begin_generic(file, page, pos, len,
+				       readpage_stripe);
 }
 
 /**
@@ -813,10 +794,6 @@ int write_begin_stripe(struct file *file, struct page *page,
 int write_end_stripe(struct file *file, struct page *page,
 		     loff_t pos, unsigned copied, void *fsdata)
 {
-	/*
-	 * this will drop exclusive access
-	 * acquired by write_begin_stripe()
-	 */
 	return reiser4_write_end_generic(file, page, pos, copied, fsdata,
 					 find_or_create_extent_stripe);
 }
@@ -849,7 +826,6 @@ int balance_stripe(struct inode *inode)
 
 	uf = unix_file_inode_data(inode);
 
-	get_exclusive_access(uf);
 	reiser4_inode_set_flag(inode, REISER4_FILE_UNBALANCED);
 
 	build_body_key_stripe(inode, get_key_offset(reiser4_max_key()),
@@ -865,13 +841,11 @@ int balance_stripe(struct inode *inode)
 				   CBK_UNIQUE, NULL);
 		if (IS_CBKERR(ret)) {
 			done_lh(&lh);
-			drop_exclusive_access(uf);
 			return ret;
 		}
 		ret = zload(coord.node);
 		if (ret) {
 			done_lh(&lh);
-			drop_exclusive_access(uf);
 			return ret;
 		}
 		loaded = coord.node;
@@ -897,12 +871,10 @@ int balance_stripe(struct inode *inode)
 			ret = iplug->v.migrate(&coord, &lh, inode);
 			zrelse(loaded);
 			done_lh(&lh);
-			drop_exclusive_access(uf);
 			if (ret && ret != -E_REPEAT)
 				break;
 			/* commit atom */
 			all_grabbed2free();
-			get_exclusive_access(uf);
 
 			if (ret == -E_REPEAT)
 				/* continue with the same key */
@@ -928,7 +900,6 @@ int balance_stripe(struct inode *inode)
 	assert("edward-2104", reiser4_lock_counters()->d_refs == 0);
 	done_lh(&lh);
 	reiser4_inode_clr_flag(inode, REISER4_FILE_UNBALANCED);
-	drop_exclusive_access(uf);
 	return 0;
 }
 

@@ -340,10 +340,15 @@ static int find_file_state(struct inode *inode, struct unix_file_info *uf_info)
  */
 static int grab_data_block_reserved(reiser4_subvol *data_subv)
 {
-	set_current_data_subvol(data_subv);
+	int ret;
+
 	grab_space_enable();
-	return reiser4_grab_reserved(reiser4_get_current_sb(),
-				     1, BA_CAN_COMMIT, data_subv);
+	ret = reiser4_grab_reserved(reiser4_get_current_sb(),
+				    1, BA_CAN_COMMIT, data_subv);
+	if (ret)
+		return ret;
+	set_current_data_subvol(data_subv);
+	return 0;
 }
 
 /**
@@ -377,6 +382,8 @@ int reserve_partial_page(struct inode *inode, pgoff_t index)
 				   2 *
 				   estimate_one_insert_into_item(&subv_m->tree),
 				   BA_CAN_COMMIT, subv_m);
+	if (ret)
+		clear_current_data_subvol();
 	return ret;
 }
 
@@ -543,7 +550,8 @@ static int shorten_file(struct inode *inode, loff_t new_size)
 	index = (inode->i_size >> PAGE_SHIFT);
 	result = reserve_partial_page(inode, index);
 	if (result) {
-		reiser4_release_reserved(inode->i_sb);
+		assert("edward-2294",
+		       get_current_super_private()->delete_mutex_owner == NULL);
 		return result;
 	}
 	page = read_mapping_page(inode->i_mapping, index, NULL);
@@ -895,6 +903,11 @@ int find_or_create_extent_generic(struct page *page, int truncate,
 	} else {
 		struct atom_brick_info *abi;
 		assert("edward-1982", node->subvol != NULL);
+		/*
+		 * In this branch we don't spend reserved data blocks,
+		 * and, respectivily, don't need to validate reservation
+		 */
+		clear_current_data_subvol();
 
 		spin_lock_jnode(node);
 		result = reiser4_try_capture(node, ZNODE_WRITE_LOCK, 0);

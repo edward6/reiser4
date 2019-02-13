@@ -104,7 +104,6 @@ static int reserve_migrate_one_block(struct inode *inode, u32 where)
 	 *
 	 * reserve space for 2(a)
 	 */
-	set_current_data_subvol(subv_d);
 	grab_space_enable();
 	ret = reiser4_grab_space(1, 0, subv_d);
 	if (ret)
@@ -116,7 +115,10 @@ static int reserve_migrate_one_block(struct inode *inode, u32 where)
 	ret = reiser4_grab_space(estimate_one_insert_item(tree_m) +
 				 1 * estimate_one_insert_into_item(tree_m) +
 				 estimate_one_insert_item(tree_m), 0, subv_m);
-	return ret;
+	if (ret)
+		return ret;
+	set_current_data_subvol(subv_d);
+	return 0;
 }
 
 jnode *do_jget(struct page *pg);

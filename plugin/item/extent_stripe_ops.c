@@ -559,16 +559,10 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 		loaded = hint->ext_coord.coord.node;
 		check_node(loaded);
 
-		if (pos > round_up(i_size_read(inode), PAGE_SIZE))
-			result = append_hole_stripe(&hint->ext_coord);
-		else if (pos == round_up(i_size_read(inode), PAGE_SIZE))
-			result = append_extent_stripe(inode, &hint->ext_coord,
-						      &key, jnodes, count);
-		else
-			result = overwrite_extent_stripe(inode,
-							 &hint->ext_coord,
-							 &key, jnodes, count,
-							 plugged_hole);
+		result = overwrite_extent_stripe(inode,
+						 &hint->ext_coord,
+						 &key, jnodes, count,
+						 plugged_hole);
 		zrelse(loaded);
 		if (result < 0) {
 			done_lh(hint->ext_coord.lh);
@@ -602,7 +596,7 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 			INODE_SET_FIELD(inode, i_size, pos);
 	} while (count > 0);
 
-	unset_current_data_subvol();
+	clear_current_data_subvol();
 	return result;
 }
 
@@ -646,10 +640,10 @@ ssize_t write_extent_stripe(struct file *file, struct inode *inode,
 {
 	if (current_stripe_bits) {
 		/*
-		 * write data of only one stripe
+		 * write data of only one block
 		 */
-		int to_stripe = current_stripe_size -
-			(*pos & (current_stripe_size - 1));
+		int to_stripe = current_blocksize -
+			(*pos & (current_blocksize - 1));
 		if (count > to_stripe)
 			count = to_stripe;
 	}

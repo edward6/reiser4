@@ -831,10 +831,8 @@ void set_current_data_subvol(reiser4_subvol *subv)
 /**
  * Unset the pointer to data subvolume at the top of context stack info
  */
-void unset_current_data_subvol(void)
+void clear_current_data_subvol(void)
 {
-	assert("edward-2286", get_current_data_subvol() != NULL);
-
 	get_current_csi()->data_subv = NULL;
 }
 
@@ -844,9 +842,14 @@ void unset_current_data_subvol(void)
  */
 int grab_data_blocks(reiser4_subvol *dsubv, int count)
 {
-	set_current_data_subvol(dsubv);
+	int ret;
+
 	grab_space_enable();
-	return reiser4_grab_space(count, BA_CAN_COMMIT, dsubv);
+	ret = reiser4_grab_space(count, BA_CAN_COMMIT, dsubv);
+	if (ret)
+		return ret;
+	set_current_data_subvol(dsubv);
+	return 0;
 }
 
 /**
@@ -922,7 +925,7 @@ int update_extent_uf(struct inode *inode, jnode *node, loff_t pos,
 
 	zrelse(loaded);
 	done_lh(&lh);
-	unset_current_data_subvol();
+	clear_current_data_subvol();
 	assert("edward-2049", reiser4_lock_counters()->d_refs == 0);
 
 	return (result == 1) ? 0 : result;
@@ -1023,7 +1026,7 @@ static int update_extents_unix_file(struct file *file, struct inode *inode,
 	} while (count > 0);
 
 	save_file_hint(file, &hint);
-	unset_current_data_subvol();
+	clear_current_data_subvol();
 	assert("", reiser4_lock_counters()->d_refs == 0);
 	return result;
 }
@@ -1071,6 +1074,8 @@ int reserve_write_extent(struct inode *inode, loff_t offset, int count)
 	ret = reiser4_grab_space(estimate_one_insert_item(tree_m) +
 		     count * estimate_one_insert_into_item(tree_m) +
 		     estimate_one_insert_item(tree_m), BA_CAN_COMMIT, subv_m);
+	if (ret)
+		clear_current_data_subvol();
 	return ret;
 }
 
@@ -1118,17 +1123,26 @@ ssize_t write_extent_generic(struct file *file, struct inode *inode,
 					     loff_t pos))
 {
 	int have_to_update_extent;
-	int nr_pages, nr_dirty;
+	int nr_pages;
+	int nr_dirty = 0;
 	struct page *page;
 	jnode *jnodes[DEFAULT_WRITE_GRANULARITY + 1];
 	unsigned long index;
 	unsigned long end;
 	int i;
 	int to_page, page_off;
-	size_t left, written;
+	size_t written;
+	size_t left = count;
 	int result = 0;
+	/*
+	 * calculate number of pages which are to be written
+	 */
+	index = *pos >> PAGE_SHIFT;
+	end = ((*pos + count - 1) >> PAGE_SHIFT);
+	nr_pages = end - index + 1;
+	assert("edward-2293", nr_pages <= reiser4_write_granularity() + 1);
 
-	if (reserve_write_extent(inode, *pos, reiser4_write_granularity()))
+	if (reserve_write_extent(inode, *pos, nr_pages))
 		return RETERR(-ENOSPC);
 
 	if (count == 0) {
@@ -1137,14 +1151,6 @@ ssize_t write_extent_generic(struct file *file, struct inode *inode,
 		return 0;
 	}
 	BUG_ON(get_current_context()->trans->atom != NULL);
-
-	left = count;
-	index = *pos >> PAGE_SHIFT;
-	/* calculate number of pages which are to be written */
-      	end = ((*pos + count - 1) >> PAGE_SHIFT);
-	nr_pages = end - index + 1;
-	nr_dirty = 0;
-	assert("", nr_pages <= reiser4_write_granularity() + 1);
 
 	/* get pages and jnodes */
 	for (i = 0; i < nr_pages; i ++) {
@@ -1251,9 +1257,10 @@ ssize_t write_extent_generic(struct file *file, struct inode *inode,
 			goto out;
 	} else {
 		/*
-		 * the hint about data subvolume is not needed
+		 * In this branch we don't spend reserved data blocks,
+		 * and, respectivily, don't need to validate reservation
 		 */
-		unset_current_data_subvol();
+		clear_current_data_subvol();
 
 		for (i = 0; i < nr_dirty; i ++) {
 			struct atom_brick_info *abi;
@@ -1283,10 +1290,10 @@ out:
 		JF_CLR(jnodes[i], JNODE_WRITE_PREPARED);
 		jput(jnodes[i]);
 	}
-
-	/* the only errors handled so far is ENOMEM and
-	   EFAULT on copy_from_user  */
-
+	/*
+	 * the only errors handled so far is ENOMEM and
+	 * EFAULT on copy_from_user
+	 */
 	return (count - left) ? (count - left) : result;
 }
 

@@ -27,7 +27,7 @@ struct ctx_stack_info {
 	reiser4_subvol *data_subv; /* This is a hint for update_extents(s).
 				      Set by set_current_data_subvol().
 				      Check by validate_data_reservation().
-				      Unset by unset_current_data_subvol()
+				      Unset by clear_current_data_subvol()
 				      as soon as it is not needed.
 				   */
 	/* put here other info specific for reiser4 context nesting level */
@@ -126,7 +126,7 @@ extern int ctx_stack_info_init_static(void);
 extern void ctx_stack_info_done_static(void);
 extern reiser4_subvol *get_current_data_subvol(void);
 extern void set_current_data_subvol(reiser4_subvol *subv);
-extern void unset_current_data_subvol(void);
+extern void clear_current_data_subvol(void);
 extern struct ctx_brick_info *find_context_brick_info(reiser4_context *ctx,
 						      u32 brick_id);
 extern int insert_context_brick_info(reiser4_context *ctx,

@@ -1560,7 +1560,10 @@ int txnmgr_force_commit_all(struct super_block *super, int commit_all_atoms)
 
 		spin_unlock_atom(atom);
 	}
-	assert("edward-2273", reiser4_volume_fake_allocated(super) == 0);
+	assert("edward-2273",
+	       ergo(commit_all_atoms,
+		    reiser4_volume_fake_allocated(super) == 0));
+
 	spin_unlock_txnmgr(mgr);
 	return 0;
 }
