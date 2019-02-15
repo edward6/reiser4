@@ -6,6 +6,7 @@ item_plugins-objs :=		\
 	sde.o			\
 	cde.o			\
 	blackbox.o		\
+	brick_symbol.o		\
 	internal.o		\
 	tail.o			\
 	ctail.o			\

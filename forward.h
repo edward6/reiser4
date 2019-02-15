@@ -199,7 +199,8 @@ typedef enum {
 	CTAIL_ID = 0x7,
 	BLACK_BOX_ID = 0x8,
 	EXTENT41_POINTER_ID = 0x9,
-	LAST_ITEM_ID = 0xa
+	BRICK_SYMBOL_ID = 0xa,
+	LAST_ITEM_ID = 0xb,
 } item_id;
 
 /* Flags passed to jnode_flush() to allow it to distinguish default settings

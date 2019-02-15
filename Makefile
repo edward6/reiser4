@@ -91,6 +91,7 @@ reiser4-y := \
 		   plugin/item/sde.o \
 		   plugin/item/cde.o \
 		   plugin/item/blackbox.o \
+		   plugin/item/brick_symbol.o \
 		   plugin/item/internal.o \
 		   plugin/item/tail.o \
 		   plugin/item/ctail.o \

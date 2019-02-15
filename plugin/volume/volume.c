@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2016-2018 Eduard O. Shishkin
+  Copyright (c) 2016-2019 Eduard O. Shishkin
 
   This file is licensed to you under your choice of the GNU Lesser
   General Public License, version 3 or any later version (LGPLv3 or
@@ -10,6 +10,7 @@
 #include "../../debug.h"
 #include "../../super.h"
 #include "../../inode.h"
+#include "../../plugin/item/brick_symbol.h"
 #include "volume.h"
 
 /**
@@ -1107,7 +1108,12 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	ret = update_volume_config(vol);
 	if (ret)
 		goto error;
-
+	if (new != get_meta_subvol()) {
+		/* add a record about @new to the volume */
+		ret = brick_symbol_add(new);
+		if (ret)
+			goto error;
+	}
 	dist_plug->r.replace(&vol->aid, &new_conf->tab);
 
 	reiser4_volume_set_unbalanced(reiser4_get_current_sb());
@@ -1388,6 +1394,10 @@ int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 		set_bit(SUBVOL_WAS_REMOVED, &victim->flags);
 
 		ret = capture_brick_super(victim);
+		if (ret)
+			return ret;
+		/* remove a record about @victim from the volume */
+		ret = brick_symbol_del(victim);
 		if (ret)
 			return ret;
 	}

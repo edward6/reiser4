@@ -9,7 +9,7 @@
 
 #include "debug.h"
 #include "super.h"
-#include "ondisk_fiber.h"
+#include "plugin/item/brick_symbol.h"
 #include <linux/blkdev.h>
 
 DEFINE_MUTEX(reiser4_volumes_mutex);
@@ -681,7 +681,7 @@ int reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 
 			if (subvol_is_set(subv, SUBVOL_WAS_REMOVED)) {
 				warning("edward-2266",
-					"%s: Brick %s is inappropriate.",
+				   "%s: Brick %s doesn't match logical volume.",
 					super->s_id, subv->name);
 				ret = -EINVAL;
 				goto deactivate;
@@ -695,6 +695,28 @@ int reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 			super->s_id, nr_origins, atomic_read(&vol->nr_origins));
 		ret = -EINVAL;
 		goto deactivate;
+	}
+	/*
+	 * Identify activated subvolumes
+	 */
+	if (!get_meta_subvol()) {
+		warning("edward-2298",
+			"%s: meta-data brick is not registered", super->s_id);
+		ret = -EINVAL;
+		goto deactivate;
+	}
+	for_each_data_mslot(conf, orig_id) {
+		reiser4_subvol *subv;
+		if (!conf_origin(conf, orig_id))
+			continue;
+		subv = conf_origin(conf, orig_id);
+		if (!brick_identify(subv)) {
+			warning("edward-2299",
+				"%s: Brick %s doesn't match logical volume.",
+				super->s_id, subv->name);
+			ret = -EINVAL;
+			goto deactivate;
+		}
 	}
 	/*
 	 * initialize logical volume after activating all subvolumes

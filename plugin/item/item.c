@@ -755,6 +755,41 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.check = NULL
 #endif
 		}
+	},
+	[BRICK_SYMBOL_ID] = {
+		.h = {
+			.type_id = REISER4_ITEM_PLUGIN_TYPE,
+			.id = BRICK_SYMBOL_ID,
+			.groups = (1 << OTHER_ITEM_TYPE),
+			.pops = NULL,
+			.label = "brick symbol",
+			.desc = "brick identifier",
+			.linkage = {NULL, NULL}
+		},
+		.b = {
+			.max_key_inside = NULL,
+			.can_contain_key = NULL,
+			.mergeable = not_mergeable,
+			.nr_units = nr_units_single_unit,
+			.lookup = NULL,
+			.init = NULL,
+			.paste = NULL,
+			.fast_paste = NULL,
+			.can_shift = NULL,
+			.copy_units = NULL,
+			.create_hook = NULL,
+			.kill_hook = NULL,
+			.shift_hook = NULL,
+			.cut_units = NULL,
+			.kill_units = NULL,
+			.unit_key = NULL,
+			.max_unit_key = NULL,
+			.estimate = NULL,
+			.item_data_by_flow = NULL,
+#if REISER4_DEBUG
+			.check = NULL
+#endif
+		}
 	}
 };
 
