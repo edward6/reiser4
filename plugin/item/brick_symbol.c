@@ -97,7 +97,7 @@ static oid_t brick_symbol_locality(void)
  */
 static u64 brick_symbol_fulloid(reiser4_subvol *subv)
 {
-	return le64_to_cpu(get_unaligned(subv->uuid));
+	return le64_to_cpu(get_unaligned((u64 *)subv->uuid));
 }
 
 /**
@@ -105,7 +105,7 @@ static u64 brick_symbol_fulloid(reiser4_subvol *subv)
  */
 static u64 brick_symbol_offset(reiser4_subvol *subv)
 {
-	return le64_to_cpu(get_unaligned(&subv->uuid[8]));
+	return le64_to_cpu(get_unaligned((u64 *)&subv->uuid[8]));
 }
 
 /*
