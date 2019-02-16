@@ -1786,8 +1786,7 @@ static int iter_find_next(reiser4_tree *tree, coord_t *coord,
  *
  * Pre-condition: a new volume configuration is installed.
  *
- * @sb: super-block of the volume to be balanced;
- * @force: force to run balancing on volume marked as balanced.
+ * @super: super-block of the volume to be balanced;
  *
  * FIXME: use hint/seal to not traverse tree every time when locking
  * position determned by the hint ("current" key in the iterate context).

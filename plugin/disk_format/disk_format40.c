@@ -12,7 +12,6 @@
 #include "../../tree.h"
 #include "../../super.h"
 #include "../../plugin/volume/volume.h"
-#include "../../ondisk_fiber.h"
 #include "../../wander.h"
 #include "../../inode.h"
 #include "../../ktxnmgrd.h"
