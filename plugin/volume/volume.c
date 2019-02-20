@@ -1079,6 +1079,13 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 		warning("edward-1963", "Can't add brick to AID twice");
 		return -EINVAL;
 	}
+	/* reserve space on meta-data subvolume for brick symbol insertion */
+	grab_space_enable();
+	ret = reiser4_grab_space(estimate_one_insert_into_item(
+				 meta_subvol_tree()),
+				 BA_CAN_COMMIT, get_meta_subvol());
+	if (ret)
+		return ret;
 	buckets = create_buckets(vol, num_aid_subvols(vol) + 1);
 	if (!buckets)
 		return -ENOMEM;
@@ -1379,6 +1386,21 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	return remove_brick_tail_asym(vol, victim);
 }
 
+static int reserve_brick_symbol_del(void)
+{
+	reiser4_subvol *subv = get_meta_subvol();
+	/*
+	 * grab one block of meta-data brick to remove
+	 * one item from a formatted node
+	 */
+	assert("edward-2303",
+	       lock_stack_isclean(get_current_lock_stack()));
+	grab_space_enable();
+	return reiser4_grab_reserved(reiser4_get_current_sb(),
+				     estimate_one_item_removal(&subv->tree),
+				     BA_CAN_COMMIT, subv);
+}
+
 /**
  * Brick removal procedure completion. Publish new volume config.
  * Pre-condition: logical volume is fully balanced, but unbalanced
@@ -1396,8 +1418,14 @@ int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 		ret = capture_brick_super(victim);
 		if (ret)
 			return ret;
-		/* remove a record about @victim from the volume */
+		ret = reserve_brick_symbol_del();
+		if (ret)
+			return ret;
+		/*
+		 * remove a record about @victim from the volume
+		 */
 		ret = brick_symbol_del(victim);
+		reiser4_release_reserved(reiser4_get_current_sb());
 		if (ret)
 			return ret;
 	}
