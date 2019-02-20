@@ -153,7 +153,6 @@ struct reiser4_subvol {
 	reiser4_block_nr volmap_loc[2]; /* location of first voltab blocks for
 					   current and new volume configs */
 	void *fiber; /* per-subvolume part of volume configuration */
-	reiser4_subv_type type; /* type of this subvolume */
 	unsigned long flags; /* subvolume-wide flags, see subvol_flags enum */
 	disk_format_plugin *df_plug; /* disk format of this subvolume */
 	jnode *sb_jnode;

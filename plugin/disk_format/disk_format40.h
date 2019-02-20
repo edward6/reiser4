@@ -59,8 +59,8 @@ typedef struct format40_disk_super_block {
 	/*  84 */ d32 node_pid; /* formatted node plugin id */
 
 	/* Reiser5 fields */
-	/*  88 */ d64 origin_id;    /* internal ID: serial (ordered) number of the
-				       subvolume in the logical volume */
+	/*  88 */ d64 origin_id;    /* internal ID of the subvolume. It gets assigned
+				       once and never changes */
 	/*  96 */ d64 nr_origins;   /* total number of original subvolumes in LV */
 	/* 104 */ d64 data_room;    /* data capacity of the subvolume */
 	/* 112 */ d64 volinfo_loc;  /* location of the first block of system LV info */
@@ -94,6 +94,8 @@ typedef struct format40_disk_super_block {
  * for format40. The functions theirself are in disk_format40.c
  */
 extern struct page *find_format_format40(reiser4_subvol *subv);
+extern int extract_subvol_id_format40(struct block_device *bdev, u64 *subv_id);
+extern int extract_subvol_id_format41(struct block_device *bdev, u64 *subv_id);
 extern int init_format_format40(struct super_block *, reiser4_subvol *);
 extern const reiser4_key *root_dir_key_format40(const struct super_block *);
 extern int release_format40(struct super_block *s, reiser4_subvol *);

@@ -272,7 +272,10 @@ int check_set_volume_params(reiser4_subvol *subv,
 		what_is_wrong = "different numbers of mslots";
 		goto error;
 	}
-	subv->id = get_format40_origin_id(sb_format);
+	/*
+	 * subvolume ID was loaded earlier (when registering subvolume),
+	 * check it here, as we have loaded other parameters
+	 */
 	if (subv->id > vol->conf->nr_mslots) {
 		what_is_wrong = "subvolume ID is too large";
 		goto error;
@@ -348,6 +351,43 @@ struct page *find_format_format40(reiser4_subvol *subv)
 	return page;
 }
 
+int extract_subvol_id_format40(struct block_device *bdev, u64 *subv_id)
+{
+	*subv_id = 0;
+	return 0;
+}
+
+/**
+ * Read disk forat super-block, retrieve internal subvolume ID
+ * and store it in @subv_id
+ */
+int extract_subvol_id_format41(struct block_device *bdev, u64 *subv_id)
+{
+	struct page *page;
+	format40_disk_super_block *format_sb;
+
+	page = read_cache_page_gfp(bdev->bd_inode->i_mapping,
+				   FORMAT40_OFFSET >> PAGE_SHIFT,
+				   GFP_NOFS);
+	if (IS_ERR_OR_NULL(page))
+		return RETERR(-EIO);
+
+	format_sb = kmap(page);
+	if (strncmp(format_sb->magic,
+		    FORMAT40_MAGIC, sizeof(FORMAT40_MAGIC))) {
+		/*
+		 * format40 not found
+		 */
+		kunmap(page);
+		put_page(page);
+		return RETERR(-EINVAL);
+	}
+	*subv_id = get_format40_origin_id(format_sb);
+	kunmap(page);
+	put_page(page);
+	return 0;
+}
+
 /**
  * Initialize in-memory subvolume header.
  * Pre-condition: we are sure that subvolume is of format40
@@ -403,7 +443,11 @@ int try_init_format40(struct super_block *super,
 			"Forcing read-only mount.", super->s_id);
 		super->s_flags |= MS_RDONLY;
 	}
-
+	/*
+	 * Start form journal replay to make sure we are dealing
+	 * with actual (most recent) data. All replicas will get
+	 * respective update.
+	 */
 	result = reiser4_journal_replay(subv);
 	if (result)
 		return result;
@@ -686,23 +730,8 @@ jnode *log_super_format40(struct super_block *super, reiser4_subvol *subv)
  */
 int release_format40(struct super_block *s, reiser4_subvol *subv)
 {
-	int ret;
 	reiser4_volume *vol = super_volume(s);
 
-	if (reiser4_volume_is_activated(s) && !rofs_super(s) &&
-	    !subvol_is_set(subv, SUBVOL_IS_ORPHAN)) {
-
-		ret = capture_brick_super(subv);
-		if (ret != 0)
-			warning("vs-898",
-				"Failed to capture superblock (%d)", ret);
-
-		ret = txnmgr_force_commit_all(s, 1);
-		if (ret != 0)
-			warning("jmacd-74438", "txn_force failed: %d", ret);
-
-		all_grabbed2free();
-	}
 	sa_destroy_allocator(&subv->space_allocator, s, subv);
 	if (vol->vol_plug->done_volume)
 		vol->vol_plug->done_volume(subv);
