@@ -17,7 +17,6 @@ disk_format_plugin format_plugins[LAST_FORMAT_ID] = {
 			.desc = "standard disk layout for simple volumes",
 			.linkage = {NULL, NULL}
 		},
-		.find_format = find_format_format40,
 		.extract_subvol_id = extract_subvol_id_format40,
 		.init_format = init_format_format40,
 		.root_dir_key = root_dir_key_format40,
@@ -35,7 +34,6 @@ disk_format_plugin format_plugins[LAST_FORMAT_ID] = {
 			.desc = "standard disk layout for compound volumes",
 			.linkage = {NULL, NULL}
 		},
-		.find_format = find_format_format40,
 		.extract_subvol_id = extract_subvol_id_format41,
 		.init_format = init_format_format40,
 		.root_dir_key = root_dir_key_format40,

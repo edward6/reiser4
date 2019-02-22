@@ -767,11 +767,6 @@ typedef struct oid_allocator_plugin {
 typedef struct disk_format_plugin {
 	/* generic fields */
 	plugin_header h;
-	/* Read format super-block from disk and initialize in-memory
-	   structures. On success a page (an image of format disk
-	   super-block) with incremented reference counter is returned.
-	   Thus, that reference should be released afterwards */
-	struct page *(*find_format)(reiser4_subvol *subv);
 	/* Read format super-block from disk, find internal subvolume ID
 	   and store it in @subv_id */
 	int (*extract_subvol_id)(struct block_device *bdev, u64 *subv_id);

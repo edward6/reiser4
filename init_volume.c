@@ -1,11 +1,13 @@
 /*
-  Copyright (c) 2014-2016 Eduard O. Shishkin
+  Copyright (c) 2014-2019 Eduard O. Shishkin
 
   This file is licensed to you under your choice of the GNU Lesser
   General Public License, version 3 or any later version (LGPLv3 or
   later), or the GNU General Public License, version 2 (GPLv2), in all
   cases as published by the Free Software Foundation.
 */
+
+/* Reiser4 logical volume initialization and activation */
 
 #include "debug.h"
 #include "super.h"
@@ -15,15 +17,6 @@
 
 DEFINE_MUTEX(reiser4_volumes_mutex);
 static LIST_HEAD(reiser4_volumes); /* list of registered volumes */
-
-/*
- * Logical volume is a set of subvolumes.
- * Every subvolume represents a physical or logical (built by LVM
-   means) device, formatted by a plugin of REISER4_FORMAT_PLUGIN_TYPE.
- * All subvolumes are combined in "volume groups".
- * Volume plugin defines distribution among those groups.
- * Distribution plugin defines distribution within a single group.
- */
 
 #define MAX_STRIPE_BITS (63)
 
@@ -328,7 +321,6 @@ int check_active_replicas(reiser4_subvol *subv)
 	assert("edward-2235", subv->super != NULL);
 	assert("edward-1748", !is_replica(subv));
 	assert("edward-1751", super_volume(subv->super) != NULL);
-	assert("edward-1749", super_nr_origins(subv->super) != 0);
 
 	conf = super_conf(subv->super);
 
@@ -375,9 +367,10 @@ int reiser4_activate_subvol(struct super_block *super,
 				   reiser4_subvol *subv)
 {
 	int ret;
-	struct page *page;
 	fmode_t mode = FMODE_READ | FMODE_EXCL;
+	reiser4_volume *vol = super_volume(super);
 
+	assert("edward-2309", vol != NULL);
 	assert("edward-2301", !subvol_is_set(subv, SUBVOL_ACTIVATED));
 
 	if (!(super->s_flags & MS_RDONLY))
@@ -400,24 +393,23 @@ int reiser4_activate_subvol(struct super_block *super,
 		subv->flags |= (1 << SUBVOL_IS_NONROT_DEVICE);
 		subv->txmod = WA_TXMOD_ID;
 	}
-	/*
-	 * Read format super-block of the subvolume and	perform early
-	 * initialisations needed by check_active_replicas().
-	 * Note that it may be not the most recent version of format
-	 * super-block, since the journal hasn't been yet replayed.
-	 *
-	 * FIXME-EDWARD: Provide a guarantee that on-disk data needed
-	 * for that early initialisation (in particular, nr_origins)
-	 * are really actual.
-	 */
-	page = subv->df_plug->find_format(subv);
-	if (IS_ERR(page)) {
-		ret = PTR_ERR(page);
-		goto error;
-	}
-	put_page(page);
-
-	if (is_replica(subv))
+	if (is_replica(subv)) {
+		if (!vol->conf) {
+			/*
+			 * This is a replica of meta-data brick.
+			 * Allocate temporary config needed to
+			 * activate original meta-data brick.
+			 * This temporary config will be replaced
+			 * with an actual one after replaying
+			 * transactions on the meta-data brick
+			 * (see read_check_volume_params()).
+			 */
+			assert("edward-2310",
+			       subv->id == METADATA_SUBVOL_ID);
+			vol->conf = alloc_lv_conf(1 /* one mslot */);
+			if (!vol->conf)
+				return -ENOMEM;
+		}
 		/*
 		 * Nothing to do any more for replicas!
 		 * Particularly, we are not entitled to
@@ -426,6 +418,7 @@ int reiser4_activate_subvol(struct super_block *super,
 		 * replica blocks properly).
 		 */
 		goto ok;
+	}
 	/*
 	 * This is an original subvolume.
 	 * Before calling ->init_format() make sure that
@@ -623,9 +616,10 @@ void reiser4_deactivate_volume(struct super_block *super)
 }
 
 /**
- * Set a pointer to registered subvolume @subv to the respective
- * cell in the matrix of activated subvolumes of logical volume @vol.
- * Allocate column of the matrix, if needed.
+ * Set a pointer to activated subvolume @subv (original, or
+ * replica) at the respective slot in the table of activated
+ * subvolumes of logical volume @vol. Allocate column of the
+ * table, if needed.
  */
 static int set_activated_subvol(reiser4_volume *vol, reiser4_subvol *subv)
 {
@@ -638,7 +632,8 @@ static int set_activated_subvol(reiser4_volume *vol, reiser4_subvol *subv)
 
 	if (conf->mslots[orig_id] == NULL) {
 		/*
-		 * allocate array of pointers to mirrors
+		 * slot is "empty". Allocate a "column" -
+		 * array of pointers to mirrors
 		 */
 		conf->mslots[orig_id] = alloc_mslot(1 + subv->num_replicas);
 		if (conf->mslots[orig_id] == NULL) {
@@ -701,9 +696,14 @@ static int is_meta_origin(reiser4_subvol *subv)
 	return is_meta_brick_id(subv->id) && is_origin(subv);
 }
 
+static int is_meta_replica(reiser4_subvol *subv)
+{
+	return is_meta_brick_id(subv->id) && is_replica(subv);
+}
+
 /**
  * Activate all subvolumes (components) of asymmetric logical
- * volume in a particular order (don't change it!).
+ * volume in a particular order.
  * Handle all cases of incomplete registration (when not all
  * components were registered in the system).
  *
@@ -720,33 +720,36 @@ int reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 
 	mutex_lock(&reiser4_volumes_mutex);
 	/*
-	 * First we activate all replicas, as we need to have
-	 * a complete set of active replicas for journal replay
-	 * when activating original subvolumes. In contrast with
-	 * originals, replicas are activated in "lazy mode" without
-	 * journal replay.
+	 * Order of activation (don't change it).
+	 *
+	 * Before activating an original brick we need to activate
+	 * all its replicas, because activation of original brick is
+	 * followed with journal replay and for every IO submitted
+	 * for the original brick we always immediately submit IOs
+	 * for all its replicas. In contrast with original bricks,
+	 * replicas are activated without journal replay.
+	 *
+	 * Besides, we need to start from the replica of meta-data
+	 * brick, which contains system information needed to activate
+	 * other (data) bricks.
 	 */
-	ret = activate_subvolumes_cond(super, vol_uuid, is_replica);
+	ret = activate_subvolumes_cond(super, vol_uuid, is_meta_replica);
 	if (ret)
 		goto deactivate;
-	/*
-	 * now activate original meta-data brick as it contains
-	 * system information needed to activate other (data) bricks
-	 */
 	ret = activate_subvolumes_cond(super, vol_uuid, is_meta_origin);
 	if (ret)
 		goto deactivate;
-	/*
-	 * activate other originals
-	 */
+	ret = activate_subvolumes_cond(super, vol_uuid, is_replica);
+	if (ret)
+		goto deactivate;
 	ret = activate_subvolumes_cond(super, vol_uuid, is_origin);
 	if (ret)
 		goto deactivate;
 	/*
-	 * At this point all activated original bricks have
-	 * complete sets of active replicas (because we called
-	 * check_active_replicas()). Now make sure that all
-	 * original bricks have been activated.
+	 * At this point all activated original bricks have complete
+	 * sets of active replicas - it is guaranteed by calling
+	 * check_active_replicas() when activating an original brick.
+	 * Now make sure that the set of original bricks is complete.
 	 */
 	vol = get_super_private(super)->vol;
 	assert("edward-2207", vol != NULL);

@@ -11,28 +11,6 @@
 #include "super.h"
 #include "plugin/volume/volume.h"
 
-/**
- * put super-blocks of all bricks of the logical volume to the transaction
- */
-static int capture_all_bricks_super(reiser4_volume *vol)
-{
-	int ret;
-	u32 subv_id;
-	lv_conf *conf = vol->conf;
-
-	for_each_mslot(conf, subv_id) {
-		reiser4_subvol *subv;
-
-		if (!conf_mslot_at(conf, subv_id))
-			continue;
-		subv = conf_origin(conf, subv_id);
-		ret = capture_brick_super(subv);
-		if (ret)
-			return ret;
-	}
-	return 0;
-}
-
 static int reiser4_register_brick(struct super_block *sb,
 				  struct reiser4_vol_op_args *args)
 {
@@ -215,10 +193,14 @@ static int reiser4_add_brick(struct super_block *sb,
 	 * brick: since we posted a new config, there can
 	 * be IOs issued against that brick.
 	 *
-	 * Push super-blocks of all bricks (including the
-	 * new one) to the transaction
+	 * Put super-blocks of meta-data brick and of the
+	 * new brick to the transaction - it will be first
+	 * IO issued for the new brick.
 	 */
-	ret = capture_all_bricks_super(vol);
+	ret = capture_brick_super(get_meta_subvol());
+	if (ret)
+		return ret;
+	ret = capture_brick_super(new);
 	if (ret)
 		return ret;
 	/*
@@ -312,11 +294,12 @@ static int reiser4_remove_brick(struct super_block *sb,
 	reiser4_volume_clear_unbalanced(sb);
 
 	if (!is_meta_brick(victim)) {
+		/* Goodbye! */
 		ret = reiser4_detach_brick(victim);
 		if (ret)
 			return ret;
 	}
-	return capture_all_bricks_super(vol);
+	return capture_brick_super(get_meta_subvol());
 }
 
 static int reiser4_balance_volume(struct super_block *sb)

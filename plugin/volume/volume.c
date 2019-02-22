@@ -14,18 +14,12 @@
 #include "volume.h"
 
 /**
- * Implementations of simple and asymmetric Logical Volumes (LV).
- * Asymmetric Logical Volume is a matrix of subvolumes.
- * Its first column always represents meta-data suvolume and its replicas.
- * Other columns represent data subvolumes.
- *
- * In asymmetric LV all extent pointers are on the meta-data subvolume.
- * In symmetric LV every extent pointer is stored on a respective data
- * subvolume.
- *
- * For asymmetric LV any search-by-key procedure is performed only on the
- * meta-data subvolume. For symmetric LV every data search procedure is
- * launched on a respective data subvolume.
+ * Implementations of simple and asymmetric logical volumes.
+ * Asymmetric Logical Volume is a table of pointers to bricks
+ * (subvolumes). Its first column represents meta-data brick
+ * and its optional replicas. Other columns represent data
+ * bricks with replicas. Data bricks contain only unformatted
+ * blocks. Meta-data brick contain blocks of all types.
  */
 
 #define VOLMAP_MAGIC "R4VoLMaP"
@@ -471,7 +465,7 @@ static int update_volume_config(reiser4_volume *vol)
  * Create and pin volinfo nodes, allocate disk addresses for them,
  * and pack in-memory volume system information to those nodes
  */
-noinline int create_volume_config(reiser4_volume *vol, int id)
+int create_volume_config(reiser4_volume *vol, int id)
 {
 	int ret;
 	int i, j;
