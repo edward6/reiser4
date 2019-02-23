@@ -88,11 +88,15 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
  */
 #define REISER4_USE_ENTD (1)
 
+#if defined(CONFIG_REISER4_OLD)
 /* key allocation is Plan-A */
-#define REISER4_PLANA_KEY_ALLOCATION (0)
-
+#define REISER4_PLANA_KEY_ALLOCATION (1)
+#define REISER4_PLANB_KEY_ALLOCATION (0)
+#else
 /* key allocation is Plan-B */
+#define REISER4_PLANA_KEY_ALLOCATION (0)
 #define REISER4_PLANB_KEY_ALLOCATION (1)
+#endif
 
 /* key allocation follows good old 3.x scheme */
 #define REISER4_3_5_KEY_ALLOCATION (0)

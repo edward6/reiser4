@@ -23,7 +23,16 @@ config REISER4_FS
 	  It's therefore not possible to use reiserfs file systems
 	  with reiser4.
 
-	  To learn more about reiser4, go to http://www.namesys.com
+	  To learn more about reiser4, go to http://reiser4.wiki.kernel.org/
+
+config REISER4_OLD
+	bool "Enable old reiser4 partitions support"
+	depends on REISER4_FS
+	help
+	  Say Y if you intend to mount old reiser4 partitions of format 4.0.X
+	  It will disable some new features like logical volumes.
+
+	  If unsure, say N.
 
 config REISER4_DEBUG
 	bool "Enable reiser4 debug mode"
