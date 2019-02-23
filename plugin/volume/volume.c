@@ -1407,7 +1407,6 @@ int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 
 	if (!is_meta_brick(victim)) {
 		clear_bit(SUBVOL_TO_BE_REMOVED, &victim->flags);
-		set_bit(SUBVOL_WAS_REMOVED, &victim->flags);
 
 		ret = capture_brick_super(victim);
 		if (ret)

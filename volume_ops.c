@@ -187,7 +187,6 @@ static int reiser4_add_brick(struct super_block *sb,
 		}
 		return ret;
 	}
-	clear_bit(SUBVOL_WAS_REMOVED, &new->flags);
 	/*
 	 * now it is not possible to deactivate the new
 	 * brick: since we posted a new config, there can

@@ -760,14 +760,6 @@ int reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 			reiser4_subvol *subv = conf_origin(conf, orig_id);
 			assert("edward-1773",
 			       subvol_is_set(subv, SUBVOL_ACTIVATED));
-
-			if (subvol_is_set(subv, SUBVOL_WAS_REMOVED)) {
-				warning("edward-2266",
-				   "%s: Brick %s doesn't match logical volume.",
-					super->s_id, subv->name);
-				ret = -EINVAL;
-				goto deactivate;
-			}
 			nr_origins ++;
 		}
 	}
