@@ -16,24 +16,14 @@
 void check_uf_coord(const uf_coord_t *uf_coord, const reiser4_key *key);
 void check_jnodes(struct inode *inode, znode *twig, const reiser4_key *key,
 		  int count);
-int overwrite_extent_generic(struct inode *inode, uf_coord_t *uf_coord,
-			     const reiser4_key *key, jnode **jnodes,
-			     int count, int *plugged_hole,
-			     int(*overwrite_one_block_fn)(struct inode *inode,
-							  uf_coord_t *uf_coord,
-							  const reiser4_key *key,
-							  jnode *node,
-							  int *hole_plugged));
-ssize_t write_extent_generic(struct file *file, struct inode *inode,
-			     const char __user *buf, size_t count,
-			     loff_t *pos,
-			     int(*readpage_fn)(struct file *file,
-					       struct page *page),
-			     int(*update_fn)(struct file *file,
-					     struct inode *inode,
-					     jnode **jnodes,
-					     int count,
-					     loff_t pos));
+int process_extent_generic(struct inode *inode, uf_coord_t *uf_coord,
+			   const reiser4_key *key, jnode **jnodes,
+			   int count, int *plugged_hole,
+			   int(*process_one_block_fn)(struct inode *inode,
+						      uf_coord_t *uf_coord,
+						      const reiser4_key *key,
+						      jnode *node,
+						      int *hole_plugged));
 #if REISER4_DEBUG
 static void check_node(znode *node)
 {
@@ -423,19 +413,15 @@ static int append_extent_stripe(struct inode *inode, uf_coord_t *uf_coord,
 	return count;
 }
 
-/*
- * Overwrite one logical block of file's body. It can be in a hole,
- * which is not represented by any items.
- */
-static int overwrite_one_block_stripe(struct inode *inode, uf_coord_t *uf_coord,
-				      const reiser4_key *key, jnode *node,
-				      int *hole_plugged)
+static int process_one_block(struct inode *inode, uf_coord_t *uf_coord,
+			     const reiser4_key *key, jnode *node,
+			     int *hole_plugged)
 {
 	reiser4_block_nr block;
 
 	if (uf_coord->coord.between != AT_UNIT) {
 		/*
-		 * the case of hole
+		 * there is no item containing @key in the tree
 		 */
 		int result;
 		reiser4_subvol *subv;
@@ -478,18 +464,6 @@ static int overwrite_one_block_stripe(struct inode *inode, uf_coord_t *uf_coord,
 	return 0;
 }
 
-static int overwrite_extent_stripe(struct inode *inode, uf_coord_t *uf_coord,
-				   const reiser4_key *key, jnode **jnodes,
-				   int count, int *plugged_hole)
-{
-	if (uf_coord->coord.between == AT_UNIT)
-		init_coord_extension_extent(uf_coord, get_key_offset(key));
-
-	return overwrite_extent_generic(inode, uf_coord, key,
-					jnodes, count, plugged_hole,
-					overwrite_one_block_stripe);
-}
-
 /**
  * Check that data reservation is still valid.
  *
@@ -517,26 +491,28 @@ static int validate_data_reservation_stripe(struct inode *inode, loff_t pos)
 	return 0;
 }
 
-/*
- * update body of a striped file on write or expanding truncate operations
+/**
+ * Update file body after writing @count blocks at offset @pos.
+ * Return 0 on success.
  */
 static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 				   jnode **jnodes, int count, loff_t pos,
 				   int *plugged_hole)
 {
-	int result;
+	int result = 0;
 	reiser4_key key;
 
-	if (count != 0)
-		/*
-		 * count == 0 is special case: expanding truncate
-		 */
-		pos = (loff_t)index_jnode(jnodes[0]) << PAGE_SHIFT;
+	if (!count)
+		/* expanding truncate - nothing to do */
+		goto out;
 
+	pos = (loff_t)index_jnode(jnodes[0]) << PAGE_SHIFT;
+	/*
+	 * construct non-precise key
+	 */
 	build_body_key_stripe(inode, pos, &key, READ_OP);
 	do {
 		znode *loaded;
-		const char *error;
 
 		result = find_file_item_nohint(&hint->ext_coord.coord,
 					       hint->ext_coord.lh, &key,
@@ -546,12 +522,22 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 
 		result = validate_data_reservation_stripe(inode, pos);
 		if (result) {
+			/*
+			 * make reservation on another data brick
+			 */
 			done_lh(hint->ext_coord.lh);
-			return result;
+			result = grab_data_blocks(calc_data_subvol(inode, pos),
+						  count);
+			if (result)
+				return result;
+			/* repeat for the same key */
+			continue;
 		}
 		assert("edward-2284", get_current_data_subvol() != NULL);
-
-		/* make key precise */
+		/*
+		 * after making sure that destination data brick is valid,
+		 * make key precise
+		 */
 		set_key_ordering(&key, get_current_data_subvol()->id);
 
 		result = zload(hint->ext_coord.coord.node);
@@ -559,48 +545,43 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 		loaded = hint->ext_coord.coord.node;
 		check_node(loaded);
 
-		result = overwrite_extent_stripe(inode,
-						 &hint->ext_coord,
-						 &key, jnodes, count,
-						 plugged_hole);
+		if (hint->ext_coord.coord.between == AT_UNIT)
+			init_coord_extension_extent(&hint->ext_coord,
+						    get_key_offset(&key));
+		/*
+		 * overwrite extent (or create a new one, if it doesn't exist)
+		 */
+		result = process_extent_generic(inode,
+						&hint->ext_coord,
+						&key, jnodes,
+						1 /* one block */,
+						plugged_hole,
+						process_one_block);
 		zrelse(loaded);
 		if (result < 0) {
 			done_lh(hint->ext_coord.lh);
 			break;
 		}
-#if REISER4_DEBUG
-		zload(hint->ext_coord.lh->node);
-		assert("edward-2105",
-		       check_node40(hint->ext_coord.lh->node,
-				    REISER4_NODE_TREE_STABLE, &error) == 0);
-		zrelse(hint->ext_coord.lh->node);
-#endif
+		check_node(hint->ext_coord.lh->node);
+
 		jnodes += result;
 		count -= result;
 		pos += result * PAGE_SIZE;
-
 		set_key_offset(&key, pos);
 		/*
 		 * seal and unlock znode
 		 */
-		if (hint->ext_coord.valid)
+		if (0 /*hint->ext_coord.valid */)
 			reiser4_set_hint(hint, &key, ZNODE_WRITE_LOCK);
 		else
 			reiser4_unset_hint(hint);
-
-		if (count && i_size_read(inode) < get_key_offset(&key))
-			/*
-			 * update file size to not mistakenly
-			 * detect a hole in the next iteration
-			 */
-			INODE_SET_FIELD(inode, i_size, pos);
 	} while (count > 0);
-
+ out:
 	clear_current_data_subvol();
 	return result;
 }
 
-static int update_extents_stripe(struct file *file, struct inode *inode,
+int update_extents_stripe(struct file *file, struct inode *inode,
 				 jnode **jnodes, int count, loff_t pos)
 {
 	int ret;
@@ -611,8 +592,8 @@ static int update_extents_stripe(struct file *file, struct inode *inode,
 	ret = load_file_hint(file, &hint);
 	if (ret)
 		return ret;
-	ret =  __update_extents_stripe(&hint, inode, jnodes, count, pos,
-				       NULL);
+	ret = __update_extents_stripe(&hint, inode, jnodes, count, pos,
+				      NULL);
 	assert("edward-2065",  reiser4_lock_counters()->d_refs == 0);
 	return ret;
 }
@@ -632,23 +613,6 @@ int update_extent_stripe(struct inode *inode, jnode *node, loff_t pos,
 
 	assert("edward-2067", ret == 1 || ret < 0);
 	return (ret == 1) ? 0 : ret;
-}
-
-ssize_t write_extent_stripe(struct file *file, struct inode *inode,
-			    const char __user *buf, size_t count,
-			    loff_t *pos)
-{
-	if (current_stripe_bits) {
-		/*
-		 * write data of only one block
-		 */
-		int to_stripe = current_blocksize -
-			(*pos & (current_blocksize - 1));
-		if (count > to_stripe)
-			count = to_stripe;
-	}
-	return write_extent_generic(file, inode, buf, count, pos,
-				    readpage_stripe, update_extents_stripe);
 }
 
 /*

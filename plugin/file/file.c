@@ -2224,7 +2224,7 @@ ssize_t write_unix_file(struct file *file,
 	struct inode *inode;
 	struct unix_file_info *uf_info;
 	ssize_t written;
-	int to_write = PAGE_SIZE * reiser4_write_granularity();
+	int to_write = PAGE_SIZE * DEFAULT_WRITE_GRANULARITY;
 	size_t left;
 	ssize_t (*write_op)(struct file *, struct inode *,
 			    const char __user *, size_t,

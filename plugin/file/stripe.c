@@ -8,15 +8,18 @@
 */
 
 /*
- * Bodies of striped files are composed of distribution units (stripes).
- * Every stripe, in turn, is a set of extents, and every extent is a set
- * of allocation units (file system blocks) with contiguous disk addresses.
- * Extents are represented in the storage tree by extent pointers (items)
+ * Stripe is a distribution logical unit in a file.
+ * Every stripe, which got physical addresses, is composed of extents
+ * (IO units), and every extent is a set of allocation units (file system
+ * blocks) with contiguous disk addresses.
+ * Neighboring extents of any two adjacent (in the logical order) stripes,
+ * which got to the same device, get merged at the stripes boundary if
+ * their physical addresses are adjusent.
+ * In the storage tree extents are represented by extent pointers (items)
  * of EXTENT41_POINTER_ID. Extent pointer's key is calculated like for
  * classic unix files except the ordering component, which contains ID
- * of a brick (subvolume), where that block should be stored (see
- * build_body_key_stripe()). Holes in a striped file are not represented
- * by any items.
+ * of a brick (subvolume), where that extent should be stored. Holes in a
+ * striped file are not represented by any items.
  */
 
 #include "../../inode.h"
@@ -33,6 +36,18 @@
 #include <linux/syscalls.h>
 
 int readpages_filler_generic(void *data, struct page *page, int striped);
+int update_extents_stripe(struct file *file, struct inode *inode,
+			  jnode **jnodes, int count, loff_t pos);
+ssize_t write_extent_generic(struct file *file, struct inode *inode,
+			     const char __user *buf, size_t count,
+			     loff_t *pos,
+			     int(*readpage_fn)(struct file *file,
+					       struct page *page),
+			     int(*update_fn)(struct file *file,
+					     struct inode *inode,
+					     jnode **jnodes,
+					     int count,
+					     loff_t pos));
 
 reiser4_subvol *calc_data_subvol_stripe(const struct inode *inode,
 					loff_t offset)
@@ -113,21 +128,31 @@ ssize_t read_stripe(struct file *file, char __user *buf,
 	return result;
 }
 
+static inline size_t write_granularity(void)
+{
+	if (current_stripe_bits) {
+		int ret = 1 << (current_stripe_bits - current_blocksize_bits);
+		if (ret > DEFAULT_WRITE_GRANULARITY)
+			ret = DEFAULT_WRITE_GRANULARITY;
+		return ret;
+	} else
+		return DEFAULT_WRITE_GRANULARITY;
+}
+
 ssize_t write_stripe(struct file *file,
 		     const char __user *buf,
 		     size_t count, loff_t *pos,
 		     struct dispatch_context *cont)
 {
 	int result;
-	reiser4_context *ctx;
+	reiser4_context *ctx = get_current_context();
 	struct inode *inode = file_inode(file);
 	struct unix_file_info *uf_info;
-	ssize_t written;
-	int to_write = PAGE_SIZE * reiser4_write_granularity();
-	size_t left;
-	int enospc = 0; /* item plugin ->write() returned ENOSPC */
-
-	ctx = get_current_context();
+	ssize_t written = 0;
+	int to_write;
+	int chunk_size = PAGE_SIZE * write_granularity();
+	size_t left = count;
+	int enospc = 0;
 
 	assert("edward-2030", !reiser4_inode_get_flag(inode, REISER4_NO_SD));
 
@@ -140,21 +165,18 @@ ssize_t write_stripe(struct file *file,
 	reiser4_txn_restart(ctx);
 	uf_info = unix_file_inode_data(inode);
 
-	written = 0;
-	left = count;
-
 	while (left) {
 		int update_sd = 0;
+		/*
+		 * write not more then one logical chunk per iteration
+		 */
+		to_write = chunk_size - (*pos & (chunk_size - 1));
 		if (left < to_write)
 			to_write = left;
-		/*
-		 * write not more than stripe_size bytes per iteration
-		 */
-		written = write_extent_stripe(file, inode, buf,
-					      to_write, pos);
-		assert("edward-2292",
-		       ergo(written >= 0 && current_stripe_bits != 0,
-			    written <= current_stripe_size));
+
+		written = write_extent_generic(file, inode, buf, to_write,
+					       pos, readpage_stripe,
+					       update_extents_stripe);
 
 		if (written == -ENOSPC && !enospc) {
 			txnmgr_force_commit_all(inode->i_sb, 0);
@@ -620,7 +642,9 @@ static int truncate_body_stripe(struct inode *inode, struct iattr *attr)
 
 	if (inode->i_size < new_size) {
 		/* expand */
-		ret = write_extent_stripe(NULL, inode, NULL, 0, &new_size);
+		ret = write_extent_generic(NULL, inode, NULL, 0, &new_size,
+					   readpage_stripe,
+					   update_extents_stripe);
 		if (ret)
 			return ret;
 		return reiser4_update_file_size(inode, new_size, 1);

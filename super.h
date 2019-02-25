@@ -587,18 +587,6 @@ static inline u32 current_num_mirrors(u32 orig_id)
 
 #define DEFAULT_WRITE_GRANULARITY 32 /* always a power of 2 */
 
-static inline int reiser4_write_granularity(void)
-{
-	if (current_stripe_bits) {
-		int ret = 1 << (current_stripe_bits - current_blocksize_bits);
-		if (ret > DEFAULT_WRITE_GRANULARITY)
-			ret = DEFAULT_WRITE_GRANULARITY;
-		return ret;
-	}
-	else
-		return DEFAULT_WRITE_GRANULARITY;
-}
-
 static inline int is_replica(struct reiser4_subvol *subv)
 {
 	assert("edward-1725", subv != NULL);

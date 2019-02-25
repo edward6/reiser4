@@ -906,10 +906,6 @@ int reiser4_check_extent(const coord_t *coord /* coord of item to check */,
 					*error = "Jnode missing";
 					return -1;
 				}
-				if (node->subvol && node->subvol != subv) {
-					*error = "Bad subvolume";
-					return -1;
-				}
 				jput(node);
 			}
 		}

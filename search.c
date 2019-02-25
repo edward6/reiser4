@@ -1066,7 +1066,7 @@ static level_lookup_result cbk_node_lookup(cbk_handle * h/* search handle */)
 	nplug = active->nplug;
 	assert("nikita-380", nplug != NULL);
 
-	ON_DEBUG(check_dkeys(active));
+	//ON_DEBUG(check_dkeys(active));
 
 	/* return item from "active" node with maximal key not greater than
 	   "key"  */
