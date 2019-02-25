@@ -1338,7 +1338,7 @@ reiser4_key *jnode_build_key(const jnode *node, reiser4_key *key)
 	assert("zam-1007", fplug != NULL);
 	assert("zam-1008", fplug->build_body_key != NULL);
 
-	fplug->build_body_key(inode, off, key, READ_OP);
+	fplug->build_body_key(inode, off, key);
 	return key;
 }
 

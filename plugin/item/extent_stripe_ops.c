@@ -510,7 +510,7 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 	/*
 	 * construct non-precise key
 	 */
-	build_body_key_stripe(inode, pos, &key, READ_OP);
+	build_body_key_stripe(inode, pos, &key);
 	do {
 		znode *loaded;
 

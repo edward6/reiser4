@@ -907,7 +907,7 @@ static int insert_unprepped_ctail(struct cluster_handle * clust,
 	memset(buf, 0, (size_t) UCTAIL_NR_UNITS);
 	result = build_body_key_cryptcompress(inode,
 					      clust_to_off(clust->index, inode),
-					      &key, WRITE_OP);
+					      &key);
 	if (result)
 		return result;
 	data.user = 0;
