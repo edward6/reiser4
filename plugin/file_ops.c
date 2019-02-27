@@ -20,8 +20,6 @@ loff_t reiser4_llseek_dir_common(struct file *, loff_t, int origin);
 */
 int reiser4_iterate_common(struct file *, struct dir_context *);
 
-int reiser4_volume_op(struct super_block *, struct reiser4_vol_op_args *);
-
 /**
  * reiser4_release_dir_common - release of struct file_operations
  * @inode: inode of released file
@@ -134,7 +132,7 @@ long reiser4_ioctl_dir_common(struct file *file, unsigned int cmd, unsigned long
 		ret = reiser4_volume_op(super, op_args);
 		if (ret) {
 			warning("edward-1899",
-				"volume operation failed (%d)", ret);
+				"On-line volume operation failed (%d)", ret);
 			kfree(op_args);
 			break;
 		}

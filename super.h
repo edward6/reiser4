@@ -771,6 +771,8 @@ extern long reiser4_subvol_reserved4user(const reiser4_subvol *,
 extern int reiser4_subvol_blocknr_is_sane(const reiser4_subvol *subv,
 					  const reiser4_block_nr *blk);
 /* operations on volume */
+extern int reiser4_volume_op(struct super_block *,
+			     struct reiser4_vol_op_args *);
 extern __u64 reiser4_volume_block_count(const struct super_block *);
 extern __u64 reiser4_volume_blocks_reserved(const struct super_block *super);
 extern __u64 reiser4_volume_free_blocks(const struct super_block *super);
@@ -806,6 +808,7 @@ extern int reiser4_scan_device(const char *path, fmode_t flags, void *holder,
 			       reiser4_subvol **result, reiser4_volume **host);
 
 /* step of fill super */
+extern int reiser4_offline_op(struct reiser4_vol_op_args *);
 extern int reiser4_init_fs_info(struct super_block *);
 extern void reiser4_done_fs_info(struct super_block *);
 extern int reiser4_init_super_data(struct super_block *, char *opt_string);
@@ -814,6 +817,7 @@ void reiser4_deactivate_subvol(struct super_block *super, reiser4_subvol *subv);
 extern int reiser4_activate_volume(struct super_block *, u8 *vol_uuid);
 extern void reiser4_deactivate_volume(struct super_block *);
 extern void reiser4_unregister_subvol(struct reiser4_subvol *subv);
+extern int reiser4_unregister_brick(struct reiser4_vol_op_args *args);
 extern void reiser4_unregister_volumes(void);
 extern struct reiser4_volume *reiser4_search_volume(u8 *vol_uuid);
 extern int reiser4_read_master(struct super_block *, int silent, u8 *vol_uuid);

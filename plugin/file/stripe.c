@@ -827,9 +827,6 @@ int balance_stripe(struct inode *inode)
 	lock_handle lh;
 	item_plugin *iplug;
 
-	/* see the comment above */
-	assert("edward-2144", REISER4_PLANB_KEY_ALLOCATION);
-
 	if (inode->i_size == 0)
 		/*
 		 * empty file, nothing to migrate

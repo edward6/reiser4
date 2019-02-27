@@ -67,6 +67,7 @@ typedef enum {
 typedef enum {
 	REISER4_INVALID_OPT,
 	REISER4_REGISTER_BRICK,
+	REISER4_UNREGISTER_BRICK,
 	REISER4_PRINT_VOLUME,
 	REISER4_PRINT_BRICK,
 	REISER4_PRINT_VOLTAB,
@@ -126,6 +127,7 @@ struct reiser4_vol_op_args
 
 #define REISER4_IOC_UNPACK _IOW(0xCD, 1, long)
 #define REISER4_IOC_VOLUME _IOWR(0xCD, 2, struct reiser4_vol_op_args)
+#define REISER4_IOC_SCAN_DEV _IOW(0xCD, 3, struct reiser4_vol_op_args)
 
 /* __REISER4_IOCTL_H__ */
 #endif

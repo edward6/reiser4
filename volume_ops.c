@@ -11,8 +11,7 @@
 #include "super.h"
 #include "plugin/volume/volume.h"
 
-static int reiser4_register_brick(struct super_block *sb,
-				  struct reiser4_vol_op_args *args)
+static int reiser4_register_brick(struct reiser4_vol_op_args *args)
 {
 	reiser4_volume *host = NULL;
 
@@ -346,6 +345,34 @@ static int reiser4_balance_volume(struct super_block *sb)
 		return capture_brick_super(get_meta_subvol());
 }
 
+/**
+ * Reiser4 off-line volume operations (no FS are mounted).
+ * Don't spawn transactions and performed not in reiser4 context.
+ */
+int reiser4_offline_op(struct reiser4_vol_op_args *args)
+{
+	int ret;
+
+	switch(args->opcode) {
+	case REISER4_REGISTER_BRICK:
+		ret = reiser4_register_brick(args);
+		break;
+	case REISER4_UNREGISTER_BRICK:
+		ret = reiser4_unregister_brick(args);
+		break;
+	default:
+		warning("edward-2316",
+			"unknown off-line volume operation %d", args->opcode);
+		ret = -ENOTTY;
+		break;
+	}
+	return ret;
+}
+
+/**
+ * Reiser4 on-line volume operations (on mounted volumes).
+ * Spawn transactions and performed in reiser4 context.
+ */
 int reiser4_volume_op(struct super_block *sb, struct reiser4_vol_op_args *args)
 {
 	int ret;
@@ -358,9 +385,6 @@ int reiser4_volume_op(struct super_block *sb, struct reiser4_vol_op_args *args)
 		return -EINVAL;
 	}
 	switch(args->opcode) {
-	case REISER4_REGISTER_BRICK:
-		ret = reiser4_register_brick(sb, args);
-		break;
 	case REISER4_PRINT_VOLUME:
 		ret = reiser4_print_volume(sb, args);
 		break;
@@ -387,9 +411,9 @@ int reiser4_volume_op(struct super_block *sb, struct reiser4_vol_op_args *args)
 		break;
 	default:
 		warning("edward-1950",
-			"%s: unknown volume operation %d",
+			"%s: unknown on-line volume operation %d",
 			sb->s_id, args->opcode);
-		ret = -EINVAL;
+		ret = RETERR(-ENOTTY);
 		break;
 	}
 	/* drop exclusive access */

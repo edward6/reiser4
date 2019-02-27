@@ -16,6 +16,7 @@
 #include <linux/debugfs.h>
 #include <linux/backing-dev.h>
 #include <linux/module.h>
+#include <linux/miscdevice.h>
 
 /* slab cache for inodes */
 static struct kmem_cache *inode_cache;
@@ -656,7 +657,8 @@ static struct dentry *reiser4_mount(struct file_system_type *fs_type, int flags,
 		subv = find_meta_brick_by_id(host);
 		if (subv == NULL) {
 			warning("edward-1968",
-				"%s: Can't find meta-data brick.", dev_name);
+				"%s: meta-data brick is not registered.", 
+				dev_name);
 			return ERR_PTR(-EINVAL);
 		}
 		dev_name = subv->name;
@@ -684,6 +686,63 @@ void destroy_reiser4_cache(struct kmem_cache **cachep)
 struct file_system_type *get_reiser4_fs_type(void)
 {
 	return &reiser4_fs_type;
+}
+
+/**
+ * Used by volume.reiser4 to scan devices when no FS is mounted
+ */
+static long reiser4_control_ioctl(struct file *file, unsigned int cmd,
+				  unsigned long arg)
+{
+	int ret;
+	struct reiser4_vol_op_args *op_args;
+
+	if (!capable(CAP_SYS_ADMIN))
+		return -EPERM;
+
+	switch (cmd) {
+	case REISER4_IOC_SCAN_DEV:
+		op_args = memdup_user((void __user *)arg, sizeof(*op_args));
+		if (IS_ERR(op_args))
+			return PTR_ERR(op_args);
+
+		ret = reiser4_offline_op(op_args);
+		if (ret)
+			warning("edward-2315",
+				"off-line volume operation failed (%d)", ret);
+		kfree(op_args);
+		break;
+	default:
+		ret = -ENOTTY;
+		break;
+	}
+	return ret;
+}
+
+static const struct file_operations reiser4_ctl_fops = {
+	.unlocked_ioctl	 = reiser4_control_ioctl,
+	.compat_ioctl = reiser4_control_ioctl,
+	.owner	 = THIS_MODULE,
+	.llseek = noop_llseek,
+};
+
+static struct miscdevice reiser4_misc = {
+	.minor		= REISER4_MINOR,
+	.name		= "reiser4-control",
+	.fops		= &reiser4_ctl_fops
+};
+
+MODULE_ALIAS_MISCDEV(REISER4_MINOR);
+MODULE_ALIAS("devname:reiser4-control");
+
+static int reiser4_interface_init(void)
+{
+	return misc_register(&reiser4_misc);
+}
+
+static void reiser4_interface_exit(void)
+{
+	misc_deregister(&reiser4_misc);
 }
 
 /**
@@ -737,7 +796,6 @@ static int __init init_reiser4(void)
 	/* initialize cache of structures attached to file->private_data */
 	if ((result = reiser4_init_file_fsdata()) != 0)
 		goto failed_init_file_fsdata;
-
 	/*
 	 * initialize cache of d_cursors. See plugin/file_ops_readdir.c for
 	 * more details
@@ -761,10 +819,16 @@ static int __init init_reiser4(void)
 	if ((result = ctx_stack_info_init_static()) != 0)
 		goto failed_init_ctx_stack_info;
 
+	/* initialize interface */
+	if ((result = reiser4_interface_init()) != 0)
+		goto failed_init_interface;
+
 	if ((result = register_filesystem(&reiser4_fs_type)) == 0) {
 		reiser4_debugfs_root = debugfs_create_dir("reiser4", NULL);
 		return 0;
 	}
+	reiser4_interface_exit();
+ failed_init_interface:
 	ctx_stack_info_done_static();
  failed_init_ctx_stack_info:
 	ctx_brick_info_done_static();
@@ -808,6 +872,7 @@ static void __exit done_reiser4(void)
 	debugfs_remove(reiser4_debugfs_root);
 	result = unregister_filesystem(&reiser4_fs_type);
 	BUG_ON(result != 0);
+	reiser4_interface_exit();
 	ctx_stack_info_done_static();
 	ctx_brick_info_done_static();
 	blocknr_list_done_static();

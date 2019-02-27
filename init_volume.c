@@ -165,7 +165,7 @@ static int reiser4_register_subvol(const char *path,
 	list_add(&sub->list, &(*vol)->subvols_list);
 	if (result)
 		*result = sub;
-	notice("edward-1932", "registered subvolume (%s)\n", path);
+	notice("edward-1932", "registered brick (%s)\n", path);
 	return 0;
 }
 
@@ -175,7 +175,11 @@ static void reiser4_free_volume(struct reiser4_volume *vol)
 	kfree(vol);
 }
 
-void reiser4_unregister_subvol(struct reiser4_subvol *subv)
+/**
+ * Remove @subv from volume's list of registered subvolumes and release it.
+ * Pre-condition: @reiser4_volumes_mutex is held.
+ */
+static void unregister_subvol_locked(struct reiser4_subvol *subv)
 {
 	assert("edward-1742", subv->bdev == NULL);
 	assert("edward-1743", subv->fiber == NULL);
@@ -183,13 +187,67 @@ void reiser4_unregister_subvol(struct reiser4_subvol *subv)
 	assert("edward-1745", list_empty_careful(&subv->ch.overwrite_set));
 	assert("edward-1746", list_empty_careful(&subv->ch.tx_list));
 	assert("edward-1747", list_empty_careful(&subv->ch.wander_map));
-	/*
-	 * remove subvolume from volume's subvols_list
-	 */
+
+	notice("edward-2312", "unregistered brick (%s)\n", subv->name);
+
 	list_del_init(&subv->list);
 	if (subv->name)
 		kfree(subv->name);
 	kfree(subv);
+}
+
+void reiser4_unregister_subvol(struct reiser4_subvol *victim)
+{
+	struct reiser4_volume *vol;
+
+	mutex_lock(&reiser4_volumes_mutex);
+
+	list_for_each_entry(vol, &reiser4_volumes, list) {
+		struct reiser4_subvol *subv;
+		list_for_each_entry(subv, &vol->subvols_list, list) {
+			if (subv == victim) {
+				unregister_subvol_locked(subv);
+				break;
+			}
+		}
+	}
+	mutex_unlock(&reiser4_volumes_mutex);
+}
+
+int reiser4_unregister_brick(struct reiser4_vol_op_args *args)
+{
+	int ret = 0;
+	struct reiser4_volume *vol;
+	struct reiser4_subvol *victim = NULL;
+
+	mutex_lock(&reiser4_volumes_mutex);
+
+	list_for_each_entry(vol, &reiser4_volumes, list) {
+		struct reiser4_subvol *subv;
+		list_for_each_entry(subv, &vol->subvols_list, list) {
+			if (!strncmp(args->d.name,
+				     subv->name, strlen(subv->name))) {
+				victim = subv;
+				break;
+			}
+		}
+	}
+	if (!victim) {
+		warning("edward-2313",
+			"Can not find registered brick %s", args->d.name);
+		ret = -EINVAL;
+		goto out;
+	}
+	if (subvol_is_set(victim, SUBVOL_ACTIVATED)) {
+		warning("edward-2314",
+			"Can not unregister activated brick %s", victim->name);
+		ret = -EINVAL;
+		goto out;
+	}
+	unregister_subvol_locked(victim);
+ out:
+	mutex_unlock(&reiser4_volumes_mutex);
+	return ret;
 }
 
 /*
@@ -200,11 +258,14 @@ void reiser4_unregister_volumes(void)
 	struct reiser4_volume *vol;
 	struct reiser4_subvol *sub;
 
+	mutex_lock(&reiser4_volumes_mutex);
+
 	list_for_each_entry(vol, &reiser4_volumes, list) {
 		list_for_each_entry(sub, &vol->subvols_list, list)
-			reiser4_unregister_subvol(sub);
+			unregister_subvol_locked(sub);
 		reiser4_free_volume(vol);
 	}
+	mutex_unlock(&reiser4_volumes_mutex);
 }
 
 /**
