@@ -1653,6 +1653,7 @@ int print_volume_asym(struct super_block *sb, struct reiser4_vol_op_args *args)
 	memcpy(args->u.vol.id, vol->uuid, 16);
 	args->u.vol.vpid = vol->vol_plug->h.id;
 	args->u.vol.dpid = vol->dist_plug->h.id;
+	args->u.vol.stripe_bits = vol->stripe_bits;
 	args->u.vol.fs_flags = get_super_private(sb)->fs_flags;
 	args->u.vol.nr_mslots = conf->nr_mslots;
 	args->u.vol.nr_volinfo_blocks = vinfo->num_volmaps + vinfo->num_voltabs;

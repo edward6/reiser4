@@ -88,6 +88,7 @@ struct reiser4_volume_stat
 			  AID doesn't contain meta-data brick */
 	u16 vpid; /* volume plugin ID */
 	u16 dpid; /* distribution plugin ID */
+	u16 stripe_bits; /* logarithm of stripe size */
 	u64 fs_flags; /* the same as the one of private super-block */
 	u32 nr_mslots; /* number of slots */
 	u32 nr_volinfo_blocks; /* Total number of blocks in the set
