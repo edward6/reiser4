@@ -20,33 +20,44 @@ static LIST_HEAD(reiser4_volumes); /* list of registered volumes */
 
 #define MAX_STRIPE_BITS (63)
 
-static struct reiser4_volume *reiser4_alloc_volume(u8 *uuid,
-						   int vol_pid,
-						   int dist_pid,
-						   int stripe_bits)
+/**
+ * Allocate and initialize a volume header.
+ *
+ * @uuid: unique volume ID;
+ * @vol_plug: volume plugin this volume is managed by;
+ * @dist_plug: plugin distributing stripes among bricks;
+ * @stripe_bits: defines size of stripe (minimal unit of distribution).
+ */
+static reiser4_volume *reiser4_alloc_volume(u8 *uuid,
+					    volume_plugin *vol_plug,
+					    distribution_plugin *dist_plug,
+					    int stripe_bits)
 {
 	struct reiser4_volume *vol;
 
-	if (stripe_bits != 0 &&
-	    stripe_bits < PAGE_SHIFT &&
-	    stripe_bits > MAX_STRIPE_BITS) {
-		warning("edward-1814",
-			"bad stripe_bits (%d)n", stripe_bits);
-		return NULL;
-	}
 	vol = kzalloc(sizeof(*vol), GFP_KERNEL);
 	if (!vol)
 		return NULL;
 	memcpy(vol->uuid, uuid, 16);
+	vol->vol_plug = vol_plug;
+	vol->dist_plug = dist_plug;
+	vol->stripe_bits = stripe_bits;
+
 	INIT_LIST_HEAD(&vol->list);
 	INIT_LIST_HEAD(&vol->subvols_list);
 	atomic_set(&vol->nr_origins, 0);
-	vol->vol_plug = volume_plugin_by_unsafe_id(vol_pid);
-	vol->dist_plug = distribution_plugin_by_unsafe_id(dist_pid);
-	vol->stripe_bits = stripe_bits;
 	return vol;
 }
 
+/**
+ * Allocate and initialize a brick header.
+ *
+ * @df_plug: disk format plugin this brick is managed by;
+ * @uuid: bricks's external ID;
+ * @subvol_id: bricks's internal ID;
+ * @mirror_id: 0 if brick is original. Serial number of replica otherwise;
+ * @num_replicas: total number of replicas
+ */
 struct reiser4_subvol *reiser4_alloc_subvol(u8 *uuid,
 					    const char *path,
 					    disk_format_plugin *df_plug,
@@ -73,17 +84,13 @@ struct reiser4_subvol *reiser4_alloc_subvol(u8 *uuid,
 	subv->id = subvol_id;
 	subv->mirror_id = mirror_id;
 	subv->num_replicas = num_replicas;
-	if (subv->mirror_id > subv->num_replicas) {
-		warning("edward-1739",
-		     "%s: mirror id (%u) larger than number of replicas (%u)",
-		     path, subv->mirror_id, subv->num_replicas);
-		kfree(subv->name);
-		kfree(subv);
-		return NULL;
-	}
 	return subv;
 }
 
+/**
+ * Lookup volume by its ID.
+ * Pre-condition: @reiser4_volumes_mutex is down
+ */
 struct reiser4_volume *reiser4_search_volume(u8 *uuid)
 {
 	struct reiser4_volume *vol;
@@ -95,10 +102,14 @@ struct reiser4_volume *reiser4_search_volume(u8 *uuid)
 	return NULL;
 }
 
-static struct reiser4_subvol *reiser4_search_subvol(u8 *uuid,
+/**
+ * Lookup brick by its external ID.
+ * Pre-condition: @reiser4_volumes_mutex is down
+ */
+static reiser4_subvol *reiser4_search_subvol(u8 *uuid,
 						    struct list_head *where)
 {
-	struct reiser4_subvol *sub;
+	reiser4_subvol *sub;
 
 	list_for_each_entry(sub, where, list) {
 		if (memcmp(uuid, sub->uuid, 16) == 0)
@@ -107,19 +118,41 @@ static struct reiser4_subvol *reiser4_search_subvol(u8 *uuid,
 	return NULL;
 }
 
-/*
- * Register a simple reiser4 subvolume
+static int check_volume_params(reiser4_volume *vol,
+			       volume_plugin *vol_plug,
+			       distribution_plugin *dist_plug,
+			       int stripe_bits,
+			       const char **what_differs)
+{
+	int ret = -EINVAL;
+
+	if (vol->vol_plug != vol_plug)
+		*what_differs = "volume plugins";
+	else if (vol->dist_plug != dist_plug)
+		*what_differs = "distribution plugins";
+	else if (vol->stripe_bits != stripe_bits)
+		*what_differs = "stripe sizes";
+	else
+		ret = 0;
+	return ret;
+}
+
+/**
+ * Register a brick.
  * Returns:
  * 0   - first time subvolume is seen
  * 1   - subvolume already registered
  * < 0 - error
+ *
+ * Pre-condition: @reiser4_volumes_mutex is down,
+ * all passed volume parameters are valid.
  */
 static int reiser4_register_subvol(const char *path,
 				   u8 *vol_uuid,
 				   u8 *sub_uuid,
 				   disk_format_plugin *df_plug,
-				   int vol_pid,
-				   int dist_pid,
+				   volume_plugin *vol_plug,
+				   distribution_plugin *dist_plug,
 				   u16 mirror_id,
 				   u16 num_replicas,
 				   int stripe_bits,
@@ -127,12 +160,29 @@ static int reiser4_register_subvol(const char *path,
 				   reiser4_subvol **result,
 				   reiser4_volume **vol)
 {
+	const char *what_differs;
 	struct reiser4_subvol *sub;
 
 	assert("edward-1964", vol != NULL);
 
 	*vol = reiser4_search_volume(vol_uuid);
 	if (*vol) {
+		int ret = check_volume_params(*vol,
+					      vol_plug,
+					      dist_plug,
+					      stripe_bits,
+					      &what_differs);
+		if (ret) {
+			/*
+			 * Found, but not happy.
+			 * Most likely it is because user specified
+			 * wrong options when formatting bricks.
+			 */
+			warning("edward-2317",
+				"%s: bricks w/ different %s in the same volume",
+				path, what_differs);
+			return ret;
+		}
 		sub = reiser4_search_subvol(sub_uuid, &(*vol)->subvols_list);
 		if (sub) {
 			if (result)
@@ -147,7 +197,9 @@ static int reiser4_register_subvol(const char *path,
 		if (!sub)
 			return -ENOMEM;
 	} else {
-		*vol = reiser4_alloc_volume(vol_uuid, vol_pid, dist_pid,
+		*vol = reiser4_alloc_volume(vol_uuid,
+					    vol_plug,
+					    dist_plug,
 					    stripe_bits);
 		if (*vol == NULL)
 			return -ENOMEM;
@@ -177,7 +229,7 @@ static void reiser4_free_volume(struct reiser4_volume *vol)
 
 /**
  * Remove @subv from volume's list of registered subvolumes and release it.
- * Pre-condition: @reiser4_volumes_mutex is held.
+ * Pre-condition: @reiser4_volumes_mutex is down.
  */
 static void unregister_subvol_locked(struct reiser4_subvol *subv)
 {
@@ -301,11 +353,13 @@ int reiser4_read_master_sb(struct block_device *bdev,
 	return 0;
 }
 
-/*
- * Check for reiser4 signature on an off-line device specified by @path.
- * If found, then try to register a respective reiser4 subvolume.
+/**
+ * Read master and format super-blocks from device specified by @path and
+ * check their magics.
+ * If found, then check parameters of found master and format super-blocks
+ * and try to register a brick accociated with this device.
  * On success store pointer to registered subvolume in @result.
- * If reiser4 was found, then return 0. Otherwise return error.
+ * On success return 0. Otherwise return error.
  */
 int reiser4_scan_device(const char *path, fmode_t flags, void *holder,
 			reiser4_subvol **result, reiser4_volume **host)
@@ -314,8 +368,12 @@ int reiser4_scan_device(const char *path, fmode_t flags, void *holder,
 	u64 subv_id;
 	struct block_device *bdev;
 	struct reiser4_master_sb master;
-	u16 df_pid;
+	u16 df_pid, dist_pid, vol_pid;
+	u8 stripe_bits = 0;
+	u16 mirror_id, nr_replicas;
 	disk_format_plugin *df_plug;
+	volume_plugin *vol_plug;
+	distribution_plugin *dist_plug = NULL;
 
 	mutex_lock(&reiser4_volumes_mutex);
 
@@ -328,12 +386,40 @@ int reiser4_scan_device(const char *path, fmode_t flags, void *holder,
 	if (ret)
 		goto bdev_put;
 
+	ret = -EINVAL;
 	df_pid = master_get_dformat_pid(&master);
 	df_plug = disk_format_plugin_by_unsafe_id(df_pid);
-	if (df_plug == NULL) {
-		warning("edward-1738",
-			"%s: unknown disk format plugin %d\n", path, df_pid);
-		ret = -EINVAL;
+	if (df_plug == NULL)
+		/* unknown disk format plugin */
+		goto bdev_put;
+
+	vol_pid = master_get_volume_pid(&master);
+	vol_plug = volume_plugin_by_unsafe_id(vol_pid);
+	if (!vol_plug)
+		/* unknown volume plugin */
+		goto bdev_put;
+
+	mirror_id = master_get_mirror_id(&master);
+	nr_replicas = master_get_num_replicas(&master);
+	if (mirror_id > nr_replicas) {
+		warning("edward-1739",
+		       "%s: mirror id (%u) larger than number of replicas (%u)",
+			path, mirror_id, nr_replicas);
+		goto bdev_put;
+	}
+
+	dist_pid = master_get_distrib_pid(&master);
+	dist_plug = distribution_plugin_by_unsafe_id(dist_pid);
+	if (!dist_plug)
+		/* unknown distribution plugin */
+		goto bdev_put;
+
+	stripe_bits = master_get_stripe_bits(&master);
+	if (stripe_bits != 0 &&
+	    stripe_bits < PAGE_SHIFT &&
+	    stripe_bits > MAX_STRIPE_BITS) {
+		warning("edward-1814",
+			"bad stripe_bits value (%d)n", stripe_bits);
 		goto bdev_put;
 	}
 	/*
@@ -350,11 +436,11 @@ int reiser4_scan_device(const char *path, fmode_t flags, void *holder,
 				      master.uuid,
 				      master.sub_uuid,
 				      df_plug,
-				      master_get_volume_pid(&master),
-				      master_get_distrib_pid(&master),
-				      master_get_mirror_id(&master),
-				      master_get_num_replicas(&master),
-				      master_get_stripe_bits(&master),
+				      vol_plug,
+				      dist_plug,
+				      mirror_id,
+				      nr_replicas,
+				      stripe_bits,
 				      subv_id,
 				      result, host);
 	if (ret > 0)

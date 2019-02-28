@@ -80,9 +80,6 @@ typedef struct format40_disk_super_block {
 #define FORMAT40_STATUS_BLOCKNR				\
 	((REISER4_MASTER_OFFSET / PAGE_SIZE) + 5)
 
-#define FORMAT40_FIBER_FIRST_BLOCKNR			\
-	((REISER4_MASTER_OFFSET / PAGE_SIZE) + 6)
-
 /* Diskmap declarations */
 #define FORMAT40_PLUGIN_DISKMAP_ID ((REISER4_FORMAT_PLUGIN_TYPE<<16) | (FORMAT40_ID))
 #define FORMAT40_SUPER 1
