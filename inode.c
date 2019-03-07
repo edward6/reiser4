@@ -279,11 +279,14 @@ static int read_inode(struct inode *inode, const reiser4_key *key,
 		set_key_ordering((reiser4_key *)key, get_key_ordering(&ikey));
 
 		if (!keyeq(&ikey, key)) {
+			/* Stat-data killed by concurrent unlink */
+#if REISER4_DEBUG
 			warning("edward-2134",
-				"Bad stat-data found for inode %llu",
+				"inode %llu: stat-data not found by extent",
 				(unsigned long long)get_inode_oid(inode));
 			reiser4_print_key("found", &ikey);
-			ret = -EIO;
+#endif
+			ret = -ENOENT;
 			goto error;
 		}
 	}

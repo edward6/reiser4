@@ -757,16 +757,18 @@ int lookup_sd(struct inode *inode, znode_lock_mode lock_mode,
 	/* not found */
 	if (bias == FIND_MAX_NOT_MORE_THAN) {
 		/*
-		 * check previous item
+		 * In this mode we don't expect that stat-data,
+		 * we are looking for, necessarily exists.
 		 */
 		if (coord->between != AFTER_ITEM) {
+			warning("edward-2320",
+				"Unexpected between state (%d)",
+				coord->between);
 			key_warning(key, inode, result);
 			return -EIO;
 		}
 		coord->between = AT_UNIT;
 		coord->unit_pos = 0;
-
-		check_sd_coord(coord, key);
 		return 0;
 	}
 	/* not found by exact key */

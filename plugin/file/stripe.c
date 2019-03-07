@@ -827,12 +827,6 @@ int balance_stripe(struct inode *inode)
 	lock_handle lh;
 	item_plugin *iplug;
 
-	if (inode->i_size == 0)
-		/*
-		 * empty file, nothing to migrate
-		 */
-		return 0;
-
 	uf = unix_file_inode_data(inode);
 
 	reiser4_inode_set_flag(inode, REISER4_FILE_UNBALANCED);
@@ -860,7 +854,13 @@ int balance_stripe(struct inode *inode)
 		loaded = coord.node;
 
 		coord_set_to_left(&coord);
-		assert("edward-2103", coord_is_existing_item(&coord));
+		if (!coord_is_existing_item(&coord)) {
+			/*
+			 * file is empty. Nothing to migrate
+			 */
+			zrelse(loaded);
+			goto done;
+		}
 		/*
 		 * check that found item belongs to the file
 		 */

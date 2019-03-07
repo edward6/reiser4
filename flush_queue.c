@@ -215,6 +215,8 @@ void queue_jnode(flush_queue_t *fq, jnode *node)
 	assert("vs-1481", !JF_ISSET(node, JNODE_FLUSH_QUEUED));
 	assert("vs-1481", NODE_LIST(node) != FQ_LIST);
 
+	assert("edward-2321", !reiser4_blocknr_is_fake(jnode_get_block(node)));
+
 	mark_jnode_queued(fq, node);
 	list_move_tail(&node->capture_link, ATOM_FQ_LIST(fq));
 

@@ -764,8 +764,21 @@ int process_extent_generic(struct inode *inode, uf_coord_t *uf_coord,
 		 * them dirty
 		 */
 		spin_lock_jnode(node);
+		/*
+		 * FIXME-EDWARD: Replace the assertion below (which is triggered
+		 * due to races) with some solution.
+		 * (node->subvol != subv) means that new volume configuration
+		 * was published, but extent haven't been yet migrated.
+		 * The problem here is that we reserved space on new brick,
+		 * whereas jnode_make_dirty() will spend reservation made on
+		 * the old one. One of possible solutions is to not wait for
+		 * balancing, and perform extent migration right here (so that
+		 * balancing will see that extent don't need migration, and will
+		 * simply skip that extent). More simple option is to reserve
+		 * space on both bricks (new and old) during volume operation
+		 * (when 2 confings - new and old are published).
+		 */
 		assert("edward-1936", node->subvol == subv);
-
 		result = reiser4_try_capture(node, ZNODE_WRITE_LOCK, 0);
 		BUG_ON(result != 0);
 		jnode_make_dirty_locked(node);

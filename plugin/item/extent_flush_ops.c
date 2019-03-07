@@ -264,6 +264,7 @@ int reiser4_scan_extent(flush_scan * scan)
 		 * middle of extent is (scan_index - unit_index) != 0
 		 */
 		if (reiser4_scanning_left(scan) &&
+		    scan->data_subv == find_data_subvol(&coord) &&
 		    (scan_index - unit_index) != 0) {
 			/*
 			 * FIXME(B): Someone should step-through and verify

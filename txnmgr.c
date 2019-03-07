@@ -2592,14 +2592,17 @@ void reiser4_uncapture_page(struct page *pg)
 	jput(node);
 }
 
-/* this is used in extent's kill hook to uncapture and unhash jnodes attached to
- * inode's tree of jnodes */
+/**
+ * This is used in extent's kill hook to uncapture and unhash jnodes
+ * attached to inode's tree of jnodes.
+ * Besides, this is used to release resources (except detaching jnode's
+ * page) during data migration caused by operations on logical volumes.
+ */
 void reiser4_uncapture_jnode(jnode * node)
 {
 	txn_atom *atom;
 
 	assert_spin_locked(&(node->guard));
-	assert("", node->pg == 0);
 
 	atom = jnode_get_atom(node);
 	if (atom == NULL) {

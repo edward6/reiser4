@@ -217,7 +217,7 @@ static int reiser4_register_subvol(const char *path,
 	list_add(&sub->list, &(*vol)->subvols_list);
 	if (result)
 		*result = sub;
-	notice("edward-1932", "registered brick (%s)\n", path);
+	notice("edward-1932", "brick %s has been registered", path);
 	return 0;
 }
 
@@ -240,7 +240,7 @@ static void unregister_subvol_locked(struct reiser4_subvol *subv)
 	assert("edward-1746", list_empty_careful(&subv->ch.tx_list));
 	assert("edward-1747", list_empty_careful(&subv->ch.wander_map));
 
-	notice("edward-2312", "unregistered brick (%s)\n", subv->name);
+	notice("edward-2312", "brick %s has been unregistered", subv->name);
 
 	list_del_init(&subv->list);
 	if (subv->name)
@@ -928,7 +928,8 @@ int reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 	}
 	for_each_data_mslot(conf, orig_id) {
 		reiser4_subvol *subv;
-		if (!conf_origin(conf, orig_id))
+		if (!conf_mslot_at(conf, orig_id) ||
+		    !conf_origin(conf, orig_id))
 			continue;
 		subv = conf_origin(conf, orig_id);
 		if (!brick_identify(subv)) {

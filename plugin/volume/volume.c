@@ -1432,7 +1432,7 @@ int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	 * During this commit @victim gets the last IO
 	 * request as a member of the logical volume.
 	 */
-	txnmgr_force_commit_all(victim->super, 1);
+	txnmgr_force_commit_all(victim->super, 0);
 	/*
 	 * Publish final config with updated set of slots
 	 */
@@ -1868,7 +1868,7 @@ int balance_volume_asym(struct super_block *super)
 				   iter_find_start, &ictx, ZNODE_READ_LOCK, 0);
 	done_lh(&lh);
 	if (ret < 0) {
-		if (ret == -E_NO_NEIGHBOR)
+		if (ret == -ENOENT || ret == -E_NO_NEIGHBOR)
 			/* volume doesn't contain data blocks */
 			goto done;
 		goto error;
@@ -1897,10 +1897,12 @@ int balance_volume_asym(struct super_block *super)
 			done_lh(&lh);
 			goto error;
 		}
-		item_key_by_coord(&coord, &found);
-		zrelse(coord.node);
+		if (!coord_is_existing_item(&coord) ||
+		    !keyeq(item_key_by_coord(&coord, &found), &ictx.curr)) {
 
-		if (!keyeq(&found, &ictx.curr)) {
+			zrelse(coord.node);
+			warning("edward-2319",
+				"Truncated object during balancing");
 			/*
 			 * object found at previous iteration is absent
 			 * (truncated by concurrent process), thus current
@@ -1915,11 +1917,12 @@ int balance_volume_asym(struct super_block *super)
 						   ZNODE_READ_LOCK, 0);
 			if (ret < 0) {
 				done_lh(&lh);
-				if (ret == -E_NO_NEIGHBOR)
+				if (ret == -ENOENT || ret == -E_NO_NEIGHBOR)
 					break;
 				goto error;
 			}
-		}
+		} else
+			zrelse(coord.node);
 		/*
 		 * find leftmost extent of the next file and store
 		 * its key as "next" in the iteration context as a
@@ -1933,7 +1936,7 @@ int balance_volume_asym(struct super_block *super)
 					   &ictx, ZNODE_READ_LOCK, 0);
 		done_lh(&lh);
 
-		if (ret == -E_NO_NEIGHBOR)
+		if (ret == -ENOENT || ret == -E_NO_NEIGHBOR)
 			/*
 			 * next extent not found
 			 */
@@ -1945,7 +1948,9 @@ int balance_volume_asym(struct super_block *super)
 		 * context and read the inode.
 		 * We don't know actual ordering component of stat-data key,
 		 * so we set a maximal one to make sure that search procedure
-		 * will find it correctly
+		 * will find it correctly. Also stat-data we are looking for
+		 * can be killed by concurrent unlink(). In this case a "bad
+		 * inode" is created.
 		 */
 		sdkey = ictx.curr;
 		set_key_ordering(&sdkey, KEY_ORDERING_MASK /* max ordering */);
@@ -1966,7 +1971,6 @@ int balance_volume_asym(struct super_block *super)
 				      "Inode %lli: data migration failed (%d)",
 				      (unsigned long long)get_inode_oid(inode),
 				      ret);
-				/* FSCK? */
 				goto error;
 			}
 		}
