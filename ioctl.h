@@ -104,6 +104,8 @@ struct reiser4_brick_stat
 	u64 block_count; /* total number of blocks */
 	u64 data_room; /* number of data blocks */
 	u64 blocks_used; /* number of blocks used by data and meta-data */
+	u64 system_blocks; /* minimal number of blocks, which are occupied by
+			      system data (super-blocks, bitmap blocks, etc) */
 	u64 volinfo_addr; /* disk address of the first block of a portion
 			     of volume configuration stored on this brick */
 };

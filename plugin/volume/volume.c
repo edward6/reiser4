@@ -1625,6 +1625,43 @@ u64 data_subvol_id_find_simple(const coord_t *coord)
 	return METADATA_SUBVOL_ID;
 }
 
+int print_volume_simple(struct super_block *sb, struct reiser4_vol_op_args *args)
+{
+	reiser4_volume *vol = super_volume(sb);
+
+	args->u.vol.nr_bricks = 1;
+	memcpy(args->u.vol.id, vol->uuid, 16);
+	args->u.vol.vpid = vol->vol_plug->h.id;
+	args->u.vol.dpid = vol->dist_plug->h.id;
+	args->u.vol.stripe_bits = vol->stripe_bits;
+	args->u.vol.fs_flags = get_super_private(sb)->fs_flags;
+	args->u.vol.nr_mslots = vol->conf->nr_mslots;
+	args->u.vol.nr_volinfo_blocks = 0;
+	return 0;
+}
+
+int print_brick_simple(struct super_block *sb, struct reiser4_vol_op_args *args)
+{
+	reiser4_subvol *subv;
+	reiser4_volume *vol = super_volume(sb);
+
+	spin_lock_reiser4_super(get_super_private(sb));
+
+	subv = vol->conf->mslots[0][0];
+	strncpy(args->d.name, subv->name, REISER4_PATH_NAME_MAX + 1);
+	memcpy(args->u.brick.ext_id, subv->uuid, 16);
+	args->u.brick.int_id = subv->id;
+	args->u.brick.nr_replicas = subv->num_replicas;
+	args->u.brick.block_count = subv->block_count;
+	args->u.brick.data_room = subv->data_room;
+	args->u.brick.blocks_used = subv->blocks_used;
+	args->u.brick.system_blocks = subv->min_blocks_used;
+	args->u.brick.volinfo_addr = 0;
+
+	spin_unlock_reiser4_super(get_super_private(sb));
+	return 0;
+}
+
 u64 data_subvol_id_find_asym(const coord_t *coord)
 {
 	reiser4_key key;
@@ -2008,6 +2045,8 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		.shrink_brick = shrink_brick_simple,
 		.remove_brick = remove_brick_simple,
 		.remove_brick_tail = NULL,
+		.print_brick = print_brick_simple,
+		.print_volume = print_volume_simple,
 		.balance_volume = balance_volume_simple,
 		.bucket_ops = {
 			.cap_at = NULL,
