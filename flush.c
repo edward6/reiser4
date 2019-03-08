@@ -1458,6 +1458,12 @@ static void set_data_preceder(flush_pos_t *pos,
  */
 void update_meta_preceder(flush_pos_t *pos, reiser4_block_nr blk)
 {
+	if (unlikely(blk == get_meta_subvol()->block_count))
+		/*
+		 * we reached end of device, reset preceder
+		 */
+		blk = 0;
+
 	pos->meta_preceder.blk = blk;
 	check_preceder(blk, get_meta_subvol());
 
@@ -1475,6 +1481,12 @@ void update_meta_preceder(flush_pos_t *pos, reiser4_block_nr blk)
 void update_data_preceder(flush_pos_t *pos, reiser4_block_nr blk)
 {
 	assert("edward-1848", pos->data_subv != NULL);
+
+	if (unlikely(blk == pos->data_subv->block_count))
+		/*
+		 * we reached end of device, reset preceder
+		 */
+		blk = 0;
 
 	pos->data_preceder.blk = blk;
 	check_preceder(blk, pos->data_subv);

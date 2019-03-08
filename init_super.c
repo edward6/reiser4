@@ -53,6 +53,7 @@ void reiser4_done_fs_info(struct super_block *super)
 	reiser4_done_super_d_info(super);
 	kfree(super->s_fs_info);
 	super->s_fs_info = NULL;
+	super->s_op = NULL;
 }
 
 /* type of option parseable by parse_option() */
