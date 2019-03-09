@@ -883,8 +883,7 @@ int readpages_ctail(struct file *file, struct address_space *mapping,
 	return ret;
 }
 
-reiser4_key *append_key_ctail(struct inode *inode,
-			      const coord_t *coord, reiser4_key *key)
+reiser4_key *append_key_ctail(const coord_t *coord, reiser4_key *key)
 {
 	assert("edward-1241", item_id_by_coord(coord) == CTAIL_ID);
 	assert("edward-1242", cluster_shift_ok(cluster_shift_by_coord(coord)));

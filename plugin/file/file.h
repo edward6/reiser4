@@ -323,6 +323,7 @@ int reiser4_sync_page_list(struct inode *inode);
 int reiser4_update_file_size(struct inode *, loff_t, int update_sd);
 int reserve_cut_iteration(struct inode *inode);
 int grab_data_blocks(reiser4_subvol *data_subv, int count);
+int grab_data_block_reserved(reiser4_subvol *data_subv);
 int reserve_partial_page(struct inode *inode, pgoff_t index);
 int reserve_write_extent(struct inode *inode, loff_t offset, int count);
 int reserve_write_begin_generic(const struct inode *inode, pgoff_t index);
@@ -353,7 +354,8 @@ int find_or_create_extent_generic(struct page *page, int truncate,
 				  int(*update_extent_fn)(struct inode *,
 							 jnode *node,
 							 loff_t pos,
-							 int *plugged_hole));
+							 int *plugged_hole,
+							 int truncate));
 int find_or_create_extent_uf(struct page *, int truncate);
 int reiser4_setattr_generic(struct dentry *dentry, struct iattr *attr,
 			    int (*truncate_file_body_fn)(struct inode *,

@@ -149,7 +149,7 @@ int readpage_extent_stripe(void *, struct page *);
 int reiser4_readpage_extent(void *, struct page *);
 int __reiser4_readpage_extent(const coord_t *coord, reiser4_extent *,
 			      reiser4_block_nr, struct page *);
-reiser4_key *append_key_extent(struct inode *, const coord_t *, reiser4_key *);
+reiser4_key *append_key_extent(const coord_t *, reiser4_key *);
 void init_coord_extension_extent(uf_coord_t *, loff_t offset);
 int get_block_address_extent(const coord_t *, sector_t block,
 			     sector_t * result);
@@ -177,9 +177,9 @@ extent_state state_of_extent(reiser4_extent * ext);
 void reiser4_set_extent(reiser4_subvol *subv, reiser4_extent *,
 			reiser4_block_nr start,	reiser4_block_nr width);
 int update_extent_uf(struct inode *, jnode *, loff_t pos,
-		     int *plugged_hole);
+		     int *plugged_hole, int truncate);
 int update_extent_stripe(struct inode *, jnode *, loff_t pos,
-			 int *plugged_hole);
+			 int *plugged_hole, int truncate);
 
 #include "../../coord.h"
 #include "../../lock.h"

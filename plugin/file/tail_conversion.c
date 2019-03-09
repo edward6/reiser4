@@ -310,8 +310,7 @@ static int find_start(struct inode *inode, reiser4_plugin_id id, __u64 *offset)
 						found = 1;
 					else
 						item_plugin_by_coord(&coord)->s.
-							file.append_key(inode,
-									&coord,
+							file.append_key(&coord,
 									&key);
 					zrelse(coord.node);
 				}

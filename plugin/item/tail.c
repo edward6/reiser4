@@ -541,7 +541,7 @@ static ssize_t append_tail(struct inode *inode,
 	reiser4_key akey;
 	loff_t to_write;
 
-	if (!keyeq(&flow->key, append_key_tail(inode, coord, &akey))) {
+	if (!keyeq(&flow->key, append_key_tail(coord, &akey))) {
 		flow->data = NULL;
 		flow->length = get_key_offset(&flow->key) - get_key_offset(&akey);
 		set_key_offset(&flow->key, get_key_offset(&akey));
@@ -701,7 +701,7 @@ static int coord_matches_key_tail(struct inode *inode,
 	reiser4_key item_key;
 
 	assert("vs-1356", coord_is_existing_unit(coord));
-	assert("vs-1354", keylt(key, append_key_tail(inode, coord, &item_key)));
+	assert("vs-1354", keylt(key, append_key_tail(coord, &item_key)));
 	assert("vs-1355", keyge(key, item_key_by_coord(coord, &item_key)));
 	return get_key_offset(key) ==
 		get_key_offset(&item_key) + coord->unit_pos;
@@ -754,8 +754,7 @@ int read_tail_unix_file(struct file *file, flow_t *f, hint_t *hint)
 	return 0;
 }
 
-reiser4_key *append_key_tail(struct inode *inode,
-			     const coord_t *coord, reiser4_key *key)
+reiser4_key *append_key_tail(const coord_t *coord, reiser4_key *key)
 {
 	item_key_by_coord(coord, key);
 	set_key_offset(key, get_key_offset(key) + item_length_by_coord(coord));

@@ -335,10 +335,10 @@ static int find_file_state(struct inode *inode, struct unix_file_info *uf_info)
 }
 
 /**
- * Set data subvolume to current context.
  * Grab one data block from the reserved area on that subvolume.
+ * Set data subvolume to current context.
  */
-static int grab_data_block_reserved(reiser4_subvol *data_subv)
+int grab_data_block_reserved(reiser4_subvol *data_subv)
 {
 	int ret;
 
@@ -842,7 +842,8 @@ int find_or_create_extent_generic(struct page *page, int truncate,
 				  int(*update_extent_fn)(struct inode *,
 							 jnode *node,
 							 loff_t pos,
-							 int *plugged_hole))
+							 int *plugged_hole,
+							 int truncate))
 {
 	int result;
 	struct inode *inode;
@@ -865,32 +866,7 @@ int find_or_create_extent_generic(struct page *page, int truncate,
 	if (node->blocknr == 0) {
 		plugged_hole = 0;
 		result = update_extent_fn(inode, node, page_offset(page),
-					  &plugged_hole);
-		if (result == -EAGAIN) {
-			/*
-			 * data blocks reservation was invalidated by a
-			 * concurent volume operation (add/remove/etc brick).
-			 * Repeat reservation and call update_fn() again.
-			 */
-			reiser4_subvol *dsubv;
-
-			dsubv = calc_data_subvol(inode, page_offset(page));
-
-			if (truncate) {
-				/* grab from reserved area */
-				assert("edward-2275",
-				       get_current_super_private()->
-				       delete_mutex_owner == current);
-
-				result = grab_data_block_reserved(dsubv);
-			} else
-				/* grab by regular way */
-				result = grab_data_blocks(dsubv, 1);
-			if (!result)
-				result = update_extent_fn(inode, node,
-							  page_offset(page),
-							  &plugged_hole);
-		}
+					  &plugged_hole, truncate);
 		if (result) {
  			JF_CLR(node, JNODE_WRITE_PREPARED);
 			jput(node);

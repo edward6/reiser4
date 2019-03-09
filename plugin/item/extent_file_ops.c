@@ -104,8 +104,7 @@ static int coord_matches_key_extent(struct inode *inode,
 	assert("vs-1258",
 	       ergo(current_vol_plug() ==
 		    volume_plugin_by_id(SIMPLE_VOLUME_ID),
-		    keylt(key, iplug->s.file.append_key(inode,
-							coord, &item_key))));
+		    keylt(key, iplug->s.file.append_key(coord, &item_key))));
 	assert("vs-1259",
 	       ergo(current_vol_plug() ==
 		    volume_plugin_by_id(SIMPLE_VOLUME_ID),
@@ -115,19 +114,17 @@ static int coord_matches_key_extent(struct inode *inode,
 }
 #endif
 
-static int can_append(struct inode *inode,
-		      const reiser4_key *key, const coord_t *coord)
+static int can_append(const reiser4_key *key, const coord_t *coord)
 {
-	return get_key_offset(key) <=
-		round_up(i_size_read(inode), current_blocksize);
+	reiser4_key append_key;
+
+	return keyeq(key, append_key_extent(coord, &append_key));
 }
 
-int append_hole_unix_file(struct inode *inode, coord_t *coord,
-			  lock_handle *lh, const reiser4_key *key)
+static int append_hole_unix_file(coord_t *coord, lock_handle *lh,
+				 const reiser4_key *key)
 {
-	int ret;
-	u64 hole_offset;
-	reiser4_key hole_key;
+	reiser4_key append_key;
 	reiser4_block_nr hole_width;
 	reiser4_extent *ext, new_ext;
 	reiser4_item_data idata;
@@ -139,14 +136,14 @@ int append_hole_unix_file(struct inode *inode, coord_t *coord,
 	 * construct key of first byte which is not addressed by the
 	 * last extent
 	 */
-	hole_offset = round_up(i_size_read(inode), current_blocksize);
-	build_body_key_unix_file(inode, hole_offset, &hole_key);
+	append_key_extent(coord, &append_key);
+	assert("edward-2324", keyle(&append_key, key));
 	/*
 	 * extent item has to be appended with hole. Calculate length of that
 	 * hole
 	 */
-	hole_width = (get_key_offset(key) - hole_offset +
-		      current_blocksize - 1) >> current_blocksize_bits;
+	hole_width = ((get_key_offset(key) - get_key_offset(&append_key) +
+		       current_blocksize - 1) >> current_blocksize_bits);
 	assert("vs-954", hole_width > 0);
 
 	/* set coord after last unit */
@@ -163,7 +160,7 @@ int append_hole_unix_file(struct inode *inode, coord_t *coord,
 		reiser4_set_extent(get_meta_subvol(), ext, HOLE_EXTENT_START,
 				   extent_get_width(ext) + hole_width);
 		znode_make_dirty(coord->node);
-		goto update_file_size;
+		return 0;
 	}
 	/*
 	 * append last item of the file with hole extent unit
@@ -174,19 +171,13 @@ int append_hole_unix_file(struct inode *inode, coord_t *coord,
 	reiser4_set_extent(get_meta_subvol(), &new_ext,
 			   HOLE_EXTENT_START, hole_width);
 	init_new_extent(EXTENT40_POINTER_ID, &idata, &new_ext, 1);
-	ret = insert_into_item(coord, lh, &hole_key, &idata, 0);
-	if (ret < 0)
-		return ret;
- update_file_size:
-	INODE_SET_FIELD(inode, i_size, get_key_offset(key));
-	return 0;
+	return insert_into_item(coord, lh, &append_key, &idata, 0);
 }
 
 /**
  * @twig: longterm locked twig node
  */
-void check_jnodes(struct inode *inode,
-		  znode *twig, const reiser4_key *key, int count)
+void check_jnodes(znode *twig, const reiser4_key *key, int count)
 {
 	coord_t coord;
 	reiser4_key node_key, jnode_key;
@@ -217,8 +208,8 @@ void check_jnodes(struct inode *inode,
 	unit_key_by_coord(&coord, &node_key);
 
 	if (item_is_extent(&coord))
-		item_plugin_by_coord(&coord)->s.file.append_key(inode,
-						   &coord, &node_key);
+		item_plugin_by_coord(&coord)->s.file.append_key(&coord,
+								&node_key);
 	set_key_offset(&jnode_key,
 		       get_key_offset(&jnode_key) +
 		       (loff_t)count * PAGE_SIZE - 1);
@@ -236,8 +227,8 @@ void check_jnodes(struct inode *inode,
  * Append the last of them with unallocated extent unit of width @count.
  * Assign fake block numbers to jnodes corresponding to the inserted extent.
  */
-static int append_last_extent(struct inode *inode, uf_coord_t *uf_coord,
-			      const reiser4_key *key, jnode **jnodes, int count)
+static int append_last_extent(uf_coord_t *uf_coord, const reiser4_key *key,
+			      jnode **jnodes, int count)
 {
 	int result;
 	reiser4_extent new_ext;
@@ -259,9 +250,9 @@ static int append_last_extent(struct inode *inode, uf_coord_t *uf_coord,
 	assert("vs-1311", coord->between == AFTER_UNIT);
 	assert("vs-1302", ext_coord->pos_in_unit == ext_coord->width - 1);
 
-	if (!can_append(inode, key, coord)) {
+	if (!can_append(key, coord)) {
 		/* hole extent has to be inserted */
-		result = append_hole_unix_file(inode, coord, uf_coord->lh, key);
+		result = append_hole_unix_file(coord, uf_coord->lh, key);
 		uf_coord->valid = 0;
 		return result;
 	}
@@ -311,7 +302,7 @@ static int append_last_extent(struct inode *inode, uf_coord_t *uf_coord,
 	 * make sure that we hold long term locked twig node containing all
 	 * jnodes we are about to capture
 	 */
-	check_jnodes(inode, uf_coord->lh->node, key, count);
+	check_jnodes(uf_coord->lh->node, key, count);
 	/*
 	 * assign fake block numbers to all jnodes. FIXME: make sure whether
 	 * twig node containing inserted extent item is locked
@@ -337,10 +328,9 @@ static int append_last_extent(struct inode *inode, uf_coord_t *uf_coord,
 	return count;
 }
 
-static int insert_first_hole_unix_file(struct inode *inode, coord_t *coord,
-				       lock_handle *lh, const reiser4_key *key)
+static int insert_first_hole(coord_t *coord, lock_handle *lh,
+			     const reiser4_key *key)
 {
-	int ret;
 	reiser4_extent new_ext;
 	reiser4_item_data idata;
 	reiser4_key item_key;
@@ -361,11 +351,7 @@ static int insert_first_hole_unix_file(struct inode *inode, coord_t *coord,
 	reiser4_set_extent(get_meta_subvol(), &new_ext,
 			   HOLE_EXTENT_START, hole_width);
 	init_new_extent(EXTENT40_POINTER_ID, &idata, &new_ext, 1);
-	ret = insert_extent_by_coord(coord, &idata, &item_key, lh);
-	if (ret < 0)
-		return ret;
-	INODE_SET_FIELD(inode, i_size, get_key_offset(key));
-	return 0;
+	return insert_extent_by_coord(coord, &idata, &item_key, lh);
 }
 
 
@@ -398,9 +384,8 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	assert("vs-719", znode_get_level(uf_coord->coord.node) == LEAF_LEVEL);
 	assert("vs-711", coord_is_between_items(&uf_coord->coord));
 
-	if (get_key_offset(key) != 0 && i_size_read(inode) == 0) {
-		result = insert_first_hole_unix_file(inode, &uf_coord->coord,
-						     uf_coord->lh, key);
+	if (get_key_offset(key) != 0) {
+		result = insert_first_hole(&uf_coord->coord, uf_coord->lh, key);
 		uf_coord->valid = 0;
 		uf_info = unix_file_inode_data(inode);
 
@@ -442,7 +427,7 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	 * make sure that we hold long term locked twig node containing all
 	 * jnodes we are about to capture
 	 */
-	check_jnodes(inode, uf_coord->lh->node, key, count);
+	check_jnodes(uf_coord->lh->node, key, count);
 	/*
 	 * assign fake block numbers to all jnodes, capture and mark them dirty
 	 */
@@ -485,8 +470,7 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
  * Creates an unallocated extent of width 1 within a hole. In worst case two
  * additional extents can be created.
  */
-static int plug_hole_unix_file(uf_coord_t *uf_coord,
-			       const reiser4_key *key, int *how)
+static int plug_hole(uf_coord_t *uf_coord, const reiser4_key *key, int *how)
 {
 	struct replace_handle rh;
 	reiser4_extent *ext;
@@ -627,10 +611,8 @@ static int plug_hole_unix_file(uf_coord_t *uf_coord,
  * assign fake block number. If @node corresponds to allocated extent - assign
  * block number of jnode
  */
-static int overwrite_one_block(struct inode *inode,
-			       uf_coord_t *uf_coord,
-			       const reiser4_key *key, jnode *node,
-			       int *hole_plugged)
+static int overwrite_one_block(uf_coord_t *uf_coord, const reiser4_key *key,
+			       jnode *node, int *hole_plugged)
 {
 	int result;
 	struct extent_coord_extension *ext_coord;
@@ -657,7 +639,7 @@ static int overwrite_one_block(struct inode *inode,
 		assert("edward-2216", node->subvol == NULL);
 
 		inode_add_blocks(mapping_jnode(node)->host, 1);
-		result = plug_hole_unix_file(uf_coord, key, &how);
+		result = plug_hole(uf_coord, key, &how);
 		if (result)
 			return result;
 		block = fake_blocknr_unformatted(1, get_meta_subvol());
@@ -721,8 +703,7 @@ static int move_coord(uf_coord_t *uf_coord)
 int process_extent_generic(struct inode *inode, uf_coord_t *uf_coord,
 			   const reiser4_key *key, jnode **jnodes,
 			   int count, int *plugged_hole,
-			   int(*process_one_block_fn)(struct inode *inode,
-						      uf_coord_t *uf_coord,
+			   int(*process_one_block_fn)(uf_coord_t *uf_coord,
 						      const reiser4_key *key,
 						      jnode *node,
 						      int *hole_plugged))
@@ -749,7 +730,7 @@ int process_extent_generic(struct inode *inode, uf_coord_t *uf_coord,
 	for (i = 0; i < count; i ++) {
 		node = jnodes[i];
 		if (*jnode_get_block(node) == 0) {
-			result = process_one_block_fn(inode, uf_coord, &k,
+			result = process_one_block_fn(uf_coord, &k,
 						      node, plugged_hole);
 			if (result)
 				return result;
@@ -758,7 +739,7 @@ int process_extent_generic(struct inode *inode, uf_coord_t *uf_coord,
 		 * make sure that we hold long term locked twig node containing
 		 * all jnodes we are about to capture
 		 */
-		check_jnodes(inode, uf_coord->lh->node, &k, 1);
+		check_jnodes(uf_coord->lh->node, &k, 1);
 		/*
 		 * assign fake block numbers to all jnodes, capture and mark
 		 * them dirty
@@ -863,7 +844,7 @@ static int validate_data_reservation_uf(void)
 }
 
 int update_extent_uf(struct inode *inode, jnode *node, loff_t pos,
-		     int *plugged_hole)
+		     int *plugged_hole, int truncate)
 {
 	int result;
 	znode *loaded;
@@ -896,7 +877,7 @@ int update_extent_uf(struct inode *inode, jnode *node, loff_t pos,
 		 */
 		init_coord_extension_extent(&uf_coord,
 					    get_key_offset(&key));
-		result = append_last_extent(inode, &uf_coord, &key, &node, 1);
+		result = append_last_extent(&uf_coord, &key, &node, 1);
 	} else if (coord->between == AT_UNIT) {
 		/*
 		 * overwrite existing extent
@@ -967,7 +948,7 @@ static int update_extents_unix_file(struct file *file, struct inode *inode,
 				/* NOTE: get statistics on this */
 				init_coord_extension_extent(&hint.ext_coord,
 							  get_key_offset(&key));
-			result = append_last_extent(inode, &hint.ext_coord,
+			result = append_last_extent(&hint.ext_coord,
 						    &key, jnodes, count);
 		} else if (hint.ext_coord.coord.between == AT_UNIT) {
 			/*
@@ -1009,13 +990,6 @@ static int update_extents_unix_file(struct file *file, struct inode *inode,
 		else
 			reiser4_unset_hint(&hint);
 
-		if (count > 0 && i_size_read(inode) < get_key_offset(&key))
-			/*
-			 * update file size because in the next iteration
-			 * can_append() should be able to evaluate hole
-			 * properly
-			 */
-			INODE_SET_FIELD(inode, i_size, get_key_offset(&key));
 	} while (count > 0);
 
 	save_file_hint(file, &hint);
@@ -1542,8 +1516,7 @@ int get_block_address_extent(const coord_t *coord, sector_t block,
 	return 0;
 }
 
-reiser4_key *append_key_extent(struct inode *inode,
-			       const coord_t *coord, reiser4_key *key)
+reiser4_key *append_key_extent(const coord_t *coord, reiser4_key *key)
 {
 	item_key_by_coord(coord, key);
 	set_key_offset(key, get_key_offset(key) +

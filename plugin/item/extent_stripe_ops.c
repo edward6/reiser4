@@ -14,13 +14,11 @@
 #include "../volume/volume.h"
 
 void check_uf_coord(const uf_coord_t *uf_coord, const reiser4_key *key);
-void check_jnodes(struct inode *inode, znode *twig, const reiser4_key *key,
-		  int count);
+void check_jnodes(znode *twig, const reiser4_key *key, int count);
 int process_extent_generic(struct inode *inode, uf_coord_t *uf_coord,
 			   const reiser4_key *key, jnode **jnodes,
 			   int count, int *plugged_hole,
-			   int(*process_one_block_fn)(struct inode *inode,
-						      uf_coord_t *uf_coord,
+			   int(*process_one_block_fn)(uf_coord_t *uf_coord,
 						      const reiser4_key *key,
 						      jnode *node,
 						      int *hole_plugged));
@@ -110,8 +108,7 @@ static void try_merge_with_right_item(coord_t *left)
  * mergeable items in a node. We can not leave them unmerged,
  * as it will be treated as corruption.
  */
-static int plug_hole_stripe(struct inode *inode,
-			    uf_coord_t *uf_coord, const reiser4_key *key)
+static int plug_hole_stripe(uf_coord_t *uf_coord, const reiser4_key *key)
 {
 	int ret = 0;
 	reiser4_key akey;
@@ -172,7 +169,7 @@ static int plug_hole_stripe(struct inode *inode,
 	 */
 	assert("edward-2057", item_is_extent(coord));
 
-	if (!keyeq(key, append_key_extent(inode, coord, &akey))) {
+	if (!keyeq(key, append_key_extent(coord, &akey))) {
 		/*
 		 * can not push. Create a new item
 		 */
@@ -229,8 +226,7 @@ static int plug_hole_stripe(struct inode *inode,
 
 static int insert_first_extent_stripe(uf_coord_t *uf_coord,
 				      const reiser4_key *key,
-				      jnode **jnodes, int count,
-				      struct inode *inode)
+				      jnode **jnodes, int count)
 {
 	int result;
 	int i;
@@ -267,7 +263,7 @@ static int insert_first_extent_stripe(uf_coord_t *uf_coord,
 	 * make sure that we hold long term locked twig node containing all
 	 * jnodes we are about to capture
 	 */
-	check_jnodes(inode, uf_coord->lh->node, key, count);
+	check_jnodes(uf_coord->lh->node, key, count);
 	/*
 	 * assign fake block numbers to all jnodes, capture and mark them dirty
 	 */
@@ -303,9 +299,8 @@ static int insert_first_extent_stripe(uf_coord_t *uf_coord,
  * put a pointer to the last (in logical order) @count unallocated
  * unformatted blocks at the position determined by @uf_coord.
  */
-static int append_extent_stripe(struct inode *inode, uf_coord_t *uf_coord,
-				const reiser4_key *key, jnode **jnodes,
-				int count)
+static int append_extent_stripe(uf_coord_t *uf_coord, const reiser4_key *key,
+				jnode **jnodes,	int count)
 {
 	int i;
 	int result;
@@ -327,12 +322,12 @@ static int append_extent_stripe(struct inode *inode, uf_coord_t *uf_coord,
 		 * there is no file items on the left
 		 */
 		return insert_first_extent_stripe(uf_coord, key,
-						  jnodes, count, inode);
+						  jnodes, count);
 	/*
 	 * try to merge with the file body's last item
 	 * If impossible, then create a new item
 	 */
-	append_key_extent(inode, coord, &akey);
+	append_key_extent(coord, &akey);
 	if (!keyeq(&akey, key))
 		/*
 		 * can not merge
@@ -385,7 +380,7 @@ static int append_extent_stripe(struct inode *inode, uf_coord_t *uf_coord,
 	 * make sure that we hold long term locked twig node
 	 * containing all jnodes we are about to capture
 	 */
-	check_jnodes(inode, uf_coord->lh->node, key, count);
+	check_jnodes(uf_coord->lh->node, key, count);
 	/*
 	 * assign fake block numbers to all jnodes. FIXME: make sure whether
 	 * twig node containing inserted extent item is locked
@@ -413,9 +408,8 @@ static int append_extent_stripe(struct inode *inode, uf_coord_t *uf_coord,
 	return count;
 }
 
-static int process_one_block(struct inode *inode, uf_coord_t *uf_coord,
-			     const reiser4_key *key, jnode *node,
-			     int *hole_plugged)
+static int process_one_block(uf_coord_t *uf_coord, const reiser4_key *key,
+			     jnode *node, int *hole_plugged)
 {
 	reiser4_block_nr block;
 
@@ -428,7 +422,7 @@ static int process_one_block(struct inode *inode, uf_coord_t *uf_coord,
 
 		uf_coord->valid = 0;
 		inode_add_blocks(mapping_jnode(node)->host, 1);
-		result = plug_hole_stripe(inode, uf_coord, key);
+		result = plug_hole_stripe(uf_coord, key);
 		if (result)
 			return result;
 		subv = current_origin(get_key_ordering(key));
@@ -497,7 +491,7 @@ static int validate_data_reservation_stripe(struct inode *inode, loff_t pos)
  */
 static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 				   jnode **jnodes, int count, loff_t pos,
-				   int *plugged_hole)
+				   int *plugged_hole, int truncate)
 {
 	int result = 0;
 	reiser4_key key;
@@ -522,12 +516,29 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 
 		result = validate_data_reservation_stripe(inode, pos);
 		if (result) {
+			reiser4_subvol *dsubv;
 			/*
-			 * make reservation on another data brick
+			 * disk space reservation become invalid because
+			 * of races, make reservation on another data brick
 			 */
 			done_lh(hint->ext_coord.lh);
-			result = grab_data_blocks(calc_data_subvol(inode, pos),
-						  count);
+
+			dsubv = calc_data_subvol(inode, pos);
+			if (truncate) {
+				/*
+				 * grab from reserved area
+				 */
+				assert("edward-2275",
+				       get_current_super_private()->
+				       delete_mutex_owner == current);
+				assert("edward-2323", count == 1);
+
+				result = grab_data_block_reserved(dsubv);
+			} else
+				/*
+				 * grab by regular way
+				 */
+				result = grab_data_blocks(dsubv, count);
 			if (result)
 				return result;
 			/* repeat for the same key */
@@ -593,13 +604,13 @@ int update_extents_stripe(struct file *file, struct inode *inode,
 	if (ret)
 		return ret;
 	ret = __update_extents_stripe(&hint, inode, jnodes, count, pos,
-				      NULL);
+				      NULL, 0);
 	assert("edward-2065",  reiser4_lock_counters()->d_refs == 0);
 	return ret;
 }
 
 int update_extent_stripe(struct inode *inode, jnode *node, loff_t pos,
-			 int *plugged_hole)
+			 int *plugged_hole, int truncate)
 {
 	int ret;
 	struct hint hint;
@@ -609,7 +620,7 @@ int update_extent_stripe(struct inode *inode, jnode *node, loff_t pos,
 	hint_init_zero(&hint);
 
 	ret = __update_extents_stripe(&hint, inode, &node, 1,
-				      pos, plugged_hole);
+				      pos, plugged_hole, truncate);
 
 	assert("edward-2067", ret == 1 || ret < 0);
 	return (ret == 1) ? 0 : ret;
