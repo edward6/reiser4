@@ -345,7 +345,9 @@ static int split_extent_item(struct extent_migrate_context *mctx)
 	tail_len = tail_num_units * sizeof(reiser4_extent);
 
 	if (mctx->split_pos != 0) {
+#if REISER4_DEBUG
 		reiser4_key check_key;
+#endif
 		/*
 		 * start from splitting the unit
 		 */

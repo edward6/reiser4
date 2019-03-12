@@ -1938,8 +1938,8 @@ int balance_volume_asym(struct super_block *super)
 		    !keyeq(item_key_by_coord(&coord, &found), &ictx.curr)) {
 
 			zrelse(coord.node);
-			warning("edward-2319",
-				"Truncated object during balancing");
+			ON_DEBUG(notice("edward-2319",
+					"Truncated object during balancing"));
 			/*
 			 * object found at previous iteration is absent
 			 * (truncated by concurrent process), thus current

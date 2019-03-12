@@ -757,6 +757,7 @@ static inline int are_units_mergeable(reiser4_extent *left,
 	default:
 		impossible("edward-2092", "Bad extent state (%d)",
 			   state_of_extent(left));
+		return 0;
 	}
 }
 

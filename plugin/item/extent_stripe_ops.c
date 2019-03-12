@@ -15,13 +15,7 @@
 
 void check_uf_coord(const uf_coord_t *uf_coord, const reiser4_key *key);
 void check_jnodes(znode *twig, const reiser4_key *key, int count);
-int process_extent_generic(struct inode *inode, uf_coord_t *uf_coord,
-			   const reiser4_key *key, jnode **jnodes,
-			   int count, int *plugged_hole,
-			   int(*process_one_block_fn)(uf_coord_t *uf_coord,
-						      const reiser4_key *key,
-						      jnode *node,
-						      int *hole_plugged));
+
 #if REISER4_DEBUG
 static void check_node(znode *node)
 {
@@ -35,40 +29,6 @@ static void check_node(znode *node)
 #else
 #define check_node(node) noop
 #endif
-
-static void check_uf_coord_stripe(const uf_coord_t *uf_coord,
-				  const reiser4_key *key)
-{
-#if REISER4_DEBUG
-	const coord_t *coord;
-	reiser4_extent *ext;
-	reiser4_key coord_key;
-
-	coord = &uf_coord->coord;
-	unit_key_by_coord(coord, &coord_key);
-	ext = (reiser4_extent *)(zdata(coord->node) +
-				 uf_coord->extension.extent.ext_offset);
-	check_uf_coord(uf_coord, key);
-	if (current_stripe_bits) {
-		/*
-		 * make sure that extent doesn't contain stripe boundary
-		 */
-		const coord_t *coord;
-		reiser4_extent *ext;
-		reiser4_key coord_key;
-
-		coord = &uf_coord->coord;
-		unit_key_by_coord(coord, &coord_key);
-		ext = (reiser4_extent *)(zdata(coord->node) +
-					 uf_coord->extension.extent.ext_offset);
-		assert("edward-1815",
-		       get_key_offset(&coord_key) >> current_stripe_bits ==
-		       ((get_key_offset(&coord_key) +
-			 (extent_get_width(ext) << PAGE_SHIFT) - 1) >>
-			current_stripe_bits));
-	}
-#endif
-}
 
 /**
  * Hole in a striped file is not represented by any items,
@@ -446,7 +406,7 @@ static int process_one_block(uf_coord_t *uf_coord, const reiser4_key *key,
 		       get_key_ordering(key));
 
 		ext_coord = ext_coord_by_uf_coord(uf_coord);
-		check_uf_coord_stripe(uf_coord, NULL);
+		check_uf_coord(uf_coord, NULL);
 		ext = (reiser4_extent *)(zdata(uf_coord->coord.node) +
 					 uf_coord->extension.extent.ext_offset);
 		if (state_of_extent(ext) != ALLOCATED_EXTENT)
@@ -456,6 +416,40 @@ static int process_one_block(uf_coord_t *uf_coord, const reiser4_key *key,
 	}
 	jnode_set_block(node, &block);
 	return 0;
+}
+
+int process_extent_stripe(uf_coord_t *uf_coord, const reiser4_key *key,
+			  jnode **jnodes, int *plugged_hole)
+{
+	int ret;
+	jnode *node = jnodes[0];
+	struct atom_brick_info *abi;
+
+	ret = check_insert_atom_brick_info(get_key_ordering(key), &abi);
+	if (ret)
+		return ret;
+
+	if (*jnode_get_block(node) == 0) {
+		ret = process_one_block(uf_coord, key, node, plugged_hole);
+		if (ret)
+			return ret;
+	}
+	/*
+	 * make sure that locked twig node contains
+	 * all jnodes we are about to capture
+	 */
+	check_jnodes(uf_coord->lh->node, key, 1);
+
+	spin_lock_jnode(node);
+	ret = reiser4_try_capture(node, ZNODE_WRITE_LOCK, 0);
+	BUG_ON(ret != 0);
+	jnode_make_dirty_locked(node);
+	spin_unlock_jnode(node);
+#if REISER4_DEBUG
+	if (uf_coord->valid)
+		check_uf_coord(uf_coord, key);
+#endif
+	return 1;
 }
 
 /**
@@ -612,12 +606,8 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 		/*
 		 * overwrite extent (or create a new one, if it doesn't exist)
 		 */
-		ret = process_extent_generic(inode,
-					     &hint->ext_coord,
-					     &key, jnodes,
-					     1 /* one block */,
-					     plugged_hole,
-					     process_one_block);
+		ret = process_extent_stripe(&hint->ext_coord, &key, jnodes,
+					    plugged_hole);
 		zrelse(loaded);
 		if (ret < 0) {
 			done_lh(hint->ext_coord.lh);

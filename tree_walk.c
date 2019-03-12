@@ -60,13 +60,12 @@ static int lock_neighbor(
 				/* GN_* flags */
 				int flags, int rlocked)
 {
-	reiser4_tree *tree = znode_get_tree(node);
-	znode *neighbor;
 	int ret;
+	znode *neighbor;
 
 	assert("umka-236", node != NULL);
-	assert("umka-237", tree != NULL);
-	assert_rw_locked(&(tree->tree_lock));
+	assert("umka-237", znode_get_tree(node) != NULL);
+	assert_rw_locked(&(znode_get_tree(node)->tree_lock));
 
 	if (flags & GN_TRY_LOCK)
 		req |= ZNODE_LOCK_NONBLOCK;
@@ -498,13 +497,12 @@ static int connect_one_side(coord_t * coord, znode * node, int flags)
 /* Audited by: umka (2002.06.14), umka (2002.06.15) */
 int connect_znode(coord_t * parent_coord, znode * child)
 {
-	reiser4_tree *tree = znode_get_tree(child);
 	int ret = 0;
 
 	assert("zam-330", parent_coord != NULL);
 	assert("zam-331", child != NULL);
 	assert("zam-332", parent_coord->node != NULL);
-	assert("umka-305", tree != NULL);
+	assert("umka-305", znode_get_tree(child) != NULL);
 
 	/* it is trivial to `connect' root znode because it can't have
 	   neighbors */
@@ -570,15 +568,14 @@ renew_neighbor(coord_t * coord, znode * node, tree_level level, int flags)
 {
 	coord_t local;
 	lock_handle empty[2];
-	reiser4_tree *tree = znode_get_tree(node);
 	znode *neighbor = NULL;
 	int nr_locked = 0;
 	int ret;
 
 	assert("umka-250", coord != NULL);
 	assert("umka-251", node != NULL);
-	assert("umka-307", tree != NULL);
-	assert("umka-308", level <= tree->height);
+	assert("umka-307", znode_get_tree(node) != NULL);
+	assert("umka-308", level <= znode_get_tree(node)->height);
 
 	/* umka (2002.06.14)
 	   Here probably should be a check for given "level" validness.
@@ -659,7 +656,6 @@ int
 reiser4_get_neighbor(lock_handle * neighbor, znode * node,
 		     znode_lock_mode lock_mode, int flags)
 {
-	reiser4_tree *tree = znode_get_tree(node);
 	lock_handle path[REAL_MAX_ZTREE_HEIGHT];
 
 	coord_t coord;
@@ -668,13 +664,13 @@ reiser4_get_neighbor(lock_handle * neighbor, znode * node,
 	tree_level h = 0;
 	int ret;
 
-	assert("umka-252", tree != NULL);
+	assert("umka-252", znode_get_tree(node) != NULL);
 	assert("umka-253", neighbor != NULL);
 	assert("umka-254", node != NULL);
 
 	base_level = znode_get_level(node);
 
-	assert("umka-310", base_level <= tree->height);
+	assert("umka-310", base_level <= znode_get_tree(node)->height);
 
 	coord_init_zero(&coord);
 

@@ -701,27 +701,15 @@ static int move_coord(uf_coord_t *uf_coord)
  * Process @count logical blocks of a file.
  * Returns number of handled jnodes.
  */
-int process_extent_generic(struct inode *inode, uf_coord_t *uf_coord,
-			   const reiser4_key *key, jnode **jnodes,
-			   int count, int *plugged_hole,
-			   int(*process_one_block_fn)(uf_coord_t *uf_coord,
-						      const reiser4_key *key,
-						      jnode *node,
-						      int *hole_plugged))
+static int overwrite_extent(uf_coord_t *uf_coord, const reiser4_key *key,
+			    jnode **jnodes, int count, int *plugged_hole)
 {
 	int result;
 	reiser4_key k;
 	int i;
 	jnode *node;
 	struct atom_brick_info *abi;
-	file_plugin *fplug = inode_file_plugin(inode);
-	reiser4_subvol *subv;
-
-	/* FIXME: This is rather ugly */
-	if (fplug == file_plugin_by_id(UNIX_FILE_PLUGIN_ID))
-		subv = get_meta_subvol();
-	else
-		subv = subvol_by_key(key);
+	reiser4_subvol *subv = get_meta_subvol();
 
 	result = check_insert_atom_brick_info(subv->id, &abi);
 	if (result)
@@ -731,8 +719,8 @@ int process_extent_generic(struct inode *inode, uf_coord_t *uf_coord,
 	for (i = 0; i < count; i ++) {
 		node = jnodes[i];
 		if (*jnode_get_block(node) == 0) {
-			result = process_one_block_fn(uf_coord, &k,
-						      node, plugged_hole);
+			result = overwrite_one_block(uf_coord, &k,
+						     node, plugged_hole);
 			if (result)
 				return result;
 		}
@@ -872,9 +860,8 @@ int update_extent_uf(struct inode *inode, jnode *node, loff_t pos,
 		 */
 		init_coord_extension_extent(&uf_coord,
 					    get_key_offset(&key));
-		result = process_extent_generic(inode, &uf_coord, &key,
-						&node, 1, plugged_hole,
-						overwrite_one_block);
+		result = overwrite_extent(&uf_coord, &key,
+					  &node, 1, plugged_hole);
 	} else {
 		/*
 		 * there are no items of this file in the tree yet.
@@ -946,11 +933,8 @@ static int update_extents_unix_file(struct file *file, struct inode *inode,
 				/* NOTE: get statistics on this */
 				init_coord_extension_extent(&hint.ext_coord,
 							  get_key_offset(&key));
-			result = process_extent_generic(inode,
-							&hint.ext_coord,
-							&key, jnodes,
-							count, NULL,
-							overwrite_one_block);
+			result = overwrite_extent(&hint.ext_coord, &key,
+						  jnodes, count, NULL);
 		} else {
 			/*
 			 * there are no items of this file in the tree
@@ -1506,8 +1490,7 @@ int get_block_address_extent(const coord_t *coord, sector_t block,
 reiser4_key *append_key_extent(const coord_t *coord, reiser4_key *key)
 {
 	item_key_by_coord(coord, key);
-	set_key_offset(key, get_key_offset(key) +
-		       reiser4_extent_size(coord));
+	set_key_offset(key, get_key_offset(key) + reiser4_extent_size(coord));
 
 	assert("vs-610", get_key_offset(key) &&
 	       (get_key_offset(key) & (current_blocksize - 1)) == 0);

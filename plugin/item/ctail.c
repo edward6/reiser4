@@ -1245,14 +1245,14 @@ static int attach_convert_idata(flush_pos_t * pos, struct inode *inode)
 	int ret = 0;
 	struct convert_item_info *info;
 	struct cluster_handle *clust;
-	file_plugin *fplug = inode_file_plugin(inode);
 
 	assert("edward-248", pos != NULL);
 	assert("edward-249", pos->child != NULL);
 	assert("edward-251", inode != NULL);
 	assert("edward-682", cryptcompress_inode_ok(inode));
 	assert("edward-252",
-	       fplug == file_plugin_by_id(CRYPTCOMPRESS_FILE_PLUGIN_ID));
+	       inode_file_plugin(inode) ==
+	       file_plugin_by_id(CRYPTCOMPRESS_FILE_PLUGIN_ID));
 	assert("edward-473",
 	       item_plugin_by_coord(&pos->coord) ==
 	       item_plugin_by_id(CTAIL_ID));

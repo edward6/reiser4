@@ -191,11 +191,10 @@ struct reiser4_subvol {
 	struct repacker *repacker;
 	struct page *status_page; /* Image of the status block */
 	struct bio *status_bio;
-#if REISER4_DEBUG
+
 	__u64 min_blocks_used; /* minimum used blocks value (includes super
 				  blocks, bitmap blocks and other fs reserved
 				  areas), depends on fs format and fs size. */
-#endif
 	/*
 	 * Per-subvolume fields of commit handle.
 	 * Access to them requires to acquire the commit_mutex.
