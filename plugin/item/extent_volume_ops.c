@@ -212,6 +212,7 @@ static int migrate_one_block(struct extent_migrate_context *mctx)
 	       node->subvol == calc_data_subvol(inode, page_offset(page)));
 
 	ret = update_extent_stripe(inode, node, page_offset(page), NULL, 0);
+	clear_current_data_subvol();
 	if (ret)
 		warning("edward-1897",
 			"Failed to migrate block %lu of inode %llu (%d)",

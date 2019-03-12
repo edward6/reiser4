@@ -459,27 +459,48 @@ static int process_one_block(uf_coord_t *uf_coord, const reiser4_key *key,
 }
 
 /**
- * Check that data reservation is still valid.
+ * Check that disk space reservation made by grab_data_blocks(), or
+ * grab_data_block_reserved() at the beginning of regular file operation
+ * is still valid, i.e. not spoiled by concurrent volume operation.
  *
- * Pre-condition: lognterm lock is held at the position
- * where the extent(s) are supposed to be updated.
- * If reservation is valid, then return 0.
- * Otherwise, return -EAGAIN.
+ * If reservation is valid, then return 0. Otherwise, return -EAGAIN and
+ * set @subv to a brick where additional reservation should be made.
+ * Besides, if that additional reservation should be made for the new
+ * volume configuration, then set @case_id to 1. Otherwise set it to 0.
+ *
+ * Pre-condition: lognterm lock is held at the position where the extent(s)
+ * are supposed to be updated.
  */
-static int validate_data_reservation_stripe(struct inode *inode, loff_t pos)
+static int validate_data_reservation_stripe(coord_t *coord, struct inode *inode,
+					    loff_t pos, reiser4_subvol **subv,
+					    jnode *node, int *case_id)
 {
+	reiser4_subvol *new;
+
 	assert("edward-2279", get_current_csi()->data_subv != NULL);
 
-	if (get_current_csi()->data_subv != calc_data_subvol(inode, pos)) {
+	new = calc_data_subvol(inode, pos);
+
+	if (get_current_csi()->data_subv != new) {
 		/*
-		 * disk space reservation has become invalid
-		 * because volume configuratin was changed by a
-		 * concurent volume operation (add/remove/etc
-		 * brick), so we need to perform reservation
-		 * once again for the new configuration
+		 * space was reseved for old configuration,
+		 * but we also need to reserve for the new one.
 		 */
-		notice("edward-2280", "Data reservation became invalid");
 		get_current_csi()->data_subv = NULL;
+		*case_id = 1;
+		*subv = new;
+		return -EAGAIN;
+	} else if (node->subvol && node->subvol != new) {
+		/*
+		 * space was reserved for new configuration,
+		 * but we also need to reserve for the old one.
+		 */
+		assert("edward-2325",
+		       WITH_DATA(coord->node,
+				 coord_is_existing_item(coord) &&
+				 find_data_subvol(coord) == node->subvol));
+		*case_id = 0;
+		*subv = node->subvol; /* old */
 		return -EAGAIN;
 	}
 	return 0;
@@ -493,8 +514,9 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 				   jnode **jnodes, int count, loff_t pos,
 				   int *plugged_hole, int truncate)
 {
-	int result = 0;
+	int ret = 0;
 	reiser4_key key;
+	int validated = 0;
 
 	if (!count)
 		/* expanding truncate - nothing to do */
@@ -506,44 +528,72 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 	 */
 	build_body_key_stripe(inode, pos, &key);
 	do {
+		int new;
 		znode *loaded;
+		reiser4_subvol *dsubv;
 
-		result = find_file_item_nohint(&hint->ext_coord.coord,
-					       hint->ext_coord.lh, &key,
-					       ZNODE_WRITE_LOCK, inode);
-		if (IS_CBKERR(result))
+		ret = find_file_item_nohint(&hint->ext_coord.coord,
+					    hint->ext_coord.lh, &key,
+					    ZNODE_WRITE_LOCK, inode);
+		if (IS_CBKERR(ret))
 			return -EIO;
-
-		result = validate_data_reservation_stripe(inode, pos);
-		if (result) {
-			reiser4_subvol *dsubv;
+		/*
+		 * We have locked a position in the tree.
+		 * Now handle possible races with concurrent volume operations.
+		 */
+		if (!validated &&
+		    validate_data_reservation_stripe(&hint->ext_coord.coord,
+						     inode, pos, &dsubv,
+						     jnodes[0], &new)) {
 			/*
-			 * disk space reservation become invalid because
-			 * of races, make reservation on another data brick
+			 * Make reservation on another data brick. For
+			 * this we need to release the lock.
+			 *
+			 * NOTE-EDWARD: We assume that volume config won't
+			 * be changed by another volume operation while we
+			 * are keeping things unlocked. In theory, it is
+			 * possible, however. So it would be nice to have
+			 * a guarantee that volume operations don't happen
+			 * too frequently.
 			 */
 			done_lh(hint->ext_coord.lh);
 
-			dsubv = calc_data_subvol(inode, pos);
+			ON_DEBUG(notice("edward-2327",
+			       "Handling races with volume ops (case %d)",
+					new));
+			grab_space_enable();
 			if (truncate) {
 				/*
 				 * grab from reserved area
 				 */
+				struct super_block *sb;
+				sb = reiser4_get_current_sb();
+
 				assert("edward-2275",
 				       get_current_super_private()->
 				       delete_mutex_owner == current);
 				assert("edward-2323", count == 1);
 
-				result = grab_data_block_reserved(dsubv);
+				ret = reiser4_grab_reserved(sb, count,
+							    BA_CAN_COMMIT,
+							    dsubv);
 			} else
 				/*
 				 * grab by regular way
 				 */
-				result = grab_data_blocks(dsubv, count);
-			if (result)
-				return result;
-			/* repeat for the same key */
+				ret = reiser4_grab_space(count, BA_CAN_COMMIT,
+							 dsubv);
+			if (ret)
+				return ret;
+			if (new)
+				set_current_data_subvol(dsubv);
+			/*
+			 * repeat with the same key
+			 */
+			validated = 1;
 			continue;
 		}
+		validated = 0; /* reset for next iteration */
 		assert("edward-2284", get_current_data_subvol() != NULL);
 		/*
 		 * after making sure that destination data brick is valid,
@@ -551,8 +601,8 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 		 */
 		set_key_ordering(&key, get_current_data_subvol()->id);
 
-		result = zload(hint->ext_coord.coord.node);
-		BUG_ON(result != 0);
+		ret = zload(hint->ext_coord.coord.node);
+		BUG_ON(ret != 0);
 		loaded = hint->ext_coord.coord.node;
 		check_node(loaded);
 
@@ -562,23 +612,28 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 		/*
 		 * overwrite extent (or create a new one, if it doesn't exist)
 		 */
-		result = process_extent_generic(inode,
-						&hint->ext_coord,
-						&key, jnodes,
-						1 /* one block */,
-						plugged_hole,
-						process_one_block);
+		ret = process_extent_generic(inode,
+					     &hint->ext_coord,
+					     &key, jnodes,
+					     1 /* one block */,
+					     plugged_hole,
+					     process_one_block);
 		zrelse(loaded);
-		if (result < 0) {
+		if (ret < 0) {
 			done_lh(hint->ext_coord.lh);
 			break;
 		}
 		check_node(hint->ext_coord.lh->node);
 
-		jnodes += result;
-		count -= result;
-		pos += result * PAGE_SIZE;
+		jnodes += ret;
+		count -= ret;
+		pos += ret * PAGE_SIZE;
+		/*
+		 * Update key for the next iteration.
+		 * We don't know its ordering component, so set maximal value.
+		 */
 		set_key_offset(&key, pos);
+		set_key_ordering(&key, KEY_ORDERING_MASK);
 		/*
 		 * seal and unlock znode
 		 */
@@ -589,7 +644,7 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 	} while (count > 0);
  out:
 	clear_current_data_subvol();
-	return result;
+	return ret;
 }
 
 int update_extents_stripe(struct file *file, struct inode *inode,
