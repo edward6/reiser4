@@ -1411,16 +1411,6 @@ int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 		ret = capture_brick_super(victim);
 		if (ret)
 			return ret;
-		ret = reserve_brick_symbol_del();
-		if (ret)
-			return ret;
-		/*
-		 * remove a record about @victim from the volume
-		 */
-		ret = brick_symbol_del(victim);
-		reiser4_release_reserved(reiser4_get_current_sb());
-		if (ret)
-			return ret;
 	}
 	/*
 	 * We are about to release @victim with replicas.
@@ -1436,8 +1426,21 @@ int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	/*
 	 * Publish final config with updated set of slots
 	 */
-	if (!is_meta_brick(victim))
+	if (!is_meta_brick(victim)) {
+		/*
+		 * remove a record about @victim from the volume
+		 * and decrement number of bricks in the same
+		 * transaction
+		 */
+		ret = reserve_brick_symbol_del();
+		if (ret)
+			return ret;
+		ret = brick_symbol_del(victim);
+		reiser4_release_reserved(reiser4_get_current_sb());
+		if (ret)
+			return ret;
 		atomic_dec(&vol->nr_origins);
+	}
 	/*
 	 * Publish final config with updated set of slots,
 	 * which doesn't contain @victim
