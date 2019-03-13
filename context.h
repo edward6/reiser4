@@ -153,8 +153,6 @@ extern void print_contexts(void);
 
 #define current_blocksize reiser4_get_current_sb()->s_blocksize
 #define current_blocksize_bits reiser4_get_current_sb()->s_blocksize_bits
-#define current_aid \
-	get_super_private(reiser4_get_current_sb())->vol->aid
 #define current_tree(subvol_id) (&(current_origin(subvol_id)->tree))
 
 extern reiser4_context *reiser4_init_context(struct super_block *);

@@ -1,13 +1,13 @@
-#ifndef AID_H
-#define AID_H
+#ifndef DST_H
+#define DST_H
 
-#include "fsw32.h"
+#include "fsx32.h"
 
-union reiser4_aid {
-	struct fsw32_aid fsw32;
+union reiser4_dcx {
+	struct fsx32_dcx fsx32;
 };
 
-#endif /* AID_H */
+#endif /* DST_H */
 
 /*
   Local variables:

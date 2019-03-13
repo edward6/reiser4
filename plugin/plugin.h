@@ -551,38 +551,46 @@ struct bucket_ops {
 };
 
 struct dist_regular_ops {
-	int (*init)(reiser4_aid *aid, void **tab,
-		    int num_buckets, int nums_bits);
-	u64 (*lookup)(reiser4_aid *aid, const char *str,
+	/* initialize distribution context for regular file operations */
+	int (*init)(reiser4_dcx *rdcx, void **tab, int num_buckets,
+		    int nums_bits);
+	/* calculate address in a logical volume */
+	u64 (*lookup)(reiser4_dcx *rdcx, const char *str,
 		      int len, u32 seed, void *tab);
-	void (*replace)(reiser4_aid *raid, void **target);
+	void (*replace)(reiser4_dcx *rdcx, void **target);
 	void (*free)(void *tab);
+	/* put distribution context used for regular file operations */
 	void (*done)(void **tab);
 };
 
+/*
+ * Operations with an array of abstract buckets
+ */
 struct dist_volume_ops {
-	/* is called at the beginning of any volume operation */
-	int (*init)(bucket_t *buckets, void **tab,
-		    u64 num_buckets, int num_sgs_bits,
-		    struct bucket_ops *ops, reiser4_aid *raid);
-	/* is called at the end of any volume operation */
-	void (*done)(reiser4_aid *raid);
-	/* increase capacity of a storage array */
-	int (*inc)(reiser4_aid *raid, void *tab, u64 target_pos, bucket_t new);
-	/* decrease capacity of a storage array */
-	int (*dec)(reiser4_aid *raid, void *tab, u64 target_pos, bucket_t old);
-	/* increase maximal capacity of a storage array */
-	int (*spl)(reiser4_aid *raid, u32 fact_bits);
-	/* pack system information to a set of blocks */
-	void (*pack)(reiser4_aid *raid, char *to, u64 src_off, u64 count);
-	/* extract system information from a set of blocks */
-	void (*unpack)(reiser4_aid *raid, void *tab,
+	/* Initialize context of operation */
+	int (*init)(bucket_t *buckets, void **tab, u64 num_buckets,
+		    int num_sgs_bits, struct bucket_ops *ops,
+		    reiser4_dcx *rdcx);
+	/* Release context of operation */
+	void (*done)(reiser4_dcx *rdcx);
+	/* Increase capacity of an array.
+	   If @new is not NULL, then the whole bucket is to be added */
+	int (*inc)(reiser4_dcx *rdcx, void *tab, u64 target_pos, bucket_t new);
+	/* Decrease capacity of an array.
+	   If @old is not NULL, then the whole bucket is to be removed */
+	int (*dec)(reiser4_dcx *rdcx, void *tab, u64 target_pos, bucket_t old);
+	/* Increase max limit for the number of buckets in array */
+	int (*spl)(reiser4_dcx *rdcx, u32 fact_bits);
+	/* Pack system configuration for storing on disk */
+	void (*pack)(reiser4_dcx *rdcx, char *to, u64 src_off, u64 count);
+	/* Extract system configuration from disk */
+	void (*unpack)(reiser4_dcx *rdcx, void *tab,
 		       char *from, u64 dst_off, u64 count);
-	/* print system table */
-	void (*dump)(reiser4_aid *raid, void *tab,
+	/* Print system configuration */
+	void (*dump)(reiser4_dcx *rdcx, void *tab,
 		     char *to, u64 offset, u32 size);
-	/* return a pointer to the array of abstract buckets */
-	bucket_t *(*get_buckets)(reiser4_aid *raid);
+	/* Return a pointer to an array */
+	bucket_t *(*get_buckets)(reiser4_dcx *rdcx);
 };
 
 typedef struct distribution_plugin {
@@ -947,7 +955,7 @@ typedef enum {
 /* builtin distribution plugins */
 typedef enum {
 	TRIV_DISTRIB_ID, /* for simple volumes */
-	FSW32M_DISTRIB_ID,
+	FSX32M_DISTRIB_ID,
 	LAST_DISTRIB_ID
 } reiser4_distribution_id;
 

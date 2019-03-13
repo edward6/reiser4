@@ -70,7 +70,7 @@ typedef struct uf_coord uf_coord_t;
 typedef struct hint hint_t;
 
 typedef struct ktxnmgrd_context ktxnmgrd_context;
-typedef union reiser4_aid reiser4_aid;
+typedef union reiser4_dcx reiser4_dcx;
 typedef struct fnode fnode;
 
 struct inode;

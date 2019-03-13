@@ -118,13 +118,13 @@ static bucket_t *create_buckets(reiser4_volume *vol, u32 nr_buckets)
 	bucket_t *ret;
 	u32 i, j, off;
 #if REISER4_DEBUG
-	u32 nr_dsa_bricks = num_aid_subvols(vol);
+	u32 nr_dsa_bricks = num_dsa_subvols(vol);
 
 	assert("edward-2180",
 	       nr_buckets == nr_dsa_bricks ||
 	       nr_buckets == nr_dsa_bricks + 1);
 #endif
-	off = meta_brick_belongs_aid() ? 0 : 1;
+	off = meta_brick_belongs_dsa() ? 0 : 1;
 
 	ret = kzalloc(nr_buckets * sizeof(*ret), GFP_KERNEL);
 	if (!ret)
@@ -204,7 +204,7 @@ static u32 id2idx(u64 id)
 static u64 idx2id(u32 idx)
 {
 	reiser4_volume *vol = current_volume();
-	bucket_t *vec = vol->dist_plug->v.get_buckets(&vol->aid);
+	bucket_t *vec = vol->dist_plug->v.get_buckets(&vol->dcx);
 
 	return ((reiser4_subvol *)(vec[idx]))->id;
 }
@@ -268,7 +268,7 @@ static int load_volume_config(reiser4_subvol *subv)
 	int id = CUR_VOL_CONF;
 	int ret;
 	int i, j;
-	u32 num_aid_bricks;
+	u32 num_dsa_bricks;
 	u64 packed_segments = 0;
 	reiser4_volume *vol = super_volume(subv->super);
 	reiser4_volinfo *vinfo = &vol->volinfo[id];
@@ -280,15 +280,15 @@ static int load_volume_config(reiser4_subvol *subv)
 	assert("edward-2175", subv->volmap_loc[id] != 0);
 
 	if (subvol_is_set(subv, SUBVOL_HAS_DATA_ROOM))
-		num_aid_bricks = vol_nr_origins(vol);
+		num_dsa_bricks = vol_nr_origins(vol);
 	else {
 		assert("edward-1985", vol_nr_origins(vol) > 1);
-		num_aid_bricks = vol_nr_origins(vol) - 1;
+		num_dsa_bricks = vol_nr_origins(vol) - 1;
 	}
 	if (dist_plug->r.init) {
-		ret = dist_plug->r.init(&vol->aid,
+		ret = dist_plug->r.init(&vol->dcx,
 					&vol->conf->tab,
-					num_aid_bricks,
+					num_dsa_bricks,
 					vol->num_sgs_bits);
 		if (ret)
 			return ret;
@@ -345,7 +345,7 @@ static int load_volume_config(reiser4_subvol *subv)
 			if (ret)
 				goto unpin;
 
-			dist_plug->v.unpack(&vol->aid, vol->conf->tab,
+			dist_plug->v.unpack(&vol->dcx, vol->conf->tab,
 					    jdata(vinfo->voltab_nodes[j]),
 					    packed_segments,
 					    segments_per_block(vol));
@@ -560,7 +560,7 @@ int create_volume_config(reiser4_volume *vol, int id)
 					GFP_KERNEL);
 			if (ret)
 				goto unpin;
-			dist_plug->v.pack(&vol->aid,
+			dist_plug->v.pack(&vol->dcx,
 					  jdata(vinfo->voltab_nodes[j]),
 					  packed_segments,
 					  segments_per_block(vol));
@@ -852,12 +852,12 @@ int brick_belongs_volume(reiser4_volume *vol, reiser4_subvol *subv)
 }
 
 /**
- * Calculate and return brick position in the AID.
+ * Calculate and return brick position in the DSA.
  * @pos_in_vol: internal ID of the brick in the logical volume.
  */
-static u64 get_pos_in_aid(u64 pos_in_vol)
+static u64 get_pos_in_dsa(u64 pos_in_vol)
 {
-	if (meta_brick_belongs_aid())
+	if (meta_brick_belongs_dsa())
 		return pos_in_vol;
 
 	assert("edward-1928", pos_in_vol > 0);
@@ -874,12 +874,12 @@ static int expand_brick(reiser4_volume *vol, reiser4_subvol *this,
 	 */
 	this->data_room += delta;
 
-	if (num_aid_subvols(vol) == 1) {
+	if (num_dsa_subvols(vol) == 1) {
 		*need_balance = 0;
 		return 0;
 	}
-	ret = dist_plug->v.inc(&vol->aid, vol->conf->tab,
-			       get_pos_in_aid(this->id), NULL);
+	ret = dist_plug->v.inc(&vol->dcx, vol->conf->tab,
+			       get_pos_in_dsa(this->id), NULL);
 	if (ret)
 		/* roll back */
 		this->data_room -= delta;
@@ -914,7 +914,7 @@ static int add_meta_brick(reiser4_volume *vol, reiser4_subvol *new)
 	 * Number of bricks and slots in the logical volume remains the same.
 	 * Create new distribution table.
 	 */
-	ret = vol->dist_plug->v.inc(&vol->aid, vol->conf->tab,
+	ret = vol->dist_plug->v.inc(&vol->dcx, vol->conf->tab,
 				    METADATA_SUBVOL_ID /* pos */, new);
 	if (ret)
 		return ret;
@@ -949,17 +949,17 @@ static u32 find_first_empty_slot_off(void)
 int add_data_brick(reiser4_volume *vol, reiser4_subvol *this)
 {
 	int ret;
-	reiser4_aid *raid = &vol->aid;
+	reiser4_dcx *rdcx = &vol->dcx;
 	lv_conf *old_conf = vol->conf;
 	u64 old_nr_mslots = old_conf->nr_mslots;
 	u64 pos_in_vol;
-	u64 pos_in_aid;
+	u64 pos_in_dsa;
 	slot_t new_slot;
 
 	assert("edward-1929", !is_meta_brick(this));
 
 	pos_in_vol = find_first_empty_slot_off();
-	pos_in_aid = get_pos_in_aid(pos_in_vol);
+	pos_in_dsa = get_pos_in_dsa(pos_in_vol);
 	/*
 	 * Assign internal ID for the new brick
 	 */
@@ -967,8 +967,8 @@ int add_data_brick(reiser4_volume *vol, reiser4_subvol *this)
 	/*
 	 * Create new distribution table
 	 */
-	ret = vol->dist_plug->v.inc(raid, vol->conf->tab,
-				    pos_in_aid, this);
+	ret = vol->dist_plug->v.inc(rdcx, vol->conf->tab,
+				    pos_in_dsa, this);
 	if (ret)
 		return ret;
 	/*
@@ -1009,27 +1009,27 @@ static int expand_brick_asym(reiser4_volume *vol, reiser4_subvol *this,
 {
 	int ret;
 	int need_balance = 1;
-	reiser4_aid *raid = &vol->aid;
+	reiser4_dcx *rdcx = &vol->dcx;
 	distribution_plugin *dist_plug = vol->dist_plug;
 	struct super_block *sb = reiser4_get_current_sb();
 	bucket_t *buckets;
 
-	assert("edward-1824", raid != NULL);
+	assert("edward-1824", rdcx != NULL);
 	assert("edward-1825", dist_plug != NULL);
 
-	buckets = create_buckets(vol, num_aid_subvols(vol));
+	buckets = create_buckets(vol, num_dsa_subvols(vol));
 	if (!buckets)
 		return -ENOMEM;
 
 	ret = dist_plug->v.init(buckets, &vol->conf->tab,
-				num_aid_subvols(vol), vol->num_sgs_bits,
-				&vol->vol_plug->bucket_ops, raid);
+				num_dsa_subvols(vol), vol->num_sgs_bits,
+				&vol->vol_plug->bucket_ops, rdcx);
 	if (ret) {
 		free_buckets(buckets);
 		return ret;
 	}
 	ret = expand_brick(vol, this, delta, &need_balance);
-	dist_plug->v.done(raid);
+	dist_plug->v.done(rdcx);
 	if (ret)
 		return ret;
 	if (need_balance) {
@@ -1069,8 +1069,8 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 		warning("edward-1962", "Can't add brick of zero capacity");
 		return -EINVAL;
 	}
-	if (brick_belongs_aid(vol, new)) {
-		warning("edward-1963", "Can't add brick to AID twice");
+	if (brick_belongs_dsa(vol, new)) {
+		warning("edward-1963", "Can't add brick to DSA twice");
 		return -EINVAL;
 	}
 	/* reserve space on meta-data subvolume for brick symbol insertion */
@@ -1080,13 +1080,13 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 				 BA_CAN_COMMIT, get_meta_subvol());
 	if (ret)
 		return ret;
-	buckets = create_buckets(vol, num_aid_subvols(vol) + 1);
+	buckets = create_buckets(vol, num_dsa_subvols(vol) + 1);
 	if (!buckets)
 		return -ENOMEM;
 	ret = dist_plug->v.init(buckets, &vol->conf->tab,
-				num_aid_subvols(vol),
+				num_dsa_subvols(vol),
 				vol->num_sgs_bits,
-				&vol->vol_plug->bucket_ops, &vol->aid);
+				&vol->vol_plug->bucket_ops, &vol->dcx);
 	if (ret)
 		return ret;
 	/*
@@ -1100,7 +1100,7 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	new_conf = vol->new_conf;
 	assert("edward-2240", new_conf != NULL);
 
-	dist_plug->v.done(&vol->aid);
+	dist_plug->v.done(&vol->dcx);
 	if (ret)
 		return ret;
 	ret = make_volume_config(vol);
@@ -1115,7 +1115,7 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 		if (ret)
 			goto error;
 	}
-	dist_plug->r.replace(&vol->aid, &new_conf->tab);
+	dist_plug->r.replace(&vol->dcx, &new_conf->tab);
 
 	reiser4_volume_set_unbalanced(reiser4_get_current_sb());
 	/*
@@ -1159,12 +1159,12 @@ static int shrink_brick(reiser4_volume *vol, reiser4_subvol *victim,
 	 */
 	victim->data_room -= delta;
 
-	if (num_aid_subvols(vol) == 1) {
+	if (num_dsa_subvols(vol) == 1) {
 		*need_balance = 0;
 		return 0;
 	}
-	ret = dist_plug->v.dec(&vol->aid, vol->conf->tab,
-			       get_pos_in_aid(victim->id), NULL);
+	ret = dist_plug->v.dec(&vol->dcx, vol->conf->tab,
+			       get_pos_in_dsa(victim->id), NULL);
 	if (ret)
 		goto error;
 	return 0;
@@ -1179,16 +1179,16 @@ static int remove_meta_brick(reiser4_volume *vol)
 	reiser4_subvol *mtd_subv = get_meta_subvol();
 	distribution_plugin *dist_plug = vol->dist_plug;
 
-	assert("edward-1844", num_aid_subvols(vol) > 1);
-	assert("edward-1826", meta_brick_belongs_aid());
+	assert("edward-1844", num_dsa_subvols(vol) > 1);
+	assert("edward-1826", meta_brick_belongs_dsa());
 
-	ret = dist_plug->v.dec(&vol->aid, vol->conf->tab,
+	ret = dist_plug->v.dec(&vol->dcx, vol->conf->tab,
 			       METADATA_SUBVOL_ID, mtd_subv);
 	if (ret)
 		return ret;
 
 	clear_bit(SUBVOL_HAS_DATA_ROOM, &mtd_subv->flags);
-	assert("edward-1827", !meta_brick_belongs_aid());
+	assert("edward-1827", !meta_brick_belongs_dsa());
 	/*
 	 * Clone in-memory volume config
 	 */
@@ -1226,12 +1226,12 @@ static int __remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim,
 	u64 pos_in_vol;
 	u32 new_nr_mslots;
 
-	assert("edward-1842", num_aid_subvols(vol) > 1);
+	assert("edward-1842", num_dsa_subvols(vol) > 1);
 	assert("edward-2253", vol->new_conf == NULL);
 
 	pos_in_vol = get_pos_in_vol(vol, victim);
 	assert("edward-2199", pos_in_vol < old_num_subvols);
-	*pos_in_dsa = get_pos_in_aid(pos_in_vol);
+	*pos_in_dsa = get_pos_in_dsa(pos_in_vol);
 
 	if (pos_in_vol == old_num_subvols - 1) {
 		/*
@@ -1269,7 +1269,7 @@ static int remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim)
 	ret = __remove_data_brick(vol, victim, &pos_in_dsa);
 	if (ret)
 		return ret;
-	ret = vol->dist_plug->v.dec(&vol->aid, vol->conf->tab,
+	ret = vol->dist_plug->v.dec(&vol->dcx, vol->conf->tab,
 				    pos_in_dsa, victim);
 	if (ret) {
 		warning("edward-2146",
@@ -1290,14 +1290,14 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	distribution_plugin *dist_plug = vol->dist_plug;
 	struct super_block *sb = reiser4_get_current_sb();
 	bucket_t *buckets;
-	u32 old_nr_dsa_bricks = num_aid_subvols(vol);
+	u32 old_nr_dsa_bricks = num_dsa_subvols(vol);
 
 	assert("edward-1830", vol != NULL);
 	assert("edward-1846", dist_plug != NULL);
 
 	if (old_nr_dsa_bricks == 1) {
 		warning("edward-1941",
-			"Can't remove the single brick from AID");
+			"Can't remove the single brick from DSA");
 		return -EINVAL;
 	}
 	buckets = create_buckets(vol, old_nr_dsa_bricks);
@@ -1305,7 +1305,7 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 		return -ENOMEM;
 	ret = dist_plug->v.init(buckets, &vol->conf->tab,
 				old_nr_dsa_bricks, vol->num_sgs_bits,
-				&vol->vol_plug->bucket_ops, &vol->aid);
+				&vol->vol_plug->bucket_ops, &vol->dcx);
 	if (ret)
 		return ret;
 
@@ -1313,7 +1313,7 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 		ret = remove_meta_brick(vol);
 	else
 		ret = remove_data_brick(vol, victim);
-	dist_plug->v.done(&vol->aid);
+	dist_plug->v.done(&vol->dcx);
 	if (ret)
 		return ret;
 	assert("edward-2242", vol->new_conf != NULL);
@@ -1330,7 +1330,7 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 		vol->new_conf = NULL;
 		return ret;
 	}
-	dist_plug->r.replace(&vol->aid, &vol->new_conf->tab);
+	dist_plug->r.replace(&vol->dcx, &vol->new_conf->tab);
 
 	if (!is_meta_brick(victim))
 		/*
@@ -1482,19 +1482,19 @@ static int shrink_brick_asym(reiser4_volume *vol, reiser4_subvol *victim,
 	} else if (delta == victim->data_room)
 		return remove_brick_asym(vol, victim);
 
-	buckets = create_buckets(vol, num_aid_subvols(vol));
+	buckets = create_buckets(vol, num_dsa_subvols(vol));
 	if (!buckets)
 		return -ENOMEM;
 
 	ret = dist_plug->v.init(buckets, &vol->conf->tab,
-				num_aid_subvols(vol), vol->num_sgs_bits,
-				&vol->vol_plug->bucket_ops, &vol->aid);
+				num_dsa_subvols(vol), vol->num_sgs_bits,
+				&vol->vol_plug->bucket_ops, &vol->dcx);
 	if (ret)
 		return ret;
 
 	ret = shrink_brick(vol, victim, delta, &need_balance);
 
-	dist_plug->v.done(&vol->aid);
+	dist_plug->v.done(&vol->dcx);
 	if (ret)
 		return ret;
 
@@ -1600,7 +1600,7 @@ static u64 data_subvol_id_calc_asym(lv_conf *conf, oid_t oid, loff_t offset)
 		} else
 			stripe_idx = 0;
 
-		ret = dist_plug->r.lookup(&vol->aid,
+		ret = dist_plug->r.lookup(&vol->dcx,
 					  (const char *)&stripe_idx,
 					  sizeof(stripe_idx),
 					  get_seed(oid, vol), conf->tab);
@@ -1688,7 +1688,7 @@ int print_volume_asym(struct super_block *sb, struct reiser4_vol_op_args *args)
 	lv_conf *conf = vol->conf;
 	reiser4_volinfo *vinfo = &vol->volinfo[CUR_VOL_CONF];
 
-	args->u.vol.nr_bricks = meta_brick_belongs_aid() ?
+	args->u.vol.nr_bricks = meta_brick_belongs_dsa() ?
 		vol_nr_origins(vol) : - vol_nr_origins(vol);
 	memcpy(args->u.vol.id, vol->uuid, 16);
 	args->u.vol.vpid = vol->vol_plug->h.id;
@@ -1711,13 +1711,13 @@ int print_brick_asym(struct super_block *sb, struct reiser4_vol_op_args *args)
 	reiser4_subvol *subv;
 	bucket_t *buckets;
 
-	buckets = create_buckets(vol, num_aid_subvols(vol));
+	buckets = create_buckets(vol, num_dsa_subvols(vol));
 	if (!buckets)
 		return -ENOMEM;
 
 	ret = vol->dist_plug->v.init(buckets, &vol->conf->tab,
-				     num_aid_subvols(vol), vol->num_sgs_bits,
-				     &vol->vol_plug->bucket_ops, &vol->aid);
+				     num_dsa_subvols(vol), vol->num_sgs_bits,
+				     &vol->vol_plug->bucket_ops, &vol->dcx);
 	if (ret) {
 		free_buckets(buckets);
 		return ret;
@@ -1733,7 +1733,7 @@ int print_brick_asym(struct super_block *sb, struct reiser4_vol_op_args *args)
 
 	if (is_meta_brick_id(brick_idx))
 		id = brick_idx;
-	else if (meta_brick_belongs_aid())
+	else if (meta_brick_belongs_dsa())
 		id = vol->vol_plug->bucket_ops.idx2id(brick_idx);
 	else
 		id = vol->vol_plug->bucket_ops.idx2id(brick_idx - 1);
@@ -1754,7 +1754,7 @@ int print_brick_asym(struct super_block *sb, struct reiser4_vol_op_args *args)
 	/*
 	 * this will release buckets
 	 */
-	vol->dist_plug->v.done(&vol->aid);
+	vol->dist_plug->v.done(&vol->dcx);
 	return ret;
 }
 

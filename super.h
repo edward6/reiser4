@@ -14,7 +14,7 @@
 #include "wander.h"
 #include "fsdata.h"
 #include "plugin/object.h"
-#include "plugin/distribution/aid.h"
+#include "plugin/dst/dst.h"
 #include "plugin/space/space_allocator.h"
 
 /*
@@ -350,7 +350,7 @@ struct reiser4_volume {
 	atomic_t nr_origins; /* number of original subvolumes (w/o replicas) */
 	distribution_plugin *dist_plug;
 	volume_plugin *vol_plug;
-	reiser4_aid aid; /* storage array descriptor */
+	reiser4_dcx dcx; /* distribution context */
 	reiser4_volinfo volinfo[2]; /* on-disk volume configurations: current
 				       and new (for volume operations). They
 				       need co-exist some time until we make

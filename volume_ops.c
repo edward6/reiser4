@@ -41,7 +41,7 @@ static int reiser4_print_voltab(struct super_block *sb,
 	u64 idx = args->s.voltab_nr;
 	distribution_plugin *dist_plug = super_volume(sb)->dist_plug;
 
-	dist_plug->v.dump(&super_volume(sb)->aid,
+	dist_plug->v.dump(&super_volume(sb)->dcx,
 			  super_volume(sb)->conf->tab,
 			  args->d.data + (idx << sb->s_blocksize_bits),
 			  idx << sb->s_blocksize_bits,

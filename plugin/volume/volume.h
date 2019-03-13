@@ -38,26 +38,26 @@ static inline int is_meta_brick(reiser4_subvol *this)
 }
 
 /*
- * Returns true, if meta-data subvolume participates in AID.
+ * Returns true, if meta-data subvolume participates in DSA.
  * Otherwise, returns false
  */
-static inline int meta_brick_belongs_aid(void)
+static inline int meta_brick_belongs_dsa(void)
 {
 	return subvol_is_set(get_meta_subvol(), SUBVOL_HAS_DATA_ROOM);
 }
 
-static inline int brick_belongs_aid(reiser4_volume *vol, reiser4_subvol *this)
+static inline int brick_belongs_dsa(reiser4_volume *vol, reiser4_subvol *this)
 {
-	return is_meta_brick(this) ? meta_brick_belongs_aid() :
+	return is_meta_brick(this) ? meta_brick_belongs_dsa() :
 		brick_belongs_volume(vol, this);
 }
 
 /*
- * Returns number of subvolumes participating in AID
+ * Returns number of subvolumes participating in DSA
  */
-static inline u64 num_aid_subvols(reiser4_volume *vol)
+static inline u64 num_dsa_subvols(reiser4_volume *vol)
 {
-	if (meta_brick_belongs_aid())
+	if (meta_brick_belongs_dsa())
 		return vol_nr_origins(vol);
 	else
 		return vol_nr_origins(vol) - 1;

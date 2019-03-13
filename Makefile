@@ -83,9 +83,9 @@ reiser4-y := \
            \
 		   plugin/volume/volume.o \
            \
-		   plugin/distribution/hash.o \
-		   plugin/distribution/fsw32.o \
-		   plugin/distribution/distribution.o \
+		   plugin/dst/hash.o \
+		   plugin/dst/fsx32.o \
+		   plugin/dst/dst.o \
            \
 		   plugin/item/static_stat.o \
 		   plugin/item/sde.o \

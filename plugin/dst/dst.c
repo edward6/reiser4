@@ -12,9 +12,9 @@
 #include "../../debug.h"
 #include "../../inode.h"
 #include "../plugin.h"
-#include "aid.h"
+#include "dst.h"
 
-static u64 lookup_triv(reiser4_aid *raid, const char *str,
+static u64 lookup_triv(reiser4_dcx *rdcx, const char *str,
 		       int len, u32 seed, void *tab)
 {
 	return 0;
@@ -47,33 +47,33 @@ distribution_plugin distribution_plugins[LAST_DISTRIB_ID] = {
 			.dump = NULL,
 		},
 	},
-	[FSW32M_DISTRIB_ID] = {
+	[FSX32M_DISTRIB_ID] = {
 		.h = {
 			.type_id = REISER4_DISTRIBUTION_PLUGIN_TYPE,
-			.id = FSW32M_DISTRIB_ID,
+			.id = FSX32M_DISTRIB_ID,
 			.pops = NULL,
-			.label = "fsw32m",
+			.label = "fsx32m",
 			.desc = "Fiber-Striping over 32-bit Murmur hash",
 			.linkage = {NULL, NULL}
 		},
 		.seg_bits = 2, /* (log(sizeof u32)) */
 		.r = {
-			.init = initr_fsw32,
-			.lookup = lookup_fsw32m,
-			.replace = replace_fsw32,
-			.free = free_fsw32,
-			.done = doner_fsw32
+			.init = initr_fsx32,
+			.lookup = lookup_fsx32m,
+			.replace = replace_fsx32,
+			.free = free_fsx32,
+			.done = doner_fsx32
 		},
 		.v = {
-			.init = initv_fsw32,
-			.done = donev_fsw32,
-			.inc = inc_fsw32,
-			.dec = dec_fsw32,
-			.spl = spl_fsw32,
-			.pack = pack_fsw32,
-			.unpack = unpack_fsw32,
-			.dump = dump_fsw32,
-			.get_buckets = get_buckets_fsw32
+			.init = initv_fsx32,
+			.done = donev_fsx32,
+			.inc = inc_fsx32,
+			.dec = dec_fsx32,
+			.spl = spl_fsx32,
+			.pack = pack_fsx32,
+			.unpack = unpack_fsx32,
+			.dump = dump_fsx32,
+			.get_buckets = get_buckets_fsx32
 		}
 	}
 };
