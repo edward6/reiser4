@@ -118,7 +118,7 @@ static __u64 get_format40_nr_mslots(const format40_disk_super_block * sb)
 	return le64_to_cpu(get_unaligned(&sb->nr_mslots));
 }
 
-static __u32 get_format40_version(const format40_disk_super_block * sb)
+static __u32 format40_get_minor_version_nr(const format40_disk_super_block * sb)
 {
 	return le32_to_cpu(get_unaligned(&sb->version)) &
 		~FORMAT40_UPDATE_BACKUP;
@@ -132,12 +132,12 @@ static int update_backup_version(const format40_disk_super_block * sb)
 
 static int update_disk_version_minor(const format40_disk_super_block * sb)
 {
-	return (get_format40_version(sb) < get_release_number_minor());
+	return format40_get_minor_version_nr(sb) < get_release_number_minor();
 }
 
 static int incomplete_compatibility(const format40_disk_super_block * sb)
 {
-	return (get_format40_version(sb) > get_release_number_minor());
+	return format40_get_minor_version_nr(sb) > get_release_number_minor();
 }
 
 static int get_sb_format_jnode(reiser4_subvol *subv)
@@ -386,11 +386,13 @@ int extract_subvol_id_format41(struct block_device *bdev, u64 *subv_id)
 
 /**
  * Initialize in-memory subvolume header.
- * Pre-condition: we are sure that subvolume is of format40
- * (i.e. format superblock with correct magic was found).
+ * Pre-condition: we are sure that subvolume is managed by expected
+ * disk format plugin(that is, format superblock with correct magic
+ * was found).
  */
-int try_init_format40(struct super_block *super,
-		      format40_init_stage *stage, reiser4_subvol *subv)
+static int try_init_format(struct super_block *super,
+			   format40_init_stage *stage,
+			   reiser4_subvol *subv, int major_version_nr)
 {
 	int result;
 	format40_disk_super_block sb_format;
@@ -461,16 +463,18 @@ int try_init_format40(struct super_block *super,
 		return result;
 	*stage = READ_SUPER;
 
-	printk("reiser4 (%s): found disk format 4.0.%u.\n",
+	printk("reiser4 (%s): found disk format 4.%u.%u.\n",
 	       super->s_id,
-	       get_format40_version(&sb_format));
+	       major_version_nr,
+	       format40_get_minor_version_nr(&sb_format));
 	if (incomplete_compatibility(&sb_format))
-		printk("reiser4 (%s): format version number (4.0.%u) is "
+		printk("reiser4 (%s): format version number (4.%u.%u) is "
 		       "greater than release number (4.%u.%u) of reiser4 "
 		       "kernel module. Some objects of the subvolume can "
 		       "be inaccessible.\n",
 		       super->s_id,
-		       get_format40_version(&sb_format),
+		       major_version_nr,
+		       format40_get_minor_version_nr(&sb_format),
 		       get_release_number_major(),
 		       get_release_number_minor());
 	/*
@@ -514,7 +518,7 @@ int try_init_format40(struct super_block *super,
 	 * set private subvolume parameters
 	 */
 	subv->mkfs_id = get_format40_mkfs_id(&sb_format);
-	subv->version = get_format40_version(&sb_format);
+	subv->version = format40_get_minor_version_nr(&sb_format);
 	subv->blocks_free_committed = subv->blocks_free;
 
 	subv->flush.relocate_threshold = FLUSH_RELOCATE_THRESHOLD;
@@ -583,10 +587,8 @@ int try_init_format40(struct super_block *super,
 	return 0;
 }
 
-/**
- * ->init_format() method of disk_format40 plugin
- */
-int init_format_format40(struct super_block *s, reiser4_subvol *subv)
+static int init_format_generic(struct super_block *s,
+			       reiser4_subvol *subv, int version)
 {
 	int result;
 	format40_init_stage stage;
@@ -594,7 +596,7 @@ int init_format_format40(struct super_block *s, reiser4_subvol *subv)
 
 	vol = get_super_private(s)->vol;
 
-	result = try_init_format40(s, &stage, subv);
+	result = try_init_format(s, &stage, subv, version);
 	switch (stage) {
 	case ALL_DONE:
 		assert("nikita-3458", result == 0);
@@ -627,6 +629,16 @@ int init_format_format40(struct super_block *s, reiser4_subvol *subv)
 		impossible("nikita-3457", "init stage: %i", stage);
 	}
 	return result;
+}
+
+int init_format_format40(struct super_block *s, reiser4_subvol *subv)
+{
+	return init_format_generic(s, subv, 0 /* version */);
+}
+
+int init_format_format41(struct super_block *s, reiser4_subvol *subv)
+{
+	return init_format_generic(s, subv, 1 /* version */);
 }
 
 static void pack_format40_super(const struct super_block *s,

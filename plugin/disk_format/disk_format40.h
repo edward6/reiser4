@@ -93,6 +93,7 @@ typedef struct format40_disk_super_block {
 extern int extract_subvol_id_format40(struct block_device *bdev, u64 *subv_id);
 extern int extract_subvol_id_format41(struct block_device *bdev, u64 *subv_id);
 extern int init_format_format40(struct super_block *, reiser4_subvol *);
+extern int init_format_format41(struct super_block *, reiser4_subvol *);
 extern const reiser4_key *root_dir_key_format40(const struct super_block *);
 extern int release_format40(struct super_block *s, reiser4_subvol *);
 extern jnode *log_super_format40(struct super_block *s, reiser4_subvol *);

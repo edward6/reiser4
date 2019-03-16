@@ -13,7 +13,7 @@ disk_format_plugin format_plugins[LAST_FORMAT_ID] = {
 			.type_id = REISER4_FORMAT_PLUGIN_TYPE,
 			.id = FORMAT40_ID,
 			.pops = NULL,
-			.label = "reiser40",
+			.label = "format40",
 			.desc = "standard disk layout for simple volumes",
 			.linkage = {NULL, NULL}
 		},
@@ -30,12 +30,12 @@ disk_format_plugin format_plugins[LAST_FORMAT_ID] = {
 			.type_id = REISER4_FORMAT_PLUGIN_TYPE,
 			.id = FORMAT41_ID,
 			.pops = NULL,
-			.label = "reiser40",
+			.label = "format41",
 			.desc = "standard disk layout for compound volumes",
 			.linkage = {NULL, NULL}
 		},
 		.extract_subvol_id = extract_subvol_id_format41,
-		.init_format = init_format_format40,
+		.init_format = init_format_format41,
 		.root_dir_key = root_dir_key_format40,
 		.release_format = release_format40,
 		.log_super = log_super_format40,
