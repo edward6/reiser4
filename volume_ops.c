@@ -347,7 +347,7 @@ static int reiser4_balance_volume(struct super_block *sb)
 
 /**
  * Reiser4 off-line volume operations (no FS are mounted).
- * Don't spawn transactions and performed not in reiser4 context.
+ * This doesn't spawn transactions and executes not in reiser4 context.
  */
 int reiser4_offline_op(struct reiser4_vol_op_args *args)
 {
@@ -359,6 +359,12 @@ int reiser4_offline_op(struct reiser4_vol_op_args *args)
 		break;
 	case REISER4_UNREGISTER_BRICK:
 		ret = reiser4_unregister_brick(args);
+		break;
+	case REISER4_VOLUME_HEADER:
+		ret = reiser4_volume_header(args);
+		break;
+	case REISER4_BRICK_HEADER:
+		ret = reiser4_brick_header(args);
 		break;
 	default:
 		warning("edward-2316",

@@ -772,6 +772,8 @@ extern int reiser4_subvol_blocknr_is_sane(const reiser4_subvol *subv,
 /* operations on volume */
 extern int reiser4_volume_op(struct super_block *,
 			     struct reiser4_vol_op_args *);
+extern int reiser4_volume_header(struct reiser4_vol_op_args *);
+extern int reiser4_brick_header(struct reiser4_vol_op_args *);
 extern __u64 reiser4_volume_block_count(const struct super_block *);
 extern __u64 reiser4_volume_blocks_reserved(const struct super_block *super);
 extern __u64 reiser4_volume_free_blocks(const struct super_block *super);

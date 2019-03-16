@@ -285,8 +285,8 @@ int read_check_volume_params(reiser4_subvol *subv,
 	assert("edward-2307", vol->conf != NULL);
 	if (subv->id >= vol->conf->nr_mslots) {
 		warning("edward-2308",
-			"subvolume ID (%llu) >= number of mslots (%u)",
-			subv->id, vol->conf->nr_mslots);
+	             "brick %s (ID %llu) is inappropriate: too few mslots (%u)",
+			subv->name, subv->id, vol->conf->nr_mslots);
 		return -EINVAL;
 	}
 	return 0;
@@ -613,6 +613,9 @@ int init_format_format40(struct super_block *s, reiser4_subvol *subv)
 	case INIT_OID:
 	case KEY_CHECK:
 	case READ_SUPER:
+		if (!rofs_super(s) &&
+		    reiser4_subvol_free_blocks(subv) < RELEASE_RESERVED)
+			result = RETERR(-ENOSPC);
 	case JOURNAL_REPLAY:
 	case INIT_STATUS:
 		reiser4_status_finish(subv);
@@ -623,9 +626,6 @@ int init_format_format40(struct super_block *s, reiser4_subvol *subv)
 	default:
 		impossible("nikita-3457", "init stage: %i", stage);
 	}
-	if (!rofs_super(s) &&
-	    reiser4_subvol_free_blocks(subv) < RELEASE_RESERVED)
-		return RETERR(-ENOSPC);
 	return result;
 }
 

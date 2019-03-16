@@ -1748,6 +1748,7 @@ int print_brick_asym(struct super_block *sb, struct reiser4_vol_op_args *args)
 	args->u.brick.block_count = subv->block_count;
 	args->u.brick.data_room = subv->data_room;
 	args->u.brick.blocks_used = subv->blocks_used;
+	args->u.brick.system_blocks = subv->min_blocks_used;
 	args->u.brick.volinfo_addr = subv->volmap_loc[CUR_VOL_CONF];
  out:
 	spin_unlock_reiser4_super(get_super_private(sb));

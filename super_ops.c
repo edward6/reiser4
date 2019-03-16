@@ -707,9 +707,15 @@ static long reiser4_control_ioctl(struct file *file, unsigned int cmd,
 			return PTR_ERR(op_args);
 
 		ret = reiser4_offline_op(op_args);
-		if (ret)
+		if (ret) {
 			warning("edward-2315",
 				"off-line volume operation failed (%d)", ret);
+			kfree(op_args);
+			break;
+		}
+		if (copy_to_user((struct reiser4_vol_op_args __user *)arg,
+				 op_args, sizeof(*op_args)))
+			ret = RETERR(-EFAULT);
 		kfree(op_args);
 		break;
 	default:

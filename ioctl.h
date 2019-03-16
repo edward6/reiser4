@@ -68,6 +68,9 @@ typedef enum {
 	REISER4_INVALID_OPT,
 	REISER4_REGISTER_BRICK,
 	REISER4_UNREGISTER_BRICK,
+	REISER4_LIST_BRICKS,
+	REISER4_VOLUME_HEADER,
+	REISER4_BRICK_HEADER,
 	REISER4_PRINT_VOLUME,
 	REISER4_PRINT_BRICK,
 	REISER4_PRINT_VOLTAB,
@@ -113,16 +116,18 @@ struct reiser4_brick_stat
 struct reiser4_vol_op_args
 {
 	reiser4_vol_op opcode;
+	int error;
 	u64 delta;
 	union {
 		u64 brick_idx; /* index of brick in logical volume */
+		u64 vol_idx; /* serial num of volume in the list of volumes */
 		u64 voltab_nr; /* index of voltab unformatted block */
 	}s;
 	union {
 		char name[REISER4_PATH_NAME_MAX + 1];
 		char data[4096];
 	}d;
-	union {
+	struct {
 		struct reiser4_volume_stat vol;
 		struct reiser4_brick_stat brick;
 	}u;
@@ -130,7 +135,7 @@ struct reiser4_vol_op_args
 
 #define REISER4_IOC_UNPACK _IOW(0xCD, 1, long)
 #define REISER4_IOC_VOLUME _IOWR(0xCD, 2, struct reiser4_vol_op_args)
-#define REISER4_IOC_SCAN_DEV _IOW(0xCD, 3, struct reiser4_vol_op_args)
+#define REISER4_IOC_SCAN_DEV _IOWR(0xCD, 3, struct reiser4_vol_op_args)
 
 /* __REISER4_IOCTL_H__ */
 #endif

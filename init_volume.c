@@ -228,6 +228,77 @@ static void reiser4_free_volume(struct reiser4_volume *vol)
 }
 
 /**
+ * Retrieve information about a registered volume.
+ * This is a REISER4_SCAN_DEV ioctl handler.
+ */
+int reiser4_volume_header(struct reiser4_vol_op_args *args)
+{
+	int idx = 0;
+	const struct reiser4_volume *vol;
+	const struct reiser4_volume *this = NULL;
+
+	mutex_lock(&reiser4_volumes_mutex);
+
+	list_for_each_entry(vol, &reiser4_volumes, list) {
+		if (idx == args->s.vol_idx) {
+			this = vol;
+			break;
+		}
+		idx ++;
+	}
+	if (!this) {
+		mutex_unlock(&reiser4_volumes_mutex);
+		args->error = -ENOENT;
+		return 0;
+	}
+	memcpy(args->u.vol.id, this->uuid, 16);
+	if (this->conf)
+		args->u.vol.fs_flags |= (1 << REISER4_ACTIVATED_VOL);
+
+	mutex_unlock(&reiser4_volumes_mutex);
+	return 0;
+}
+
+/**
+ * Retrieve information about a registered brick.
+ * This is a REISER4_SCAN_DEV ioctl handler.
+ *
+ * Pre-condition: @args contains uuid of the host volume and
+ * serial number of the brick in the list of volume's bricks.
+ */
+int reiser4_brick_header(struct reiser4_vol_op_args *args)
+{
+	int idx = 0;
+	const reiser4_volume *vol;
+	const reiser4_subvol *subv;
+	const reiser4_subvol *this = NULL;
+
+	mutex_lock(&reiser4_volumes_mutex);
+	vol = reiser4_search_volume(args->u.vol.id);
+	if (!vol) {
+		mutex_unlock(&reiser4_volumes_mutex);
+		args->error = -EINVAL;
+		return 0;
+	}
+	list_for_each_entry(subv, &vol->subvols_list, list) {
+		if (idx == args->s.brick_idx) {
+			this = subv;
+			break;
+		}
+		idx ++;
+	}
+	if (!this) {
+		mutex_unlock(&reiser4_volumes_mutex);
+		args->error = -ENOENT;
+		return 0;
+	}
+	memcpy(args->u.brick.ext_id, this->uuid, 16);
+	strncpy(args->d.name, this->name, strlen(this->name));
+	mutex_unlock(&reiser4_volumes_mutex);
+	return 0;
+}
+
+/**
  * Remove @subv from volume's list of registered subvolumes and release it.
  * Pre-condition: @reiser4_volumes_mutex is down.
  */
@@ -248,6 +319,13 @@ static void unregister_subvol_locked(struct reiser4_subvol *subv)
 	kfree(subv);
 }
 
+/**
+ * Find a brick in the set of registered bricks, remove it
+ * from the set and release it.
+ *
+ * This is called when removing brick form a logical volume,
+ * and on error paths.
+ */
 void reiser4_unregister_subvol(struct reiser4_subvol *victim)
 {
 	struct reiser4_volume *vol;
@@ -259,18 +337,28 @@ void reiser4_unregister_subvol(struct reiser4_subvol *victim)
 		list_for_each_entry(subv, &vol->subvols_list, list) {
 			if (subv == victim) {
 				unregister_subvol_locked(subv);
-				break;
+				if (list_empty(&vol->subvols_list)) {
+					list_del(&vol->list);
+					reiser4_free_volume(vol);
+				}
+				goto out;
 			}
 		}
 	}
+ out:
 	mutex_unlock(&reiser4_volumes_mutex);
 }
 
+/**
+ * Find a brick in the list of registered bricks by name,
+ * remove it from the list and release it.
+ *
+ * This is a REISER4_SCAN_DEV ioctl handler.
+ */
 int reiser4_unregister_brick(struct reiser4_vol_op_args *args)
 {
 	int ret = 0;
 	struct reiser4_volume *vol;
-	struct reiser4_subvol *victim = NULL;
 
 	mutex_lock(&reiser4_volumes_mutex);
 
@@ -279,24 +367,25 @@ int reiser4_unregister_brick(struct reiser4_vol_op_args *args)
 		list_for_each_entry(subv, &vol->subvols_list, list) {
 			if (!strncmp(args->d.name,
 				     subv->name, strlen(subv->name))) {
-				victim = subv;
-				break;
+				if (subvol_is_set(subv, SUBVOL_ACTIVATED)) {
+					warning("edward-2314",
+					"Can not unregister activated brick %s",
+						subv->name);
+					ret = -EINVAL;
+					goto out;
+				}
+				unregister_subvol_locked(subv);
+				if (list_empty(&vol->subvols_list)) {
+					list_del(&vol->list);
+					reiser4_free_volume(vol);
+				}
+				goto out;
 			}
 		}
 	}
-	if (!victim) {
-		warning("edward-2313",
-			"Can not find registered brick %s", args->d.name);
-		ret = -EINVAL;
-		goto out;
-	}
-	if (subvol_is_set(victim, SUBVOL_ACTIVATED)) {
-		warning("edward-2314",
-			"Can not unregister activated brick %s", victim->name);
-		ret = -EINVAL;
-		goto out;
-	}
-	unregister_subvol_locked(victim);
+	warning("edward-2313",
+		"Can not find registered brick %s", args->d.name);
+	ret = -EINVAL;
  out:
 	mutex_unlock(&reiser4_volumes_mutex);
 	return ret;
@@ -315,8 +404,12 @@ void reiser4_unregister_volumes(void)
 	list_for_each_entry(vol, &reiser4_volumes, list) {
 		list_for_each_entry(sub, &vol->subvols_list, list)
 			unregister_subvol_locked(sub);
+		assert("edward-2328", list_empty(&vol->subvols_list));
+		list_del(&vol->list);
 		reiser4_free_volume(vol);
 	}
+	assert("edward-2329", list_empty(&reiser4_volumes));
+
 	mutex_unlock(&reiser4_volumes_mutex);
 }
 
@@ -790,6 +883,7 @@ static int set_activated_subvol(reiser4_volume *vol, reiser4_subvol *subv)
 	}
 	if (conf->mslots[orig_id][mirr_id] != NULL) {
 		warning("edward-1767",
+			"wrong set of registered bricks: "
 			"%s and %s have identical mirror IDs (%llu,%u)",
 			conf->mslots[orig_id][mirr_id]->name,
 			subv->name,
@@ -912,7 +1006,7 @@ int reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 	}
 	if (nr_origins != atomic_read(&vol->nr_origins)) {
 		warning("edward-1772",
-		"%s: not all original bricks are registered (%u instead of %u)",
+		   "%s: wrong set of registered bricks (found %u, expected %u)",
 			super->s_id, nr_origins, atomic_read(&vol->nr_origins));
 		ret = -EINVAL;
 		goto deactivate;
