@@ -26,11 +26,11 @@ config REISER4_FS
 	  To learn more about reiser4, go to http://reiser4.wiki.kernel.org/
 
 config REISER4_OLD
-	bool "Enable old reiser4 partitions support"
+	bool "Enable Plan-A key allocation scheme"
 	depends on REISER4_FS
 	help
-	  Say Y if you intend to mount old reiser4 partitions of format 4.0.X
-	  It will disable some new features like logical volumes.
+	  Say Y if you intend to mount old reiser4 partitions.
+	  Note, that it will disable some new features like logical volumes.
 
 	  If unsure, say N.
 

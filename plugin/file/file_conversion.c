@@ -390,13 +390,12 @@ static int reserve_cryptcompress2unixfile(struct inode *inode)
 	 * reserve for 1,3,4,5
 	 */
 	grab_space_enable();
-	ret = reiser4_grab_space(2 * subv->tree.height +
+	return reiser4_grab_space(2 * subv->tree.height +
 			       num_unformatted *
 			       estimate_one_insert_into_item(&subv->tree) +
 			       1 + estimate_one_insert_item(&subv->tree) +
 			       inode_file_plugin(inode)->estimate.update(inode),
 			       BA_CAN_COMMIT, subv);
-	return ret;
 }
 
 /**

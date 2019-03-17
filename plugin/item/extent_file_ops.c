@@ -803,20 +803,6 @@ int grab_data_blocks(reiser4_subvol *dsubv, int count)
 	return 0;
 }
 
-/**
- * Validate disk space reservation for data
- * for files managed by unix-file plugin.
- */
-static int validate_data_reservation_uf(void)
-{
-	assert("edward-2277", get_current_data_subvol() == get_meta_subvol());
-	/*
-	 * for unix files data reservation is always valid
-	 * because it is always performed on meta-data subvolume
-	 */
-	return 0;
-}
-
 int update_extent_uf(struct inode *inode, jnode *node, loff_t pos,
 		     int *plugged_hole, int truncate)
 {
@@ -839,7 +825,6 @@ int update_extent_uf(struct inode *inode, jnode *node, loff_t pos,
 		assert("", reiser4_lock_counters()->d_refs == 0);
 		return result;
 	}
-	validate_data_reservation_uf();
 
 	result = zload(coord->node);
 	BUG_ON(result != 0);
@@ -906,7 +891,6 @@ static int update_extents_unix_file(struct file *file, struct inode *inode,
 			assert("", reiser4_lock_counters()->d_refs == 0);
 			return result;
 		}
-		validate_data_reservation_uf();
 
 		result = zload(hint.ext_coord.coord.node);
 		BUG_ON(result != 0);
