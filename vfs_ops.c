@@ -233,9 +233,9 @@ void reiser4_handle_error(void)
 	case 1:
 		reiser4_panic("foobar-42", "Filesystem error occured\n");
 	default:
-		if (sb->s_flags & MS_RDONLY)
+		if (sb_rdonly(sb))
 			return;
-		sb->s_flags |= MS_RDONLY;
+		sb->s_flags |= SB_RDONLY;
 		break;
 	}
 }

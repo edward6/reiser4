@@ -238,7 +238,7 @@ void reiser4_exit_context(reiser4_context * context)
 		   sync, he cares more about reliability than about
 		   performance. So, for now we have this simple mount -o sync
 		   support. */
-		if (context->super->s_flags & (MS_SYNCHRONOUS | MS_DIRSYNC)) {
+		if (context->super->s_flags & (SB_SYNCHRONOUS | SB_DIRSYNC)) {
 			txn_atom *atom;
 
 			atom = get_current_atom_locked_nocheck();

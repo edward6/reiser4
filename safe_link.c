@@ -322,7 +322,7 @@ int process_safelinks(struct super_block *super)
 	struct safe_link_context ctx;
 	int result;
 
-	if (rofs_super(super))
+	if (sb_rdonly(super))
 		/* do nothing on the read-only file system */
 		return 0;
 	safe_link_iter_begin(&get_super_private(super)->tree, &ctx);

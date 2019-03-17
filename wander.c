@@ -831,7 +831,7 @@ static int write_jnodes_to_disk_extent(
 			assert("nikita-3454", bio->bi_vcnt == nr_used);
 
 			/* Check if we are allowed to write at all */
-			if (super->s_flags & MS_RDONLY)
+			if (sb_rdonly(super))
 				undo_bio(bio);
 			else {
 				add_fq_to_bio(fq, bio);

@@ -301,7 +301,7 @@ static int try_init_format40(struct super_block *super,
 	if (result == REISER4_STATUS_MOUNT_RO) {
 		notice("vpf-1364", "Warning: mounting %s with fatal errors,"
 		       " forcing read-only mount.", super->s_id);
-		super->s_flags |= MS_RDONLY;
+		super->s_flags |= SB_RDONLY;
 	}
 	result = reiser4_journal_replay(super);
 	if (result)
@@ -463,7 +463,7 @@ int init_format_format40(struct super_block *s, void *data UNUSED_ARG)
 		impossible("nikita-3457", "init stage: %i", stage);
 	}
 
-	if (!rofs_super(s) && reiser4_free_blocks(s) < RELEASE_RESERVED)
+	if (!sb_rdonly(s) && reiser4_free_blocks(s) < RELEASE_RESERVED)
 		return RETERR(-ENOSPC);
 
 	return result;
@@ -527,7 +527,7 @@ int release_format40(struct super_block *s)
 	sbinfo = get_super_private(s);
 	assert("zam-579", sbinfo != NULL);
 
-	if (!rofs_super(s)) {
+	if (!sb_rdonly(s)) {
 		ret = reiser4_capture_super_block(s);
 		if (ret != 0)
 			warning("vs-898",
@@ -619,7 +619,7 @@ int version_update_format40(struct super_block *super) {
 	int ret;
 
 	/* Nothing to do if RO mount or the on-disk version is not less. */
-	if (super->s_flags & MS_RDONLY)
+	if (sb_rdonly(super))
  		return 0;
 
 	if (get_super_private(super)->version >= get_release_number_minor())

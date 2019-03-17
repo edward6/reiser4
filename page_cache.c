@@ -383,7 +383,7 @@ int reiser4_page_io(struct page *page, jnode *node, int rw, gfp_t gfp)
 	assert("nikita-2893", rw == READ || rw == WRITE);
 
 	if (rw) {
-		if (unlikely(page->mapping->host->i_sb->s_flags & MS_RDONLY)) {
+		if (unlikely(IS_RDONLY(page->mapping->host))) {
 			unlock_page(page);
 			return 0;
 		}

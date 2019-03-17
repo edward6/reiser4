@@ -860,7 +860,7 @@ static int atom_should_commit_asap(const txn_atom * atom)
 	captured = (unsigned)atom->capture_count;
 	pinnedpages = (captured >> PAGE_SHIFT) * sizeof(znode);
 
-	return (pinnedpages > (totalram_pages >> 3)) || (atom->flushed > 100);
+	return (pinnedpages > (totalram_pages() >> 3)) || (atom->flushed > 100);
 }
 
 static jnode *find_first_dirty_in_list(struct list_head *head, int flags)

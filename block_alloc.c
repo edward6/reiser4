@@ -271,7 +271,7 @@ reiser4_grab(reiser4_context * ctx, __u64 count, reiser4_ba_flags_t flags)
 	assert("vs-1276", ctx == get_current_context());
 
 	/* Do not grab anything on ro-mounted fs. */
-	if (rofs_super(ctx->super)) {
+	if (sb_rdonly(ctx->super)) {
 		ctx->grab_enabled = 0;
 		ctx->ro = 1;
 		return 0;

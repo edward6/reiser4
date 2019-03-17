@@ -343,27 +343,11 @@ static inline struct formatted_ra_params *get_current_super_ra_params(void)
 }
 
 /*
- * true, if file system on @super is read-only
- */
-static inline int rofs_super(struct super_block *super)
-{
-	return super->s_flags & MS_RDONLY;
-}
-
-/*
  * true, if @tree represents read-only file system
  */
 static inline int rofs_tree(reiser4_tree * tree)
 {
-	return rofs_super(tree->super);
-}
-
-/*
- * true, if file system where @inode lives on, is read-only
- */
-static inline int rofs_inode(struct inode *inode)
-{
-	return rofs_super(inode->i_sb);
+	return sb_rdonly(tree->super);
 }
 
 /*
