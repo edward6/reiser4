@@ -1180,8 +1180,12 @@ static int remove_meta_brick(reiser4_volume *vol)
 	distribution_plugin *dist_plug = vol->dist_plug;
 
 	assert("edward-1844", num_dsa_subvols(vol) > 1);
-	assert("edward-1826", meta_brick_belongs_dsa());
 
+	if (!meta_brick_belongs_dsa()) {
+		warning("edward-2331",
+			"Metadata brick doesn't belong to DSA. Can't remove.");
+		return -EINVAL;
+	}
 	ret = dist_plug->v.dec(&vol->dcx, vol->conf->tab,
 			       METADATA_SUBVOL_ID, mtd_subv);
 	if (ret)
@@ -1715,13 +1719,8 @@ int print_brick_asym(struct super_block *sb, struct reiser4_vol_op_args *args)
 	if (!buckets)
 		return -ENOMEM;
 
-	ret = vol->dist_plug->v.init(buckets, &vol->conf->tab,
-				     num_dsa_subvols(vol), vol->num_sgs_bits,
-				     &vol->vol_plug->bucket_ops, &vol->dcx);
-	if (ret) {
-		free_buckets(buckets);
-		return ret;
-	}
+	vol->dist_plug->v.init_lite(buckets, &vol->vol_plug->bucket_ops,
+				    &vol->dcx);
 	spin_lock_reiser4_super(get_super_private(sb));
 
 	brick_idx = args->s.brick_idx;
@@ -1752,10 +1751,8 @@ int print_brick_asym(struct super_block *sb, struct reiser4_vol_op_args *args)
 	args->u.brick.volinfo_addr = subv->volmap_loc[CUR_VOL_CONF];
  out:
 	spin_unlock_reiser4_super(get_super_private(sb));
-	/*
-	 * this will release buckets
-	 */
-	vol->dist_plug->v.done(&vol->dcx);
+
+	free_buckets(buckets);
 	return ret;
 }
 

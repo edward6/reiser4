@@ -30,6 +30,8 @@ extern void replace_fsx32(reiser4_dcx *rdcx, void **target);
 extern void free_fsx32(void *tab);
 extern void doner_fsx32(void **tab);
 
+extern void init_lite_fsx32(bucket_t *vec, struct bucket_ops *ops,
+			    reiser4_dcx *rdcx);
 extern int initv_fsx32(bucket_t *buckets, void **tab,
 		       u64 numb, int nums_bits,
 		       struct bucket_ops *ops,

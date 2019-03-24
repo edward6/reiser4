@@ -583,6 +583,8 @@ struct dist_volume_ops {
 	int (*init)(bucket_t *buckets, void **tab, u64 num_buckets,
 		    int num_sgs_bits, struct bucket_ops *ops,
 		    reiser4_dcx *rdcx);
+	void (*init_lite)(bucket_t *buckets, struct bucket_ops *ops,
+			  reiser4_dcx *rdcx);
 	/* Release context of operation */
 	void (*done)(reiser4_dcx *rdcx);
 	/* Increase capacity of an array.

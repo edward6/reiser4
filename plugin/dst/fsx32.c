@@ -674,6 +674,14 @@ void doner_fsx32(void **tab)
 	}
 }
 
+void init_lite_fsx32(bucket_t *vec, struct bucket_ops *ops,
+		     reiser4_dcx *rdcx)
+{
+	struct fsx32_dcx *dcx = fsx32_private(rdcx);
+	dcx->buckets = vec;
+	dcx->ops = ops;
+}
+
 /**
  * Initialize distribution context for volume operations
  *
