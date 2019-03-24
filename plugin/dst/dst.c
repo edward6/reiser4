@@ -46,6 +46,9 @@ distribution_plugin distribution_plugins[LAST_DISTRIB_ID] = {
 			.unpack = NULL,
 			.dump = NULL,
 		},
+		.f = {
+			.fix = NULL,
+		},
 	},
 	[FSX32M_DISTRIB_ID] = {
 		.h = {
@@ -74,7 +77,10 @@ distribution_plugin distribution_plugins[LAST_DISTRIB_ID] = {
 			.unpack = unpack_fsx32,
 			.dump = dump_fsx32,
 			.get_buckets = get_buckets_fsx32
-		}
+		},
+		.f = {
+			.fix = fix_data_reservation,
+		},
 	}
 };
 

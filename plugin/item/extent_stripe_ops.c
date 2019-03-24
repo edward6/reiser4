@@ -465,9 +465,9 @@ int process_extent_stripe(uf_coord_t *uf_coord, const reiser4_key *key,
  * Pre-condition: lognterm lock is held at the position where the extent(s)
  * are supposed to be updated.
  */
-static int validate_data_reservation_stripe(coord_t *coord, struct inode *inode,
-					    loff_t pos, reiser4_subvol **subv,
-					    jnode *node, int *case_id)
+static int validate_data_reservation(const coord_t *coord, struct inode *inode,
+				     loff_t pos, reiser4_subvol **subv,
+				     jnode *node, int *case_id)
 {
 	reiser4_subvol *new;
 
@@ -501,6 +501,76 @@ static int validate_data_reservation_stripe(coord_t *coord, struct inode *inode,
 }
 
 /**
+ * Handle possible races with concurrent volume operations
+ */
+int fix_data_reservation(const coord_t *coord, lock_handle *lh,
+			 struct inode *inode, loff_t pos, jnode *node,
+			 int count, int truncate)
+{
+	int ret;
+	int new;
+	reiser4_subvol *dsubv;
+
+	ret = validate_data_reservation(coord, inode, pos, &dsubv, node, &new);
+	if (likely(ret == 0))
+		/* no fixup is needed */
+		return 0;
+
+	ON_DEBUG(notice("edward-2327",
+			"Handling races with volume ops (case %d)",
+			new));
+	/*
+	 * Make reservation on brick @dsubv.
+	 * Try to do it under longterm lock
+	 */
+	grab_space_enable();
+	if (truncate) {
+		/* grab from reserved area */
+		assert("edward-2275", current ==
+		       get_current_super_private()->delete_mutex_owner);
+
+		ret = reiser4_grab_reserved(reiser4_get_current_sb(),
+					    count, 0, dsubv);
+	} else
+		/* grab by regular way */
+		ret = reiser4_grab_space(count, 0, dsubv);
+	if (!ret)
+		goto fixed;
+	/*
+	 * Reservation failed.
+	 * Try to grab space more agressively. For this we need to release
+	 * the lock.
+	 *
+	 * NOTE-EDWARD: We assume that volume config won't be changed
+	 * by another volume operation while we are keeping things unlocked.
+	 * In theory, it is possible, however. So it would be nice to have
+	 * a guarantee that volume operations don't happen too frequently.
+	 */
+	done_lh(lh);
+	grab_space_enable();
+	if (truncate) {
+		/* grab from reserved area */
+		assert("edward-2330", current ==
+		       get_current_super_private()->delete_mutex_owner);
+
+		ret = reiser4_grab_reserved(reiser4_get_current_sb(),
+					    count, BA_CAN_COMMIT, dsubv);
+	} else
+		/*
+		 * grab by regular way
+		 */
+		ret = reiser4_grab_space(count, BA_CAN_COMMIT, dsubv);
+	if (ret)
+		return ret;
+	ret = -EAGAIN;
+ fixed:
+	if (new)
+		/* update hint */
+		set_current_data_subvol(dsubv);
+	return ret;
+}
+
+/**
  * Update file body after writing @count blocks at offset @pos.
  * Return 0 on success.
  */
@@ -510,11 +580,12 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 {
 	int ret = 0;
 	reiser4_key key;
-	int validated = 0;
+	int fixed = 0;
 
 	if (!count)
 		/* expanding truncate - nothing to do */
 		goto out;
+	assert("edward-2323", ergo(truncate != 0, count == 1));
 
 	pos = (loff_t)index_jnode(jnodes[0]) << PAGE_SHIFT;
 	/*
@@ -522,72 +593,35 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 	 */
 	build_body_key_stripe(inode, pos, &key);
 	do {
-		int new;
 		znode *loaded;
-		reiser4_subvol *dsubv;
 
 		ret = find_file_item_nohint(&hint->ext_coord.coord,
 					    hint->ext_coord.lh, &key,
 					    ZNODE_WRITE_LOCK, inode);
 		if (IS_CBKERR(ret))
 			return -EIO;
-		/*
-		 * We have locked a position in the tree.
-		 * Now handle possible races with concurrent volume operations.
-		 */
-		if (!validated &&
-		    validate_data_reservation_stripe(&hint->ext_coord.coord,
-						     inode, pos, &dsubv,
-						     jnodes[0], &new)) {
+
+		if (current_dist_plug()->f.fix != NULL && !fixed) {
 			/*
-			 * Make reservation on another data brick. For
-			 * this we need to release the lock.
-			 *
-			 * NOTE-EDWARD: We assume that volume config won't
-			 * be changed by another volume operation while we
-			 * are keeping things unlocked. In theory, it is
-			 * possible, however. So it would be nice to have
-			 * a guarantee that volume operations don't happen
-			 * too frequently.
+			 * Fix up data reservation.
+			 * By design we can do it only once per iteration.
 			 */
-			done_lh(hint->ext_coord.lh);
-
-			ON_DEBUG(notice("edward-2327",
-			       "Handling races with volume ops (case %d)",
-					new));
-			grab_space_enable();
-			if (truncate) {
-				/*
-				 * grab from reserved area
-				 */
-				struct super_block *sb;
-				sb = reiser4_get_current_sb();
-
-				assert("edward-2275",
-				       get_current_super_private()->
-				       delete_mutex_owner == current);
-				assert("edward-2323", count == 1);
-
-				ret = reiser4_grab_reserved(sb, count,
-							    BA_CAN_COMMIT,
-							    dsubv);
-			} else
-				/*
-				 * grab by regular way
-				 */
-				ret = reiser4_grab_space(count, BA_CAN_COMMIT,
-							 dsubv);
-			if (ret)
+			ret = current_dist_plug()->f.fix(&hint->ext_coord.coord,
+							 hint->ext_coord.lh,
+							 inode, pos, jnodes[0],
+							 count, truncate);
+			if (ret == -EAGAIN) {
+				/* Repeat with the same key */
+				fixed = 1;
+				continue;
+			} else if (ret)
 				return ret;
-			if (new)
-				set_current_data_subvol(dsubv);
-			/*
-			 * repeat with the same key
-			 */
-			validated = 1;
-			continue;
 		}
-		validated = 0; /* reset for next iteration */
+		/*
+		 * Longterm lock is held.
+		 * Reset fixup status for next iteration
+		 */
+		fixed = 0;
 		assert("edward-2284", get_current_data_subvol() != NULL);
 		/*
 		 * after making sure that destination data brick is valid,

@@ -563,6 +563,18 @@ struct dist_regular_ops {
 	void (*done)(void **tab);
 };
 
+struct dist_file_ops {
+	/* Detect changes in data distribution policy and perform
+	   needed corrections. Pre-condition: Longterm lock is held.
+	   On sucess return:
+	   0, if longterm lock is not released;
+	   -EAGAIN, if longterm lock is released.
+	   Other return values mean error.
+	*/
+	int (*fix)(const coord_t *coord, lock_handle *lh, struct inode *inode,
+		   loff_t pos, jnode *node, int count, int truncate);
+};
+
 /*
  * Operations with an array of abstract buckets
  */
@@ -599,6 +611,7 @@ typedef struct distribution_plugin {
 	u32 seg_bits; /* logarithm of segment size */
 	struct dist_regular_ops r;
 	struct dist_volume_ops v;
+	struct dist_file_ops f;
 } distribution_plugin;
 
 typedef struct volume_plugin {
