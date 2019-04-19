@@ -67,8 +67,14 @@ typedef struct format40_disk_super_block {
 	/* 120 */ d8  num_sgs_bits; /* logarithm of total number of the hash-space
 				       segments */
 	/* 121 */ d64 nr_mslots;    /* number of mslots (== maximal brick ID + 1) */
-	char not_used[383];
-} format40_disk_super_block;
+	/* 129 */ d64 min_occup;    /* mimimal possible number of occupied blocks on
+				     * the partition (reserved area at the beginning
+				     * of the partition + 2 super-blocks + 1 journal
+				     * footer + 1 journal header + backup blocks that
+				     * kernel is not aware of, etc). This is set by
+				     * mkfs.reiser4 utility and never gets changed */
+	char not_used[375];
+} __attribute__((packed)) format40_disk_super_block;
 
 /* Defines for journal header and footer respectively. */
 #define FORMAT40_JOURNAL_HEADER_BLOCKNR			\

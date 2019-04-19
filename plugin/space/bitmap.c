@@ -1557,9 +1557,6 @@ int reiser4_init_allocator_bitmap(reiser4_space_allocator *allocator,
 
 	allocator->u.generic = data;
 
-#if REISER4_DEBUG
-	subv->min_blocks_used += bitmap_blocks_nr;
-#endif
 	if (!test_bit(REISER4_DONT_LOAD_BITMAP,
 		      &get_super_private(super)->fs_flags)) {
 		/*

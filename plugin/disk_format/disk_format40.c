@@ -118,6 +118,11 @@ static __u64 get_format40_nr_mslots(const format40_disk_super_block * sb)
 	return le64_to_cpu(get_unaligned(&sb->nr_mslots));
 }
 
+static __u64 get_format40_min_occup(const format40_disk_super_block * sb)
+{
+	return le64_to_cpu(get_unaligned(&sb->min_occup));
+}
+
 static __u32 format40_get_minor_version_nr(const format40_disk_super_block * sb)
 {
 	return le32_to_cpu(get_unaligned(&sb->version)) &
@@ -285,7 +290,7 @@ int read_check_volume_params(reiser4_subvol *subv,
 	assert("edward-2307", vol->conf != NULL);
 	if (subv->id >= vol->conf->nr_mslots) {
 		warning("edward-2308",
-	             "brick %s (ID %llu) is inappropriate: too few mslots (%u)",
+	             "brick %s (ID %llu) is inappropriate: too few mslots (%llu)",
 			subv->name, subv->id, vol->conf->nr_mslots);
 		return -EINVAL;
 	}
@@ -551,11 +556,8 @@ static int try_init_format(struct super_block *super,
 	reiser4_subvol_set_used_blocks(subv,
 				       reiser4_subvol_block_count(subv) -
 				       reiser4_subvol_free_blocks(subv));
-#if REISER4_DEBUG
-	subv->min_blocks_used = 16 /* reserved area */  +
-		2 /* super blocks */  +
-		2 /* journal footer and header */ ;
-#endif
+	reiser4_subvol_set_min_blocks_used(subv,
+				       get_format40_min_occup(&sb_format));
 	/*
 	 * init disk space allocator
 	 */

@@ -313,7 +313,7 @@ struct reiser4_volinfo {
  */
 struct lv_conf {
 	void *tab;        /* distribution config */
-	u32 nr_mslots;    /* number of columns in the table of activated
+	u64 nr_mslots;    /* number of columns in the table of activated
 			   * subvolumes. Each column represents a set of
 			   * mirrors (see the picture below) */
 	slot_t mslots[0]; /* pointer to a table of activated subvolumes,
@@ -754,12 +754,19 @@ extern __u64 reiser4_subvol_flush_reserved(const reiser4_subvol *);
 extern __u64 reiser4_subvol_block_count(const reiser4_subvol *);
 extern void reiser4_subvol_set_block_count(reiser4_subvol *subv, __u64 nr);
 extern __u64 reiser4_subvol_blocks_reserved(const reiser4_subvol *subv);
+
 extern __u64 reiser4_subvol_used_blocks(const reiser4_subvol *);
 extern void reiser4_subvol_set_used_blocks(reiser4_subvol *, __u64 nr);
+
+extern __u64 reiser4_subvol_min_blocks_used(const reiser4_subvol *);
+extern void reiser4_subvol_set_min_blocks_used(reiser4_subvol *, __u64 nr);
+
 extern __u64 reiser4_subvol_free_blocks(const reiser4_subvol *);
 extern void reiser4_subvol_set_free_blocks(reiser4_subvol *, __u64 nr);
+
 extern __u64 reiser4_subvol_data_room(reiser4_subvol *);
 extern void reiser4_subvol_set_data_room(reiser4_subvol *, __u64 len);
+
 extern __u64 reiser4_subvol_free_committed_blocks(const reiser4_subvol *);
 extern __u64 reiser4_subvol_grabbed_blocks(const reiser4_subvol *);
 extern __u64 reiser4_subvol_fake_allocated_fmt(const reiser4_subvol *);

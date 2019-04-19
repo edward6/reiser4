@@ -137,6 +137,18 @@ void reiser4_subvol_set_used_blocks(reiser4_subvol *subv, __u64 nr)
 	subv->blocks_used = nr;
 }
 
+__u64 reiser4_subvol_min_blocks_used(const reiser4_subvol *subv)
+{
+	assert("edward-2332", subv != NULL);
+	return subv->min_blocks_used;
+}
+
+void reiser4_subvol_set_min_blocks_used(reiser4_subvol *subv, __u64 nr)
+{
+	assert("edward-2333", subv != NULL);
+	subv->min_blocks_used = nr;
+}
+
 /* amount of free blocks in subvolume */
 __u64 reiser4_subvol_free_blocks(const reiser4_subvol *subv)
 {

@@ -105,10 +105,6 @@ u32 *init_tab_from_scratch(u32 *weights, u32 numb, u32 nums_bits,
 	return tab;
 }
 
-/*
- * Construct a "similar" integer vector, which have
- * specified sum @val of its components
- */
 static void calibrate(u64 num, u64 val,
 		      bucket_t *vec, u64 (*vec_el_get)(bucket_t *vec, u64 idx),
 		      void *ret, u64 (*ret_el_get)(void *ret, u64 idx),
@@ -285,8 +281,9 @@ static int replace_fibers(u32 nums_bits, u32 *tab,
 }
 
 /**
- * If @new is true, then a new bucket has been inserted at @target_pos.
- * @vec points to a new set of buckets
+ * @vec: new array of abstract buckets
+ * @new: a bucket to be added
+ * @target_pos: index of @new in the @vec
  */
 static int balance_inc(struct fsx32_dcx *dcx,
 		       u32 new_numb, u32 *tab,
@@ -378,9 +375,9 @@ static int balance_inc(struct fsx32_dcx *dcx,
 }
 
 /**
- * @removeme (if not NULL) points to the bucket, which is to be
- * removed from @vec, that points to the old array of buckets.
- * @target_pos is index (in @vec) of bucket to remove (shrink).
+ * @vec: old array of abstract buckets
+ * @removeme: bucket to be removed
+ * @target_pos: index (in @vec) of @removeme
  */
 static int balance_dec(struct fsx32_dcx *dcx,
 		       u32 old_numb, u32 *tab,
