@@ -1073,6 +1073,12 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 		warning("edward-1963", "Can't add brick to DSA twice");
 		return -EINVAL;
 	}
+	if (reiser4_subvol_used_blocks(new) >
+	    reiser4_subvol_min_blocks_used(new)) {
+		warning("edward-2334", "Can't add not empty data brick %s",
+			new->name);
+		return -EINVAL;
+	}
 	/* reserve space on meta-data subvolume for brick symbol insertion */
 	grab_space_enable();
 	ret = reiser4_grab_space(estimate_one_insert_into_item(
@@ -1431,6 +1437,13 @@ int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	 * Publish final config with updated set of slots
 	 */
 	if (!is_meta_brick(victim)) {
+		if (reiser4_subvol_used_blocks(victim) >
+		    reiser4_subvol_min_blocks_used(victim)) {
+			warning("edward-2335",
+				"Can't remove data brick: not empty %s",
+				victim->name);
+			return -EINVAL;
+		}
 		/*
 		 * remove a record about @victim from the volume
 		 * and decrement number of bricks in the same
