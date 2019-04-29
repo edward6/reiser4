@@ -375,12 +375,12 @@ static int balance_inc(struct fsx32_dcx *dcx,
 }
 
 /**
- * @vec: old array of abstract buckets
+ * @vec: new array of abstract buckets
  * @removeme: bucket to be removed
  * @target_pos: index (in @vec) of @removeme
  */
 static int balance_dec(struct fsx32_dcx *dcx,
-		       u32 old_numb, u32 *tab,
+		       u32 new_numb, u32 *tab,
 		       u32 *old_weights, u32 *new_weights,
 		       u32 target_pos,
 		       bucket_t *vec,
@@ -394,11 +394,9 @@ static int balance_dec(struct fsx32_dcx *dcx,
 	u32 off_in_target = 0;
 	u32 *sho;
 	u32 *target;
+	u32 victim_id = ((reiser4_subvol *)removeme)->id;
 
-	assert("edward-2193",
-	       ergo(removeme != NULL, vec[target_pos] == removeme));
-
-	sho = fsx32_alloc(old_numb);
+	sho = fsx32_alloc(new_numb);
 	if (!sho) {
 		ret = -ENOMEM;
 		goto exit;
@@ -408,13 +406,12 @@ static int balance_dec(struct fsx32_dcx *dcx,
 	for(i = 0; i < target_pos; i++)
 		sho[i] = new_weights[i] - old_weights[i];
 
-	for(i = target_pos + 1; i < old_numb; i++) {
+	for(i = target_pos; i < new_numb; i++) {
 		if (removeme)
-			sho[i] = new_weights[i-1] - old_weights[i];
+			sho[i] = new_weights[i] - old_weights[i+1];
 		else
-			sho[i] = new_weights[i]   - old_weights[i];
+			sho[i] = new_weights[i] - old_weights[i];
 	}
-	assert("edward-1915", sho[target_pos] == 0);
 
 	if (removeme) {
 		target = fiber_of(removeme);
@@ -430,21 +427,21 @@ static int balance_dec(struct fsx32_dcx *dcx,
 	for(i = 0; i < target_pos; i++)
 		for(j = 0; j < sho[i]; j++) {
 			assert("edward-1916",
-			       tab[target[off_in_target]] == idx2id(target_pos));
+			       tab[target[off_in_target]] == victim_id);
 			tab[target[off_in_target ++]] = idx2id(i);
 		}
 	/*
 	 * distribute segments among all fibers to the right of target_pos
 	 */
-	for(i = target_pos + 1; i < old_numb; i++) {
+	for(i = target_pos; i < new_numb; i++) {
 		if (removeme && FSX32_PRECISE) {
 			/*
-			 * A sort of FSX where idx2id() and id2idx
-			 * are identical functions.
+			 * A sort of the algorithm, where idx2id() and
+			 * id2idx are identity functions.
 			 * After removing a bucket, internal IDs of
 			 * all buckets to the right of target_pos
 			 * get decremented, so that system table needs
-			 * corrections
+			 * corrections.
 			 */
 			for(j = 0; j < old_weights[i]; j++) {
 				u32 *fib;
@@ -454,12 +451,13 @@ static int balance_dec(struct fsx32_dcx *dcx,
 			}
 			for(j = 0; j < sho[i]; j++) {
 				assert("edward-1917",
-				       tab[target[off_in_target]] == target_pos);
+				       tab[target[off_in_target]] ==
+				       target_pos);
 				tab[target[off_in_target ++]] = i - 1;
 			}
 		}
 		else {
-			for(j = 0; j < old_weights[i]; j++) {
+			for(j = 0; j < old_weights[i + 1]; j++) {
 				u32 *fib;
 				fib = fiber_at(vec, i);
 				assert("edward-1903", tab[fib[j]] == idx2id(i));
@@ -467,7 +465,7 @@ static int balance_dec(struct fsx32_dcx *dcx,
 			for(j = 0; j < sho[i]; j++) {
 				assert("edward-1918",
 				       tab[target[off_in_target]] ==
-				       idx2id(target_pos));
+				       victim_id);
 				tab[target[off_in_target ++]] = idx2id(i);
 			}
 		}
@@ -605,10 +603,6 @@ void donev_fsx32(reiser4_dcx *rdcx)
 		fsx_free(dcx->weights);
 		dcx->weights = NULL;
 	}
-	if (dcx->buckets) {
-		kfree(dcx->buckets);
-		dcx->buckets = NULL;
-	}
 }
 
 /**
@@ -637,7 +631,7 @@ void free_fsx32(void *tab)
 /**
  * Initialize distribution context for regular file operations
  */
-int initr_fsx32(reiser4_dcx *rdcx, void **tab, int numb, int nums_bits)
+int initr_fsx32(reiser4_dcx *rdcx, void **tab, int nums_bits)
 {
 	struct fsx32_dcx *dcx = fsx32_private(rdcx);
 
@@ -656,7 +650,6 @@ int initr_fsx32(reiser4_dcx *rdcx, void **tab, int numb, int nums_bits)
 	if (*tab == NULL)
 		return -ENOMEM;
 
-	dcx->numb = numb;
 	dcx->nums_bits = nums_bits;
 	return 0;
 }
@@ -671,14 +664,6 @@ void doner_fsx32(void **tab)
 	}
 }
 
-void init_lite_fsx32(bucket_t *vec, struct bucket_ops *ops,
-		     reiser4_dcx *rdcx)
-{
-	struct fsx32_dcx *dcx = fsx32_private(rdcx);
-	dcx->buckets = vec;
-	dcx->ops = ops;
-}
-
 /**
  * Initialize distribution context for volume operations
  *
@@ -686,12 +671,13 @@ void init_lite_fsx32(bucket_t *vec, struct bucket_ops *ops,
  * @ops: operations to access the buckets;
  * @rdcx: distribution context to be initialized.
  */
-int initv_fsx32(bucket_t *vec, void **tab, u64 numb, int nums_bits,
-		struct bucket_ops *ops, reiser4_dcx *rdcx)
+int initv_fsx32(void **tab, u64 numb, int nums_bits,
+		reiser4_dcx *rdcx)
 {
 	int ret = -ENOMEM;
 	u32 nums;
 	struct fsx32_dcx *dcx;
+	struct bucket_ops *ops = current_bucket_ops();
 
 	if (numb == 0 || nums_bits >= MAX_SHIFT)
 		return -EINVAL;
@@ -705,20 +691,21 @@ int initv_fsx32(bucket_t *vec, void **tab, u64 numb, int nums_bits,
 	assert("edward-2172", dcx->tab == NULL);
 	assert("edward-1922", dcx->weights == NULL);
 	assert("edward-2261", tab != NULL);
+	assert("edward-2336", current_buckets() != NULL);
 
-	dcx->buckets = vec;
-	dcx->ops = ops;
-
+	dcx->numb = numb;
 	dcx->weights = fsx32_alloc(numb);
 	if (!dcx->weights)
 		goto error;
 
-	calibrate32(numb, nums, vec, ops->cap_at, dcx->weights);
+	calibrate32(numb, nums, current_buckets(),
+		    ops->cap_at, dcx->weights);
 
 	if (*tab == NULL) {
 		u32 i;
 		assert("edward-2201", numb == 1);
-		ret = initr_fsx32(rdcx, tab, numb, nums_bits);
+
+		ret = initr_fsx32(rdcx, tab, nums_bits);
 		if (ret)
 			goto error;
 		for (i = 0; i < nums; i++)
@@ -727,7 +714,7 @@ int initv_fsx32(bucket_t *vec, void **tab, u64 numb, int nums_bits,
 	assert("edward-2173", *tab != NULL);
 
 	ret = create_fibers(nums_bits, *tab,
-			    numb, dcx->weights, vec,
+			    numb, dcx->weights, current_buckets(),
 			    ops->fib_at,
 			    ops->fib_set_at,
 			    ops->fib_lenp_at,
@@ -757,19 +744,21 @@ int inc_fsx32(reiser4_dcx *rdcx, void *tab, u64 target_pos, bucket_t new)
 	u32 *new_weights;
 	u32 old_numb, new_numb, nums;
 	struct fsx32_dcx *dcx = fsx32_private(rdcx);
+	struct bucket_ops *ops = current_bucket_ops();
 
 	new_numb = old_numb = dcx->numb;
 	if (new) {
 		if (old_numb == MAX_BUCKETS)
 			return -EINVAL;
-		dcx->ops->insert_bucket(dcx->buckets, new,
-					old_numb, target_pos);
 		new_numb ++;
 	}
 	nums = 1 << dcx->nums_bits;
-	if (new_numb >= nums)
+	if (new_numb > nums) {
+		warning("edward-2337",
+			"Can not add bucket: current limit (%u) reached",
+			nums);
 		return -EINVAL;
-
+	}
 	new_weights = fsx32_alloc(new_numb);
 	if (!new_weights) {
 		ret = -ENOMEM;
@@ -782,17 +771,17 @@ int inc_fsx32(reiser4_dcx *rdcx, void *tab, u64 target_pos, bucket_t new)
 		goto error;
 
 	calibrate32(new_numb, nums,
-		    dcx->buckets, dcx->ops->cap_at, new_weights);
+		    current_buckets(), ops->cap_at, new_weights);
 	ret = balance_inc(dcx,
 			  new_numb, dcx->tab,
 			  dcx->weights, new_weights, target_pos,
-			  dcx->buckets, dcx->ops->fib_at,
-			  dcx->ops->idx2id, new);
+			  current_buckets(), ops->fib_at,
+			  ops->idx2id, new);
 	if (ret)
 		goto error;
 
-	release_fibers(old_numb, dcx->buckets,
-		       dcx->ops->fib_at, dcx->ops->fib_set_at);
+	release_fibers(new_numb, current_buckets(),
+		       ops->fib_at, ops->fib_set_at);
 
 	fsx_free(dcx->weights);
 	dcx->weights = new_weights;
@@ -818,9 +807,8 @@ static int check_space(reiser4_dcx *rdcx, u64 numb, u64 occ)
 	u64 i;
 	int ret = 0;
 	u64 *vec_new_occ;
-	struct fsx32_dcx *dcx = fsx32_private(rdcx);
-	bucket_t *vec = dcx->buckets;
-
+	bucket_t *vec = current_buckets();
+	struct bucket_ops *ops = current_bucket_ops();
 	/*
 	 * For each bucket: calculate how much space will be
 	 * occupied on the bucket after successful completion
@@ -831,17 +819,17 @@ static int check_space(reiser4_dcx *rdcx, u64 numb, u64 occ)
 	if (!vec_new_occ)
 		return -ENOMEM;
 
-	calibrate64(numb, occ, vec, dcx->ops->cap_at, vec_new_occ);
+	calibrate64(numb, occ, vec, ops->cap_at, vec_new_occ);
 
 	for (i = 0; i < numb; i++) {
 		ON_DEBUG(notice("edward-2145",
 			"Brick %llu: data capacity: %llu, min required: %llu",
-			i, dcx->ops->cap_at(vec, i), vec_new_occ[i]));
+			i, ops->cap_at(vec, i), vec_new_occ[i]));
 
-		if (dcx->ops->cap_at(vec, i) < vec_new_occ[i]) {
+		if (ops->cap_at(vec, i) < vec_new_occ[i]) {
 			warning("edward-2070",
 	"Not enough data capacity (%llu) of brick %llu (required %llu)",
-				dcx->ops->cap_at(vec, i),
+				ops->cap_at(vec, i),
 				i,
 				vec_new_occ[i]);
 			ret = -ENOSPC;
@@ -856,20 +844,20 @@ int dec_fsx32(reiser4_dcx *rdcx, void *tab, u64 target_pos, bucket_t removeme)
 {
 	int ret = 0;
 	u32 nums;
-	u32 old_numb, new_numb;
+	u32 new_numb;
 	u32 *new_weights = NULL;
 	struct fsx32_dcx *dcx = fsx32_private(rdcx);
+	struct bucket_ops *ops = current_bucket_ops();
 
 	assert("edward-1908", dcx->numb >= 1);
 	assert("edward-1909", dcx->numb <= MAX_BUCKETS);
 	assert("edward-1927", dcx->numb > 1);
 
-	new_numb = old_numb = dcx->numb;
-	if (removeme) {
+	new_numb = dcx->numb;
+	if (removeme)
 		new_numb --;
-		dcx->ops->remove_bucket(dcx->buckets, dcx->numb, target_pos);
-	}
-	ret = check_space(rdcx, new_numb, dcx->ops->space_occupied());
+
+	ret = check_space(rdcx, new_numb, ops->space_occupied());
 	if (ret)
 		goto error;
 
@@ -886,33 +874,30 @@ int dec_fsx32(reiser4_dcx *rdcx, void *tab, u64 target_pos, bucket_t removeme)
 		goto error;
 
 	calibrate32(new_numb, nums,
-		    dcx->buckets, dcx->ops->cap_at, new_weights);
-
-	if (removeme)
-		dcx->ops->insert_bucket(dcx->buckets, removeme,
-					new_numb, target_pos);
+		    current_buckets(), ops->cap_at, new_weights);
 
 	ret = balance_dec(dcx,
-			  old_numb, dcx->tab,
+			  new_numb, dcx->tab,
 			  dcx->weights, new_weights, target_pos,
-			  dcx->buckets, dcx->ops->fib_at,
-			  dcx->ops->fib_of, dcx->ops->idx2id,
+			  current_buckets(), ops->fib_at,
+			  ops->fib_of, ops->idx2id,
 			  removeme);
 	if (ret)
 		goto error;
 
 	release_fibers(new_numb,
-		       dcx->buckets, dcx->ops->fib_at,
-		       dcx->ops->fib_set_at);
+		       current_buckets(), ops->fib_at,
+		       ops->fib_set_at);
 	release_fibers(1,
-		       &removeme, dcx->ops->fib_at,
-		       dcx->ops->fib_set_at);
+		       &removeme, ops->fib_at,
+		       ops->fib_set_at);
 
 	fsx_free(dcx->weights);
 	dcx->weights = new_weights;
 	dcx->numb = new_numb;
 	return 0;
  error:
+	/* FIXME: add bucket (roll back remove_bucket()) */
 	if (new_weights)
 		fsx_free(new_weights);
 	free_cloned_systab(dcx);
@@ -925,6 +910,7 @@ int spl_fsx32(reiser4_dcx *rdcx, u32 fact_bits)
 	u32 *new_weights;
 	u32 new_nums;
 	struct fsx32_dcx *dcx = fsx32_private(rdcx);
+	struct bucket_ops *ops = current_bucket_ops();
 
 	if (dcx->nums_bits + fact_bits > MAX_SHIFT)
 		return -EINVAL;
@@ -937,18 +923,18 @@ int spl_fsx32(reiser4_dcx *rdcx, u32 fact_bits)
 		goto error;
 	}
 	calibrate32(dcx->numb, new_nums,
-		    dcx->buckets, dcx->ops->cap_at, new_weights);
+		    current_buckets(), ops->cap_at, new_weights);
 	ret = balance_spl(dcx->numb, dcx->nums_bits,
 			  &dcx->tab,
 			  dcx->weights,
 			  new_weights,
 			  fact_bits,
-			  dcx->buckets,
-			  dcx->ops->fib_at,
-			  dcx->ops->fib_set_at,
-			  dcx->ops->fib_lenp_at,
-			  dcx->ops->id2idx,
-			  dcx->ops->idx2id);
+			  current_buckets(),
+			  ops->fib_at,
+			  ops->fib_set_at,
+			  ops->fib_lenp_at,
+			  ops->id2idx,
+			  ops->idx2id);
 	if (ret)
 		goto error;
 	fsx_free(dcx->weights);
@@ -1000,13 +986,6 @@ void unpack_fsx32(reiser4_dcx *rdcx, void *tab,
 void dump_fsx32(reiser4_dcx *rdcx, void *tab, char *to, u64 offset, u32 size)
 {
 	memcpy(to, (u32 *)tab + offset, size);
-}
-
-bucket_t *get_buckets_fsx32(reiser4_dcx *rdcx)
-{
-	struct fsx32_dcx *dcx = fsx32_private(rdcx);
-
-	return dcx->buckets;
 }
 
 /*

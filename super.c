@@ -416,14 +416,6 @@ int reiser4_volume_is_activated(struct super_block *sb)
 }
 
 /**
- * Calculate data subvolume by @inode and @offset
- */
-reiser4_subvol *calc_data_subvol(const struct inode *inode, loff_t offset)
-{
-	return inode_file_plugin(inode)->calc_data_subvol(inode, offset);
-}
-
-/**
  * Return data subvolume by its ID stored on disk
  */
 reiser4_subvol *find_data_subvol(const coord_t *coord)

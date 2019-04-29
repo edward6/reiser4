@@ -963,7 +963,8 @@ int reserve_write_extent(struct inode *inode, loff_t offset, int count)
 	int ret;
 	reiser4_subvol *subv_m = get_meta_subvol();
 	reiser4_tree *tree_m = &subv_m->tree;
-	reiser4_subvol *subv_d = calc_data_subvol(inode, offset);
+	reiser4_subvol *subv_d =
+		inode_file_plugin(inode)->calc_data_subvol(inode, offset);
 	/*
 	 * to write @count pages to a file by extents we have to reserve disk
 	 * space for:

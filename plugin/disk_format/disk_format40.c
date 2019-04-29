@@ -604,8 +604,6 @@ static int init_format_generic(struct super_block *s,
 		assert("nikita-3458", result == 0);
 		break;
 	case INIT_SYSTAB:
-		if (vol->vol_plug->done_volume)
-			vol->vol_plug->done_volume(subv);
 	case INIT_JNODE:
 		put_sb_format_jnode(subv);
 	case INIT_SA:
@@ -719,11 +717,7 @@ jnode *log_super_format40(struct super_block *super, reiser4_subvol *subv)
  */
 int release_format40(struct super_block *s, reiser4_subvol *subv)
 {
-	reiser4_volume *vol = super_volume(s);
-
 	sa_destroy_allocator(&subv->space_allocator, s, subv);
-	if (vol->vol_plug->done_volume)
-		vol->vol_plug->done_volume(subv);
 	reiser4_done_journal_info(subv);
 	put_sb_format_jnode(subv);
 

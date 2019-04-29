@@ -357,6 +357,7 @@ struct reiser4_volume {
 				       sure that new info is written to disk
 				       successfully */
 	struct list_head subvols_list; /* list of registered subvolumes */
+	bucket_t *buckets; /* set of abstract buckets */
 	struct lv_conf *conf; /* current working in-memory volume
 				 configuration */
 	struct lv_conf *new_conf; /* new volume configuration */
@@ -505,6 +506,16 @@ static inline volume_plugin *current_vol_plug(void)
 static inline lv_conf *current_lv_conf(void)
 {
 	return sbinfo_conf(get_current_super_private());
+}
+
+static inline bucket_t *current_buckets(void)
+{
+	return current_volume()->buckets;
+}
+
+static inline struct bucket_ops *current_bucket_ops(void)
+{
+	return &current_volume()->vol_plug->bucket_ops;
 }
 
 static inline struct formatted_ra_params *get_current_super_ra_params(void)
@@ -742,8 +753,8 @@ static inline reiser4_tree *meta_subvol_tree(void)
 {
 	return &get_meta_subvol()->tree;
 }
+
 extern reiser4_subvol *super_meta_subvol(struct super_block *super);
-extern reiser4_subvol *calc_data_subvol(const struct inode *inode, loff_t offset);
 extern reiser4_subvol *find_data_subvol(const coord_t *coord);
 
 struct file_system_type *get_reiser4_fs_type(void);

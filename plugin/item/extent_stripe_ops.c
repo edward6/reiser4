@@ -473,7 +473,7 @@ static int validate_data_reservation(const coord_t *coord, struct inode *inode,
 
 	assert("edward-2279", get_current_csi()->data_subv != NULL);
 
-	new = calc_data_subvol(inode, pos);
+	new = inode_file_plugin(inode)->calc_data_subvol(inode, pos);
 
 	if (get_current_csi()->data_subv != new) {
 		/*

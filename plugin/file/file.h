@@ -240,6 +240,7 @@ struct unix_file_info {
 	struct formatting_plugin *tplug;
 	/* if this is set, file is in exclusive use */
 	int exclusive_use;
+	u64 brick_id; /* internal brick_id (i.e. index of slot) */
 #if REISER4_DEBUG
 	/* pointer to task struct of thread owning exclusive access to file */
 	void *ea_owner;

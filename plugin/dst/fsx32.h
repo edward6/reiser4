@@ -18,24 +18,16 @@ struct fsx32_dcx {
 	u32 *new_weights;
 	u32 *sho;
 	u32 *exc;
-	bucket_t *buckets; /* set of abstract buckets */
-	struct bucket_ops *ops;
 };
 
 extern u32 murmur3_x86_32(const char *data, int len, int seed);
 
-extern int initr_fsx32(reiser4_dcx *rdcx, void **tab,
-		       int num_buckets, int nums_bits);
+extern int initr_fsx32(reiser4_dcx *rdcx, void **tab, int nums_bits);
+extern reiser4_subvol *dst_builtin(const struct inode *inode, loff_t offset);
 extern void replace_fsx32(reiser4_dcx *rdcx, void **target);
 extern void free_fsx32(void *tab);
 extern void doner_fsx32(void **tab);
-
-extern void init_lite_fsx32(bucket_t *vec, struct bucket_ops *ops,
-			    reiser4_dcx *rdcx);
-extern int initv_fsx32(bucket_t *buckets, void **tab,
-		       u64 numb, int nums_bits,
-		       struct bucket_ops *ops,
-		       reiser4_dcx *new);
+extern int initv_fsx32(void **tab, u64 numb, int nums_bits, reiser4_dcx *rdcx);
 extern void donev_fsx32(reiser4_dcx *rdcx);
 extern u64 lookup_fsx32m(reiser4_dcx *rdcx, const char *str,
 			 int len, u32 seed, void *tab);
@@ -47,8 +39,6 @@ extern void unpack_fsx32(reiser4_dcx *rdcx, void *tab,
 			 char *from, u64 dst_off, u64 count);
 extern void dump_fsx32(reiser4_dcx *rdcx, void *tab,
 		       char *to, u64 offset, u32 size);
-extern bucket_t *get_buckets_fsx32(reiser4_dcx *rdcx);
-
 #endif /* FSX32_H */
 
 /*

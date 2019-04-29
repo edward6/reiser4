@@ -367,7 +367,9 @@ int reserve_partial_page(struct inode *inode, pgoff_t index)
 {
 	int ret;
 	reiser4_subvol *subv_m = get_meta_subvol();
-	reiser4_subvol *subv_d = calc_data_subvol(inode, index << PAGE_SHIFT);
+	reiser4_subvol *subv_d =
+		inode_file_plugin(inode)->calc_data_subvol(inode,
+							   index << PAGE_SHIFT);
 	/*
 	 * reserve space for (1)
 	 */
@@ -947,9 +949,11 @@ static int has_anonymous_pages(struct inode *inode)
 int reserve_capture_anon_page(struct page *page)
 {
 	int ret;
+	struct inode *inode = page->mapping->host;
 	reiser4_subvol *msubv = get_meta_subvol();
-	reiser4_subvol *dsubv = calc_data_subvol(page->mapping->host,
-						 page_offset(page));
+	reiser4_subvol *dsubv =
+		inode_file_plugin(inode)->calc_data_subvol(inode,
+							   page_offset(page));
 	/*
 	 * grab disk space for the page itself
 	 */
@@ -2632,7 +2636,8 @@ int build_body_key_unix_file(struct inode *inode, loff_t off, reiser4_key *key)
 	return 0;
 }
 
-reiser4_subvol *calc_data_subvol_unix_file(const struct inode *inode, loff_t offset)
+reiser4_subvol *calc_data_subvol_unix_file(const struct inode *inode,
+					   loff_t offset)
 {
 	return get_meta_subvol();
 }
@@ -2891,8 +2896,9 @@ int reserve_write_begin_generic(const struct inode *inode, pgoff_t index)
 {
 	int ret;
 	reiser4_subvol *subv_m = get_meta_subvol();
-	reiser4_subvol *subv_d = calc_data_subvol(inode,
-						  index << PAGE_SHIFT);
+	reiser4_subvol *subv_d =
+		inode_file_plugin(inode)->calc_data_subvol(inode,
+							   index << PAGE_SHIFT);
 
 	ret = grab_data_blocks(subv_d, 1);
 	if (ret)

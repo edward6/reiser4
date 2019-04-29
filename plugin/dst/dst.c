@@ -68,7 +68,6 @@ distribution_plugin distribution_plugins[LAST_DISTRIB_ID] = {
 			.done = doner_fsx32
 		},
 		.v = {
-			.init_lite = init_lite_fsx32,
 			.init = initv_fsx32,
 			.done = donev_fsx32,
 			.inc = inc_fsx32,
@@ -77,7 +76,6 @@ distribution_plugin distribution_plugins[LAST_DISTRIB_ID] = {
 			.pack = pack_fsx32,
 			.unpack = unpack_fsx32,
 			.dump = dump_fsx32,
-			.get_buckets = get_buckets_fsx32
 		},
 		.f = {
 			.fix = fix_data_reservation,

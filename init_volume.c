@@ -827,6 +827,9 @@ void __reiser4_deactivate_volume(struct super_block *super)
 	deactivate_subvolumes_cond(super, is_origin);
 	deactivate_subvolumes_cond(super, is_replica);
 
+	if (vol->vol_plug->done_volume)
+		vol->vol_plug->done_volume(vol);
+
 	assert("edward-2254", vol->new_conf == NULL);
 	assert("edward-2255", vol->victim == NULL);
 

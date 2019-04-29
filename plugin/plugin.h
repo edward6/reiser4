@@ -540,20 +540,23 @@ struct bucket_ops {
 	u64 (*idx2id)(u32 idx);
 	/* translate bucket ID to index in the array of buckets */
 	u32 (*id2idx)(u64 id);
+	/* create a set of abstract buckets */
+	bucket_t *(*create_buckets)(void);
+	/* release a set of abstract buckets */
+	void (*free_buckets)(bucket_t *vec);
 	/* insert a bucket @new into a set of buckets @vec
 	   at position pos */
-	void (*insert_bucket)(bucket_t *vec, bucket_t new, u32 numb, u32 pos);
+	bucket_t *(*insert_bucket)(bucket_t *vec, bucket_t new, u32 numb, u32 pos);
 	/* remove a bucket located at position @pos from
 	   the set of buckets @vec */
-	void (*remove_bucket)(bucket_t *vec, u32 numb, u32 pos);
+	bucket_t *(*remove_bucket)(bucket_t *vec, u32 numb, u32 pos);
 	/* return total space currently occupied in all buckets */
 	u64 (*space_occupied)(void);
 };
 
 struct dist_regular_ops {
 	/* initialize distribution context for regular file operations */
-	int (*init)(reiser4_dcx *rdcx, void **tab, int num_buckets,
-		    int nums_bits);
+	int (*init)(reiser4_dcx *rdcx, void **tab, int nums_bits);
 	/* calculate address in a logical volume */
 	u64 (*lookup)(reiser4_dcx *rdcx, const char *str,
 		      int len, u32 seed, void *tab);
@@ -580,11 +583,8 @@ struct dist_file_ops {
  */
 struct dist_volume_ops {
 	/* Initialize context of operation */
-	int (*init)(bucket_t *buckets, void **tab, u64 num_buckets,
-		    int num_sgs_bits, struct bucket_ops *ops,
-		    reiser4_dcx *rdcx);
-	void (*init_lite)(bucket_t *buckets, struct bucket_ops *ops,
-			  reiser4_dcx *rdcx);
+	int (*init)(void **tab, u64 num_buckets,
+		    int num_sgs_bits, reiser4_dcx *rdcx);
 	/* Release context of operation */
 	void (*done)(reiser4_dcx *rdcx);
 	/* Increase capacity of an array.
@@ -603,8 +603,6 @@ struct dist_volume_ops {
 	/* Print system configuration */
 	void (*dump)(reiser4_dcx *rdcx, void *tab,
 		     char *to, u64 offset, u32 size);
-	/* Return a pointer to an array */
-	bucket_t *(*get_buckets)(reiser4_dcx *rdcx);
 };
 
 typedef struct distribution_plugin {
@@ -630,9 +628,8 @@ typedef struct volume_plugin {
 	/* Load a portion of LV system configuration contained
 	   in a subvolume @subv. Normally is called at mount time */
 	int (*load_volume)(reiser4_subvol *subv);
-	/* Release a portion of LV system info associated with a
-	   subvolume @subv. Normally is called at umount time */
-	void (*done_volume)(reiser4_subvol *subv);
+	/* It is called at umount time */
+	void (*done_volume)(reiser4_volume *vol);
 	/* Init LV after loading LV system info from all subvolumes */
 	int (*init_volume)(struct super_block *sb, reiser4_volume *vol);
 	/* Increase capacity of @brick by value @delta */
