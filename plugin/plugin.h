@@ -557,25 +557,15 @@ struct bucket_ops {
 struct dist_regular_ops {
 	/* initialize distribution context for regular file operations */
 	int (*init)(reiser4_dcx *rdcx, void **tab, int nums_bits);
-	/* calculate address in a logical volume */
-	u64 (*lookup)(reiser4_dcx *rdcx, const char *str,
-		      int len, u32 seed, void *tab);
+	/* return internal brick ID in a logical volume.
+	   The caller has to be sure it is serialized with volume
+	   operations, which change distribution policy */
+	u64 (*lookup)(reiser4_dcx *rdcx, const struct inode *inode,
+		      const char *str, int len, u32 seed, void *tab);
 	void (*replace)(reiser4_dcx *rdcx, void **target);
 	void (*free)(void *tab);
 	/* put distribution context used for regular file operations */
 	void (*done)(void **tab);
-};
-
-struct dist_file_ops {
-	/* Detect changes in data distribution policy and perform
-	   needed corrections. Pre-condition: Longterm lock is held.
-	   On sucess return:
-	   0, if longterm lock is not released;
-	   -EAGAIN, if longterm lock is released.
-	   Other return values mean error.
-	*/
-	int (*fix)(const coord_t *coord, lock_handle *lh, struct inode *inode,
-		   loff_t pos, jnode *node, int count, int truncate);
 };
 
 /*
@@ -603,6 +593,21 @@ struct dist_volume_ops {
 	/* Print system configuration */
 	void (*dump)(reiser4_dcx *rdcx, void *tab,
 		     char *to, u64 offset, u32 size);
+	/* Detect changes in data distribution policy and
+	   perform needed corrections in disk space reservation.
+	   Pre-condition: Longterm lock is held.
+	   On sucess return:
+	   0, if longterm lock is not released;
+	   -EAGAIN, if longterm lock is released.
+	   Any other return values mean error.
+	*/
+	int (*fix)(const coord_t *coord, lock_handle *lh,
+		   struct inode *inode, loff_t pos, jnode *node,
+		   int count, int truncate);
+	void (*read_dist_lock)(struct inode *inode);
+	void (*read_dist_unlock)(struct inode *inode);
+	void (*write_dist_lock)(struct inode *inode);
+	void (*write_dist_unlock)(struct inode *inode);
 };
 
 typedef struct distribution_plugin {
@@ -611,7 +616,6 @@ typedef struct distribution_plugin {
 	u32 seg_bits; /* logarithm of segment size */
 	struct dist_regular_ops r;
 	struct dist_volume_ops v;
-	struct dist_file_ops f;
 } distribution_plugin;
 
 typedef struct volume_plugin {
@@ -622,7 +626,8 @@ typedef struct volume_plugin {
 	u64 (*meta_subvol_id)(void);
 	/* Calculate ID of data subvolume */
 	u64 (*data_subvol_id_calc)(lv_conf *conf,
-				   oid_t oid, loff_t data_offset_in_bytes);
+				   const struct inode *inode,
+				   loff_t data_offset_in_bytes);
 	/* Return data subvolume ID stored in the item specified by @coord */
 	u64 (*data_subvol_id_find)(const coord_t *coord);
 	/* Load a portion of LV system configuration contained
@@ -967,7 +972,8 @@ typedef enum {
 /* builtin distribution plugins */
 typedef enum {
 	TRIV_DISTRIB_ID, /* for simple volumes */
-	FSX32M_DISTRIB_ID,
+	FSX32M_DISTRIB_ID, /* builtin distribution of Eduard Shishkin */
+	CUSTOM_DISTRIB_ID, /* user-defined distribution */
 	LAST_DISTRIB_ID
 } reiser4_distribution_id;
 

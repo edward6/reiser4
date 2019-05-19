@@ -1032,6 +1032,8 @@ filemap_copy_from_user(struct page *page, unsigned long offset,
  * @count: number of bytes to write
  * @pos: position in file to write to
  * @update_fn: file plugin specific update_extents method
+ * @lock_dist_fn: read-lock a distribution policy
+ * @unlock_dist_fn: read-unlock a distribution policy
  */
 ssize_t write_extent_generic(struct file *file, struct inode *inode,
 			     const char __user *buf, size_t count,
@@ -1042,7 +1044,9 @@ ssize_t write_extent_generic(struct file *file, struct inode *inode,
 					     struct inode *inode,
 					     jnode **jnodes,
 					     int count,
-					     loff_t pos))
+					     loff_t pos),
+			     void (*lock_dist_fn)(struct inode *inode),
+			     void (*unlock_dist_fn)(struct inode *inode))
 {
 	int have_to_update_extent;
 	int nr_pages;
@@ -1063,13 +1067,32 @@ ssize_t write_extent_generic(struct file *file, struct inode *inode,
 	end = ((*pos + count - 1) >> PAGE_SHIFT);
 	nr_pages = end - index + 1;
 	assert("edward-2293", nr_pages <= DEFAULT_WRITE_GRANULARITY + 1);
-
-	if (reserve_write_extent(inode, *pos, nr_pages))
+	/*
+	 * We need to make sure that nobody changes distribution
+	 * policy while executing the following sequence of
+	 * instructions:
+	 *
+	 * . reserve_disk_space_for_data;
+	 * . ...
+	 * . update_extent;
+	 *
+	 * For this purpose we take per-volume (or per-file, if
+	 * REISER4_FILE_BASED_DIST is set) read lock by calling
+	 * @lock_dist_fn
+	 */
+	if (lock_dist_fn)
+		lock_dist_fn(inode);
+	if (reserve_write_extent(inode, *pos, nr_pages)) {
+		if (unlock_dist_fn)
+			unlock_dist_fn(inode);
 		return RETERR(-ENOSPC);
 
+	}
 	if (count == 0) {
 		/* case of expanding truncate */
 		update_fn(file, inode, jnodes, 0, *pos);
+		if (unlock_dist_fn)
+			unlock_dist_fn(inode);
 		return 0;
 	}
 	BUG_ON(get_current_context()->trans->atom != NULL);
@@ -1195,7 +1218,9 @@ ssize_t write_extent_generic(struct file *file, struct inode *inode,
 			spin_unlock_jnode(jnodes[i]);
 		}
 	}
-out:
+ out:
+	if (unlock_dist_fn)
+		unlock_dist_fn(inode);
 	for (i = 0; i < nr_pages; i ++) {
 		put_page(jnode_page(jnodes[i]));
 		JF_CLR(jnodes[i], JNODE_WRITE_PREPARED);
@@ -1533,7 +1558,7 @@ ssize_t write_extent_unix_file(struct file *file, struct inode *inode,
 {
 	return write_extent_generic(file, inode, buf, count, pos,
 				    readpage_unix_file,
-				    update_extents_unix_file);
+				    update_extents_unix_file, NULL, NULL);
 }
 
 /*

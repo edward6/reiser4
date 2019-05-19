@@ -58,8 +58,13 @@ typedef enum {
 	REISER4_BUSY_VOL = 11,
 	/* volume is in unbalanced state */
 	REISER4_UNBALANCED_VOL = 12,
-	/* volume operation was not completed */
-	REISER4_INCOMPLETE_BRICK_REMOVAL = 13
+	/* this flag indicates that volume operation was
+	   interrupted for some reasons (e.g. system crash),
+	   and should be completed in some context */
+	REISER4_INCOMPLETE_BRICK_REMOVAL = 13,
+	/* this flag indicates file-based distribution mode
+	   (default is volume-based) */
+	REISER4_FILE_BASED_DIST = 14,
 } reiser4_fs_flag;
 
 #define REISER4_PATH_NAME_MAX 3900 /* FIXME: make it more precise */

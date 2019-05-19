@@ -728,8 +728,8 @@ int initv_fsx32(void **tab, u64 numb, int nums_bits,
 	return ret;
 }
 
-u64 lookup_fsx32m(reiser4_dcx *rdcx, const char *str,
-		  int len, u32 seed, void *tab)
+u64 lookup_fsx32m(reiser4_dcx *rdcx, const struct inode *inode,
+		  const char *str, int len, u32 seed, void *tab)
 {
 	u32 hash;
 	struct fsx32_dcx *dcx = fsx32_private(rdcx);

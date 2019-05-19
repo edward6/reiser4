@@ -501,7 +501,8 @@ static int validate_data_reservation(const coord_t *coord, struct inode *inode,
 }
 
 /**
- * Handle possible races with concurrent volume operations
+ * Handle possible races with concurrent volume operations.
+ * Pre-condition: read_dist_lock is held.
  */
 int fix_data_reservation(const coord_t *coord, lock_handle *lh,
 			 struct inode *inode, loff_t pos, jnode *node,
@@ -520,8 +521,9 @@ int fix_data_reservation(const coord_t *coord, lock_handle *lh,
 			"Handling races with volume ops (case %d)",
 			new));
 	/*
-	 * Make reservation on brick @dsubv.
-	 * Try to do it under longterm lock
+	 * Disk space reservation, we made earlier for data,
+	 * lost its actuality. Make reservation on brick @dsubv.
+	 * Try to do it the fast way under the longterm lock
 	 */
 	grab_space_enable();
 	if (truncate) {
@@ -532,19 +534,14 @@ int fix_data_reservation(const coord_t *coord, lock_handle *lh,
 		ret = reiser4_grab_reserved(reiser4_get_current_sb(),
 					    count, 0, dsubv);
 	} else
-		/* grab by regular way */
+		/* grab from regular area */
 		ret = reiser4_grab_space(count, 0, dsubv);
 	if (!ret)
 		goto fixed;
 	/*
-	 * Reservation failed.
-	 * Try to grab space more agressively. For this we need to release
-	 * the lock.
-	 *
-	 * NOTE-EDWARD: We assume that volume config won't be changed
-	 * by another volume operation while we are keeping things unlocked.
-	 * In theory, it is possible, however. So it would be nice to have
-	 * a guarantee that volume operations don't happen too frequently.
+	 * Our attempt to make reservation by the fast way failed.
+	 * Try to grab space more agressively (by committing transactions).
+	 * For this we need to release the longterm lock.
 	 */
 	done_lh(lh);
 	grab_space_enable();
@@ -557,7 +554,7 @@ int fix_data_reservation(const coord_t *coord, lock_handle *lh,
 					    count, BA_CAN_COMMIT, dsubv);
 	} else
 		/*
-		 * grab by regular way
+		 * grab from regular area
 		 */
 		ret = reiser4_grab_space(count, BA_CAN_COMMIT, dsubv);
 	if (ret)
@@ -601,12 +598,13 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 		if (IS_CBKERR(ret))
 			return -EIO;
 
-		if (current_dist_plug()->f.fix != NULL && !fixed) {
+		if (current_dist_plug()->v.fix != NULL && !fixed) {
 			/*
-			 * Fix up data reservation.
-			 * By design we can do it only once per iteration.
+			 * Fix up disk space reservation for data.
+			 * Distribution lock (per-volume, or per-file)
+			 * should be held
 			 */
-			ret = current_dist_plug()->f.fix(&hint->ext_coord.coord,
+			ret = current_dist_plug()->v.fix(&hint->ext_coord.coord,
 							 hint->ext_coord.lh,
 							 inode, pos, jnodes[0],
 							 count, truncate);

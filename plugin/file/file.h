@@ -240,7 +240,13 @@ struct unix_file_info {
 	struct formatting_plugin *tplug;
 	/* if this is set, file is in exclusive use */
 	int exclusive_use;
-	u64 brick_id; /* internal brick_id (i.e. index of slot) */
+	atomic_t custom_brick_id; /* internal brick ID (i.e. index in the
+				     array of mslots). This is a "hint",
+				     which is set up by user. It is used
+				     only when file-based distribution is
+				     enabled. In other cases per-volume
+				     hint is used (see field custom_brick_id
+				     in struct reiser4_volume) */
 #if REISER4_DEBUG
 	/* pointer to task struct of thread owning exclusive access to file */
 	void *ea_owner;

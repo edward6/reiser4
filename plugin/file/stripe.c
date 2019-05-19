@@ -47,7 +47,9 @@ ssize_t write_extent_generic(struct file *file, struct inode *inode,
 					     struct inode *inode,
 					     jnode **jnodes,
 					     int count,
-					     loff_t pos));
+					     loff_t pos),
+			     void (*dist_lock)(struct inode *inode),
+			     void (*dist_unlock)(struct inode *inode));
 
 reiser4_subvol *calc_data_subvol_stripe(const struct inode *inode,
 					loff_t offset)
@@ -59,8 +61,8 @@ reiser4_subvol *calc_data_subvol_stripe(const struct inode *inode,
 	rcu_read_lock();
 	conf = rcu_dereference(vol->conf);
 	ret = conf_origin(conf, vol->vol_plug->data_subvol_id_calc(conf,
-						    get_inode_oid(inode),
-						    offset));
+								   inode,
+								   offset));
 	rcu_read_unlock();
 	return ret;
 }
@@ -145,6 +147,8 @@ ssize_t write_stripe(struct file *file,
 	int enospc = 0;
 
 	assert("edward-2030", !reiser4_inode_get_flag(inode, REISER4_NO_SD));
+	assert("edward-2344", READ_DIST_LOCK != NULL);
+	assert("edward-2345", READ_DIST_UNLOCK != NULL);
 
 	result = file_remove_privs(file);
 	if (result) {
@@ -166,7 +170,9 @@ ssize_t write_stripe(struct file *file,
 
 		written = write_extent_generic(file, inode, buf, to_write,
 					       pos, readpage_stripe,
-					       update_extents_stripe);
+					       update_extents_stripe,
+					       READ_DIST_LOCK,
+					       READ_DIST_UNLOCK);
 
 		if (written == -ENOSPC && !enospc) {
 			txnmgr_force_commit_all(inode->i_sb, 0);
@@ -584,14 +590,18 @@ static int shorten_stripe(struct inode *inode, loff_t new_size)
 	 * last page is partially truncated - zero its content
 	 */
 	index = (inode->i_size >> PAGE_SHIFT);
+
+	READ_DIST_LOCK(inode);
 	result = reserve_partial_page(inode, index);
 	if (result) {
+		READ_DIST_UNLOCK(inode);
 		assert("edward-2295",
 		       get_current_super_private()->delete_mutex_owner == NULL);
 		return result;
 	}
 	page = read_mapping_page(inode->i_mapping, index, NULL);
 	if (IS_ERR(page)) {
+		READ_DIST_UNLOCK(inode);
 		/*
 		 * the below does up(sbinfo->delete_mutex).
 		 * Do not get confused
@@ -601,6 +611,7 @@ static int shorten_stripe(struct inode *inode, loff_t new_size)
 	}
 	wait_on_page_locked(page);
 	if (!PageUptodate(page)) {
+		READ_DIST_UNLOCK(inode);
 		put_page(page);
 		/*
 		 * the below does up(sbinfo->delete_mutex).
@@ -615,6 +626,7 @@ static int shorten_stripe(struct inode *inode, loff_t new_size)
 	unlock_page(page);
 	result = find_or_create_extent_stripe(page, 1 /* truncate */);
 	put_page(page);
+	READ_DIST_UNLOCK(inode);
 	/*
 	 * the below does up(sbinfo->delete_mutex).
 	 * Do not get confused
@@ -632,7 +644,8 @@ static int truncate_body_stripe(struct inode *inode, struct iattr *attr)
 		/* expand */
 		ret = write_extent_generic(NULL, inode, NULL, 0, &new_size,
 					   readpage_stripe,
-					   update_extents_stripe);
+					   update_extents_stripe,
+					   READ_DIST_LOCK, READ_DIST_UNLOCK);
 		if (ret)
 			return ret;
 		return reiser4_update_file_size(inode, new_size, 1);
@@ -724,10 +737,14 @@ static int capture_anon_page(struct page *page)
 
 	assert("edward-2045", inode->i_size > page_offset(page));
 
+	READ_DIST_LOCK(inode);
 	ret = reserve_write_extent(inode, page_offset(page), 1);
-	if (ret)
+	if (ret) {
+		READ_DIST_UNLOCK(inode);
 		return ret;
+	}
 	ret = find_or_create_extent_stripe(page, 0);
+	READ_DIST_UNLOCK(inode);
 	if (ret) {
 		SetPageError(page);
 		warning("edward-2046",

@@ -1159,7 +1159,13 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	/*
 	 * Now publish the new config
 	 */
+	assert("edward-2346",
+	       WRITE_DIST_LOCK != NULL && WRITE_DIST_UNLOCK != NULL);
+
+	WRITE_DIST_LOCK(NULL);
 	rcu_assign_pointer(vol->conf, new_conf);
+	WRITE_DIST_UNLOCK(NULL);
+
 	synchronize_rcu();
 	free_lv_conf(old_conf);
 	vol->new_conf = NULL;
@@ -1409,7 +1415,14 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 		return -ENOMEM;
 	}
 	tmp_conf->tab = vol->new_conf->tab;
+
+	assert("edward-2348",
+	       WRITE_DIST_LOCK != NULL && WRITE_DIST_UNLOCK != NULL);
+
+	WRITE_DIST_LOCK(NULL);
 	rcu_assign_pointer(vol->conf, tmp_conf);
+	WRITE_DIST_UNLOCK(NULL);
+
 	synchronize_rcu();
 	free_lv_conf(old_conf);
 
@@ -1501,7 +1514,9 @@ int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	}
 	/*
 	 * Publish final config with updated set of slots,
-	 * which doesn't contain @victim
+	 * which doesn't contain @victim.
+	 * It doesn't change distribution policy, so we don't
+	 * need to take a write lock on distribution here.
 	 */
 	rcu_assign_pointer(vol->conf, vol->new_conf);
 	/*
@@ -1580,7 +1595,8 @@ static u64 meta_subvol_id_simple(void)
 	return METADATA_SUBVOL_ID;
 }
 
-static u64 data_subvol_id_calc_simple(lv_conf *conf, oid_t oid, loff_t offset)
+static u64 data_subvol_id_calc_simple(lv_conf *conf, const struct inode *inode,
+				      loff_t offset)
 {
 	return METADATA_SUBVOL_ID;
 }
@@ -1628,7 +1644,8 @@ static inline u32 get_seed(oid_t oid, reiser4_volume *vol)
 	return seed;
 }
 
-static u64 data_subvol_id_calc_asym(lv_conf *conf, oid_t oid, loff_t offset)
+static u64 data_subvol_id_calc_asym(lv_conf *conf, const struct inode *inode,
+				    loff_t offset)
 {
 	u64 ret;
 	reiser4_volume *vol = current_volume();
@@ -1653,10 +1670,11 @@ static u64 data_subvol_id_calc_asym(lv_conf *conf, oid_t oid, loff_t offset)
 		} else
 			stripe_idx = 0;
 
-		ret = dist_plug->r.lookup(&vol->dcx,
+		ret = dist_plug->r.lookup(&vol->dcx, inode,
 					  (const char *)&stripe_idx,
 					  sizeof(stripe_idx),
-					  get_seed(oid, vol), conf->tab);
+					  get_seed(get_inode_oid(inode), vol),
+					  conf->tab);
 	}
 	return ret;
 }

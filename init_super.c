@@ -478,6 +478,8 @@ int reiser4_init_super_data(struct super_block *super, char *opt_string)
 	PUSH_BIT_OPT("discard", REISER4_DISCARD);
 	/* disable hole punching at flush time */
 	PUSH_BIT_OPT("dont_punch_holes", REISER4_DONT_PUNCH_HOLES);
+	/* enable file-based distribution mode (default is volume-based) */
+	PUSH_BIT_OPT("fbased_dist", REISER4_FILE_BASED_DIST);
 
 	PUSH_OPT(p, opts,
 	{
