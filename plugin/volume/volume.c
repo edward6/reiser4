@@ -754,6 +754,12 @@ static int init_volume_asym(struct super_block *sb, reiser4_volume *vol)
 		goto out;
 
 	assert("edward-2251", vol->victim != NULL);
+	/*
+	 * vol->victim is not a meta-data brick, as when removing a
+	 * meta-data brick we spawn only one checkpoint (similar to
+	 * case of adding a brick). It is a speciality of asymmetric
+	 * volumes.
+	 */
 	assert("edward-2252", !is_meta_brick(vol->victim));
 	/*
 	 * new config will be created here
@@ -935,6 +941,8 @@ static lv_conf *clone_lv_conf(lv_conf *old)
 static int add_meta_brick(reiser4_volume *vol, reiser4_subvol *new)
 {
 	int ret;
+	bucket_t *new_vec;
+	bucket_t *old_vec;
 
 	assert("edward-1820", is_meta_brick(new));
 	/*
@@ -942,6 +950,17 @@ static int add_meta_brick(reiser4_volume *vol, reiser4_subvol *new)
 	 * it is always active in the mount session of the logical volume.
 	 *
 	 * Number of bricks and slots in the logical volume remains the same.
+	 *
+	 * insert @new at the first place in the set of abstract buckets
+	 */
+	new_vec = insert_bucket(vol->buckets, new, num_dsa_subvols(vol),
+				METADATA_SUBVOL_ID /* position to insert */);
+	if (!new_vec)
+		return -ENOMEM;
+	old_vec = vol->buckets;
+	vol->buckets = new_vec;
+	free_buckets(old_vec);
+	/*
 	 * Create new distribution table.
 	 */
 	ret = vol->dist_plug->v.inc(&vol->dcx, vol->conf->tab,
@@ -1108,7 +1127,12 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 		warning("edward-1963", "Can't add brick to DSA twice");
 		return -EINVAL;
 	}
-	if (reiser4_subvol_used_blocks(new) >
+	/*
+	 * We allow to add meta-data bricks without any other conditions.
+	 * In contrast, any data brick to add has to be empty.
+	 */
+	if (new != get_meta_subvol() &&
+	    reiser4_subvol_used_blocks(new) >
 	    reiser4_subvol_min_blocks_used(new)) {
 		warning("edward-2334", "Can't add not empty data brick %s",
 			new->name);
@@ -1222,6 +1246,8 @@ static int remove_meta_brick(reiser4_volume *vol)
 	int ret;
 	reiser4_subvol *mtd_subv = get_meta_subvol();
 	distribution_plugin *dist_plug = vol->dist_plug;
+	bucket_t *new_vec;
+	bucket_t *old_vec;
 
 	assert("edward-1844", num_dsa_subvols(vol) > 1);
 
@@ -1230,6 +1256,18 @@ static int remove_meta_brick(reiser4_volume *vol)
 			"Metadata brick doesn't belong to DSA. Can't remove.");
 		return -EINVAL;
 	}
+	/*
+	 * remove meta-data brick from the set of abstract buckets
+	 */
+	new_vec = remove_bucket(vol->buckets, num_dsa_subvols(vol),
+				METADATA_SUBVOL_ID /* position in DSA */);
+	if (!new_vec)
+		return -ENOMEM;
+
+	old_vec = vol->buckets;
+	vol->buckets = new_vec;
+	free_buckets(old_vec);
+
 	ret = dist_plug->v.dec(&vol->dcx, vol->conf->tab,
 			       METADATA_SUBVOL_ID, mtd_subv);
 	if (ret)
