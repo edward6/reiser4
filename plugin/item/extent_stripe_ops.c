@@ -591,6 +591,7 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 	build_body_key_stripe(inode, pos, &key);
 	do {
 		znode *loaded;
+		const char *error;
 
 		ret = find_file_item_nohint(&hint->ext_coord.coord,
 					    hint->ext_coord.lh, &key,
@@ -645,7 +646,13 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 			done_lh(hint->ext_coord.lh);
 			break;
 		}
-		check_node(hint->ext_coord.lh->node);
+		//check_node(hint->ext_coord.lh->node);
+
+		zload(hint->ext_coord.lh->node);
+		assert("edward-2076",
+		       check_node40(hint->ext_coord.lh->node,
+				    REISER4_NODE_TREE_STABLE, &error) == 0);
+		zrelse(hint->ext_coord.lh->node);
 
 		jnodes += ret;
 		count -= ret;

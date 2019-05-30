@@ -155,7 +155,8 @@ int get_block_address_extent(const coord_t *, sector_t block,
 			     sector_t * result);
 
 /* plugin->u.item.s.vol */
-int reiser4_migrate_extent(coord_t *coord, lock_handle *lh, struct inode *inode);
+int reiser4_migrate_extent(coord_t *coord, lock_handle *lh, struct inode *inode,
+			   loff_t *done_off);
 /* these are used in flush.c
    FIXME-VS: should they be somewhere in item_plugin? */
 int allocate_extent_item_in_place(coord_t *, lock_handle *, flush_pos_t * pos);

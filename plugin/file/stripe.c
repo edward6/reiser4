@@ -852,6 +852,7 @@ int balance_stripe(struct inode *inode)
 			      &key);
 	while (1) {
 		znode *loaded;
+		loff_t done_off;
 
 		init_lh(&lh);
 		ret = coord_by_key(meta_subvol_tree(), &key,
@@ -873,7 +874,7 @@ int balance_stripe(struct inode *inode)
 		coord_set_to_left(&coord);
 		if (!coord_is_existing_item(&coord)) {
 			/*
-			 * file is empty. Nothing to migrate
+			 * nothing to migrate
 			 */
 			zrelse(loaded);
 			goto done;
@@ -885,44 +886,43 @@ int balance_stripe(struct inode *inode)
 			zrelse(loaded);
 			goto done;
 		}
-		/* make key precise */
-		item_key_by_coord(&coord, &key);
-
 		iplug = item_plugin_by_coord(&coord);
-		if (iplug->v.migrate) {
-			/*
-			 * relocate data blocks pointed by found item,
-			 * return amount of processed bytes on success
-			 */
-			ret = iplug->v.migrate(&coord, &lh, inode);
-			zrelse(loaded);
-			done_lh(&lh);
-			if (ret && ret != -E_REPEAT)
-				break;
-			/* commit atom */
-			all_grabbed2free();
+		assert("edward-2349", iplug->v.migrate != NULL);
+		/*
+		 * Migrate data blocks (from right to left) pointed
+		 * out by the found extent item.
+		 * On success (ret == 0 || ret == -E_REPEAT) at least
+		 * one of the mentioned blocks has to be migrated. In
+		 * this case @done_off contains offset of the leftmost
+		 * migrated byte
+		 */
+		ret = iplug->v.migrate(&coord, &lh, inode, &done_off);
+		zrelse(loaded);
+		done_lh(&lh);
+		if (ret && ret != -E_REPEAT)
+			return ret;
 
-			if (ret == -E_REPEAT)
-				/* continue with the same key */
-				continue;
-		} else {
-			/*
-			 * item is not migrateable, simply skip it
-			 */
-			zrelse(loaded);
-			done_lh(&lh);
-		}
-		if (get_key_offset(&key) == 0)
-			/*
-			 * nothing to migrate any more
-			 */
+		// FIXME: check proggress
+		// FIXME: commit atom not after each ->migrate() call,
+		// but after reaching some limit of processed blocks
+
+		/* commit atom */
+		all_grabbed2free();
+
+		if (done_off == 0)
+			/* nothing to migrate any more */
 			break;
 		/*
-		 * look for the next item at the left
+		 * look for the item, which points out to the
+		 * rightmost not processed block
 		 */
-		set_key_offset(&key, get_key_offset(&key) - 1);
+		set_key_offset(&key, done_off - 1);
 	}
  done:
+	/*
+	 * The whole file has been successfully migrated.
+	 * Clean up unbalanced status
+	 */
 	assert("edward-2104", reiser4_lock_counters()->d_refs == 0);
 	done_lh(&lh);
 	reiser4_inode_clr_flag(inode, REISER4_FILE_UNBALANCED);

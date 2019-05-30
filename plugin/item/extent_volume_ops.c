@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2017 Eduard O. Shishkin
+  Copyright (c) 2017-2019 Eduard O. Shishkin
 
   This file is licensed to you under your choice of the GNU Lesser
   General Public License, version 3 or any later version (LGPLv3 or
@@ -25,17 +25,18 @@ enum migration_primitive_id {
 struct extent_migrate_context {
 	enum migration_primitive_id act;
 	coord_t *coord;
-	int migrate_whole_item;
-	reiser4_key key; /* key of extent item to be migrated,
-			    is set by what_to_do() */
+	reiser4_key key; /* key of extent item to be migrated */
 	struct inode *inode;
 	u32 new_loc;
-	u64 size; /* bytes to migrate */
+	loff_t stop_off; /* offset of the leftmost byte to be migrated
+			    in the iteration */
+	loff_t done_off; /* offset of the latest byte migrated in the
+			    iteration */
+	reiser4_block_nr blocks_migrated;
 	reiser4_block_nr split_pos; /* position in unit */
 	lock_handle *lh;
-#if REISER4_DEBUG
-	reiser4_block_nr item_len;
-#endif
+	unsigned int migrate_whole_item:1;
+	unsigned int stop:1;
 };
 
 int split_extent_unit(coord_t *coord, reiser4_block_nr pos, int adv_to_right);
@@ -46,7 +47,7 @@ static int filler(void *data, struct page *page)
 {
 	reiser4_extent *ext;
 	coord_t *coord = data;
- #if REISER4_DEBUG
+#if REISER4_DEBUG
 	reiser4_key key;
 	item_key_by_coord(coord, &key);
 	assert("edward-2122",
@@ -234,24 +235,22 @@ static int migrate_one_block(struct extent_migrate_context *mctx)
 static int do_migrate_extent(struct extent_migrate_context *mctx)
 {
 	int ret = 0;
-	reiser4_block_nr nr_blocks;
-
 	lock_handle *lh = mctx->lh;
 	coord_t *coord = mctx->coord;
-	reiser4_key *key = &mctx->key;
-
 	assert("edward-2106", coord->node == lh->node);
-	assert("edward-2128", get_key_ordering(key) != mctx->new_loc);
+	assert("edward-2128",
+	       get_key_ordering(&mctx->key) != mctx->new_loc);
 
-	nr_blocks = mctx->size >> current_blocksize_bits;
-
-	while (nr_blocks) {
+	while (1) {
 		znode *loaded;
+		loff_t done_off;
 
 		ret = zload(coord->node);
 		if (ret)
 			break;
 		loaded = coord->node;
+		done_off = get_key_offset(&mctx->key) +
+			reiser4_extent_size(coord) - PAGE_SIZE;
 		/*
 		 * this will release the longterm lock
 		 */
@@ -260,18 +259,26 @@ static int do_migrate_extent(struct extent_migrate_context *mctx)
 		zrelse(loaded);
 		if (ret)
 			break;
+		mctx->done_off = done_off;
+		mctx->blocks_migrated ++;
 		reiser4_throttle_write(mctx->inode);
 
-		nr_blocks --;
-		if (nr_blocks == 0 && mctx->migrate_whole_item)
+		if (done_off == get_key_offset(&mctx->key) ||
+		    (mctx->migrate_whole_item && done_off == mctx->stop_off)) {
 			/*
-			 * the whole item has been migrated
+			 * no more blocks to be migrated in this item,
+			 * or migration plans scheduled by what_to_do()
+			 * has been fulfilled
 			 */
+			mctx->stop = 1;
 			break;
+		}
+		assert("edward-2350", done_off != 0);
 		/*
-		 * go to the beginning of the item
+		 * go to the rightmost not migrated block
 		 */
-		ret = find_file_item_nohint(coord, lh, key,
+		set_key_offset(&mctx->key, done_off - 1);
+		ret = find_file_item_nohint(coord, lh, &mctx->key,
 					    ZNODE_WRITE_LOCK, mctx->inode);
 		if (ret) {
 			/*
@@ -281,10 +288,30 @@ static int do_migrate_extent(struct extent_migrate_context *mctx)
 			warning("edward-2318",
 				"Item not found after migration (%d)", ret);
 			done_lh(lh);
-			if (!IS_CBKERR(ret))
+			if (!IS_CBKERR(ret)) {
 				ret = 0;
+				mctx->stop = 1;
+			}
 			break;
 		}
+		/*
+		 * reset @mctx->key, as the item could be changed
+		 * while we had keeping the lock released.
+		 */
+		ret = zload(coord->node);
+		if (ret)
+			break;
+		item_key_by_coord(coord, &mctx->key);
+		zrelse(coord->node);
+
+		if (done_off == mctx->stop_off)
+			/*
+			 * extent has been partially migrated,
+			 * we need also to process the rest of
+			 * it in the next iteration starting
+			 * from what_to_do()
+			 */
+			break;
 	};
 	return ret;
 }
@@ -442,16 +469,19 @@ static void init_migration_context(struct extent_migrate_context *mctx,
 	mctx->coord = coord;
 	mctx->inode = inode;
 	mctx->lh = lh;
-#if REISER4_DEBUG
-	mctx->item_len = reiser4_extent_size(coord);
-#endif
+	item_key_by_coord(coord, &mctx->key);
 }
 
+/*
+ * clean up everything except @inode, @coord, @key and @lh
+ */
 static void reset_migration_context(struct extent_migrate_context *mctx)
 {
 	mctx->act = INVALID_ACTION;
-	mctx->size = 0;
+	mctx->stop = 0;
 	mctx->split_pos = 0;
+	mctx->blocks_migrated = 0;
+	mctx->migrate_whole_item = 0;
 }
 
 /**
@@ -464,10 +494,10 @@ static void what_to_do(struct extent_migrate_context *mctx)
 	loff_t split_off;
 
 	coord_t *coord;
-	reiser4_key *key = &mctx->key;
 	lookup_result ret;
 	struct inode *inode = mctx->inode;
 	file_plugin *fplug = inode_file_plugin(inode);
+	reiser4_key split_key;
 
 	coord = mctx->coord;
 	zload(coord->node);
@@ -484,7 +514,7 @@ static void what_to_do(struct extent_migrate_context *mctx)
 		goto split_off_not_found;
 	}
 	/* offset of the leftmost byte */
-	off1 = get_key_offset(item_key_by_coord(coord, key));
+	off1 = get_key_offset(&mctx->key);
 	/* offset of rightmost byte */
 	off2 = off1 + reiser4_extent_size(coord) - 1;
 
@@ -502,58 +532,64 @@ static void what_to_do(struct extent_migrate_context *mctx)
 		}
 	}
  split_off_not_found:
-	mctx->size = reiser4_extent_size(coord);
-	if (mctx->new_loc != get_key_ordering(key)) {
+	mctx->stop_off = get_key_offset(&mctx->key);
+	if (mctx->new_loc != get_key_ordering(&mctx->key)) {
 		/*
 		 * the whole item should be migrated
 		 */
-		mctx->migrate_whole_item =
-			(mctx->size == reiser4_extent_size(coord));
+		mctx->migrate_whole_item = 1;
 		mctx->act = MIGRATE_EXTENT;
 		zrelse(coord->node);
 		return;
 	} else {
 		/*
-		 * the item is not to be split, or migrated
+		 * the item is not to be splitted, or
+		 * migrated - finish to process extent
 		 */
+		mctx->stop = 1;
 		mctx->act = SKIP_EXTENT;
 		zrelse(coord->node);
 		return;
 	}
  split_off_found:
 	assert("edward-2112",
-	       (get_key_offset(key) < split_off) &&
-	       (split_off < (get_key_offset(key) +
+	       (get_key_offset(&mctx->key) < split_off) &&
+	       (split_off < (get_key_offset(&mctx->key) +
 			     reiser4_extent_size(coord))));
 
-	mctx->size = get_key_offset(key) +
-		reiser4_extent_size(coord) - split_off;
+	mctx->stop_off = split_off;
 
-	if (mctx->new_loc != get_key_ordering(key)) {
+	if (mctx->new_loc != get_key_ordering(&mctx->key)) {
 		/*
-		 * a part of item should be migrated
+		 * Only a part of item should be migrated.
+		 * In this case we don't perform the regular
+		 * split operation - the item will be "split"
+		 * by migration procedure
 		 */
-		mctx->migrate_whole_item =
-			(mctx->size == reiser4_extent_size(coord));
+		mctx->migrate_whole_item = 0;
 		mctx->act = MIGRATE_EXTENT;
 		zrelse(coord->node);
 		return;
 	}
 	/*
-	 * the item should be split, calculate position to split
+	 * The item to be split, its right part to be
+	 * skipped, and the left part to be processed in
+	 * the next iteration starting from what_to_do().
+	 * Now calculate position for split.
 	 */
-	set_key_offset(key, split_off);
-	ret = lookup_extent(key, FIND_EXACT, coord);
+	memcpy(&split_key, &mctx->key, sizeof(split_key));
+	set_key_offset(&split_key, split_off);
+	ret = lookup_extent(&split_key, FIND_EXACT, coord);
 
 	assert("edward-2113", ret == CBK_COORD_FOUND);
 	assert("edward-2114", coord->between == AT_UNIT);
 
-	unit_key_by_coord(coord, key);
+	unit_key_by_coord(coord, &split_key);
 
-	assert("edward-2115", get_key_offset(key) <= split_off);
+	assert("edward-2115", get_key_offset(&split_key) <= split_off);
 
 	mctx->split_pos =
-		(split_off - get_key_offset(key)) >> current_blocksize_bits;
+		(split_off - get_key_offset(&split_key)) >> PAGE_SHIFT;
 	mctx->act = SPLIT_EXTENT;
 	zrelse(coord->node);
 	return;
@@ -561,49 +597,49 @@ static void what_to_do(struct extent_migrate_context *mctx)
 
 #define MIGRATION_GRANULARITY (1024)
 
-int reiser4_migrate_extent(coord_t *coord, lock_handle *lh, struct inode *inode)
+int reiser4_migrate_extent(coord_t *coord, lock_handle *lh, struct inode *inode,
+			   loff_t *done_off)
 {
 	int ret = 0;
 	reiser4_block_nr blocks_migrated = 0;
-	u64 len = reiser4_extent_size(coord);
 	struct extent_migrate_context mctx;
 
 	init_migration_context(&mctx, inode, coord, lh);
 
-	while (len) {
+	while (!mctx.stop) {
 		what_to_do(&mctx);
-
 		switch(mctx.act) {
+		case SKIP_EXTENT:
+			*done_off = mctx.stop_off;
+			goto out;
+		case SPLIT_EXTENT:
+			ret = do_split_extent(&mctx);
+			if (ret)
+				goto out;
+			continue;
 		case MIGRATE_EXTENT:
 			ret = do_migrate_extent(&mctx);
 			if (ret)
-				break;
-			blocks_migrated += (mctx.size >> PAGE_SHIFT);
-			break;
-		case SPLIT_EXTENT:
-			ret = do_split_extent(&mctx);
-			break;
-		case SKIP_EXTENT:
+				goto out;
+			assert("edward-2351", mctx.blocks_migrated > 0);
+			*done_off = mctx.done_off;
+
+			blocks_migrated += mctx.blocks_migrated;
+			if (blocks_migrated >= MIGRATION_GRANULARITY) {
+				/*
+				 * Interrupt long migration to commit
+				 * transaction
+				 */
+				ret = -E_REPEAT;
+				goto out;
+			}
 			break;
 		default:
-			impossible("edward-2116", "bad migrate action id");
-		}
-		if (ret)
-			break;
-		assert("edward-2117", mctx.size <= len);
-		len -= mctx.size;
-#if REISER4_DEBUG
-		mctx.item_len -= mctx.size;
-#endif
-		if (len && blocks_migrated >= MIGRATION_GRANULARITY) {
-			/*
-			 * migration process will be restarted
-			 * for the same item after atom commit
-			 */
-			ret = -E_REPEAT;
-			break;
+			impossible("edward-2116",
+				   "Bad migrate action id %d", mctx.act);
 		}
 	}
+ out:
 	done_lh(lh);
 	return ret;
 }
