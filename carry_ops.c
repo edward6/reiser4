@@ -511,9 +511,27 @@ static int make_space(carry_op * op /* carry operation, insert or paste */ ,
 			result = carry_shift_data(RIGHT_SIDE, coord,
 						  reiser4_carry_real(right),
 						  doing, todo,
-						  flags & COPI_GO_RIGHT);
-			/* reget node from coord: shift_right() might move
-			   insertion coord to the right neighbor */
+						  1 /* go to right neighbor
+						       if there is nothing
+						       to shift */);
+			/*
+			  NOTE-EDWARD: If there is nothing to shift, then
+			  moving insertion point to the right neighbor is
+			  a must! Otherwise, tree degeneration is possible.
+			  E.g. in the following scenario: suppose current node
+			  and its left neighbor are full. We plug a hole with
+			  one logical block at offset OFF in a file, and the
+			  current position in the tree is at the end of the
+			  node. Since we don't go to right, a new node will be
+			  inserted with only one item in it. In the next
+			  iteration we plug a hole at offset (OFF - BLOCK_SIZE).
+			  Note that in that next iteration the insertion point
+			  will be the same (i.e. before the new node). Thus,
+			  again, we don't go to right and insert a second new
+			  node with only one item in it, etc...
+			*/
+			/* reget node from coord after moving the insertion
+			   coord to the right neighbor */
 			node = sync_op(op, right);
 			not_enough_space = free_space_shortage(node, op);
 		}

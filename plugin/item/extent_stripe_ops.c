@@ -16,7 +16,7 @@
 void check_uf_coord(const uf_coord_t *uf_coord, const reiser4_key *key);
 void check_jnodes(znode *twig, const reiser4_key *key, int count);
 
-#if REISER4_DEBUG
+#if 0
 static void check_node(znode *node)
 {
 	const char *error;
@@ -59,14 +59,18 @@ static void try_merge_with_right_item(coord_t *left)
 }
 
 /**
- * Push a pointer to one unallocated block to a hole in a
- * striped file. Location to push is determined by @uf_coord.
- * First try to push to an existing item at the left (if any).
- * If impossible, then create a new extent item and try to
- * merge it with an item at the right.
- * NOTE: the procedure of hole plugging can lead to appearing
- * mergeable items in a node. We can not leave them unmerged,
- * as it will be treated as corruption.
+ * Push a pointer to one unallocated physical block to the
+ * storage tree.
+ *
+ * @key: key of the logical block of the file's body;
+ * @uf_coord: location to push (was found by coord_by_key());
+ *
+ * Pre-condition: logical block is not yet represented by any
+ * pointer in the storage tree (thus, such name "plugging a hole")
+ *
+ * First try to push the pointer to an existing item at the left.
+ * If impossible, then create a new extent item and try to merge
+ * it with an item at the right.
  */
 static int plug_hole_stripe(uf_coord_t *uf_coord, const reiser4_key *key)
 {
@@ -125,13 +129,21 @@ static int plug_hole_stripe(uf_coord_t *uf_coord, const reiser4_key *key)
 	}
 	/*
 	 * We are on the twig level.
-	 * Try to push to the extent item pointed out by @coord
+	 * Try to push the pointer to the end of extent item specified
+	 * by @coord
 	 */
 	assert("edward-2057", item_is_extent(coord));
 
 	if (!keyeq(key, append_key_extent(coord, &akey))) {
 		/*
-		 * can not push. Create a new item
+		 * Can not push. Create a new item.
+		 *
+		 * FIXME-EDWARD: here it would be nice to try
+		 * also to push to the beginning of the item at
+		 * the right. However, current implementation
+		 * of extent items doesn't allow to do it. We
+		 * can only to create a new item and merge it
+		 * with the right neighbor.
 		 */
 		reiser4_set_extent(subvol_by_key(key), &new_ext,
 				   UNALLOCATED_EXTENT_START, 1);
@@ -139,7 +151,7 @@ static int plug_hole_stripe(uf_coord_t *uf_coord, const reiser4_key *key)
 		ret = insert_by_coord(coord, &idata, key, uf_coord->lh, 0);
 	} else {
 		/*
-		 * can push. Paste at the end of item
+		 * We can push to the end of the item
 		 */
 		coord->unit_pos = coord_last_unit_pos(coord);
 		ext = extent_by_coord(coord);
@@ -171,9 +183,9 @@ static int plug_hole_stripe(uf_coord_t *uf_coord, const reiser4_key *key)
 		return ret;
 	assert("edward-2075", coord->node == uf_coord->lh->node);
 	/*
-	 * in this branch @coord gets updated by insertion
-	 * primitives, so there is no need to find insertion
-	 * point, just try to merge right away
+	 * Here @coord points out to the item, the pointer
+	 * was pushed to, or to a newly created item. Try to
+	 * merge it with the item at the right.
 	 */
 	ret = zload(coord->node);
 	if (ret)
@@ -591,7 +603,6 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 	build_body_key_stripe(inode, pos, &key);
 	do {
 		znode *loaded;
-		const char *error;
 
 		ret = find_file_item_nohint(&hint->ext_coord.coord,
 					    hint->ext_coord.lh, &key,
@@ -631,7 +642,7 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 		ret = zload(hint->ext_coord.coord.node);
 		BUG_ON(ret != 0);
 		loaded = hint->ext_coord.coord.node;
-		check_node(loaded);
+		//check_node(loaded);
 
 		if (hint->ext_coord.coord.between == AT_UNIT)
 			init_coord_extension_extent(&hint->ext_coord,
@@ -646,14 +657,13 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 			done_lh(hint->ext_coord.lh);
 			break;
 		}
-		//check_node(hint->ext_coord.lh->node);
-
+#if 0
 		zload(hint->ext_coord.lh->node);
 		assert("edward-2076",
 		       check_node40(hint->ext_coord.lh->node,
 				    REISER4_NODE_TREE_STABLE, &error) == 0);
 		zrelse(hint->ext_coord.lh->node);
-
+#endif
 		jnodes += ret;
 		count -= ret;
 		pos += ret * PAGE_SIZE;
