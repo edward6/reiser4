@@ -1441,6 +1441,7 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	ret = capture_brick_super(get_meta_subvol());
 	if (ret) {
 		free_lv_conf(vol->new_conf);
+		vol->new_conf = NULL;
 		return ret;
 	}
 	/*
@@ -1450,6 +1451,7 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	tmp_conf = clone_lv_conf(old_conf);
 	if (!tmp_conf) {
 		free_lv_conf(vol->new_conf);
+		vol->new_conf = NULL;
 		return -ENOMEM;
 	}
 	tmp_conf->tab = vol->new_conf->tab;
@@ -1477,8 +1479,11 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	 * The new config at vol->new_conf should be published
 	 * only after successful re-balancing completion.
 	 */
-	if (ret)
+	if (ret) {
+		free_lv_conf(vol->new_conf);
+		vol->new_conf = NULL;
 		return ret;
+	}
 	return remove_brick_tail_asym(vol, victim);
 }
 
@@ -1525,6 +1530,8 @@ int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	 * request as a member of the logical volume.
 	 */
 	txnmgr_force_commit_all(victim->super, 0);
+	all_grabbed2free();
+	reiser4_txn_restart_current();
 	/*
 	 * Publish final config with updated set of slots
 	 */

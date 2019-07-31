@@ -247,9 +247,6 @@ static int reiser4_detach_brick(reiser4_subvol *victim)
 	RB_CLEAR_NODE(&cbi->node);
 	free_context_brick_info(cbi);
 
-	printk("reiser4: Device %s can be safely detached.\n",
-	       victim->name);
-
 	victim->id = INVALID_SUBVOL_ID;
 	victim->flags |= (1 << SUBVOL_IS_ORPHAN);
 	reiser4_deactivate_subvol(victim->super, victim);

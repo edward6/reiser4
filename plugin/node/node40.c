@@ -3063,7 +3063,7 @@ void merge_items_node40(coord_t *left, coord_t *right)
 	item_header40 *ih;
 	size_t freed = 0;
 #if REISER4_DEBUG
-	const char *error;
+	//const char *error;
 	int units_before_merge;
 
 	assert("edward-2077", left->node == right->node);
@@ -3122,9 +3122,10 @@ void merge_items_node40(coord_t *left, coord_t *right)
 			    sizeof(item_header40));
 	nh40_set_free_space_start(nh, nh40_get_free_space_start(nh) - freed);
 	node40_set_num_items(node, nh, nh40_get_num_items(nh) - 1);
-
+#if 0
 	assert("edward-2083",
 	       check_node40(node, REISER4_NODE_TREE_STABLE, &error) == 0);
+#endif
 	assert("edward-2133", coord_num_units(left) ==
 	       freed ? units_before_merge - 1 : units_before_merge);
 }

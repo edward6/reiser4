@@ -35,24 +35,15 @@
 #include <linux/pagevec.h>
 #include <linux/syscalls.h>
 
+int reserve_stripe_meta(int count, int truncate);
+int reserve_stripe_data(int count, reiser4_subvol *dsubv, int truncate);
 int readpages_filler_generic(void *data, struct page *page, int striped);
-int update_extents_stripe(struct file *file, struct inode *inode,
-			  jnode **jnodes, int count, loff_t pos);
-ssize_t write_extent_generic(struct file *file, struct inode *inode,
-			     const char __user *buf, size_t count,
-			     loff_t *pos,
-			     int(*readpage_fn)(struct file *file,
-					       struct page *page),
-			     int(*update_fn)(struct file *file,
-					     struct inode *inode,
-					     jnode **jnodes,
-					     int count,
-					     loff_t pos),
-			     void (*dist_lock)(struct inode *inode),
-			     void (*dist_unlock)(struct inode *inode));
 
-reiser4_subvol *calc_data_subvol_stripe(const struct inode *inode,
-					loff_t offset)
+/**
+ * Return a pointer to data subvolume where
+ * file's data at @offset should be stored
+ */
+reiser4_subvol *calc_data_subvol(const struct inode *inode, loff_t offset)
 {
 	reiser4_subvol *ret;
 	lv_conf *conf;
@@ -113,7 +104,9 @@ ssize_t read_stripe(struct file *file, char __user *buf,
 		goto out;
 	uf_info = unix_file_inode_data(inode);
 
+	get_nonexclusive_access(uf_info);
 	result = new_sync_read(file, buf, read_amount, off);
+	drop_nonexclusive_access(uf_info);
  out:
 	context_set_commit_async(ctx);
 	reiser4_exit_context(ctx);
@@ -168,11 +161,10 @@ ssize_t write_stripe(struct file *file,
 		if (left < to_write)
 			to_write = left;
 
-		written = write_extent_generic(file, inode, buf, to_write,
-					       pos, readpage_stripe,
-					       update_extents_stripe,
-					       READ_DIST_LOCK,
-					       READ_DIST_UNLOCK);
+		get_nonexclusive_access(uf_info);
+		written = write_extent_stripe(file, inode, buf, to_write,
+					      pos);
+		drop_nonexclusive_access(uf_info);
 
 		if (written == -ENOSPC && !enospc) {
 			txnmgr_force_commit_all(inode->i_sb, 0);
@@ -229,7 +221,7 @@ ssize_t write_stripe(struct file *file,
 		result = reiser4_sync_file_common(file, 0, LONG_MAX,
 						  0 /* data and stat data */);
 		if (result)
-			warning("reiser4-7", "failed to sync file %llu",
+			warning("edward-2367", "failed to sync file %llu",
 				(unsigned long long)get_inode_oid(inode));
 	}
 	/*
@@ -551,12 +543,6 @@ static int cut_file_items_stripe(struct inode *inode, loff_t new_size,
 	return ret;
 }
 
-static int find_or_create_extent_stripe(struct page *page, int truncate)
-{
-	return find_or_create_extent_generic(page, truncate,
-					     update_extent_stripe);
-}
-
 static int shorten_stripe(struct inode *inode, loff_t new_size)
 {
 	int result;
@@ -587,36 +573,27 @@ static int shorten_stripe(struct inode *inode, loff_t new_size)
 		/* file is truncated to page boundary */
 		return 0;
 	/*
-	 * last page is partially truncated - zero its content
+	 * reserve space on meta-data brick for partilal page truncate
 	 */
-	index = (inode->i_size >> PAGE_SHIFT);
-
-	READ_DIST_LOCK(inode);
-	result = reserve_partial_page(inode, index);
+	result = reserve_stripe_meta(1, 1);
 	if (result) {
-		READ_DIST_UNLOCK(inode);
 		assert("edward-2295",
 		       get_current_super_private()->delete_mutex_owner == NULL);
 		return result;
 	}
+	/*
+	 * last page is partially truncated - zero its content
+	 */
+	index = (inode->i_size >> PAGE_SHIFT);
+
 	page = read_mapping_page(inode->i_mapping, index, NULL);
 	if (IS_ERR(page)) {
-		READ_DIST_UNLOCK(inode);
-		/*
-		 * the below does up(sbinfo->delete_mutex).
-		 * Do not get confused
-		 */
 		reiser4_release_reserved(inode->i_sb);
 		return PTR_ERR(page);
 	}
 	wait_on_page_locked(page);
 	if (!PageUptodate(page)) {
-		READ_DIST_UNLOCK(inode);
 		put_page(page);
-		/*
-		 * the below does up(sbinfo->delete_mutex).
-		 * Do not get confused
-		 */
 		reiser4_release_reserved(inode->i_sb);
 		return RETERR(-EIO);
 	}
@@ -624,14 +601,13 @@ static int shorten_stripe(struct inode *inode, loff_t new_size)
 	assert("edward-2036", PageLocked(page));
 	zero_user_segment(page, padd_from, PAGE_SIZE);
 	unlock_page(page);
+
+	READ_DIST_LOCK(inode);
 	result = find_or_create_extent_stripe(page, 1 /* truncate */);
-	put_page(page);
 	READ_DIST_UNLOCK(inode);
-	/*
-	 * the below does up(sbinfo->delete_mutex).
-	 * Do not get confused
-	 */
+
 	reiser4_release_reserved(inode->i_sb);
+	put_page(page);
 	return result;
 }
 
@@ -642,10 +618,7 @@ static int truncate_body_stripe(struct inode *inode, struct iattr *attr)
 
 	if (inode->i_size < new_size) {
 		/* expand */
-		ret = write_extent_generic(NULL, inode, NULL, 0, &new_size,
-					   readpage_stripe,
-					   update_extents_stripe,
-					   READ_DIST_LOCK, READ_DIST_UNLOCK);
+		ret = write_extent_stripe(NULL, inode, NULL, 0, &new_size);
 		if (ret)
 			return ret;
 		return reiser4_update_file_size(inode, new_size, 1);
@@ -719,7 +692,8 @@ int release_stripe(struct inode *inode, struct file *file)
 }
 
 /**
- * Capture one anonymous page
+ * Capture one anonymous page.
+ * Exclusive, or non-exclusive access to the file must be acquired.
  */
 static int capture_anon_page(struct page *page)
 {
@@ -736,13 +710,13 @@ static int capture_anon_page(struct page *page)
 	inode = page->mapping->host;
 
 	assert("edward-2045", inode->i_size > page_offset(page));
-
-	READ_DIST_LOCK(inode);
-	ret = reserve_write_extent(inode, page_offset(page), 1);
-	if (ret) {
-		READ_DIST_UNLOCK(inode);
+	/*
+	 * reserve space on meta-data brick
+	 */
+	ret = reserve_stripe_meta(1, 0);
+	if (ret)
 		return ret;
-	}
+	READ_DIST_LOCK(inode);
 	ret = find_or_create_extent_stripe(page, 0);
 	READ_DIST_UNLOCK(inode);
 	if (ret) {
@@ -807,13 +781,20 @@ int write_begin_stripe(struct file *file, struct page *page,
 		       loff_t pos, unsigned len, void **fsdata)
 {
 	int ret;
+	/*
+	 * Reserve space on meta-data brick.
+	 * In particular, it is needed to "drill" the leaf level
+	 * by search procedure.
+	 */
+	if (reserve_stripe_meta(1, 0))
+		return -ENOMEM;
 
-	ret = reserve_write_begin_generic(file_inode(file), page->index);
-	if (ret)
-		return ret;
-
-	return  do_write_begin_generic(file, page, pos, len,
-				       readpage_stripe);
+	get_nonexclusive_access(unix_file_inode_data(file_inode(file)));
+	ret = do_write_begin_generic(file, page, pos, len,
+				     readpage_stripe);
+	if (unlikely(ret != 0))
+		drop_nonexclusive_access(unix_file_inode_data(file_inode(file)));
+	return ret;
 }
 
 /**
@@ -823,8 +804,11 @@ int write_begin_stripe(struct file *file, struct page *page,
 int write_end_stripe(struct file *file, struct page *page,
 		     loff_t pos, unsigned copied, void *fsdata)
 {
-	return reiser4_write_end_generic(file, page, pos, copied, fsdata,
-					 find_or_create_extent_stripe);
+	int ret;
+	ret = reiser4_write_end_generic(file, page, pos, copied, fsdata,
+					find_or_create_extent_stripe);
+	drop_nonexclusive_access(unix_file_inode_data(file_inode(file)));
+	return ret;
 }
 
 /**

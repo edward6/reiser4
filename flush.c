@@ -3074,6 +3074,7 @@ jnode_lock_parent_coord(jnode * node,
 				/* FIXME: comment needed */
 				done_lh(parent_lh);
 				if (!JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
+					assert("edward-2366", 0);
 					warning("nikita-3178",
 						"Found but not happy: %i",
 						coord->between);

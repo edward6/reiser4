@@ -774,8 +774,6 @@ reiser4_subvol *get_current_data_subvol(void)
  */
 void set_current_data_subvol(reiser4_subvol *subv)
 {
-	assert("edward-2285", get_current_data_subvol() == NULL);
-
 	get_current_csi()->data_subv = subv;
 }
 
@@ -787,24 +785,8 @@ void clear_current_data_subvol(void)
 	get_current_csi()->data_subv = NULL;
 }
 
-/**
- * Set a data subvolume by @inode and @offset.
- * Reserve @count blocks on that subvolume by a regular way.
- */
-int grab_data_blocks(reiser4_subvol *dsubv, int count)
-{
-	int ret;
-
-	grab_space_enable();
-	ret = reiser4_grab_space(count, BA_CAN_COMMIT, dsubv);
-	if (ret)
-		return ret;
-	set_current_data_subvol(dsubv);
-	return 0;
-}
-
-int update_extent_uf(struct inode *inode, jnode *node, loff_t pos,
-		     int *plugged_hole, int truncate)
+int update_extent_unix_file(struct inode *inode, jnode *node,
+			    loff_t pos, int *plugged_hole, int truncate)
 {
 	int result;
 	znode *loaded;
@@ -958,13 +940,10 @@ static int update_extents_unix_file(struct file *file, struct inode *inode,
  * @offset: write position;
  * @count: number of written pages.
  */
-int reserve_write_extent(struct inode *inode, loff_t offset, int count)
+static int reserve_write_extent(struct inode *inode, int count)
 {
-	int ret;
-	reiser4_subvol *subv_m = get_meta_subvol();
-	reiser4_tree *tree_m = &subv_m->tree;
-	reiser4_subvol *subv_d =
-		inode_file_plugin(inode)->calc_data_subvol(inode, offset);
+	reiser4_subvol *subv = get_meta_subvol();
+	reiser4_tree *tree = &subv->tree;
 	/*
 	 * to write @count pages to a file by extents we have to reserve disk
 	 * space for:
@@ -982,23 +961,11 @@ int reserve_write_extent(struct inode *inode, loff_t offset, int count)
 	 *
 	 * 3. stat data update
 	 */
-
-	/*
-	 * reserve space for 2(a).
-	 */
-	ret = grab_data_blocks(subv_d, count);
-	if (ret)
-		return ret;
-	/*
-	 * reserve space for 1,2(b),3.
-	 */
 	grab_space_enable();
-	ret = reiser4_grab_space(estimate_one_insert_item(tree_m) +
-		     count * estimate_one_insert_into_item(tree_m) +
-		     estimate_one_insert_item(tree_m), BA_CAN_COMMIT, subv_m);
-	if (ret)
-		clear_current_data_subvol();
-	return ret;
+	return reiser4_grab_space(count /* for 2(a) */ +
+		     estimate_one_insert_item(tree) +
+		     count * estimate_one_insert_into_item(tree) +
+		     estimate_one_insert_item(tree), BA_CAN_COMMIT, subv);
 }
 
 /*
@@ -1006,9 +973,8 @@ int reserve_write_extent(struct inode *inode, loff_t offset, int count)
  * is deadlocky (copying from user while holding the page lock is bad).
  * As a temporary fix for reiser4, just define it here.
  */
-static inline size_t
-filemap_copy_from_user(struct page *page, unsigned long offset,
-			const char __user *buf, unsigned bytes)
+size_t filemap_copy_from_user(struct page *page, unsigned long offset,
+			      const char __user *buf, unsigned bytes)
 {
 	char *kaddr;
 	int left;
@@ -1031,22 +997,10 @@ filemap_copy_from_user(struct page *page, unsigned long offset,
  * @buf: address of user-space buffer
  * @count: number of bytes to write
  * @pos: position in file to write to
- * @update_fn: file plugin specific update_extents method
- * @lock_dist_fn: read-lock a distribution policy
- * @unlock_dist_fn: read-unlock a distribution policy
  */
-ssize_t write_extent_generic(struct file *file, struct inode *inode,
-			     const char __user *buf, size_t count,
-			     loff_t *pos,
-			     int(*readpage_fn)(struct file *file,
-					       struct page *page),
-			     int(*update_fn)(struct file *file,
-					     struct inode *inode,
-					     jnode **jnodes,
-					     int count,
-					     loff_t pos),
-			     void (*lock_dist_fn)(struct inode *inode),
-			     void (*unlock_dist_fn)(struct inode *inode))
+ssize_t write_extent_unix_file(struct file *file, struct inode *inode,
+			       const char __user *buf, size_t count,
+			       loff_t *pos)
 {
 	int have_to_update_extent;
 	int nr_pages;
@@ -1067,32 +1021,13 @@ ssize_t write_extent_generic(struct file *file, struct inode *inode,
 	end = ((*pos + count - 1) >> PAGE_SHIFT);
 	nr_pages = end - index + 1;
 	assert("edward-2293", nr_pages <= DEFAULT_WRITE_GRANULARITY + 1);
-	/*
-	 * We need to make sure that nobody changes distribution
-	 * policy while executing the following sequence of
-	 * instructions:
-	 *
-	 * . reserve_disk_space_for_data;
-	 * . ...
-	 * . update_extent;
-	 *
-	 * For this purpose we take per-volume (or per-file, if
-	 * REISER4_FILE_BASED_DIST is set) read lock by calling
-	 * @lock_dist_fn
-	 */
-	if (lock_dist_fn)
-		lock_dist_fn(inode);
-	if (reserve_write_extent(inode, *pos, nr_pages)) {
-		if (unlock_dist_fn)
-			unlock_dist_fn(inode);
+
+	if (reserve_write_extent(inode, nr_pages))
 		return RETERR(-ENOSPC);
 
-	}
 	if (count == 0) {
 		/* case of expanding truncate */
-		update_fn(file, inode, jnodes, 0, *pos);
-		if (unlock_dist_fn)
-			unlock_dist_fn(inode);
+		update_extents_unix_file(file, inode, jnodes, 0, *pos);
 		return 0;
 	}
 	BUG_ON(get_current_context()->trans->atom != NULL);
@@ -1106,7 +1041,6 @@ ssize_t write_extent_generic(struct file *file, struct inode *inode,
 			result = RETERR(-ENOMEM);
 			goto out;
 		}
-
 		jnodes[i] = jnode_of_page(page);
 		if (IS_ERR(jnodes[i])) {
 			unlock_page(page);
@@ -1119,7 +1053,6 @@ ssize_t write_extent_generic(struct file *file, struct inode *inode,
 		JF_SET(jnodes[i], JNODE_WRITE_PREPARED);
 		unlock_page(page);
 	}
-
 	BUG_ON(get_current_context()->trans->atom != NULL);
 
 	have_to_update_extent = 0;
@@ -1139,7 +1072,7 @@ ssize_t write_extent_generic(struct file *file, struct inode *inode,
 			 */
 			lock_page(page);
 			if (!PageUptodate(page)) {
-				result = readpage_fn(NULL, page);
+				result = readpage_unix_file(NULL, page);
 				assert("edward-2050", result == 0);
 				BUG_ON(result != 0);
 				/* wait for read completion */
@@ -1184,23 +1117,15 @@ ssize_t write_extent_generic(struct file *file, struct inode *inode,
 		BUG_ON(get_current_context()->trans->atom != NULL);
 	}
 	if (have_to_update_extent) {
-		result = update_fn(file, inode, jnodes, nr_dirty, *pos);
+		result = update_extents_unix_file(file, inode,
+						  jnodes, nr_dirty, *pos);
 
 		assert("edward-2278", result == -ENOSPC || result >= 0);
 		if (result < 0)
 			goto out;
 	} else {
-		/*
-		 * In this branch we don't spend reserved data blocks,
-		 * and, respectivily, don't need to validate reservation
-		 */
-		clear_current_data_subvol();
-
 		for (i = 0; i < nr_dirty; i ++) {
 			struct atom_brick_info *abi;
-			/*
-			 * update_fn() had to set subvolume
-			 */
 			assert("edward-1983", jnodes[i]->subvol != NULL);
 
 			spin_lock_jnode(jnodes[i]);
@@ -1213,14 +1138,13 @@ ssize_t write_extent_generic(struct file *file, struct inode *inode,
 							     &abi);
 			if (result)
 				goto out;
+
 			spin_lock_jnode(jnodes[i]);
 			jnode_make_dirty_locked(jnodes[i]);
 			spin_unlock_jnode(jnodes[i]);
 		}
 	}
  out:
-	if (unlock_dist_fn)
-		unlock_dist_fn(inode);
 	for (i = 0; i < nr_pages; i ++) {
 		put_page(jnode_page(jnodes[i]));
 		JF_CLR(jnodes[i], JNODE_WRITE_PREPARED);
@@ -1550,15 +1474,6 @@ void init_coord_extension_extent(uf_coord_t * uf_coord, loff_t lookuped)
 		ext_coord->pos_in_unit =
 		    ((lookuped - offset) >> current_blocksize_bits);
 	}
-}
-
-ssize_t write_extent_unix_file(struct file *file, struct inode *inode,
-			       const char __user *buf, size_t count,
-			       loff_t *pos)
-{
-	return write_extent_generic(file, inode, buf, count, pos,
-				    readpage_unix_file,
-				    update_extents_unix_file, NULL, NULL);
 }
 
 /*

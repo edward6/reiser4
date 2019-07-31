@@ -62,11 +62,8 @@ sector_t reiser4_bmap_dispatch(struct address_space *, sector_t lblock);
  * (UNIX_FILE_PLUGIN_ID)
  */
 
-reiser4_subvol *calc_data_subvol_unix_file(const struct inode *inode,
-					   loff_t offset);
 int build_body_key_unix_file(struct inode *inode, loff_t off,
 			     reiser4_key *key);
-
 /* private inode operations */
 int setattr_unix_file(struct dentry *, struct iattr *);
 
@@ -156,8 +153,7 @@ void destroy_inode_cryptcompress(struct inode *);
  * Private methods of striped-file plugin
  * (STRIPED_FILE_PLUGIN_ID)
  */
-reiser4_subvol *calc_data_subvol_stripe(const struct inode *inode,
-					loff_t offset);
+reiser4_subvol *calc_data_subvol(const struct inode *inode, loff_t offset);
 int build_body_key_stripe(struct inode *inode, loff_t off,
 			  reiser4_key *key);
 int flow_by_inode_stripe(struct inode *inode, const char __user *buf, int user,
@@ -329,12 +325,6 @@ void reiser4_unset_hint(hint_t *);
 int reiser4_sync_page_list(struct inode *inode);
 int reiser4_update_file_size(struct inode *, loff_t, int update_sd);
 int reserve_cut_iteration(struct inode *inode);
-int grab_data_blocks(reiser4_subvol *data_subv, int count);
-int grab_data_block_reserved(reiser4_subvol *data_subv);
-int reserve_partial_page(struct inode *inode, pgoff_t index);
-int reserve_write_extent(struct inode *inode, loff_t offset, int count);
-int reserve_write_begin_generic(const struct inode *inode, pgoff_t index);
-int reserve_capture_anon_page(struct page *page);
 int cut_file_items(struct inode *, loff_t new_size,
 		   int update_sd, loff_t cur_size,
 		   int (*update_actor) (struct inode *, loff_t, int));
@@ -357,13 +347,8 @@ int tail2extent(struct unix_file_info *);
 int extent2tail(struct file *, struct unix_file_info *);
 
 int goto_right_neighbor(coord_t *, lock_handle *);
-int find_or_create_extent_generic(struct page *page, int truncate,
-				  int(*update_extent_fn)(struct inode *,
-							 jnode *node,
-							 loff_t pos,
-							 int *plugged_hole,
-							 int truncate));
-int find_or_create_extent_uf(struct page *, int truncate);
+int find_or_create_extent_stripe(struct page *page, int truncate);
+int find_or_create_extent_unix_file(struct page *, int truncate);
 int reiser4_setattr_generic(struct dentry *dentry, struct iattr *attr,
 			    int (*truncate_file_body_fn)(struct inode *,
 							 struct iattr *));

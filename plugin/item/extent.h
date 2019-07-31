@@ -177,10 +177,10 @@ reiser4_block_nr reiser4_extent_size(const coord_t *coord);
 extent_state state_of_extent(reiser4_extent * ext);
 void reiser4_set_extent(reiser4_subvol *subv, reiser4_extent *,
 			reiser4_block_nr start,	reiser4_block_nr width);
-int update_extent_uf(struct inode *, jnode *, loff_t pos,
-		     int *plugged_hole, int truncate);
-int update_extent_stripe(struct inode *, jnode *, loff_t pos,
-			 int *plugged_hole, int truncate);
+int update_extent_unix_file(struct inode *, jnode *, loff_t pos,
+			    int *plugged_hole, int truncate);
+int update_extent_stripe(struct inode *, jnode *, int *plugged_hole,
+			 int truncate);
 
 #include "../../coord.h"
 #include "../../lock.h"

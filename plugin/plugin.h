@@ -256,10 +256,6 @@ typedef struct file_plugin {
 	/* Build file body key by inode and offset */
 	int (*build_body_key) (struct inode *, loff_t off, reiser4_key *);
 
-	/* Return a pointer to data subvolume where file's data at @offset
-	 * should be stored */
-	reiser4_subvol *(*calc_data_subvol)(const struct inode *inode,
-					    loff_t offset);
 	/* NIKITA-FIXME-HANS: this comment is not as clear to others as you
 	 * think.... */
 	/*
@@ -593,17 +589,6 @@ struct dist_volume_ops {
 	/* Print system configuration */
 	void (*dump)(reiser4_dcx *rdcx, void *tab,
 		     char *to, u64 offset, u32 size);
-	/* Detect changes in data distribution policy and
-	   perform needed corrections in disk space reservation.
-	   Pre-condition: Longterm lock is held.
-	   On sucess return:
-	   0, if longterm lock is not released;
-	   -EAGAIN, if longterm lock is released.
-	   Any other return values mean error.
-	*/
-	int (*fix)(const coord_t *coord, lock_handle *lh,
-		   struct inode *inode, loff_t pos, jnode *node,
-		   int count, int truncate);
 	void (*read_dist_lock)(struct inode *inode);
 	void (*read_dist_unlock)(struct inode *inode);
 	void (*write_dist_lock)(struct inode *inode);

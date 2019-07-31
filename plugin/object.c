@@ -238,7 +238,6 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		 * other private methods
 		 */
 		.write_sd_by_inode = write_sd_by_inode_common,
-		.calc_data_subvol = calc_data_subvol_unix_file,
 		.build_body_key = build_body_key_unix_file,
 		.set_plug_in_inode = set_plug_in_inode_common,
 		.adjust_to_parent = adjust_to_parent_common,
@@ -427,7 +426,6 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.bmap = bmap_cryptcompress,
 
 		.write_sd_by_inode = write_sd_by_inode_common,
-		.calc_data_subvol = calc_data_subvol_unix_file,
 		.build_body_key = build_body_key_cryptcompress,
 		.set_plug_in_inode = set_plug_in_inode_common,
 		.adjust_to_parent = adjust_to_parent_cryptcompress,
@@ -498,7 +496,6 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		 * other private methods
 		 */
 		.write_sd_by_inode = write_sd_by_inode_common,
-		.calc_data_subvol = calc_data_subvol_stripe,
 		.build_body_key = build_body_key_stripe,
 		.set_plug_in_inode = set_plug_in_inode_common,
 		.adjust_to_parent = adjust_to_parent_common,
@@ -506,7 +503,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.delete_object = delete_object_stripe,
 		.add_link = reiser4_add_link_common,
 		.rem_link = reiser4_rem_link_common,
-		.owns_item = owns_item_common,
+		.owns_item = owns_item_unix_file,
 		.can_add_link = can_add_link_common,
 		.detach = dummyop,
 		.bind = dummyop,

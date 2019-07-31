@@ -85,12 +85,10 @@ static int cut_off_tail_block(coord_t *coord, struct inode *inode)
 				 NULL, NULL, inode, 0);
 }
 
-static int reserve_migrate_one_block(struct inode *inode, u32 where)
+static int reserve_migrate_one_block(struct inode *inode)
 {
-	int ret;
 	reiser4_subvol *subv_m = get_meta_subvol();
 	reiser4_tree *tree_m = &subv_m->tree;
-	reiser4_subvol *subv_d = current_origin(where);
 	/*
 	 * to migrate one page of a striped file we have to reserve
 	 * disk space for:
@@ -106,23 +104,15 @@ static int reserve_migrate_one_block(struct inode *inode, u32 where)
 	 * of or paste to an extent item.
 	 * 3. stat data update
 	 *
-	 * reserve space for 2(a)
+	 * space for 2(a) will be reserved by update_extents_stripe()
 	 */
-	grab_space_enable();
-	ret = reiser4_grab_space(1, 0, subv_d);
-	if (ret)
-		return ret;
 	/*
 	 * reserve space for 1, 2(b), 3
 	 */
 	grab_space_enable();
-	ret = reiser4_grab_space(estimate_one_insert_item(tree_m) +
-				 1 * estimate_one_insert_into_item(tree_m) +
-				 estimate_one_insert_item(tree_m), 0, subv_m);
-	if (ret)
-		return ret;
-	set_current_data_subvol(subv_d);
-	return 0;
+	return reiser4_grab_space(estimate_one_insert_item(tree_m) +
+				  1 * estimate_one_insert_into_item(tree_m) +
+				  estimate_one_insert_item(tree_m), 0, subv_m);
 }
 
 jnode *do_jget(struct page *pg);
@@ -158,7 +148,7 @@ static int migrate_one_block(struct extent_migrate_context *mctx)
 	index = (get_key_offset(&key) + reiser4_extent_size(coord) -
 		 current_blocksize) >> current_blocksize_bits;
 
-	ret = reserve_migrate_one_block(inode, mctx->new_loc);
+	ret = reserve_migrate_one_block(inode);
 	if (ret)
 		return ret;
 	/*
@@ -210,12 +200,9 @@ static int migrate_one_block(struct extent_migrate_context *mctx)
 	 * will get new location on the new brick.
 	 */
 	assert("edward-2127",
-	       node->subvol ==
-	       inode_file_plugin(inode)->calc_data_subvol(inode,
-							  page_offset(page)));
+	       node->subvol == calc_data_subvol(inode, page_offset(page)));
 
-	ret = update_extent_stripe(inode, node, page_offset(page), NULL, 0);
-	clear_current_data_subvol();
+	ret = update_extent_stripe(inode, node, NULL, 0);
 	if (ret)
 		warning("edward-1897",
 			"Failed to migrate block %lu of inode %llu (%d)",
@@ -255,7 +242,6 @@ static int do_migrate_extent(struct extent_migrate_context *mctx)
 		 * this will release the longterm lock
 		 */
 		ret = migrate_one_block(mctx);
-		assert("edward-2322", get_current_data_subvol() == NULL);
 		zrelse(loaded);
 		if (ret)
 			break;
@@ -496,7 +482,6 @@ static void what_to_do(struct extent_migrate_context *mctx)
 	coord_t *coord;
 	lookup_result ret;
 	struct inode *inode = mctx->inode;
-	file_plugin *fplug = inode_file_plugin(inode);
 	reiser4_key split_key;
 
 	coord = mctx->coord;
@@ -510,7 +495,7 @@ static void what_to_do(struct extent_migrate_context *mctx)
 	 * to different bricks in the new logical volume
 	 */
 	if (current_stripe_bits == 0) {
-		mctx->new_loc = fplug->calc_data_subvol(inode, 0)->id;
+		mctx->new_loc = calc_data_subvol(inode, 0)->id;
 		goto split_off_not_found;
 	}
 	/* offset of the leftmost byte */
@@ -522,11 +507,11 @@ static void what_to_do(struct extent_migrate_context *mctx)
 	off1 = off1 - (off1 & (current_stripe_size - 1));
 	off2 = off2 - (off2 & (current_stripe_size - 1));
 
-	mctx->new_loc = fplug->calc_data_subvol(inode, off2)->id;
+	mctx->new_loc = calc_data_subvol(inode, off2)->id;
 
 	while (off1 < off2) {
 		off2 -= current_stripe_size;
-		if (fplug->calc_data_subvol(inode, off2)->id != mctx->new_loc) {
+		if (calc_data_subvol(inode, off2)->id != mctx->new_loc) {
 			split_off = off2 + current_stripe_size;
 			goto split_off_found;
 		}
