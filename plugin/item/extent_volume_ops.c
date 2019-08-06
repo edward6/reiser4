@@ -247,7 +247,10 @@ static int do_migrate_extent(struct extent_migrate_context *mctx)
 			break;
 		mctx->done_off = done_off;
 		mctx->blocks_migrated ++;
+
+		drop_exclusive_access(unix_file_inode_data(mctx->inode));
 		reiser4_throttle_write(mctx->inode);
+		get_exclusive_access(unix_file_inode_data(mctx->inode));
 
 		if (done_off == get_key_offset(&mctx->key) ||
 		    (mctx->migrate_whole_item && done_off == mctx->stop_off)) {

@@ -246,6 +246,26 @@ static int process_one_block(uf_coord_t *uf_coord, const reiser4_key *key,
 			return result;
 		//ON_DEBUG(check_plug_hole(uf_coord, key));
 
+		if (*jnode_get_block(node)) {
+			/*
+			 * Olala :(
+			 * Non-zero address while block pointer is
+			 * absent in the tree - this should not ever
+			 * happen!
+			 *
+			 * Experience shows that address referred
+			 * by that jnode is not actual, so we have
+			 * the courage to overwrite it. Nevertheless:
+			 * FIXME-EDWARD: Find the reason of appearance
+			 * of such jnodes.
+			 */
+			warning("edward-2371",
+				"Orphan jnode. Address (%llu %llu) overwritten",
+				(unsigned long long )(*jnode_get_block(node)),
+				(unsigned long long)(jnode_get_subvol(node)->id));
+			JF_CLR(node, JNODE_RELOC);
+			JF_CLR(node, JNODE_OVRWR);
+		}
 		block = fake_blocknr_unformatted(1, subv);
 		if (hole_plugged)
 			*hole_plugged = 1;
@@ -253,6 +273,9 @@ static int process_one_block(uf_coord_t *uf_coord, const reiser4_key *key,
 	} else {
 		reiser4_extent *ext;
 		struct extent_coord_extension *ext_coord;
+
+		if (*jnode_get_block(node))
+			return 0;
 
 		ext_coord = ext_coord_by_uf_coord(uf_coord);
 		check_uf_coord(uf_coord, NULL);
@@ -275,12 +298,9 @@ int process_extent_stripe(uf_coord_t *uf_coord, const reiser4_key *key,
 	jnode *node = jnodes[0];
 	struct atom_brick_info *abi;
 
-	if (*jnode_get_block(node) == 0) {
-		ret = process_one_block(uf_coord, key, node, plugged_hole);
-		if (ret)
-			return ret;
-	} else
-		assert("edward-2357", uf_coord->coord.between == AT_UNIT);
+	ret = process_one_block(uf_coord, key, node, plugged_hole);
+	if (ret)
+		return ret;
 	assert("edward-2358", node->subvol != NULL);
 	/*
 	 * make sure that locked twig node contains
@@ -363,7 +383,7 @@ int reserve_stripe_data(int count, reiser4_subvol *dsubv, int truncate)
 		return reiser4_grab_reserved(reiser4_get_current_sb(),
 					     count, BA_CAN_COMMIT, dsubv);
 	else
-		return reiser4_grab_space(count, BA_CAN_COMMIT, dsubv);
+		return reiser4_grab_space(count, 0, dsubv);
 }
 
 /**
@@ -392,20 +412,14 @@ static int locate_reserve_data(coord_t *coord, lock_handle *lh,
 		*loc = node->subvol;
 	else
 		*loc = calc_data_subvol(inode, pos);
+
 	assert("edward-2361", *loc != NULL);
 	/*
-	 * reserve space on @loc.
-	 * For this we need to release the longterm lock.
+	 * Now reserve space on @loc.
+	 * Note that in the case of truncate the space
+	 * has been already reserved in shorten_stripe()
 	 */
-	done_lh(lh);
-	ret = reserve_stripe_data(1, *loc, truncate);
-	if (ret)
-		return ret;
-	/*
-	 * aquire the longterm lock again
-	 */
-	ret = find_file_item_nohint(coord, lh, key, ZNODE_WRITE_LOCK, inode);
-	return IS_CBKERR(ret) ? ret : 0;
+	return truncate ? 0 : reserve_stripe_data(1, *loc, 0);
 }
 
 /**
@@ -543,7 +557,7 @@ int find_or_create_extent_stripe(struct page *page, int truncate)
 
 	jnode *node;
 
-	assert("vs-1065", page->mapping && page->mapping->host);
+	assert("edward-2372", page->mapping && page->mapping->host);
 
 	inode = page->mapping->host;
 
@@ -600,7 +614,6 @@ ssize_t write_extent_stripe(struct file *file, struct inode *inode,
 	unsigned long end;
 	int i;
 	int to_page, page_off;
-	size_t written;
 	size_t left = count;
 	int ret = 0;
 
@@ -655,6 +668,7 @@ ssize_t write_extent_stripe(struct file *file, struct inode *inode,
 
 	page_off = (*pos & (PAGE_SIZE - 1));
 	for (i = 0; i < nr_pages; i ++) {
+		size_t written;
 		to_page = PAGE_SIZE - page_off;
 		if (to_page > left)
 			to_page = left;

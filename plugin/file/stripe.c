@@ -129,7 +129,7 @@ ssize_t write_stripe(struct file *file,
 		     size_t count, loff_t *pos,
 		     struct dispatch_context *cont)
 {
-	int result;
+	int ret;
 	reiser4_context *ctx = get_current_context();
 	struct inode *inode = file_inode(file);
 	struct unix_file_info *uf_info;
@@ -140,13 +140,11 @@ ssize_t write_stripe(struct file *file,
 	int enospc = 0;
 
 	assert("edward-2030", !reiser4_inode_get_flag(inode, REISER4_NO_SD));
-	assert("edward-2344", READ_DIST_LOCK != NULL);
-	assert("edward-2345", READ_DIST_UNLOCK != NULL);
 
-	result = file_remove_privs(file);
-	if (result) {
+	ret = file_remove_privs(file);
+	if (ret) {
 		context_set_commit_async(ctx);
-		return result;
+		return ret;
 	}
 	/* remove_suid might create a transaction */
 	reiser4_txn_restart(ctx);
@@ -177,7 +175,7 @@ ssize_t write_stripe(struct file *file,
 			 * second time, so don't try to free space
 			 * once again.
 			 */
-			result = written;
+			ret = written;
 			break;
 		}
 		enospc = 0;
@@ -197,11 +195,11 @@ ssize_t write_stripe(struct file *file,
 			 * space for update_sd was reserved
 			 * in write_extent()
 			 */
-			result = reiser4_update_sd(inode);
-			if (result) {
+			ret = reiser4_update_sd(inode);
+			if (ret) {
 				warning("edward-1574",
 					"Can not update stat-data: %i. FSCK?",
-					result);
+					ret);
 				context_set_commit_async(ctx);
 				break;
 			}
@@ -215,12 +213,12 @@ ssize_t write_stripe(struct file *file,
 		buf += written;
 		*pos += written;
 	}
-	if (result == 0 && ((file->f_flags & O_SYNC) || IS_SYNC(inode))) {
+	if (ret == 0 && ((file->f_flags & O_SYNC) || IS_SYNC(inode))) {
 		reiser4_txn_restart_current();
 		grab_space_enable();
-		result = reiser4_sync_file_common(file, 0, LONG_MAX,
+		ret = reiser4_sync_file_common(file, 0, LONG_MAX,
 						  0 /* data and stat data */);
-		if (result)
+		if (ret)
 			warning("edward-2367", "failed to sync file %llu",
 				(unsigned long long)get_inode_oid(inode));
 	}
@@ -229,7 +227,7 @@ ssize_t write_stripe(struct file *file,
 	 * written. Note, that it does not work correctly in case when
 	 * sync_unix_file returns error
 	 */
-	return (count - left) ? (count - left) : result;
+	return (count - left) ? (count - left) : ret;
 }
 
 static inline int readpages_filler_stripe(void *data, struct page *page)
@@ -490,12 +488,12 @@ int cut_tree_worker_stripe(tap_t *tap, const reiser4_key *from_key,
  */
 static int cut_file_items_stripe(struct inode *inode, loff_t new_size,
 				 int update_sd, loff_t cur_size,
+				 reiser4_key *smallest_removed,
 				 int (*update_size_fn) (struct inode *,
 							loff_t, int))
 {
 	int ret = 0;
 	reiser4_key from_key, to_key;
-	reiser4_key smallest_removed;
 	reiser4_tree *tree = meta_subvol_tree();
 
 	assert("edward-2021", inode_file_plugin(inode) ==
@@ -516,14 +514,14 @@ static int cut_file_items_stripe(struct inode *inode, loff_t new_size,
 
 		ret = reiser4_cut_tree_object(tree,
 					      &from_key, &to_key,
-					      &smallest_removed, inode,
+					      smallest_removed, inode,
 					      1 /* truncate */, &progress);
 		assert("edward-2291", ret != -E_NO_NEIGHBOR);
 
 		if (ret == -E_REPEAT) {
 			if (progress) {
 				ret = update_size_fn(inode,
-					 get_key_offset(&smallest_removed),
+					 get_key_offset(smallest_removed),
 						   update_sd);
 				if (ret)
 					break;
@@ -543,18 +541,47 @@ static int cut_file_items_stripe(struct inode *inode, loff_t new_size,
 	return ret;
 }
 
+#if 0
+static void check_partial_page_truncate(struct inode *inode,
+					reiser4_key *smallest_removed)
+{
+	int ret;
+	reiser4_key key;
+	lock_handle lh;
+	coord_t coord;
+
+	init_lh(&lh);
+	memcpy(&key, smallest_removed, sizeof(key));
+	set_key_offset(&key, round_down(inode->i_size, PAGE_SIZE));
+
+	ret = find_file_item_nohint(&coord, &lh, &key,
+				    ZNODE_READ_LOCK, inode);
+	done_lh(&lh);
+	assert("edward-2369", ret == 0);
+	assert("edward-2370", coord.between == AT_UNIT);
+}
+#endif
+
+/**
+ * Exclusive access to the file must be acquired
+ */
 static int shorten_stripe(struct inode *inode, loff_t new_size)
 {
 	int result;
 	struct page *page;
 	int padd_from;
 	unsigned long index;
+	reiser4_key smallest_removed;
+
+	memcpy(&smallest_removed,
+	       reiser4_max_key(), sizeof(smallest_removed));
 	/*
 	 * cut file body
 	 */
 	result = cut_file_items_stripe(inode, new_size,
 				       1, /* update_sd */
 				       get_key_offset(reiser4_max_key()),
+				       &smallest_removed,
 				       reiser4_update_file_size);
 	if (result)
 		return result;
@@ -572,8 +599,19 @@ static int shorten_stripe(struct inode *inode, loff_t new_size)
 	if (!padd_from)
 		/* file is truncated to page boundary */
 		return 0;
+	if (get_key_offset(&smallest_removed) != new_size)
+		/*
+		 * the cut offset is in the logical block, which is
+		 * not represented by a block pointer in the tree -
+		 * there is no need to handle partial page truncate
+		 */
+		return 0;
 	/*
-	 * reserve space on meta-data brick for partilal page truncate
+	 * Handle partial page truncate
+	 */
+	//check_partial_page_truncate(inode, &smallest_removed);
+	/*
+	 * reserve space on meta-data brick
 	 */
 	result = reserve_stripe_meta(1, 1);
 	if (result) {
@@ -582,7 +620,14 @@ static int shorten_stripe(struct inode *inode, loff_t new_size)
 		return result;
 	}
 	/*
-	 * last page is partially truncated - zero its content
+	 * reserve space on data brick
+	 */
+	result = reserve_stripe_data(1,
+			current_origin(get_key_ordering(&smallest_removed)), 1);
+	if (result)
+		return result;
+	/*
+	 * zero content of partially truncated page
 	 */
 	index = (inode->i_size >> PAGE_SHIFT);
 
@@ -643,7 +688,9 @@ int delete_object_stripe(struct inode *inode)
 	/* truncate file body first */
 	uf_info = unix_file_inode_data(inode);
 
+	get_exclusive_access(uf_info);
 	result = shorten_stripe(inode, 0 /* new size */);
+	drop_exclusive_access(uf_info);
 
 	if (unlikely(result != 0))
 		warning("edward-2037",
@@ -816,6 +863,8 @@ int write_end_stripe(struct file *file, struct page *page,
  * new location, and make respective pages dirty. In flush time those
  * pages will get location on new bricks.
  *
+ * Exclusive access to the file should be acquired by caller.
+ *
  * IMPORTANT: This implementation assumes that physical order of file
  * data bytes coincides with their logical order.
  */
@@ -885,12 +934,10 @@ int balance_stripe(struct inode *inode)
 		done_lh(&lh);
 		if (ret && ret != -E_REPEAT)
 			return ret;
-
-		// FIXME: check proggress
-		// FIXME: commit atom not after each ->migrate() call,
-		// but after reaching some limit of processed blocks
-
-		/* commit atom */
+		/*
+		 * FIXME: commit atom not after each ->migrate() call,
+		 * but after reaching some limit of processed blocks
+		 */
 		all_grabbed2free();
 
 		if (done_off == 0)

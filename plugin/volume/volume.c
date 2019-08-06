@@ -2042,8 +2042,6 @@ int balance_volume_asym(struct super_block *super)
 		    !keyeq(item_key_by_coord(&coord, &found), &ictx.curr)) {
 
 			zrelse(coord.node);
-			ON_DEBUG(notice("edward-2319",
-					"Truncated object during balancing"));
 			/*
 			 * object found at previous iteration is absent
 			 * (truncated by concurrent process), thus current
@@ -2103,9 +2101,12 @@ int balance_volume_asym(struct super_block *super)
 		if (!IS_ERR(inode) && inode_file_plugin(inode)->balance) {
 			reiser4_iget_complete(inode);
 			/*
-			 * Relocate data blocks of this file
+			 * migrate data blocks of this file
 			 */
+			get_exclusive_access(unix_file_inode_data(inode));
 			ret = inode_file_plugin(inode)->balance(inode);
+			drop_exclusive_access(unix_file_inode_data(inode));
+
 			iput(inode);
 			if (ret) {
 				warning("edward-1889",

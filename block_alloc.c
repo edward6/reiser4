@@ -1062,9 +1062,11 @@ u64 all_flush_reserved2grabbed(txn_atom *atom)
 		 */
 		cbi = find_context_brick_info(ctx, abi->brick_id);
 		if (cbi == NULL) {
+#if 0
 			warning("edward-2002",
 				"Context info for brick %d not found.",
 				abi->brick_id);
+#endif
 			spin_unlock_atom(atom);
 			cbi = alloc_context_brick_info();
 			if (!cbi)
