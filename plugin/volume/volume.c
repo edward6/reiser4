@@ -78,8 +78,8 @@ static void set_next_volmap_addr(struct volmap *vmap, reiser4_block_nr val)
 }
 
 static int balance_volume_asym(struct super_block *sb);
-static int __remove_data_brick(reiser4_volume *vol,
-			       reiser4_subvol *subv, u32 *pos_in_dsa);
+static int __remove_data_brick(reiser4_volume *vol, reiser4_subvol *subv,
+			       u32 *pos_in_dsa, bucket_t **old_vec);
 
 static int voltab_nodes_per_block(void)
 {
@@ -485,7 +485,7 @@ static int update_volume_config(reiser4_volume *vol)
  * Create and pin volinfo nodes, allocate disk addresses for them,
  * and pack in-memory volume system information to those nodes
  */
-int create_volume_config(reiser4_volume *vol, int id)
+static int create_volume_config(reiser4_volume *vol, int id)
 {
 	int ret;
 	int i, j;
@@ -708,6 +708,7 @@ static int init_volume_asym(struct super_block *sb, reiser4_volume *vol)
 	lv_conf *cur_conf;
 	u32 nr_victims = 0;
 	u32 pos_in_dsa;
+	bucket_t *old_vec;
 
 	if (!REISER4_PLANB_KEY_ALLOCATION) {
 		warning("edward-2161",
@@ -764,7 +765,7 @@ static int init_volume_asym(struct super_block *sb, reiser4_volume *vol)
 	/*
 	 * new config will be created here
 	 */
-	ret = __remove_data_brick(vol, vol->victim, &pos_in_dsa);
+	ret = __remove_data_brick(vol, vol->victim, &pos_in_dsa, &old_vec);
 	if (ret)
 		return ret;
 
@@ -1241,20 +1242,19 @@ static int shrink_brick(reiser4_volume *vol, reiser4_subvol *victim,
 	return ret;
 }
 
-static int remove_meta_brick(reiser4_volume *vol)
+static int remove_meta_brick(reiser4_volume *vol, bucket_t **old_vec)
 {
 	int ret;
 	reiser4_subvol *mtd_subv = get_meta_subvol();
 	distribution_plugin *dist_plug = vol->dist_plug;
 	bucket_t *new_vec;
-	bucket_t *old_vec;
 
 	assert("edward-1844", num_dsa_subvols(vol) > 1);
 
 	if (!meta_brick_belongs_dsa()) {
 		warning("edward-2331",
 			"Metadata brick doesn't belong to DSA. Can't remove.");
-		return -EINVAL;
+		return RETERR(-EINVAL);
 	}
 	/*
 	 * remove meta-data brick from the set of abstract buckets
@@ -1262,26 +1262,30 @@ static int remove_meta_brick(reiser4_volume *vol)
 	new_vec = remove_bucket(vol->buckets, num_dsa_subvols(vol),
 				METADATA_SUBVOL_ID /* position in DSA */);
 	if (!new_vec)
-		return -ENOMEM;
+		return RETERR(-ENOMEM);
 
-	old_vec = vol->buckets;
+	*old_vec = vol->buckets;
 	vol->buckets = new_vec;
-	free_buckets(old_vec);
 
 	ret = dist_plug->v.dec(&vol->dcx, vol->conf->tab,
 			       METADATA_SUBVOL_ID, mtd_subv);
 	if (ret)
-		return ret;
-
+		goto error;
 	clear_bit(SUBVOL_HAS_DATA_ROOM, &mtd_subv->flags);
 	assert("edward-1827", !meta_brick_belongs_dsa());
 	/*
 	 * Clone in-memory volume config
 	 */
 	vol->new_conf = clone_lv_conf(vol->conf);
-	if (vol->new_conf == NULL)
-		return -ENOMEM;
+	if (vol->new_conf == NULL) {
+		ret = RETERR(-ENOMEM);
+		goto error;
+	}
 	return 0;
+ error:
+	vol->buckets = *old_vec;
+	free_buckets(new_vec);
+	return ret;
 }
 
 /**
@@ -1305,14 +1309,13 @@ static u32 get_new_nr_mslots(void)
 }
 
 static int __remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim,
-			       u32 *pos_in_dsa)
+			       u32 *pos_in_dsa, bucket_t **old_vec)
 {
 	lv_conf *old = vol->conf;
 	u64 old_num_subvols = vol_nr_origins(vol);
 	u64 pos_in_vol;
 	u32 new_nr_mslots;
 	bucket_t *new_vec;
-	bucket_t *old_vec;
 
 	assert("edward-1842", num_dsa_subvols(vol) > 1);
 	assert("edward-2253", vol->new_conf == NULL);
@@ -1354,25 +1357,32 @@ static int __remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim,
 	if (!new_vec)
 		return -ENOMEM;
 
-	old_vec = vol->buckets;
+	*old_vec = vol->buckets;
 	vol->buckets = new_vec;
-	free_buckets(old_vec);
 	return 0;
 }
 
-static int remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim)
+static int remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim,
+			     bucket_t **old_vec)
 {
 	int ret;
 	u32 pos_in_dsa;
 
-	ret = __remove_data_brick(vol, victim, &pos_in_dsa);
+	ret = __remove_data_brick(vol, victim, &pos_in_dsa, old_vec);
 	if (ret)
 		return ret;
+
 	ret = vol->dist_plug->v.dec(&vol->dcx, vol->conf->tab,
 				    pos_in_dsa, victim);
 	if (ret) {
-		warning("edward-2146",
-			"Failed to update distribution config (%d)", ret);
+		/*
+		 * release resources allocated by and
+		 * roll back changes made by __remove_data_brick()
+		 */
+		bucket_t *new_vec = vol->buckets;
+		vol->buckets = *old_vec;
+		free_buckets(new_vec);
+
 		free_lv_conf(vol->new_conf);
 		vol->new_conf = NULL;
 		return ret;
@@ -1389,6 +1399,8 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	distribution_plugin *dist_plug = vol->dist_plug;
 	struct super_block *sb = reiser4_get_current_sb();
 	u32 old_nr_dsa_bricks = num_dsa_subvols(vol);
+	bucket_t *old_vec;
+	bucket_t *new_vec;
 
 	assert("edward-1830", vol != NULL);
 	assert("edward-1846", dist_plug != NULL);
@@ -1396,7 +1408,7 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	if (old_nr_dsa_bricks == 1) {
 		warning("edward-1941",
 			"Can't remove the single brick from DSA");
-		return -EINVAL;
+		return RETERR(-EINVAL);
 	}
 	ret = dist_plug->v.init(&vol->conf->tab,
 				old_nr_dsa_bricks, vol->num_sgs_bits,
@@ -1405,27 +1417,31 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 		return ret;
 
 	if (is_meta_brick(victim))
-		ret = remove_meta_brick(vol);
+		ret = remove_meta_brick(vol, &old_vec);
 	else
-		ret = remove_data_brick(vol, victim);
+		ret = remove_data_brick(vol, victim, &old_vec);
 	dist_plug->v.done(&vol->dcx);
 	if (ret)
 		return ret;
 	assert("edward-2242", vol->new_conf != NULL);
 
 	ret = make_volume_config(vol);
-	if (ret) {
-		free_lv_conf(vol->new_conf);
-		vol->new_conf = NULL;
-		return ret;
-	}
+	if (ret)
+		goto failed_removal;
 	ret = update_volume_config(vol);
-	if (ret) {
-		free_lv_conf(vol->new_conf);
-		vol->new_conf = NULL;
-		return ret;
-	}
+	if (ret)
+		goto failed_removal;
 	dist_plug->r.replace(&vol->dcx, &vol->new_conf->tab);
+	/*
+	 * Prepare a temporal config with the same set
+	 * of bricks, but updated distribution table.
+	 */
+	tmp_conf = clone_lv_conf(old_conf);
+	if (!tmp_conf) {
+		ret = RETERR(-ENOMEM);
+		goto failed_removal;
+	}
+	tmp_conf->tab = vol->new_conf->tab;
 
 	if (!is_meta_brick(victim))
 		/*
@@ -1440,51 +1456,75 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	reiser4_volume_set_unbalanced(sb);
 	ret = capture_brick_super(get_meta_subvol());
 	if (ret) {
-		free_lv_conf(vol->new_conf);
-		vol->new_conf = NULL;
-		return ret;
+		tmp_conf->tab = NULL;
+		free_lv_conf(tmp_conf);
+		goto failed_removal;
 	}
 	/*
-	 * Publish a temporal config with updated
-	 * distribution table.
+	 * New configuration is written to disk.
+	 * From now on the brick removal operation can not
+	 * be rolled back on error paths. Instead, it should
+	 * be completed in the context of the balancing
+	 * procedure, see reiser4_balance_volume()
 	 */
-	tmp_conf = clone_lv_conf(old_conf);
-	if (!tmp_conf) {
-		free_lv_conf(vol->new_conf);
-		vol->new_conf = NULL;
-		return -ENOMEM;
-	}
-	tmp_conf->tab = vol->new_conf->tab;
-
 	assert("edward-2348",
 	       WRITE_DIST_LOCK != NULL && WRITE_DIST_UNLOCK != NULL);
-
+	/*
+	 * Publish the temporal config
+	 */
 	WRITE_DIST_LOCK(NULL);
 	rcu_assign_pointer(vol->conf, tmp_conf);
 	WRITE_DIST_UNLOCK(NULL);
 
 	synchronize_rcu();
 	free_lv_conf(old_conf);
-
+	free_buckets(old_vec);
+	/*
+	 * From now on the file system doesn't allocate disk
+	 * addresses on the brick to be removed
+	 */
 	printk("reiser4 (%s): Brick %s has been removed.\n",
 	       sb->s_id, victim->name);
 	/*
-	 * Re-balance the volume with the temporal config
+	 * Mirgate all data blocks from the brick to be removed
+	 * to the remaining bricks
 	 */
 	ret = balance_volume_asym(sb);
 	/*
 	 * If balancing was interrupted for some reasons (system
 	 * crash, etc), then user just need to resume it by
 	 * volume.reiser4 utility in the next mount session.
-	 * The new config at vol->new_conf should be published
-	 * only after successful re-balancing completion.
+	 * The new config at vol->new_conf to be published after
+	 * successful re-balancing completion.
 	 */
-	if (ret) {
-		free_lv_conf(vol->new_conf);
-		vol->new_conf = NULL;
-		return ret;
-	}
-	return remove_brick_tail_asym(vol, victim);
+	if (ret)
+		goto incomplete_removal;
+	ret = remove_brick_tail_asym(vol, victim);
+	if (ret)
+		goto incomplete_removal;
+	return 0;
+ failed_removal:
+	/*
+	 * brick removal to be repeated in the
+	 * context of brick removal procedure,
+	 * see reiser4_remove_brick()
+	 */
+	new_vec = vol->buckets;
+	vol->buckets = old_vec;
+	free_buckets(new_vec);
+
+	free_lv_conf(vol->new_conf);
+	vol->new_conf = NULL;
+	return ret;
+ incomplete_removal:
+	/*
+	 * brick removal to be completed in the
+	 * context of balancing procedure, see
+	 * reiser4_balance_volume()
+	 */
+	vol->victim = victim;
+	reiser4_volume_set_incomplete_op(sb);
+	return ret;
 }
 
 static int reserve_brick_symbol_del(void)
@@ -1929,6 +1969,15 @@ static int iter_find_next(reiser4_tree *tree, coord_t *coord,
 }
 
 /**
+ * This procedure is to make sure that all data blocks are written to
+ * the logical volume in accordance with a new distribution policy.
+ *
+ * @super: super-block of the volume to be balanced;
+ *
+ * Pre-condition: a new volume configuration is installed.
+ *
+ * Implementation details.
+ *
  * Walk from left to right along the twig level of the storage tree
  * and for every found regular file (inode) relocate its data blocks.
  *
@@ -1941,15 +1990,11 @@ static int iter_find_next(reiser4_tree *tree, coord_t *coord,
  * always performed _after_ installing a new distribution table (see
  * pre-condition below).
  *
- * NOTE: correctness of this balancing procedure (i.e. a guarantee
- * that all files will be processed) is provided by our single stupid
- * objectid allocator. If you want to add another allocator, then please
- * prove that it makes a friendship with the balancing procedure, or
- * write another one which works for that new allocator correctly.
- *
- * Pre-condition: a new volume configuration is installed.
- *
- * @super: super-block of the volume to be balanced;
+ * NOTE: correctness of this implementation (i.e. a guarantee that all
+ * files will be processed) is provided by our single stupid objectid
+ * allocator. If you want to add another allocator, then please prove
+ * that it makes a friendship with the balancing procedure, or write
+ * another one which works for that new allocator correctly.
  *
  * FIXME: use hint/seal to not traverse tree every time when locking
  * position determned by the hint ("current" key in the iterate context).

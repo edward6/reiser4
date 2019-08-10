@@ -845,7 +845,7 @@ int write_begin_stripe(struct file *file, struct page *page,
 }
 
 /**
- * implementation of ->write_end() address space operatio
+ * Implementation of ->write_end() address space operation
  * for striped-file plugin
  */
 int write_end_stripe(struct file *file, struct page *page,
@@ -859,14 +859,16 @@ int write_end_stripe(struct file *file, struct page *page,
 }
 
 /**
- * Scan file body from right to left, read all data blocks which get
- * new location, and make respective pages dirty. In flush time those
- * pages will get location on new bricks.
- *
+ * Migrate some stripes of a file to new locations.
  * Exclusive access to the file should be acquired by caller.
  *
- * IMPORTANT: This implementation assumes that physical order of file
- * data bytes coincides with their logical order.
+ * Implementation details:
+ * Scan file body from right to left, read all pages which should
+ * be relocated to new bricks, and make them dirty. In flush time
+ * those pages will get disk addresses on the new bricks.
+ *
+ * IMPORTANT: This implementation assumes that logical order on
+ * the file coincides with the physical order.
  */
 int balance_stripe(struct inode *inode)
 {

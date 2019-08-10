@@ -28,6 +28,12 @@ static int reiser4_print_volume(struct super_block *sb,
 static int reiser4_print_brick(struct super_block *sb,
 			       struct reiser4_vol_op_args *args)
 {
+	if (reiser4_volume_is_unbalanced(sb)) {
+		warning("edward-2373",
+			"Failed to print brick of unbalanced volume %s",
+			sb->s_id);
+		return -EINVAL;
+	}
 	return super_volume(sb)->vol_plug->print_brick(sb, args);
 }
 
@@ -230,7 +236,7 @@ static int reiser4_add_brick(struct super_block *sb,
 	return capture_brick_super(get_meta_subvol());
 }
 
-static int reiser4_detach_brick(reiser4_subvol *victim)
+static void reiser4_detach_brick(reiser4_subvol *victim)
 {
 	struct ctx_brick_info *cbi;
 	reiser4_context *ctx = get_current_context();
@@ -251,7 +257,6 @@ static int reiser4_detach_brick(reiser4_subvol *victim)
 	victim->flags |= (1 << SUBVOL_IS_ORPHAN);
 	reiser4_deactivate_subvol(victim->super, victim);
 	reiser4_unregister_subvol(victim);
-	return 0;
 }
 
 static int reiser4_remove_brick(struct super_block *sb,
@@ -288,15 +293,15 @@ static int reiser4_remove_brick(struct super_block *sb,
 	 */
 	reiser4_volume_clear_unbalanced(sb);
 
-	if (!is_meta_brick(victim)) {
+	if (!is_meta_brick(victim))
 		/* Goodbye! */
-		ret = reiser4_detach_brick(victim);
-		if (ret)
-			return ret;
-	}
+		reiser4_detach_brick(victim);
 	return capture_brick_super(get_meta_subvol());
 }
 
+/**
+ * Balance the volume and complete all unfinished volume operations
+ */
 static int reiser4_balance_volume(struct super_block *sb)
 {
 	int ret;
@@ -312,8 +317,6 @@ static int reiser4_balance_volume(struct super_block *sb)
 	ret = vol->vol_plug->balance_volume(sb);
 	if (ret)
 		return ret;
-	reiser4_volume_clear_unbalanced(sb);
-
 	if (reiser4_volume_has_incomplete_op(sb)) {
 		/*
 		 * finish unfinished brick removal
@@ -329,17 +332,20 @@ static int reiser4_balance_volume(struct super_block *sb)
 		printk("reiser4 (%s): Brick ID %llu removal completed.\n",
 		       sb->s_id, vol->victim->id);
 		reiser4_volume_clear_incomplete_op(sb);
-
+		reiser4_volume_clear_unbalanced(sb);
 		ret = capture_brick_super(get_meta_subvol());
 		if (ret)
 			return ret;
-		ret = reiser4_detach_brick(vol->victim);
+		reiser4_detach_brick(vol->victim);
+		vol->victim = NULL;
+	} else {
+		assert("edward-2374", vol->victim == NULL);
+		reiser4_volume_clear_unbalanced(sb);
+		ret = capture_brick_super(get_meta_subvol());
 		if (ret)
 			return ret;
-		vol->victim = NULL;
-		return 0;
-	} else
-		return capture_brick_super(get_meta_subvol());
+	}
+	return 0;
 }
 
 /**
