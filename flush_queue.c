@@ -398,7 +398,6 @@ int atom_fq_parts_are_clean(txn_atom * atom)
  */
 static void end_io_handler(struct bio *bio)
 {
-	int i;
 	int nr = 0;
 	int nr_errors = 0;
 	flush_queue_t *fq;
@@ -411,7 +410,7 @@ static void end_io_handler(struct bio *bio)
 	 * for synchronization and error counting. */
 	fq = bio->bi_private;
 	/* Check all elements of io_vec for correct write completion. */
-	bio_for_each_segment_all(bvec, bio, i, iter_all) {
+	bio_for_each_segment_all(bvec, bio, iter_all) {
 		struct page *pg = bvec->bv_page;
 
 		if (bio->bi_status) {

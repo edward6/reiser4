@@ -989,9 +989,9 @@ void jrelse_tail(jnode * node/* jnode to release references to */)
 	assert("nikita-489", atomic_read(&node->d_count) > 0);
 	atomic_dec(&node->d_count);
 	/* release reference acquired in jload_gfp() or jinit_new() */
-	jput(node);
 	if (jnode_is_unformatted(node) || jnode_is_znode(node))
 		LOCK_CNT_DEC(d_refs);
+	jput(node);
 }
 
 /* drop reference to node data. When last reference is dropped, data are
