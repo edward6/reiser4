@@ -301,6 +301,8 @@ static int reiser4_remove_brick(struct super_block *sb,
 
 /**
  * Balance the volume and complete all unfinished volume operations
+ * (if any). On success unbalanced flag is cleared. Otherwise, the
+ * balancing procedure should be repeated in some context.
  */
 static int reiser4_balance_volume(struct super_block *sb)
 {
@@ -338,14 +340,12 @@ static int reiser4_balance_volume(struct super_block *sb)
 			return ret;
 		reiser4_detach_brick(vol->victim);
 		vol->victim = NULL;
+		return 0;
 	} else {
 		assert("edward-2374", vol->victim == NULL);
 		reiser4_volume_clear_unbalanced(sb);
-		ret = capture_brick_super(get_meta_subvol());
-		if (ret)
-			return ret;
+		return capture_brick_super(get_meta_subvol());
 	}
-	return 0;
 }
 
 /**

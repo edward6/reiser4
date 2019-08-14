@@ -285,7 +285,7 @@ static void done_volume_asym(reiser4_volume *vol)
 /**
  * Load system volume configutation from disk to memory.
  */
-static int load_volume_config(reiser4_subvol *subv)
+static int load_volume_dconf(reiser4_subvol *subv)
 {
 	int id = CUR_VOL_CONF;
 	int ret;
@@ -401,7 +401,7 @@ static int dealloc_volinfo_block(reiser4_block_nr *block, reiser4_subvol *subv)
 /**
  * Release disk addresses occupied by volume configuration
  */
-static int release_volume_config(reiser4_volume *vol, int id)
+static int release_volume_dconf(reiser4_volume *vol, int id)
 {
 	int ret;
 	int i, j;
@@ -463,12 +463,12 @@ static int release_volume_config(reiser4_volume *vol, int id)
  * Release old on-disk volume configuration and make the new
  * configuration as "current one".
  */
-static int update_volume_config(reiser4_volume *vol)
+static int update_volume_dconf(reiser4_volume *vol)
 {
 	int ret;
 	reiser4_subvol *mtd_subv = get_meta_subvol();
 
-	ret = release_volume_config(vol, CUR_VOL_CONF);
+	ret = release_volume_dconf(vol, CUR_VOL_CONF);
 	if (ret)
 		return ret;
 
@@ -485,7 +485,7 @@ static int update_volume_config(reiser4_volume *vol)
  * Create and pin volinfo nodes, allocate disk addresses for them,
  * and pack in-memory volume system information to those nodes
  */
-static int create_volume_config(reiser4_volume *vol, int id)
+static int create_volume_dconf(reiser4_volume *vol, int id)
 {
 	int ret;
 	int i, j;
@@ -641,7 +641,7 @@ static int capture_array_nodes(jnode **start, u64 count)
 	return 0;
 }
 
-static int capture_volume_config(reiser4_volume *vol, int id)
+static int capture_volume_dconf(reiser4_volume *vol, int id)
 {
 	int ret;
 	reiser4_volinfo *vinfo = &vol->volinfo[id];
@@ -660,14 +660,14 @@ static int capture_volume_config(reiser4_volume *vol, int id)
  * Create volume configuration, put it into transaction
  * and commit the last one.
  */
-static int make_volume_config(reiser4_volume *vol)
+static int make_volume_dconf(reiser4_volume *vol)
 {
 	int ret;
 
-	ret = create_volume_config(vol, NEW_VOL_CONF);
+	ret = create_volume_dconf(vol, NEW_VOL_CONF);
 	if (ret)
 		return ret;
-	ret = capture_volume_config(vol, NEW_VOL_CONF);
+	ret = capture_volume_dconf(vol, NEW_VOL_CONF);
 	if (ret)
 		goto error;
 	return 0;
@@ -694,7 +694,7 @@ static int load_volume_asym(reiser4_subvol *subv)
 		 */
 		return 0;
 
-	return load_volume_config(subv);
+	return load_volume_dconf(subv);
 }
 
 /*
@@ -939,11 +939,11 @@ static lv_conf *clone_lv_conf(lv_conf *old)
 	return new;
 }
 
-static int add_meta_brick(reiser4_volume *vol, reiser4_subvol *new)
+static int add_meta_brick(reiser4_volume *vol, reiser4_subvol *new,
+			  bucket_t **old_vec)
 {
 	int ret;
 	bucket_t *new_vec;
-	bucket_t *old_vec;
 
 	assert("edward-1820", is_meta_brick(new));
 	/*
@@ -957,25 +957,30 @@ static int add_meta_brick(reiser4_volume *vol, reiser4_subvol *new)
 	new_vec = insert_bucket(vol->buckets, new, num_dsa_subvols(vol),
 				METADATA_SUBVOL_ID /* position to insert */);
 	if (!new_vec)
-		return -ENOMEM;
-	old_vec = vol->buckets;
+		return RETERR(-ENOMEM);
+	*old_vec = vol->buckets;
 	vol->buckets = new_vec;
-	free_buckets(old_vec);
 	/*
 	 * Create new distribution table.
 	 */
 	ret = vol->dist_plug->v.inc(&vol->dcx, vol->conf->tab,
 				    METADATA_SUBVOL_ID /* pos */, new);
 	if (ret)
-		return ret;
+		goto error;
 	new->flags |= (1 << SUBVOL_HAS_DATA_ROOM);
 	/*
 	 * Clone in-memory volume config
 	 */
 	vol->new_conf = clone_lv_conf(vol->conf);
-	if (vol->new_conf == NULL)
-		return -ENOMEM;
+	if (vol->new_conf == NULL) {
+		ret = -ENOMEM;
+		goto error;
+	}
 	return 0;
+ error:
+	vol->buckets = *old_vec;
+	free_buckets(new_vec);
+	return ret;
 }
 
 /**
@@ -996,7 +1001,8 @@ static u32 find_first_empty_slot_off(void)
 	return conf->nr_mslots;
 }
 
-int add_data_brick(reiser4_volume *vol, reiser4_subvol *this)
+int add_data_brick(reiser4_volume *vol, reiser4_subvol *this,
+		   bucket_t **old_vec)
 {
 	int ret;
 	reiser4_dcx *rdcx = &vol->dcx;
@@ -1006,7 +1012,6 @@ int add_data_brick(reiser4_volume *vol, reiser4_subvol *this)
 	u64 pos_in_dsa;
 	slot_t new_slot;
 	bucket_t *new_vec;
-	bucket_t *old_vec;
 
 	assert("edward-1929", !is_meta_brick(this));
 
@@ -1019,9 +1024,8 @@ int add_data_brick(reiser4_volume *vol, reiser4_subvol *this)
 				num_dsa_subvols(vol), pos_in_dsa);
 	if (!new_vec)
 		return -ENOMEM;
-	old_vec = vol->buckets;
+	*old_vec = vol->buckets;
 	vol->buckets = new_vec;
-	free_buckets(old_vec);
 	/*
 	 * Assign internal ID for the new brick
 	 */
@@ -1032,14 +1036,15 @@ int add_data_brick(reiser4_volume *vol, reiser4_subvol *this)
 	ret = vol->dist_plug->v.inc(rdcx, vol->conf->tab,
 				    pos_in_dsa, this);
 	if (ret)
-		return ret;
+		goto error;
 	/*
 	 * Create new in-memory volume config
 	 */
 	new_slot = alloc_mslot(1 + this->num_replicas);
-	if (!new_slot)
-		return -ENOMEM;
-
+	if (!new_slot) {
+		ret = RETERR(-ENOMEM);
+		goto error;
+	}
 	((mirror_t *)new_slot)[this->mirror_id] = this;
 
 	if (pos_in_vol == old_nr_mslots)
@@ -1052,7 +1057,8 @@ int add_data_brick(reiser4_volume *vol, reiser4_subvol *this)
 		vol->new_conf = alloc_lv_conf(old_nr_mslots);
 	if (!vol->new_conf) {
 		free_mslot(new_slot);
-		return -ENOMEM;
+		ret = RETERR(-ENOMEM);
+		goto error;
 	}
 	memcpy(vol->new_conf->mslots, old_conf->mslots,
 	       sizeof(slot_t) * old_nr_mslots);
@@ -1060,6 +1066,12 @@ int add_data_brick(reiser4_volume *vol, reiser4_subvol *this)
 
 	atomic_inc(&vol->nr_origins);
 	return 0;
+ error:
+	vol->buckets = *old_vec;
+	free_buckets(new_vec);
+	free_lv_conf(vol->new_conf);
+	vol->new_conf = NULL;
+	return ret;
 }
 
 /**
@@ -1089,7 +1101,7 @@ static int expand_brick_asym(reiser4_volume *vol, reiser4_subvol *this,
 	if (ret)
 		return ret;
 	if (need_balance) {
-		ret = make_volume_config(vol);
+		ret = make_volume_dconf(vol);
 		if (ret)
 			return ret;
 		ret = capture_brick_super(this);
@@ -1114,7 +1126,9 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	int ret;
 	distribution_plugin *dist_plug = vol->dist_plug;
 	lv_conf *old_conf = vol->conf;
-	lv_conf *new_conf;
+
+	bucket_t *old_vec;
+	bucket_t *new_vec;
 
 	assert("edward-1931", dist_plug != NULL);
 	assert("edward-2262", vol->conf != NULL);
@@ -1156,20 +1170,19 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	 * Create new in-memory volume config
 	 */
 	if (new == get_meta_subvol())
-		ret = add_meta_brick(vol, new);
+		ret = add_meta_brick(vol, new, &old_vec);
 	else
-		ret = add_data_brick(vol, new);
-
-	new_conf = vol->new_conf;
-	assert("edward-2240", new_conf != NULL);
+		ret = add_data_brick(vol, new, &old_vec);
 
 	dist_plug->v.done(&vol->dcx);
 	if (ret)
 		return ret;
-	ret = make_volume_config(vol);
+	assert("edward-2240", vol->new_conf != NULL);
+
+	ret = make_volume_dconf(vol);
 	if (ret)
 		goto error;
-	ret = update_volume_config(vol);
+	ret = update_volume_dconf(vol);
 	if (ret)
 		goto error;
 	if (new != get_meta_subvol()) {
@@ -1178,7 +1191,7 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 		if (ret)
 			goto error;
 	}
-	dist_plug->r.replace(&vol->dcx, &new_conf->tab);
+	dist_plug->r.replace(&vol->dcx, &vol->new_conf->tab);
 
 	reiser4_volume_set_unbalanced(reiser4_get_current_sb());
 	/*
@@ -1188,15 +1201,24 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	       WRITE_DIST_LOCK != NULL && WRITE_DIST_UNLOCK != NULL);
 
 	WRITE_DIST_LOCK(NULL);
-	rcu_assign_pointer(vol->conf, new_conf);
+	rcu_assign_pointer(vol->conf, vol->new_conf);
 	WRITE_DIST_UNLOCK(NULL);
 
 	synchronize_rcu();
 	free_lv_conf(old_conf);
 	vol->new_conf = NULL;
+	free_buckets(old_vec);
 	return 0;
  error:
-	free_lv_conf(new_conf);
+	/*
+	 * adding brick to be repeated in regular context
+	 */
+	new_vec = vol->buckets;
+	vol->buckets = old_vec;
+	free_buckets(new_vec);
+
+	free_lv_conf(vol->new_conf);
+	vol->new_conf = NULL;
 	return ret;
 }
 
@@ -1425,10 +1447,10 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 		return ret;
 	assert("edward-2242", vol->new_conf != NULL);
 
-	ret = make_volume_config(vol);
+	ret = make_volume_dconf(vol);
 	if (ret)
 		goto failed_removal;
-	ret = update_volume_config(vol);
+	ret = update_volume_dconf(vol);
 	if (ret)
 		goto failed_removal;
 	dist_plug->r.replace(&vol->dcx, &vol->new_conf->tab);
@@ -1505,9 +1527,7 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	return 0;
  failed_removal:
 	/*
-	 * brick removal to be repeated in the
-	 * context of brick removal procedure,
-	 * see reiser4_remove_brick()
+	 * brick removal to be repeated in regular context
 	 */
 	new_vec = vol->buckets;
 	vol->buckets = old_vec;
@@ -1652,7 +1672,7 @@ static int shrink_brick_asym(reiser4_volume *vol, reiser4_subvol *victim,
 		return ret;
 
 	if (need_balance) {
-		ret = make_volume_config(vol);
+		ret = make_volume_dconf(vol);
 		if (ret)
 			return ret;
 	}
