@@ -178,10 +178,8 @@ static int migrate_one_block(struct extent_migrate_context *mctx)
 #endif
 	ret = cut_off_tail_block(coord, inode);
 	done_lh(mctx->lh);
-	if (ret) {
-		put_page(page);
-		return ret;
-	}
+	if (ret)
+		goto out;
 	/*
 	 * at this point our block became orphan and unallocated -
 	 * deallocation happened at kill_hook_extent().
@@ -209,6 +207,7 @@ static int migrate_one_block(struct extent_migrate_context *mctx)
 			index, (unsigned long long)get_inode_oid(inode),
 			ret);
 	JF_CLR(node, JNODE_WRITE_PREPARED);
+ out:
 	jput(node);
 	put_page(page);
 	return ret;
