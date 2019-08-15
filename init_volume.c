@@ -826,14 +826,23 @@ void __reiser4_deactivate_volume(struct super_block *super)
 				"txn_force failed: %d", ret);
 		all_grabbed2free();
 	}
-	deactivate_subvolumes_cond(super, is_origin);
-	deactivate_subvolumes_cond(super, is_replica);
-
 	if (vol->vol_plug->done_volume)
 		vol->vol_plug->done_volume(vol);
 
-	assert("edward-2254", vol->new_conf == NULL);
-	assert("edward-2255", vol->victim == NULL);
+	deactivate_subvolumes_cond(super, is_origin);
+	deactivate_subvolumes_cond(super, is_replica);
+
+	if (vol->new_conf) {
+		assert("edward-2254",
+		       reiser4_volume_is_unbalanced(super));
+		assert("edward-2255",
+		       vol->new_conf->tab == vol->conf->tab);
+
+		vol->new_conf->tab = NULL;
+		free_lv_conf(vol->new_conf);
+		vol->new_conf = NULL;
+	}
+	vol->victim = NULL;
 
 	release_lv_conf(vol, vol->conf);
 	vol->conf = NULL;

@@ -1601,7 +1601,7 @@ int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 			warning("edward-2335",
 				"Can't remove data brick: not empty %s",
 				victim->name);
-			return -EINVAL;
+			return RETERR(-EAGAIN);
 		}
 		/*
 		 * remove a record about @victim from the volume
@@ -2191,7 +2191,7 @@ int balance_volume_asym(struct super_block *super)
 	return 0;
  error:
 	warning("edward-2155", "%s: Balancing aborted (%d).", super->s_id, ret);
-	return ret;
+	return ret == -E_DEADLOCK ? -EAGAIN : ret;
 }
 
 volume_plugin volume_plugins[LAST_VOLUME_ID] = {
