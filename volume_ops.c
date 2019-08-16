@@ -331,8 +331,6 @@ static int reiser4_balance_volume(struct super_block *sb)
 		ret = vol->vol_plug->remove_brick_tail(vol, vol->victim);
 		if (ret)
 			return ret;
-		printk("reiser4 (%s): Brick ID %llu removal completed.\n",
-		       sb->s_id, vol->victim->id);
 		reiser4_volume_clear_incomplete_op(sb);
 		reiser4_volume_clear_unbalanced(sb);
 		ret = capture_brick_super(get_meta_subvol());

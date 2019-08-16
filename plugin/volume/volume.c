@@ -1505,11 +1505,11 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	 * From now on the file system doesn't allocate disk
 	 * addresses on the brick to be removed
 	 */
-	printk("reiser4 (%s): Brick %s has been removed.\n",
+	printk("reiser4 (%s): Brick %s scheduled for removal.\n",
 	       sb->s_id, victim->name);
 	/*
-	 * Mirgate all data blocks from the brick to be removed
-	 * to the remaining bricks
+	 * Now mirgate all data blocks from the brick to be
+	 * removed to the remaining bricks
 	 */
 	ret = balance_volume_asym(sb);
 	/*
@@ -1634,8 +1634,10 @@ int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	synchronize_rcu();
 	cur_conf->tab = NULL;
 	free_lv_conf(cur_conf);
-
 	vol->new_conf = NULL;
+
+	printk("reiser4 (%s): Brick %s has been removed.\n",
+	       victim->super->s_id, victim->name);
 	return 0;
 }
 
@@ -1692,6 +1694,16 @@ static int shrink_brick_asym(reiser4_volume *vol, reiser4_subvol *victim,
 
 	printk("reiser4 (%s): Brick %s has been shrunk.\n",
 	       sb->s_id, victim->name);
+	return 0;
+}
+
+static int init_volume_simple(struct super_block *sb, reiser4_volume *vol)
+{
+	if (!REISER4_PLANA_KEY_ALLOCATION) {
+		warning("edward-2375",
+			"Simple volume requires Plan-A key allocation scheme");
+		return RETERR(-EINVAL);
+	}
 	return 0;
 }
 
@@ -2209,7 +2221,7 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		.data_subvol_id_find = data_subvol_id_find_simple,
 		.load_volume = NULL,
 		.done_volume = NULL,
-		.init_volume = NULL,
+		.init_volume = init_volume_simple,
 		.expand_brick = expand_brick_simple,
 		.add_brick = add_brick_simple,
 		.shrink_brick = shrink_brick_simple,

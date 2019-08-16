@@ -708,8 +708,8 @@ static long reiser4_control_ioctl(struct file *file, unsigned int cmd,
 
 		ret = reiser4_offline_op(op_args);
 		if (ret) {
-			warning("edward-2315",
-				"off-line volume operation failed (%d)", ret);
+			ON_DEBUG(warning("edward-2315",
+				"off-line volume operation failed (%d)", ret));
 			kfree(op_args);
 			break;
 		}

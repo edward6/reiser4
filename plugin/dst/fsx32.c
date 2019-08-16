@@ -802,7 +802,7 @@ int inc_fsx32(reiser4_dcx *rdcx, void *tab, u64 target_pos, bucket_t new)
  * @numb: number of buckets upon succesfull completion.
  * @occ: total amount of space occupied on all buckets
  */
-static int check_space(reiser4_dcx *rdcx, u64 numb, u64 occ)
+static int check_leftovers(reiser4_dcx *rdcx, u64 numb, u64 occ)
 {
 	u64 i;
 	int ret = 0;
@@ -857,7 +857,7 @@ int dec_fsx32(reiser4_dcx *rdcx, void *tab, u64 target_pos, bucket_t removeme)
 	if (removeme)
 		new_numb --;
 
-	ret = check_space(rdcx, new_numb, ops->space_occupied());
+	ret = check_leftovers(rdcx, new_numb, ops->space_occupied());
 	if (ret)
 		goto error;
 
