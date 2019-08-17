@@ -521,17 +521,17 @@ struct bucket_ops {
 	/* Get capacity of a bucket with serial number @idx
 	   in the array @buckets */
 	u64 (*cap_at)(bucket_t *buckets, u64 idx);
-	/* Get fiber of specified @bucket */
-	void *(*fib_of)(bucket_t bucket);
-	/* Get fiber of a bucket with serial number @idx
+	/* Get apx of specified @bucket */
+	void *(*apx_of)(bucket_t bucket);
+	/* Get apx of a bucket with serial number @idx
 	   in the array @buckets */
-	void *(*fib_at)(bucket_t *buckets, u64 idx);
-	/* Set fiber @fib of a bucket with serial number @idx
+	void *(*apx_at)(bucket_t *buckets, u64 idx);
+	/* Set apx @apx of a bucket with serial number @idx
 	   in the array @buckets*/
-	void (*fib_set_at)(bucket_t *buckets, u64 idx, void *fib);
-	/* Get a pointer to fiber length of a bucket with
+	void (*apx_set_at)(bucket_t *buckets, u64 idx, void *apx);
+	/* Get a pointer to apx length of a bucket with
 	   serial number @idx in the array @buckets */
-	u64 *(*fib_lenp_at)(bucket_t *buckets, u64 idx);
+	u64 *(*apx_lenp_at)(bucket_t *buckets, u64 idx);
 	/* translate index in the array of buckets to bucket ID */
 	u64 (*idx2id)(u32 idx);
 	/* translate bucket ID to index in the array of buckets */

@@ -307,7 +307,7 @@ int reiser4_brick_header(struct reiser4_vol_op_args *args)
 static void unregister_subvol_locked(struct reiser4_subvol *subv)
 {
 	assert("edward-1742", subv->bdev == NULL);
-	assert("edward-1743", subv->fiber == NULL);
+	assert("edward-1743", subv->apx == NULL);
 	assert("edward-1744", !subvol_is_set(subv, SUBVOL_ACTIVATED));
 	assert("edward-1745", list_empty_careful(&subv->ch.overwrite_set));
 	assert("edward-1746", list_empty_careful(&subv->ch.tx_list));

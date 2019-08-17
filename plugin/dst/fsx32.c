@@ -50,13 +50,13 @@ static inline struct fsx32_dcx *fsx32_private(reiser4_dcx *dcx)
 	return &dcx->fsx32;
 }
 
-static void init_fibers_by_tab(u32 numb,
-			       u32 nums_bits,
-			       u32 *tab,
-			       bucket_t *vec,
-			       void *(*fiber_at)(bucket_t *vec, u64 idx),
-			       u32 (*id2idx)(u64 id),
-			       u32 *weights)
+static void init_apxs_by_tab(u32 numb,
+			     u32 nums_bits,
+			     u32 *tab,
+			     bucket_t *vec,
+			     void *(*apx_at)(bucket_t *vec, u64 idx),
+			     u32 (*id2idx)(u64 id),
+			     u32 *weights)
 {
 	u32 i;
 	u32 nums = 1 << nums_bits;
@@ -65,27 +65,27 @@ static void init_fibers_by_tab(u32 numb,
 		weights[i] = 0;
 
 	for(i = 0; i < nums; i++) {
-		u32 *fib;
+		u32 *apx;
 
-		fib = fiber_at(vec, id2idx(tab[i]));
-		fib[(weights[id2idx(tab[i])])++] = i;
+		apx = apx_at(vec, id2idx(tab[i]));
+		apx[(weights[id2idx(tab[i])])++] = i;
 	}
 }
 
-static void init_tab_by_fibers(u32 numb,
-			       u32 *tab,
-			       bucket_t *vec,
-			       void *(*fiber_at)(bucket_t *vec, u64 idx),
-			       u64 (*idx2id)(u32 idx),
-			       u32 *weights)
+static void init_tab_by_apxs(u32 numb,
+			     u32 *tab,
+			     bucket_t *vec,
+			     void *(*apx_at)(bucket_t *vec, u64 idx),
+			     u64 (*idx2id)(u32 idx),
+			     u32 *weights)
 {
 	u32 i, j;
 
 	for(i = 0; i < numb; i++)
 		for (j = 0; j < weights[i]; j++) {
-			u32 *fib;
-			fib = fiber_at(vec, i);
-			tab[fib[j]] = idx2id(i);
+			u32 *apx;
+			apx = apx_at(vec, i);
+			tab[apx[j]] = idx2id(i);
 		}
 }
 
@@ -173,7 +173,7 @@ static void calibrate64(u64 num, u64 val, bucket_t *vec,
 
 int create_systab(u32 nums_bits, u32 **tab,
 			 u32 numb, u32 *weights, bucket_t *vec,
-			 void *(*fiber_at)(bucket_t *vec, u64 idx),
+			 void *(*apx_at)(bucket_t *vec, u64 idx),
 			 u64 (*idx2id)(u32 idx))
 {
 	u32 nums = 1 << nums_bits;
@@ -182,7 +182,7 @@ int create_systab(u32 nums_bits, u32 **tab,
 	if (!tab)
 		return -ENOMEM;
 
-	init_tab_by_fibers(numb, *tab, vec, fiber_at, idx2id, weights);
+	init_tab_by_apxs(numb, *tab, vec, apx_at, idx2id, weights);
 	return 0;
 }
 
@@ -207,77 +207,77 @@ static void free_cloned_systab(struct fsx32_dcx *dcx)
 	}
 }
 
-static int create_fibers(u32 nums_bits, u32 *tab,
-			 u32 new_numb, u32 *new_weights, bucket_t *vec,
-			 void *(*fiber_at)(bucket_t *vec, u64 idx),
-			 void (*fiber_set_at)(bucket_t *vec, u64 idx, void *fib),
-			 u64 *(*fiber_lenp_at)(bucket_t *vec, u64 idx),
-			 u32 (*id2idx)(u64 id))
+static int create_apxs(u32 nums_bits, u32 *tab,
+		       u32 new_numb, u32 *new_weights, bucket_t *vec,
+		       void *(*apx_at)(bucket_t *vec, u64 idx),
+		       void (*apx_set_at)(bucket_t *vec, u64 idx, void *apx),
+		       u64 *(*apx_lenp_at)(bucket_t *vec, u64 idx),
+		       u32 (*id2idx)(u64 id))
 {
 	u32 i;
 	for(i = 0; i < new_numb; i++) {
-		u32 *fib;
-		u64 *fib_lenp;
+		u32 *apx;
+		u64 *apx_lenp;
 
-		fib = fsx32_alloc(new_weights[i]);
-		if (!fib)
-			return -ENOMEM;
-		fiber_set_at(vec, i, fib);
-		fib_lenp = fiber_lenp_at(vec, i);
-		*fib_lenp = new_weights[i];
+		apx = fsx32_alloc(new_weights[i]);
+		if (!apx)
+			return RETERR(-ENOMEM);
+		apx_set_at(vec, i, apx);
+		apx_lenp = apx_lenp_at(vec, i);
+		*apx_lenp = new_weights[i];
 	}
-	init_fibers_by_tab(new_numb,
-			   nums_bits, tab, vec, fiber_at, id2idx, new_weights);
+	init_apxs_by_tab(new_numb,
+			   nums_bits, tab, vec, apx_at, id2idx, new_weights);
 
 	for (i = 0; i < new_numb; i++)
 		assert("edward-1901",
-		       new_weights[i] == *(fiber_lenp_at(vec, i)));
+		       new_weights[i] == *(apx_lenp_at(vec, i)));
 	return 0;
 }
 
 #if REISER4_DEBUG
-void print_fiber(u32 id, bucket_t *vec,
-		 void *(*fiber_at)(bucket_t *vec, u64 idx),
-		 u64 *(*fiber_lenp_at)(bucket_t *vec, u64 idx))
+void print_apx(u32 id, bucket_t *vec,
+	       void *(*apx_at)(bucket_t *vec, u64 idx),
+	       u64 *(*apx_lenp_at)(bucket_t *vec, u64 idx))
 {
 	u32 i;
-	u32 *fib = fiber_at(vec, id);
-	u32 fib_len = *fiber_lenp_at(vec, id);
+	u32 *apx = apx_at(vec, id);
+	u32 apx_len = *apx_lenp_at(vec, id);
 
-	printk("fiber %d (len %d):", id, fib_len);
-	for (i = 0; i < fib_len; i++)
-                printk("%d", fib[i]);
-	printk("end of fiber %d", id);
+	printk("apx %d (len %d):", id, apx_len);
+	for (i = 0; i < apx_len; i++)
+                printk("%d", apx[i]);
+	printk("end of apx %d", id);
 	return;
 }
 #endif
 
-static void release_fibers(u32 numb, bucket_t *vec,
-			   void *(*fiber_at)(bucket_t *vec, u64 idx),
-			   void (*fiber_set_at)(bucket_t *vec, u64 idx,
-						void *fib))
+static void release_apxs(u32 numb, bucket_t *vec,
+			 void *(*apx_at)(bucket_t *vec, u64 idx),
+			 void (*apx_set_at)(bucket_t *vec, u64 idx,
+					    void *apx))
 {
 	u32 i;
 
 	for(i = 0; i < numb; i++) {
-		u32 *fib;
-		fib = fiber_at(vec, i);
-		fsx_free(fib);
-		fiber_set_at(vec, i, NULL);
+		u32 *apx;
+		apx = apx_at(vec, i);
+		fsx_free(apx);
+		apx_set_at(vec, i, NULL);
 	}
 }
 
-static int replace_fibers(u32 nums_bits, u32 *tab,
-			  u32 old_numb, u32 new_numb,
-			  u32 *new_weights, bucket_t *vec,
-			  void *(*fiber_at)(bucket_t *vec, u64 idx),
-			  void (*fiber_set_at)(bucket_t *vec, u64 idx, void *fib),
-			  u64 *(*fiber_lenp_at)(bucket_t *vec, u64 idx),
-			  u32 (*id2idx)(u64 id))
+static int replace_apxs(u32 nums_bits, u32 *tab,
+			u32 old_numb, u32 new_numb,
+			u32 *new_weights, bucket_t *vec,
+			void *(*apx_at)(bucket_t *vec, u64 idx),
+			void (*apx_set_at)(bucket_t *vec, u64 idx, void *apx),
+			u64 *(*apx_lenp_at)(bucket_t *vec, u64 idx),
+			u32 (*id2idx)(u64 id))
 {
-	release_fibers(old_numb, vec, fiber_at, fiber_set_at);
-	return create_fibers(nums_bits, tab, new_numb, new_weights, vec,
-			     fiber_at, fiber_set_at, fiber_lenp_at, id2idx);
+	release_apxs(old_numb, vec, apx_at, apx_set_at);
+	return create_apxs(nums_bits, tab, new_numb, new_weights, vec,
+			     apx_at, apx_set_at, apx_lenp_at, id2idx);
 }
 
 /**
@@ -290,7 +290,7 @@ static int balance_inc(struct fsx32_dcx *dcx,
 		       u32 *old_weights, u32 *new_weights,
 		       u32 target_pos,
 		       bucket_t *vec,
-		       void *(*fiber_at)(bucket_t *vec, u64 idx),
+		       void *(*apx_at)(bucket_t *vec, u64 idx),
 		       u64 (*idx2id)(u32 idx),
 		       bucket_t new)
 {
@@ -316,20 +316,20 @@ static int balance_inc(struct fsx32_dcx *dcx,
 	}
 	assert("edward-1910", exc[target_pos] == 0);
 	/*
-	 * steal segments of all fibers to the left of target_pos
+	 * steal segments of all apxs to the left of target_pos
 	 */
 	for(i = 0; i < target_pos; i++)
 		for(j = 0; j < exc[i]; j++) {
-			u32 *fib;
-			fib = fiber_at(vec, i);
+			u32 *apx;
+			apx = apx_at(vec, i);
 
 			assert("edward-1902",
-			       tab[fib[new_weights[i] + j]] == idx2id(i));
+			       tab[apx[new_weights[i] + j]] == idx2id(i));
 
-			tab[fib[new_weights[i] + j]] = idx2id(target_pos);
+			tab[apx[new_weights[i] + j]] = idx2id(target_pos);
 		}
 	/*
-	 * steal segments of all fibers to the right of target_pos
+	 * steal segments of all apxs to the right of target_pos
 	 */
 	for(i = target_pos + 1; i < new_numb; i++)
 		if (new && FSX32_PRECISE) {
@@ -342,30 +342,30 @@ static int balance_inc(struct fsx32_dcx *dcx,
 			 * thus system table needs corrections
 			 */
 			for(j = 0; j < new_weights[i]; j++) {
-				u32 *fib;
-				fib = fiber_at(vec, i);
-				assert("edward-1911", tab[fib[j]] == i - 1);
-				tab[fib[j]] = i;
+				u32 *apx;
+				apx = apx_at(vec, i);
+				assert("edward-1911", tab[apx[j]] == i - 1);
+				tab[apx[j]] = i;
 			}
 			for(j = 0; j < exc[i]; j++) {
-				u32 *fib;
-				fib = fiber_at(vec, i);
+				u32 *apx;
+				apx = apx_at(vec, i);
 				assert("edward-1912",
-				       tab[fib[new_weights[i] + j]] == i - 1);
-				tab[fib[new_weights[i] + j]] = target_pos;
+				       tab[apx[new_weights[i] + j]] == i - 1);
+				tab[apx[new_weights[i] + j]] = target_pos;
 			}
 		} else {
 			for(j = 0; j < new_weights[i]; j++) {
-				u32 *fib;
-				fib = fiber_at(vec, i);
-				assert("edward-1913", tab[fib[j]] == idx2id(i));
+				u32 *apx;
+				apx = apx_at(vec, i);
+				assert("edward-1913", tab[apx[j]] == idx2id(i));
 			}
 			for(j = 0; j < exc[i]; j++) {
-				u32 *fib;
-				fib = fiber_at(vec, i);
+				u32 *apx;
+				apx = apx_at(vec, i);
 				assert("edward-1914",
-				       tab[fib[new_weights[i] + j]] == idx2id(i));
-				tab[fib[new_weights[i] + j]] = idx2id(target_pos);
+				       tab[apx[new_weights[i] + j]] == idx2id(i));
+				tab[apx[new_weights[i] + j]] = idx2id(target_pos);
 			}
 		}
  exit:
@@ -384,8 +384,8 @@ static int balance_dec(struct fsx32_dcx *dcx,
 		       u32 *old_weights, u32 *new_weights,
 		       u32 target_pos,
 		       bucket_t *vec,
-		       void *(*fiber_at)(bucket_t *vec, u64 idx),
-		       void *(*fiber_of)(bucket_t bucket),
+		       void *(*apx_at)(bucket_t *vec, u64 idx),
+		       void *(*apx_of)(bucket_t bucket),
 		       u64 (*idx2id)(u32 idx),
 		       bucket_t removeme)
 {
@@ -414,15 +414,15 @@ static int balance_dec(struct fsx32_dcx *dcx,
 	}
 
 	if (removeme) {
-		target = fiber_of(removeme);
+		target = apx_of(removeme);
 		off_in_target = 0;
 	} else {
-		target = fiber_at(vec, target_pos);
+		target = apx_at(vec, target_pos);
 		off_in_target =
 			old_weights[target_pos] - new_weights[target_pos];
 	}
 	/*
-	 * distribute segments among all fibers to the left of target_pos
+	 * distribute segments among all apxs to the left of target_pos
 	 */
 	for(i = 0; i < target_pos; i++)
 		for(j = 0; j < sho[i]; j++) {
@@ -431,7 +431,7 @@ static int balance_dec(struct fsx32_dcx *dcx,
 			tab[target[off_in_target ++]] = idx2id(i);
 		}
 	/*
-	 * distribute segments among all fibers to the right of target_pos
+	 * distribute segments among all apxs to the right of target_pos
 	 */
 	for(i = target_pos; i < new_numb; i++) {
 		if (removeme && FSX32_PRECISE) {
@@ -444,10 +444,10 @@ static int balance_dec(struct fsx32_dcx *dcx,
 			 * corrections.
 			 */
 			for(j = 0; j < old_weights[i]; j++) {
-				u32 *fib;
-				fib = fiber_at(vec, i);
-				assert("edward-1903", tab[fib[j]] == i);
-				tab[fib[j]] = i - 1;
+				u32 *apx;
+				apx = apx_at(vec, i);
+				assert("edward-1903", tab[apx[j]] == i);
+				tab[apx[j]] = i - 1;
 			}
 			for(j = 0; j < sho[i]; j++) {
 				assert("edward-1917",
@@ -458,9 +458,9 @@ static int balance_dec(struct fsx32_dcx *dcx,
 		}
 		else {
 			for(j = 0; j < old_weights[i + 1]; j++) {
-				u32 *fib;
-				fib = fiber_at(vec, i);
-				assert("edward-1903", tab[fib[j]] == idx2id(i));
+				u32 *apx;
+				apx = apx_at(vec, i);
+				assert("edward-1903", tab[apx[j]] == idx2id(i));
 			}
 			for(j = 0; j < sho[i]; j++) {
 				assert("edward-1918",
@@ -477,17 +477,17 @@ static int balance_dec(struct fsx32_dcx *dcx,
 }
 
 /**
- * Fix up system table after splitting segments with factor (1 << @fact_bits)
+ * @fact_bits: logarithm of the split factor
  */
 static int balance_spl(u32 numb, u32 nums_bits,
 		       u32 **tabp,
 		       u32 *old_weights, u32 *new_weights,
 		       u32 fact_bits,
 		       void *vec,
-		       void *(*fiber_at)(bucket_t *vec, u64 idx),
-		       void (*fiber_set_at)(bucket_t *vec,
-					    u64 idx, void *fib),
-		       u64 *(*fiber_lenp_at)(bucket_t *vec, u64 idx),
+		       void *(*apx_at)(bucket_t *vec, u64 idx),
+		       void (*apx_set_at)(bucket_t *vec,
+					    u64 idx, void *apx),
+		       u64 *(*apx_lenp_at)(bucket_t *vec, u64 idx),
 		       u32 (*id2idx)(u64 id), u64 (*idx2id)(u32 idx))
 {
 	u32 ret = 0;
@@ -542,14 +542,14 @@ static int balance_spl(u32 numb, u32 nums_bits,
 		/* everything is balanced */
 		goto release;
 	/*
-	 * Build "stretched" fibers, which are still disbalanced
+	 * Build "stretched" apxs, which are still disbalanced
 	 */
 	for (i = 0; i < numb; i++)
 		old_weights[i] *= factor;
 
-	ret = replace_fibers(nums_bits + fact_bits, tab,
-			     numb, numb, old_weights, vec,
-			     fiber_at, fiber_set_at, fiber_lenp_at, id2idx);
+	ret = replace_apxs(nums_bits + fact_bits, tab,
+			   numb, numb, old_weights, vec,
+			   apx_at, apx_set_at, apx_lenp_at, id2idx);
 	if (ret)
 		goto error;
 	/*
@@ -568,9 +568,9 @@ static int balance_spl(u32 numb, u32 nums_bits,
 	 */
 	for (i = 0, k = 0; i < num_exc; i++)
 		for (j = 0; j < exc[i]; j++) {
-			u32 *fib;
-			fib = fiber_at(vec, i);
-			reloc[k++] = fib[new_weights[i] + j];
+			u32 *apx;
+			apx = apx_at(vec, i);
+			reloc[k++] = apx[new_weights[i] + j];
 		}
 	/*
 	 * distribute segments
@@ -579,7 +579,7 @@ static int balance_spl(u32 numb, u32 nums_bits,
 		for (j = 0; j < sho[i]; j++)
 			tab[reloc[k++]] = idx2id(num_exc + i);
  release:
-	release_fibers(numb, vec, fiber_at, fiber_set_at);
+	release_apxs(numb, vec, apx_at, apx_set_at);
 	*tabp = tab;
 	goto exit;
  error:
@@ -713,12 +713,12 @@ int initv_fsx32(void **tab, u64 numb, int nums_bits,
 	}
 	assert("edward-2173", *tab != NULL);
 
-	ret = create_fibers(nums_bits, *tab,
-			    numb, dcx->weights, current_buckets(),
-			    ops->fib_at,
-			    ops->fib_set_at,
-			    ops->fib_lenp_at,
-			    ops->id2idx);
+	ret = create_apxs(nums_bits, *tab,
+			  numb, dcx->weights, current_buckets(),
+			  ops->apx_at,
+			  ops->apx_set_at,
+			  ops->apx_lenp_at,
+			  ops->id2idx);
 	if (ret)
 		goto error;
 	return 0;
@@ -775,13 +775,13 @@ int inc_fsx32(reiser4_dcx *rdcx, void *tab, u64 target_pos, bucket_t new)
 	ret = balance_inc(dcx,
 			  new_numb, dcx->tab,
 			  dcx->weights, new_weights, target_pos,
-			  current_buckets(), ops->fib_at,
+			  current_buckets(), ops->apx_at,
 			  ops->idx2id, new);
 	if (ret)
 		goto error;
 
-	release_fibers(new_numb, current_buckets(),
-		       ops->fib_at, ops->fib_set_at);
+	release_apxs(new_numb, current_buckets(),
+		     ops->apx_at, ops->apx_set_at);
 
 	fsx_free(dcx->weights);
 	dcx->weights = new_weights;
@@ -796,8 +796,8 @@ int inc_fsx32(reiser4_dcx *rdcx, void *tab, u64 target_pos, bucket_t new)
 }
 
 /**
- * Check if there is enough space on remaining buckets for successful
- * completion of a bucket operation.
+ * Check if there is enough capacity on abstract buckets
+ * for successful completion of an operation.
  *
  * @numb: number of buckets upon succesfull completion.
  * @occ: total amount of space occupied on all buckets
@@ -810,8 +810,8 @@ static int check_leftovers(reiser4_dcx *rdcx, u64 numb, u64 occ)
 	bucket_t *vec = current_buckets();
 	struct bucket_ops *ops = current_bucket_ops();
 	/*
-	 * For each bucket: calculate how much space will be
-	 * occupied on the bucket after successful completion
+	 * For each bucket calculate how much space will be
+	 * occupied on that bucket after successful completion
 	 * of the volume operation and compare it with the
 	 * bucket's capacity
 	 */
@@ -879,25 +879,24 @@ int dec_fsx32(reiser4_dcx *rdcx, void *tab, u64 target_pos, bucket_t removeme)
 	ret = balance_dec(dcx,
 			  new_numb, dcx->tab,
 			  dcx->weights, new_weights, target_pos,
-			  current_buckets(), ops->fib_at,
-			  ops->fib_of, ops->idx2id,
+			  current_buckets(), ops->apx_at,
+			  ops->apx_of, ops->idx2id,
 			  removeme);
 	if (ret)
 		goto error;
 
-	release_fibers(new_numb,
-		       current_buckets(), ops->fib_at,
-		       ops->fib_set_at);
-	release_fibers(1,
-		       &removeme, ops->fib_at,
-		       ops->fib_set_at);
+	release_apxs(new_numb,
+		     current_buckets(), ops->apx_at,
+		     ops->apx_set_at);
+	release_apxs(1,
+		     &removeme, ops->apx_at,
+		     ops->apx_set_at);
 
 	fsx_free(dcx->weights);
 	dcx->weights = new_weights;
 	dcx->numb = new_numb;
 	return 0;
  error:
-	/* FIXME: add bucket (roll back remove_bucket()) */
 	if (new_weights)
 		fsx_free(new_weights);
 	free_cloned_systab(dcx);
@@ -930,9 +929,9 @@ int spl_fsx32(reiser4_dcx *rdcx, u32 fact_bits)
 			  new_weights,
 			  fact_bits,
 			  current_buckets(),
-			  ops->fib_at,
-			  ops->fib_set_at,
-			  ops->fib_lenp_at,
+			  ops->apx_at,
+			  ops->apx_set_at,
+			  ops->apx_lenp_at,
 			  ops->id2idx,
 			  ops->idx2id);
 	if (ret)

@@ -785,24 +785,24 @@ static u64 cap_at_asym(bucket_t *buckets, u64 idx)
 	return ((mirror_t *)buckets)[idx]->data_room;
 }
 
-static void *fib_of_asym(bucket_t bucket)
+static void *apx_of_asym(bucket_t bucket)
 {
-	return ((mirror_t)bucket)->fiber;
+	return ((mirror_t)bucket)->apx;
 }
 
-static void *fib_at_asym(bucket_t *buckets, u64 index)
+static void *apx_at_asym(bucket_t *buckets, u64 index)
 {
-	return fib_of_asym(buckets[index]);
+	return apx_of_asym(buckets[index]);
 }
 
-static void fib_set_at_asym(bucket_t *buckets, u64 idx, void *fiber)
+static void apx_set_at_asym(bucket_t *buckets, u64 idx, void *apx)
 {
-	((mirror_t *)buckets)[idx]->fiber = fiber;
+	((mirror_t *)buckets)[idx]->apx = apx;
 }
 
-static u64 *fib_lenp_at_asym(bucket_t *buckets, u64 idx)
+static u64 *apx_lenp_at_asym(bucket_t *buckets, u64 idx)
 {
-	return &((mirror_t *)buckets)[idx]->fiber_len;
+	return &((mirror_t *)buckets)[idx]->apx_len;
 }
 
 static reiser4_subvol *origin_at(slot_t slot)
@@ -2232,10 +2232,10 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		.balance_volume = balance_volume_simple,
 		.bucket_ops = {
 			.cap_at = NULL,
-			.fib_of = NULL,
-			.fib_at = NULL,
-			.fib_set_at = NULL,
-			.fib_lenp_at = NULL
+			.apx_of = NULL,
+			.apx_at = NULL,
+			.apx_set_at = NULL,
+			.apx_lenp_at = NULL
 		}
 	},
 	[ASYM_VOLUME_ID] = {
@@ -2263,10 +2263,10 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		.balance_volume = balance_volume_asym,
 		.bucket_ops = {
 			.cap_at = cap_at_asym,
-			.fib_of = fib_of_asym,
-			.fib_at = fib_at_asym,
-			.fib_set_at = fib_set_at_asym,
-			.fib_lenp_at = fib_lenp_at_asym,
+			.apx_of = apx_of_asym,
+			.apx_at = apx_at_asym,
+			.apx_set_at = apx_set_at_asym,
+			.apx_lenp_at = apx_lenp_at_asym,
 			.idx2id = idx2id,
 			.id2idx = id2idx,
 			.create_buckets = create_buckets,

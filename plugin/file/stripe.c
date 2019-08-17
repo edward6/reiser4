@@ -859,7 +859,7 @@ int write_end_stripe(struct file *file, struct page *page,
 }
 
 /**
- * Migrate some stripes of a file to new locations.
+ * Migrate file stripes which get new in-volume location.
  * Exclusive access to the file should be acquired by caller.
  *
  * Implementation details:

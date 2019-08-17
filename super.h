@@ -147,10 +147,10 @@ struct reiser4_subvol {
 			by ->create_buckets() operation */
 	int num_replicas; /* number of replicas, (mirrors excluding original) */
 	u64 data_room; /* number of blocks allocated to store data */
-	u64 fiber_len;
+	u64 apx_len;
+	void *apx;
 	reiser4_block_nr volmap_loc[2]; /* location of first voltab blocks for
 					   current and new volume configs */
-	void *fiber; /* per-subvolume part of volume configuration */
 	unsigned long flags; /* subvolume-wide flags, see subvol_flags enum */
 	disk_format_plugin *df_plug; /* disk format of this subvolume */
 	jnode *sb_jnode;
