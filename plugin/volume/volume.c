@@ -1197,13 +1197,7 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	/*
 	 * Now publish the new config
 	 */
-	assert("edward-2346",
-	       WRITE_DIST_LOCK != NULL && WRITE_DIST_UNLOCK != NULL);
-
-	WRITE_DIST_LOCK(NULL);
 	rcu_assign_pointer(vol->conf, vol->new_conf);
-	WRITE_DIST_UNLOCK(NULL);
-
 	synchronize_rcu();
 	free_lv_conf(old_conf);
 	vol->new_conf = NULL;
@@ -1489,15 +1483,10 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	 * be completed in the context of the balancing
 	 * procedure, see reiser4_balance_volume()
 	 */
-	assert("edward-2348",
-	       WRITE_DIST_LOCK != NULL && WRITE_DIST_UNLOCK != NULL);
 	/*
 	 * Publish the temporal config
 	 */
-	WRITE_DIST_LOCK(NULL);
 	rcu_assign_pointer(vol->conf, tmp_conf);
-	WRITE_DIST_UNLOCK(NULL);
-
 	synchronize_rcu();
 	free_lv_conf(old_conf);
 	free_buckets(old_vec);

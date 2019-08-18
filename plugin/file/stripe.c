@@ -647,9 +647,7 @@ static int shorten_stripe(struct inode *inode, loff_t new_size)
 	zero_user_segment(page, padd_from, PAGE_SIZE);
 	unlock_page(page);
 
-	READ_DIST_LOCK(inode);
 	result = find_or_create_extent_stripe(page, 1 /* truncate */);
-	READ_DIST_UNLOCK(inode);
 
 	reiser4_release_reserved(inode->i_sb);
 	put_page(page);
@@ -763,9 +761,7 @@ static int capture_anon_page(struct page *page)
 	ret = reserve_stripe_meta(1, 0);
 	if (ret)
 		return ret;
-	READ_DIST_LOCK(inode);
 	ret = find_or_create_extent_stripe(page, 0);
-	READ_DIST_UNLOCK(inode);
 	if (ret) {
 		SetPageError(page);
 		warning("edward-2046",

@@ -589,10 +589,6 @@ struct dist_volume_ops {
 	/* Print system configuration */
 	void (*dump)(reiser4_dcx *rdcx, void *tab,
 		     char *to, u64 offset, u32 size);
-	void (*read_dist_lock)(struct inode *inode);
-	void (*read_dist_unlock)(struct inode *inode);
-	void (*write_dist_lock)(struct inode *inode);
-	void (*write_dist_unlock)(struct inode *inode);
 };
 
 typedef struct distribution_plugin {

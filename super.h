@@ -349,7 +349,6 @@ struct reiser4_volume {
 	int stripe_bits; /* logarithm of stripe size */
 	atomic_t nr_origins; /* number of original subvolumes (w/o replicas) */
 	distribution_plugin *dist_plug;
-	struct rw_semaphore dist_sem;
 	atomic_t custom_brick_id; /* internal brick ID (i.e. index in the
 				     array of mslots). This is a "hint",
 				     which is set up by user. It is used
@@ -602,11 +601,6 @@ static inline u32 current_num_mirrors(u32 orig_id)
 	for (_mirr_id = 1;						\
 	     _mirr_id < subvol_num_mirrors(_orig);			\
 	     _mirr_id ++)
-
-#define READ_DIST_LOCK    current_dist_plug()->v.read_dist_lock
-#define READ_DIST_UNLOCK  current_dist_plug()->v.read_dist_unlock
-#define WRITE_DIST_LOCK   current_dist_plug()->v.write_dist_lock
-#define WRITE_DIST_UNLOCK current_dist_plug()->v.write_dist_unlock
 
 #define DEFAULT_WRITE_GRANULARITY 32 /* always a power of 2 */
 

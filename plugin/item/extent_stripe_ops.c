@@ -616,9 +616,6 @@ ssize_t write_extent_stripe(struct file *file, struct inode *inode,
 	int to_page, page_off;
 	size_t left = count;
 	int ret = 0;
-
-	assert("edward-2344", READ_DIST_LOCK != NULL);
-	assert("edward-2345", READ_DIST_UNLOCK != NULL);
 	/*
 	 * calculate number of pages which are to be written
 	 */
@@ -636,9 +633,7 @@ ssize_t write_extent_stripe(struct file *file, struct inode *inode,
 		return ret;
 	if (count == 0) {
 		/* case of expanding truncate */
-		READ_DIST_LOCK(inode);
 		update_extents_stripe(file, inode, jnodes, 0);
-		READ_DIST_UNLOCK(inode);
 		return 0;
 	}
 	BUG_ON(get_current_context()->trans->atom != NULL);
@@ -731,22 +726,7 @@ ssize_t write_extent_stripe(struct file *file, struct inode *inode,
 		to_page = PAGE_SIZE - page_off;
 		if (to_page > left)
 			to_page = left;
-		/*
-		 * We need to make sure that nobody changes distribution
-		 * policy while executing the following sequence of
-		 * instructions:
-		 *
-		 * reserve_space_on_data_brick ->...
-		 * -> update_extent -> jnode_make_dirty;
-		 *
-		 * For this purpose we take per-volume (or per-file,
-		 * if REISER4_FILE_BASED_DIST is set) read lock here.
-		 * Any process, who changes distribution policy takes
-		 * a write lock.
-		 */
-		READ_DIST_LOCK(inode);
 		ret = update_extents_stripe(file, inode, &jnodes[i], 1);
-		READ_DIST_UNLOCK(inode);
 		assert("edward-2365", ret == -ENOSPC || ret >= 0);
 		if (ret < 0)
 			break;

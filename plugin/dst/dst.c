@@ -45,63 +45,6 @@ static u64 lookup_custom(reiser4_dcx *rdcx, const struct inode *inode,
 	return id;
 }
 
-static void dist_lock_noop(struct inode *inode)
-{
-	;
-}
-
-static void read_dist_lock_generic(struct inode *inode)
-{
-	if (reiser4_is_set(reiser4_get_current_sb(), REISER4_FILE_BASED_DIST))
-		down_read(&unix_file_inode_data(inode)->latch);
-	else
-		down_read(&current_volume()->dist_sem);
-}
-
-static void read_dist_unlock_generic(struct inode *inode)
-{
-	if (reiser4_is_set(reiser4_get_current_sb(), REISER4_FILE_BASED_DIST))
-		up_read(&unix_file_inode_data(inode)->latch);
-	else
-		up_read(&current_volume()->dist_sem);
-}
-
-static void write_dist_lock_generic(struct inode *inode)
-{
-	if (reiser4_is_set(reiser4_get_current_sb(), REISER4_FILE_BASED_DIST))
-		down_write(&unix_file_inode_data(inode)->latch);
-	else
-		down_write(&current_volume()->dist_sem);
-}
-
-static void write_dist_unlock_generic(struct inode *inode)
-{
-	if (reiser4_is_set(reiser4_get_current_sb(), REISER4_FILE_BASED_DIST))
-		up_write(&unix_file_inode_data(inode)->latch);
-	else
-		up_write(&current_volume()->dist_sem);
-}
-
-static void read_dist_lock_vol(struct inode *inode)
-{
-	down_read(&current_volume()->dist_sem);
-}
-
-static void read_dist_unlock_vol(struct inode *inode)
-{
-	up_read(&current_volume()->dist_sem);
-}
-
-static void write_dist_lock_vol(struct inode *inode)
-{
-	down_write(&current_volume()->dist_sem);
-}
-
-static void write_dist_unlock_vol(struct inode *inode)
-{
-	up_write(&current_volume()->dist_sem);
-}
-
 distribution_plugin distribution_plugins[LAST_DISTRIB_ID] = {
 	[TRIV_DISTRIB_ID] = {
 		.h = {
@@ -127,10 +70,6 @@ distribution_plugin distribution_plugins[LAST_DISTRIB_ID] = {
 			.pack = NULL,
 			.unpack = NULL,
 			.dump = NULL,
-			.read_dist_lock = dist_lock_noop,
-			.read_dist_unlock = dist_lock_noop,
-			.write_dist_lock = dist_lock_noop,
-			.write_dist_unlock = dist_lock_noop
 		}
 	},
 	[FSX32M_DISTRIB_ID] = {
@@ -159,10 +98,6 @@ distribution_plugin distribution_plugins[LAST_DISTRIB_ID] = {
 			.pack = pack_fsx32,
 			.unpack = unpack_fsx32,
 			.dump = dump_fsx32,
-			.read_dist_lock = read_dist_lock_vol,
-			.read_dist_unlock = read_dist_unlock_vol,
-			.write_dist_lock = write_dist_lock_vol,
-			.write_dist_unlock = write_dist_unlock_vol
 		}
 	},
 	[CUSTOM_DISTRIB_ID] = {
@@ -191,10 +126,6 @@ distribution_plugin distribution_plugins[LAST_DISTRIB_ID] = {
 			.pack = NULL,
 			.unpack = NULL,
 			.dump = NULL,
-			.read_dist_lock = read_dist_lock_generic,
-			.read_dist_unlock = read_dist_unlock_generic,
-			.write_dist_lock = write_dist_lock_generic,
-			.write_dist_unlock = write_dist_unlock_generic
 		}
 	}
 };

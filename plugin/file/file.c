@@ -255,13 +255,12 @@ int find_file_item(hint_t *hint, const reiser4_key *key,
 	assert("nikita-3030", reiser4_schedulable());
 	assert("vs-1707", hint != NULL);
 	assert("vs-47", inode != NULL);
+	assert("edward-2375", inode_file_plugin(inode) !=
+	       file_plugin_by_id(STRIPED_FILE_PLUGIN_ID));
 
 	coord = &hint->ext_coord.coord;
 	lh = hint->ext_coord.lh;
 	init_lh(lh);
-
-	if (current_vol_plug() != volume_plugin_by_id(SIMPLE_VOLUME_ID))
-		goto nohint;
 
 	result = hint_validate(hint,
 			       meta_subvol_tree(),
@@ -287,7 +286,6 @@ int find_file_item(hint_t *hint, const reiser4_key *key,
 
 		return CBK_COORD_FOUND;
 	}
- nohint:
 	coord_init_zero(coord);
 	result = find_file_item_nohint(coord, lh, key, lock_mode, inode);
 	set_file_state(unix_file_inode_data(inode), result,
