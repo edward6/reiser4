@@ -409,8 +409,7 @@ static inline int all_but_ordering_keyeq(const reiser4_key * k1,
 {
 	return (get_key_locality(k1) == get_key_locality(k2) &&
 		get_key_type(k1) == get_key_type(k2) &&
-		get_key_band(k1) == get_key_band(k2) &&
-		get_key_objectid(k1) == get_key_objectid(k2) &&
+		get_key_fulloid(k1) == get_key_fulloid(k2) &&
 		get_key_offset(k1) == get_key_offset(k2));
 }
 

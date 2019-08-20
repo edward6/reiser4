@@ -18,6 +18,8 @@ void check_uf_coord(const uf_coord_t *uf_coord, const reiser4_key *key);
 void check_jnodes(znode *twig, const reiser4_key *key, int count);
 size_t filemap_copy_from_user(struct page *page, unsigned long offset,
 			      const char __user *buf, unsigned bytes);
+int find_stripe_item(hint_t *hint, const reiser4_key *key,
+		     znode_lock_mode lock_mode, struct inode *inode);
 
 #if 0
 static void check_node(znode *node)
@@ -422,6 +424,22 @@ static int locate_reserve_data(coord_t *coord, lock_handle *lh,
 	return truncate ? 0 : reserve_stripe_data(1, *loc, 0);
 }
 
+#if REISER4_DEBUG
+static void check_sealed_coord(hint_t *hint, reiser4_key *key)
+{
+	reiser4_key ukey;
+	coord_t *coord = &hint->ext_coord.coord;
+
+	assert("edward-2385", coord_is_existing_unit(coord));
+
+	unit_key_by_coord(coord, &ukey);
+	assert("edward-2386", keyle(&ukey, key));
+	set_key_offset(&ukey,
+		       get_key_offset(&ukey) + reiser4_extent_size(coord));
+	assert("edward-2387", keyle(key, &ukey));
+}
+#endif
+
 /**
  * Update file body after writing @count blocks at offset @pos.
  * Return 0 on success.
@@ -447,12 +465,15 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 	do {
 		znode *loaded;
 		reiser4_subvol *dsubv = NULL;
-
+#if 1
+		ret = find_stripe_item(hint, &key, ZNODE_WRITE_LOCK, inode);
+#else
 		ret = find_file_item_nohint(&hint->ext_coord.coord,
 					    hint->ext_coord.lh, &key,
 					    ZNODE_WRITE_LOCK, inode);
+#endif
 		if (IS_CBKERR(ret))
-			return -EIO;
+			return RETERR(-EIO);
 		/*
 		 * reserve space for data
 		 */
@@ -476,7 +497,8 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 		loaded = hint->ext_coord.coord.node;
 		//check_node(loaded);
 
-		if (hint->ext_coord.coord.between == AT_UNIT)
+		if (hint->ext_coord.coord.between == AT_UNIT &&
+		    hint->ext_coord.valid == 0)
 			init_coord_extension_extent(&hint->ext_coord,
 						    get_key_offset(&key));
 		/*
@@ -499,6 +521,24 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 		jnodes += ret;
 		count -= ret;
 		pos += ret * PAGE_SIZE;
+
+		loaded = hint->lh.node;
+		ret = zload(loaded);
+		if (unlikely(ret)) {
+			done_lh(hint->ext_coord.lh);
+			break;
+		}
+		if (hint->ext_coord.valid == 0) {
+			hint->ext_coord.coord.between = AT_UNIT;
+			init_coord_extension_extent(&hint->ext_coord,
+						    get_key_offset(&key));
+		}
+		/*
+		 * seal and unlock znode
+		 */
+		ON_DEBUG(check_sealed_coord(hint, &key));
+		reiser4_set_hint(hint, &key, ZNODE_WRITE_LOCK);
+		zrelse(loaded);
 		/*
 		 * Update key for the next iteration.
 		 * We don't know location of the next data block,
@@ -506,13 +546,6 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 		 */
 		set_key_offset(&key, pos);
 		set_key_ordering(&key, KEY_ORDERING_MASK);
-		/*
-		 * seal and unlock znode
-		 */
-		if (0 /*hint->ext_coord.valid */)
-			reiser4_set_hint(hint, &key, ZNODE_WRITE_LOCK);
-		else
-			reiser4_unset_hint(hint);
 	} while (count > 0);
 	return ret;
 }
@@ -537,16 +570,12 @@ int update_extents_stripe(struct file *file, struct inode *inode,
 int update_extent_stripe(struct inode *inode, jnode *node,
 			 int *plugged_hole, int truncate)
 {
-	int ret;
 	struct hint hint;
 
 	hint_init_zero(&hint);
 
-	ret = __update_extents_stripe(&hint, inode, &node, 1,
-				      plugged_hole, truncate);
-
-	assert("edward-2067", ret == 1 || ret < 0);
-	return (ret == 1) ? 0 : ret;
+	return __update_extents_stripe(&hint, inode, &node, 1,
+				       plugged_hole, truncate);
 }
 
 int find_or_create_extent_stripe(struct page *page, int truncate)

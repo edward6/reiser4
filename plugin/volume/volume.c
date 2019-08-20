@@ -1689,7 +1689,7 @@ static int shrink_brick_asym(reiser4_volume *vol, reiser4_subvol *victim,
 static int init_volume_simple(struct super_block *sb, reiser4_volume *vol)
 {
 	if (!REISER4_PLANA_KEY_ALLOCATION) {
-		warning("edward-2375",
+		warning("edward-2376",
 			"Simple volume requires Plan-A key allocation scheme");
 		return RETERR(-EINVAL);
 	}

@@ -151,7 +151,7 @@ int reiser4_seal_validate(seal_t *seal /* seal to validate */,
 	assert("nikita-1882", key != NULL);
 	assert("nikita-1883", coord != NULL);
 	assert("nikita-1884", lh != NULL);
-	assert("nikita-1885", keyeq(&seal->key, key));
+	assert("nikita-1885", all_but_ordering_keyeq(&seal->key, key));
 	assert("nikita-1989", coords_equal(&seal->coord1, coord));
 
 	/* obtain znode by block number */

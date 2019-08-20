@@ -39,6 +39,14 @@ int reserve_stripe_meta(int count, int truncate);
 int reserve_stripe_data(int count, reiser4_subvol *dsubv, int truncate);
 int readpages_filler_generic(void *data, struct page *page, int striped);
 
+static inline reiser4_extent *ext_by_offset(const znode *node, int offset)
+{
+	reiser4_extent *ext;
+
+	ext = (reiser4_extent *) (zdata(node) + offset);
+	return ext;
+}
+
 /**
  * Return a pointer to data subvolume where
  * file's data at @offset should be stored
@@ -79,6 +87,148 @@ int flow_by_inode_stripe(struct inode *inode,
 	 * calculate key of write position and insert it into flow->key
 	 */
 	return build_body_key_stripe(inode, off, &flow->key);
+}
+
+/*
+ * Tree search with a sealing technique for striped files
+ *
+ * To save CPU resources, every time before releasing a longterm lock
+ * we "seal" a position in the tree, which represents an existing object.
+ * Next time when we want to lock a positon in the tree, we check the seal.
+ * If it is unbroken, and it was created for a suitable object, we don't
+ * perform an expensive tree traversal. Instead, we lock the "sealed" node
+ * and perform fast lookup from the "sealed" position.
+ */
+
+/**
+ * Check if the seal was created against the prevous block pointer.
+ * And if so, then validate it.
+ */
+static int hint_validate(hint_t *hint, reiser4_tree *tree,
+			 const reiser4_key *key, znode_lock_mode lock_mode)
+{
+	reiser4_key vkey;
+
+	if (!hint || !hint_is_set(hint) || hint->mode != lock_mode ||
+	    get_key_offset(key) != hint->offset + PAGE_SIZE)
+		return RETERR(-E_REPEAT);
+
+	assert("edward-2377", hint->ext_coord.lh == &hint->lh);
+
+	memcpy(&vkey, key, sizeof(vkey));
+	set_key_offset(&vkey, hint->offset);
+
+	return reiser4_seal_validate(&hint->seal, tree,
+				     &hint->ext_coord.coord, key,
+				     hint->ext_coord.lh, lock_mode,
+				     ZNODE_LOCK_LOPRI);
+}
+
+/**
+ * Search by key procedure with sealing technique for striped files
+ */
+int find_stripe_item(hint_t *hint, const reiser4_key *key,
+		     znode_lock_mode lock_mode, struct inode *inode)
+{
+	int ret;
+	coord_t *coord;
+	coord_t rcoord;
+	lock_handle *lh;
+	struct extent_coord_extension *ext_coord;
+
+	assert("edward-2378", hint != NULL);
+	assert("edward-2379", inode != NULL);
+	assert("edward-2380", reiser4_schedulable());
+	assert("edward-2381", (get_key_offset(key) & (PAGE_SIZE - 1)) == 0);
+	assert("edward-2382", inode_file_plugin(inode) ==
+	       file_plugin_by_id(STRIPED_FILE_PLUGIN_ID));
+
+	coord = &hint->ext_coord.coord;
+	lh = hint->ext_coord.lh;
+	init_lh(lh);
+
+	ret = hint_validate(hint, meta_subvol_tree(), key, lock_mode);
+	if (ret)
+		goto nohint;
+	/* fast lookup */
+	assert("edward-2383", hint->ext_coord.valid);
+
+	ext_coord = &hint->ext_coord.extension.extent;
+	ext_coord->pos_in_unit ++;
+	if (ext_coord->pos_in_unit < ext_coord->width)
+		/*
+		 * found within the unit specified by @coord
+		 */
+		return CBK_COORD_FOUND;
+	/*
+	 * end of unit is reached. Try to move to next unit
+	 */
+	ext_coord->pos_in_unit = 0;
+	coord->unit_pos ++;
+	if (coord->unit_pos < ext_coord->nr_units) {
+		/*
+		 * found within next unit. Update coord extension
+		 */
+		ext_coord->ext_offset += sizeof(reiser4_extent);
+		ext_coord->width =
+			extent_get_width(ext_by_offset(coord->node,
+						       ext_coord->ext_offset));
+		ON_DEBUG(ext_coord->extent =
+			 *ext_by_offset(coord->node, ext_coord->ext_offset));
+		return CBK_COORD_FOUND;
+	}
+	/*
+	 * end of item reached. Try to find in the next item at the right
+	 */
+	coord->unit_pos --;
+	coord->between = AFTER_UNIT;
+	hint->ext_coord.valid = 0;
+
+	coord_dup(&rcoord, coord);
+	if (!coord_next_item(&rcoord)) {
+		/*
+		 * rcoord is set to next item
+		 */
+		reiser4_key rkey;
+		if (!item_is_extent(&rcoord) ||
+		    !all_but_ordering_keyeq(key,
+				item_key_by_coord(&rcoord, &rkey)))
+			return CBK_COORD_NOTFOUND;
+
+		coord_dup(coord, &rcoord);
+		return CBK_COORD_FOUND;
+	}
+	/*
+	 * end of node reached. Try to find in the next node at the right
+	 */
+	if (equal_to_rdk(coord->node, key)) {
+		ret = goto_right_neighbor(coord, lh);
+		if (unlikely(ret)) {
+			done_lh(lh);
+			return ret == -E_NO_NEIGHBOR ? RETERR(-EIO) : ret;
+		}
+		if (unlikely(node_is_empty(coord->node))) {
+			/*
+			 * for simplicity we don't go further to
+			 * the right. Instead we call slow lookup.
+			 */
+			done_lh(lh);
+			goto nohint;
+		}
+		/*
+		 * it is guaranteed that the first item at the
+		 * right neighbor has @key, because exclusive, or
+		 * non-exclusive lock of the file is held by us.
+		 */
+		assert("edward-2384", equal_to_ldk(coord->node, key));
+		return CBK_COORD_FOUND;
+	}
+	return CBK_COORD_NOTFOUND;
+ nohint:
+	/* full-fledged lookup */
+	coord_init_zero(coord);
+	hint->ext_coord.valid = 0;
+	return find_file_item_nohint(coord, lh, key, lock_mode, inode);
 }
 
 ssize_t read_stripe(struct file *file, char __user *buf,
