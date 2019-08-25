@@ -382,6 +382,8 @@ static int locate_reserve_data(coord_t *coord, lock_handle *lh,
 	return truncate ? 0 : reserve_stripe_data(1, *loc, 0);
 }
 
+#define FAST_SEQ_WRITE (1)
+
 /**
  * Update file body after writing @count blocks at offset @pos.
  * Return 0 on success.
@@ -400,7 +402,8 @@ int update_extent_stripe(struct hint *hint, struct inode *inode,
 	 * construct non-precise key
 	 */
 	build_body_key_stripe(inode, off, &key);
-#if 1
+
+#if FAST_SEQ_WRITE
 	ret = find_stripe_item(hint, &key, ZNODE_WRITE_LOCK, inode);
 #else
 	ret = find_file_item_nohint(&hint->ext_coord.coord,
@@ -427,11 +430,13 @@ int update_extent_stripe(struct hint *hint, struct inode *inode,
 	 * Now when we know location of data block, make key precise
 	 */
 	set_key_ordering(&key, dsubv->id);
-	ret = zload(hint->ext_coord.coord.node);
-	BUG_ON(ret != 0);
-	loaded = hint->ext_coord.coord.node;
-	//check_node(loaded);
 
+	loaded = hint->ext_coord.coord.node;
+	ret = zload(loaded);
+	if (ret) {
+		done_lh(hint->ext_coord.lh);
+		return ret;
+	}
 	if (hint->ext_coord.coord.between == AT_UNIT &&
 	    !hint->ext_coord.valid)
 		init_coord_extension_extent(&hint->ext_coord,
@@ -447,13 +452,6 @@ int update_extent_stripe(struct hint *hint, struct inode *inode,
 		done_lh(hint->ext_coord.lh);
 		return ret;
 	}
-#if 0
-	zload(hint->ext_coord.lh->node);
-	assert("edward-2076",
-	       check_node40(hint->ext_coord.lh->node,
-			    REISER4_NODE_TREE_STABLE, &error) == 0);
-	zrelse(hint->ext_coord.lh->node);
-#endif
 	loaded = hint->lh.node;
 	ret = zload(loaded);
 	if (unlikely(ret)) {
