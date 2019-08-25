@@ -738,6 +738,37 @@ u64 lookup_fsx32m(reiser4_dcx *rdcx, const struct inode *inode,
 	return ((u32 *)tab)[hash >> (32 - dcx->nums_bits)];
 }
 
+#define MAX_DIFFER_BITS   19
+#define MAX_DATA_CAPACITY 0xffffffffffffffffull
+
+static int check_minmax_capacities(reiser4_dcx *rdcx, u64 numb)
+{
+	u64 i;
+	u64 min = MAX_DATA_CAPACITY;
+	u64 max = 0;
+	bucket_t *vec = current_buckets();
+	struct bucket_ops *ops = current_bucket_ops();
+
+	assert("edward-2390", numb >= 1);
+
+	for (i = 0; i < numb; i++) {
+		if (min > ops->cap_at(vec, i))
+			min = ops->cap_at(vec, i);
+		if (max < ops->cap_at(vec, i))
+			max = ops->cap_at(vec, i);
+	}
+	assert("edward-2391", min != 0);
+
+	if ((max > min) &&
+	    (div64_u64(max, min)) >> MAX_DIFFER_BITS != 0) {
+		warning("edward-2392",
+			"Bucket capacities %llu and %llu differ too much",
+			min, max);
+		return RETERR(-EINVAL);
+	}
+	return 0;
+}
+
 int inc_fsx32(reiser4_dcx *rdcx, void *tab, u64 target_pos, bucket_t new)
 {
 	int ret = 0;
@@ -759,6 +790,9 @@ int inc_fsx32(reiser4_dcx *rdcx, void *tab, u64 target_pos, bucket_t new)
 			nums);
 		return -EINVAL;
 	}
+	ret = check_minmax_capacities(rdcx, new_numb);
+	if (ret)
+		return ret;
 	new_weights = fsx32_alloc(new_numb);
 	if (!new_weights) {
 		ret = -ENOMEM;
@@ -856,10 +890,14 @@ int dec_fsx32(reiser4_dcx *rdcx, void *tab, u64 target_pos, bucket_t removeme)
 	new_numb = dcx->numb;
 	if (removeme)
 		new_numb --;
-
+	else {
+		ret = check_minmax_capacities(rdcx, new_numb);
+		if (ret)
+			return ret;
+	}
 	ret = check_leftovers(rdcx, new_numb, ops->space_occupied());
 	if (ret)
-		goto error;
+		return ret;
 
 	nums = 1 << dcx->nums_bits;
 	new_weights = fsx32_alloc(new_numb);
