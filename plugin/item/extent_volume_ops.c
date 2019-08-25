@@ -104,7 +104,7 @@ static int reserve_migrate_one_block(struct inode *inode)
 	 * of or paste to an extent item.
 	 * 3. stat data update
 	 *
-	 * space for 2(a) will be reserved by update_extents_stripe()
+	 * space for 2(a) will be reserved by update_extent_stripe()
 	 */
 	/*
 	 * reserve space for 1, 2(b), 3
@@ -135,12 +135,14 @@ static int migrate_one_block(struct extent_migrate_context *mctx)
 	pgoff_t index;
 	struct inode *inode;
 	jnode *node;
+	struct hint hint;
+
+	hint_init_zero(&hint);
 	/*
 	 * read the rightmost page pointed out by the extent pointer
 	 */
 	inode = mctx->inode;
 	coord = mctx->coord;
-
 	item_key_by_coord(coord, &key);
 
 	assert("edward-2123", get_key_objectid(&key) == get_inode_oid(inode));
@@ -200,7 +202,7 @@ static int migrate_one_block(struct extent_migrate_context *mctx)
 	assert("edward-2127",
 	       node->subvol == calc_data_subvol(inode, page_offset(page)));
 
-	ret = update_extent_stripe(inode, node, NULL, 0);
+	ret = update_extent_stripe(&hint, inode, node, NULL, 0);
 	if (ret)
 		warning("edward-1897",
 			"Failed to migrate block %lu of inode %llu (%d)",

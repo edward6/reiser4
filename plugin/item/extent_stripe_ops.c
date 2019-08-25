@@ -66,12 +66,12 @@ static void try_merge_with_right_item(coord_t *left)
  * If impossible, then create a new extent item and try to merge
  * it with an item at the right.
  */
-static int plug_hole_stripe(uf_coord_t *uf_coord, const reiser4_key *key)
+static int plug_hole_stripe(coord_t *coord, lock_handle *lh,
+			    const reiser4_key *key)
 {
 	int ret = 0;
 	znode *loaded;
 	reiser4_key akey;
-	coord_t *coord = &uf_coord->coord;
 	reiser4_extent *ext;
 	reiser4_extent new_ext;
 	reiser4_item_data idata;
@@ -94,8 +94,7 @@ static int plug_hole_stripe(uf_coord_t *uf_coord, const reiser4_key *key)
 		reiser4_set_extent(subvol_by_key(key), &new_ext,
 				   UNALLOCATED_EXTENT_START, 1);
 		init_new_extent(EXTENT41_POINTER_ID, &idata, &new_ext, 1);
-		ret = insert_extent_by_coord(coord, &idata,
-					     key, uf_coord->lh);
+		ret = insert_extent_by_coord(coord, &idata, key, lh);
 		if (ret)
 			return ret;
 		/*
@@ -104,7 +103,7 @@ static int plug_hole_stripe(uf_coord_t *uf_coord, const reiser4_key *key)
 		 * the insertion point, as carry_extent primitive doesn't
 		 * provide it (only lock handle).
 		 */
-		twig_node = uf_coord->lh->node;
+		twig_node = lh->node;
 		assert("edward-2073", twig_node != coord->node);
 
 		ret = zload(twig_node);
@@ -148,7 +147,7 @@ static int plug_hole_stripe(uf_coord_t *uf_coord, const reiser4_key *key)
 		reiser4_set_extent(subvol_by_key(key), &new_ext,
 				   UNALLOCATED_EXTENT_START, 1);
 		init_new_extent(EXTENT41_POINTER_ID, &idata, &new_ext, 1);
-		ret = insert_by_coord(coord, &idata, key, uf_coord->lh, 0);
+		ret = insert_by_coord(coord, &idata, key, lh, 0);
 	} else {
 		/*
 		 * We can push to the end of the item
@@ -175,13 +174,12 @@ static int plug_hole_stripe(uf_coord_t *uf_coord, const reiser4_key *key)
 					   UNALLOCATED_EXTENT_START, 1);
 			init_new_extent(EXTENT41_POINTER_ID,
 					&idata, &new_ext, 1);
-			ret = insert_into_item(coord, uf_coord->lh,
-					       key, &idata, 0);
+			ret = insert_into_item(coord, lh, key, &idata, 0);
 		}
 	}
 	if (ret)
 		return ret;
-	assert("edward-2075", coord->node == uf_coord->lh->node);
+	assert("edward-2075", coord->node == lh->node);
 	/*
 	 * Here @coord points out to the item, the pointer
 	 * was pushed to, or to a newly created item. Try to
@@ -201,52 +199,26 @@ static int plug_hole_stripe(uf_coord_t *uf_coord, const reiser4_key *key)
 	return 0;
 }
 
-#if 0
-/**
- * Make sure that hole was plugged successfully.
- * That is, block pointer with @key exists in the storage tree
- */
-static void check_plug_hole(uf_coord_t *uf_coord, const reiser4_key *key)
+static int __update_extent_stripe(uf_coord_t *uf_coord, const reiser4_key *key,
+				  jnode *node, int *hole_plugged)
 {
 	int ret;
-	coord_t coord;
-	znode *node = uf_coord->coord.node;
-
-	assert("edward-2354", node == uf_coord->lh->node);
-
-	ret = zload(node);
-	if (ret)
-		return;
-	ret = node_plugin_by_node(node)->lookup(node,
-						key,
-						FIND_EXACT,
-						&coord);
-	zrelse(node);
-	assert("edward-2355", ret == NS_FOUND);
-	assert("edward-2356", coord.between == AT_UNIT);
-}
-#endif
-
-static int process_one_block(uf_coord_t *uf_coord, const reiser4_key *key,
-			     jnode *node, int *hole_plugged)
-{
 	reiser4_subvol *subv;
 	reiser4_block_nr block;
+	struct atom_brick_info *abi;
 
 	subv = current_origin(get_key_ordering(key));
 	assert("edward-2220", node->subvol == NULL || node->subvol == subv);
 
 	if (uf_coord->coord.between != AT_UNIT) {
 		/*
-		 * there is no item containing @key in the tree
+		 * block pointer is not represented by any item in the tree
 		 */
-		int result;
 		uf_coord->valid = 0;
 		inode_add_blocks(mapping_jnode(node)->host, 1);
-		result = plug_hole_stripe(uf_coord, key);
-		if (result)
-			return result;
-		//ON_DEBUG(check_plug_hole(uf_coord, key));
+		ret = plug_hole_stripe(&uf_coord->coord, uf_coord->lh, key);
+		if (ret)
+			return ret;
 
 		if (*jnode_get_block(node)) {
 			/*
@@ -290,22 +262,9 @@ static int process_one_block(uf_coord_t *uf_coord, const reiser4_key *key,
 	}
 	jnode_set_block(node, &block);
 	jnode_set_subvol(node, subv);
-	return 0;
-}
-
-int process_extent_stripe(uf_coord_t *uf_coord, const reiser4_key *key,
-			  jnode *node, int *plugged_hole)
-{
-	int ret;
-	struct atom_brick_info *abi;
-
-	ret = process_one_block(uf_coord, key, node, plugged_hole);
-	if (ret)
-		return ret;
-	assert("edward-2358", node->subvol != NULL);
 	/*
-	 * make sure that locked twig node contains
-	 * all jnodes we are about to capture
+	 * make sure that locked twig node contains jnode
+	 * we are about to capture
 	 */
 	check_jnodes(uf_coord->lh->node, key, 1);
 
@@ -322,7 +281,7 @@ int process_extent_stripe(uf_coord_t *uf_coord, const reiser4_key *key,
 	if (uf_coord->valid)
 		check_uf_coord(uf_coord, key);
 #endif
-	return 1;
+	return 0;
 }
 
 /*
@@ -427,136 +386,117 @@ static int locate_reserve_data(coord_t *coord, lock_handle *lh,
  * Update file body after writing @count blocks at offset @pos.
  * Return 0 on success.
  */
-static int __update_extents_stripe(struct hint *hint, struct inode *inode,
-				   jnode **jnodes, int count,
-				   int *plugged_hole, int truncate)
+int update_extent_stripe(struct hint *hint, struct inode *inode,
+			 jnode *node, int *plugged_hole, int truncate)
 {
 	int ret = 0;
 	reiser4_key key;
-	loff_t pos;
+	loff_t off;
+	znode *loaded;
+	reiser4_subvol *dsubv = NULL;
 
-	assert("edward-2390", count == 1);
-
-	pos = ((loff_t)index_jnode(jnodes[0]) << PAGE_SHIFT);
+	off = ((loff_t)index_jnode(node) << PAGE_SHIFT);
 	/*
 	 * construct non-precise key
 	 */
-	build_body_key_stripe(inode, pos, &key);
-	do {
-		znode *loaded;
-		reiser4_subvol *dsubv = NULL;
+	build_body_key_stripe(inode, off, &key);
 #if 1
-		ret = find_stripe_item(hint, &key, ZNODE_WRITE_LOCK, inode);
+	ret = find_stripe_item(hint, &key, ZNODE_WRITE_LOCK, inode);
 #else
-		ret = find_file_item_nohint(&hint->ext_coord.coord,
-					    hint->ext_coord.lh, &key,
-					    ZNODE_WRITE_LOCK, inode);
+	ret = find_file_item_nohint(&hint->ext_coord.coord,
+				    hint->ext_coord.lh, &key,
+				    ZNODE_WRITE_LOCK, inode);
 #endif
-		if (IS_CBKERR(ret))
-			return RETERR(-EIO);
-		/*
-		 * reserve space for data
-		 */
-		ret = locate_reserve_data(&hint->ext_coord.coord,
-					  hint->ext_coord.lh, &key,
-					  inode, pos, jnodes[0],
-					  truncate, &dsubv);
-		if (ret) {
-			done_lh(hint->ext_coord.lh);
-			break;
-		}
-		assert("edward-2284", dsubv != NULL);
-		assert("edward-2362",
-		       ergo(jnodes[0]->subvol, jnodes[0]->subvol == dsubv));
-		/*
-		 * Now when we know location of data block, make key precise
-		 */
-		set_key_ordering(&key, dsubv->id);
-		ret = zload(hint->ext_coord.coord.node);
-		BUG_ON(ret != 0);
-		loaded = hint->ext_coord.coord.node;
-		//check_node(loaded);
+	if (IS_CBKERR(ret))
+		return RETERR(-EIO);
+	/*
+	 * reserve space for data
+	 */
+	ret = locate_reserve_data(&hint->ext_coord.coord,
+				  hint->ext_coord.lh, &key,
+				  inode, off, node,
+				  truncate, &dsubv);
+	if (ret) {
+		done_lh(hint->ext_coord.lh);
+		return ret;
+	}
+	assert("edward-2284", dsubv != NULL);
+	assert("edward-2362",
+	       ergo(node->subvol, node->subvol == dsubv));
+	/*
+	 * Now when we know location of data block, make key precise
+	 */
+	set_key_ordering(&key, dsubv->id);
+	ret = zload(hint->ext_coord.coord.node);
+	BUG_ON(ret != 0);
+	loaded = hint->ext_coord.coord.node;
+	//check_node(loaded);
 
-		if (hint->ext_coord.coord.between == AT_UNIT &&
-		    !hint->ext_coord.valid)
-			init_coord_extension_extent(&hint->ext_coord,
-						    get_key_offset(&key));
-		/*
-		 * "overwrite" a block pointer, or create a new one,
-		 * if it doesn't exist
-		 */
-		ret = process_extent_stripe(&hint->ext_coord, &key, jnodes[0],
-					    plugged_hole);
-		zrelse(loaded);
-		if (ret < 0) {
-			done_lh(hint->ext_coord.lh);
-			break;
-		}
+	if (hint->ext_coord.coord.between == AT_UNIT &&
+	    !hint->ext_coord.valid)
+		init_coord_extension_extent(&hint->ext_coord,
+					    get_key_offset(&key));
+	/*
+	 * "overwrite" a block pointer, or create a new one,
+	 * if it doesn't exist
+	 */
+	ret = __update_extent_stripe(&hint->ext_coord, &key, node,
+				     plugged_hole);
+	zrelse(loaded);
+	if (ret) {
+		done_lh(hint->ext_coord.lh);
+		return ret;
+	}
 #if 0
-		zload(hint->ext_coord.lh->node);
-		assert("edward-2076",
-		       check_node40(hint->ext_coord.lh->node,
-				    REISER4_NODE_TREE_STABLE, &error) == 0);
-		zrelse(hint->ext_coord.lh->node);
+	zload(hint->ext_coord.lh->node);
+	assert("edward-2076",
+	       check_node40(hint->ext_coord.lh->node,
+			    REISER4_NODE_TREE_STABLE, &error) == 0);
+	zrelse(hint->ext_coord.lh->node);
 #endif
-		jnodes += ret;
-		count -= ret;
-		pos += ret * PAGE_SIZE;
-
-		loaded = hint->lh.node;
-		ret = zload(loaded);
-		if (unlikely(ret)) {
-			done_lh(hint->ext_coord.lh);
-			break;
-		}
-		/*
-		 * at this point a block pointer with @key always
-		 * exists in the storage tree
-		 */
-		if (hint->ext_coord.valid == 0) {
-			hint->ext_coord.coord.between = AT_UNIT;
-			init_coord_extension_extent(&hint->ext_coord,
-						    get_key_offset(&key));
-		}
-		/*
-		 * @hint->ext_coord points out to the block pointer
-		 * we have just processed.
-		 * Seal the coord and unlock znode.
-		 */
-		reiser4_set_hint(hint, &key, ZNODE_WRITE_LOCK);
-		zrelse(loaded);
-		/*
-		 * Update key for the next iteration.
-		 * We don't know location of the next data block,
-		 * so set maximal ordering value.
-		 */
-		set_key_offset(&key, pos);
-		set_key_ordering(&key, KEY_ORDERING_MASK);
-	} while (count > 0);
-	return ret;
-}
-
-int update_extent_stripe(struct inode *inode, jnode *node,
-			 int *plugged_hole, int truncate)
-{
-	struct hint hint;
-
-	hint_init_zero(&hint);
-
-	return __update_extents_stripe(&hint, inode, &node, 1,
-				       plugged_hole, truncate);
+	loaded = hint->lh.node;
+	ret = zload(loaded);
+	if (unlikely(ret)) {
+		done_lh(hint->ext_coord.lh);
+		return ret;
+	}
+	/*
+	 * at this point a block pointer with @key always
+	 * exists in the storage tree
+	 */
+	if (hint->ext_coord.valid == 0) {
+		hint->ext_coord.coord.between = AT_UNIT;
+		init_coord_extension_extent(&hint->ext_coord,
+					    get_key_offset(&key));
+	}
+	/*
+	 * @hint->ext_coord points out to the block pointer
+	 * we have just processed.
+	 * Seal the coord and unlock znode.
+	 */
+	reiser4_set_hint(hint, &key, ZNODE_WRITE_LOCK);
+	zrelse(loaded);
+	/*
+	 * Update key for the next iteration.
+	 * We don't know location of the next data block,
+	 * so set maximal ordering value.
+	 */
+	set_key_offset(&key, off + PAGE_SIZE);
+	set_key_ordering(&key, KEY_ORDERING_MASK);
+	return 0;
 }
 
 int find_or_create_extent_stripe(struct page *page, int truncate)
 {
-	int result;
+	int ret;
 	struct inode *inode;
 	int plugged_hole = 0;
-
+	struct hint hint;
 	jnode *node;
 
 	assert("edward-2372", page->mapping && page->mapping->host);
 
+	hint_init_zero(&hint);
 	inode = page->mapping->host;
 
 	lock_page(page);
@@ -568,15 +508,15 @@ int find_or_create_extent_stripe(struct page *page, int truncate)
 	JF_SET(node, JNODE_WRITE_PREPARED);
 	unlock_page(page);
 
-	result = update_extent_stripe(inode, node, &plugged_hole,
-				      truncate);
+	ret = update_extent_stripe(&hint, inode, node,
+				   &plugged_hole, truncate);
 	JF_CLR(node, JNODE_WRITE_PREPARED);
 
-	if (result) {
+	if (ret) {
 		jput(node);
 		warning("edward-1549",
-			"failed to update extent (%d)", result);
-		return result;
+			"failed to update extent (%d)", ret);
+		return ret;
 	}
 	if (plugged_hole)
 		reiser4_update_sd(inode);
@@ -733,13 +673,12 @@ ssize_t write_extent_stripe(struct file *file, struct inode *inode,
 
 		assert("edward-2063", reiser4_lock_counters()->d_refs == 0);
 
-		ret = __update_extents_stripe(&hint, inode,
-					      &jnodes[i], 1, NULL, 0);
+		ret = update_extent_stripe(&hint, inode, jnodes[i], NULL, 0);
 
 		assert("edward-2065",  reiser4_lock_counters()->d_refs == 0);
 		assert("edward-2365", ret == -ENOSPC || ret >= 0);
 
-		if (ret < 0)
+		if (ret)
 			break;
 		page_off = 0;
 		left -= to_page;
@@ -750,7 +689,8 @@ ssize_t write_extent_stripe(struct file *file, struct inode *inode,
 		JF_CLR(jnodes[i], JNODE_WRITE_PREPARED);
 		jput(jnodes[i]);
 	}
-	save_file_hint(file, &hint);
+	if (!ret)
+		save_file_hint(file, &hint);
 	/*
 	 * the only errors handled so far is ENOMEM and
 	 * EFAULT on copy_from_user

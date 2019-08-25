@@ -179,7 +179,7 @@ void reiser4_set_extent(reiser4_subvol *subv, reiser4_extent *,
 			reiser4_block_nr start,	reiser4_block_nr width);
 int update_extent_unix_file(struct inode *, jnode *, loff_t pos,
 			    int *plugged_hole, int truncate);
-int update_extent_stripe(struct inode *, jnode *, int *plugged_hole,
+int update_extent_stripe(hint_t *hint, struct inode *, jnode *, int *plugged_hole,
 			 int truncate);
 
 #include "../../coord.h"
