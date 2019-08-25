@@ -100,8 +100,31 @@ int flow_by_inode_stripe(struct inode *inode,
  * and perform fast lookup from the "sealed" position.
  */
 
+#if REISER4_DEBUG
+
+static inline int equal_to_ldk_nonprec(znode *node, const reiser4_key *key)
+{
+	int ret;
+
+	read_lock_dk(znode_get_tree(node));
+	ret = all_but_ordering_keyeq(key, znode_get_ld_key(node));
+	read_unlock_dk(znode_get_tree(node));
+	return ret;
+}
+#endif
+
+static inline int equal_to_rdk_nonprec(znode *node, const reiser4_key *key)
+{
+	int ret;
+
+	read_lock_dk(znode_get_tree(node));
+	ret = all_but_ordering_keyeq(key, znode_get_rd_key(node));
+	read_unlock_dk(znode_get_tree(node));
+	return ret;
+}
+
 /**
- * Check if the seal was created against the prevous block pointer.
+ * Check if the seal was created against the previous block pointer.
  * And if so, then validate it.
  */
 static int hint_validate(hint_t *hint, reiser4_tree *tree,
@@ -119,13 +142,17 @@ static int hint_validate(hint_t *hint, reiser4_tree *tree,
 	set_key_offset(&vkey, hint->offset);
 
 	return reiser4_seal_validate(&hint->seal, tree,
-				     &hint->ext_coord.coord, key,
+				     &hint->ext_coord.coord, &vkey,
 				     hint->ext_coord.lh, lock_mode,
 				     ZNODE_LOCK_LOPRI);
 }
 
 /**
- * Search by key procedure with sealing technique for striped files
+ * Search-by-key procedure optimized for sequential operations
+ * by using "sealing" technique.
+ *
+ * @key: key of a block pointer we are looking for. That key is
+ * not precise, that is we don't know its "ordering" component.
  */
 int find_stripe_item(hint_t *hint, const reiser4_key *key,
 		     znode_lock_mode lock_mode, struct inode *inode)
@@ -150,10 +177,16 @@ int find_stripe_item(hint_t *hint, const reiser4_key *key,
 	ret = hint_validate(hint, meta_subvol_tree(), key, lock_mode);
 	if (ret)
 		goto nohint;
-	/* fast lookup */
-	assert("edward-2383", hint->ext_coord.valid);
-
+	/*
+	 * we always seal only valid coord of existing block pointer
+	 */
+	assert("edward-2385",
+	       WITH_DATA(coord->node, coord_is_existing_unit(coord)));
+	hint->ext_coord.valid = 1;
 	ext_coord = &hint->ext_coord.extension.extent;
+
+	/* fast lookup in the sealed coord locality */
+
 	ext_coord->pos_in_unit ++;
 	if (ext_coord->pos_in_unit < ext_coord->width)
 		/*
@@ -182,8 +215,13 @@ int find_stripe_item(hint_t *hint, const reiser4_key *key,
 	 */
 	coord->unit_pos --;
 	coord->between = AFTER_UNIT;
-	hint->ext_coord.valid = 0;
-
+	hint->ext_coord.valid = 0; /* moving to the next item invalidates
+				      the coord extension */
+	ret = zload(lh->node);
+	if (ret) {
+		done_lh(lh);
+		return ret;
+	}
 	coord_dup(&rcoord, coord);
 	if (!coord_next_item(&rcoord)) {
 		/*
@@ -192,26 +230,38 @@ int find_stripe_item(hint_t *hint, const reiser4_key *key,
 		reiser4_key rkey;
 		if (!item_is_extent(&rcoord) ||
 		    !all_but_ordering_keyeq(key,
-				item_key_by_coord(&rcoord, &rkey)))
+				item_key_by_coord(&rcoord, &rkey))) {
+			zrelse(lh->node);
+			assert("edward-2386", coord->between == AFTER_UNIT);
 			return CBK_COORD_NOTFOUND;
-
+		}
 		coord_dup(coord, &rcoord);
+		zrelse(lh->node);
+		coord->between = AT_UNIT;
 		return CBK_COORD_FOUND;
 	}
+	zrelse(lh->node);
 	/*
 	 * end of node reached. Try to find in the next node at the right
 	 */
-	if (equal_to_rdk(coord->node, key)) {
+	if (equal_to_rdk_nonprec(coord->node, key)) {
 		ret = goto_right_neighbor(coord, lh);
 		if (unlikely(ret)) {
 			done_lh(lh);
+			assert("edward-2387", ret != CBK_COORD_NOTFOUND);
 			return ret == -E_NO_NEIGHBOR ? RETERR(-EIO) : ret;
+		}
+		ret = zload(lh->node);
+		if (unlikely(ret)) {
+			done_lh(lh);
+			return ret;
 		}
 		if (unlikely(node_is_empty(coord->node))) {
 			/*
 			 * for simplicity we don't go further to
 			 * the right. Instead we call slow lookup.
 			 */
+			zrelse(lh->node);
 			done_lh(lh);
 			goto nohint;
 		}
@@ -220,9 +270,12 @@ int find_stripe_item(hint_t *hint, const reiser4_key *key,
 		 * right neighbor has @key, because exclusive, or
 		 * non-exclusive lock of the file is held by us.
 		 */
-		assert("edward-2384", equal_to_ldk(coord->node, key));
+		assert("edward-2384", equal_to_ldk_nonprec(coord->node, key));
+		zrelse(lh->node);
+		assert("edward-2388", coord->between == AT_UNIT);
 		return CBK_COORD_FOUND;
 	}
+	assert("edward-2389", coord->between == AFTER_UNIT);
 	return CBK_COORD_NOTFOUND;
  nohint:
 	/* full-fledged lookup */
@@ -806,14 +859,10 @@ static int shorten_stripe(struct inode *inode, loff_t new_size)
 
 static int truncate_body_stripe(struct inode *inode, struct iattr *attr)
 {
-	int ret;
 	loff_t new_size = attr->ia_size;
 
 	if (inode->i_size < new_size) {
 		/* expand */
-		ret = write_extent_stripe(NULL, inode, NULL, 0, &new_size);
-		if (ret)
-			return ret;
 		return reiser4_update_file_size(inode, new_size, 1);
 	} else
 		/* shrink */

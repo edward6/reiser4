@@ -294,10 +294,9 @@ static int process_one_block(uf_coord_t *uf_coord, const reiser4_key *key,
 }
 
 int process_extent_stripe(uf_coord_t *uf_coord, const reiser4_key *key,
-			  jnode **jnodes, int *plugged_hole)
+			  jnode *node, int *plugged_hole)
 {
 	int ret;
-	jnode *node = jnodes[0];
 	struct atom_brick_info *abi;
 
 	ret = process_one_block(uf_coord, key, node, plugged_hole);
@@ -424,22 +423,6 @@ static int locate_reserve_data(coord_t *coord, lock_handle *lh,
 	return truncate ? 0 : reserve_stripe_data(1, *loc, 0);
 }
 
-#if REISER4_DEBUG
-static void check_sealed_coord(hint_t *hint, reiser4_key *key)
-{
-	reiser4_key ukey;
-	coord_t *coord = &hint->ext_coord.coord;
-
-	assert("edward-2385", coord_is_existing_unit(coord));
-
-	unit_key_by_coord(coord, &ukey);
-	assert("edward-2386", keyle(&ukey, key));
-	set_key_offset(&ukey,
-		       get_key_offset(&ukey) + reiser4_extent_size(coord));
-	assert("edward-2387", keyle(key, &ukey));
-}
-#endif
-
 /**
  * Update file body after writing @count blocks at offset @pos.
  * Return 0 on success.
@@ -452,10 +435,7 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 	reiser4_key key;
 	loff_t pos;
 
-	if (!count)
-		/* expanding truncate - nothing to do */
-		return 0;
-	assert("edward-2323", ergo(truncate != 0, count == 1));
+	assert("edward-2390", count == 1);
 
 	pos = ((loff_t)index_jnode(jnodes[0]) << PAGE_SHIFT);
 	/*
@@ -498,13 +478,14 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 		//check_node(loaded);
 
 		if (hint->ext_coord.coord.between == AT_UNIT &&
-		    hint->ext_coord.valid == 0)
+		    !hint->ext_coord.valid)
 			init_coord_extension_extent(&hint->ext_coord,
 						    get_key_offset(&key));
 		/*
-		 * overwrite extent (or create a new one, if it doesn't exist)
+		 * "overwrite" a block pointer, or create a new one,
+		 * if it doesn't exist
 		 */
-		ret = process_extent_stripe(&hint->ext_coord, &key, jnodes,
+		ret = process_extent_stripe(&hint->ext_coord, &key, jnodes[0],
 					    plugged_hole);
 		zrelse(loaded);
 		if (ret < 0) {
@@ -528,15 +509,20 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 			done_lh(hint->ext_coord.lh);
 			break;
 		}
+		/*
+		 * at this point a block pointer with @key always
+		 * exists in the storage tree
+		 */
 		if (hint->ext_coord.valid == 0) {
 			hint->ext_coord.coord.between = AT_UNIT;
 			init_coord_extension_extent(&hint->ext_coord,
 						    get_key_offset(&key));
 		}
 		/*
-		 * seal and unlock znode
+		 * @hint->ext_coord points out to the block pointer
+		 * we have just processed.
+		 * Seal the coord and unlock znode.
 		 */
-		ON_DEBUG(check_sealed_coord(hint, &key));
 		reiser4_set_hint(hint, &key, ZNODE_WRITE_LOCK);
 		zrelse(loaded);
 		/*
@@ -547,23 +533,6 @@ static int __update_extents_stripe(struct hint *hint, struct inode *inode,
 		set_key_offset(&key, pos);
 		set_key_ordering(&key, KEY_ORDERING_MASK);
 	} while (count > 0);
-	return ret;
-}
-
-int update_extents_stripe(struct file *file, struct inode *inode,
-				 jnode **jnodes, int count)
-{
-	int ret;
-	struct hint hint;
-
-	assert("edward-2063", reiser4_lock_counters()->d_refs == 0);
-
-	ret = load_file_hint(file, &hint);
-	if (ret)
-		return ret;
-	ret = __update_extents_stripe(&hint, inode, jnodes, count,
-				      NULL, 0);
-	assert("edward-2065",  reiser4_lock_counters()->d_refs == 0);
 	return ret;
 }
 
@@ -645,6 +614,14 @@ ssize_t write_extent_stripe(struct file *file, struct inode *inode,
 	int to_page, page_off;
 	size_t left = count;
 	int ret = 0;
+	struct hint hint;
+
+	if (count == 0)
+		return 0;
+
+	ret = load_file_hint(file, &hint);
+	if (ret)
+		return ret;
 	/*
 	 * calculate number of pages which are to be written
 	 */
@@ -652,6 +629,9 @@ ssize_t write_extent_stripe(struct file *file, struct inode *inode,
 	end = ((*pos + count - 1) >> PAGE_SHIFT);
 	nr_pages = end - index + 1;
 	assert("edward-2363", nr_pages <= DEFAULT_WRITE_GRANULARITY + 1);
+
+	if (count == 0)
+		return 0;
 	/*
 	 * First of all reserve space on meta-data brick.
 	 * In particular, it is needed to "drill" the leaf level
@@ -660,11 +640,6 @@ ssize_t write_extent_stripe(struct file *file, struct inode *inode,
 	ret = reserve_stripe_meta(nr_pages, 0);
 	if (ret)
 		return ret;
-	if (count == 0) {
-		/* case of expanding truncate */
-		update_extents_stripe(file, inode, jnodes, 0);
-		return 0;
-	}
 	BUG_ON(get_current_context()->trans->atom != NULL);
 
 	/* get pages and jnodes */
@@ -755,8 +730,15 @@ ssize_t write_extent_stripe(struct file *file, struct inode *inode,
 		to_page = PAGE_SIZE - page_off;
 		if (to_page > left)
 			to_page = left;
-		ret = update_extents_stripe(file, inode, &jnodes[i], 1);
+
+		assert("edward-2063", reiser4_lock_counters()->d_refs == 0);
+
+		ret = __update_extents_stripe(&hint, inode,
+					      &jnodes[i], 1, NULL, 0);
+
+		assert("edward-2065",  reiser4_lock_counters()->d_refs == 0);
 		assert("edward-2365", ret == -ENOSPC || ret >= 0);
+
 		if (ret < 0)
 			break;
 		page_off = 0;
@@ -768,6 +750,7 @@ ssize_t write_extent_stripe(struct file *file, struct inode *inode,
 		JF_CLR(jnodes[i], JNODE_WRITE_PREPARED);
 		jput(jnodes[i]);
 	}
+	save_file_hint(file, &hint);
 	/*
 	 * the only errors handled so far is ENOMEM and
 	 * EFAULT on copy_from_user
