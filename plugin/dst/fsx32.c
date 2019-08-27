@@ -331,43 +331,20 @@ static int balance_inc(struct fsx32_dcx *dcx,
 	/*
 	 * steal segments of all apxs to the right of target_pos
 	 */
-	for(i = target_pos + 1; i < new_numb; i++)
-		if (new && FSX32_PRECISE) {
-			/*
-			 * A sort of FSX where idx2id() and id2idx
-			 * are identical functions.
-			 * After inserting a new bucket, internal IDs
-			 * of all buckets to the right of @target_pos
-			 * (in the new set of buckets!) get incremented,
-			 * thus system table needs corrections
-			 */
-			for(j = 0; j < new_weights[i]; j++) {
-				u32 *apx;
-				apx = apx_at(vec, i);
-				assert("edward-1911", tab[apx[j]] == i - 1);
-				tab[apx[j]] = i;
-			}
-			for(j = 0; j < exc[i]; j++) {
-				u32 *apx;
-				apx = apx_at(vec, i);
-				assert("edward-1912",
-				       tab[apx[new_weights[i] + j]] == i - 1);
-				tab[apx[new_weights[i] + j]] = target_pos;
-			}
-		} else {
-			for(j = 0; j < new_weights[i]; j++) {
-				u32 *apx;
-				apx = apx_at(vec, i);
-				assert("edward-1913", tab[apx[j]] == idx2id(i));
-			}
-			for(j = 0; j < exc[i]; j++) {
-				u32 *apx;
-				apx = apx_at(vec, i);
-				assert("edward-1914",
-				       tab[apx[new_weights[i] + j]] == idx2id(i));
-				tab[apx[new_weights[i] + j]] = idx2id(target_pos);
-			}
+	for(i = target_pos + 1; i < new_numb; i++) {
+		for(j = 0; j < new_weights[i]; j++) {
+			u32 *apx;
+			apx = apx_at(vec, i);
+			assert("edward-1913", tab[apx[j]] == idx2id(i));
 		}
+		for(j = 0; j < exc[i]; j++) {
+			u32 *apx;
+			apx = apx_at(vec, i);
+			assert("edward-1914",
+			       tab[apx[new_weights[i] + j]] == idx2id(i));
+			tab[apx[new_weights[i] + j]] = idx2id(target_pos);
+		}
+	}
  exit:
 	if (exc)
 		fsx_free(exc);
@@ -394,7 +371,6 @@ static int balance_dec(struct fsx32_dcx *dcx,
 	u32 off_in_target = 0;
 	u32 *sho;
 	u32 *target;
-	u32 victim_id = ((reiser4_subvol *)removeme)->id;
 
 	sho = fsx32_alloc(new_numb);
 	if (!sho) {
@@ -418,58 +394,30 @@ static int balance_dec(struct fsx32_dcx *dcx,
 		off_in_target = 0;
 	} else {
 		target = apx_at(vec, target_pos);
-		off_in_target =
-			old_weights[target_pos] - new_weights[target_pos];
+		off_in_target = new_weights[target_pos];
 	}
 	/*
 	 * distribute segments among all apxs to the left of target_pos
 	 */
 	for(i = 0; i < target_pos; i++)
 		for(j = 0; j < sho[i]; j++) {
-			assert("edward-1916",
-			       tab[target[off_in_target]] == victim_id);
 			tab[target[off_in_target ++]] = idx2id(i);
 		}
 	/*
 	 * distribute segments among all apxs to the right of target_pos
 	 */
-	for(i = target_pos; i < new_numb; i++) {
-		if (removeme && FSX32_PRECISE) {
-			/*
-			 * A sort of the algorithm, where idx2id() and
-			 * id2idx are identity functions.
-			 * After removing a bucket, internal IDs of
-			 * all buckets to the right of target_pos
-			 * get decremented, so that system table needs
-			 * corrections.
-			 */
-			for(j = 0; j < old_weights[i]; j++) {
-				u32 *apx;
-				apx = apx_at(vec, i);
-				assert("edward-1903", tab[apx[j]] == i);
-				tab[apx[j]] = i - 1;
-			}
+	if (removeme)
+		for(i = target_pos; i < new_numb; i++) {
 			for(j = 0; j < sho[i]; j++) {
-				assert("edward-1917",
-				       tab[target[off_in_target]] ==
-				       target_pos);
-				tab[target[off_in_target ++]] = i - 1;
-			}
-		}
-		else {
-			for(j = 0; j < old_weights[i + 1]; j++) {
-				u32 *apx;
-				apx = apx_at(vec, i);
-				assert("edward-1903", tab[apx[j]] == idx2id(i));
-			}
-			for(j = 0; j < sho[i]; j++) {
-				assert("edward-1918",
-				       tab[target[off_in_target]] ==
-				       victim_id);
 				tab[target[off_in_target ++]] = idx2id(i);
 			}
 		}
-	}
+	else
+		for(i = target_pos + 1; i < new_numb; i++) {
+			for(j = 0; j < sho[i]; j++) {
+				tab[target[off_in_target ++]] = idx2id(i);
+			}
+		}
  exit:
 	if (sho)
 		fsx_free(sho);
@@ -741,7 +689,7 @@ u64 lookup_fsx32m(reiser4_dcx *rdcx, const struct inode *inode,
 #define MAX_DIFFER_BITS   19
 #define MAX_DATA_CAPACITY 0xffffffffffffffffull
 
-static int check_minmax_capacities(reiser4_dcx *rdcx, u64 numb)
+static int check_maxdiff(reiser4_dcx *rdcx, u64 numb)
 {
 	u64 i;
 	u64 min = MAX_DATA_CAPACITY;
@@ -759,10 +707,9 @@ static int check_minmax_capacities(reiser4_dcx *rdcx, u64 numb)
 	}
 	assert("edward-2391", min != 0);
 
-	if ((max > min) &&
-	    (div64_u64(max, min)) >> MAX_DIFFER_BITS != 0) {
+	if ((div64_u64(max, min)) >> MAX_DIFFER_BITS != 0) {
 		warning("edward-2392",
-			"Bucket capacities %llu and %llu differ too much",
+			"Capacities %llu and %llu differ too much",
 			min, max);
 		return RETERR(-EINVAL);
 	}
@@ -790,7 +737,7 @@ int inc_fsx32(reiser4_dcx *rdcx, void *tab, u64 target_pos, bucket_t new)
 			nums);
 		return -EINVAL;
 	}
-	ret = check_minmax_capacities(rdcx, new_numb);
+	ret = check_maxdiff(rdcx, new_numb);
 	if (ret)
 		return ret;
 	new_weights = fsx32_alloc(new_numb);
@@ -891,7 +838,7 @@ int dec_fsx32(reiser4_dcx *rdcx, void *tab, u64 target_pos, bucket_t removeme)
 	if (removeme)
 		new_numb --;
 	else {
-		ret = check_minmax_capacities(rdcx, new_numb);
+		ret = check_maxdiff(rdcx, new_numb);
 		if (ret)
 			return ret;
 	}
@@ -926,10 +873,10 @@ int dec_fsx32(reiser4_dcx *rdcx, void *tab, u64 target_pos, bucket_t removeme)
 	release_apxs(new_numb,
 		     current_buckets(), ops->apx_at,
 		     ops->apx_set_at);
-	release_apxs(1,
-		     &removeme, ops->apx_at,
-		     ops->apx_set_at);
-
+	if (removeme)
+		release_apxs(1,
+			     &removeme, ops->apx_at,
+			     ops->apx_set_at);
 	fsx_free(dcx->weights);
 	dcx->weights = new_weights;
 	dcx->numb = new_numb;

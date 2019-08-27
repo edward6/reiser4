@@ -38,24 +38,6 @@ static int reiser4_print_brick(struct super_block *sb,
 }
 
 /**
- * Accept ordered number of a voltab block and dump its content
- * to a memory buffer.
- */
-static int reiser4_print_voltab(struct super_block *sb,
-				struct reiser4_vol_op_args *args)
-{
-	u64 idx = args->s.voltab_nr;
-	distribution_plugin *dist_plug = super_volume(sb)->dist_plug;
-
-	dist_plug->v.dump(&super_volume(sb)->dcx,
-			  super_volume(sb)->conf->tab,
-			  args->d.data + (idx << sb->s_blocksize_bits),
-			  idx << sb->s_blocksize_bits,
-			  sb->s_blocksize);
-	return 0;
-}
-
-/**
  * find activated brick by @name
  */
 static reiser4_subvol *find_active_brick(struct super_block *super,
@@ -76,64 +58,33 @@ static reiser4_subvol *find_active_brick(struct super_block *super,
 	return result;
 }
 
-static int reiser4_expand_brick(struct super_block *sb,
+static int reiser4_resize_brick(struct super_block *sb,
 				struct reiser4_vol_op_args *args)
 {
 	int ret;
-
-	reiser4_subvol *victim;
-
-	if (reiser4_volume_is_unbalanced(sb)) {
-		warning("edward-2165",
-			"Failed to expand brick (Unbalanced volume %s)",
-			sb->s_id);
-		return -EINVAL;
-	}
-	victim = find_active_brick(sb, args->d.name);
-	if (!victim) {
-		warning("edward-2147",
-			"Brick %s doesn't belong to volume %s. Can not expand.",
-			args->d.name,
-			reiser4_get_current_sb()->s_id);
-		return -EINVAL;
-	}
-	ret = super_volume(sb)->vol_plug->expand_brick(super_volume(sb),
-						       victim,
-						       args->delta);
-	if (ret)
-		return ret;
-	ret = super_volume(sb)->vol_plug->balance_volume(sb);
-	if (ret)
-		return ret;
-	reiser4_volume_clear_unbalanced(sb);
-	return capture_brick_super(get_meta_subvol());
-}
-
-static int reiser4_shrink_brick(struct super_block *sb,
-				struct reiser4_vol_op_args *args)
-{
-	int ret;
-	reiser4_subvol *victim;
+	reiser4_subvol *this;
 
 	if (reiser4_volume_is_unbalanced(sb)) {
 		warning("edward-2166",
-			"Failed to shrink brick (Unbalanced volume %s)",
+			"Failed to resize brick (Unbalanced volume %s)",
 			sb->s_id);
 		return -EINVAL;
 	}
-	victim = find_active_brick(sb, args->d.name);
-	if (!victim) {
+	if (args->new_capacity == 0) {
+		warning("edward-2395", "Can not resize brick to zero.");
+		return -EINVAL;
+	}
+	this = find_active_brick(sb, args->d.name);
+	if (!this) {
 		warning("edward-2148",
-			"Brick %s doesn't belong to volume %s. Can not shrink.",
+			"Brick %s doesn't belong to volume %s. Can not resize.",
 			args->d.name,
 			reiser4_get_current_sb()->s_id);
 		return -EINVAL;
 	}
-	ret = super_volume(sb)->vol_plug->shrink_brick(super_volume(sb),
-						       victim, args->delta);
-	if (ret)
-		return ret;
-	ret = super_volume(sb)->vol_plug->balance_volume(sb);
+	ret = super_volume(sb)->vol_plug->resize_brick(super_volume(sb),
+					this,
+					args->new_capacity - this->data_room);
 	if (ret)
 		return ret;
 	reiser4_volume_clear_unbalanced(sb);
@@ -398,14 +349,8 @@ int reiser4_volume_op(struct super_block *sb, struct reiser4_vol_op_args *args)
 	case REISER4_PRINT_BRICK:
 		ret = reiser4_print_brick(sb, args);
 		break;
-	case REISER4_PRINT_VOLTAB:
-		ret = reiser4_print_voltab(sb, args);
-		break;
-	case REISER4_EXPAND_BRICK:
-		ret = reiser4_expand_brick(sb, args);
-		break;
-	case REISER4_SHRINK_BRICK:
-		ret = reiser4_shrink_brick(sb, args);
+	case REISER4_RESIZE_BRICK:
+		ret = reiser4_resize_brick(sb, args);
 		break;
 	case REISER4_ADD_BRICK:
 		ret = reiser4_add_brick(sb, args);

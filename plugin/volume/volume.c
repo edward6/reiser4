@@ -901,28 +901,6 @@ static u64 get_pos_in_dsa(u64 pos_in_vol)
 	return pos_in_vol - 1;
 }
 
-static int expand_brick(reiser4_volume *vol, reiser4_subvol *this,
-			u64 delta, int *need_balance)
-{
-	int ret;
-	distribution_plugin *dist_plug = vol->dist_plug;
-	/*
-	 * FIXME-EDWARD: Check that resulted capacity is not too large
-	 */
-	this->data_room += delta;
-
-	if (num_dsa_subvols(vol) == 1) {
-		*need_balance = 0;
-		return 0;
-	}
-	ret = dist_plug->v.inc(&vol->dcx, vol->conf->tab,
-			       get_pos_in_dsa(this->id), NULL);
-	if (ret)
-		/* roll back */
-		this->data_room -= delta;
-	return ret;
-}
-
 /**
  * Create a config, which is similar to @old except the pointer
  * to distribution table (which is NULL for the clone).
@@ -937,6 +915,42 @@ static lv_conf *clone_lv_conf(lv_conf *old)
 		       sizeof(slot_t) * old->nr_mslots);
 	}
 	return new;
+}
+
+static int resize_brick(reiser4_volume *vol, reiser4_subvol *this,
+			long long delta, int *need_balance)
+{
+	int ret;
+	int(*dst_resize_fn)(reiser4_dcx *, void *, u64, bucket_t);
+
+	assert("edward-2393", delta != 0);
+
+	this->data_room += delta;
+
+	if (num_dsa_subvols(vol) == 1 ||
+	    (is_meta_brick(this) && !meta_brick_belongs_dsa())) {
+		*need_balance = 0;
+		return 0;
+	}
+	if (delta > 0)
+		dst_resize_fn = vol->dist_plug->v.inc;
+	else
+		dst_resize_fn = vol->dist_plug->v.dec;
+
+	ret = dst_resize_fn(&vol->dcx, vol->conf->tab,
+			    get_pos_in_dsa(this->id), NULL);
+	if (ret)
+		goto error;
+
+	vol->new_conf = clone_lv_conf(vol->conf);
+	if (vol->new_conf == NULL) {
+		ret = -ENOMEM;
+		goto error;
+	}
+	return 0;
+ error:
+	this->data_room -= delta;
+	return ret;
 }
 
 static int add_meta_brick(reiser4_volume *vol, reiser4_subvol *new,
@@ -1078,16 +1092,17 @@ int add_data_brick(reiser4_volume *vol, reiser4_subvol *this,
  * Increase capacity of a specified brick
  * @id: internal ID of the brick
  */
-static int expand_brick_asym(reiser4_volume *vol, reiser4_subvol *this,
-			     u64 delta)
+static int resize_brick_asym(reiser4_volume *vol, reiser4_subvol *this,
+			     long long delta)
 {
 	int ret;
 	int need_balance = 1;
 	reiser4_dcx *rdcx = &vol->dcx;
 	distribution_plugin *dist_plug = vol->dist_plug;
 	struct super_block *sb = reiser4_get_current_sb();
+	lv_conf *old_conf = vol->conf;
 
-	assert("edward-1824", rdcx != NULL);
+	assert("edward-1824", vol != NULL);
 	assert("edward-1825", dist_plug != NULL);
 
 	ret = dist_plug->v.init(&vol->conf->tab,
@@ -1096,26 +1111,54 @@ static int expand_brick_asym(reiser4_volume *vol, reiser4_subvol *this,
 	if (ret)
 		return ret;
 
-	ret = expand_brick(vol, this, delta, &need_balance);
+	ret = resize_brick(vol, this, delta, &need_balance);
 	dist_plug->v.done(rdcx);
 	if (ret)
 		return ret;
-	if (need_balance) {
-		ret = make_volume_dconf(vol);
-		if (ret)
-			return ret;
+	if (!need_balance) {
 		ret = capture_brick_super(this);
 		if (ret)
-			return ret;
-		reiser4_volume_set_unbalanced(sb);
-		ret = capture_brick_super(get_meta_subvol());
-	} else
-		ret = capture_brick_super(this);
-	if (ret)
-		return ret;
+			goto error;
+		printk("reiser4 (%s): Changed data capacity of brick %s.\n",
+		       sb->s_id, this->name);
+		return 0;
+	}
+	assert("edward-2394", vol->new_conf != NULL);
 
-	reiser4_txn_restart_current();
-	return 0;
+	ret = make_volume_dconf(vol);
+	if (ret)
+		goto error;
+	ret = update_volume_dconf(vol);
+	if (ret)
+		goto error;
+	dist_plug->r.replace(&vol->dcx, &vol->new_conf->tab);
+
+	reiser4_volume_set_unbalanced(sb);
+	ret = capture_brick_super(get_meta_subvol());
+	if (ret)
+		goto error;
+	ret = capture_brick_super(this);
+	if (ret)
+		goto error;
+	/*
+	 * publish the new config
+	 */
+	rcu_assign_pointer(vol->conf, vol->new_conf);
+	synchronize_rcu();
+	free_lv_conf(old_conf);
+	vol->new_conf = NULL;
+
+	printk("reiser4 (%s): Changed data capacity of brick %s.\n",
+	       sb->s_id, this->name);
+
+	return balance_volume_asym(sb);
+ error:
+	/*
+	 * resize failed - it should be repeated in regular context
+	 */
+	free_lv_conf(vol->new_conf);
+	vol->new_conf = NULL;
+	return ret;
 }
 
 /**
@@ -1229,32 +1272,6 @@ static u64 space_occupied(void)
 			continue;
 		ret += space_occupied_at(conf->mslots[subv_id]);
 	}
-	return ret;
-}
-
-static int shrink_brick(reiser4_volume *vol, reiser4_subvol *victim,
-			u64 delta, int *need_balance)
-{
-	int ret;
-	distribution_plugin *dist_plug = vol->dist_plug;
-
-	assert("edward-2191", victim->data_room > delta);
-	/*
-	 * FIXME-EDWARD: Check that resulted capacity is not too small
-	 */
-	victim->data_room -= delta;
-
-	if (num_dsa_subvols(vol) == 1) {
-		*need_balance = 0;
-		return 0;
-	}
-	ret = dist_plug->v.dec(&vol->dcx, vol->conf->tab,
-			       get_pos_in_dsa(victim->id), NULL);
-	if (ret)
-		goto error;
-	return 0;
- error:
-	victim->data_room += delta;
 	return ret;
 }
 
@@ -1630,62 +1647,6 @@ int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	return 0;
 }
 
-static int shrink_brick_asym(reiser4_volume *vol, reiser4_subvol *victim,
-			     u64 delta)
-{
-	int ret;
-	int need_balance = 1;
-	distribution_plugin *dist_plug = vol->dist_plug;
-	struct super_block *sb = reiser4_get_current_sb();
-
-	assert("edward-2185", vol != NULL);
-	assert("edward-2186", dist_plug != NULL);
-	assert("edward-2187", dist_plug->h.id != TRIV_DISTRIB_ID);
-
-	if (delta > victim->data_room) {
-		warning("edward-2153",
-			"Can't shrink brick by %llu (its capacity is %llu)",
-			delta, victim->data_room);
-		return -EINVAL;
-	} else if (delta == victim->data_room)
-		return remove_brick_asym(vol, victim);
-
-	ret = dist_plug->v.init(&vol->conf->tab,
-				num_dsa_subvols(vol), vol->num_sgs_bits,
-				&vol->dcx);
-	if (ret)
-		return ret;
-
-	ret = shrink_brick(vol, victim, delta, &need_balance);
-
-	dist_plug->v.done(&vol->dcx);
-	if (ret)
-		return ret;
-
-	if (need_balance) {
-		ret = make_volume_dconf(vol);
-		if (ret)
-			return ret;
-	}
-	ret = capture_brick_super(victim);
-	if (ret)
-		return ret;
-	if (!need_balance)
-		return 0;
-	/*
-	 * set unbalanced status and store it on disk
-	 */
-	reiser4_volume_set_unbalanced(sb);
-	ret = capture_brick_super(get_meta_subvol());
-	if (ret)
-		return ret;
-	reiser4_txn_restart_current();
-
-	printk("reiser4 (%s): Brick %s has been shrunk.\n",
-	       sb->s_id, victim->name);
-	return 0;
-}
-
 static int init_volume_simple(struct super_block *sb, reiser4_volume *vol)
 {
 	if (!REISER4_PLANA_KEY_ALLOCATION) {
@@ -1707,23 +1668,16 @@ static u64 data_subvol_id_calc_simple(lv_conf *conf, const struct inode *inode,
 	return METADATA_SUBVOL_ID;
 }
 
-static int shrink_brick_simple(reiser4_volume *vol, reiser4_subvol *this,
-			       u64 delta)
-{
-	warning("", "shrink operation is undefined for simple volumes");
-	return -EINVAL;
-}
-
 static int remove_brick_simple(reiser4_volume *vol, reiser4_subvol *this)
 {
 	warning("", "remove_brick operation is undefined for simple volumes");
 	return -EINVAL;
 }
 
-static int expand_brick_simple(reiser4_volume *vol, reiser4_subvol *this,
-			       u64 delta)
+static int resize_brick_simple(reiser4_volume *vol, reiser4_subvol *this,
+			       long long delta)
 {
-	warning("", "expand operation is undefined for simple volumes");
+	warning("", "resize operation is undefined for simple volumes");
 	return -EINVAL;
 }
 
@@ -2211,9 +2165,8 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		.load_volume = NULL,
 		.done_volume = NULL,
 		.init_volume = init_volume_simple,
-		.expand_brick = expand_brick_simple,
+		.resize_brick = resize_brick_simple,
 		.add_brick = add_brick_simple,
-		.shrink_brick = shrink_brick_simple,
 		.remove_brick = remove_brick_simple,
 		.remove_brick_tail = NULL,
 		.print_brick = print_brick_simple,
@@ -2242,9 +2195,8 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		.load_volume = load_volume_asym,
 		.done_volume = done_volume_asym,
 		.init_volume = init_volume_asym,
-		.expand_brick = expand_brick_asym,
+		.resize_brick = resize_brick_asym,
 		.add_brick = add_brick_asym,
-		.shrink_brick = shrink_brick_asym,
 		.remove_brick = remove_brick_asym,
 		.remove_brick_tail = remove_brick_tail_asym,
 		.print_brick = print_brick_asym,

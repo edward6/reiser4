@@ -618,14 +618,11 @@ typedef struct volume_plugin {
 	void (*done_volume)(reiser4_volume *vol);
 	/* Init LV after loading LV system info from all subvolumes */
 	int (*init_volume)(struct super_block *sb, reiser4_volume *vol);
-	/* Increase capacity of @brick by value @delta */
-	int (*expand_brick)(reiser4_volume *vol, reiser4_subvol *brick,
-			    u64 delta);
+	/* Change data capacity of @brick to new @value */
+	int (*resize_brick)(reiser4_volume *vol, reiser4_subvol *brick,
+			    long long value);
 	/* Add @new brick to logical volume @vol */
 	int (*add_brick)(reiser4_volume *vol, reiser4_subvol *new);
-	/* Decrease capacity of @brick by value @delta */
-	int (*shrink_brick)(reiser4_volume *vol, reiser4_subvol *brick,
-			    u64 delta);
 	/* Remove @brick from logical volume @vol */
 	int (*remove_brick)(reiser4_volume *vol, reiser4_subvol *brick);
 
