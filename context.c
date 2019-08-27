@@ -21,10 +21,7 @@
  * actually performed in the top level context, and get_current_context()
  * always returns top level context.
  * Of course, reiser4_init_context()/reiser4_done_context() have to be properly
- * nested any way. UPDATE: Edward added a stackable component of the context -
- * context stackable info (csi) - it grows when we enter and shorten when we
- * exit context. See functions ctx_stack_push()/ctx_stack_pull() for details.
- *
+ * nested any way.
  * Note that there is an important difference between reiser4 uses
  * ->fs_context and the way other file systems use it. Other file systems
  * (ext3 and reiserfs) use ->fs_context only for the duration of _transaction_
@@ -44,66 +41,6 @@
 
 #include <linux/writeback.h> /* for current_is_pdflush() */
 #include <linux/hardirq.h>
-
-/************************ context stack info ************************/
-
-static struct kmem_cache *csi_slab = NULL;
-
-int ctx_stack_info_init_static(void)
-{
-	assert("edward-2281", csi_slab == NULL);
-
-	csi_slab = kmem_cache_create("ctx_stack_info",
-				     sizeof(struct ctx_stack_info),
-				     0,
-				     SLAB_HWCACHE_ALIGN |
-				     SLAB_RECLAIM_ACCOUNT,
-				     NULL);
-	if (csi_slab == NULL)
-		return RETERR(-ENOMEM);
-	return 0;
-}
-
-void ctx_stack_info_done_static(void)
-{
-	destroy_reiser4_cache(&csi_slab);
-}
-
-struct ctx_stack_info *alloc_context_stack_info(void)
-{
-	return kmem_cache_alloc(csi_slab, reiser4_ctx_gfp_mask_get());
-}
-
-void free_context_stack_info(struct ctx_stack_info *csi)
-{
-	assert("edward-2282", csi != NULL);
-
-	kmem_cache_free(csi_slab, csi);
-}
-
-int ctx_stack_push(reiser4_context *ctx)
-{
-	struct ctx_stack_info *new;
-
-	new = alloc_context_stack_info();
-	if (new == NULL)
-		return -ENOMEM;
-	memcpy(new, &ctx->csi, sizeof(*new));
-	ctx->csi.next = new;
-	ctx->csi.data_subv = NULL;
-	return 0;
-}
-
-void ctx_stack_pull(reiser4_context *ctx)
-{
-	struct ctx_stack_info *old;
-
-	assert("edward-2283", ctx->csi.data_subv == NULL);
-
-	old = ctx->csi.next;
-	memcpy(&ctx->csi, old, sizeof(*old));
-	free_context_stack_info(old);
-}
 
 /************************ context brick info ************************/
 
@@ -259,8 +196,6 @@ reiser4_context *reiser4_init_context(struct super_block *super)
 	if (context && context->super == super) {
 		context = (reiser4_context *) current->journal_info;
 		context->nr_children++;
-		if (ctx_stack_push(context))
-			return ERR_PTR(RETERR(-ENOMEM));
 		return context;
 	}
 	context = kzalloc(sizeof(*context), GFP_KERNEL);
@@ -395,7 +330,6 @@ static void reiser4_done_context(reiser4_context * context)
 #if REISER4_DEBUG
 		assert("zam-685", context->nr_children >= 0);
 #endif
-		ctx_stack_pull(context);
 	}
 }
 

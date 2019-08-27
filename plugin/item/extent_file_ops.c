@@ -760,31 +760,6 @@ static int overwrite_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	return count;
 }
 
-/**
- * Return pointer to data subvolume which is set at the top
- * of context stack info
- */
-reiser4_subvol *get_current_data_subvol(void)
-{
-	return get_current_csi()->data_subv;
-}
-
-/**
- * Set the pointer to data subvolume at the top of context stack info
- */
-void set_current_data_subvol(reiser4_subvol *subv)
-{
-	get_current_csi()->data_subv = subv;
-}
-
-/**
- * Unset the pointer to data subvolume at the top of context stack info
- */
-void clear_current_data_subvol(void)
-{
-	get_current_csi()->data_subv = NULL;
-}
-
 int update_extent_unix_file(struct inode *inode, jnode *node,
 			    loff_t pos, int *plugged_hole, int truncate)
 {
@@ -841,7 +816,6 @@ int update_extent_unix_file(struct inode *inode, jnode *node,
 
 	zrelse(loaded);
 	done_lh(&lh);
-	clear_current_data_subvol();
 	assert("edward-2049", reiser4_lock_counters()->d_refs == 0);
 
 	return (result == 1) ? 0 : result;
@@ -929,7 +903,6 @@ static int update_extents_unix_file(struct file *file, struct inode *inode,
 	} while (count > 0);
 
 	save_file_hint(file, &hint);
-	clear_current_data_subvol();
 	assert("", reiser4_lock_counters()->d_refs == 0);
 	return result;
 }

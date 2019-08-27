@@ -821,10 +821,6 @@ static int __init init_reiser4(void)
 	if ((result = ctx_brick_info_init_static()) != 0)
 		goto failed_init_ctx_brick_info;
 
-	/* initialize cache of ctx_stack_info */
-	if ((result = ctx_stack_info_init_static()) != 0)
-		goto failed_init_ctx_stack_info;
-
 	/* initialize interface */
 	if ((result = reiser4_interface_init()) != 0)
 		goto failed_init_interface;
@@ -835,8 +831,6 @@ static int __init init_reiser4(void)
 	}
 	reiser4_interface_exit();
  failed_init_interface:
-	ctx_stack_info_done_static();
- failed_init_ctx_stack_info:
 	ctx_brick_info_done_static();
  failed_init_ctx_brick_info:
 	blocknr_list_done_static();
@@ -879,7 +873,6 @@ static void __exit done_reiser4(void)
 	result = unregister_filesystem(&reiser4_fs_type);
 	BUG_ON(result != 0);
 	reiser4_interface_exit();
-	ctx_stack_info_done_static();
 	ctx_brick_info_done_static();
 	blocknr_list_done_static();
 	blocknr_set_done_static();
