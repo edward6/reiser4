@@ -221,14 +221,15 @@ static int forward_relocate_unformatted(flush_pos_t *flush_pos,
 	reiser4_block_nr first_allocated;
 	__u64 allocated;
 	block_stage_t block_stage;
+	reiser4_subvol *subv;
+	reiser4_blocknr_hint nohint;
 
 	*exit = 0;
 	coord = &flush_pos->coord;
 	start = extent_get_start(ext);
+	subv = find_data_subvol(coord);
 
 	assert("edward-1852", item_is_extent(coord));
-	assert("edward-1853",
-	       flush_pos->data_subv == find_data_subvol(coord));
 
 	if (flush_pos->pos_in_unit) {
 		/*
@@ -272,32 +273,31 @@ static int forward_relocate_unformatted(flush_pos_t *flush_pos,
 	 * preceder more precise
 	 */
 	if (coord->unit_pos && (state_of_extent(ext - 1) == ALLOCATED_EXTENT))
-		update_data_preceder(flush_pos,
-				     extent_get_start(ext - 1) +
-				     extent_get_width(ext - 1));
+		flush_pos_update_preceder(flush_pos, subv->id,
+					  extent_get_start(ext - 1) +
+					  extent_get_width(ext - 1));
 	/*
 	 * allocate new block numbers for protected nodes
 	 */
-	allocate_blocks_unformatted(flush_pos_data_hint(flush_pos),
+	allocate_blocks_unformatted(flush_pos_get_hint(flush_pos,
+						       subv->id, &nohint),
 				    protected,
 				    &first_allocated, &allocated,
-				    block_stage, flush_pos->data_subv);
+				    block_stage, subv);
 	if (state == ALLOCATED_EXTENT)
 		/*
 		 * on relocating - free nodes which are going to be
 		 * relocated
 		 */
-		reiser4_dealloc_blocks(&start, &allocated,
-				       0, BA_DEFER, flush_pos->data_subv);
+		reiser4_dealloc_blocks(&start, &allocated, 0, BA_DEFER, subv);
 	/*
 	 * assign new block numbers to protected nodes
 	 */
 	assign_real_blocknrs(flush_pos, oid, index,
-			     allocated, first_allocated, flush_pos->data_subv);
+			     allocated, first_allocated, subv);
 
 	/* prepare extent which will replace current one */
-	reiser4_set_extent(flush_pos->data_subv, &replace_ext,
-			   first_allocated, allocated);
+	reiser4_set_extent(subv, &replace_ext, first_allocated, allocated);
 
 	/* adjust extent item */
 	result = convert_extent(coord, &replace_ext);
@@ -334,11 +334,14 @@ static squeeze_result squeeze_relocate_unformatted(znode *left,
 	__u64 protected;
 	reiser4_extent copy_extent;
 	block_stage_t block_stage;
+	reiser4_subvol *subv;
+	reiser4_blocknr_hint nohint;
 
 	assert("edward-1610", flush_pos->pos_in_unit == 0);
 	assert("edward-1611", coord_is_leftmost_unit(coord));
 	assert("edward-1612", item_is_extent(coord));
 
+	subv = find_data_subvol(coord);
 	ext = extent_by_coord(coord);
 	index = extent_unit_index(coord);
 	start = extent_get_start(ext);
@@ -348,8 +351,6 @@ static squeeze_result squeeze_relocate_unformatted(znode *left,
 	oid = get_key_objectid(key);
 
 	assert("edward-1613", state != HOLE_EXTENT);
-	assert("edward-1854",
-	       flush_pos->data_subv == find_data_subvol(coord));
 
 	if (state == ALLOCATED_EXTENT) {
 		/*
@@ -373,21 +374,21 @@ static squeeze_result squeeze_relocate_unformatted(znode *left,
 	 * preceder more precise
 	 */
 	if (coord->unit_pos && (state_of_extent(ext - 1) == ALLOCATED_EXTENT))
-		update_data_preceder(flush_pos,
+		flush_pos_update_preceder(flush_pos, subv->id,
 				     extent_get_start(ext - 1) +
 				     extent_get_width(ext - 1));
 	/*
 	 * allocate new block numbers for protected nodes
 	 */
-	allocate_blocks_unformatted(flush_pos_data_hint(flush_pos),
+	allocate_blocks_unformatted(flush_pos_get_hint(flush_pos,
+						       subv->id, &nohint),
 				    protected,
 				    &first_allocated, &allocated,
-				    block_stage, flush_pos->data_subv);
+				    block_stage, subv);
 	/*
 	 * prepare extent which will be copied to left
 	 */
-	reiser4_set_extent(flush_pos->data_subv, &copy_extent,
-			   first_allocated, allocated);
+	reiser4_set_extent(subv, &copy_extent, first_allocated, allocated);
 	result = shift_extent_left_begin(left, coord, key, &copy_extent);
 
 	if (result == -E_NODE_FULL) {
@@ -397,25 +398,24 @@ static squeeze_result squeeze_relocate_unformatted(znode *left,
 		reiser4_dealloc_blocks(&first_allocated, &allocated,
 				       (state == ALLOCATED_EXTENT) ?
 				       BLOCK_FLUSH_RESERVED : BLOCK_UNALLOCATED,
-				       BA_PERMANENT, flush_pos->data_subv);
+				       BA_PERMANENT, subv);
 		/*
 		 * rewind the preceder
 		 */
-		update_data_preceder(flush_pos, first_allocated);
+		flush_pos_update_preceder(flush_pos, subv->id, first_allocated);
 		return SQUEEZE_TARGET_FULL;
 	}
 	if (state == ALLOCATED_EXTENT) {
 		/*
 		 * free nodes which were relocated
 		 */
-		reiser4_dealloc_blocks(&start, &allocated, 0, BA_DEFER,
-				       flush_pos->data_subv);
+		reiser4_dealloc_blocks(&start, &allocated, 0, BA_DEFER, subv);
 	}
 	/*
 	 * assign new block numbers to protected nodes
 	 */
 	assign_real_blocknrs(flush_pos, oid, index, allocated,
-			     first_allocated, flush_pos->data_subv);
+			     first_allocated, subv);
 	set_key_offset(key,
 		       get_key_offset(key) +
 		       (allocated << current_blocksize_bits));
@@ -439,12 +439,9 @@ static void forward_overwrite_unformatted(flush_pos_t *flush_pos, oid_t oid,
 					  reiser4_block_nr width)
 {
 	unsigned long i;
-	reiser4_tree *tree;
 	jnode *node;
 	txn_atom *atom;
 	LIST_HEAD(jnodes);
-
-	tree = &flush_pos->data_subv->tree;
 
 	atom = atom_locked_by_fq(reiser4_pos_fq(flush_pos));
 	assert("vs-1478", atom);
@@ -487,13 +484,13 @@ static squeeze_result squeeze_overwrite_unformatted(znode *left,
 	extent_state state;
 	oid_t oid;
 	reiser4_extent copy_extent;
+	reiser4_subvol *subv;
 
 	assert("vs-1457", flush_pos->pos_in_unit == 0);
 	assert("vs-1467", coord_is_leftmost_unit(coord));
 	assert("vs-1467", item_is_extent(coord));
-	assert("edward-1855",
-	       flush_pos->data_subv == find_data_subvol(coord));
 
+	subv = find_data_subvol(coord);
 	ext = extent_by_coord(coord);
 	index = extent_unit_index(coord);
 	start = extent_get_start(ext);
@@ -507,7 +504,7 @@ static squeeze_result squeeze_overwrite_unformatted(znode *left,
 	 * and make all first not flushprepped nodes
 	 * overwrite nodes
 	 */
-	reiser4_set_extent(flush_pos->data_subv, &copy_extent, start, width);
+	reiser4_set_extent(subv, &copy_extent, start, width);
 
 	result = shift_extent_left_begin(left, coord, key, &copy_extent);
 	if (result == -E_NODE_FULL)
@@ -579,6 +576,7 @@ static int reverse_should_realloc_formatted_hybrid(jnode * node,
 	reiser4_block_nr nblk = 0;
 
 	assert("jmacd-8989", !jnode_is_root(node));
+	assert("edward-2396", jnode_get_subvol(node) == get_meta_subvol());
 	/*
 	 * This function is called only from the
 	 * reverse_relocate_check_dirty_parent() and only if the parent
@@ -589,7 +587,8 @@ static int reverse_should_realloc_formatted_hybrid(jnode * node,
 
 	/* New nodes are treated as if they are being relocated. */
 	if (JF_ISSET(node, JNODE_CREATED) ||
-	    (pos->meta_leaf_relocate && jnode_get_level(node) == LEAF_LEVEL))
+	    (__leaf_should_relocate(&pos->mfbi) &&
+	     jnode_get_level(node) == LEAF_LEVEL))
 		return 1;
 
 	/* Find the preceder. FIXME(B): When the child is an unformatted,
@@ -602,7 +601,7 @@ static int reverse_should_realloc_formatted_hybrid(jnode * node,
 	if (coord_is_leftmost_unit(parent_coord))
 		pblk = *znode_get_block(parent_coord->node);
 	else
-		pblk = pos->meta_preceder.blk;
+		pblk = pos->mfbi.preceder.blk;
 
 	check_preceder(pblk, get_meta_subvol());
 	if (pblk == 0)
@@ -656,9 +655,9 @@ static int forward_try_defragment_locality(znode * node,
 	if (ZF_ISSET(node, JNODE_CREATED)) {
 		assert("zam-816",
 		       reiser4_blocknr_is_fake(znode_get_block(node)));
-		pos->meta_preceder.block_stage = BLOCK_UNALLOCATED;
+		pos->mfbi.preceder.block_stage = BLOCK_UNALLOCATED;
 	} else {
-		pos->meta_preceder.block_stage = BLOCK_GRABBED;
+		pos->mfbi.preceder.block_stage = BLOCK_GRABBED;
 
 		/* The disk space for relocating the @node is already reserved
 		 * in "flush reserved" counter if @node is leaf, otherwise we
@@ -695,7 +694,7 @@ static int forward_try_defragment_locality(znode * node,
 	 * We may do not use 5% of reserved disk space here
 	 * and flush will not pack tightly
 	 */
-	ret = reiser4_alloc_block(flush_pos_meta_hint(pos), &blk,
+	ret = reiser4_alloc_block(&pos->mfbi.preceder, &blk,
 				  BA_FORMATTED | BA_PERMANENT, subv);
 	if (ret)
 		goto exit;
@@ -774,6 +773,7 @@ static int forward_alloc_formatted_hybrid(znode * node,
 {
 	int ret;
 	reiser4_subvol *subv = get_meta_subvol();
+	flush_brick_info *fbi = &pos->mfbi;
 	/**
  	 * FIXME(D): We have the node write-locked and should have checked for !
 	 * allocated() somewhere before reaching this point, but there can be a
@@ -788,12 +788,13 @@ static int forward_alloc_formatted_hybrid(znode * node,
 	if (ZF_ISSET(node, JNODE_REPACK) || ZF_ISSET(node, JNODE_CREATED) ||
 	    znode_is_root(node) || /* We have enough nodes to
 				      relocate no matter what */
-	    (pos->meta_leaf_relocate != 0 && znode_get_level(node) == LEAF_LEVEL)) {
+	    (__leaf_should_relocate(fbi) &&
+	     znode_get_level(node) == LEAF_LEVEL)) {
 		/*
 		 * No need to decide with new nodes, they are treated the same
 		 * as relocate. If the root node is dirty, relocate.
 		 */
-		if (pos->meta_preceder.blk == 0) {
+		if (fbi->preceder.blk == 0) {
 			/*
 			 * preceder is unknown and we have decided to relocate
 			 * node -- using of default value for search start is
@@ -801,11 +802,12 @@ static int forward_alloc_formatted_hybrid(znode * node,
 			 */
 			reiser4_block_nr blk;
 			get_blocknr_hint_default(&blk, subv);
-			update_meta_preceder(pos, blk);
+			fbi->preceder.blk = blk;
+			check_preceder(blk, subv);
 		}
 		goto best_reloc;
 
-	} else if (pos->meta_preceder.blk == 0) {
+	} else if (fbi->preceder.blk == 0) {
 		/*
 		 * If we don't know the preceder, leave it where it is
 		 */
@@ -817,30 +819,30 @@ static int forward_alloc_formatted_hybrid(znode * node,
 
 		assert("jmacd-6172", !reiser4_blocknr_is_fake(&nblk));
 		assert("jmacd-6173",
-		       !reiser4_blocknr_is_fake(&pos->meta_preceder.blk));
-		assert("jmacd-6174", pos->meta_preceder.blk != 0);
+		       !reiser4_blocknr_is_fake(&fbi->preceder.blk));
+		assert("jmacd-6174", fbi->preceder.blk != 0);
 
-		if (pos->meta_preceder.blk == nblk - 1) {
+		if (fbi->preceder.blk == nblk - 1) {
 			/* Ideal. */
 			jnode_make_wander(ZJNODE(node));
 		} else {
 
-			dist = (nblk < pos->meta_preceder.blk) ?
-				(pos->meta_preceder.blk - nblk) :
-				(nblk - pos->meta_preceder.blk);
+			dist = (nblk < fbi->preceder.blk) ?
+				(fbi->preceder.blk - nblk) :
+				(nblk - fbi->preceder.blk);
 			/*
 			 * See if we can find a closer block
 			 * (forward direction only).
 			 */
-			pos->meta_preceder.max_dist =
+			fbi->preceder.max_dist =
 			    min((reiser4_block_nr)subv->flush.relocate_distance,
 				dist);
-			pos->meta_preceder.level = znode_get_level(node);
+			fbi->preceder.level = znode_get_level(node);
 
 			ret = forward_try_defragment_locality(node,
 							      parent_coord,
 							      pos);
-			pos->meta_preceder.max_dist = 0;
+			fbi->preceder.max_dist = 0;
 
 			if (ret && (ret != -ENOSPC))
 				return ret;
@@ -870,10 +872,10 @@ static int forward_alloc_formatted_hybrid(znode * node,
 			}
 		}
 	}
-	update_meta_preceder(pos, *znode_get_block(node));
+	fbi_update_preceder(fbi, *znode_get_block(node));
 	pos->alloc_cnt += 1;
 
-	assert("jmacd-4277", !reiser4_blocknr_is_fake(&pos->meta_preceder.blk));
+	assert("jmacd-4277", !reiser4_blocknr_is_fake(&fbi->preceder.blk));
 
 	return 0;
 }
@@ -887,13 +889,13 @@ static int forward_alloc_unformatted_hybrid(flush_pos_t *flush_pos)
 	__u64 width;
 	extent_state state;
 	reiser4_key key;
+	reiser4_subvol *subv;
 
 	assert("vs-1468", flush_pos->state == POS_ON_EPOINT);
 	assert("vs-1469", coord_is_existing_unit(&flush_pos->coord) &&
 	       item_is_extent(&flush_pos->coord));
-	assert("edward-1856",
-	       flush_pos->data_subv == find_data_subvol(&flush_pos->coord));
 
+	subv = find_data_subvol(&flush_pos->coord);
 	coord = &flush_pos->coord;
 	ext = extent_by_coord(coord);
 	state = state_of_extent(ext);
@@ -909,7 +911,8 @@ static int forward_alloc_unformatted_hybrid(flush_pos_t *flush_pos)
 
 	assert("vs-1457", width > flush_pos->pos_in_unit);
 
-	if (flush_pos->data_leaf_relocate || state == UNALLOCATED_EXTENT) {
+	if (leaf_should_relocate(flush_pos, subv->id) ||
+	    state == UNALLOCATED_EXTENT) {
 		int exit;
 		int result;
 		result = forward_relocate_unformatted(flush_pos, ext, state,
@@ -933,11 +936,14 @@ static squeeze_result squeeze_alloc_unformatted_hybrid(znode *left,
 	reiser4_key key;
 	reiser4_extent *ext;
 	extent_state state;
+	reiser4_subvol *subv;
 
+	subv = find_data_subvol(coord);
 	ext = extent_by_coord(coord);
 	state = state_of_extent(ext);
 
-	if ((flush_pos->data_leaf_relocate && state == ALLOCATED_EXTENT) ||
+	if ((leaf_should_relocate(flush_pos, subv->id) &&
+	     state == ALLOCATED_EXTENT) ||
 	    (state == UNALLOCATED_EXTENT))
 		/*
 		 * relocate
@@ -965,7 +971,7 @@ static int forward_alloc_formatted_journal(znode * node,
 	int ret;
 
 	if (ZF_ISSET(node, JNODE_CREATED)) {
-		if (pos->meta_preceder.blk == 0) {
+		if (pos->mfbi.preceder.blk == 0) {
 			/*
 			 * preceder is unknown and we have decided to relocate
 			 * node -- using of default value for search start is
@@ -973,7 +979,7 @@ static int forward_alloc_formatted_journal(znode * node,
 			 */
 			reiser4_block_nr blk;
 			get_blocknr_hint_default(&blk, get_meta_subvol());
-			update_meta_preceder(pos, blk);
+			pos->mfbi.preceder.blk = blk;
 		}
 		ret = forward_try_defragment_locality(node,
 						      parent_coord,
@@ -992,11 +998,11 @@ static int forward_alloc_formatted_journal(znode * node,
 	else
 		jnode_make_wander(ZJNODE(node));
 
-	update_meta_preceder(pos, *znode_get_block(node));
+	pos->mfbi.preceder.blk = *znode_get_block(node);
 	pos->alloc_cnt += 1;
 
 	assert("edward-1616",
-	       !reiser4_blocknr_is_fake(&pos->meta_preceder.blk));
+	       !reiser4_blocknr_is_fake(&pos->mfbi.preceder.blk));
 	return 0;
 }
 
@@ -1016,8 +1022,6 @@ static int forward_alloc_unformatted_journal(flush_pos_t *flush_pos)
 	assert("edward-1617", flush_pos->state == POS_ON_EPOINT);
 	assert("edward-1618", coord_is_existing_unit(&flush_pos->coord)
 	       && item_is_extent(&flush_pos->coord));
-	assert("edward-1857",
-	       flush_pos->data_subv == find_data_subvol(coord));
 
 	ext = extent_by_coord(coord);
 	state = state_of_extent(ext);
@@ -1093,7 +1097,7 @@ static int forward_alloc_formatted_wa(znode * node,
 	assert("edward-1623", coord_is_invalid(parent_coord)
 	       || znode_is_write_locked(parent_coord->node));
 
-	if (pos->meta_preceder.blk == 0) {
+	if (pos->mfbi.preceder.blk == 0) {
 		/*
 		 * preceder is unknown and we have decided to relocate
 		 * node -- using of default value for search start is
@@ -1101,7 +1105,7 @@ static int forward_alloc_formatted_wa(znode * node,
 		 */
 		reiser4_block_nr blk;
 		get_blocknr_hint_default(&blk, get_meta_subvol());
-		update_meta_preceder(pos, blk);
+		pos->mfbi.preceder.blk = blk;
 	}
 	ret = forward_try_defragment_locality(node, parent_coord, pos);
 	if (ret && (ret != -ENOSPC)) {
@@ -1121,11 +1125,11 @@ static int forward_alloc_formatted_wa(znode * node,
 		/* set JNODE_RELOC bit _after_ node gets allocated */
 		znode_make_reloc(node, pos->fq);
 	}
-	update_meta_preceder(pos, *znode_get_block(node));
+	pos->mfbi.preceder.blk = *znode_get_block(node);
 	pos->alloc_cnt += 1;
 
 	assert("edward-1626",
-	       !reiser4_blocknr_is_fake(&pos->meta_preceder.blk));
+	       !reiser4_blocknr_is_fake(&pos->mfbi.preceder.blk));
 	return 0;
 }
 

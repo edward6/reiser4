@@ -161,7 +161,6 @@ int reiser4_scan_extent(flush_scan * scan)
 	scan_index = index_jnode(scan->node);
 
 	assert("jmacd-7889", item_is_extent(&coord));
-	assert("edward-1870", scan->data_subv == find_data_subvol(&coord));
  repeat:
 	oid = get_key_objectid(item_key_by_coord(&coord, &key));
 
@@ -257,34 +256,6 @@ int reiser4_scan_extent(flush_scan * scan)
 	}
 	if (0) {
 	stop_same_parent:
-		/*
-		 * If we are scanning left and we stop in the middle of an
-		 * allocated extent, we know the preceder immediately..
-		 *
-		 * middle of extent is (scan_index - unit_index) != 0
-		 */
-		if (reiser4_scanning_left(scan) &&
-		    scan->data_subv == find_data_subvol(&coord) &&
-		    (scan_index - unit_index) != 0) {
-			/*
-			 * FIXME(B): Someone should step-through and verify
-			 * that this preceder calculation is indeed correct
-			 *
-			 * @unit_start is starting block (number) of extent
-			 * unit. Flush stopped at the @scan_index block from
-			 * the beginning of the file, which is (scan_index -
-			 * unit_index) block within extent.
-			 */
-			if (unit_start) {
-				/*
-				 * skip preceder update when we are at hole
-				 */
-				scan->data_preceder_blk =
-					unit_start + scan_index - unit_index;
-				check_preceder(scan->data_preceder_blk,
-					       scan->data_subv);
-			}
-		}
 		/*
 		 * In this case, we leave coord set to the parent of scan->node
 		 */
@@ -707,8 +678,6 @@ int allocated_extent_slum_size(flush_pos_t *flush_pos, oid_t oid,
 	unsigned long i;
 	txn_atom *atom;
 	int nr;
-
-	assert("edward-1869", flush_pos->data_subv != NULL);
 
 	atom = atom_locked_by_fq(reiser4_pos_fq(flush_pos));
 	assert("vs-1468", atom);

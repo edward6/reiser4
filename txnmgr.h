@@ -235,7 +235,6 @@ struct txn_atom {
 
 	/* Number of open handles. */
 	__u32 txnh_count;
-
 	/* The number of znodes captured by this atom.  Equal to the sum of lengths of the
 	   dirty_nodes[level] and clean_nodes lists. */
 	__u32 capture_count;

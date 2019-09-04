@@ -38,6 +38,7 @@ typedef struct reiser4_dir_entry_desc reiser4_dir_entry_desc;
 typedef struct reiser4_context reiser4_context;
 typedef struct atom_brick_info atom_brick_info;
 typedef struct ctx_brick_info ctx_brick_info;
+typedef struct flush_brick_info flush_brick_info;
 typedef struct carry_level carry_level;
 typedef struct blocknr_set_entry blocknr_set_entry;
 typedef struct blocknr_list_entry blocknr_list_entry;

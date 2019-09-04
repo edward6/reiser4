@@ -394,8 +394,10 @@
    from the two nodes being squeezed. Looks difficult, but has potential to
    increase space utilization. */
 
+static struct kmem_cache *_fbi_slab = NULL;
+
 /* Flush-scan helper functions. */
-static void scan_init(flush_scan * scan);
+static void scan_init(flush_scan * scan, flush_pos_t *pos);
 static void scan_done(flush_scan * scan);
 
 /* Flush-scan algorithm. */
@@ -409,11 +411,19 @@ static int scan_by_coord(flush_scan * scan);
 /* Initial flush-point ancestor allocation. */
 static int alloc_pos_and_ancestors(flush_pos_t *pos);
 static int alloc_one_ancestor(const coord_t *coord, flush_pos_t *pos);
-static int set_preceder(const coord_t *coord_in, flush_pos_t *pos);
+static int find_preceder(const coord_t *coord_in, flush_brick_info *fbi);
+static struct flush_brick_info *find_fbi(const struct rb_root *root,
+					 u32 brick_id);
+static void insert_fbi(struct rb_root *root, flush_brick_info *this);
+static flush_brick_info *grab_fbi(struct rb_root *infos,
+				  flush_brick_info *mfbi, u32 brick_id);
+static void init_fbi(flush_brick_info *fbi, u32 subv_id);
+static void done_all_fbi(struct rb_root *infos, struct flush_brick_info *mfbi);
 
 /* Main flush algorithm.
    Note on abbreviation: "squeeze and allocate" == "squalloc". */
 static int squalloc(flush_pos_t *pos);
+static int squalloc_upper_levels(flush_pos_t *, znode *, znode *);
 
 /* Flush squeeze implementation. */
 static int squeeze_right_non_twig(znode * left, znode * right);
@@ -521,7 +531,7 @@ static void move_flush_pos(flush_pos_t *pos, lock_handle * new_lock,
 }
 
 /* delete empty node which link from the parent still exists. */
-static int delete_empty_node(znode * node)
+static inline int delete_empty_node(znode *node)
 {
 	reiser4_key smallest_removed;
 
@@ -532,64 +542,55 @@ static int delete_empty_node(znode * node)
 	return reiser4_delete_node(node, &smallest_removed, NULL, 1);
 }
 
-static void set_data_subvol_ifnull(flush_pos_t *pos, const coord_t *coord)
-{
-	if (pos->data_subv == NULL)
-		pos->data_subv = find_data_subvol(coord);
-}
-
 /* Prepare flush position for alloc_pos_and_ancestors() and squalloc() */
-static int prepare_flush_pos(flush_pos_t *pos, jnode * org)
+static int prepare_flush_pos(flush_pos_t *pos, jnode *leftmost)
 {
 	int ret;
 	load_count load;
 	lock_handle lock;
 
-	assert("edward-1859", pos->data_subv == NULL);
-
 	init_lh(&lock);
 	init_load_count(&load);
 
-	if (jnode_is_znode(org)) {
-		ret = longterm_lock_znode(&lock, JZNODE(org),
+	if (jnode_is_znode(leftmost)) {
+		ret = longterm_lock_znode(&lock, JZNODE(leftmost),
 					  ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
 		if (ret)
 			return ret;
 
-		ret = incr_load_count_znode(&load, JZNODE(org));
+		ret = incr_load_count_znode(&load, JZNODE(leftmost));
 		if (ret)
 			return ret;
 
 		pos->state =
-		    (jnode_get_level(org) ==
+		    (jnode_get_level(leftmost) ==
 		     LEAF_LEVEL) ? POS_ON_LEAF : POS_ON_INTERNAL;
 		move_flush_pos(pos, &lock, &load, NULL);
 	} else {
 		coord_t parent_coord;
-		ret = jnode_lock_parent_coord(org, &parent_coord, &lock,
+		ret = jnode_lock_parent_coord(leftmost, &parent_coord, &lock,
 					      &load, ZNODE_WRITE_LOCK, 0);
 		if (ret)
 			goto done;
 		if (!item_is_extent(&parent_coord)) {
 			/*
 			 * file was converted to tail,
-			 * @org became HEARD_BANSHEE,
+			 * @leftmost became HEARD_BANSHEE,
 			 * we found internal item
 			 */
 			ret = -EAGAIN;
 			goto done;
 		}
 		pos->state = POS_ON_EPOINT;
-		set_data_subvol_ifnull(pos, &parent_coord);
 		move_flush_pos(pos, &lock, &load, &parent_coord);
-		pos->child = jref(org);
+		pos->child = jref(leftmost);
 
-		if (extent_is_unallocated(&parent_coord)
-		    && extent_unit_index(&parent_coord) != index_jnode(org)) {
-			/* @org is not first child of its parent unit. This may
-			   happen because longerm lock of its parent node was
-			   released between scan_left and scan_right. For now
-			   work around this having flush to repeat */
+		if (extent_is_unallocated(&parent_coord) &&
+		    extent_unit_index(&parent_coord) != index_jnode(leftmost)) {
+			/* @leftmost is not first child of its parent unit.
+			   This may happen because longerm lock of its parent
+			   node was released between scan_left and scan_right.
+			   For now work around this having flush to repeat */
 			ret = -EAGAIN;
 		}
 	}
@@ -600,57 +601,16 @@ done:
 	return ret;
 }
 
-static txmod_plugin *get_txmod_plugin(reiser4_subvol *subv)
-{
-	return txmod_plugin_by_id(subv->txmod);
-}
-
-/*
- * Return relocation decision for data subvolume
+/**
+ * Make relocation decision on a brick basing on statictics accumulated
+ * by flush scan for that brick
  */
-static int data_leaf_should_relocate(jnode *node, flush_scan *left_scan,
-			      flush_scan *right_scan)
+int leaf_should_relocate(flush_pos_t *pos, u32 subv_id)
 {
-	if ((node->subvol == right_scan->data_subv) &&
-	    JF_ISSET(node, JNODE_REPACK))
-		/*
-		 * data subvolume is marked for re-packing
-		 */
-		return 1;
-	/*
-	 * relocate leaf nodes if at least FLUSH_RELOCATE_THRESHOLD
-	 * nodes were found by left and right scan
-	 */
-	if (right_scan->data_subv &&
-	    (left_scan->data_count + right_scan->data_count >=
-	     right_scan->data_subv->flush.relocate_threshold))
-		return 1;
+	flush_brick_info *fbi;
 
-	return 0;
-}
-
-/*
- * Return relocation decision for meta-data subvolume
- */
-static int meta_leaf_should_relocate(jnode *node, flush_scan *left_scan,
-				     flush_scan *right_scan)
-{
-	if ((node->subvol == right_scan->meta_subv) &&
-	    JF_ISSET(node, JNODE_REPACK))
-		/*
-		 * meta-data subvolume is marked for re-packing
-		 */
-		return 1;
-	/*
-	 * relocate leaf nodes if at least FLUSH_RELOCATE_THRESHOLD
-	 * nodes were found by left and right scan
-	 */
-	if (right_scan->meta_subv &&
-	    (left_scan->meta_count + right_scan->meta_count >=
-	     right_scan->meta_subv->flush.relocate_threshold))
-		return 1;
-
-	return 0;
+	fbi = find_fbi(&pos->bricks_info, subv_id);
+	return fbi == NULL ? 0 : __leaf_should_relocate(fbi);
 }
 
 /* TODO LIST (no particular order): */
@@ -793,8 +753,8 @@ static int jnode_flush(jnode *node, long nr_to_write, long *nr_written,
 	flush_pos->flags = flags;
 	flush_pos->nr_to_write = nr_to_write;
 
-	scan_init(right_scan);
-	scan_init(left_scan);
+	scan_init(right_scan, flush_pos);
+	scan_init(left_scan, flush_pos);
 
 	/* First scan left and remember the leftmost scan position. If the
 	   leftmost position is unformatted we remember its parent_coord. We
@@ -821,19 +781,13 @@ static int jnode_flush(jnode *node, long nr_to_write, long *nr_written,
 	   FLUSH_RELOCATE_THRESHOLD number of nodes are being flushed. The scan
 	   limit is the difference between left_scan.count and the threshold. */
 
-	right_scan->meta_subv = left_scan->meta_subv;
-	right_scan->max_meta_count =
-		left_scan->max_meta_count - left_scan->meta_count;
-
-	right_scan->data_subv = left_scan->data_subv;
-	right_scan->max_data_count =
-		left_scan->max_data_count - left_scan->data_count;
+	right_scan->max_count = left_scan->max_count - left_scan->count;
 	/*
 	 * scan right is inherently deadlock prone, because we are
 	 * (potentially) holding a lock on the twig node at this moment.
 	 * FIXME: this is incorrect comment: lock is not held
 	 */
-	if (right_scan->max_meta_count > 0 || right_scan->max_data_count > 0) {
+	if (right_scan->max_count > 0) {
 		ret = scan_right(right_scan, node);
 		if (ret != 0)
 			goto failed;
@@ -843,13 +797,6 @@ static int jnode_flush(jnode *node, long nr_to_write, long *nr_written,
 	 * right away
 	 */
 	scan_done(right_scan);
-	/*
-	 * set statictics calculated by leftward and rightward scan procedures
-	 */
-	flush_pos->data_leaf_relocate =
-		data_leaf_should_relocate(node, left_scan, right_scan);
-	flush_pos->meta_leaf_relocate =
-		meta_leaf_should_relocate(node, left_scan, right_scan);
 
 	/* Funny business here.  We set the 'point' in the flush_position at
 	   prior to starting squalloc regardless of whether the first point is
@@ -1194,7 +1141,7 @@ static int check_parent_for_realloc(jnode * node,
 	reiser4_subvol *subv = node->subvol;
 
 	if (!JF_ISSET(ZJNODE(parent_coord->node), JNODE_DIRTY)) {
-		txmod_plugin *txmod_plug = get_txmod_plugin(subv);
+		txmod_plugin *txmod_plug = txmod_plugin_by_id(subv->txmod);
 
 		if (!txmod_plug->reverse_should_realloc_formatted)
 			return 0;
@@ -1323,7 +1270,7 @@ exit:
 }
 
 /* This is the recursive step described in alloc_pos_and_ancestors, above.
-   Ignoring the call to set_preceder, which is the next function described, this
+   Ignoring the call to find_preceder, which is the next function described, this
    checks if the child is a leftmost child and returns if it is not. If the
    child is a leftmost child it checks for relocation, possibly dirtying the
    parent. Then it performs the recursive step. */
@@ -1333,12 +1280,15 @@ static int alloc_one_ancestor(const coord_t *coord, flush_pos_t *pos)
 	lock_handle alock;
 	load_count aload;
 	coord_t acoord;
-
-	/* As we ascend at the left-edge of the region to flush, take this
-	   opportunity at the twig level to find our parent-first preceder
-	   unless we have already set it. */
-	if (pos->meta_preceder.blk == 0 && pos->data_preceder.blk == 0) {
-		ret = set_preceder(coord, pos);
+	/*
+	 * As we ascend at the left-edge of the region to flush, take this
+	 * opportunity at the twig level to find our parent-first preceder.
+	 * This precider will be used to allocate the formatted node we will
+	 * start descending from. Other nodes on the way back will be allocated
+	 * by using the updated preceder.
+	 */
+	if (pos->mfbi.preceder.blk == 0) {
+		ret = find_preceder(coord, &pos->mfbi);
 		if (ret != 0)
 			return ret;
 	}
@@ -1392,112 +1342,6 @@ exit:
 	return ret;
 }
 
-static void set_meta_preceder(flush_pos_t *pos,
-			      const coord_t *parent_of_prec,
-			      const coord_t *parent_of_curr,
-			      reiser4_block_nr blk)
-{
-	assert("edward-1860", item_is_internal(parent_of_prec));
-
-	pos->meta_preceder.blk = blk;
-	check_preceder(blk, get_meta_subvol());
-
-	if (pos->data_subv == get_meta_subvol())
-		/*
-		 * found preceder also works for data
-		 * subvolume
-		 */
-		pos->data_preceder = pos->meta_preceder;
-	else
-		/*
-		 * FIXME:
-		 * alternatively we can also find and set
-		 * a meta-data preceder here.
-		 */
-		;
-}
-
-static void set_data_preceder(flush_pos_t *pos,
-			      const coord_t *parent_of_prec,
-			      const coord_t *parent_of_curr,
-			      reiser4_block_nr blk)
-{
-	assert("edward-1861", item_is_extent(parent_of_prec));
-	assert("edward-1862",
-	       ergo(pos->data_subv == NULL, !item_is_extent(parent_of_curr)));
-
-	set_data_subvol_ifnull(pos, parent_of_prec);
-	if (pos->data_subv != find_data_subvol(parent_of_prec))
-		/*
-		 * previous extent points to different subvolume,
-		 * there is no preceder
-		 */
-		return;
-
-	pos->data_preceder.blk = blk;
-	check_preceder(blk, pos->data_subv);
-
-	if (pos->data_subv == get_meta_subvol())
-		/*
-		 * found preceder also works for meta-data
-		 * subvolume
-		 */
-		pos->meta_preceder.blk = blk;
-	else
-		/*
-		 * FIXME:
-		 * alternatively we can also find and set
-		 * a meta-data preceder here.
-		 */
-		;
-}
-
-/**
- * Update preceder in meta-data subvolume.
- * This happens e.g. after allocation a formatted node in flush time
- */
-void update_meta_preceder(flush_pos_t *pos, reiser4_block_nr blk)
-{
-	if (unlikely(blk == get_meta_subvol()->block_count))
-		/*
-		 * we reached end of device, reset preceder
-		 */
-		blk = 0;
-
-	pos->meta_preceder.blk = blk;
-	check_preceder(blk, get_meta_subvol());
-
-	if (get_meta_subvol() == pos->data_subv)
-		/*
-		 * update also data preceder
-		 */
-		pos->data_preceder.blk = blk;
-}
-
-/**
- * Update preceder in data subvolume.
- * This happens e.g. after allocation a formatted node in flush time
- */
-void update_data_preceder(flush_pos_t *pos, reiser4_block_nr blk)
-{
-	assert("edward-1848", pos->data_subv != NULL);
-
-	if (unlikely(blk == pos->data_subv->block_count))
-		/*
-		 * we reached end of device, reset preceder
-		 */
-		blk = 0;
-
-	pos->data_preceder.blk = blk;
-	check_preceder(blk, pos->data_subv);
-
-	if (pos->data_subv == get_meta_subvol())
-		/*
-		 * update also meta-data preceder
-		 */
-		pos->meta_preceder.blk = blk;
-}
-
 /* During the reverse parent-first alloc_pos_and_ancestors process described
    above there is a call to this function at the twig level. During
    alloc_pos_and_ancestors we may ask: should this node be relocated (in reverse
@@ -1514,7 +1358,7 @@ void update_data_preceder(flush_pos_t *pos, reiser4_block_nr blk)
    There is one other place where we may set the flush_position's preceder hint,
    which is during scan-left.
 */
-static int set_preceder(const coord_t *coord_in, flush_pos_t *pos)
+static int find_preceder(const coord_t *coord_in, flush_brick_info *fbi)
 {
 	int ret;
 	coord_t coord;
@@ -1526,7 +1370,6 @@ static int set_preceder(const coord_t *coord_in, flush_pos_t *pos)
 
 	init_lh(&left_lock);
 	init_load_count(&left_load);
-
 	/*
 	 * FIXME(B): Same FIXME as in "Find the preceder" in
 	 * reverse_allocate. coord_is_leftmost_unit is not the
@@ -1565,10 +1408,16 @@ static int set_preceder(const coord_t *coord_in, flush_pos_t *pos)
 	ret = item_utmost_child_real_block(&coord, RIGHT_SIDE, &blk);
 	if (ret)
 		goto exit;
-	if (item_is_extent(&coord))
-		set_data_preceder(pos, &coord, coord_in, blk);
-	else
-		set_meta_preceder(pos, &coord, coord_in, blk);
+	if (find_data_subvol(&coord) != get_meta_subvol())
+		/*
+		 * We are looking for a preceder for a formatted node
+		 * on the twig level (that is in meta-data brick), whereas
+		 * previous extent at @coord points out to different brick,
+		 * so preceder not found.
+		 */
+		goto exit;
+	fbi->preceder.blk = blk;
+	check_preceder(blk, get_meta_subvol());
  exit:
 	done_load_count(&left_load);
 	done_lh(&left_lock);
@@ -1631,34 +1480,15 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t *pos)
 	assert("jmacd-2008", !node_is_empty(right));
 	assert("edward-1728", ZJNODE(right)->subvol == ZJNODE(left)->subvol);
 
-	subv = ZJNODE(left)->subvol;
-	txmod_plug = get_txmod_plugin(subv);
+	subv = get_meta_subvol();
+	txmod_plug = txmod_plugin_by_id(subv->txmod);
 	coord_init_first_unit(&coord, right);
-
-	if (item_is_extent(&coord)) {
-		/*
-		 * at this point data subvolume is still
-		 * unknown when flushing by the following scenario:
-		 * handle_pos_on_internal->handle_pos_on_formatted->
-		 * squeeze_right_neighbor->squeeze_right_twig
-		 */
-		set_data_subvol_ifnull(pos, &coord);
-	}
 	/*
 	 * FIXME: can be optimized to cut once
 	 */
 	while (!node_is_empty(coord.node) && item_is_extent(&coord)) {
 		ON_DEBUG(void *vp);
 
-		if (pos->data_subv != find_data_subvol(&coord)) {
-			/*
-			 * we process not more than one data subvolume
-			 * in each flush session
-			 */
-			ret = -E_OUTSTEP;
-			pos_stop(pos);
-			goto out;
-		}
 		assert("vs-1468", coord_is_leftmost_unit(&coord));
 		ON_DEBUG(vp = shift_check_prepare(left, coord.node));
 		/*
@@ -1956,9 +1786,6 @@ static int squeeze_right_twig_and_advance_coord(flush_pos_t *pos,
 	return 0;
 }
 
-/* forward declaration */
-static int squalloc_upper_levels(flush_pos_t *, znode *, znode *);
-
 /* do a fast check for "same parents" condition before calling
  * squalloc_upper_levels() */
 static inline int check_parents_and_squalloc_upper_levels(flush_pos_t *pos,
@@ -2020,8 +1847,8 @@ static int squalloc_upper_levels(flush_pos_t *pos, znode * left, znode * right)
 		 * the slum
 		 */
 		if (znode_get_level(right_parent_lock.node) == TWIG_LEVEL)
-			update_meta_preceder(pos,
-				      *znode_get_block(right_parent_lock.node));
+			fbi_update_preceder(&pos->mfbi,
+				*znode_get_block(right_parent_lock.node));
 		goto out;
 	}
 	ret = incr_load_count_znode(&left_parent_load, left_parent_lock.node);
@@ -2378,14 +2205,14 @@ static int squalloc_extent_should_stop(flush_pos_t *pos)
 static int handle_pos_on_twig(flush_pos_t *pos)
 {
 	int ret;
+	reiser4_subvol *subv;
 	txmod_plugin *txmod_plug;
 
 	assert("zam-844", pos->state == POS_ON_EPOINT);
 	assert("zam-843", item_is_extent(&pos->coord));
-	assert("edward-1849",
-	       pos->data_subv == find_data_subvol(&pos->coord));
 
-	txmod_plug = get_txmod_plugin(pos->data_subv);
+	subv = find_data_subvol(&pos->coord);
+	txmod_plug = txmod_plugin_by_id(subv->txmod);
 
 	/* We decide should we continue slum processing with current extent
 	   unit: if leftmost child of current extent unit is flushprepped
@@ -2402,25 +2229,8 @@ static int handle_pos_on_twig(flush_pos_t *pos)
 	/*
 	 * loop on the whole connected set of extents
 	 */
-	while (pos_valid(pos) &&
-	       coord_is_existing_unit(&pos->coord) &&
+	while (pos_valid(pos) && coord_is_existing_unit(&pos->coord) &&
 	       item_is_extent(&pos->coord)) {
-		/*
-		 * at the beginning of iteration check
-		 * data subvolume pointed out by current item
-		 */
-		reiser4_subvol *subv;
-
-		subv = find_data_subvol(&pos->coord);
-		if (subv != pos->data_subv) {
-			assert("edward-2019", pos->data_subv != NULL);
-			/*
-			 * we process not more than one
-			 * data subvolume per flush session
-			 */
-			pos_stop(pos);
-			return -E_OUTSTEP;
-		}
 		ret = txmod_plug->forward_alloc_unformatted(pos);
 		if (ret)
 			break;
@@ -2477,19 +2287,6 @@ static int handle_pos_end_of_twig(flush_pos_t *pos)
 
 	coord_init_first_unit(&at_right, right_lock.node);
 
-	if (!node_is_empty(right_lock.node) && item_is_extent(&at_right)) {
-		set_data_subvol_ifnull(pos, &at_right);
-		if (pos->data_subv != find_data_subvol(&at_right)) {
-			/*
-			 * first item of the right neighbor
-			 * points to different data subvolume.
-			 * Stop flushing here.
-			 */
-			ret = -E_OUTSTEP;
-			pos_stop(pos);
-			goto out;
-		}
-	}
 	if (JF_ISSET(ZJNODE(right_lock.node), JNODE_DIRTY)) {
 		/*
 		 * If right twig node is dirty we always attempt to squeeze it
@@ -2563,7 +2360,7 @@ static int handle_pos_end_of_twig(flush_pos_t *pos)
 	 * twig node. The code above could miss the preceder updating
 	 * because allocate_znode() could not be called for this node
 	 */
-	update_meta_preceder(pos, *znode_get_block(right_lock.node));
+	fbi_update_preceder(&pos->mfbi, *znode_get_block(right_lock.node));
 
 	coord_init_first_unit(&at_right, right_lock.node);
 	assert("zam-868", coord_is_existing_unit(&at_right));
@@ -2671,18 +2468,7 @@ static int handle_pos_to_twig(flush_pos_t *pos)
 	if (coord_is_after_rightmost(&pcoord))
 		pos->state = POS_END_OF_TWIG;
 	else if (item_is_extent(&pcoord)) {
-		set_data_subvol_ifnull(pos, &pcoord);
-		if (pos->data_subv == find_data_subvol(&pcoord))
-			pos->state = POS_ON_EPOINT;
-		else {
-			/*
-			 * extent item points to different subvolume,
-			 * stop flushing
-			 */
-			ret = -E_OUTSTEP;
-			pos_stop(pos);
-			goto out;
-		}
+		pos->state = POS_ON_EPOINT;
 	} else {
 		/*
 		 * Here we understand that getting -E_NO_NEIGHBOR in
@@ -2984,7 +2770,7 @@ static int allocate_znode(znode *node,
 {
 	txmod_plugin *plug;
 
-	plug = get_txmod_plugin(znode_get_subvol(node));
+	plug = txmod_plugin_by_id(get_meta_subvol()->txmod);
 	/*
 	 * perform znode allocation with znode pinned in memory to avoid races
 	 * with asynchronous emergency flush (which plays with
@@ -3198,7 +2984,7 @@ static int znode_same_parents(znode * a, znode * b)
 /* FLUSH SCAN */
 
 /* Initialize the flush_scan data structure. */
-static void scan_init(flush_scan * scan)
+static void scan_init(flush_scan * scan, flush_pos_t *pos)
 {
 	memset(scan, 0, sizeof(*scan));
 	init_lh(&scan->node_lock);
@@ -3206,6 +2992,8 @@ static void scan_init(flush_scan * scan)
 	init_load_count(&scan->parent_load);
 	init_load_count(&scan->node_load);
 	coord_init_invalid(&scan->parent_coord, NULL);
+	scan->bricks_info = &pos->bricks_info;
+	scan->mfbi = &pos->mfbi;
 }
 
 /* Release any resources held by the flush scan, e.g. release locks,
@@ -3227,24 +3015,8 @@ static void scan_done(flush_scan * scan)
  */
 int reiser4_scan_finished(flush_scan *scan)
 {
-	if (scan->stop)
-		return 1;
-	switch (scan->direction) {
-	case LEFT_SIDE:
-		return 0;
-	case RIGHT_SIDE:
-		if (scan->max_data_count &&
-		    (scan->data_count >= scan->max_data_count))
-			return 1;
-		if (scan->max_meta_count &&
-		    (scan->meta_count >= scan->max_meta_count))
-			return 1;
-		return 0;
-	default:
-		impossible("edward-1865",
-			   "bad scan direction %d", scan->direction);
-		return 1;
-	}
+	return scan->stop || (scan->direction == RIGHT_SIDE &&
+			      scan->count >= scan->max_count);
 }
 
 /**
@@ -3254,87 +3026,13 @@ int reiser4_scan_finished(flush_scan *scan)
  */
 int reiser4_scan_goto(flush_scan *scan, jnode *tonode)
 {
-	int go;
-
-	if (jnode_is_unformatted(tonode) &&
-	    (scan->data_subv != NULL) && (tonode->subvol != scan->data_subv))
-		/*
-		 * tonode belongs to different data subvolume.
-		 * Stop scan, as we don't handle more than one
-		 * data subvolume per one scan_left-scan_right
-		 * pair
-		 */
-		go = 0;
-	else
-		go = same_slum_check(scan->node, tonode, 1, 0);
+	int go = same_slum_check(scan->node, tonode, 1, 0);
 
 	if (!go) {
 		scan->stop = 1;
 		jput(tonode);
 	}
 	return go;
-}
-
-static void init_scan_data_counters(flush_scan *scan, jnode *node)
-{
-	assert("edward-1866", jnode_is_unformatted(node));
-
-	scan->data_subv = node->subvol;
-	scan->max_data_count = scan->data_subv->flush.scan_maxnodes;
-
-	if (scan->data_subv == get_meta_subvol()) {
-		/*
-		 * init also meta-data counters
-		 */
-		scan->meta_subv	= scan->data_subv;
-		scan->max_meta_count = scan->meta_subv->flush.scan_maxnodes;
-	}
-}
-
-static void init_scan_meta_counters(flush_scan *scan, jnode *node)
-{
-	assert("edward-1864", jnode_is_znode(node));
-
-	scan->meta_subv = node->subvol;
-	scan->max_meta_count = scan->meta_subv->flush.scan_maxnodes;
-
-	if (scan->data_subv == get_meta_subvol()) {
-		/*
-		 * init also data counters
-		 */
-		scan->data_subv	= scan->meta_subv;
-		scan->max_data_count = scan->data_subv->flush.scan_maxnodes;
-	}
-}
-
-static void update_scan_counters(flush_scan *scan, jnode *node,
-				 unsigned add_count)
-{
-	if (jnode_is_unformatted(node)) {
-		if (scan->data_subv == NULL)
-			init_scan_data_counters(scan, node);
-		else
-			assert("edward-1867",
-			       scan->data_subv == node->subvol);
-		scan->data_count += add_count;
-		if (scan->data_subv == get_meta_subvol())
-			/*
-			 * update also counter of meta-data subvolume
-			 */
-			scan->meta_count += add_count;
-	} else {
-		if (scan->meta_subv == NULL)
-			init_scan_meta_counters(scan, node);
-		else
-			assert("edward-1868",
-			       scan->meta_subv == node->subvol);
-		scan->meta_count += add_count;
-		if (scan->data_subv == get_meta_subvol())
-			/*
-			 * update also counter of data subvolume
-			 */
-			scan->data_count += add_count;
-	}
 }
 
 /**
@@ -3346,6 +3044,7 @@ static void update_scan_counters(flush_scan *scan, jnode *node,
 int move_scan_pos(flush_scan *scan, jnode *node,
 		  unsigned add_count, const coord_t *parent)
 {
+	struct flush_brick_info *fbi = NULL;
 	/*
 	 * Release the old references, take the new reference
 	 */
@@ -3354,8 +3053,14 @@ int move_scan_pos(flush_scan *scan, jnode *node,
 	if (scan->node != NULL)
 		jput(scan->node);
 
+	fbi = grab_fbi(scan->bricks_info, scan->mfbi, node->subvol->id);
+	if (fbi == NULL)
+		return RETERR(-ENOMEM);
+
 	scan->node = node;
-	update_scan_counters(scan, node, add_count);
+
+	fbi->count += add_count;
+	scan->count += add_count;
 
 	/* This next stmt is somewhat inefficient.  The reiser4_scan_extent()
 	   code could delay this update step until it finishes and update the
@@ -3780,17 +3485,6 @@ static int scan_by_coord(flush_scan * scan)
 			coord_init_sideof_unit(&next_coord, next_lock.node,
 					       sideof_reverse(scan->direction));
 		}
-		if ((scan->data_subv != NULL) &&
-		    (find_data_subvol(&next_coord) != scan->data_subv)) {
-			/*
-			 * we have jumped to different data subvolume.
-			 * stop scanning here, as we don't handle more
-			 * than one data subvolume per one scan_left -
-			 * scan_right pair)
-			 */
-			scan->stop = 1;
-			break;
-		}
 		iplug = item_plugin_by_coord(&next_coord);
 		/*
 		 * Get the next child
@@ -3865,9 +3559,17 @@ static void pos_init(flush_pos_t *pos)
 	coord_init_invalid(&pos->coord, NULL);
 	init_lh(&pos->lock);
 	init_load_count(&pos->load);
-
-	reiser4_blocknr_hint_init(&pos->meta_preceder);
-	reiser4_blocknr_hint_init(&pos->data_preceder);
+	/*
+	 * init set of per-brick infos and populate it
+	 * with pre-allocated item for meta-data brick
+	 */
+	pos->bricks_info = RB_ROOT;
+	/*
+	 * populate the rb-tree with pre-allocated info
+	 * for meta-data brick
+	 */
+	init_fbi(&pos->mfbi, METADATA_SUBVOL_ID);
+	insert_fbi(&pos->bricks_info, &pos->mfbi);
 }
 
 /* The flush loop inside squalloc periodically checks pos_valid to determine
@@ -3892,10 +3594,9 @@ static int pos_valid(flush_pos_t *pos)
 static void pos_done(flush_pos_t *pos)
 {
 	pos_stop(pos);
-	reiser4_blocknr_hint_done(&pos->meta_preceder);
-	reiser4_blocknr_hint_done(&pos->data_preceder);
 	if (convert_data(pos))
 		free_convert_data(pos);
+	done_all_fbi(&pos->bricks_info, &pos->mfbi);
 }
 
 /* Reset the point and parent.  Called during flush subroutines to terminate the
@@ -3918,6 +3619,165 @@ static int pos_stop(flush_pos_t *pos)
 flush_queue_t *reiser4_pos_fq(flush_pos_t *pos)
 {
 	return pos->fq;
+}
+
+/********************** flush brick info ops ************************/
+
+int flush_init_static(void)
+{
+	assert("edward-2397", _fbi_slab == NULL);
+
+	_fbi_slab = kmem_cache_create("flush_brick_info",
+				      sizeof(flush_brick_info), 0,
+				      SLAB_HWCACHE_ALIGN |
+				      SLAB_RECLAIM_ACCOUNT, NULL);
+	return _fbi_slab == NULL ? RETERR(-ENOMEM) : 0;
+}
+
+/**
+ * This is called on reiser4 module unloading or system shutdown.
+ */
+void done_flush_static(void)
+{
+	destroy_reiser4_cache(&_fbi_slab);
+}
+
+struct flush_brick_info *alloc_fbi(void)
+{
+	return kmem_cache_alloc(_fbi_slab, reiser4_ctx_gfp_mask_get());
+}
+
+static void init_fbi(flush_brick_info *fbi, u32 subv_id)
+{
+	memset(fbi, 0, sizeof(*fbi));
+	RB_CLEAR_NODE(&fbi->node);
+	fbi->brick_id = subv_id;
+}
+
+static void free_fbi(struct flush_brick_info *fbi)
+{
+	kmem_cache_free(_fbi_slab, fbi);
+}
+
+static struct flush_brick_info *find_fbi(const struct rb_root *root,
+					 u32 brick_id)
+{
+	struct rb_node *node = root->rb_node;
+
+	while (node) {
+		struct flush_brick_info *fbi =
+			rb_entry(node, struct flush_brick_info, node);
+
+		if (fbi->brick_id > brick_id)
+			node = node->rb_left;
+		else if (fbi->brick_id < brick_id)
+			node = node->rb_right;
+		else
+			return fbi;
+	}
+	return NULL;
+}
+
+/**
+ * Try to insert item @this to rb-tree @root
+ * Return NULL on success. Otherwise, return node of existing item
+ */
+static void insert_fbi(struct rb_root *root, struct flush_brick_info *this)
+{
+	struct rb_node *parent = NULL;
+	struct rb_node **pos = &(root->rb_node);
+
+	while (*pos) {
+		struct flush_brick_info *fbi;
+
+		fbi = rb_entry(*pos, struct flush_brick_info, node);
+		parent = *pos;
+
+		if (this->brick_id < fbi->brick_id)
+			pos = &((*pos)->rb_left);
+		else if (this->brick_id > fbi->brick_id)
+			pos = &((*pos)->rb_right);
+		else
+			BUG_ON(1);
+	}
+	rb_link_node(&this->node, parent, pos);
+	rb_insert_color(&this->node, root);
+}
+
+/**
+ * On sucess return pointer to the flush brick info
+ * (existing or newly allocated).
+ * @mfbi: pre-allocated info for meta-data brick
+ */
+static flush_brick_info *grab_fbi(struct rb_root *infos,
+				  struct flush_brick_info *mfbi, u32 brick_id)
+{
+	struct flush_brick_info *fbi;
+
+	if (brick_id == METADATA_SUBVOL_ID)
+		/*
+		 * It is known to be preallocated
+		 */
+		return mfbi;
+	fbi = find_fbi(infos, brick_id);
+	if (fbi)
+		return fbi;
+	/*
+	 * Insert a new item to the rb-tree
+	 */
+	fbi = alloc_fbi();
+	if (fbi) {
+		init_fbi(fbi, brick_id);
+		insert_fbi(infos, fbi);
+	}
+	return fbi;
+}
+
+static void done_all_fbi(struct rb_root *infos, struct flush_brick_info *mfbi)
+{
+	/*
+	 * remove pre-allocated info
+	 */
+	rb_erase(&mfbi->node, infos);
+	RB_CLEAR_NODE(&mfbi->node);
+
+	while (!RB_EMPTY_ROOT(infos)) {
+		struct rb_node *node;
+		struct flush_brick_info *fbi;
+
+		node = rb_first(infos);
+		fbi = rb_entry(node, struct flush_brick_info, node);
+
+		rb_erase(&fbi->node, infos);
+		RB_CLEAR_NODE(&fbi->node);
+		free_fbi(fbi);
+	}
+}
+
+reiser4_blocknr_hint *flush_pos_get_hint(flush_pos_t *pos, u32 subv_id,
+					 reiser4_blocknr_hint *ehint)
+{
+	flush_brick_info *fbi = NULL;
+
+	fbi = grab_fbi(&pos->bricks_info, &pos->mfbi, subv_id);
+	if (likely(fbi != NULL))
+		return &fbi->preceder;
+	else {
+		/* use emergency hint */
+		memset(ehint, 0, sizeof(*ehint));
+		return ehint;
+	}
+}
+
+void flush_pos_update_preceder(flush_pos_t *pos, u32 subv_id,
+			       reiser4_block_nr blk)
+{
+	flush_brick_info *fbi;
+
+	fbi = grab_fbi(&pos->bricks_info, &pos->mfbi, subv_id);
+	if (!fbi)
+		return;
+	fbi_update_preceder(fbi, blk);
 }
 
 /* Make Linus happy.

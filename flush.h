@@ -6,6 +6,18 @@
 #define __REISER4_FLUSH_H__
 
 #include "plugin/cluster.h"
+#include "plugin/volume/volume.h"
+
+struct flush_brick_info {
+	struct rb_node node;
+	u32 brick_id; /* key */
+
+	/* scan info */
+	int count; /* Number of scanned nodes which belong to this brick.
+		      This is used to make relocation decisions */
+	/* squalloc info */
+	reiser4_blocknr_hint preceder; /* The flush 'hint' state */
+};
 
 /* The flush_scan data structure maintains the state of an in-progress
    flush-scan on a single level of the tree. A flush-scan is used for counting
@@ -17,17 +29,13 @@
    perform rapid scanning and then) longterm-lock the endpoint node. When
    scanning right we are simply counting the number of adjacent, dirty nodes. */
 struct flush_scan {
-
-	/* The current number of nodes scanned on this level. */
-	int meta_count;
-	int data_count;
-	/*
-	 * There is a maximum number of nodes for a scan on any
-	 * single level. When going leftward, then both counts are
-	 * restricted by FLUSH_SCAN_MAXNODES (see reiser4.h)
-	 */
-	int max_meta_count;
-	int max_data_count;
+	struct rb_root *bricks_info;
+	flush_brick_info *mfbi; /* pre-loaded info for meta-data brick */
+	/* The following two fields are used to terminate scan */
+	int count; /* total number of nodes scanned on this level */
+	int max_count; /* maximal total number of nodes to scan on any
+			* single level. When going leftward, then both
+			* counts are restricted by FLUSH_SCAN_MAXNODES */
 	/*
 	 * One of the sideof enumeration: {LEFT_SIDE, RIGHT_SIDE}
 	 */
@@ -57,16 +65,6 @@ struct flush_scan {
 	lock_handle parent_lock;
 	coord_t parent_coord;
 	load_count parent_load;
-	/*
-	 * The block allocator preceder hint. Sometimes flush_scan determines
-	 * what the preceder is and if so it sets it here, after which it is
-	 * copied into the flush_position. Otherwise, the preceder is computed
-	 * later
-	 */
-	reiser4_block_nr data_preceder_blk;
-	reiser4_block_nr meta_preceder_blk;
-	reiser4_subvol *meta_subv;
-	reiser4_subvol *data_subv;
 };
 
 struct convert_item_info {
@@ -106,8 +104,10 @@ typedef enum flush_position_state {
    A single flush_position object is constructed after left- and right-scanning
    finishes. */
 struct flush_position {
-	flushpos_state_t state;
+	struct rb_root bricks_info;
+	struct flush_brick_info mfbi; /* pre-allocated info for meta-data brick */
 
+	flushpos_state_t state;
 	coord_t coord;		/* coord to traverse unformatted nodes */
 	lock_handle lock;	/* current lock we hold */
 	load_count load;	/* load status for current locked formatted node
@@ -115,16 +115,6 @@ struct flush_position {
 	jnode *child;		/* for passing a reference to unformatted child
 				 * across pos state changes */
 
-	reiser4_blocknr_hint meta_preceder; /* The flush 'hint' state for
-					       meta-data subvolume */
-	reiser4_blocknr_hint data_preceder; /* The flush 'hint' state for data
-					       subvolume */
-	reiser4_subvol *data_subv; /* data subvolume where extent allocation
-				      against the hint above happens */
-	int data_leaf_relocate;	/* True if enough nodes were found in data volume
-				   to suggest a relocation policy. */
-	int meta_leaf_relocate; /* True if enough nodes were found in meta-data
-				   volume to suggest a relocation policy. */
 	int alloc_cnt;		/* The number of nodes allocated during squeeze
 				   and allococate. */
 	int prep_or_free_cnt;	/* The number of nodes prepared for write
@@ -239,17 +229,6 @@ static inline void update_chaining_state(flush_pos_t *pos,
 	}
 }
 
-/* Return the flush_position's block allocator hint. */
-static inline reiser4_blocknr_hint *flush_pos_meta_hint(flush_pos_t *pos)
-{
-	return &pos->meta_preceder;
-}
-
-static inline reiser4_blocknr_hint *flush_pos_data_hint(flush_pos_t *pos)
-{
-	return &pos->data_preceder;
-}
-
 #define SQUALLOC_THRESHOLD 256
 
 static inline int should_terminate_squalloc(flush_pos_t *pos)
@@ -257,6 +236,19 @@ static inline int should_terminate_squalloc(flush_pos_t *pos)
 	return convert_data(pos) &&
 	    !item_convert_data(pos) &&
 	    item_convert_count(pos) >= SQUALLOC_THRESHOLD;
+}
+
+/**
+ * Make a decision about block relocation in a brick
+ */
+static inline int __leaf_should_relocate(flush_brick_info *fbi)
+{
+	/*
+	 * relocate leaf nodes if at least FLUSH_RELOCATE_THRESHOLD
+	 * nodes were found by left and right scan
+	 */
+	return fbi->count >=
+		current_origin(fbi->brick_id)->flush.relocate_threshold;
 }
 
 #if REISER4_DEBUG
@@ -287,11 +279,15 @@ squeeze_result squalloc_extent(znode *left, const coord_t *, flush_pos_t *,
 			       reiser4_key *stop_key);
 extern int reiser4_init_fqs(void);
 extern void reiser4_done_fqs(void);
-extern void update_meta_preceder(flush_pos_t *pos, reiser4_block_nr blk);
-extern void update_data_preceder(flush_pos_t *pos, reiser4_block_nr blk);
+extern reiser4_blocknr_hint *flush_pos_get_hint(flush_pos_t *pos, u32 subv_id,
+						reiser4_blocknr_hint *ehint);
+extern int leaf_should_relocate(flush_pos_t *pos, u32 subv_id);
+extern void flush_pos_update_preceder(flush_pos_t *pos, u32 subv_id,
+				      reiser4_block_nr blk);
+extern int flush_init_static(void);
+extern void done_flush_static(void);
 
 #if REISER4_DEBUG
-
 extern void reiser4_check_fq(const txn_atom *atom);
 extern atomic_t flush_cnt;
 
@@ -302,6 +298,18 @@ extern void check_pos(flush_pos_t *pos);
 #define check_preceder(blk, subv) noop
 #define check_pos(pos) noop
 #endif
+
+static inline void fbi_update_preceder(flush_brick_info *fbi,
+				       reiser4_block_nr blk)
+{
+	if (unlikely(blk == current_origin(fbi->brick_id)->block_count))
+		/*
+		 * we reached end of device, reset preceder
+		 */
+		blk = 0;
+	fbi->preceder.blk = blk;
+	check_preceder(blk, current_origin(fbi->brick_id));
+}
 
 /* __REISER4_FLUSH_H__ */
 #endif

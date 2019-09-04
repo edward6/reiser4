@@ -821,6 +821,10 @@ static int __init init_reiser4(void)
 	if ((result = ctx_brick_info_init_static()) != 0)
 		goto failed_init_ctx_brick_info;
 
+	/* initialize cache of ctx_stack_info */
+	if ((result = flush_init_static()) != 0)
+		goto failed_init_flush;
+
 	/* initialize interface */
 	if ((result = reiser4_interface_init()) != 0)
 		goto failed_init_interface;
@@ -831,6 +835,8 @@ static int __init init_reiser4(void)
 	}
 	reiser4_interface_exit();
  failed_init_interface:
+	done_flush_static();
+ failed_init_flush:
 	ctx_brick_info_done_static();
  failed_init_ctx_brick_info:
 	blocknr_list_done_static();
