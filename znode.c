@@ -342,9 +342,8 @@ void znode_remove(znode *node)
 
 	assert("nikita-2108", node != NULL);
 	assert("nikita-470", node->c_count == 0);
-	assert("edward-2027", znode_get_subvol(node) != NULL);
 
-	sbinfo = get_super_private(znode_get_subvol(node)->super);
+	sbinfo = get_super_private(znode_get_super(node));
 	assert_rw_write_locked(&(sbinfo->tree_lock));
 #endif
 	/* remove reference to this znode from cbk cache */

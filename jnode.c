@@ -241,6 +241,8 @@ void jnode_init_tail(jnode *node)
 /* Initialize a jnode. */
 void jnode_init(jnode *node, reiser4_subvol *subv, jnode_type type)
 {
+	assert("edward-2398", is_in_reiser4_context());
+
 	memset(node, 0, sizeof(jnode));
 	ON_DEBUG(node->magic = JMAGIC);
 	jnode_set_type(node, type);
@@ -250,6 +252,7 @@ void jnode_init(jnode *node, reiser4_subvol *subv, jnode_type type)
 	spin_lock_init(&node->load);
 	node->atom = NULL;
 	node->subvol = subv;
+	node->super = reiser4_get_current_sb();
 	INIT_LIST_HEAD(&node->capture_link);
 	init_waitqueue_head(&node->wait_jload);
 	ASSIGN_NODE_LIST(node, NOT_CAPTURED);
@@ -264,7 +267,7 @@ static void jnode_done(jnode *node)
 {
 	reiser4_super_info_data *sbinfo;
 
-	sbinfo = get_super_private(node->subvol->super);
+	sbinfo = get_super_private(jnode_get_super(node));
 
 	spin_lock_irq(&sbinfo->all_guard);
 	assert("nikita-2422", !list_empty(&node->jnodes));
@@ -413,7 +416,6 @@ static void inode_attach_jnode(jnode * node)
 	reiser4_inode *info;
 	struct radix_tree_root *rtree;
 
-	assert_rw_write_locked(&(jnode_get_tree(node)->tree_lock));
 	assert("zam-1043", node->key.j.mapping != NULL);
 	inode = node->key.j.mapping->host;
 	info = reiser4_inode_data(inode);
@@ -437,7 +439,6 @@ static void inode_detach_jnode(jnode * node)
 	reiser4_inode *info;
 	struct radix_tree_root *rtree;
 
-	assert_rw_write_locked(&(jnode_get_tree(node)->tree_lock));
 	assert("zam-1044", node->key.j.mapping != NULL);
 	inode = node->key.j.mapping->host;
 	info = reiser4_inode_data(inode);
@@ -472,7 +473,6 @@ hash_unformatted_jnode(jnode * node, struct address_space *mapping,
 	assert("vs-1442", node->key.j.mapping == 0);
 	assert("vs-1443", node->key.j.objectid == 0);
 	assert("vs-1444", node->key.j.index == (unsigned long)-1);
-	assert_rw_write_locked(&(jnode_get_tree(node)->tree_lock));
 
 	node->key.j.mapping = mapping;
 	node->key.j.objectid = get_inode_oid(mapping->host);
@@ -491,9 +491,8 @@ hash_unformatted_jnode(jnode * node, struct address_space *mapping,
 	inode_attach_jnode(node);
 }
 
-static void unhash_unformatted_node_nolock(jnode * node)
+static void unhash_unformatted_node_nolock(jnode *node)
 {
-	assert("edward-2140", jnode_get_super(node) != NULL);
 	assert("vs-1683", node->key.j.mapping != NULL);
 	assert("vs-1684",
 	       node->key.j.objectid ==
@@ -1357,7 +1356,7 @@ static void delete_znode(jnode *node)
 
 	assert("edward-2023", jnode_get_subvol(node) != NULL);
 
-	sbinfo = get_super_private(jnode_get_subvol(node)->super);
+	sbinfo = get_super_private(jnode_get_super(node));
 
 	assert_rw_write_locked(&(sbinfo->tree_lock));
 #endif
@@ -1382,7 +1381,7 @@ static int remove_znode(jnode *node)
 
 	assert("edward-2024", jnode_get_subvol(node) != NULL);
 
-	sbinfo = get_super_private(jnode_get_subvol(node)->super);
+	sbinfo = get_super_private(jnode_get_super(node));
 	assert_rw_write_locked(&(sbinfo->tree_lock));
 #endif
 	z = JZNODE(node);
@@ -1607,9 +1606,8 @@ static int jnode_try_drop(jnode *node)
 
 	assert("nikita-2491", node != NULL);
 	assert("nikita-2583", JF_ISSET(node, JNODE_RIP));
-	assert("edward-2025", jnode_get_subvol(node) != NULL);
 
-	sbinfo = get_super_private(jnode_get_subvol(node)->super);
+	sbinfo = get_super_private(jnode_get_super(node));
 	jtype = jnode_get_type(node);
 
 	spin_lock_jnode(node);
@@ -1647,11 +1645,10 @@ static int jnode_try_drop(jnode *node)
 }
 
 /* jdelete() -- Delete jnode from the tree and file system */
-static int jdelete(jnode * node/* jnode to finish with */)
+static int jdelete(jnode *node /* jnode to finish with */)
 {
 	struct page *page;
 	int result;
-	reiser4_tree *tree;
 	jnode_type jtype;
 	reiser4_super_info_data *info;
 
@@ -1663,7 +1660,6 @@ static int jdelete(jnode * node/* jnode to finish with */)
 	page = jnode_lock_page(node);
 	assert_spin_locked(&(node->guard));
 
-	tree = jnode_get_tree(node);
 	info = get_super_private(jnode_get_super(node));
 
 	__write_lock_tree(info);
@@ -1716,9 +1712,6 @@ int jdrop(jnode *node)
 	jnode_type jtype;
 	int result;
 	reiser4_super_info_data *sbinfo;
-
-	assert("edward-2026", jnode_get_subvol(node) != NULL);
-	assert("edward-2141", jnode_get_super(node) != NULL);
 
 	sbinfo = get_super_private(jnode_get_super(node));
 

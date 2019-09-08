@@ -2760,7 +2760,7 @@ void znode_make_dirty(znode * z)
 	/* znode is longterm locked, we can check dirty bit without spinlock */
 	if (JF_ISSET(node, JNODE_DIRTY)) {
 		/* znode is dirty already. All we have to do is to change znode version */
-		z->version = znode_build_version(jnode_get_tree(node));
+		z->version = znode_build_version(znode_get_tree(z));
 		return;
 	}
 
@@ -2784,7 +2784,7 @@ void znode_make_dirty(znode * z)
 		set_page_dirty_notag(page);
 		put_page(page);
 		/* bump version counter in znode */
-		z->version = znode_build_version(jnode_get_tree(node));
+		z->version = znode_build_version(znode_get_tree(z));
 	} else {
 		assert("zam-596", znode_above_root(JZNODE(node)));
 		spin_unlock_jnode(node);

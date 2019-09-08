@@ -314,6 +314,11 @@ static inline struct reiser4_subvol *znode_get_subvol(const znode *node)
 	return jnode_get_subvol(ZJNODE(node));
 }
 
+static inline struct super_block *znode_get_super(const znode *node)
+{
+	return jnode_get_super(ZJNODE(node));
+}
+
 #define znode_get_tree(node) (&znode_get_subvol(node)->tree)
 
 /* resolve race with zput */

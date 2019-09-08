@@ -175,6 +175,7 @@ struct jnode {
 	/*   88 */ reiser4_plugin_id parent_item_id;
 	/* wait on JNODE_LOADING_IN_PROGRESS flag */
 	/*   92 */ wait_queue_head_t wait_jload;
+	/*  116 */ struct super_block *super;
 #if REISER4_DEBUG
 	/* list of all jnodes for debugging purposes. */
 	struct list_head jnodes;
@@ -387,8 +388,7 @@ static inline void jnode_set_subvol(jnode *node, reiser4_subvol *subv)
 	node->subvol = subv;
 }
 
-#define jnode_get_super(node) (jnode_get_subvol(node)->super)
-#define jnode_get_tree(node) (&jnode_get_subvol(node)->tree)
+#define jnode_get_super(node) ((node)->super)
 
 static inline const reiser4_block_nr *jnode_get_block(const jnode *node)
 {
@@ -649,7 +649,7 @@ extern struct address_space *mapping_jnode(const jnode * node);
 extern unsigned long index_jnode(const jnode * node);
 
 static inline void jput(jnode * node);
-extern void jput_final(jnode * node);
+extern void jput_final(jnode *node);
 
 /* bump data counter on @node */
 static inline void add_d_ref(jnode * node/* node to increase d_count of */)
