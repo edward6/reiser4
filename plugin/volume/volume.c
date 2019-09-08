@@ -810,14 +810,28 @@ static reiser4_subvol *origin_at(slot_t slot)
 	return ((mirror_t *)slot)[0];
 }
 
-static u64 blocks_free_at(slot_t slot)
-{
-	return origin_at(slot)->blocks_free;
-}
-
 static u64 capacity_at(slot_t slot)
 {
 	return origin_at(slot)->data_room;
+}
+
+/**
+ * Return number of busy data blocks, which are a subject
+ * for distribution.
+ * @slot represents data brick! This function can not be
+ * applied to meta-data brick.
+ */
+static u64 data_blocks_occupied(slot_t slot)
+{
+	/*
+	 * From the total block count on a device we need
+	 * to subtract number of system blocks (from disk
+	 * format specifications), which are always busy
+	 * and are not a subject for distribution
+	 */
+	return origin_at(slot)->block_count -
+		origin_at(slot)->min_blocks_used -
+		origin_at(slot)->blocks_free;
 }
 
 /**
@@ -859,7 +873,7 @@ static u64 space_occupied_at(slot_t slot)
 				 capacity_at(neighbor));
 	} else
 		/* data brick */
-		return capacity_at(slot) - blocks_free_at(slot);
+		return data_blocks_occupied(slot);
 }
 
 /**

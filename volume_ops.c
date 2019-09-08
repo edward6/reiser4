@@ -82,6 +82,9 @@ static int reiser4_resize_brick(struct super_block *sb,
 			reiser4_get_current_sb()->s_id);
 		return -EINVAL;
 	}
+	if (args->new_capacity == this->data_room)
+		/* nothing to do */
+		return 0;
 	ret = super_volume(sb)->vol_plug->resize_brick(super_volume(sb),
 					this,
 					args->new_capacity - this->data_room);
