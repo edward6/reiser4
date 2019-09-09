@@ -575,12 +575,14 @@ struct dist_volume_ops {
 	void (*done)(reiser4_dcx *rdcx);
 	/* Increase capacity of an array.
 	   If @new is not NULL, then the whole bucket is to be added */
-	int (*inc)(reiser4_dcx *rdcx, void *tab, u64 target_pos, bucket_t new);
+	int (*inc)(reiser4_dcx *rdcx, const void *tab,
+		   u64 target_pos, bucket_t new);
 	/* Decrease capacity of an array.
 	   If @old is not NULL, then the whole bucket is to be removed */
-	int (*dec)(reiser4_dcx *rdcx, void *tab, u64 target_pos, bucket_t old);
+	int (*dec)(reiser4_dcx *rdcx, const void *tab,
+		   u64 target_pos, bucket_t old);
 	/* Increase max limit for the number of buckets in array */
-	int (*spl)(reiser4_dcx *rdcx, u32 fact_bits);
+	int (*spl)(reiser4_dcx *rdcx, const void *tab, u32 fact_bits);
 	/* Pack system configuration for storing on disk */
 	void (*pack)(reiser4_dcx *rdcx, char *to, u64 src_off, u64 count);
 	/* Extract system configuration from disk */
@@ -637,6 +639,9 @@ typedef struct volume_plugin {
 	/* Print volume info */
 	int (*print_volume)(struct super_block *sb,
 			    struct reiser4_vol_op_args *args);
+	/* Increase upper limit for the number of available bricks
+	   in a volume in (1 << @factor_bits) times */
+	int (*scale_volume)(struct super_block *sb, unsigned factor_bits);
 	/* Balance a logical volume specified by @super.
 	 * This procedure is supposed to complete any volume operations
 	 * above. If it returns 0, then the volume is fully balanced.

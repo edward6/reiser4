@@ -694,6 +694,8 @@ static void pack_format40_super(const struct super_block *s,
 		put_unaligned(cpu_to_le64(conf->nr_mslots), &format_sb->nr_mslots);
 
 		put_unaligned(cpu_to_le64(subv->volmap_loc[CUR_VOL_CONF]), &format_sb->volinfo_loc);
+
+		put_unaligned(vol->num_sgs_bits, &format_sb->num_sgs_bits);
 	}
 	put_unaligned(cpu_to_le64(format_flags), &format_sb->flags);
 }

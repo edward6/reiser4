@@ -31,9 +31,9 @@ extern int initv_fsx32(void **tab, u64 numb, int nums_bits, reiser4_dcx *rdcx);
 extern void donev_fsx32(reiser4_dcx *rdcx);
 extern u64 lookup_fsx32m(reiser4_dcx *rdcx, const struct inode *inode,
 			 const char *str, int len, u32 seed, void *tab);
-extern int inc_fsx32(reiser4_dcx *rdcx, void *tab, u64 pos, bucket_t new);
-extern int dec_fsx32(reiser4_dcx *rdcx, void *tab, u64 pos, bucket_t victim);
-extern int spl_fsx32(reiser4_dcx *rdcx, u32 fact_bits);
+extern int inc_fsx32(reiser4_dcx *rdcx, const void *tab, u64 pos, bucket_t new);
+extern int dec_fsx32(reiser4_dcx *rdcx, const void *tab, u64 pos, bucket_t victim);
+extern int spl_fsx32(reiser4_dcx *rdcx, const void *tab, u32 fact_bits);
 extern void pack_fsx32(reiser4_dcx *rdcx, char *to, u64 src_off, u64 count);
 extern void unpack_fsx32(reiser4_dcx *rdcx, void *tab,
 			 char *from, u64 dst_off, u64 count);

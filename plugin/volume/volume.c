@@ -935,7 +935,7 @@ static int resize_brick(reiser4_volume *vol, reiser4_subvol *this,
 			long long delta, int *need_balance)
 {
 	int ret;
-	int(*dst_resize_fn)(reiser4_dcx *, void *, u64, bucket_t);
+	int(*dst_resize_fn)(reiser4_dcx *, const void *, u64, bucket_t);
 
 	assert("edward-2393", delta != 0);
 
@@ -1888,6 +1888,56 @@ int print_brick_asym(struct super_block *sb, struct reiser4_vol_op_args *args)
 	return ret;
 }
 
+static int scale_volume_asym(struct super_block *sb, unsigned factor_bits)
+{
+	int ret;
+	reiser4_volume *vol = super_volume(sb);
+	lv_conf *old_conf = vol->conf;
+	distribution_plugin *dist_plug = vol->dist_plug;
+
+	ret = dist_plug->v.init(&vol->conf->tab, num_dsa_subvols(vol),
+				vol->num_sgs_bits, &vol->dcx);
+	if (ret)
+		return ret;
+	ret = dist_plug->v.spl(&vol->dcx, vol->conf->tab, factor_bits);
+	dist_plug->v.done(&vol->dcx);
+	if (ret)
+		return ret;
+	vol->num_sgs_bits += factor_bits;
+
+	vol->new_conf = clone_lv_conf(vol->conf);
+	if (vol->new_conf == NULL) {
+		ret = RETERR(-ENOMEM);
+		goto error;
+	}
+	ret = make_volume_dconf(vol);
+	if (ret)
+		goto error;
+	ret = update_volume_dconf(vol);
+	if (ret)
+		goto error;
+
+	dist_plug->r.replace(&vol->dcx, &vol->new_conf->tab);
+
+	reiser4_volume_set_unbalanced(reiser4_get_current_sb());
+	/*
+	 * Now publish the new config
+	 */
+	rcu_assign_pointer(vol->conf, vol->new_conf);
+	synchronize_rcu();
+	free_lv_conf(old_conf);
+	vol->new_conf = NULL;
+	return 0;
+ error:
+	/*
+	 * the scale operation is to be repeated in regular context
+	 */
+	vol->num_sgs_bits -= factor_bits;
+	free_lv_conf(vol->new_conf);
+	vol->new_conf = NULL;
+	return ret;
+}
+
 struct reiser4_iterate_context {
 	reiser4_key curr;
 	reiser4_key next;
@@ -2215,6 +2265,7 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		.remove_brick_tail = remove_brick_tail_asym,
 		.print_brick = print_brick_asym,
 		.print_volume = print_volume_asym,
+		.scale_volume = scale_volume_asym,
 		.balance_volume = balance_volume_asym,
 		.bucket_ops = {
 			.cap_at = cap_at_asym,

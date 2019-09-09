@@ -19,7 +19,7 @@
 #include "../plugin.h"
 #include "dst.h"
 
-#define MAX_SHIFT      (31)
+#define MAX_SHIFT      (20)
 #define MAX_BUCKETS    (1u << MAX_SHIFT)
 #define MIN_NUMS_BITS  (10)
 #define FSX32_PRECISE  (0)
@@ -186,7 +186,7 @@ int create_systab(u32 nums_bits, u32 **tab,
 	return 0;
 }
 
-static int clone_systab(struct fsx32_dcx *dcx, void *tab)
+static int clone_systab(struct fsx32_dcx *dcx, const void *tab)
 {
 	assert("edward-2169", dcx != NULL);
 	assert("edward-2170", tab != NULL);
@@ -208,30 +208,30 @@ static void free_cloned_systab(struct fsx32_dcx *dcx)
 }
 
 static int create_apxs(u32 nums_bits, u32 *tab,
-		       u32 new_numb, u32 *new_weights, bucket_t *vec,
+		       u32 numb, u32 *weights, bucket_t *vec,
 		       void *(*apx_at)(bucket_t *vec, u64 idx),
 		       void (*apx_set_at)(bucket_t *vec, u64 idx, void *apx),
 		       u64 *(*apx_lenp_at)(bucket_t *vec, u64 idx),
 		       u32 (*id2idx)(u64 id))
 {
 	u32 i;
-	for(i = 0; i < new_numb; i++) {
+	for(i = 0; i < numb; i++) {
 		u32 *apx;
 		u64 *apx_lenp;
 
-		apx = fsx32_alloc(new_weights[i]);
+		apx = fsx32_alloc(weights[i]);
 		if (!apx)
 			return RETERR(-ENOMEM);
 		apx_set_at(vec, i, apx);
 		apx_lenp = apx_lenp_at(vec, i);
-		*apx_lenp = new_weights[i];
+		*apx_lenp = weights[i];
 	}
-	init_apxs_by_tab(new_numb,
-			   nums_bits, tab, vec, apx_at, id2idx, new_weights);
+	init_apxs_by_tab(numb,
+			   nums_bits, tab, vec, apx_at, id2idx, weights);
 
-	for (i = 0; i < new_numb; i++)
+	for (i = 0; i < numb; i++)
 		assert("edward-1901",
-		       new_weights[i] == *(apx_lenp_at(vec, i)));
+		       weights[i] == *(apx_lenp_at(vec, i)));
 	return 0;
 }
 
@@ -269,14 +269,14 @@ static void release_apxs(u32 numb, bucket_t *vec,
 
 static int replace_apxs(u32 nums_bits, u32 *tab,
 			u32 old_numb, u32 new_numb,
-			u32 *new_weights, bucket_t *vec,
+			u32 *weights, bucket_t *vec,
 			void *(*apx_at)(bucket_t *vec, u64 idx),
 			void (*apx_set_at)(bucket_t *vec, u64 idx, void *apx),
 			u64 *(*apx_lenp_at)(bucket_t *vec, u64 idx),
 			u32 (*id2idx)(u64 id))
 {
 	release_apxs(old_numb, vec, apx_at, apx_set_at);
-	return create_apxs(nums_bits, tab, new_numb, new_weights, vec,
+	return create_apxs(nums_bits, tab, new_numb, weights, vec,
 			     apx_at, apx_set_at, apx_lenp_at, id2idx);
 }
 
@@ -315,9 +315,7 @@ static int balance_inc(struct fsx32_dcx *dcx,
 			exc[i] = old_weights[i] - new_weights[i];
 	}
 	assert("edward-1910", exc[target_pos] == 0);
-	/*
-	 * steal segments of all apxs to the left of target_pos
-	 */
+
 	for(i = 0; i < target_pos; i++)
 		for(j = 0; j < exc[i]; j++) {
 			u32 *apx;
@@ -328,9 +326,7 @@ static int balance_inc(struct fsx32_dcx *dcx,
 
 			tab[apx[new_weights[i] + j]] = idx2id(target_pos);
 		}
-	/*
-	 * steal segments of all apxs to the right of target_pos
-	 */
+
 	for(i = target_pos + 1; i < new_numb; i++) {
 		for(j = 0; j < new_weights[i]; j++) {
 			u32 *apx;
@@ -424,11 +420,9 @@ static int balance_dec(struct fsx32_dcx *dcx,
 	return ret;
 }
 
-/**
- * @fact_bits: logarithm of the split factor
- */
 static int balance_spl(u32 numb, u32 nums_bits,
-		       u32 **tabp,
+		       const u32 *old_tab,
+		       u32 **result,
 		       u32 *old_weights, u32 *new_weights,
 		       u32 fact_bits,
 		       void *vec,
@@ -452,12 +446,17 @@ static int balance_spl(u32 numb, u32 nums_bits,
 	u32 factor;
 
 	assert("edward-1904", numb <= MAX_BUCKETS);
-	assert("edward-1905", nums_bits + fact_bits <= MAX_SHIFT);
+
+	if (nums_bits + fact_bits > MAX_SHIFT) {
+		warning("edward-2399",
+			"Scale factor %u is too large", 1 << fact_bits);
+		return -EINVAL;
+	}
 
 	nums = 1 << nums_bits;
 	factor = 1 << fact_bits;
 
-	num_exc = nums % numb;
+	num_exc = (nums * factor) % numb;
 	num_sho = numb - num_exc;
 
 	if (num_exc) {
@@ -467,14 +466,21 @@ static int balance_spl(u32 numb, u32 nums_bits,
 
 		sho = exc + num_exc;
 
-		for(i = 0; i < num_exc; i++)
+		for(i = 0; i < num_exc; i++) {
+			assert("edward-2400",
+			       factor * old_weights[i] >= new_weights[i]);
+
 			exc[i] = factor * old_weights[i] - new_weights[i];
-		for(i = 0; i < num_sho; i++)
-			sho[i] = new_weights[i] - factor * old_weights[i];
+		}
+		for(i = 0; i < num_sho; i++) {
+			assert("edward-2401",
+			       new_weights[i + num_exc] >=
+			       factor * old_weights[i + num_exc]);
+
+			sho[i] = new_weights[i + num_exc] -
+				factor * old_weights[i + num_exc];
+		}
 	}
-	/*
-	 * "stretch" system table with the @factor
-	 */
 	tab = fsx32_alloc(nums * factor);
 	if (!tab) {
 		ret = -ENOMEM;
@@ -482,16 +488,10 @@ static int balance_spl(u32 numb, u32 nums_bits,
 	}
 	for(i = 0; i < nums; i++)
 		for(j = 0; j < factor; j++)
-			tab[i * factor + j] = (*tabp)[i];
-	fsx_free(*tabp);
-	*tabp = NULL;
-
+			tab[i * factor + j] = old_tab[i];
 	if (!num_exc)
-		/* everything is balanced */
 		goto release;
-	/*
-	 * Build "stretched" apxs, which are still disbalanced
-	 */
+
 	for (i = 0; i < numb; i++)
 		old_weights[i] *= factor;
 
@@ -500,35 +500,30 @@ static int balance_spl(u32 numb, u32 nums_bits,
 			   apx_at, apx_set_at, apx_lenp_at, id2idx);
 	if (ret)
 		goto error;
-	/*
-	 * calculate number of segments to be relocated
-	 */
+
 	for (i = 0, num_reloc = 0; i < num_exc; i++)
 		num_reloc += exc[i];
-	/*
-	 * allocate array of segments to be relocated
-	 */
+
+	if (num_reloc == 0)
+		goto release;
+
 	reloc = fsx32_alloc(num_reloc);
-	if (!reloc)
+	if (!reloc) {
+		ret = RETERR(-EINVAL);
 		goto error;
-	/*
-	 * assemble segments, which are to be relocated
-	 */
+	}
 	for (i = 0, k = 0; i < num_exc; i++)
 		for (j = 0; j < exc[i]; j++) {
 			u32 *apx;
 			apx = apx_at(vec, i);
 			reloc[k++] = apx[new_weights[i] + j];
 		}
-	/*
-	 * distribute segments
-	 */
 	for (i = 0, k = 0; i < num_sho; i++)
 		for (j = 0; j < sho[i]; j++)
 			tab[reloc[k++]] = idx2id(num_exc + i);
  release:
 	release_apxs(numb, vec, apx_at, apx_set_at);
-	*tabp = tab;
+	*result = tab;
 	goto exit;
  error:
 	if (tab)
@@ -567,9 +562,6 @@ void replace_fsx32(reiser4_dcx *rdcx, void **target)
 	dcx->tab = NULL;
 }
 
-/**
- * Free system table specified by @tab
- */
 void free_fsx32(void *tab)
 {
 	assert("edward-2238", tab != NULL);
@@ -589,7 +581,7 @@ int initr_fsx32(reiser4_dcx *rdcx, void **tab, int nums_bits)
 
 	if (nums_bits < MIN_NUMS_BITS) {
 		warning("edward-1953",
-			"Invalid minimal number of bricks (%llu). "
+			"Bad number of hash space segments (%llu). "
 			"It should be not less than %llu",
 			1ull << nums_bits, 1ull << MIN_NUMS_BITS);
 		return -EINVAL;
@@ -716,7 +708,7 @@ static int check_maxdiff(reiser4_dcx *rdcx, u64 numb)
 	return 0;
 }
 
-int inc_fsx32(reiser4_dcx *rdcx, void *tab, u64 target_pos, bucket_t new)
+int inc_fsx32(reiser4_dcx *rdcx, const void *tab, u64 target_pos, bucket_t new)
 {
 	int ret = 0;
 	u32 *new_weights;
@@ -821,7 +813,8 @@ static int check_leftovers(reiser4_dcx *rdcx, u64 numb, u64 occ)
 	return ret;
 }
 
-int dec_fsx32(reiser4_dcx *rdcx, void *tab, u64 target_pos, bucket_t removeme)
+int dec_fsx32(reiser4_dcx *rdcx, const void *tab, u64 target_pos,
+	      bucket_t removeme)
 {
 	int ret = 0;
 	u32 nums;
@@ -888,7 +881,7 @@ int dec_fsx32(reiser4_dcx *rdcx, void *tab, u64 target_pos, bucket_t removeme)
 	return ret;
 }
 
-int spl_fsx32(reiser4_dcx *rdcx, u32 fact_bits)
+int spl_fsx32(reiser4_dcx *rdcx, const void *tab, u32 fact_bits)
 {
 	int ret = 0;
 	u32 *new_weights;
@@ -909,6 +902,7 @@ int spl_fsx32(reiser4_dcx *rdcx, u32 fact_bits)
 	calibrate32(dcx->numb, new_nums,
 		    current_buckets(), ops->cap_at, new_weights);
 	ret = balance_spl(dcx->numb, dcx->nums_bits,
+			  tab,
 			  &dcx->tab,
 			  dcx->weights,
 			  new_weights,

@@ -32,7 +32,7 @@ static int reiser4_print_brick(struct super_block *sb,
 		warning("edward-2373",
 			"Failed to print brick of unbalanced volume %s",
 			sb->s_id);
-		return -EINVAL;
+		return -EBUSY;
 	}
 	return super_volume(sb)->vol_plug->print_brick(sb, args);
 }
@@ -68,7 +68,7 @@ static int reiser4_resize_brick(struct super_block *sb,
 		warning("edward-2166",
 			"Failed to resize brick (Unbalanced volume %s)",
 			sb->s_id);
-		return -EINVAL;
+		return -EBUSY;
 	}
 	if (args->new_capacity == 0) {
 		warning("edward-2395", "Can not resize brick to zero.");
@@ -109,7 +109,7 @@ static int reiser4_add_brick(struct super_block *sb,
 		warning("edward-2167",
 			"Failed to add brick (Unbalanced volume %s)",
 			sb->s_id);
-		return -EINVAL;
+		return -EBUSY;
 	}
 	/*
 	 * register new brick
@@ -224,7 +224,7 @@ static int reiser4_remove_brick(struct super_block *sb,
 		warning("edward-2168",
 			"Failed to remove brick (Unbalanced volume %s)",
 			sb->s_id);
-		return -EINVAL;
+		return -EBUSY;
 	}
 	victim = find_active_brick(sb, args->d.name);
 	if (!victim) {
@@ -250,6 +250,54 @@ static int reiser4_remove_brick(struct super_block *sb,
 	if (!is_meta_brick(victim))
 		/* Goodbye! */
 		reiser4_detach_brick(victim);
+	return capture_brick_super(get_meta_subvol());
+}
+
+static int reiser4_scale_volume(struct super_block *sb,
+				struct reiser4_vol_op_args *args)
+{
+	int ret;
+	txn_atom *atom;
+	txn_handle *th;
+	reiser4_volume *vol = super_volume(sb);
+
+	if (reiser4_volume_is_unbalanced(sb)) {
+		warning("edward-2168", "Failed to scale unbalanced volume %s)",
+			sb->s_id);
+		return -EBUSY;
+	}
+	if (args->s.val == 0)
+		return 0;
+	ret = super_volume(sb)->vol_plug->scale_volume(sb, args->s.val);
+	if (ret)
+		return ret;
+	ret = capture_brick_super(get_meta_subvol());
+	if (ret)
+		return ret;
+	/*
+	 * write unbalanced status to disk
+	 */
+	th = get_current_context()->trans;
+	atom = get_current_atom_locked();
+	assert("edward-2402", atom != NULL);
+	spin_lock_txnh(th);
+	ret = force_commit_atom(th);
+	if (ret)
+		return ret;
+	/*
+	 * new volume configuration has been written to disk,
+	 * so release all volinfo jnodes - they are not needed
+	 * any more
+	 */
+	release_volinfo_nodes(&vol->volinfo[CUR_VOL_CONF], 0);
+
+	printk("reiser4 (%s): Volume has beed scaled in %u times.",
+	       sb->s_id, 1 << args->s.val);
+
+	ret = super_volume(sb)->vol_plug->balance_volume(sb);
+	if (ret)
+		return ret;
+	reiser4_volume_clear_unbalanced(sb);
 	return capture_brick_super(get_meta_subvol());
 }
 
@@ -343,7 +391,7 @@ int reiser4_volume_op(struct super_block *sb, struct reiser4_vol_op_args *args)
 	if (reiser4_volume_test_set_busy(sb)) {
 		warning("edward-1952",
 			"Can't operate on busy volume %s", sb->s_id);
-		return -EINVAL;
+		return -EBUSY;
 	}
 	switch(args->opcode) {
 	case REISER4_PRINT_VOLUME:
@@ -360,6 +408,9 @@ int reiser4_volume_op(struct super_block *sb, struct reiser4_vol_op_args *args)
 		break;
 	case REISER4_REMOVE_BRICK:
 		ret = reiser4_remove_brick(sb, args);
+		break;
+	case REISER4_SCALE_VOLUME:
+		ret = reiser4_scale_volume(sb, args);
 		break;
 	case REISER4_BALANCE_VOLUME:
 		ret = reiser4_balance_volume(sb);
