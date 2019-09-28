@@ -19,10 +19,11 @@
 #include "../plugin.h"
 #include "dst.h"
 
-#define MAX_SHIFT      (20)
-#define MAX_BUCKETS    (1u << MAX_SHIFT)
-#define MIN_NUMS_BITS  (10)
-#define FSX32_PRECISE  (0)
+#define MIN_SGS_BITS   (10)
+#define MAX_SGS_BITS   (20)
+#define MAX_BUCKETS    (1u << MAX_SGS_BITS)
+#define MAX_DIFFER_BITS   19
+#define MAX_DATA_CAPACITY 0xffffffffffffffffull
 
 static inline void *fsx32_alloc(u64 len)
 {
@@ -127,9 +128,7 @@ static void calibrate(u64 num, u64 val,
 		sum_scaled += result;
 	}
 	rest = val - sum_scaled;
-	/*
-	 * Don't modify this: it will be a format change!
-	 */
+
 	for (i = 0; i < rest; i++)
 		ret_el_set(ret, i, ret_el_get(ret, i) + 1);
 	return;
@@ -447,7 +446,7 @@ static int balance_spl(u32 numb, u32 nums_bits,
 
 	assert("edward-1904", numb <= MAX_BUCKETS);
 
-	if (nums_bits + fact_bits > MAX_SHIFT) {
+	if (nums_bits + fact_bits > MAX_SGS_BITS) {
 		warning("edward-2399",
 			"Scale factor %u is too large", 1 << fact_bits);
 		return -EINVAL;
@@ -576,14 +575,13 @@ int initr_fsx32(reiser4_dcx *rdcx, void **tab, int nums_bits)
 	struct fsx32_dcx *dcx = fsx32_private(rdcx);
 
 	if (*tab != NULL)
-		/* already initialized */
 		return 0;
 
-	if (nums_bits < MIN_NUMS_BITS) {
+	if (nums_bits < MIN_SGS_BITS) {
 		warning("edward-1953",
 			"Bad number of hash space segments (%llu). "
 			"It should be not less than %llu",
-			1ull << nums_bits, 1ull << MIN_NUMS_BITS);
+			1ull << nums_bits, 1ull << MIN_SGS_BITS);
 		return -EINVAL;
 	}
 	*tab = fsx32_alloc(1 << nums_bits);
@@ -619,7 +617,7 @@ int initv_fsx32(void **tab, u64 numb, int nums_bits,
 	struct fsx32_dcx *dcx;
 	struct bucket_ops *ops = current_bucket_ops();
 
-	if (numb == 0 || nums_bits >= MAX_SHIFT)
+	if (numb == 0 || nums_bits >= MAX_SGS_BITS)
 		return -EINVAL;
 
 	nums = 1 << nums_bits;
@@ -677,9 +675,6 @@ u64 lookup_fsx32m(reiser4_dcx *rdcx, const struct inode *inode,
 	hash = murmur3_x86_32(str, len, seed);
 	return ((u32 *)tab)[hash >> (32 - dcx->nums_bits)];
 }
-
-#define MAX_DIFFER_BITS   19
-#define MAX_DATA_CAPACITY 0xffffffffffffffffull
 
 static int check_maxdiff(reiser4_dcx *rdcx, u64 numb)
 {
@@ -889,7 +884,7 @@ int spl_fsx32(reiser4_dcx *rdcx, const void *tab, u32 fact_bits)
 	struct fsx32_dcx *dcx = fsx32_private(rdcx);
 	struct bucket_ops *ops = current_bucket_ops();
 
-	if (dcx->nums_bits + fact_bits > MAX_SHIFT)
+	if (dcx->nums_bits + fact_bits > MAX_SGS_BITS)
 		return -EINVAL;
 
 	new_nums = 1 << (dcx->nums_bits + fact_bits);

@@ -1487,10 +1487,12 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t *pos)
 	 * FIXME: can be optimized to cut once
 	 */
 	while (!node_is_empty(coord.node) && item_is_extent(&coord)) {
-		ON_DEBUG(void *vp);
-
+		/*
+		 * ON_DEBUG(void *vp); FIXME-EDWARD: that shift check
+		 * leads to false positives
+		 */
 		assert("vs-1468", coord_is_leftmost_unit(&coord));
-		ON_DEBUG(vp = shift_check_prepare(left, coord.node));
+		//ON_DEBUG(vp = shift_check_prepare(left, coord.node));
 		/*
 		 * Allocate one extent (a unit of reiser4 extent item)
 		 * in "squeeze context" and append it to the @left.
@@ -1502,7 +1504,7 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t *pos)
 							    &coord, pos,
 							    &stop_key);
 		if (ret != SQUEEZE_CONTINUE) {
-			ON_DEBUG(kfree(vp));
+			//ON_DEBUG(kfree(vp));
 			break;
 		}
 		assert("vs-1465", !keyeq(&stop_key, reiser4_min_key()));
@@ -1513,7 +1515,7 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t *pos)
 		check_me("vs-1466",
 		    shift_extent_left_complete(&coord, &stop_key, left) == 0);
 
-		ON_DEBUG(shift_check(vp, left, coord.node));
+		//ON_DEBUG(shift_check(vp, left, coord.node));
 	}
 	/*
 	 * @left and @right nodes participated in the

@@ -35,7 +35,7 @@ static void check_node(znode *node)
 #define check_node(node) noop
 #endif
 
-static void try_merge_with_right_item(coord_t *left)
+void try_merge_with_right_item(coord_t *left)
 {
 	coord_t right;
 
