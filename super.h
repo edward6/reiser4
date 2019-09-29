@@ -146,7 +146,7 @@ struct reiser4_subvol {
 	u32 dsa_idx; /* index in Data Storage Array (DSA). That index is set
 			by ->create_buckets() operation */
 	int num_replicas; /* number of replicas, (mirrors excluding original) */
-	u64 data_room; /* number of blocks allocated to store data */
+	u64 data_capacity; /* "weight" of the brick in data storage array */
 	u64 apx_len;
 	void *apx;
 	reiser4_block_nr volmap_loc[2]; /* location of first voltab blocks for
@@ -782,8 +782,8 @@ extern void reiser4_subvol_set_min_blocks_used(reiser4_subvol *, __u64 nr);
 extern __u64 reiser4_subvol_free_blocks(const reiser4_subvol *);
 extern void reiser4_subvol_set_free_blocks(reiser4_subvol *, __u64 nr);
 
-extern __u64 reiser4_subvol_data_room(reiser4_subvol *);
-extern void reiser4_subvol_set_data_room(reiser4_subvol *, __u64 len);
+extern __u64 reiser4_subvol_data_capacity(reiser4_subvol *);
+extern void reiser4_subvol_set_data_capacity(reiser4_subvol *, __u64 len);
 
 extern __u64 reiser4_subvol_free_committed_blocks(const reiser4_subvol *);
 extern __u64 reiser4_subvol_grabbed_blocks(const reiser4_subvol *);

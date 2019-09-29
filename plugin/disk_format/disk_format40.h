@@ -62,7 +62,7 @@ typedef struct format40_disk_super_block {
 	/*  88 */ d64 origin_id;    /* internal ID of the subvolume. It gets assigned
 				       once and never changes */
 	/*  96 */ d64 nr_origins;   /* total number of original subvolumes in LV */
-	/* 104 */ d64 data_room;    /* data capacity of the subvolume */
+	/* 104 */ d64 data_capacity;/* weight of the brick in data storage array */
 	/* 112 */ d64 volinfo_loc;  /* location of the first block of system LV info */
 	/* 120 */ d8  num_sgs_bits; /* logarithm of total number of the hash-space
 				       segments */

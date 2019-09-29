@@ -94,6 +94,7 @@ struct reiser4_volume_stat
 	u16 vpid; /* volume plugin ID */
 	u16 dpid; /* distribution plugin ID */
 	u16 stripe_bits; /* logarithm of stripe size */
+	u16 nr_sgs_bits; /* logarithm of number of hash space segments */
 	u64 fs_flags; /* the same as the one of private super-block */
 	u32 nr_mslots; /* number of slots */
 	u32 nr_volinfo_blocks; /* Total number of blocks in the set
@@ -106,8 +107,8 @@ struct reiser4_brick_stat
 	u8  ext_id[16]; /* external unique ID */
 	u16 nr_replicas; /* number of replicas */
 	u64 state; /* activated, etc flags */
-	u64 block_count; /* total number of blocks */
-	u64 data_room; /* number of data blocks */
+	u64 block_count; /* total number of blocks on the device */
+	u64 data_capacity; /* "weight" of the brick in data storage array */
 	u64 blocks_used; /* number of blocks used by data and meta-data */
 	u64 system_blocks; /* minimal number of blocks, which are occupied by
 			      system data (super-blocks, bitmap blocks, etc) */

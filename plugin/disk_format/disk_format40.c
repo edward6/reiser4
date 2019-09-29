@@ -103,9 +103,9 @@ static int get_format40_num_sgs_bits(const format40_disk_super_block * sb)
 	return sb->num_sgs_bits;
 }
 
-static __u64 get_format40_data_room(const format40_disk_super_block * sb)
+static __u64 get_format40_data_capacity(const format40_disk_super_block * sb)
 {
-	return le64_to_cpu(get_unaligned(&sb->data_room));
+	return le64_to_cpu(get_unaligned(&sb->data_capacity));
 }
 
 static __u64 get_format40_volinfo_loc(const format40_disk_super_block * sb)
@@ -571,7 +571,8 @@ static int try_init_format(struct super_block *super,
 		return result;
 	*stage = INIT_JNODE;
 
-	reiser4_subvol_set_data_room(subv, get_format40_data_room(&sb_format));
+	reiser4_subvol_set_data_capacity(subv,
+				get_format40_data_capacity(&sb_format));
 	/*
 	 * load addresses of volume configs
 	 */
@@ -666,7 +667,7 @@ static void pack_format40_super(const struct super_block *s,
 
 	put_unaligned(cpu_to_le64(subv->id), &format_sb->origin_id);
 
-	put_unaligned(cpu_to_le64(subv->data_room), &format_sb->data_room);
+	put_unaligned(cpu_to_le64(subv->data_capacity), &format_sb->data_capacity);
 
 	if (update_disk_version_minor(format_sb)) {
 		__u32 version = PLUGIN_LIBRARY_VERSION | FORMAT40_UPDATE_BACKUP;

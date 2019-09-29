@@ -782,7 +782,7 @@ static int init_volume_asym(struct super_block *sb, reiser4_volume *vol)
  */
 static u64 cap_at_asym(bucket_t *buckets, u64 idx)
 {
-	return ((mirror_t *)buckets)[idx]->data_room;
+	return ((mirror_t *)buckets)[idx]->data_capacity;
 }
 
 static void *apx_of_asym(bucket_t bucket)
@@ -812,7 +812,7 @@ static reiser4_subvol *origin_at(slot_t slot)
 
 static u64 capacity_at(slot_t slot)
 {
-	return origin_at(slot)->data_room;
+	return origin_at(slot)->data_capacity;
 }
 
 /**
@@ -939,7 +939,7 @@ static int resize_brick(reiser4_volume *vol, reiser4_subvol *this,
 
 	assert("edward-2393", delta != 0);
 
-	this->data_room += delta;
+	this->data_capacity += delta;
 
 	if (num_dsa_subvols(vol) == 1 ||
 	    (is_meta_brick(this) && !meta_brick_belongs_dsa())) {
@@ -963,7 +963,7 @@ static int resize_brick(reiser4_volume *vol, reiser4_subvol *this,
 	}
 	return 0;
  error:
-	this->data_room -= delta;
+	this->data_capacity -= delta;
 	return ret;
 }
 
@@ -1191,7 +1191,7 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	assert("edward-2262", vol->conf != NULL);
 	assert("edward-2239", vol->new_conf == NULL);
 
-	if (new->data_room == 0) {
+	if (new->data_capacity == 0) {
 		warning("edward-1962", "Can't add brick of zero capacity");
 		return -EINVAL;
 	}
@@ -1801,7 +1801,7 @@ int print_brick_simple(struct super_block *sb, struct reiser4_vol_op_args *args)
 	args->u.brick.int_id = subv->id;
 	args->u.brick.nr_replicas = subv->num_replicas;
 	args->u.brick.block_count = subv->block_count;
-	args->u.brick.data_room = subv->data_room;
+	args->u.brick.data_capacity = subv->data_capacity;
 	args->u.brick.blocks_used = subv->blocks_used;
 	args->u.brick.system_blocks = subv->min_blocks_used;
 	args->u.brick.volinfo_addr = 0;
@@ -1839,6 +1839,7 @@ int print_volume_asym(struct super_block *sb, struct reiser4_vol_op_args *args)
 	args->u.vol.vpid = vol->vol_plug->h.id;
 	args->u.vol.dpid = vol->dist_plug->h.id;
 	args->u.vol.stripe_bits = vol->stripe_bits;
+	args->u.vol.nr_sgs_bits = vol->num_sgs_bits;
 	args->u.vol.fs_flags = get_super_private(sb)->fs_flags;
 	args->u.vol.nr_mslots = conf->nr_mslots;
 	args->u.vol.nr_volinfo_blocks = vinfo->num_volmaps + vinfo->num_voltabs;
@@ -1879,7 +1880,7 @@ int print_brick_asym(struct super_block *sb, struct reiser4_vol_op_args *args)
 	args->u.brick.int_id = subv->id;
 	args->u.brick.nr_replicas = subv->num_replicas;
 	args->u.brick.block_count = subv->block_count;
-	args->u.brick.data_room = subv->data_room;
+	args->u.brick.data_capacity = subv->data_capacity;
 	args->u.brick.blocks_used = subv->blocks_used;
 	args->u.brick.system_blocks = subv->min_blocks_used;
 	args->u.brick.volinfo_addr = subv->volmap_loc[CUR_VOL_CONF];
