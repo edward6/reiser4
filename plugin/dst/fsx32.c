@@ -5,11 +5,6 @@
   Adapted for use in Reiser4.
 
   Copyright (c) 2014-2019 Eduard O. Shishkin
-
-  This file is licensed to you under your choice of the GNU Lesser
-  General Public License, version 3 or any later version (LGPLv3 or
-  later), or the GNU General Public License, version 2 (GPLv2), in all
-  cases as published by the Free Software Foundation.
 */
 
 #include <linux/kernel.h>

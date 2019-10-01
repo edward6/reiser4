@@ -23,6 +23,7 @@ extern void free_mslot(slot_t slot);
 extern void free_mslot_at(lv_conf *conf, u64 idx);
 extern int brick_belongs_volume(reiser4_volume *vol, reiser4_subvol *subv);
 extern int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *subv);
+extern reiser4_block_nr estimate_migration_iter(void);
 
 static inline int is_meta_brick_id(u64 id)
 {
@@ -66,6 +67,15 @@ static inline u64 num_dsa_subvols(reiser4_volume *vol)
 static inline reiser4_subvol *subvol_by_key(const reiser4_key *key)
 {
 	return current_origin(get_key_ordering(key));
+}
+
+static inline int reserve_migration_iter(void)
+{
+	grab_space_enable();
+	return reiser4_grab_reserved(reiser4_get_current_sb(),
+				     estimate_migration_iter(),
+				     BA_CAN_COMMIT,
+				     get_meta_subvol());
 }
 
 /*

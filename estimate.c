@@ -117,6 +117,49 @@ reiser4_block_nr estimate_dirty_cluster(struct inode *inode)
 	return cluster_nrpages(inode) + 4;
 }
 
+/**
+ * How many meta-data blocks are needed to write @count
+ * data pages to a striped file by extents.
+ */
+reiser4_block_nr estimate_write_stripe_meta(int count)
+{
+	reiser4_tree *tree = meta_subvol_tree();
+/*
+ * to write @count data pages to a file by extents we have to
+ * reserve disk space for:
+ *
+ * 1. find_file_item() may have to insert empty node to the tree
+ * (empty leaf node between two extent items). This requires:
+ * (a) 1 block for the leaf node;
+ * (b) number of formatted blocks which are necessary to perform
+ * insertion of an internal item into twig level.
+ *
+ * 2. for each of written pages there might be needed:
+ * number of blocks which might be necessary to insert or
+ * paste to an extent item.
+ *
+ * 3. stat data update.
+ */
+	return 1 /* (1a) */ +
+		2 * estimate_one_insert_item(tree) /* (1b) + (3) */ +
+		count * estimate_one_insert_into_item(tree) /* (2) */;
+}
+
+/**
+ * How many meta-data blocks are needed to perform one iteration
+ * by migrate_extent()
+ */
+reiser4_block_nr estimate_migration_iter(void)
+{
+	reiser4_tree *tree = meta_subvol_tree();
+	/*
+	 * 1 + estimate_one_insert_item(tree) for do_split_extent(),
+	 * other is estimation above without stat-data update - for
+	 * do_migrate_extent()
+	 */
+	return 2 + 3 * estimate_one_insert_item(tree);
+}
+
 /* Make Linus happy.
    Local variables:
    c-indentation-style: "K&R"

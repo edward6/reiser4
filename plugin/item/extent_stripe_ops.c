@@ -20,6 +20,7 @@ size_t filemap_copy_from_user(struct page *page, unsigned long offset,
 			      const char __user *buf, unsigned bytes);
 int find_stripe_item(hint_t *hint, const reiser4_key *key,
 		     znode_lock_mode lock_mode, struct inode *inode);
+reiser4_block_nr estimate_write_stripe_meta(int count);
 
 #if 0
 static void check_node(znode *node)
@@ -284,68 +285,6 @@ static int __update_extent_stripe(uf_coord_t *uf_coord, const reiser4_key *key,
 	return 0;
 }
 
-/*
- * to write @count pages to a file by extents we have to reserve disk
- * space for:
- *
- * 1. find_file_item() may have to insert empty node to the tree
- * (empty leaf node between two extent items). This requires:
- * (a) 1 block for the leaf node;
- * (b) number of formatted blocks which are necessary to perform
- * insertion of an internal item into twig level.
- *
- * 2. for each of written pages there might be needed:
- * (a) 1 unformatted block for the page itself;
- * (b) number of blocks which might be necessary to insert or
- * paste to an extent item.
- *
- * 3. stat data update.
- */
-
-/**
- * Reserve space on meta-data brick needed to write, or truncate
- * @count data pages.
- *
- * @count: number of data pages to be written (or truncated).
- */
-int reserve_stripe_meta(int count, int truncate)
-{
-	int count_m;
-	reiser4_subvol *subv_m = get_meta_subvol();
-	reiser4_tree *tree_m = &subv_m->tree;
-	/*
-	 * Reserve space for 1, 2b, 3 (see comment above)
-	 */
-	grab_space_enable();
-	count_m = estimate_one_insert_item(tree_m) +
-		count * estimate_one_insert_into_item(tree_m) +
-		estimate_one_insert_item(tree_m);
-	if (truncate)
-		return reiser4_grab_reserved(reiser4_get_current_sb(),
-					     count_m, BA_CAN_COMMIT, subv_m);
-	else
-		return reiser4_grab_space(count_m, BA_CAN_COMMIT, subv_m);
-}
-
-/**
- * Reserve space on data brick needed to write, or truncate
- * @count data pages.
- *
- * @dsubv: data brick to perform reservation on;
- * @count: number of data pages to be written or truncated.
- */
-int reserve_stripe_data(int count, reiser4_subvol *dsubv, int truncate)
-{
-	assert("edward-2359", ergo(truncate, count == 1));
-
-	grab_space_enable();
-	if (truncate)
-		return reiser4_grab_reserved(reiser4_get_current_sb(),
-					     count, BA_CAN_COMMIT, dsubv);
-	else
-		return reiser4_grab_space(count, 0, dsubv);
-}
-
 /**
  * Determine on what brick a data page will be stored,
  * and reserve space on that brick.
@@ -375,11 +314,16 @@ static int locate_reserve_data(coord_t *coord, lock_handle *lh,
 
 	assert("edward-2361", *loc != NULL);
 	/*
-	 * Now reserve space on @loc.
+	 * Now we can reserve space on @loc.
 	 * Note that in the case of truncate the space
 	 * has been already reserved in shorten_stripe()
 	 */
-	return truncate ? 0 : reserve_stripe_data(1, *loc, 0);
+	if (truncate)
+		return 0;
+	grab_space_enable();
+	return reiser4_grab_space(1 /* count */,
+				  0 /* flags */,
+				  *loc /* where */);
 }
 
 #define FAST_SEQ_WRITE (1)
@@ -575,7 +519,10 @@ ssize_t write_extent_stripe(struct file *file, struct inode *inode,
 	 * In particular, it is needed to "drill" the leaf level
 	 * by search procedure.
 	 */
-	ret = reserve_stripe_meta(nr_pages, 0);
+	grab_space_enable();
+	ret = reiser4_grab_space(estimate_write_stripe_meta(nr_pages),
+				 0, /* flags */
+				 get_meta_subvol() /* where */);
 	if (ret)
 		return ret;
 	BUG_ON(get_current_context()->trans->atom != NULL);

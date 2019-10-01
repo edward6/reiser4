@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2018 Eduard O. Shishkin
+  Copyright (c) 2018-2019 Eduard O. Shishkin
 
   This file is licensed to you under your choice of the GNU Lesser
   General Public License, version 3 or any later version (LGPLv3 or
@@ -8,6 +8,8 @@
 */
 
 /*
+ * Implementation of regular files with "striped" bodies.
+ *
  * Stripe is a distribution logical unit in a file.
  * Every stripe, which got physical addresses, is composed of extents
  * (IO units), and every extent is a set of allocation units (file system
@@ -30,13 +32,14 @@
 #include "../object.h"
 #include "../cluster.h"
 #include "../../safe_link.h"
+#include "../volume/volume.h"
 
 #include <linux/writeback.h>
 #include <linux/pagevec.h>
 #include <linux/syscalls.h>
 
-int reserve_stripe_meta(int count, int truncate);
-int reserve_stripe_data(int count, reiser4_subvol *dsubv, int truncate);
+reiser4_block_nr estimate_migration_iter(void);
+reiser4_block_nr estimate_write_stripe_meta(int count);
 int readpages_filler_generic(void *data, struct page *page, int striped);
 
 static inline reiser4_extent *ext_by_offset(const znode *node, int offset)
@@ -810,23 +813,28 @@ static int shorten_stripe(struct inode *inode, loff_t new_size)
 		 */
 		return 0;
 	/*
-	 * Handle partial page truncate
+	 * Handle partial page truncate.
+	 * Reserve space on meta-data brick
 	 */
-	//check_partial_page_truncate(inode, &smallest_removed);
-	/*
-	 * reserve space on meta-data brick
-	 */
-	result = reserve_stripe_meta(1, 1);
+	grab_space_enable();
+	result = reiser4_grab_reserved(reiser4_get_current_sb(),
+				       estimate_write_stripe_meta(1),
+				       BA_CAN_COMMIT,
+				       get_meta_subvol());
 	if (result) {
 		assert("edward-2295",
 		       get_current_super_private()->delete_mutex_owner == NULL);
 		return result;
 	}
 	/*
-	 * reserve space on data brick
+	 * reserve space on data brick, where the partially
+	 * trunated page should be stored
 	 */
-	result = reserve_stripe_data(1,
-			current_origin(get_key_ordering(&smallest_removed)), 1);
+	grab_space_enable();
+	result = reiser4_grab_reserved(reiser4_get_current_sb(),
+				       1, /* count */
+				       BA_CAN_COMMIT,
+				       subvol_by_key(&smallest_removed));
 	if (result)
 		return result;
 	/*
@@ -957,7 +965,10 @@ static int capture_anon_page(struct page *page)
 	/*
 	 * reserve space on meta-data brick
 	 */
-	ret = reserve_stripe_meta(1, 0);
+	grab_space_enable();
+	ret = reiser4_grab_space(estimate_write_stripe_meta(1),
+				 0, /* flags */
+				 get_meta_subvol() /* where */);
 	if (ret)
 		return ret;
 	ret = find_or_create_extent_stripe(page, 0);
@@ -1028,8 +1039,12 @@ int write_begin_stripe(struct file *file, struct page *page,
 	 * In particular, it is needed to "drill" the leaf level
 	 * by search procedure.
 	 */
-	if (reserve_stripe_meta(1, 0))
-		return -ENOMEM;
+	grab_space_enable();
+	ret = reiser4_grab_space(estimate_write_stripe_meta(1),
+				 0, /* flags */
+				 get_meta_subvol() /* where */);
+	if (ret)
+		return ret;
 
 	get_nonexclusive_access(unix_file_inode_data(file_inode(file)));
 	ret = do_write_begin_generic(file, page, pos, len,
@@ -1068,12 +1083,20 @@ int write_end_stripe(struct file *file, struct page *page,
 int balance_stripe(struct inode *inode)
 {
 	int ret;
-	reiser4_key key;
+	reiser4_key key; /* search key */
+	reiser4_key ikey; /* item key */
 	struct unix_file_info *uf;
 	coord_t coord;
 	lock_handle lh;
 	item_plugin *iplug;
-
+	/*
+	 * Reserve space for the first iteration of the migration
+	 * procedure. We grab from reserved area, as rebalancing can
+	 * be launched on a volume with no free space.
+	 */
+	ret = reserve_migration_iter();
+	if (ret)
+		return ret;
 	uf = unix_file_inode_data(inode);
 
 	reiser4_inode_set_flag(inode, REISER4_FILE_UNBALANCED);
@@ -1092,11 +1115,13 @@ int balance_stripe(struct inode *inode)
 				   CBK_UNIQUE, NULL);
 		if (IS_CBKERR(ret)) {
 			done_lh(&lh);
+			reiser4_release_reserved(inode->i_sb);
 			return ret;
 		}
 		ret = zload(coord.node);
 		if (ret) {
 			done_lh(&lh);
+			reiser4_release_reserved(inode->i_sb);
 			return ret;
 		}
 		loaded = coord.node;
@@ -1116,27 +1141,23 @@ int balance_stripe(struct inode *inode)
 			zrelse(loaded);
 			goto done;
 		}
+		item_key_by_coord(&coord, &ikey);
 		iplug = item_plugin_by_coord(&coord);
 		assert("edward-2349", iplug->v.migrate != NULL);
+		zrelse(loaded);
 		/*
 		 * Migrate data blocks (from right to left) pointed
-		 * out by the found extent item.
+		 * out by the found extent item at @coord.
 		 * On success (ret == 0 || ret == -E_REPEAT) at least
 		 * one of the mentioned blocks has to be migrated. In
 		 * this case @done_off contains offset of the leftmost
 		 * migrated byte
 		 */
-		ret = iplug->v.migrate(&coord, &lh, inode, &done_off);
-		zrelse(loaded);
+		ret = iplug->v.migrate(&coord, &ikey, &lh, inode, &done_off);
 		done_lh(&lh);
+		reiser4_release_reserved(inode->i_sb);
 		if (ret && ret != -E_REPEAT)
 			return ret;
-		/*
-		 * FIXME: commit atom not after each ->migrate() call,
-		 * but after reaching some limit of processed blocks
-		 */
-		all_grabbed2free();
-
 		if (done_off == 0)
 			/* nothing to migrate any more */
 			break;

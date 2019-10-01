@@ -216,7 +216,13 @@ struct flush_ops {
 };
 
 struct volume_ops{
-	int (*migrate)(coord_t *, lock_handle *, struct inode *, loff_t *);
+	/*
+	 * migrate unformatted blocks pointed out by item at @coord, starting
+	 * from right to left. Upon sucessfull completion @done_off contains
+	 * offset of the leftmost processed byte. @key is the key of the item
+	 */
+	int (*migrate)(coord_t *coord, reiser4_key *key,
+		       lock_handle *lh, struct inode *inode, loff_t *done_off);
 };
 
 /* operations specific to the directory item */
