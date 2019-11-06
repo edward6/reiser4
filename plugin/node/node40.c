@@ -567,7 +567,7 @@ int check_node40(const znode * node /* node to check */ ,
 		    && item_plugin_by_coord(&coord)->b.check(&coord, error))
 			return -1;
 #endif
-		if (i) {
+		if ((flags & REISER4_NODE_CHECK_MERGEABLE) && i) {
 			coord_t prev_coord;
 			/* two neighboring items can not be mergeable */
 			coord_dup(&prev_coord, &coord);

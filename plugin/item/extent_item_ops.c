@@ -288,10 +288,12 @@ size_t merge_units_extent(coord_t *left, coord_t *right)
 
 	assert("edward-2136", ext_right == ext_left + 1);
 
-	if (state_of_extent(ext_left) != state_of_extent(ext_right))
+	if ((state_of_extent(ext_left) != state_of_extent(ext_right)) ||
+	    ((state_of_extent(ext_left) == ALLOCATED_EXTENT) &&
+	     (extent_get_start(ext_left) + extent_get_width(ext_left) !=
+	      extent_get_start(ext_right))))
 		/* units are not mergeable */
 		return 0;
-	assert("edward-2131", state_of_extent(ext_left) == UNALLOCATED_EXTENT);
 	/*
 	 * widen @ext_left
 	 */
@@ -416,69 +418,96 @@ int kill_hook_extent(const coord_t *coord, pos_in_node_t from,
 		max_unit_key_by_coord(dup, to_key);
 		pto_key = to_key;
 	}
+	/*
+	 * Evaluate, which part of the item is to be removed.
+	 * Only 3 cases are possible:
+	 *
+	 * 1. pfrom_key <= min_item_key && max_item_key <= pto_key
+	 *
+	 *   from/to:  ***********
+	 *   item:       +++++
+	 *
+	 *   item to be removed completely
+	 *
+	 * 2. min_item_key < pfrom_key
+	 *
+	 *   from/to:  ***********
+	 *   item:   +++++
+	 *
+	 *   tail of the item to be removed
+	 *
+	 * 3. max_item_key > pto_key;
+	 *
+	 *   from/to:  ***********
+	 *   item:             +++++
+	 *
+	 *   head of the item to be removed
+	 */
+	if (keyle(pfrom_key, min_item_key) && keyle(max_item_key, pto_key)) {
+		znode *left, *right;
 
-	if (!keylt(pto_key, max_item_key)) {
-		if (!keygt(pfrom_key, min_item_key)) {
-			znode *left, *right;
+		/* item is to be removed completely */
+		assert("nikita-3316", kdata->left != NULL
+		       && kdata->right != NULL);
 
-			/* item is to be removed completely */
-			assert("nikita-3316", kdata->left != NULL
-			       && kdata->right != NULL);
+		left = kdata->left->node;
+		right = kdata->right->node;
 
-			left = kdata->left->node;
-			right = kdata->right->node;
+		/* we have to do two things:
+		 *
+		 *     1. link left and right formatted neighbors of
+		 *        extent being removed, and
+		 *
+		 *     2. update their delimiting keys.
+		 *
+		 * atomicity of these operations is protected by
+		 * taking dk-lock and tree-lock.
+		 */
+		/* if neighbors of item being removed are znodes -
+		 * link them */
+		write_lock_tree();
+		write_lock_dk(tree);
+		link_left_and_right(left, right);
+		if (left) {
+			/* update right delimiting key of left
+			 * neighbor of extent item */
+			/*coord_t next;
+			  reiser4_key key; */
 
-			/* we have to do two things:
-			 *
-			 *     1. link left and right formatted neighbors of
-			 *        extent being removed, and
-			 *
-			 *     2. update their delimiting keys.
-			 *
-			 * atomicity of these operations is protected by
-			 * taking dk-lock and tree-lock.
-			 */
-			/* if neighbors of item being removed are znodes -
-			 * link them */
-			write_lock_tree();
-			write_lock_dk(tree);
-			link_left_and_right(left, right);
-			if (left) {
-				/* update right delimiting key of left
-				 * neighbor of extent item */
-				/*coord_t next;
-				   reiser4_key key; */
+			coord_dup(next, coord);
 
-				coord_dup(next, coord);
-
-				if (coord_next_item(next))
-					*key = *znode_get_rd_key(coord->node);
-				else
-					item_key_by_coord(next, key);
-				znode_set_rd_key(left, key);
-			}
-			write_unlock_dk(tree);
-			write_unlock_tree();
-
-			from_off =
-			    get_key_offset(min_item_key) >> PAGE_SHIFT;
-			to_off =
-			    (get_key_offset(max_item_key) +
-			     1) >> PAGE_SHIFT;
-			retval = ITEM_KILLED;
-		} else {
-			/* tail of item is to be removed */
-			from_off =
-			    (get_key_offset(pfrom_key) + PAGE_SIZE -
-			     1) >> PAGE_SHIFT;
-			to_off =
-			    (get_key_offset(max_item_key) +
-			     1) >> PAGE_SHIFT;
-			retval = ITEM_TAIL_KILLED;
+			if (coord_next_item(next))
+				*key = *znode_get_rd_key(coord->node);
+			else
+				item_key_by_coord(next, key);
+			znode_set_rd_key(left, key);
 		}
+		write_unlock_dk(tree);
+		write_unlock_tree();
+
+		from_off =
+			get_key_offset(min_item_key) >> PAGE_SHIFT;
+		to_off =
+			(get_key_offset(max_item_key) +
+			 1) >> PAGE_SHIFT;
+		retval = ITEM_KILLED;
+
+	} else if (keylt(min_item_key, pfrom_key)) {
+		/*
+		 * tail of item is to be removed
+		 */
+		from_off =
+			(get_key_offset(pfrom_key) + PAGE_SIZE -
+			 1) >> PAGE_SHIFT;
+		to_off =
+			(get_key_offset(max_item_key) +
+			 1) >> PAGE_SHIFT;
+		retval = ITEM_TAIL_KILLED;
 	} else {
-		/* head of item is to be removed */
-		assert("vs-1571", keyeq(pfrom_key, min_item_key));
+		assert("edward-2419", keylt(pto_key, max_item_key));
+		/*
+		 * head of item is to be removed
+		 */
 		assert("vs-1572",
 		       (get_key_offset(pfrom_key) & (PAGE_SIZE - 1)) ==
 		       0);

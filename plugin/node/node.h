@@ -105,7 +105,8 @@ typedef enum {
 
 typedef enum {
 	REISER4_NODE_DKEYS = (1 << 0),
-	REISER4_NODE_TREE_STABLE = (1 << 1)
+	REISER4_NODE_TREE_STABLE = (1 << 1),
+	REISER4_NODE_CHECK_MERGEABLE = (1 << 2)
 } reiser4_node_check_flag;
 
 /* cut and cut_and_kill have too long list of parameters. This structure is just to safe some space on stack */
