@@ -483,23 +483,25 @@ static int do_migrate_extent(struct extent_migrate_context *mctx)
 }
 
 /**
- * Create a new extent item right after the item specified by @mctx.coord
- * and move a tail part of the last one to that newly created item. It can
+ * Create a new extent item right after the item specified by @coord
+ * and move the tail part of the last one to that newly created item. It can
  * involve carry, if there is no free space on the node. Subtle!
  *
- * The pair (@mctx.coord and @mctx.unit_split_pos) defines "split position"
- * in the following sense. If @mctx.unit_split_pos != 0, then unit at
- * @mctx.coord will be split at @mctx.unit_split_pos offset and its right
- * part will become the first unit in the new item. Otherwise, the unit at
- * @mctx.coord will become the first unit in the new item.
+ * @unit_split_pos: splitting position in the unit.
+ * The pair @coord and @unit_split_pos defines splitting position in the item.
+ * If @unit_split_pos != 0, then the unit at @coord will be split at
+ * @unit_split_pos offset and its right part will start the new item.
+ * Otherwise, we'll split at the unit boundary and the unit at @coord will be
+ * moved to the head of the new item.
  *
- * Upon successfull completion @mctx.coord points out to the same, or
- * preceding unit.
+ * Upon successfull completion:
+ * if @unit_split_pos != 0, then @coord points out to the same unit, which
+ * became smaller after split. Otherwise, @coord points out to the preceding
+ * unit.
  */
-static int split_extent_item(struct extent_migrate_context *mctx)
+static int split_extent_item(coord_t *coord, reiser4_block_nr unit_split_pos)
 {
 	int ret;
-	coord_t *coord;
 	coord_t cut_from;
 	coord_t cut_to;
 	char *tail_copy;
@@ -511,26 +513,23 @@ static int split_extent_item(struct extent_migrate_context *mctx)
 	reiser4_key item_key;
 	ON_DEBUG(reiser4_key check_key);
 
-	coord = mctx->coord;
 	assert("edward-2109", znode_is_loaded(coord->node));
-	assert("edward-2143",
-	       ergo(mctx->unit_split_pos == 0, coord->unit_pos > 0));
+	assert("edward-2143", ergo(unit_split_pos == 0, coord->unit_pos > 0));
 
 	memset(&idata, 0, sizeof(idata));
 	item_key_by_coord(coord, &item_key);
 	unit_key_by_coord(coord, &split_key);
 	set_key_offset(&split_key,
 		       get_key_offset(&split_key) +
-		       (mctx->unit_split_pos << current_blocksize_bits));
+		       (unit_split_pos << current_blocksize_bits));
 
-	if (mctx->unit_split_pos != 0) {
+	if (unit_split_pos != 0) {
 		/*
 		 * start from splitting the unit.
 		 * NOTE: it may change the item @coord (specifically, split
 		 * it and move its part to the right neighbor
 		 */
-		ret = split_extent_unit(coord,
-					mctx->unit_split_pos,
+		ret = split_extent_unit(coord, unit_split_pos,
 					0 /* stay on the original position */);
 		if (ret)
 			return ret;
@@ -579,7 +578,7 @@ static int split_extent_item(struct extent_migrate_context *mctx)
 	 * cut off the tail from the original item
 	 */
 	coord_dup(&cut_from, coord);
-	if (mctx->unit_split_pos)
+	if (unit_split_pos)
 		/* the original unit was split */
 		cut_from.unit_pos ++;
 	coord_dup(&cut_to, coord);
@@ -589,7 +588,7 @@ static int split_extent_item(struct extent_migrate_context *mctx)
 	 */
 	cut_node_content(&cut_from, &cut_to, NULL, NULL, NULL);
 	/* make sure that @coord is valid after cut operation */
-	if (mctx->unit_split_pos == 0)
+	if (unit_split_pos == 0)
 		coord->unit_pos --;
 
 	assert("edward-2428",
@@ -617,7 +616,7 @@ static int do_split_extent(struct extent_migrate_context *mctx)
 	ret = zload(loaded);
 	if (ret)
 		return ret;
-	ret = split_extent_item(mctx);
+	ret = split_extent_item(mctx->coord, mctx->unit_split_pos);
 	zrelse(loaded);
 	return ret;
 }
