@@ -158,7 +158,7 @@ typedef struct reiser4_object_on_wire reiser4_object_on_wire;
  * NOTE: Make sure that respective marco is also incremented in
  * the new release of reiser4progs.
  */
-#define PLUGIN_LIBRARY_VERSION 1
+#define PLUGIN_LIBRARY_VERSION 2
 
  /* enumeration of fields within plugin_set */
 typedef enum {
