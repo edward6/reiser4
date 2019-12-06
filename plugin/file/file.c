@@ -987,7 +987,7 @@ static int capture_anon_pages(struct address_space *mapping,
 	unsigned int i, count;
 	int nr;
 
-	pagevec_init(&pvec, 0);
+	pagevec_init(&pvec);
 	count = min(pagevec_space(&pvec), to_capture);
 	nr = 0;
 
