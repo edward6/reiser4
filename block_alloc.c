@@ -337,6 +337,7 @@ static int reiser4_grab(reiser4_context *ctx, __u64 count,
 	 */
 	if (rofs_super(ctx->super)) {
 		ctx->grab_enabled = 0;
+		ctx->ro = 1;
 		return 0;
 	}
 	sbinfo = get_super_private(ctx->super);
