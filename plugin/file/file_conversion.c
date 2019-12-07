@@ -569,8 +569,15 @@ ssize_t reiser4_write_dispatch(struct file *file, const char __user *buf,
 	/**
 	 * Second step.
 	 * New file plugin has been scheduled.
-	 * Perform conversion to the new plugin.
+	 * Commit respective atom and pass management to the new plugin.
 	 */
+	assert("edward-181", cont.pages[0] != NULL);
+	/*
+	 * this will commit the whole logical cluster
+	 * the file consists of
+	 */
+	reiser4_sync_page(cont.pages[0]);
+
 	down_read(&reiser4_inode_data(inode)->conv_sem);
 	result = convert_file_plugin(file, inode, &cont);
 	up_read(&reiser4_inode_data(inode)->conv_sem);

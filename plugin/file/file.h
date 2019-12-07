@@ -40,6 +40,7 @@ int reiser4_mmap_dispatch(struct file *, struct vm_area_struct *);
 int reiser4_open_dispatch(struct inode *inode, struct file *file);
 int reiser4_release_dispatch(struct inode *, struct file *);
 int reiser4_sync_file_common(struct file *, loff_t, loff_t, int datasync);
+int reiser4_sync_page(struct page *page);
 
 /* address space operations */
 int reiser4_readpage_dispatch(struct file *, struct page *);

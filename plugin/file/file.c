@@ -1085,7 +1085,7 @@ static int capture_anon_jnodes(struct address_space *mapping,
 /*
  * Commit atom of the jnode of a page.
  */
-static int sync_page(struct page *page)
+int reiser4_sync_page(struct page *page)
 {
 	int result;
 	do {
@@ -1146,7 +1146,7 @@ int reiser4_sync_page_list(struct inode *inode)
 
 		from = page->index + 1;
 
-		result = sync_page(page);
+		result = reiser4_sync_page(page);
 
 		put_page(page);
 		xa_lock_irq(&mapping->i_pages);
