@@ -706,7 +706,7 @@ void reiser4_inode_invariant(const struct inode *inode)
 
 int inode_has_no_jnodes(reiser4_inode * r4_inode)
 {
-	return jnode_tree_by_reiser4_inode(r4_inode)->rnode == NULL &&
+	return radix_tree_empty(jnode_tree_by_reiser4_inode(r4_inode)) &&
 		r4_inode->nr_jnodes == 0;
 }
 

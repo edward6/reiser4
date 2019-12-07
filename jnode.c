@@ -420,14 +420,15 @@ static void inode_attach_jnode(jnode * node)
 	inode = node->key.j.mapping->host;
 	info = reiser4_inode_data(inode);
 	rtree = jnode_tree_by_reiser4_inode(info);
-	if (rtree->rnode == NULL) {
+	if (radix_tree_empty(rtree)) {
 		/* prevent inode from being pruned when it has jnodes attached
 		   to it */
 		xa_lock_irq(&inode->i_data.i_pages);
 		inode->i_data.nrpages++;
 		xa_unlock_irq(&inode->i_data.i_pages);
 	}
-	assert("zam-1049", equi(rtree->rnode != NULL, info->nr_jnodes != 0));
+	assert("zam-1049",
+	       equi(!radix_tree_empty(rtree), info->nr_jnodes != 0));
 	check_me("zam-1045",
 		 !radix_tree_insert(rtree, node->key.j.index, node));
 	ON_DEBUG(info->nr_jnodes++);
@@ -445,12 +446,12 @@ static void inode_detach_jnode(jnode * node)
 	rtree = jnode_tree_by_reiser4_inode(info);
 
 	assert("zam-1051", info->nr_jnodes != 0);
-	assert("zam-1052", rtree->rnode != NULL);
+	assert("zam-1052", !radix_tree_empty(rtree));
 	ON_DEBUG(info->nr_jnodes--);
 
 	/* delete jnode from inode's radix tree of jnodes */
 	check_me("zam-1046", radix_tree_delete(rtree, node->key.j.index));
-	if (rtree->rnode == NULL) {
+	if (radix_tree_empty(rtree)) {
 		/* inode can be pruned now */
 		xa_lock_irq(&inode->i_data.i_pages);
 		inode->i_data.nrpages--;
