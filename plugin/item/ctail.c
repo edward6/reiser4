@@ -1102,8 +1102,6 @@ int scan_ctail(flush_scan * scan)
 
 	if (!reiser4_scanning_left(scan))
 		return result;
-	if (!ZF_ISSET(scan->parent_lock.node, JNODE_DIRTY))
-		znode_make_dirty(scan->parent_lock.node);
 
 	if (!znode_convertible(scan->parent_lock.node)) {
 		if (JF_ISSET(scan->node, JNODE_DIRTY))
@@ -1424,7 +1422,6 @@ static int pre_convert_ctail(flush_pos_t * pos)
 
 		if (node_is_empty(slider)) {
 			warning("edward-1641", "Found empty right neighbor");
-			znode_make_dirty(slider);
 			znode_set_convertible(slider);
 			/*
 			 * skip this node,
@@ -1435,15 +1432,6 @@ static int pre_convert_ctail(flush_pos_t * pos)
 
 			item_convert_data(pos)->d_next = DC_CHAINED_ITEM;
 
-			if (!ZF_ISSET(slider, JNODE_DIRTY)) {
-				/*
-				   warning("edward-1024",
-				   "next slum item mergeable, "
-				   "but znode %p isn't dirty\n",
-				   lh.node);
-				 */
-				znode_make_dirty(slider);
-			}
 			if (!znode_convertible(slider)) {
 				/*
 				   warning("edward-1272",
