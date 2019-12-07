@@ -3369,10 +3369,10 @@ static int find_anon_page_cluster(struct address_space * mapping,
 {
 	int i = 0;
 	int found;
-	spin_lock_irq(&mapping->tree_lock);
+	xa_lock_irq(&mapping->i_pages);
 	do {
 		/* looking for one page */
-		found = radix_tree_gang_lookup_tag(&mapping->page_tree,
+		found = radix_tree_gang_lookup_tag(&mapping->i_pages,
 						   (void **)&pages[i],
 						   *index, 1,
 						   PAGECACHE_TAG_REISER4_MOVED);
@@ -3385,13 +3385,13 @@ static int find_anon_page_cluster(struct address_space * mapping,
 		get_page(pages[i]);
 		*index = pages[i]->index + 1;
 
-		radix_tree_tag_clear(&mapping->page_tree,
+		radix_tree_tag_clear(&mapping->i_pages,
 				     pages[i]->index,
 				     PAGECACHE_TAG_REISER4_MOVED);
 		if (last_page_in_cluster(pages[i++]))
 			break;
 	} while (1);
-	spin_unlock_irq(&mapping->tree_lock);
+	xa_unlock_irq(&mapping->i_pages);
 	return i;
 }
 
@@ -3466,10 +3466,10 @@ static int capture_anon_pages(struct address_space * mapping, pgoff_t * index,
 static int cryptcompress_inode_has_anon_pages(struct inode *inode)
 {
 	int result;
-	spin_lock_irq(&inode->i_mapping->tree_lock);
-	result = radix_tree_tagged(&inode->i_mapping->page_tree,
+	xa_lock_irq(&inode->i_mapping->i_pages);
+	result = radix_tree_tagged(&inode->i_mapping->i_pages,
 				   PAGECACHE_TAG_REISER4_MOVED);
-	spin_unlock_irq(&inode->i_mapping->tree_lock);
+	xa_unlock_irq(&inode->i_mapping->i_pages);
 	return result;
 }
 

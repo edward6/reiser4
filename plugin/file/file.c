@@ -885,10 +885,10 @@ static int has_anonymous_pages(struct inode *inode)
 {
 	int result;
 
-	spin_lock_irq(&inode->i_mapping->tree_lock);
-	result = radix_tree_tagged(&inode->i_mapping->page_tree,
+	xa_lock_irq(&inode->i_mapping->i_pages);
+	result = radix_tree_tagged(&inode->i_mapping->i_pages,
 				   PAGECACHE_TAG_REISER4_MOVED);
-	spin_unlock_irq(&inode->i_mapping->tree_lock);
+	xa_unlock_irq(&inode->i_mapping->i_pages);
 	return result;
 }
 
@@ -992,8 +992,8 @@ static int capture_anon_pages(struct address_space *mapping,
 	nr = 0;
 
 	/* find pages tagged MOVED */
-	spin_lock_irq(&mapping->tree_lock);
-	pvec.nr = radix_tree_gang_lookup_tag(&mapping->page_tree,
+	xa_lock_irq(&mapping->i_pages);
+	pvec.nr = radix_tree_gang_lookup_tag(&mapping->i_pages,
 					     (void **)pvec.pages, *index, count,
 					     PAGECACHE_TAG_REISER4_MOVED);
 	if (pagevec_count(&pvec) == 0) {
@@ -1001,7 +1001,7 @@ static int capture_anon_pages(struct address_space *mapping,
 		 * there are no pages tagged MOVED in mapping->page_tree
 		 * starting from *index
 		 */
-		spin_unlock_irq(&mapping->tree_lock);
+		xa_unlock_irq(&mapping->i_pages);
 		*index = (pgoff_t)-1;
 		return 0;
 	}
@@ -1009,10 +1009,10 @@ static int capture_anon_pages(struct address_space *mapping,
 	/* clear MOVED tag for all found pages */
 	for (i = 0; i < pagevec_count(&pvec); i++) {
 		get_page(pvec.pages[i]);
-		radix_tree_tag_clear(&mapping->page_tree, pvec.pages[i]->index,
+		radix_tree_tag_clear(&mapping->i_pages, pvec.pages[i]->index,
 				     PAGECACHE_TAG_REISER4_MOVED);
 	}
-	spin_unlock_irq(&mapping->tree_lock);
+	xa_unlock_irq(&mapping->i_pages);
 
 
 	*index = pvec.pages[i - 1]->index + 1;
@@ -1032,13 +1032,13 @@ static int capture_anon_pages(struct address_space *mapping,
 				 * set MOVED tag to all pages which left not
 				 * captured
 				 */
-				spin_lock_irq(&mapping->tree_lock);
+				xa_lock_irq(&mapping->i_pages);
 				for (; i < pagevec_count(&pvec); i ++) {
-					radix_tree_tag_set(&mapping->page_tree,
+					radix_tree_tag_set(&mapping->i_pages,
 							   pvec.pages[i]->index,
 							   PAGECACHE_TAG_REISER4_MOVED);
 				}
-				spin_unlock_irq(&mapping->tree_lock);
+				xa_unlock_irq(&mapping->i_pages);
 
 				pagevec_release(&pvec);
 				return result;
@@ -1048,11 +1048,11 @@ static int capture_anon_pages(struct address_space *mapping,
 				 * 0 for Writeback-ed page. Set MOVED tag on
 				 * that page
 				 */
-				spin_lock_irq(&mapping->tree_lock);
-				radix_tree_tag_set(&mapping->page_tree,
+				xa_lock_irq(&mapping->i_pages);
+				radix_tree_tag_set(&mapping->i_pages,
 						   pvec.pages[i]->index,
 						   PAGECACHE_TAG_REISER4_MOVED);
-				spin_unlock_irq(&mapping->tree_lock);
+				xa_unlock_irq(&mapping->i_pages);
 				if (i == 0)
 					*index = pvec.pages[0]->index;
 				else
@@ -1127,11 +1127,12 @@ int reiser4_sync_page_list(struct inode *inode)
 	mapping = inode->i_mapping;
 	from = 0;
 	result = 0;
-	spin_lock_irq(&mapping->tree_lock);
+
+	xa_lock_irq(&mapping->i_pages);
 	while (result == 0) {
 		struct page *page;
 
-		found = radix_tree_gang_lookup(&mapping->page_tree,
+		found = radix_tree_gang_lookup(&mapping->i_pages,
 					       (void **)&page, from, 1);
 		assert("edward-1550", found < 2);
 		if (found == 0)
@@ -1141,17 +1142,16 @@ int reiser4_sync_page_list(struct inode *inode)
 		 * truncating by inode->i_mutex locked by sys_fsync
 		 */
 		get_page(page);
-		spin_unlock_irq(&mapping->tree_lock);
+		xa_unlock_irq(&mapping->i_pages);
 
 		from = page->index + 1;
 
 		result = sync_page(page);
 
 		put_page(page);
-		spin_lock_irq(&mapping->tree_lock);
+		xa_lock_irq(&mapping->i_pages);
 	}
-
-	spin_unlock_irq(&mapping->tree_lock);
+	xa_unlock_irq(&mapping->i_pages);
 	return result;
 }
 
