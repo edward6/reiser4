@@ -435,7 +435,7 @@ int reiser4_init_super_data(struct super_block *super, char *opt_string)
 	super->s_export_op = &sbinfo->ops.export;
 
 	/* initialize transaction manager parameters to default values */
-	sbinfo->tmgr.atom_max_size = totalram_pages / 4;
+	sbinfo->tmgr.atom_max_size = totalram_pages() / 4;
 	sbinfo->tmgr.atom_max_age = REISER4_ATOM_MAX_AGE / HZ;
 	sbinfo->tmgr.atom_min_size = 256;
 	sbinfo->tmgr.atom_max_flushers = ATOM_MAX_FLUSHERS;
@@ -443,7 +443,7 @@ int reiser4_init_super_data(struct super_block *super, char *opt_string)
 	sbinfo->optimal_io_size = REISER4_OPTIMAL_IO_SIZE;
 
 	/* initialize default readahead params */
-	sbinfo->ra_params.max = totalram_pages / 4;
+	sbinfo->ra_params.max = totalram_pages() / 4;
 	sbinfo->ra_params.flags = 0;
 
 	/* hard links for directories are not supported */

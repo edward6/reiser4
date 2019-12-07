@@ -626,27 +626,11 @@ static inline int has_replicas(struct reiser4_subvol *subv)
 }
 
 /*
- * true, if file system on @super is read-only
- */
-static inline int rofs_super(struct super_block *super)
-{
-	return super->s_flags & MS_RDONLY;
-}
-
-/*
- * true, if file system where @inode lives on, is read-only
- */
-static inline int rofs_inode(struct inode *inode)
-{
-	return rofs_super(inode->i_sb);
-}
-
-/*
  * true, if file system where @node lives on, is read-only
  */
 static inline int rofs_jnode(jnode *node)
 {
-	return rofs_super(jnode_get_super(node));
+	return sb_rdonly(jnode_get_super(node));
 }
 
 extern void build_object_ops(struct super_block *super, struct object_ops *ops);

@@ -633,7 +633,7 @@ static int fill_super(struct super_block *super, void *data, int silent)
 /**
  * reiser4_mount - mount of file_system_type operations
  * @fs_type:
- * @flags: mount flags MS_RDONLY, MS_VERBOSE, etc
+ * @flags: mount flags
  * @dev_name: block device file name
  * @data: specific mount options
  *

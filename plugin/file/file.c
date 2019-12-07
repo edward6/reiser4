@@ -2368,7 +2368,7 @@ int release_unix_file(struct inode *inode, struct file *file)
 		if (file->f_path.dentry->d_lockref.count == 1 &&
 		    uf_info->container == UF_CONTAINER_EXTENTS &&
 		    !should_have_notail(uf_info, inode->i_size) &&
-		    !rofs_inode(inode)) {
+		    !IS_RDONLY(inode)) {
 			result = extent2tail(file, uf_info);
 			if (result != 0) {
 				context_set_commit_async(ctx);

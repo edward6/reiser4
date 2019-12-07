@@ -614,7 +614,7 @@ int reiser4_activate_subvol(struct super_block *super,
 	assert("edward-2309", vol != NULL);
 	assert("edward-2301", !subvol_is_set(subv, SUBVOL_ACTIVATED));
 
-	if (!(super->s_flags & MS_RDONLY))
+	if (!(super->s_flags & SB_RDONLY))
 		mode |= FMODE_WRITE;
 
 	subv->bdev = blkdev_get_by_path(subv->name,
@@ -805,7 +805,7 @@ void __reiser4_deactivate_volume(struct super_block *super)
 	reiser4_volume *vol = super_volume(super);
 	lv_conf *conf = vol->conf;
 
-	if (reiser4_volume_is_activated(super) && !rofs_super(super)) {
+	if (reiser4_volume_is_activated(super) && !sb_rdonly(super)) {
 		u32 orig_id;
 		for_each_mslot(conf, orig_id) {
 			if (!conf->mslots[orig_id])

@@ -441,14 +441,14 @@ static int try_init_format(struct super_block *super,
 	if (result == REISER4_STATUS_MOUNT_RO) {
 		warning("vpf-1364", "Mounting %s with fatal errors. "
 			"Forcing read-only mount.", super->s_id);
-		super->s_flags |= MS_RDONLY;
+		super->s_flags |= SB_RDONLY;
 	}
 	if (has_replicas(subv) &&
 	    extended_status == REISER4_ESTATUS_MIRRORS_NOT_SYNCED) {
 		warning("edward-1792",
 			"Mounting %s with not synced mirrors. "
 			"Forcing read-only mount.", super->s_id);
-		super->s_flags |= MS_RDONLY;
+		super->s_flags |= SB_RDONLY;
 	}
 	/*
 	 * Start form journal replay to make sure we are dealing
@@ -616,7 +616,7 @@ static int init_format_generic(struct super_block *s,
 	case INIT_OID:
 	case KEY_CHECK:
 	case READ_SUPER:
-		if (!rofs_super(s) &&
+		if (!sb_rdonly(s) &&
 		    reiser4_subvol_free_blocks(subv) < RELEASE_RESERVED)
 			result = RETERR(-ENOSPC);
 	case JOURNAL_REPLAY:
@@ -809,8 +809,7 @@ int version_update_format40(struct super_block *super, reiser4_subvol *subv)
 	if (subv->id != METADATA_SUBVOL_ID)
 		return 0;
 
-	if (super->s_flags & MS_RDONLY ||
-	    subv->version >= get_release_number_minor())
+	if (sb_rdonly(super) || subv->version >= get_release_number_minor())
 		return 0;
 
 	printk("reiser4 (%s): upgrading disk format to 4.0.%u.\n",

@@ -335,7 +335,7 @@ static int reiser4_grab(reiser4_context *ctx, __u64 count,
 	/*
 	 * Do not grab anything on ro-mounted fs
 	 */
-	if (rofs_super(ctx->super)) {
+	if (sb_rdonly(ctx->super)) {
 		ctx->grab_enabled = 0;
 		ctx->ro = 1;
 		return 0;

@@ -323,7 +323,7 @@ int process_safelinks(struct super_block *super, reiser4_subvol *subv)
 	int result;
 	struct safe_link_context ctx;
 
-	if (rofs_super(super))
+	if (sb_rdonly(super))
 		/* do nothing on the read-only file system */
 		return 0;
 	safe_link_iter_begin(subv, &ctx);

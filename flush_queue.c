@@ -246,7 +246,7 @@ static int wait_io(flush_queue_t *fq, int *nr_io_errors)
 		//blk_run_queues();
 		//blk_flush_plug(current);
 
-		if (!(super->s_flags & MS_RDONLY))
+		if (!sb_rdonly(super))
 			wait_event(fq->wait,
 				   atomic_read(&fq->nr_submitted) == 0);
 		/*

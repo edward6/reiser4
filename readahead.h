@@ -15,7 +15,7 @@ typedef enum {
    It controls readahead during tree traversals */
 struct formatted_ra_params {
 	unsigned long max;	/* request not more than this amount of nodes.
-				   Default is totalram_pages / 4 */
+				   Default is totalram_pages() / 4 */
 	int flags;
 };
 

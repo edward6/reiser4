@@ -998,8 +998,8 @@ static int atom_begin_and_assign_to_txnh(txn_atom ** atom_alloc, txn_handle * tx
 	txn_atom *atom;
 	txn_mgr *mgr;
 
-	if (REISER4_DEBUG && rofs_super(reiser4_get_current_sb())) {
-		warning("nikita-3366", "Creating atom on rofs");
+	if (REISER4_DEBUG && sb_rdonly(reiser4_get_current_sb())) {
+		warning("nikita-3366", "Creating atom on read-only fs");
 		dump_stack();
 	}
 	if (*atom_alloc == NULL) {
@@ -1191,7 +1191,7 @@ static int atom_should_commit_asap(const txn_atom * atom)
 	captured = (unsigned)atom->capture_count;
 	pinnedpages = (captured >> PAGE_SHIFT) * sizeof(znode);
 
-	return (pinnedpages > (totalram_pages >> 3)) || (atom->flushed > 100);
+	return (pinnedpages > (totalram_pages() >> 3)) || (atom->flushed > 100);
 }
 
 static jnode *find_first_dirty_in_list(struct list_head *head, int flags)

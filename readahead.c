@@ -43,7 +43,7 @@ static int low_on_memory(void)
 	unsigned int freepages;
 
 	freepages = nr_free_pages();
-	return freepages < (totalram_pages * LOW_MEM_PERCENTAGE / 100);
+	return freepages < (totalram_pages() * LOW_MEM_PERCENTAGE / 100);
 }
 
 /* start read for @node and for a few of its right neighbors */
