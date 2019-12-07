@@ -10,6 +10,7 @@
 #include "forward.h"
 #include "debug.h"
 
+#include <linux/prefetch.h>
 #include <linux/types.h>	/* for __u??  */
 
 /* Operations on keys in reiser4 tree */
