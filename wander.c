@@ -666,11 +666,10 @@ static int alloc_wander_blocks(int count, reiser4_block_nr *start, int *len,
  */
 static void undo_bio(struct bio *bio)
 {
-	int i;
 	struct bio_vec *bvec;
 	struct bvec_iter_all iter_all;
 
-	bio_for_each_segment_all(bvec, bio, i, iter_all) {
+	bio_for_each_segment_all(bvec, bio, iter_all) {
 		struct page *pg;
 		jnode *node;
 

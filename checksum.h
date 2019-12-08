@@ -16,7 +16,6 @@ u32 static inline reiser4_crc32c(struct crypto_shash *tfm,
 	int err;
 
 	desc.shash.tfm = tfm;
-	desc.shash.flags = 0;
 	*(u32 *)desc.ctx = crc;
 
 	err = crypto_shash_update(&desc.shash, address, length);
