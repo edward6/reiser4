@@ -44,6 +44,7 @@ lookup_result lookup_internal(const reiser4_key * key /* key to look up */ ,
 		   item plugin can not be taken using coord set this way */
 		assert("vs-681", coord->unit_pos == 0);
 		coord->between = AFTER_UNIT;
+		/* fall through */
 	case EQUAL_TO:
 		return CBK_COORD_FOUND;
 	case GREATER_THAN:

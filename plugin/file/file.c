@@ -1756,6 +1756,7 @@ ssize_t read_unix_file(struct file *file, char __user *buf,
 			result = new_sync_read(file, buf, read_amount, off);
 			break;
 		}
+		/* fall through */
 	case UF_CONTAINER_TAILS:
 	case UF_CONTAINER_UNKNOWN:
 		result = read_compound_file(file, buf, read_amount, off);
