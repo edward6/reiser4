@@ -667,12 +667,14 @@ static int alloc_wander_blocks(int count, reiser4_block_nr *start, int *len,
 static void undo_bio(struct bio *bio)
 {
 	int i;
+	struct bio_vec *bvec;
+	struct bvec_iter_all iter_all;
 
-	for (i = 0; i < bio->bi_vcnt; ++i) {
+	bio_for_each_segment_all(bvec, bio, i, iter_all) {
 		struct page *pg;
 		jnode *node;
 
-		pg = bio->bi_io_vec[i].bv_page;
+		pg = bvec->bv_page;
 		end_page_writeback(pg);
 		node = jprivate(pg);
 		spin_lock_jnode(node);
@@ -1022,7 +1024,6 @@ static int write_jnodes_contig(jnode *first, int nr,
 		if (nr_used > 0) {
 			assert("nikita-3453",
 			       bio->bi_iter.bi_size == super->s_blocksize * nr_used);
-			assert("nikita-3454", bio->bi_vcnt == nr_used);
 
 			/* Check if we are allowed to write at all */
 			if (sb_rdonly(super))

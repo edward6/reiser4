@@ -417,8 +417,11 @@ int atom_fq_parts_are_clean(txn_atom * atom)
 static void end_io_handler(struct bio *bio)
 {
 	int i;
+	int nr = 0;
 	int nr_errors = 0;
 	flush_queue_t *fq;
+	struct bio_vec *bvec;
+	struct bvec_iter_all iter_all;
 
 	assert("zam-958", bio_op(bio) == WRITE);
 	/*
@@ -430,8 +433,8 @@ static void end_io_handler(struct bio *bio)
 	/*
 	 * Check all elements of io_vec for correct write completion
 	 */
-	for (i = 0; i < bio->bi_vcnt; i += 1) {
-		struct page *pg = bio->bi_io_vec[i].bv_page;
+	bio_for_each_segment_all(bvec, bio, i, iter_all) {
+		struct page *pg = bvec->bv_page;
 
 		if (bio->bi_status) {
 			SetPageError(pg);
@@ -449,6 +452,7 @@ static void end_io_handler(struct bio *bio)
 
 			JF_CLR(node, JNODE_WRITEBACK);
 		}
+		nr ++;
 		end_page_writeback(pg);
 		put_page(pg);
 	}
@@ -461,7 +465,7 @@ static void end_io_handler(struct bio *bio)
 		 * If all write requests registered in this "fq" are done
 		 * we up the waiter
 		 */
-		if (atomic_sub_and_test(bio->bi_vcnt, &fq->nr_submitted))
+		if (atomic_sub_and_test(nr, &fq->nr_submitted))
 			wake_up(&fq->wait);
 	}
 	bio_put(bio);
@@ -477,7 +481,8 @@ void add_fq_to_bio(flush_queue_t *fq, struct bio *bio)
 	bio->bi_end_io = end_io_handler;
 
 	if (fq)
-		atomic_add(bio->bi_vcnt, &fq->nr_submitted);
+		atomic_add(bio->bi_iter.bi_size >> PAGE_SHIFT,
+			   &fq->nr_submitted);
 }
 
 /**
