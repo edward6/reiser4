@@ -294,7 +294,7 @@ int reiser4_brick_header(struct reiser4_vol_op_args *args)
 		return 0;
 	}
 	memcpy(args->u.brick.ext_id, this->uuid, 16);
-	strncpy(args->d.name, this->name, strlen(this->name));
+	strncpy(args->d.name, this->name, REISER4_PATH_NAME_MAX + 1);
 	mutex_unlock(&reiser4_volumes_mutex);
 	return 0;
 }

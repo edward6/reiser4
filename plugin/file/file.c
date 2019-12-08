@@ -1759,6 +1759,7 @@ static ssize_t do_read_compound_file(hint_t *hint, struct file *file,
 			break;
 		case FORMATTING_ID:
 			result = read_tail_unix_file(file, &flow, hint);
+			break;
 		default:
 			result = RETERR(-EINVAL);
 		}
@@ -1813,6 +1814,7 @@ ssize_t read_unix_file(struct file *file, char __user *buf,
 			result = new_sync_read(file, buf, read_amount, off);
 			break;
 		}
+		/* fall through */
 	case UF_CONTAINER_TAILS:
 	case UF_CONTAINER_UNKNOWN:
 		result = read_compound_file(file, buf, read_amount, off);
