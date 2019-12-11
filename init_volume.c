@@ -671,11 +671,6 @@ int reiser4_activate_subvol(struct super_block *super,
 	ret = subv->df_plug->init_format(super, subv);
 	if (ret)
 		goto error;
-	ret = subv->df_plug->version_update(super, subv);
-	if (ret) {
-		subv->df_plug->release_format(super, subv);
-		goto error;
-	}
  ok:
 	printk("reiser4: brick %s activated\n", subv->name);
 	subv->flags |= (1 << SUBVOL_ACTIVATED);
@@ -955,6 +950,40 @@ static int is_meta_replica(reiser4_subvol *subv)
 	return is_meta_brick_id(subv->id) && is_replica(subv);
 }
 
+static int volume_version_update(struct super_block *super)
+{
+	int ret = 0;
+	u32 orig_id;
+	reiser4_volume *vol = get_super_private(super)->vol;
+	lv_conf *conf = vol->conf;
+	int nr_to_update = 0;
+
+	txn_handle *trans;
+	txn_atom *atom;
+
+	for_each_mslot(conf, orig_id) {
+		reiser4_subvol *subv;
+		if (!conf->mslots[orig_id])
+			continue;
+		subv = conf_origin(conf, orig_id);
+		ret = subv->df_plug->version_update(super, subv);
+		if (ret < 0)
+			return ret;
+		nr_to_update += ret;
+	}
+	if (!nr_to_update)
+		return 0;
+	/*
+	 * Force write_logs immediately
+	 */
+	trans = get_current_context()->trans;
+	atom = get_current_atom_locked();
+	assert("vpf-1906", atom != NULL);
+
+	spin_lock_txnh(trans);
+	return force_commit_atom(trans);
+}
+
 /**
  * Activate all subvolumes (components) of asymmetric logical
  * volume in a particular order.
@@ -1059,6 +1088,9 @@ int reiser4_activate_volume(struct super_block *super, u8 *vol_uuid)
 			goto deactivate;
 		}
 	}
+	ret = volume_version_update(super);
+	if (ret)
+		goto deactivate;
 	reiser4_volume_set_activated(super);
 	goto out;
  deactivate:

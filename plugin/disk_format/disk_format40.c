@@ -801,19 +801,10 @@ int check_open_format40(const struct inode *object)
 	return 0;
 }
 
-/**
- * ->version_update() method of disk_format40 plugin
- * Upgrade minor disk format version number
- */
 int version_update_format40(struct super_block *super, reiser4_subvol *subv)
 {
-	txn_handle * trans;
-	lock_handle lh;
-	txn_atom *atom;
 	int ret;
-
-	if (subv->id != METADATA_SUBVOL_ID)
-		return 0;
+	lock_handle lh;
 
 	if (sb_rdonly(super) || subv->version >= get_release_number_minor())
 		return 0;
@@ -828,21 +819,16 @@ int version_update_format40(struct super_block *super, reiser4_subvol *subv)
 	init_lh(&lh);
 	ret = get_uber_znode(&subv->tree, ZNODE_WRITE_LOCK,
 			     ZNODE_LOCK_HIPRI, &lh);
-	if (ret != 0)
+	if (ret) {
+		BUG_ON(ret > 0);
 		return ret;
-
+	}
 	znode_make_dirty(lh.node);
 	done_lh(&lh);
-
-	/* NOTE-EDWARD: Backup blocks stuff in fsck makes queasy */
-
-	/* Force write_logs immediately. */
-	trans = get_current_context()->trans;
-	atom = get_current_atom_locked();
-	assert("vpf-1906", atom != NULL);
-
-	spin_lock_txnh(trans);
-	return force_commit_atom(trans);
+	/*
+	 * Backup blocks stuff in fsck makes me queasy - Edward.
+	 */
+	return 1;
 }
 
 /*

@@ -782,6 +782,14 @@ typedef struct disk_format_plugin {
 	int (*release_format) (struct super_block *, reiser4_subvol *);
 	jnode * (*log_super) (struct super_block *, reiser4_subvol *);
 	int (*check_open) (const struct inode *object);
+	/*
+	 * Decide, if minor disk format version number in format
+	 * super-block should be upgraded.
+	 * If no, then return 0. If yes, then put format super-block into
+	 * a transaction and return 1. In this case the caller should put
+	 * additional efforts to commit that transaction (if needed).
+	 * In the case of errors return <0.
+	 */
 	int (*version_update) (struct super_block *, reiser4_subvol *);
 } disk_format_plugin;
 
