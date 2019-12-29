@@ -158,7 +158,7 @@ typedef struct reiser4_object_on_wire reiser4_object_on_wire;
  * NOTE: Make sure that respective marco is also incremented in
  * the new release of reiser4progs.
  */
-#define PLUGIN_LIBRARY_VERSION 2
+#define PLUGIN_LIBRARY_VERSION 3
 
  /* enumeration of fields within plugin_set */
 typedef enum {
@@ -1043,6 +1043,26 @@ static inline reiser4_plugin_id TYPE ## _id(TYPE* plugin)		\
 	return TYPE ## _to_plugin(plugin)->h.id;			\
 }									\
 typedef struct { int foo; } TYPE ## _plugin_dummy
+
+
+static inline unsigned get_release_number_principal(void)
+{
+	return REISER4_VERSION_PRINCIPAL;
+}
+
+/**
+ * Guess principal format number by major release number
+ */
+static inline int get_format_number_principal(int major)
+{
+	switch (major) {
+	case 0:
+	case 1:
+		return 4 + major;
+	default:
+		impossible("edward-2429", "Unsupported major release number");
+	}
+}
 
 static inline int get_release_number_major(void)
 {

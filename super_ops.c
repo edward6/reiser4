@@ -768,8 +768,9 @@ static int __init init_reiser4(void)
 	int result;
 
 	printk(KERN_INFO
-	       "Loading Reiser4 (Software Framework Release: 4.%d.%d). "
+	       "Loading Reiser4 (Software Framework Release: %d.%d.%d). "
 	       "See reiser4.wiki.kernel.org for a description of Reiser4.\n",
+	       get_release_number_principal(),
 	       get_release_number_major(),
 	       get_release_number_minor());
 

@@ -40,7 +40,7 @@ disk_format_plugin format_plugins[LAST_FORMAT_ID] = {
 		.release_format = release_format40,
 		.log_super = log_super_format40,
 		.check_open = check_open_format40,
-		.version_update = version_update_format40,
+		.version_update = version_update_format41,
 	}
 };
 

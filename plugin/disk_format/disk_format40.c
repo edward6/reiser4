@@ -468,18 +468,22 @@ static int try_init_format(struct super_block *super,
 		return result;
 	*stage = READ_SUPER;
 
-	printk("reiser4 (%s): found disk format 4.%u.%u.\n",
+	printk("reiser4 (%s): found disk format %d.%d.%d.\n",
 	       super->s_id,
+	       get_format_number_principal(major_version_nr),
 	       major_version_nr,
 	       format40_get_minor_version_nr(&sb_format));
+
 	if (incomplete_compatibility(&sb_format))
-		printk("reiser4 (%s): format version number (4.%u.%u) is "
-		       "greater than release number (4.%u.%u) of reiser4 "
+		printk("reiser4 (%s): format version number (%d.%d.%d) is "
+		       "greater than release number (%d.%d.%d) of reiser4 "
 		       "kernel module. Some objects of the subvolume can "
 		       "be inaccessible.\n",
 		       super->s_id,
+		       get_format_number_principal(major_version_nr),
 		       major_version_nr,
 		       format40_get_minor_version_nr(&sb_format),
+		       get_release_number_principal(),
 		       get_release_number_major(),
 		       get_release_number_minor());
 	/*
@@ -801,7 +805,8 @@ int check_open_format40(const struct inode *object)
 	return 0;
 }
 
-int version_update_format40(struct super_block *super, reiser4_subvol *subv)
+static int version_update_common(struct super_block *super,
+				 reiser4_subvol *subv, int major)
 {
 	int ret;
 	lock_handle lh;
@@ -809,8 +814,12 @@ int version_update_format40(struct super_block *super, reiser4_subvol *subv)
 	if (sb_rdonly(super) || subv->version >= get_release_number_minor())
 		return 0;
 
-	printk("reiser4 (%s): upgrading disk format to 4.0.%u.\n",
-	       subv->name, get_release_number_minor());
+	printk("reiser4 (%s): upgrading disk format to %d.%d.%d.\n",
+	       subv->name,
+	       get_format_number_principal(major),
+	       major,
+	       get_release_number_minor());
+
 	printk("reiser4 (%s): use 'fsck.reiser4 --fix' "
 	       "to complete disk format upgrade.\n", subv->name);
 	/*
@@ -829,6 +838,16 @@ int version_update_format40(struct super_block *super, reiser4_subvol *subv)
 	 * Backup blocks stuff in fsck makes me queasy - Edward.
 	 */
 	return 1;
+}
+
+int version_update_format40(struct super_block *super, reiser4_subvol *subv)
+{
+	return version_update_common(super, subv, 0);
+}
+
+int version_update_format41(struct super_block *super, reiser4_subvol *subv)
+{
+	return version_update_common(super, subv, 1);
 }
 
 /*

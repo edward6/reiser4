@@ -27,6 +27,8 @@
 
 #define REISER4_SHA256 (0)
 
+#define REISER4_VERSION_PRINCIPAL (5)
+
 /*
  * Turn on large keys mode. In his mode (which is default), reiser4 key has 4
  * 8-byte components. In the old "small key" mode, it's 3 8-byte

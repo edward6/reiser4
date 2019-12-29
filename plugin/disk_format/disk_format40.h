@@ -105,6 +105,7 @@ extern int release_format40(struct super_block *s, reiser4_subvol *);
 extern jnode *log_super_format40(struct super_block *s, reiser4_subvol *);
 extern int check_open_format40(const struct inode *object);
 extern int version_update_format40(struct super_block *super, reiser4_subvol *);
+extern int version_update_format41(struct super_block *super, reiser4_subvol *);
 
 /* __DISK_FORMAT40_H__ */
 #endif
