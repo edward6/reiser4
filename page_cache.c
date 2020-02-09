@@ -545,7 +545,8 @@ static struct address_space_operations formatted_fake_as_ops = {
 	 */
 	.releasepage = reiser4_releasepage,
 	.direct_IO = NULL,
-	.migratepage = reiser4_migratepage
+	.migratepage = reiser4_migratepage,
+	.batch_lock_tabu = 1
 };
 
 /* called just before page is released (no longer used by reiser4). Callers:
