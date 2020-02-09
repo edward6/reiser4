@@ -150,7 +150,8 @@ static struct address_space_operations regular_file_a_ops = {
 	.bmap = reiser4_bmap_dispatch,
 	.invalidatepage = reiser4_invalidatepage,
 	.releasepage = reiser4_releasepage,
-	.migratepage = reiser4_migratepage
+	.migratepage = reiser4_migratepage,
+	.batch_lock_tabu = 1
 };
 
 /* VFS methods for symlink files */
