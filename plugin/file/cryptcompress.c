@@ -527,6 +527,7 @@ int open_cryptcompress(struct inode * inode, struct file * file)
 	return 0;
 }
 
+#if REISER4_CRYPTO
 /* returns a blocksize, the attribute of a cipher algorithm */
 static unsigned int
 cipher_blocksize(struct inode * inode)
@@ -552,6 +553,9 @@ static loff_t inode_scaled_offset (struct inode * inode,
 						 cipher_blocksize(inode),
 						 src_off);
 }
+#else
+#define inode_scaled_offset(__inode, __off) __off
+#endif
 
 /* returns disk cluster size */
 size_t inode_scaled_cluster_size(struct inode * inode)
@@ -849,6 +853,8 @@ static int find_cluster_item(hint_t * hint,
 	return result;
 }
 
+#if REISER4_CRYPTO
+
 /* This function is called by deflate[inflate] manager when
    creating a transformed/plain stream to check if we should
    create/cut some overhead. If this returns true, then @oh
@@ -909,6 +915,9 @@ static unsigned max_cipher_overhead(struct inode * inode)
 		return 0;
 	return cipher_blocksize(inode);
 }
+#else
+#define max_cipher_overhead(_inode) 0
+#endif
 
 static int deflate_overhead(struct inode *inode)
 {
@@ -1158,6 +1167,7 @@ int reiser4_deflate_cluster(struct cluster_handle * clust, struct inode * inode)
 		}
 	}
  cipher:
+#if REISER4_CRYPTO
 	if (need_cipher(inode)) {
 		cipher_plugin * ciplug;
 		struct blkcipher_desc desc;
@@ -1185,6 +1195,7 @@ int reiser4_deflate_cluster(struct cluster_handle * clust, struct inode * inode)
 		}
 		encrypted = 1;
 	}
+#endif
 	if (compressed && coplug->checksum != NULL)
 		dc_set_checksum(coplug, tc);
 	if (!compressed && !encrypted)
@@ -1219,6 +1230,7 @@ int reiser4_inflate_cluster(struct cluster_handle * clust, struct inode * inode)
 			return RETERR(-EIO);
 		}
 	}
+#if REISER4_CRYPTO
 	if (need_cipher(inode)) {
 		cipher_plugin * ciplug;
 		struct blkcipher_desc desc;
@@ -1245,6 +1257,7 @@ int reiser4_inflate_cluster(struct cluster_handle * clust, struct inode * inode)
 		align_or_cut_overhead(inode, clust, READ_OP);
 		transformed = 1;
 	}
+#endif
 	if (need_inflate(clust, inode, 0)) {
 		size_t dst_len = inode_cluster_size(inode);
 		if(transformed)
