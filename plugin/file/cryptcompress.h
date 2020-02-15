@@ -18,6 +18,8 @@
 #define MIN_LATTICE_FACTOR 1
 #define MAX_LATTICE_FACTOR 32
 
+#define REISER4_CRYPTO 0
+
 /* this mask contains all non-standard plugins that might
    be present in reiser4-specific part of inode managed by
    cryptcompress file plugin */
