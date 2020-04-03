@@ -242,15 +242,15 @@ static int __update_extent_stripe(uf_coord_t *uf_coord, const reiser4_key *key,
 			JF_CLR(node, JNODE_OVRWR);
 		}
 		block = fake_blocknr_unformatted(1, subv);
+		jnode_set_block(node, &block);
+		jnode_set_subvol(node, subv);
 		if (hole_plugged)
 			*hole_plugged = 1;
 		JF_SET(node, JNODE_CREATED);
-	} else {
+
+	} else if (*jnode_get_block(node) == 0) {
 		reiser4_extent *ext;
 		struct extent_coord_extension *ext_coord;
-
-		if (*jnode_get_block(node))
-			return 0;
 
 		ext_coord = ext_coord_by_uf_coord(uf_coord);
 		check_uf_coord(uf_coord, NULL);
@@ -260,9 +260,9 @@ static int __update_extent_stripe(uf_coord_t *uf_coord, const reiser4_key *key,
 			return RETERR(-EIO);
 
 		block = extent_get_start(ext) + ext_coord->pos_in_unit;
+		jnode_set_block(node, &block);
+		jnode_set_subvol(node, subv);
 	}
-	jnode_set_block(node, &block);
-	jnode_set_subvol(node, subv);
 	/*
 	 * make sure that locked twig node contains jnode
 	 * we are about to capture
