@@ -2046,7 +2046,7 @@ int balance_volume_asym(struct super_block *super)
 	lock_handle lh;
 	reiser4_key start_key;
 	struct reiser4_iterate_context ictx;
-	time_t start;
+	time64_t start;
 	/*
 	 * Set a start key (key of the leftmost object on the
 	 * TWIG level) to scan from.
@@ -2065,7 +2065,7 @@ int balance_volume_asym(struct super_block *super)
 	if (!reiser4_volume_is_unbalanced(super))
 		return 0;
 	printk("reiser4 (%s): Started balancing...\n", super->s_id);
-	start = get_seconds();
+	start = ktime_get_seconds();
 
 	init_lh(&lh);
 	/*
@@ -2206,8 +2206,8 @@ int balance_volume_asym(struct super_block *super)
 		ictx.curr = ictx.next;
 	}
  done:
-	printk("reiser4 (%s): Balancing completed in %lu seconds.\n",
-	       super->s_id, get_seconds() - start);
+	printk("reiser4 (%s): Balancing completed in %lld seconds.\n",
+	       super->s_id, ktime_get_seconds() - start);
 	return 0;
  error:
 	warning("edward-2155", "%s: Balancing aborted (%d).", super->s_id, ret);
