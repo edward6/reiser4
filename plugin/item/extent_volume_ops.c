@@ -13,6 +13,8 @@
 #include "../object.h"
 #include "../volume/volume.h"
 
+#define MIGRATION_GRANULARITY (8192)
+
 jnode *do_jget(struct page *pg);
 void try_merge_with_right_item(coord_t *left);
 int split_extent_unit(coord_t *coord, reiser4_block_nr pos, int adv_to_right);
@@ -238,9 +240,9 @@ static int migrate_blocks(struct extent_migrate_context *mctx)
 			ret = PTR_ERR(node);
 			goto error;
 		}
-		set_page_dirty_notag(page);
 		JF_SET(node, JNODE_WRITE_PREPARED);
 		unlock_page(page);
+
 	}
 	nr_jnodes = mctx->nr_pages;
 
@@ -249,21 +251,11 @@ static int migrate_blocks(struct extent_migrate_context *mctx)
 	if (ret)
 		goto error;
 	/*
-	 * All the collected jnodes have become orphan and
-	 * unallocated - deallocation happened at kill_hook_extent().
-	 * Here we release all resources associated with those jnodes
-	 * (except detaching jnode's page)
-	 */
-	for (i = 0; i < mctx->nr_pages; i++) {
-		jnode *node = jprivate(mctx->pages[i]);
-
-		assert("edward-2409", node != NULL);
-		spin_lock_jnode(node);
-		node->blocknr = 0;
-		node->subvol = NULL;
-		reiser4_uncapture_jnode(node); /* this unlocks jnode */
-	}
-	/*
+	 * At this pointg all the collected jnodes have become orphan
+	 * and unallocated - deallocation happened at kill_hook_extent().
+	 * Pages and jnodes wasn't truncated by that hook because of
+	 * REISER4_FILE_IN_MIGRATION flag set.
+	 *
 	 * Create a new unallocated extent instead of the removed one.
 	 * However, not everything is so simple - we need to find out
 	 * the status of the removed item: was it the leftmost item in
@@ -286,15 +278,21 @@ static int migrate_blocks(struct extent_migrate_context *mctx)
 		done_lh(mctx->lh);
 		ret = find_file_item_nohint(coord, mctx->lh, &key,
 					    ZNODE_WRITE_LOCK, mctx->inode);
-		if (IS_CBKERR(ret))
+		if (IS_CBKERR(ret)) {
+			warning("edward-2457",
+				"Inode %llu: extent (%llu %d) on brick %llu lost during migration",
+				get_inode_oid(mctx->inode),
+				(jprivate(mctx->pages[0]))->blocknr,
+				mctx->nr_pages,
+				jnode_get_subvol(jprivate(mctx->pages[0]))->id);
 			goto error;
+		}
 		assert("edward-2411", coord->between != AT_UNIT);
 		if (coord->between == AFTER_UNIT) {
 			assert("edward-2412", coord->node->level == TWIG_LEVEL);
 			goto insert_on_twig;
 		}
 		assert("edward-2413", coord->node->level == LEAF_LEVEL);
-		assert("edward-2423", get_key_offset(&key) == 0);
 
 		reiser4_set_extent(new_subv, &new_ext,
 				   UNALLOCATED_EXTENT_START, mctx->nr_pages);
@@ -352,7 +350,8 @@ static int migrate_blocks(struct extent_migrate_context *mctx)
 	try_merge_with_right_item(coord);
 	zrelse(twig_node);
 	/*
-	 * Capture jnodes and make them dirty. At flush time all the
+	 * Capture jnodes, set new addresses for them,
+	 * and make them dirty. At flush time all the
 	 * blocks will get new location on the new brick.
 	 */
 	ret = check_insert_atom_brick_info(new_subv->id, &abi);
@@ -364,15 +363,19 @@ static int migrate_blocks(struct extent_migrate_context *mctx)
 		jnode *node = jprivate(mctx->pages[i]);
 
 		assert("edward-2417", node != NULL);
+
+		set_page_dirty_notag(mctx->pages[i]);
+
 		spin_lock_jnode(node);
 		JF_SET(node, JNODE_CREATED);
 		JF_CLR(node, JNODE_WRITE_PREPARED);
 
-		jnode_set_subvol(node, new_subv);
+		node->subvol = new_subv;
 		jnode_set_block(node, &block);
 
 		ret = reiser4_try_capture(node, ZNODE_WRITE_LOCK, 0);
 		BUG_ON(ret != 0);
+
 		jnode_make_dirty_locked(node);
 		spin_unlock_jnode(node);
 
@@ -408,15 +411,14 @@ static int do_migrate_extent(struct extent_migrate_context *mctx)
 	mctx->nr_pages = (get_key_offset(mctx->key) +
 			  reiser4_extent_size(coord) -
 			  mctx->stop_off) >> PAGE_SHIFT;
-	mctx->pages = kzalloc(sizeof(mctx->pages) * mctx->nr_pages,
-			      GFP_KERNEL);
+	mctx->pages = reiser4_vmalloc(sizeof(mctx->pages) * mctx->nr_pages);
 	if (!mctx->pages) {
 		zrelse(loaded);
 		return RETERR(-ENOMEM);
 	}
 	ret = migrate_blocks(mctx);
 
-	kfree(mctx->pages);
+	vfree(mctx->pages);
 	zrelse(loaded);
 	done_lh(lh);
 	if (ret)
@@ -424,7 +426,6 @@ static int do_migrate_extent(struct extent_migrate_context *mctx)
 	mctx->done_off = mctx->stop_off;
 	mctx->blocks_migrated += mctx->nr_pages;
 
-	drop_exclusive_access(unix_file_inode_data(mctx->inode));
 	reiser4_throttle_write(mctx->inode);
 	/*
 	 * Release the rest of blocks we grabbed for the fulfilled
@@ -438,7 +439,6 @@ static int do_migrate_extent(struct extent_migrate_context *mctx)
 	 * with no free space.
 	 */
 	ret = reserve_migration_iter();
-	get_exclusive_access(unix_file_inode_data(mctx->inode));
 	if (ret)
 		return ret;
 	if (mctx->migrate_whole_item) {
@@ -643,6 +643,77 @@ static void reset_migration_context(struct extent_migrate_context *mctx)
 }
 
 /**
+ * Assign a migration primitive in the case of no striping
+ */
+static void what_to_do_nostripe(struct extent_migrate_context *mctx)
+{
+	coord_t *coord;
+	struct inode *inode = mctx->inode;
+
+	coord = mctx->coord;
+	zload(coord->node);
+	coord_clear_iplug(coord);
+	reset_migration_context(mctx);
+
+	/*
+	 * For each item there are only 2 options:
+	 * either skip the whole one, or migrate it
+	 */
+	mctx->new_loc = calc_data_subvol(inode, get_key_offset(mctx->key))->id;
+
+	if (get_key_ordering(mctx->key) == mctx->new_loc) {
+		/*
+		 * skip the whole extent
+		 */
+		coord->unit_pos = 0;
+		mctx->stop_off = get_key_offset(mctx->key);
+
+		mctx->stop = 1;
+		mctx->act = SKIP_EXTENT;
+	} else if (reiser4_extent_size(coord) <=
+		   (MIGRATION_GRANULARITY << PAGE_SHIFT)) {
+		/*
+		 * migrate the whole extent
+		 */
+		coord->unit_pos = 0;
+		mctx->stop_off = get_key_offset(mctx->key);
+
+		mctx->migrate_whole_item = 1;
+		mctx->act = MIGRATE_EXTENT;
+	} else {
+		/*
+		 * extent is too large, migrate it by parts
+		 */
+		lookup_result ret;
+		reiser4_key split_key;
+
+		mctx->stop_off =
+			get_key_offset(mctx->key) +
+			reiser4_extent_size(coord) -
+			(MIGRATION_GRANULARITY << PAGE_SHIFT);
+
+		memcpy(&split_key, mctx->key, sizeof(split_key));
+		set_key_offset(&split_key, mctx->stop_off);
+		ret = lookup_extent(&split_key, FIND_EXACT, coord);
+
+		assert("edward-2442", ret == CBK_COORD_FOUND);
+		assert("edward-2443", coord->between == AT_UNIT);
+
+		unit_key_by_coord(coord, &split_key);
+
+		assert("edward-2444",
+		       get_key_offset(&split_key) <= mctx->stop_off);
+		mctx->unit_split_pos =
+			(mctx->stop_off -
+			 get_key_offset(&split_key)) >> PAGE_SHIFT;
+		mctx->migrate_whole_item = 0;
+		mctx->act = MIGRATE_EXTENT;
+	}
+	zrelse(coord->node);
+	return;
+}
+
+/**
  * Assign primitive migration operation over the given item
  * specified by @mctx.coord
  */
@@ -656,20 +727,21 @@ static void what_to_do(struct extent_migrate_context *mctx)
 	struct inode *inode = mctx->inode;
 	reiser4_key split_key;
 
+	if (nostripe_migration_mode())
+		/*
+		 * the whole item is either to be migrated, or not
+		 */
+		return what_to_do_nostripe(mctx);
+
 	coord = mctx->coord;
 	zload(coord->node);
 	coord_clear_iplug(coord);
-
 	reset_migration_context(mctx);
 	/*
 	 * find split offset in the item, i.e. maximal offset,
 	 * so that data bytes at offset and (offset - 1) belong
 	 * to different bricks in the new logical volume
 	 */
-	if (current_stripe_bits == 0) {
-		mctx->new_loc = calc_data_subvol(inode, 0)->id;
-		goto split_off_not_found;
-	}
 	/* offset of the leftmost byte */
 	off1 = get_key_offset(mctx->key);
 	/* offset of rightmost byte */
@@ -688,8 +760,9 @@ static void what_to_do(struct extent_migrate_context *mctx)
 			goto split_off_found;
 		}
 	}
- split_off_not_found:
 	/*
+	 * split offset not found
+	 *
 	 * set current position to the beginning of the item
 	 */
 	coord->unit_pos = 0;
@@ -757,8 +830,6 @@ static void what_to_do(struct extent_migrate_context *mctx)
 	mctx->act = SPLIT_EXTENT;
 	return;
 }
-
-#define MIGRATION_GRANULARITY (1024)
 
 int reiser4_migrate_extent(coord_t *coord, reiser4_key *key,
 			   lock_handle *lh, struct inode *inode,

@@ -2598,7 +2598,7 @@ void reiser4_uncapture_page(struct page *pg)
  * Besides, this is used to release resources (except detaching jnode's
  * page) during data migration caused by operations on logical volumes.
  */
-void reiser4_uncapture_jnode(jnode * node)
+void reiser4_uncapture_jnode(jnode *node)
 {
 	txn_atom *atom;
 
@@ -2794,7 +2794,7 @@ void znode_make_dirty(znode * z)
 	assert("jmacd-9777", node->atom != NULL);
 }
 
-int reiser4_sync_atom(txn_atom * atom)
+int reiser4_sync_atom(txn_atom *atom)
 {
 	int result;
 	txn_handle *txnh;
@@ -3347,7 +3347,7 @@ static void capture_fuse_into(txn_atom * small, txn_atom * large)
    NOTE: this function does not release a (journal) reference to jnode
    due to locking optimizations, you should call jput() somewhere after
    calling reiser4_uncapture_block(). */
-void reiser4_uncapture_block(jnode * node)
+void reiser4_uncapture_block(jnode *node)
 {
 	txn_atom *atom;
 

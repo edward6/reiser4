@@ -142,7 +142,8 @@ int reiser4_check_extent(const coord_t * coord, const char **error);
 ssize_t write_extent_unix_file(struct file *, struct inode * inode,
 			       const char __user *, size_t, loff_t *);
 ssize_t write_extent_stripe(struct file *, struct inode * inode,
-			    const char __user *, size_t, loff_t *);
+			    const char __user *, size_t, loff_t *,
+			    unsigned flags);
 int read_extent_unix_file(struct file *, flow_t *, hint_t *);
 int read_extent_stripe(struct file *, flow_t *, hint_t *);
 int readpage_extent_stripe(void *, struct page *);
@@ -178,9 +179,9 @@ extent_state state_of_extent(reiser4_extent * ext);
 void reiser4_set_extent(reiser4_subvol *subv, reiser4_extent *,
 			reiser4_block_nr start,	reiser4_block_nr width);
 int update_extent_unix_file(struct inode *, jnode *, loff_t pos,
-			    int *plugged_hole, int truncate);
+			    int *plugged_hole);
 int update_extent_stripe(hint_t *hint, struct inode *, jnode *, int *plugged_hole,
-			 int truncate);
+			 unsigned flags);
 
 #include "../../coord.h"
 #include "../../lock.h"

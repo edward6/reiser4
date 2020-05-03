@@ -494,13 +494,25 @@ static int try_init_format(struct super_block *super,
 		return result;
 
 	*stage = KEY_CHECK;
-
+	/*
+	 * convert on-disk flags to on-line state
+	 */
 	if (get_format40_flags(&sb_format) & (1 << FORMAT40_HAS_DATA_ROOM))
 		subv->flags |= (1 << SUBVOL_HAS_DATA_ROOM);
 
 	if (get_format40_flags(&sb_format) & (1 << FORMAT40_TO_BE_REMOVED))
 		subv->flags |= (1 << SUBVOL_TO_BE_REMOVED);
 
+	if (get_format40_flags(&sb_format) & (1 << FORMAT40_IS_PROXY)) {
+		subv->flags |= (1 << SUBVOL_IS_PROXY);
+		if (reiser4_is_set(super, REISER4_PROXY_ENABLED)) {
+			warning("edward-2430",
+				"Found second proxy subvolume %s", subv->name);
+			return -EINVAL;
+		}
+		reiser4_volume_set_proxy_enabled(super);
+		reiser4_volume_set_proxy_io(super);
+	}
 	if (is_meta_brick_id(subv->id)) {
 		result = oid_init_allocator(super,
 					    get_format40_file_count(&sb_format),
@@ -684,21 +696,29 @@ static void pack_format40_super(const struct super_block *s,
 
 		put_unaligned(cpu_to_le32(version), &format_sb->version);
 	}
+	/*
+	 * convert on-line state to on-disk flags
+	 */
 	if (subv->flags & (1 << SUBVOL_TO_BE_REMOVED))
 		format_flags |= (1 << FORMAT40_TO_BE_REMOVED);
 	else
 		format_flags &= ~(1 << FORMAT40_TO_BE_REMOVED);
+
+	if (subv->flags & (1 << SUBVOL_IS_PROXY))
+		format_flags |= (1 << FORMAT40_IS_PROXY);
+	else
+		format_flags &= ~(1 << FORMAT40_IS_PROXY);
+
+	if (subv->flags & (1 << SUBVOL_HAS_DATA_ROOM))
+		format_flags |= (1 << FORMAT40_HAS_DATA_ROOM);
+	else
+		format_flags &= ~(1 << FORMAT40_HAS_DATA_ROOM);
 
 	if (is_meta_brick(subv)) {
 		if (reiser4_volume_is_unbalanced(s))
 			format_flags |= (1 << FORMAT40_UNBALANCED_VOLUME);
 		else
 			format_flags &= ~(1 << FORMAT40_UNBALANCED_VOLUME);
-
-		if (subv->flags & (1 << SUBVOL_HAS_DATA_ROOM))
-			format_flags |= (1 << FORMAT40_HAS_DATA_ROOM);
-		else
-			format_flags &= ~(1 << FORMAT40_HAS_DATA_ROOM);
 
 		put_unaligned(cpu_to_le64(vol_nr_origins(vol)), &format_sb->nr_origins);
 

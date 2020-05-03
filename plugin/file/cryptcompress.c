@@ -2563,7 +2563,7 @@ void truncate_complete_page_cluster(struct inode *inode, cloff_t index,
 	}
 	lock_cluster(node);
 
-	if (reiser4_inode_get_flag(inode, REISER4_FILE_CONV_IN_PROGRESS)
+	if (reiser4_inode_get_flag(inode, REISER4_FILE_IN_CONVERSION)
 	    && index == 0)
 		/* converting to unix_file is in progress */
 		JF_CLR(node, JNODE_CLUSTER_PAGE);
@@ -2590,7 +2590,7 @@ void truncate_complete_page_cluster(struct inode *inode, cloff_t index,
 	jput(node);                         /* jlookup */
 	put_found_pages(pages, found); /* find_get_pages */
  truncate:
-	if (reiser4_inode_get_flag(inode, REISER4_FILE_CONV_IN_PROGRESS) &&
+	if (reiser4_inode_get_flag(inode, REISER4_FILE_IN_CONVERSION) &&
 	    index == 0)
 		return;
 	truncate_page_cluster_range(inode, pages, index, 0,
@@ -2598,7 +2598,7 @@ void truncate_complete_page_cluster(struct inode *inode, cloff_t index,
 				    even_cows);
 	assert("edward-1201",
 	       ergo(!reiser4_inode_get_flag(inode,
-					    REISER4_FILE_CONV_IN_PROGRESS),
+					    REISER4_FILE_IN_CONVERSION),
 		    jnode_truncate_ok(inode, index)));
 	return;
 }

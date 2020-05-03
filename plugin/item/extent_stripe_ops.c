@@ -200,6 +200,8 @@ static int plug_hole_stripe(coord_t *coord, lock_handle *lh,
 	return 0;
 }
 
+int sync_jnode(jnode *node);
+
 static int __update_extent_stripe(uf_coord_t *uf_coord, const reiser4_key *key,
 				  jnode *node, int *hole_plugged)
 {
@@ -215,32 +217,34 @@ static int __update_extent_stripe(uf_coord_t *uf_coord, const reiser4_key *key,
 		/*
 		 * block pointer is not represented by any item in the tree
 		 */
+		if (*jnode_get_block(node)) {
+#if REISER4_DEBUG
+			notice("edward-2371",
+			       "Orphan jnode. Address (%llu %llu) overwritten",
+			       (unsigned long long )(*jnode_get_block(node)),
+			       (unsigned long long)(jnode_get_subvol(node)->id));
+#endif
+			/*
+			 * FIXME: Move the following error handling stuff
+			 * upward to write_extent_stripe_handle_enospc()
+			 */
+			done_lh(uf_coord->lh);
+			reiser4_txn_restart_current();
+			sync_jnode(node);
+			reiser4_txn_restart_current();
+
+			spin_lock_jnode(node);
+			node->blocknr = 0;
+			node->subvol = NULL;
+			reiser4_uncapture_jnode(node);
+			return RETERR(-EBUSY);
+		}
 		uf_coord->valid = 0;
 		inode_add_blocks(mapping_jnode(node)->host, 1);
 		ret = plug_hole_stripe(&uf_coord->coord, uf_coord->lh, key);
 		if (ret)
 			return ret;
 
-		if (*jnode_get_block(node)) {
-			/*
-			 * Olala :(
-			 * Non-zero address while block pointer is
-			 * absent in the tree - this should not ever
-			 * happen!
-			 *
-			 * Experience shows that address referred
-			 * by that jnode is not actual, so we have
-			 * the courage to overwrite it. Nevertheless:
-			 * FIXME-EDWARD: Find the reason of appearance
-			 * of such jnodes.
-			 */
-			warning("edward-2371",
-				"Orphan jnode. Address (%llu %llu) overwritten",
-				(unsigned long long )(*jnode_get_block(node)),
-				(unsigned long long)(jnode_get_subvol(node)->id));
-			JF_CLR(node, JNODE_RELOC);
-			JF_CLR(node, JNODE_OVRWR);
-		}
 		block = fake_blocknr_unformatted(1, subv);
 		jnode_set_block(node, &block);
 		jnode_set_subvol(node, subv);
@@ -291,8 +295,8 @@ static int __update_extent_stripe(uf_coord_t *uf_coord, const reiser4_key *key,
  */
 static int locate_reserve_data(coord_t *coord, lock_handle *lh,
 			       reiser4_key *key, struct inode *inode,
-			       loff_t pos, jnode *node, int truncate,
-			       reiser4_subvol **loc)
+			       loff_t pos, jnode *node,
+			       reiser4_subvol **loc, unsigned flags)
 {
 	int ret;
 
@@ -309,6 +313,10 @@ static int locate_reserve_data(coord_t *coord, lock_handle *lh,
 		 * this is a hint from migration procedure
 		 */
 		*loc = node->subvol;
+	else if (reiser4_is_set(reiser4_get_current_sb(),
+				REISER4_PROXY_IO) &&
+		 !(flags & UPX_PROXY_FULL))
+		*loc = get_proxy_subvol();
 	else
 		*loc = calc_data_subvol(inode, pos);
 
@@ -318,7 +326,7 @@ static int locate_reserve_data(coord_t *coord, lock_handle *lh,
 	 * Note that in the case of truncate the space
 	 * has been already reserved in shorten_stripe()
 	 */
-	if (truncate)
+	if (flags & UPX_TRUNCATE)
 		return 0;
 	grab_space_enable();
 	return reiser4_grab_space(1 /* count */,
@@ -333,7 +341,7 @@ static int locate_reserve_data(coord_t *coord, lock_handle *lh,
  * Return 0 on success.
  */
 int update_extent_stripe(struct hint *hint, struct inode *inode,
-			 jnode *node, int *plugged_hole, int truncate)
+			 jnode *node, int *plugged_hole, unsigned flags)
 {
 	int ret = 0;
 	reiser4_key key;
@@ -362,7 +370,7 @@ int update_extent_stripe(struct hint *hint, struct inode *inode,
 	ret = locate_reserve_data(&hint->ext_coord.coord,
 				  hint->ext_coord.lh, &key,
 				  inode, off, node,
-				  truncate, &dsubv);
+				  &dsubv, flags);
 	if (ret) {
 		done_lh(hint->ext_coord.lh);
 		return ret;
@@ -392,8 +400,11 @@ int update_extent_stripe(struct hint *hint, struct inode *inode,
 	ret = __update_extent_stripe(&hint->ext_coord, &key, node,
 				     plugged_hole);
 	zrelse(loaded);
-	if (ret) {
+	if (ret == -ENOSPC) {
 		done_lh(hint->ext_coord.lh);
+		return ret;
+	} else if (ret) {
+		reiser4_unset_hint(hint);
 		return ret;
 	}
 	loaded = hint->lh.node;
@@ -428,7 +439,7 @@ int update_extent_stripe(struct hint *hint, struct inode *inode,
 	return 0;
 }
 
-int find_or_create_extent_stripe(struct page *page, int truncate)
+int find_or_create_extent_stripe(struct page *page, unsigned flags)
 {
 	int ret;
 	struct inode *inode;
@@ -451,7 +462,7 @@ int find_or_create_extent_stripe(struct page *page, int truncate)
 	unlock_page(page);
 
 	ret = update_extent_stripe(&hint, inode, node,
-				   &plugged_hole, truncate);
+				   &plugged_hole, flags);
 	JF_CLR(node, JNODE_WRITE_PREPARED);
 
 	if (ret) {
@@ -484,7 +495,7 @@ int find_or_create_extent_stripe(struct page *page, int truncate)
  */
 ssize_t write_extent_stripe(struct file *file, struct inode *inode,
 			    const char __user *buf, size_t count,
-			    loff_t *pos)
+			    loff_t *pos, unsigned flags)
 {
 	int nr_pages;
 	int nr_dirty = 0;
@@ -618,10 +629,12 @@ ssize_t write_extent_stripe(struct file *file, struct inode *inode,
 
 		assert("edward-2063", reiser4_lock_counters()->d_refs == 0);
 
-		ret = update_extent_stripe(&hint, inode, jnodes[i], NULL, 0);
+		ret = update_extent_stripe(&hint, inode, jnodes[i],
+					   NULL, flags);
 
 		assert("edward-2065",  reiser4_lock_counters()->d_refs == 0);
-		assert("edward-2365", ret == -ENOSPC || ret >= 0);
+		assert("edward-2365",
+		       ret == -ENOSPC || ret == -EBUSY || ret >= 0);
 
 		if (ret)
 			break;

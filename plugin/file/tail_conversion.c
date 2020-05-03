@@ -191,7 +191,7 @@ static int replace(struct inode *inode, struct page **pages, unsigned nr_pages, 
 		SetPageUptodate(pages[i]);
 		set_page_dirty_notag(pages[i]);
 		unlock_page(pages[i]);
-		result = find_or_create_extent_unix_file(pages[i], 0);
+		result = find_or_create_extent_unix_file(pages[i]);
 		if (result) {
 			/*
 			 * Unsuccess in critical place:

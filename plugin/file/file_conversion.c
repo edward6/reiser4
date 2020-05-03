@@ -416,7 +416,7 @@ static int cryptcompress2unixfile(struct file *file, struct inode *inode,
 	if (result)
 		goto out;
 	/* tell kill_hook to not truncate pages */
-	reiser4_inode_set_flag(inode, REISER4_FILE_CONV_IN_PROGRESS);
+	reiser4_inode_set_flag(inode, REISER4_FILE_IN_CONVERSION);
 	result = cut_disk_cluster(inode, 0);
 	if (result)
 		goto out;
@@ -438,7 +438,7 @@ static int cryptcompress2unixfile(struct file *file, struct inode *inode,
 		assert("edward-1519", cont->pages[i]);
 		assert("edward-1520", PageUptodate(cont->pages[i]));
 
-		result = find_or_create_extent_unix_file(cont->pages[i], 0);
+		result = find_or_create_extent_unix_file(cont->pages[i]);
 		if (result)
 			break;
 	}

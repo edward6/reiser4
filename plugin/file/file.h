@@ -16,6 +16,10 @@ typedef enum {
 	DISPATCH_ASSIGNED_NEW  /* a new plugin has been assigned */
 } dispatch_state;
 
+/* UPdate eXtent flags */
+#define UPX_TRUNCATE       (1 << 0)
+#define UPX_PROXY_FULL     (1 << 1)
+
 struct dispatch_context {
 	int nr_pages;
 	struct page **pages;
@@ -348,8 +352,8 @@ int tail2extent(struct unix_file_info *);
 int extent2tail(struct file *, struct unix_file_info *);
 
 int goto_right_neighbor(coord_t *, lock_handle *);
-int find_or_create_extent_stripe(struct page *page, int truncate);
-int find_or_create_extent_unix_file(struct page *, int truncate);
+int find_or_create_extent_stripe(struct page *page, unsigned flags);
+int find_or_create_extent_unix_file(struct page *);
 int reiser4_setattr_generic(struct dentry *dentry, struct iattr *attr,
 			    int (*truncate_file_body_fn)(struct inode *,
 							 struct iattr *));
@@ -358,13 +362,9 @@ int reiser4_readpages_filler_generic(void *data,
 int reiser4_readpages_generic(struct file *file, struct address_space *mapping,
 			      struct list_head *pages, unsigned nr_pages,
 			      int (*filler)(void *data, struct page *page));
-int do_write_begin_generic(struct file *file, struct page *page,
-			   loff_t pos, unsigned len,
-			   int(*readpage_fn)(struct file *, struct page *));
-int reiser4_write_end_generic(struct file *file, struct page *page,
-			      loff_t pos, unsigned copied, void *fsdata,
-			      int(*find_or_create_extent_fn)(struct page *,
-							     int truncate));
+int reiser4_write_begin_common(struct file *file, struct page *page,
+			       loff_t pos, unsigned len,
+			       int(*readpage_fn)(struct file *, struct page *));
 int equal_to_ldk(znode *, const reiser4_key *);
 
 void init_uf_coord(uf_coord_t *uf_coord, lock_handle *lh);

@@ -548,7 +548,7 @@ static int shorten_file(struct inode *inode, loff_t new_size)
 	 * if page correspons to hole extent unit - unallocated one will be
 	 * created here. This is not necessary
 	 */
-	result = find_or_create_extent_unix_file(page, 1 /* truncate */);
+	result = find_or_create_extent_unix_file(page);
 
 	/*
 	 * FIXME: cut_file_items has already updated inode. Probably it would
@@ -804,7 +804,7 @@ static int hint_validate(hint_t *hint, reiser4_tree *tree,
  * call extent's writepage method to create unallocated extent if
  * it does not exist yet, initialize jnode, capture page
  */
-int find_or_create_extent_unix_file(struct page *page, int truncate)
+int find_or_create_extent_unix_file(struct page *page)
 {
 	int result;
 	struct inode *inode;
@@ -828,7 +828,7 @@ int find_or_create_extent_unix_file(struct page *page, int truncate)
 		plugged_hole = 0;
 		result = update_extent_unix_file(inode, node,
 						 page_offset(page),
-						 &plugged_hole, truncate);
+						 &plugged_hole);
 		if (result) {
  			JF_CLR(node, JNODE_WRITE_PREPARED);
 			jput(node);
@@ -957,7 +957,7 @@ static int capture_anon_page(struct page *page)
 	ret = reserve_capture_anon_page();
 	if (ret)
 		return ret;
-	ret = find_or_create_extent_unix_file(page, 0);
+	ret = find_or_create_extent_unix_file(page);
 	if (ret) {
 		SetPageError(page);
 		warning("nikita-3329",
@@ -2781,9 +2781,9 @@ int delete_object_unix_file(struct inode *inode)
 	return reiser4_delete_object_common(inode);
 }
 
-int do_write_begin_generic(struct file *file, struct page *page,
-			   loff_t pos, unsigned len,
-			   int(*readpage_fn)(struct file *, struct page *))
+int reiser4_write_begin_common(struct file *file, struct page *page,
+			       loff_t pos, unsigned len,
+			       int(*readpage_fn)(struct file *, struct page *))
 {
 	int ret;
 	if (len == PAGE_SIZE || PageUptodate(page))
@@ -2866,18 +2866,19 @@ int write_begin_unix_file(struct file *file, struct page *page,
 			return ret;
 		}
 	}
-	ret = do_write_begin_generic(file, page, pos, len,
-				     readpage_unix_file);
+	ret = reiser4_write_begin_common(file, page, pos, len,
+					 readpage_unix_file);
 	if (unlikely(ret != 0))
 		drop_exclusive_access(info);
 	/* else exclusive access will be dropped in ->write_end() */
 	return ret;
 }
 
-int reiser4_write_end_generic(struct file *file, struct page *page,
-			      loff_t pos, unsigned copied, void *fsdata,
-			      int(*find_or_create_extent_fn)(struct page *,
-							     int truncate))
+/**
+ * ->write_end() address space operation for unix-files
+ */
+int write_end_unix_file(struct file *file, struct page *page,
+			loff_t pos, unsigned copied, void *fsdata)
 {
 	int ret;
 	struct inode *inode;
@@ -2887,7 +2888,7 @@ int reiser4_write_end_generic(struct file *file, struct page *page,
 	info = unix_file_inode_data(inode);
 
 	unlock_page(page);
-	ret = find_or_create_extent_fn(page, 0);
+	ret = find_or_create_extent_unix_file(page);
 	if (ret) {
 		SetPageError(page);
 		goto exit;
@@ -2901,18 +2902,6 @@ int reiser4_write_end_generic(struct file *file, struct page *page,
 				ret);
 	}
  exit:
-	return ret;
-}
-
-/**
- * ->write_end() address space operation for unix-files
- */
-int write_end_unix_file(struct file *file, struct page *page,
-			loff_t pos, unsigned copied, void *fsdata)
-{
-	int ret;
-	ret = reiser4_write_end_generic(file, page, pos, copied, fsdata,
-					find_or_create_extent_unix_file);
 	drop_exclusive_access(unix_file_inode_data(file_inode(file)));
 	return ret;
 }

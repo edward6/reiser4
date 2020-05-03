@@ -27,27 +27,6 @@ struct flush_params {
 	unsigned scan_maxnodes;
 };
 
-typedef enum {
-	/* set if all nodes in internal tree have the same
-	 * node layout plugin. See znode_guess_plugin() */
-	SUBVOL_ONE_NODE_PLUGIN = 0,
-	/* set if subvolume lives on a solid state drive */
-	SUBVOL_IS_NONROT_DEVICE = 1,
-	/* set if subvol is registered */
-	SUBVOL_REGISTERED = 2,
-	/* set if subvol is activated */
-	SUBVOL_ACTIVATED = 3,
-	/* set if subvol participates in the storage array */
-	SUBVOL_HAS_DATA_ROOM = 4,
-	/* set for an empty subvolume at the latest [earliest]
-	   stage of brick removal [addition]. Indicates that
-	   subvolume doesn't accept any IOs */
-	SUBVOL_IS_ORPHAN = 5,
-	/* set at the early stage of brick removal.
-	   Brick may be not empty and may accept IOs */
-	SUBVOL_TO_BE_REMOVED = 6,
-} reiser4_subvol_flag;
-
 /*
  * VFS related operation vectors.
  */
@@ -368,6 +347,7 @@ struct reiser4_volume {
 	struct lv_conf *conf; /* current working in-memory volume
 				 configuration */
 	struct lv_conf *new_conf; /* new volume configuration */
+	reiser4_subvol *proxy; /* burst buffers */
 	reiser4_subvol *victim; /* brick to be removed from the volume */
 };
 
@@ -737,6 +717,99 @@ static inline void write_unlock_tree(void)
 	__write_unlock_tree(get_current_super_private());
 }
 
+/* set/clear/test per-volume flags */
+
+static inline int reiser4_is_set(const struct super_block *super,
+				 reiser4_fs_flag f)
+{
+	return test_bit((int)f, &get_super_private(super)->fs_flags);
+}
+
+static inline int reiser4_volume_test_set_busy(struct super_block *sb)
+{
+	assert("edward-1947", sb != NULL);
+	return test_and_set_bit(REISER4_BUSY_VOL,
+				&get_super_private(sb)->fs_flags);
+}
+
+static inline void reiser4_volume_clear_busy(struct super_block *sb)
+{
+	assert("edward-1949", sb != NULL);
+	clear_bit(REISER4_BUSY_VOL, &get_super_private(sb)->fs_flags);
+}
+
+static inline int reiser4_volume_is_unbalanced(const struct super_block *sb)
+{
+	assert("edward-1945", sb != NULL);
+	return reiser4_is_set(sb, REISER4_UNBALANCED_VOL);
+}
+
+static inline void reiser4_volume_set_unbalanced(struct super_block *sb)
+{
+	assert("edward-1946", sb != NULL);
+	set_bit(REISER4_UNBALANCED_VOL, &get_super_private(sb)->fs_flags);
+}
+
+static inline void reiser4_volume_clear_unbalanced(struct super_block *sb)
+{
+	assert("edward-1948", sb != NULL);
+	clear_bit(REISER4_UNBALANCED_VOL, &get_super_private(sb)->fs_flags);
+}
+
+static inline int reiser4_volume_has_incomplete_op(const struct super_block *sb)
+{
+	assert("edward-2247", sb != NULL);
+	return reiser4_is_set(sb, REISER4_INCOMPLETE_BRICK_REMOVAL);
+}
+
+static inline void reiser4_volume_set_incomplete_op(struct super_block *sb)
+{
+	assert("edward-2248", sb != NULL);
+	set_bit(REISER4_INCOMPLETE_BRICK_REMOVAL, &get_super_private(sb)->fs_flags);
+}
+
+static inline void reiser4_volume_clear_incomplete_op(struct super_block *sb)
+{
+	assert("edward-2249", sb != NULL);
+	clear_bit(REISER4_INCOMPLETE_BRICK_REMOVAL, &get_super_private(sb)->fs_flags);
+}
+
+static inline void reiser4_volume_set_activated(struct super_block *sb)
+{
+	assert("edward-2084", sb != NULL);
+	set_bit(REISER4_ACTIVATED_VOL, &get_super_private(sb)->fs_flags);
+}
+
+static inline int reiser4_volume_is_activated(struct super_block *sb)
+{
+	assert("edward-2085", sb != NULL);
+	return reiser4_is_set(sb, REISER4_ACTIVATED_VOL);
+}
+
+static inline void reiser4_volume_set_proxy_enabled(struct super_block *sb)
+{
+	assert("edward-2439", sb != NULL);
+	set_bit(REISER4_PROXY_ENABLED, &get_super_private(sb)->fs_flags);
+}
+
+static inline void reiser4_volume_clear_proxy_enabled(struct super_block *sb)
+{
+	assert("edward-2440", sb != NULL);
+	clear_bit(REISER4_PROXY_ENABLED, &get_super_private(sb)->fs_flags);
+}
+
+static inline void reiser4_volume_set_proxy_io(struct super_block *sb)
+{
+	assert("edward-2450", sb != NULL);
+	set_bit(REISER4_PROXY_IO, &get_super_private(sb)->fs_flags);
+}
+
+static inline void reiser4_volume_clear_proxy_io(struct super_block *sb)
+{
+	assert("edward-2451", sb != NULL);
+	clear_bit(REISER4_PROXY_IO, &get_super_private(sb)->fs_flags);
+}
+
 /* operations on subvolume */
 extern u64 get_meta_subvol_id(void);
 extern reiser4_subvol *get_meta_subvol(void);
@@ -750,7 +823,6 @@ extern reiser4_subvol *find_data_subvol(const coord_t *coord);
 
 struct file_system_type *get_reiser4_fs_type(void);
 extern long reiser4_statfs_type(const struct super_block *super);
-extern int reiser4_is_set(const struct super_block *super, reiser4_fs_flag f);
 
 extern __u64 reiser4_subvol_flush_reserved(const reiser4_subvol *);
 extern __u64 reiser4_subvol_block_count(const reiser4_subvol *);
@@ -789,22 +861,6 @@ extern __u64 reiser4_volume_free_blocks(const struct super_block *super);
 extern __u64 reiser4_volume_fake_allocated(const struct super_block *sb);
 extern long reiser4_volume_reserved4user(const struct super_block *,
 					 uid_t uid, gid_t gid);
-extern void reiser4_volume_set_activated(struct super_block *sb);
-extern int reiser4_volume_is_activated(struct super_block *sb);
-
-extern int reiser4_volume_is_busy(const struct super_block *sb);
-extern void reiser4_volume_set_busy(struct super_block *sb);
-extern int reiser4_volume_test_set_busy(struct super_block *sb);
-extern void reiser4_volume_clear_busy(struct super_block *sb);
-
-extern int reiser4_volume_is_unbalanced(const struct super_block *sb);
-extern void reiser4_volume_set_unbalanced(struct super_block *sb);
-extern void reiser4_volume_clear_unbalanced(struct super_block *sb);
-
-extern int reiser4_volume_has_incomplete_op(const struct super_block *sb);
-extern void reiser4_volume_set_incomplete_op(struct super_block *sb);
-extern void reiser4_volume_clear_incomplete_op(struct super_block *sb);
-
 extern __u32 reiser4_mkfs_id(const struct super_block *super, __u32 subv_id);
 extern reiser4_space_allocator * reiser4_get_space_allocator(reiser4_subvol *);
 extern reiser4_oid_allocator *

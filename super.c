@@ -293,11 +293,6 @@ int is_reiser4_super(const struct super_block *super)
 		super->s_op == &(get_super_private(super)->ops.super);
 }
 
-int reiser4_is_set(const struct super_block *super, reiser4_fs_flag f)
-{
-	return test_bit((int)f, &get_super_private(super)->fs_flags);
-}
-
 /**
  * amount of blocks reserved for given group in file system
  */
@@ -353,67 +348,6 @@ u64 reiser4_volume_fake_allocated(const struct super_block *sb)
 	return ret;
 }
 #endif
-
-int reiser4_volume_test_set_busy(struct super_block *sb)
-{
-	assert("edward-1947", sb != NULL);
-	return test_and_set_bit(REISER4_BUSY_VOL,
-				&get_super_private(sb)->fs_flags);
-}
-
-void reiser4_volume_clear_busy(struct super_block *sb)
-{
-	assert("edward-1949", sb != NULL);
-	clear_bit(REISER4_BUSY_VOL, &get_super_private(sb)->fs_flags);
-}
-
-int reiser4_volume_is_unbalanced(const struct super_block *sb)
-{
-	assert("edward-1945", sb != NULL);
-	return reiser4_is_set(sb, REISER4_UNBALANCED_VOL);
-}
-
-void reiser4_volume_set_unbalanced(struct super_block *sb)
-{
-	assert("edward-1946", sb != NULL);
-	set_bit(REISER4_UNBALANCED_VOL, &get_super_private(sb)->fs_flags);
-}
-
-void reiser4_volume_clear_unbalanced(struct super_block *sb)
-{
-	assert("edward-1948", sb != NULL);
-	clear_bit(REISER4_UNBALANCED_VOL, &get_super_private(sb)->fs_flags);
-}
-
-int reiser4_volume_has_incomplete_op(const struct super_block *sb)
-{
-	assert("edward-2247", sb != NULL);
-	return reiser4_is_set(sb, REISER4_INCOMPLETE_BRICK_REMOVAL);
-}
-
-void reiser4_volume_set_incomplete_op(struct super_block *sb)
-{
-	assert("edward-2248", sb != NULL);
-	set_bit(REISER4_INCOMPLETE_BRICK_REMOVAL, &get_super_private(sb)->fs_flags);
-}
-
-void reiser4_volume_clear_incomplete_op(struct super_block *sb)
-{
-	assert("edward-2249", sb != NULL);
-	clear_bit(REISER4_INCOMPLETE_BRICK_REMOVAL, &get_super_private(sb)->fs_flags);
-}
-
-void reiser4_volume_set_activated(struct super_block *sb)
-{
-	assert("edward-2084", sb != NULL);
-	set_bit(REISER4_ACTIVATED_VOL, &get_super_private(sb)->fs_flags);
-}
-
-int reiser4_volume_is_activated(struct super_block *sb)
-{
-	assert("edward-2085", sb != NULL);
-	return reiser4_is_set(sb, REISER4_ACTIVATED_VOL);
-}
 
 /**
  * Return data subvolume by its ID stored on disk

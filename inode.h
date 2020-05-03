@@ -60,9 +60,8 @@ typedef enum {
 	REISER4_HAS_MMAP = 8,
 	REISER4_PART_MIXED = 9,
 	REISER4_PART_IN_CONV = 10,
-	/* This flag indicates that file plugin conversion is in progress */
-	REISER4_FILE_CONV_IN_PROGRESS = 11,
-	REISER4_FILE_UNBALANCED = 12,
+	REISER4_FILE_IN_CONVERSION = 11,
+	REISER4_FILE_IN_MIGRATION = 12,
 } reiser4_file_plugin_flags;
 
 /* state associated with each inode.

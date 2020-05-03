@@ -21,6 +21,7 @@ typedef enum {
 	FORMAT40_HAS_DATA_ROOM,
 	FORMAT40_TO_BE_REMOVED,
 	FORMAT40_PLANB_KEY_ALLOC,
+	FORMAT40_IS_PROXY,
 } format40_flags;
 
 /* ondisk super block for format 40. It is 512 bytes long */

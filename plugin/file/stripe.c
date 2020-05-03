@@ -330,6 +330,44 @@ static inline size_t write_granularity(void)
 		return DEFAULT_WRITE_GRANULARITY;
 }
 
+static inline ssize_t write_extent_stripe_handle_enospc(struct file *file,
+							struct inode *inode,
+							const char __user *buf,
+							size_t count,
+							loff_t *pos)
+{
+	int ret;
+	struct unix_file_info *uf_info = unix_file_inode_data(inode);
+
+	get_nonexclusive_access(uf_info);
+	ret = write_extent_stripe(file, inode, buf, count, pos, 0);
+	if (ret == -ENOSPC) {
+		drop_nonexclusive_access(uf_info);
+		txnmgr_force_commit_all(inode->i_sb, 0);
+		get_nonexclusive_access(uf_info);
+		ret = write_extent_stripe(file, inode, buf, count, pos, 0);
+		if (ret == -ENOSPC &&
+		    reiser4_is_set(reiser4_get_current_sb(),
+				   REISER4_PROXY_IO)) {
+			drop_nonexclusive_access(uf_info);
+			reiser4_txn_restart_current();
+			get_nonexclusive_access(uf_info);
+			ret = write_extent_stripe(file, inode, buf, count, pos,
+						  UPX_PROXY_FULL);
+			if (0 && ret == -ENOSPC) {
+				drop_nonexclusive_access(uf_info);
+				txnmgr_force_commit_all(inode->i_sb, 0);
+				get_nonexclusive_access(uf_info);
+				ret = write_extent_stripe(file, inode, buf,
+							  count, pos,
+							  UPX_PROXY_FULL);
+			}
+		}
+	}
+	drop_nonexclusive_access(uf_info);
+	return ret;
+}
+
 ssize_t write_stripe(struct file *file,
 		     const char __user *buf,
 		     size_t count, loff_t *pos,
@@ -338,12 +376,10 @@ ssize_t write_stripe(struct file *file,
 	int ret;
 	reiser4_context *ctx = get_current_context();
 	struct inode *inode = file_inode(file);
-	struct unix_file_info *uf_info;
 	ssize_t written = 0;
 	int to_write;
 	int chunk_size = PAGE_SIZE * write_granularity();
 	size_t left = count;
-	int enospc = 0;
 
 	assert("edward-2030", !reiser4_inode_get_flag(inode, REISER4_NO_SD));
 
@@ -354,7 +390,6 @@ ssize_t write_stripe(struct file *file,
 	}
 	/* remove_suid might create a transaction */
 	reiser4_txn_restart(ctx);
-	uf_info = unix_file_inode_data(inode);
 
 	while (left) {
 		int update_sd = 0;
@@ -365,26 +400,10 @@ ssize_t write_stripe(struct file *file,
 		if (left < to_write)
 			to_write = left;
 
-		get_nonexclusive_access(uf_info);
-		written = write_extent_stripe(file, inode, buf, to_write,
-					      pos);
-		drop_nonexclusive_access(uf_info);
-
-		if (written == -ENOSPC && !enospc) {
-			txnmgr_force_commit_all(inode->i_sb, 0);
-			enospc = 1;
-			continue;
-		}
-		if (written < 0) {
-			/*
-			 * If this is -ENOSPC, then it happened
-			 * second time, so don't try to free space
-			 * once again.
-			 */
-			ret = written;
+		written = write_extent_stripe_handle_enospc(file, inode, buf,
+							    to_write, pos);
+		if (written < 0)
 			break;
-		}
-		enospc = 0;
 		/*
 		 * something is written
 		 */
@@ -858,7 +877,7 @@ static int shorten_stripe(struct inode *inode, loff_t new_size)
 	zero_user_segment(page, padd_from, PAGE_SIZE);
 	unlock_page(page);
 
-	result = find_or_create_extent_stripe(page, 1 /* truncate */);
+	result = find_or_create_extent_stripe(page, UPX_TRUNCATE);
 
 	reiser4_release_reserved(inode->i_sb);
 	put_page(page);
@@ -972,6 +991,9 @@ static int capture_anon_page(struct page *page)
 	if (ret)
 		return ret;
 	ret = find_or_create_extent_stripe(page, 0);
+	if (ret == -ENOSPC &&
+	    reiser4_is_set(reiser4_get_current_sb(), REISER4_PROXY_IO))
+		ret = find_or_create_extent_stripe(page, UPX_PROXY_FULL);
 	if (ret) {
 		SetPageError(page);
 		warning("edward-2046",
@@ -981,7 +1003,65 @@ static int capture_anon_page(struct page *page)
 	return ret;
 }
 
-static int commit_file_atoms(struct inode *inode)
+int sync_jnode(jnode *node)
+{
+	int result;
+
+	assert("edward-2452", node != NULL);
+	assert("edward-2453", get_current_context() != NULL);
+	assert("edward-2454", get_current_context()->trans != NULL);
+
+	do {
+		txn_atom *atom;
+
+		spin_lock_jnode(node);
+		atom = jnode_get_atom(node);
+		spin_unlock_jnode(node);
+		result = reiser4_sync_atom(atom);
+
+	} while (result == -E_REPEAT);
+
+	assert("edward-2455",
+	       ergo(result == 0,
+		    get_current_context()->trans->atom == NULL));
+	return result;
+}
+
+int sync_jnode_list(struct inode *inode)
+{
+	int result = 0;
+	unsigned long from;	/* start index for radix_tree_gang_lookup */
+	unsigned int found;	/* return value for radix_tree_gang_lookup */
+
+	from = 0;
+	read_lock_tree();
+	while (result == 0) {
+		jnode *node = NULL;
+
+		found = radix_tree_gang_lookup(jnode_tree_by_inode(inode),
+					       (void **)&node, from, 1);
+		if (found == 0)
+			break;
+		assert("edward-2456", node != NULL);
+		/**
+		 * node may not leave radix tree because it is
+		 * protected from truncating by exclusive lock
+		 */
+		jref(node);
+		read_unlock_tree();
+
+		from = node->key.j.index + 1;
+
+		result = sync_jnode(node);
+
+		jput(node);
+		read_lock_tree();
+	}
+	read_unlock_tree();
+	return result;
+}
+
+static int commit_stripe_atoms(struct inode *inode)
 {
 	int ret;
 
@@ -1017,7 +1097,7 @@ int writepages_stripe(struct address_space *mapping,
 {
 	return reiser4_writepages_generic(mapping, wbc,
 					  capture_anon_page,
-					  commit_file_atoms);
+					  commit_stripe_atoms);
 }
 
 int ioctl_stripe(struct file *filp, unsigned int cmd,
@@ -1047,8 +1127,8 @@ int write_begin_stripe(struct file *file, struct page *page,
 		return ret;
 
 	get_nonexclusive_access(unix_file_inode_data(file_inode(file)));
-	ret = do_write_begin_generic(file, page, pos, len,
-				     readpage_stripe);
+	ret = reiser4_write_begin_common(file, page, pos, len,
+					 readpage_stripe);
 	if (unlikely(ret != 0))
 		drop_nonexclusive_access(unix_file_inode_data(file_inode(file)));
 	return ret;
@@ -1062,8 +1142,30 @@ int write_end_stripe(struct file *file, struct page *page,
 		     loff_t pos, unsigned copied, void *fsdata)
 {
 	int ret;
-	ret = reiser4_write_end_generic(file, page, pos, copied, fsdata,
-					find_or_create_extent_stripe);
+	struct inode *inode;
+	struct unix_file_info *info;
+
+	inode = file_inode(file);
+	info = unix_file_inode_data(inode);
+
+	unlock_page(page);
+	ret = find_or_create_extent_stripe(page, 0);
+	if (ret == -ENOSPC && reiser4_is_set(reiser4_get_current_sb(),
+					     REISER4_PROXY_IO))
+		ret = find_or_create_extent_stripe(page, UPX_PROXY_FULL);
+	if (ret) {
+		SetPageError(page);
+		goto exit;
+	}
+	if (pos + copied > inode->i_size) {
+		INODE_SET_FIELD(inode, i_size, pos + copied);
+		ret = reiser4_update_sd(inode);
+		if (unlikely(ret != 0))
+			warning("edward-2431",
+				"Can not update stat-data: %i. FSCK?",
+				ret);
+	}
+ exit:
 	drop_nonexclusive_access(unix_file_inode_data(file_inode(file)));
 	return ret;
 }
@@ -1089,6 +1191,16 @@ int balance_stripe(struct inode *inode)
 	coord_t coord;
 	lock_handle lh;
 	item_plugin *iplug;
+
+	/*
+	 * commit all file atoms before migration!
+	 */
+	reiser4_txn_restart_current();
+	ret = sync_jnode_list(inode);
+	reiser4_txn_restart_current();
+	if (ret)
+		return ret;
+	all_grabbed2free();
 	/*
 	 * Reserve space for the first iteration of the migration
 	 * procedure. We grab from reserved area, as rebalancing can
@@ -1099,7 +1211,7 @@ int balance_stripe(struct inode *inode)
 		return ret;
 	uf = unix_file_inode_data(inode);
 
-	reiser4_inode_set_flag(inode, REISER4_FILE_UNBALANCED);
+	reiser4_inode_set_flag(inode, REISER4_FILE_IN_MIGRATION);
 
 	build_body_key_stripe(inode, get_key_offset(reiser4_max_key()),
 			      &key);
@@ -1174,7 +1286,7 @@ int balance_stripe(struct inode *inode)
 	 */
 	assert("edward-2104", reiser4_lock_counters()->d_refs == 0);
 	done_lh(&lh);
-	reiser4_inode_clr_flag(inode, REISER4_FILE_UNBALANCED);
+	reiser4_inode_clr_flag(inode, REISER4_FILE_IN_MIGRATION);
 	return 0;
 }
 

@@ -761,7 +761,7 @@ static int overwrite_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 }
 
 int update_extent_unix_file(struct inode *inode, jnode *node,
-			    loff_t pos, int *plugged_hole, int truncate)
+			    loff_t pos, int *plugged_hole)
 {
 	int result;
 	znode *loaded;

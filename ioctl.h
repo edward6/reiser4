@@ -26,7 +26,7 @@
  */
 
 /*
- * Per volume flags.
+ * On-line per-volume and per-subvolume flags.
  * They are set up for (re)mount session and are not stored on disk
  */
 typedef enum {
@@ -64,8 +64,36 @@ typedef enum {
 	REISER4_INCOMPLETE_BRICK_REMOVAL = 13,
 	/* this flag indicates that distribution mode is
 	   file-based (default is volume-based) */
-	REISER4_FILE_BASED_DIST = 14
+	REISER4_FILE_BASED_DIST = 14,
+	/* proxy-subvolume is active */
+	REISER4_PROXY_ENABLED = 15,
+	/* proxy subvolume accepts IO requests */
+	REISER4_PROXY_IO = 16
 } reiser4_fs_flag;
+
+typedef enum {
+	/* set if all nodes in internal tree have the same
+	 * node layout plugin. See znode_guess_plugin() */
+	SUBVOL_ONE_NODE_PLUGIN = 0,
+	/* set if subvolume lives on a solid state drive */
+	SUBVOL_IS_NONROT_DEVICE = 1,
+	/* set if subvol is registered */
+	SUBVOL_REGISTERED = 2,
+	/* set if subvol is activated */
+	SUBVOL_ACTIVATED = 3,
+	/* set if subvol participates in the storage array */
+	SUBVOL_HAS_DATA_ROOM = 4,
+	/* set for an empty subvolume at the latest [earliest]
+	   stage of brick removal [addition]. Indicates that
+	   subvolume doesn't accept any IOs */
+	SUBVOL_IS_ORPHAN = 5,
+	/* set at the early stage of brick removal.
+	   Brick may be not empty and may accept IOs */
+	SUBVOL_TO_BE_REMOVED = 6,
+	/* Brick has the highest priority when allocating disk
+	   addresses */
+	SUBVOL_IS_PROXY = 7
+} reiser4_subvol_flag;
 
 #define REISER4_PATH_NAME_MAX 3900 /* FIXME: make it more precise */
 
@@ -83,14 +111,14 @@ typedef enum {
 	REISER4_REMOVE_BRICK,
 	REISER4_SCALE_VOLUME,
 	REISER4_BALANCE_VOLUME,
+	REISER4_ADD_PROXY,
 } reiser4_vol_op;
 
 struct reiser4_volume_stat
 {
 	u8  id[16]; /* unique ID */
-	s64 nr_bricks; /* absolute value indicates total number of
-			  bricks in the volume. Negative means that
-			  AID doesn't contain meta-data brick */
+	u32 nr_bricks; /* total number of bricks in the volume */
+	u32 bricks_in_dsa; /* number of bricks in DSA */
 	u16 vpid; /* volume plugin ID */
 	u16 dpid; /* distribution plugin ID */
 	u16 stripe_bits; /* logarithm of stripe size */
@@ -106,7 +134,7 @@ struct reiser4_brick_stat
 	u64 int_id; /* ordered number, 0 means meta-data brick */
 	u8  ext_id[16]; /* external unique ID */
 	u16 nr_replicas; /* number of replicas */
-	u64 state; /* activated, etc flags */
+	u64 subv_flags; /* per-subvolume on-line flags */
 	u64 block_count; /* total number of blocks on the device */
 	u64 data_capacity; /* "weight" of the brick in data storage array */
 	u64 blocks_used; /* number of blocks used by data and meta-data */

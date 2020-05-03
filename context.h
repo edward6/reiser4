@@ -84,7 +84,6 @@ struct reiser4_context {
 	 * operation when holding some important resource, like directory
 	 * ->i_mutex */
 	unsigned int nobalance:1;
-
 	/* this bit is used on reiser4_done_context to decide whether context is
 	   kmalloc-ed and has to be kfree-ed */
 	unsigned int on_stack:1;

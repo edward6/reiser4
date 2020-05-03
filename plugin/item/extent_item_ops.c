@@ -536,7 +536,7 @@ int kill_hook_extent(const coord_t *coord, pos_in_node_t from,
 	inode = kdata->inode;
 	assert("vs-1545", inode != NULL);
 	if (inode != NULL &&
-	    !reiser4_inode_get_flag(inode, REISER4_FILE_UNBALANCED))
+	    !reiser4_inode_get_flag(inode, REISER4_FILE_IN_MIGRATION))
 		/*
 		 * take care of pages and jnodes corresponding
 		 * to the part of item being killed

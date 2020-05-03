@@ -95,7 +95,7 @@ static int reiser4_resize_brick(struct super_block *sb,
 }
 
 static int reiser4_add_brick(struct super_block *sb,
-			     struct reiser4_vol_op_args *args)
+			     struct reiser4_vol_op_args *args, int is_proxy)
 {
 	int ret;
 	reiser4_volume *vol = super_volume(sb);
@@ -135,6 +135,14 @@ static int reiser4_add_brick(struct super_block *sb,
 			return ret;
 		activated_here = 1;
 	}
+	if (is_proxy) {
+		assert("edward-2449",
+		       ergo(!is_meta_brick(new),
+			    subvol_is_set(new, SUBVOL_HAS_DATA_ROOM)));
+
+		new->flags |= (1 << SUBVOL_IS_PROXY);
+		clear_bit(SUBVOL_HAS_DATA_ROOM, &new->flags);
+	}
 	/*
 	 * add activated new brick
 	 */
@@ -161,6 +169,15 @@ static int reiser4_add_brick(struct super_block *sb,
 	ret = capture_brick_super(new);
 	if (ret)
 		return ret;
+	if (subvol_is_set(new, SUBVOL_IS_PROXY)) {
+		vol->proxy = new;
+		/* start a proxy flushing kernel thread here */
+		;
+		reiser4_volume_set_proxy_enabled(sb);
+		reiser4_volume_set_proxy_io(sb);
+		/* nothing to do any more */
+		return 0;
+	}
 	/*
 	 * write unbalanced status to disk
 	 */
@@ -311,7 +328,8 @@ static int reiser4_balance_volume(struct super_block *sb)
 	int ret;
 	reiser4_volume *vol;
 
-	if (!reiser4_volume_is_unbalanced(sb))
+	if (!reiser4_volume_is_unbalanced(sb) &&
+	    !reiser4_is_set(sb, REISER4_PROXY_ENABLED))
 		return 0;
 	vol = super_volume(sb);
 	/*
@@ -338,7 +356,8 @@ static int reiser4_balance_volume(struct super_block *sb)
 		ret = capture_brick_super(get_meta_subvol());
 		if (ret)
 			return ret;
-		reiser4_detach_brick(vol->victim);
+		if (!is_meta_brick(vol->victim))
+			reiser4_detach_brick(vol->victim);
 		vol->victim = NULL;
 		return 0;
 	} else {
@@ -404,7 +423,10 @@ int reiser4_volume_op(struct super_block *sb, struct reiser4_vol_op_args *args)
 		ret = reiser4_resize_brick(sb, args);
 		break;
 	case REISER4_ADD_BRICK:
-		ret = reiser4_add_brick(sb, args);
+		ret = reiser4_add_brick(sb, args, 0);
+		break;
+	case REISER4_ADD_PROXY:
+		ret = reiser4_add_brick(sb, args, 1);
 		break;
 	case REISER4_REMOVE_BRICK:
 		ret = reiser4_remove_brick(sb, args);

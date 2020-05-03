@@ -78,8 +78,6 @@ static void set_next_volmap_addr(struct volmap *vmap, reiser4_block_nr val)
 }
 
 static int balance_volume_asym(struct super_block *sb);
-static int __remove_data_brick(reiser4_volume *vol, reiser4_subvol *subv,
-			       u32 *pos_in_dsa, bucket_t **old_vec);
 
 static int voltab_nodes_per_block(void)
 {
@@ -115,26 +113,30 @@ reiser4_subvol *find_meta_brick_by_id(reiser4_volume *vol)
  */
 static bucket_t *create_buckets(void)
 {
+	u32 i, j;
+	bucket_t *ret;
 	reiser4_volume *vol = current_volume();
 	lv_conf *conf = vol->conf;
-	bucket_t *ret;
-	u32 i, j, off;
 	u32 nr_buckets = num_dsa_subvols(vol);
-
-	off = meta_brick_belongs_dsa() ? 0 : 1;
 
 	ret = kmalloc(nr_buckets * sizeof(*ret), GFP_KERNEL);
 	if (!ret)
 		return NULL;
 
-	for (i = 0, j = 0; i < conf->nr_mslots - off; i++) {
-		if (conf->mslots[i + off] == NULL)
+	for (i = meta_brick_belongs_dsa() ? 0 : 1, j = 0;
+	     i < conf->nr_mslots; i++) {
+		if (conf->mslots[i] == NULL)
 			continue;
-		ret[j] = conf->mslots[i + off][0];
+
+		if (subvol_is_set(conf->mslots[i][0], SUBVOL_IS_PROXY))
+			/* skip proxy brick */
+			continue;
+
+		ret[j] = conf->mslots[i][0];
 		/*
 		 * set index in DSA
 		 */
-		conf->mslots[i + off][0]->dsa_idx = j;
+		conf->mslots[i][0]->dsa_idx = j;
 		j++;
 	}
 #if REISER4_DEBUG
@@ -290,7 +292,6 @@ static int load_volume_dconf(reiser4_subvol *subv)
 	int id = CUR_VOL_CONF;
 	int ret;
 	int i, j;
-	u32 num_dsa_bricks;
 	u64 packed_segments = 0;
 	reiser4_volume *vol = super_volume(subv->super);
 	reiser4_volinfo *vinfo = &vol->volinfo[id];
@@ -301,12 +302,6 @@ static int load_volume_dconf(reiser4_subvol *subv)
 	assert("edward-1984", subv->id == METADATA_SUBVOL_ID);
 	assert("edward-2175", subv->volmap_loc[id] != 0);
 
-	if (subvol_is_set(subv, SUBVOL_HAS_DATA_ROOM))
-		num_dsa_bricks = vol_nr_origins(vol);
-	else {
-		assert("edward-1985", vol_nr_origins(vol) > 1);
-		num_dsa_bricks = vol_nr_origins(vol) - 1;
-	}
 	if (dist_plug->r.init) {
 		ret = dist_plug->r.init(&vol->dcx, &vol->conf->tab,
 					vol->num_sgs_bits);
@@ -697,6 +692,8 @@ static int load_volume_asym(reiser4_subvol *subv)
 	return load_volume_dconf(subv);
 }
 
+static u64 get_pos_in_vol(reiser4_volume *vol, reiser4_subvol *subv);
+static int __remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim);
 /*
  * Init volume system info, which has been already loaded
  * diring disk formats inialization of subvolumes (components).
@@ -705,10 +702,8 @@ static int init_volume_asym(struct super_block *sb, reiser4_volume *vol)
 {
 	int ret;
 	u32 subv_id;
-	lv_conf *cur_conf;
 	u32 nr_victims = 0;
-	u32 pos_in_dsa;
-	bucket_t *old_vec;
+	lv_conf *cur_conf = vol->conf;
 
 	if (!REISER4_PLANB_KEY_ALLOCATION) {
 		warning("edward-2161",
@@ -723,6 +718,26 @@ static int init_volume_asym(struct super_block *sb, reiser4_volume *vol)
 	if (!vol->buckets)
 		return -ENOMEM;
 
+	if (reiser4_is_set(sb, REISER4_PROXY_ENABLED)) {
+		/*
+		 * set proxy subvolume
+		 */
+		for_each_mslot(cur_conf, subv_id) {
+			reiser4_subvol *subv;
+
+			if (!conf_mslot_at(cur_conf, subv_id))
+				continue;
+			subv = conf_origin(cur_conf, subv_id);
+			if (subvol_is_set(subv, SUBVOL_IS_PROXY)) {
+				vol->proxy = subv;
+				break;
+			}
+		}
+		assert("edward-2445", vol->proxy != NULL);
+		/*
+		 * start a proxy flushing kernel thread here
+		 */
+	}
 	if (!reiser4_volume_is_unbalanced(sb))
 		return 0;
 	/*
@@ -731,10 +746,10 @@ static int init_volume_asym(struct super_block *sb, reiser4_volume *vol)
 	assert("edward-2250", current_volume() == vol);
 	/*
 	 * Check for uncompleted brick removal that possibly
-	 * was started in previous mount session.
+	 * was started in previous mount session, and for which
+	 * the balancing procedure was incompleted
 	 */
 	assert("edward-2244", vol->new_conf == NULL);
-	cur_conf = vol->conf;
 
 	for_each_mslot(cur_conf, subv_id) {
 		reiser4_subvol *subv;
@@ -765,10 +780,40 @@ static int init_volume_asym(struct super_block *sb, reiser4_volume *vol)
 	/*
 	 * new config will be created here
 	 */
-	ret = __remove_data_brick(vol, vol->victim, &pos_in_dsa, &old_vec);
+	ret = __remove_data_brick(vol, vol->victim);
 	if (ret)
 		return ret;
+	assert("edward-2432", vol->new_conf != NULL);
+	assert("edward-2458", vol->new_conf->tab == NULL);
 
+	if (!subvol_is_set(vol->victim, SUBVOL_IS_PROXY)) {
+		bucket_t *new_vec;
+		new_vec = remove_bucket(vol->buckets, num_dsa_subvols(vol),
+					get_pos_in_dsa(vol->victim));
+		if (!new_vec) {
+			free_lv_conf(vol->new_conf);
+			vol->new_conf = NULL;
+			return -ENOMEM;
+		}
+		free_buckets(vol->buckets);
+		vol->buckets = new_vec;
+	} else
+		/*
+		 * Removing proxy brick was incomplete.
+		 * Disable IO requests against him.
+		 */
+		reiser4_volume_clear_proxy_io(reiser4_get_current_sb());
+	/*
+	 * borrow distribution table from the existing config
+	 * (which actually is a config with an old set of slots
+	 * and the new distribution table)
+	 */
+	vol->new_conf = vol->conf;
+	/*
+	 * Now declare incomplete balancing.
+	 * Volume configuration will be updated by remove_brick_tail_asym()
+	 * upon balancing completion.
+	 */
 	reiser4_volume_set_incomplete_op(sb);
  out:
 	printk("reiser4 (%s): Volume is unbalanced. Please run volume.reiser4 -b\n",
@@ -877,8 +922,8 @@ static u64 space_occupied_at(slot_t slot)
 }
 
 /**
- * Return position of @subv in logical volume @vol (it is not
- * necessarily coincides with @subv's internal ID).
+ * Return ordered number of brick @subv in the array of all original
+ * bricks of the logical volume
  */
 static u64 get_pos_in_vol(reiser4_volume *vol, reiser4_subvol *subv)
 {
@@ -897,22 +942,13 @@ static u64 get_pos_in_vol(reiser4_volume *vol, reiser4_subvol *subv)
 	return j;
 }
 
+/**
+ * This helper is to make sure that brick we want to operate on belongs
+ * to the volume
+ */
 int brick_belongs_volume(reiser4_volume *vol, reiser4_subvol *subv)
 {
 	return get_pos_in_vol(vol, subv) < vol_nr_origins(vol);
-}
-
-/**
- * Calculate and return brick position in the DSA.
- * @pos_in_vol: internal ID of the brick in the logical volume.
- */
-static u64 get_pos_in_dsa(u64 pos_in_vol)
-{
-	if (meta_brick_belongs_dsa())
-		return pos_in_vol;
-
-	assert("edward-1928", pos_in_vol > 0);
-	return pos_in_vol - 1;
 }
 
 /**
@@ -952,7 +988,7 @@ static int resize_brick(reiser4_volume *vol, reiser4_subvol *this,
 		dst_resize_fn = vol->dist_plug->v.dec;
 
 	ret = dst_resize_fn(&vol->dcx, vol->conf->tab,
-			    get_pos_in_dsa(this->id), NULL);
+			    get_pos_in_dsa(this), NULL);
 	if (ret)
 		goto error;
 
@@ -965,6 +1001,18 @@ static int resize_brick(reiser4_volume *vol, reiser4_subvol *this,
  error:
 	this->data_capacity -= delta;
 	return ret;
+}
+
+static int __add_meta_brick(reiser4_volume *vol, reiser4_subvol *new)
+{
+	assert("edward-2433", is_meta_brick(new));
+	/*
+	 * Clone in-memory volume config
+	 */
+	vol->new_conf = clone_lv_conf(vol->conf);
+	if (vol->new_conf == NULL)
+		return RETERR(-ENOMEM);
+	return 0;
 }
 
 static int add_meta_brick(reiser4_volume *vol, reiser4_subvol *new,
@@ -995,15 +1043,13 @@ static int add_meta_brick(reiser4_volume *vol, reiser4_subvol *new,
 				    METADATA_SUBVOL_ID /* pos */, new);
 	if (ret)
 		goto error;
-	new->flags |= (1 << SUBVOL_HAS_DATA_ROOM);
 	/*
-	 * Clone in-memory volume config
+	 * finally, clone in-memory volume config
 	 */
-	vol->new_conf = clone_lv_conf(vol->conf);
-	if (vol->new_conf == NULL) {
-		ret = -ENOMEM;
+	ret =__add_meta_brick(vol, new);
+	if (ret)
 		goto error;
-	}
+	new->flags |= (1 << SUBVOL_HAS_DATA_ROOM);
 	return 0;
  error:
 	vol->buckets = *old_vec;
@@ -1029,50 +1075,24 @@ static u32 find_first_empty_slot_off(void)
 	return conf->nr_mslots;
 }
 
-int add_data_brick(reiser4_volume *vol, reiser4_subvol *this,
-		   bucket_t **old_vec)
+/**
+ * Create new in-memory volume config
+ */
+int __add_data_brick(reiser4_volume *vol, reiser4_subvol *this, u64 pos_in_vol)
 {
-	int ret;
-	reiser4_dcx *rdcx = &vol->dcx;
-	lv_conf *old_conf = vol->conf;
-	u64 old_nr_mslots = old_conf->nr_mslots;
-	u64 pos_in_vol;
-	u64 pos_in_dsa;
+	u64 old_nr_mslots = vol->conf->nr_mslots;
 	slot_t new_slot;
-	bucket_t *new_vec;
-
-	assert("edward-1929", !is_meta_brick(this));
-
-	pos_in_vol = find_first_empty_slot_off();
-	pos_in_dsa = get_pos_in_dsa(pos_in_vol);
-	/*
-	 * insert @this to the set of abstract buckets
-	 */
-	new_vec = insert_bucket(vol->buckets, this,
-				num_dsa_subvols(vol), pos_in_dsa);
-	if (!new_vec)
-		return -ENOMEM;
-	*old_vec = vol->buckets;
-	vol->buckets = new_vec;
 	/*
 	 * Assign internal ID for the new brick
 	 */
 	this->id = pos_in_vol;
 	/*
-	 * Create new distribution table
-	 */
-	ret = vol->dist_plug->v.inc(rdcx, vol->conf->tab,
-				    pos_in_dsa, this);
-	if (ret)
-		goto error;
-	/*
 	 * Create new in-memory volume config
 	 */
 	new_slot = alloc_mslot(1 + this->num_replicas);
-	if (!new_slot) {
-		ret = RETERR(-ENOMEM);
-		goto error;
-	}
+	if (!new_slot)
+		return RETERR(-ENOMEM);
+
 	((mirror_t *)new_slot)[this->mirror_id] = this;
 
 	if (pos_in_vol == old_nr_mslots)
@@ -1085,20 +1105,70 @@ int add_data_brick(reiser4_volume *vol, reiser4_subvol *this,
 		vol->new_conf = alloc_lv_conf(old_nr_mslots);
 	if (!vol->new_conf) {
 		free_mslot(new_slot);
-		ret = RETERR(-ENOMEM);
-		goto error;
+		return RETERR(-ENOMEM);
 	}
-	memcpy(vol->new_conf->mslots, old_conf->mslots,
+	memcpy(vol->new_conf->mslots, vol->conf->mslots,
 	       sizeof(slot_t) * old_nr_mslots);
 	vol->new_conf->mslots[pos_in_vol] = new_slot;
 
 	atomic_inc(&vol->nr_origins);
 	return 0;
+}
+
+/**
+ * Find a respective position in DSA by mslot index
+ */
+u64 pos_in_dsa_by_mslot(u64 mslot_idx)
+{
+	u32 i,j;
+	reiser4_volume *vol = current_volume();
+
+	for (i = 0, j = 0; i < mslot_idx; i++) {
+		if (!vol->conf->mslots[i])
+			continue;
+		if (subvol_is_set(vol->conf->mslots[i][0], SUBVOL_IS_PROXY))
+			continue;
+		j++;
+	}
+	return meta_brick_belongs_dsa() ? j : j - 1;
+}
+
+int add_data_brick(reiser4_volume *vol, reiser4_subvol *this,
+		   bucket_t **old_vec)
+{
+	int ret;
+	u64 free_mslot_idx;
+	u64 pos_in_dsa;
+	bucket_t *new_vec;
+
+	assert("edward-1929", !is_meta_brick(this));
+
+	free_mslot_idx = find_first_empty_slot_off();
+	pos_in_dsa = pos_in_dsa_by_mslot(free_mslot_idx);
+	/*
+	 * insert @this to the set of abstract buckets
+	 */
+	new_vec = insert_bucket(vol->buckets, this,
+				num_dsa_subvols(vol), pos_in_dsa);
+	if (!new_vec)
+		return -ENOMEM;
+	*old_vec = vol->buckets;
+	vol->buckets = new_vec;
+
+	/*
+	 * create new in-memory volume config
+	 */
+	ret = __add_data_brick(vol, this, free_mslot_idx);
+	if (ret)
+		goto error;
+	/*
+	 * finally, create new distribution table
+	 */
+	return vol->dist_plug->v.inc(&vol->dcx, vol->conf->tab,
+				     pos_in_dsa, this);
  error:
 	vol->buckets = *old_vec;
 	free_buckets(new_vec);
-	free_lv_conf(vol->new_conf);
-	vol->new_conf = NULL;
 	return ret;
 }
 
@@ -1119,6 +1189,11 @@ static int resize_brick_asym(reiser4_volume *vol, reiser4_subvol *this,
 	assert("edward-1824", vol != NULL);
 	assert("edward-1825", dist_plug != NULL);
 
+	if (subvol_is_set(this, SUBVOL_IS_PROXY)) {
+		warning("edward-2447",
+			"Can not resize proxy brick %s", this->name);
+		return RETERR(-EINVAL);
+	}
 	ret = dist_plug->v.init(&vol->conf->tab,
 				num_dsa_subvols(vol),
 				vol->num_sgs_bits, rdcx);
@@ -1175,6 +1250,63 @@ static int resize_brick_asym(reiser4_volume *vol, reiser4_subvol *this,
 	return ret;
 }
 
+static int add_proxy_asym(reiser4_volume *vol, reiser4_subvol *new)
+{
+	int ret;
+	lv_conf *old_conf = vol->conf;
+
+	if (is_meta_brick(new) && (vol_nr_origins(vol) == 1)) {
+		warning("edward-2434",
+			"Single meta-data brick can not be proxy");
+		return -EINVAL;
+	}
+	if (brick_belongs_dsa(vol, new)) {
+		warning("edward-2435",
+			"Brick %s from DSA can not be proxy", new->name);
+		return -EINVAL;
+	}
+	if (new == get_meta_subvol())
+		ret = __add_meta_brick(vol, new);
+	else
+		ret = __add_data_brick(vol, new, find_first_empty_slot_off());
+	if (ret)
+		return ret;
+	assert("edward-2436", vol->new_conf != NULL);
+	assert("edward-2459", vol->new_conf->tab == NULL);
+
+	if (new != get_meta_subvol()) {
+		/*
+		 * add a record about @new to the meta-data brick
+		 */
+		ret = reiser4_grab_space(estimate_one_insert_into_item(
+						       meta_subvol_tree()),
+					 BA_CAN_COMMIT, get_meta_subvol());
+		if (ret)
+			goto error;
+		ret = brick_symbol_add(new);
+		if (ret)
+			goto error;
+	}
+	/*
+	 * take away distribution table from the old config
+	 */
+	vol->new_conf->tab = old_conf->tab;
+	old_conf->tab = NULL;
+	/*
+	 * publish the new config
+	 */
+	rcu_assign_pointer(vol->conf, vol->new_conf);
+	synchronize_rcu();
+	free_lv_conf(old_conf);
+	vol->new_conf = NULL;
+	return 0;
+ error:
+	/* adding proxy should be repeated in regular context */
+	free_lv_conf(vol->new_conf);
+	vol->new_conf = NULL;
+	return ret;
+}
+
 /**
  * Add a @new brick to asymmetric logical volume @vol
  */
@@ -1195,10 +1327,6 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 		warning("edward-1962", "Can't add brick of zero capacity");
 		return -EINVAL;
 	}
-	if (brick_belongs_dsa(vol, new)) {
-		warning("edward-1963", "Can't add brick to DSA twice");
-		return -EINVAL;
-	}
 	/*
 	 * We allow to add meta-data bricks without any other conditions.
 	 * In contrast, any data brick to add has to be empty.
@@ -1208,6 +1336,13 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	    reiser4_subvol_min_blocks_used(new)) {
 		warning("edward-2334", "Can't add not empty data brick %s",
 			new->name);
+		return -EINVAL;
+	}
+	if (subvol_is_set(new, SUBVOL_IS_PROXY))
+		return add_proxy_asym(vol, new);
+
+	if (brick_belongs_dsa(vol, new)) {
+		warning("edward-1963", "Can't add brick to DSA twice");
 		return -EINVAL;
 	}
 	/* reserve space on meta-data subvolume for brick symbol insertion */
@@ -1235,6 +1370,7 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	if (ret)
 		return ret;
 	assert("edward-2240", vol->new_conf != NULL);
+	assert("edward-2462", vol->new_conf->tab == NULL);
 
 	ret = make_volume_dconf(vol);
 	if (ret)
@@ -1289,6 +1425,17 @@ static u64 space_occupied(void)
 	return ret;
 }
 
+static int __remove_meta_brick(reiser4_volume *vol)
+{
+	/*
+	 * Clone in-memory volume config
+	 */
+	vol->new_conf = clone_lv_conf(vol->conf);
+	if (vol->new_conf == NULL)
+		return RETERR(-ENOMEM);
+	return 0;
+}
+
 static int remove_meta_brick(reiser4_volume *vol, bucket_t **old_vec)
 {
 	int ret;
@@ -1318,16 +1465,13 @@ static int remove_meta_brick(reiser4_volume *vol, bucket_t **old_vec)
 			       METADATA_SUBVOL_ID, mtd_subv);
 	if (ret)
 		goto error;
+
+	ret = __remove_meta_brick(vol);
+	if (ret)
+		goto error;
+
 	clear_bit(SUBVOL_HAS_DATA_ROOM, &mtd_subv->flags);
 	assert("edward-1827", !meta_brick_belongs_dsa());
-	/*
-	 * Clone in-memory volume config
-	 */
-	vol->new_conf = clone_lv_conf(vol->conf);
-	if (vol->new_conf == NULL) {
-		ret = RETERR(-ENOMEM);
-		goto error;
-	}
 	return 0;
  error:
 	vol->buckets = *old_vec;
@@ -1355,21 +1499,17 @@ static u32 get_new_nr_mslots(void)
 	return 0;
 }
 
-static int __remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim,
-			       u32 *pos_in_dsa, bucket_t **old_vec)
+static int __remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim)
 {
 	lv_conf *old = vol->conf;
 	u64 old_num_subvols = vol_nr_origins(vol);
 	u64 pos_in_vol;
 	u32 new_nr_mslots;
-	bucket_t *new_vec;
 
-	assert("edward-1842", num_dsa_subvols(vol) > 1);
 	assert("edward-2253", vol->new_conf == NULL);
 
 	pos_in_vol = get_pos_in_vol(vol, victim);
 	assert("edward-2199", pos_in_vol < old_num_subvols);
-	*pos_in_dsa = get_pos_in_dsa(pos_in_vol);
 
 	if (pos_in_vol == old_num_subvols - 1) {
 		/*
@@ -1396,16 +1536,6 @@ static int __remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim,
 		       vol->new_conf->mslots[victim->id] != NULL);
 		vol->new_conf->mslots[victim->id] = NULL;
 	}
-	/*
-	 * remove @victim from the set of abstract buckets
-	 */
-	new_vec = remove_bucket(vol->buckets,
-				num_dsa_subvols(vol), *pos_in_dsa);
-	if (!new_vec)
-		return -ENOMEM;
-
-	*old_vec = vol->buckets;
-	vol->buckets = new_vec;
 	return 0;
 }
 
@@ -1414,10 +1544,20 @@ static int remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim,
 {
 	int ret;
 	u32 pos_in_dsa;
+	bucket_t *new_vec;
 
-	ret = __remove_data_brick(vol, victim, &pos_in_dsa, old_vec);
+	ret = __remove_data_brick(vol, victim);
 	if (ret)
 		return ret;
+
+	pos_in_dsa = get_pos_in_dsa(victim);
+
+	new_vec = remove_bucket(vol->buckets, num_dsa_subvols(vol), pos_in_dsa);
+	if (!new_vec)
+		return -ENOMEM;
+
+	*old_vec = vol->buckets;
+	vol->buckets = new_vec;
 
 	ret = vol->dist_plug->v.dec(&vol->dcx, vol->conf->tab,
 				    pos_in_dsa, victim);
@@ -1438,6 +1578,86 @@ static int remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim,
 	return 0;
 }
 
+static int remove_proxy_asym(reiser4_volume *vol, reiser4_subvol *victim)
+{
+	int ret;
+
+	if (is_meta_brick(victim))
+		ret = __remove_meta_brick(vol);
+	else
+		ret = __remove_data_brick(vol, victim);
+	if (ret)
+		return ret;
+	assert("edward-2437", vol->new_conf != NULL);
+	assert("edward-2460", vol->new_conf->tab == NULL);
+	/*
+	 * Disable IO requests against the proxy brick to be removed
+	 */
+	reiser4_volume_clear_proxy_io(reiser4_get_current_sb());
+
+	if (!is_meta_brick(victim))
+		/*
+		 * put format super-block of data brick
+		 * we want to remove to the transaction
+		 */
+		capture_brick_super(victim);
+	/*
+	 * set unbalanced status and put format super-block
+	 * of meta-data brick to the transaction
+	 */
+	reiser4_volume_set_unbalanced(reiser4_get_current_sb());
+	ret = capture_brick_super(get_meta_subvol());
+	if (ret)
+		goto failed_removal;
+	/*
+	 * take away distribution table from the old config
+	 */
+	vol->new_conf->tab = vol->conf->tab;
+	/*
+	 * Now the brick removal operation can not be rolled
+	 * back on error paths. Instead, it should be completed
+	 * in the context of the balancing procedure
+	 */
+	printk("reiser4 (%s): Proxy brick %s scheduled for removal.\n",
+	       reiser4_get_current_sb()->s_id, victim->name);
+	/*
+	 * Now mirgate all data blocks from the brick to be
+	 * removed to the remaining bricks
+	 */
+	ret = balance_volume_asym(reiser4_get_current_sb());
+	/*
+	 * If balancing was interrupted for some reasons (system
+	 * crash, etc), then user just need to resume it (e.g. by
+	 * volume.reiser4 utility in the next mount session).
+	 * The new config at vol->new_conf to be published after
+	 * successful re-balancing completion.
+	 */
+	if (ret)
+		goto incomplete_removal;
+
+	ret = remove_brick_tail_asym(vol, victim);
+	if (ret)
+		goto incomplete_removal;
+	return 0;
+ failed_removal:
+	/*
+	 * brick removal to be repeated in regular context
+	 */
+	reiser4_volume_set_proxy_enabled(reiser4_get_current_sb());
+	free_lv_conf(vol->new_conf);
+	vol->new_conf = NULL;
+	return ret;
+ incomplete_removal:
+	/*
+	 * brick removal to be completed in the
+	 * context of balancing procedure, see
+	 * reiser4_balance_volume()
+	 */
+	vol->victim = victim;
+	reiser4_volume_set_incomplete_op(reiser4_get_current_sb());
+	return ret;
+}
+
 static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 {
 	int ret;
@@ -1451,6 +1671,9 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 
 	assert("edward-1830", vol != NULL);
 	assert("edward-1846", dist_plug != NULL);
+
+	if (subvol_is_set(victim, SUBVOL_IS_PROXY))
+		return remove_proxy_asym(vol, victim);
 
 	if (old_nr_dsa_bricks == 1) {
 		warning("edward-1941",
@@ -1471,6 +1694,7 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	if (ret)
 		return ret;
 	assert("edward-2242", vol->new_conf != NULL);
+	assert("edward-2461", vol->new_conf->tab == NULL);
 
 	ret = make_volume_dconf(vol);
 	if (ret)
@@ -1591,10 +1815,24 @@ int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 {
 	int ret;
 	lv_conf *cur_conf = vol->conf;
+	int need_capture = 0;
 
 	if (!is_meta_brick(victim)) {
 		clear_bit(SUBVOL_TO_BE_REMOVED, &victim->flags);
+		need_capture = 1;
+	}
+	if (subvol_is_set(victim, SUBVOL_IS_PROXY)) {
+		assert("edward-2448",
+		       !subvol_is_set(victim, SUBVOL_HAS_DATA_ROOM));
 
+		clear_bit(SUBVOL_IS_PROXY, &victim->flags);
+		reiser4_volume_clear_proxy_enabled(reiser4_get_current_sb());
+
+		if (!is_meta_brick(victim))
+			victim->flags |= (1 << SUBVOL_HAS_DATA_ROOM);
+		need_capture = 1;
+	}
+	if (need_capture) {
 		ret = capture_brick_super(victim);
 		if (ret)
 			return ret;
@@ -1656,8 +1894,13 @@ int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	free_lv_conf(cur_conf);
 	vol->new_conf = NULL;
 
-	printk("reiser4 (%s): Brick %s has been removed.\n",
-	       victim->super->s_id, victim->name);
+	if (subvol_is_set(victim, SUBVOL_IS_PROXY))
+		vol->proxy = NULL;
+
+	printk("reiser4 (%s): %s %s has been removed.\n",
+	       victim->super->s_id,
+	       subvol_is_set(victim, SUBVOL_IS_PROXY) ? "Proxy" : "Brick",
+	       victim->name);
 	return 0;
 }
 
@@ -1718,24 +1961,26 @@ static inline u32 get_seed(oid_t oid, reiser4_volume *vol)
 	return seed;
 }
 
+/**
+ * Return internal ID of DSA brick
+ */
 static u64 data_subvol_id_calc_asym(lv_conf *conf, const struct inode *inode,
 				    loff_t offset)
 {
-	u64 ret;
-	reiser4_volume *vol = current_volume();
-
 	assert("edward-2267", conf != NULL);
 
-	if (!conf->tab) {
+	if (!conf->tab)
 		/*
-		 * the single data brick is always in the last slot
+		 * DSA includes only one brick. It is either meta-data
+		 * brick, or one of the next two bricks at the right
 		 */
-		assert("edward-2212",
-		       conf_mslot_at(conf, conf_nr_mslots(conf) - 1) != NULL);
-
-		ret = conf_origin(conf, conf->nr_mslots - 1)->id;
-	} else {
+		return meta_brick_belongs_dsa() ? METADATA_SUBVOL_ID :
+			data_brick_belongs_dsa(conf_origin(conf,
+					    METADATA_SUBVOL_ID + 1)) ?
+			METADATA_SUBVOL_ID + 1 : METADATA_SUBVOL_ID + 2;
+	else {
 		u64 stripe_idx;
+		reiser4_volume *vol = current_volume();
 		distribution_plugin *dist_plug = current_dist_plug();
 
 		if (vol->stripe_bits) {
@@ -1744,13 +1989,12 @@ static u64 data_subvol_id_calc_asym(lv_conf *conf, const struct inode *inode,
 		} else
 			stripe_idx = 0;
 
-		ret = dist_plug->r.lookup(&vol->dcx, inode,
-					  (const char *)&stripe_idx,
-					  sizeof(stripe_idx),
-					  get_seed(get_inode_oid(inode), vol),
-					  conf->tab);
+		return dist_plug->r.lookup(&vol->dcx, inode,
+					   (const char *)&stripe_idx,
+					   sizeof(stripe_idx),
+					   get_seed(get_inode_oid(inode), vol),
+					   conf->tab);
 	}
-	return ret;
 }
 
 u64 get_meta_subvol_id(void)
@@ -1800,6 +2044,7 @@ int print_brick_simple(struct super_block *sb, struct reiser4_vol_op_args *args)
 	memcpy(args->u.brick.ext_id, subv->uuid, 16);
 	args->u.brick.int_id = subv->id;
 	args->u.brick.nr_replicas = subv->num_replicas;
+	args->u.brick.subv_flags = subv->flags;
 	args->u.brick.block_count = subv->block_count;
 	args->u.brick.data_capacity = subv->data_capacity;
 	args->u.brick.blocks_used = subv->blocks_used;
@@ -1827,14 +2072,35 @@ u64 data_subvol_id_find_asym(const coord_t *coord)
 	}
 }
 
+/**
+ * Convert ordered number @idx of brick in the logical volume
+ * to its internal id
+ */
+static u32 brick_idx_to_id(reiser4_volume *vol, u32 idx)
+{
+	u32 i, j;
+	/*
+	 * return idx-th non-zero slot
+	 */
+	for (i = 0, j = 0; i < vol->conf->nr_mslots; i++) {
+		if (vol->conf->mslots[i]) {
+			if (j == idx)
+				return i;
+			else
+				j ++;
+		}
+	}
+	BUG_ON(1);
+}
+
 int print_volume_asym(struct super_block *sb, struct reiser4_vol_op_args *args)
 {
 	reiser4_volume *vol = super_volume(sb);
 	lv_conf *conf = vol->conf;
 	reiser4_volinfo *vinfo = &vol->volinfo[CUR_VOL_CONF];
 
-	args->u.vol.nr_bricks = meta_brick_belongs_dsa() ?
-		vol_nr_origins(vol) : - vol_nr_origins(vol);
+	args->u.vol.nr_bricks = vol_nr_origins(vol);
+	args->u.vol.bricks_in_dsa = num_dsa_subvols(vol);
 	memcpy(args->u.vol.id, vol->uuid, 16);
 	args->u.vol.vpid = vol->vol_plug->h.id;
 	args->u.vol.dpid = vol->dist_plug->h.id;
@@ -1849,8 +2115,8 @@ int print_volume_asym(struct super_block *sb, struct reiser4_vol_op_args *args)
 int print_brick_asym(struct super_block *sb, struct reiser4_vol_op_args *args)
 {
 	int ret = 0;
-	u64 id;        /* internal ID */
-	u64 brick_idx; /* index of the brick in logical volume */
+	u32 id; /* internal ID */
+	u64 brick_idx; /* ordered number of the brick in the logical volume */
 
 	reiser4_volume *vol = super_volume(sb);
 	lv_conf *conf = vol->conf;
@@ -1863,22 +2129,15 @@ int print_brick_asym(struct super_block *sb, struct reiser4_vol_op_args *args)
 		ret = -EINVAL;
 		goto out;
 	}
-	/* translate index in LV to brick ID */
-
-	if (is_meta_brick_id(brick_idx))
-		id = brick_idx;
-	else if (meta_brick_belongs_dsa())
-		id = vol->vol_plug->bucket_ops.idx2id(brick_idx);
-	else
-		id = vol->vol_plug->bucket_ops.idx2id(brick_idx - 1);
-
-	assert("edward-2206", conf->mslots[id] != NULL);
+	id = brick_idx_to_id(vol, brick_idx);
+	assert("edward-2446", conf->mslots[id] != NULL);
 
 	subv = conf->mslots[id][0];
 	strncpy(args->d.name, subv->name, REISER4_PATH_NAME_MAX + 1);
 	memcpy(args->u.brick.ext_id, subv->uuid, 16);
 	args->u.brick.int_id = subv->id;
 	args->u.brick.nr_replicas = subv->num_replicas;
+	args->u.brick.subv_flags = subv->flags;
 	args->u.brick.block_count = subv->block_count;
 	args->u.brick.data_capacity = subv->data_capacity;
 	args->u.brick.blocks_used = subv->blocks_used;
@@ -2062,8 +2321,6 @@ int balance_volume_asym(struct super_block *super)
 
 	assert("edward-1881", super != NULL);
 
-	if (!reiser4_volume_is_unbalanced(super))
-		return 0;
 	printk("reiser4 (%s): Started balancing...\n", super->s_id);
 	start = ktime_get_seconds();
 

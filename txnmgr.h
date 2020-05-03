@@ -439,8 +439,8 @@ extern int reiser4_try_capture(jnode * node, znode_lock_mode mode, txn_capture f
 extern int try_capture_page_to_invalidate(struct page *pg);
 
 extern void reiser4_uncapture_page(struct page *pg);
-extern void reiser4_uncapture_block(jnode *);
-extern void reiser4_uncapture_jnode(jnode *);
+extern void reiser4_uncapture_block(jnode *node);
+extern void reiser4_uncapture_jnode(jnode *node);
 
 extern int reiser4_capture_inode(struct inode *);
 extern int reiser4_uncapture_inode(struct inode *);
