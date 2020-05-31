@@ -358,7 +358,8 @@ typedef struct file_plugin {
 	/* called from ->destroy_inode() */
 	void (*destroy_inode) (struct inode *);
 	/*
-	 * Migrate file's data stripes in accordance with a new LV configuration
+	 * Migrate file's data stripes in accordance with current
+	 * LV configuration
 	 */
 	int (*balance)(struct inode *object);
 	/*
@@ -642,10 +643,11 @@ typedef struct volume_plugin {
 	/* Increase upper limit for the number of available bricks
 	   in a volume in (1 << @factor_bits) times */
 	int (*scale_volume)(struct super_block *sb, unsigned factor_bits);
-	/* Balance a logical volume specified by @super.
-	 * This procedure is supposed to complete any volume operations
-	 * above. If it returns 0, then the volume is fully balanced.
-	 * Otherwise, the procedure should be resumed in some context.
+	/*
+	 * Balance a logical volume in accordance with current volume
+	 * configuration. In particular, this procedure is called to
+	 * complete some volume operations (like adding/removing a brick).
+	 * On successful completion it returns 0.
 	 */
 	int (*balance_volume)(struct super_block *super);
 	struct bucket_ops bucket_ops;

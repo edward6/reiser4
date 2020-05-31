@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2018-2019 Eduard O. Shishkin
+  Copyright (c) 2018-2020 Eduard O. Shishkin
 
   This file is licensed to you under your choice of the GNU Lesser
   General Public License, version 3 or any later version (LGPLv3 or
@@ -8,20 +8,21 @@
 */
 
 /*
- * Implementation of regular files with "striped" bodies.
+ * Implementation of regular files with distributed bodies.
  *
- * Stripe is a distribution logical unit in a file.
+ * Logical unit of distribution in such file is called "stripe".
  * Every stripe, which got physical addresses, is composed of extents
- * (IO units), and every extent is a set of allocation units (file system
- * blocks) with contiguous disk addresses.
+ * (IO units), and every extent is a set of filesystem blocks (allocation
+ * units) with contiguous disk addresses.
  * Neighboring extents of any two adjacent (in the logical order) stripes,
- * which got to the same device, get merged at the stripes boundary if
+ * which got to the same device, get merged at the stripe boundary if
  * their physical addresses are adjusent.
  * In the storage tree extents are represented by extent pointers (items)
  * of EXTENT41_POINTER_ID. Extent pointer's key is calculated like for
- * classic unix files except the ordering component, which contains ID
- * of a brick (subvolume), where that extent should be stored. Holes in a
- * striped file are not represented by any items.
+ * classic unix files (UNIX_FILE_PLUGIN_ID) except the ordering component,
+ * which in our case contains ID of a brick (subvolume), where that extent
+ * should be stored in.
+ * Holes in a striped file are not represented by any items.
  */
 
 #include "../../inode.h"
