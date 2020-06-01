@@ -1101,10 +1101,9 @@ int writepages_stripe(struct address_space *mapping,
 					  commit_stripe_atoms);
 }
 
-int ioctl_stripe(struct file *filp, unsigned int cmd,
-		 unsigned long arg)
+int ioctl_stripe(struct file *filp, unsigned int cmd,  unsigned long arg)
 {
-	return 0;
+	return RETERR(-ENOTTY);
 }
 
 /**
@@ -1172,18 +1171,18 @@ int write_end_stripe(struct file *file, struct page *page,
 }
 
 /**
- * Migrate file stripes which get new in-volume location.
+ * Migrate file stripes in accordance with current distribution table.
  * Exclusive access to the file should be acquired by caller.
  *
  * Implementation details:
  * Scan file body from right to left, read all pages which should
- * be relocated to new bricks, and make them dirty. In flush time
+ * get location on other bricks, and make them dirty. In flush time
  * those pages will get disk addresses on the new bricks.
  *
  * IMPORTANT: This implementation assumes that logical order on
  * the file coincides with the physical order.
  */
-int balance_stripe(struct inode *inode)
+int migrate_stripe(struct inode *inode)
 {
 	int ret;
 	reiser4_key key; /* search key */

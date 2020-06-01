@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2016-2019 Eduard O. Shishkin
+  Copyright (c) 2016-2020 Eduard O. Shishkin
 
   This file is licensed to you under your choice of the GNU Lesser
   General Public License, version 3 or any later version (LGPLv3 or
@@ -2268,35 +2268,27 @@ static int iter_find_next(reiser4_tree *tree, coord_t *coord,
 }
 
 /**
- * This procedure is to make sure that all data blocks are written to
- * the logical volume in accordance with a new distribution policy.
+ * Migrate all data blocks of asymmetric logical volume in accordance
+ * with its current configuration.
  *
  * @super: super-block of the volume to be balanced;
  *
- * Pre-condition: a new volume configuration is installed.
- *
- * Implementation details.
+ * Implementation details:
  *
  * Walk from left to right along the twig level of the storage tree
- * and for every found regular file (inode) relocate its data blocks.
+ * and for every found regular file's inode migrate its data blocks.
  *
  * Stat-data (on-disk inodes) are located on leaf level, nevertheless
  * we scan twig level, recovering stat-data from extent items. Simply
- * because scanning twig level is ~1000 times faster.
+ * because scanning twig level is ~1000 times faster (thanks to Hans,
+ * who had insisted on EOTTL at the time).
  *
  * When scanning twig level we obviously miss empty files (i.e. files
- * without bodies). It shouldn't lead to any problems as balancing is
- * always performed _after_ installing a new distribution table (see
- * pre-condition below).
+ * without bodies). It doesn't lead to any problems, as there is nothing
+ * to migrate for those files.
  *
- * NOTE: correctness of this implementation (i.e. a guarantee that all
- * files will be processed) is provided by our single stupid objectid
- * allocator. If you want to add another allocator, then please prove
- * that it makes a friendship with the balancing procedure, or write
- * another one which works for that new allocator correctly.
- *
- * FIXME: use hint/seal to not traverse tree every time when locking
- * position determned by the hint ("current" key in the iterate context).
+ * FIXME: use hint/seal to not traverse tree every time when searching
+ * for a position by "current" key of the iteration context.
  */
 int balance_volume_asym(struct super_block *super)
 {
@@ -2440,13 +2432,13 @@ int balance_volume_asym(struct super_block *super)
 
 		inode = reiser4_iget(super, &sdkey, FIND_MAX_NOT_MORE_THAN, 0);
 
-		if (!IS_ERR(inode) && inode_file_plugin(inode)->balance) {
+		if (!IS_ERR(inode) && inode_file_plugin(inode)->migrate) {
 			reiser4_iget_complete(inode);
 			/*
 			 * migrate data blocks of this file
 			 */
 			get_exclusive_access(unix_file_inode_data(inode));
-			ret = inode_file_plugin(inode)->balance(inode);
+			ret = inode_file_plugin(inode)->migrate(inode);
 			drop_exclusive_access(unix_file_inode_data(inode));
 
 			iput(inode);

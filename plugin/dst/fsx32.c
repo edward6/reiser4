@@ -4,7 +4,7 @@
   Implementation over 32-bit hash.
   Adapted for use in Reiser4.
 
-  Copyright (c) 2014-2019 Eduard O. Shishkin
+  Copyright (c) 2014-2020 Eduard O. Shishkin
 */
 
 #include <linux/kernel.h>
@@ -14,11 +14,11 @@
 #include "../plugin.h"
 #include "dst.h"
 
-#define MIN_SGS_BITS   (10)
-#define MAX_SGS_BITS   (20)
-#define MAX_BUCKETS    (1u << MAX_SGS_BITS)
-#define MAX_DIFFER_BITS   19
-#define MAX_DATA_CAPACITY 0xffffffffffffffffull
+#define MIN_SGS_BITS       10
+#define MAX_SGS_BITS       20
+#define MAX_BUCKETS        (1u << MAX_SGS_BITS)
+#define MAX_DIFFER_BITS    19
+#define MAX_DATA_CAPACITY  0xffffffffffffffffull
 
 static inline void *fsx32_alloc(u64 len)
 {

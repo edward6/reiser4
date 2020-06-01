@@ -516,7 +516,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		},
 		.init_inode_data = init_inode_data_unix_file,
 		.cut_tree_worker = cut_tree_worker_stripe,
-		.balance = balance_stripe,
+		.migrate = migrate_stripe,
 		.wire = {
 			.write = wire_write_common,
 			.read = wire_read_common,

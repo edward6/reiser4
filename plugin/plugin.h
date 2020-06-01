@@ -358,10 +358,10 @@ typedef struct file_plugin {
 	/* called from ->destroy_inode() */
 	void (*destroy_inode) (struct inode *);
 	/*
-	 * Migrate file's data stripes in accordance with current
-	 * LV configuration
+	 * Migrate file's data blocks in accordance with current configuration
+	 * of the logical volume
 	 */
-	int (*balance)(struct inode *object);
+	int (*migrate)(struct inode *object);
 	/*
 	 * methods to serialize object identify. This is used, for example, by
 	 * reiser4_{en,de}code_fh().
@@ -533,63 +533,72 @@ struct bucket_ops {
 	/* Get a pointer to apx length of a bucket with
 	   serial number @idx in the array @buckets */
 	u64 *(*apx_lenp_at)(bucket_t *buckets, u64 idx);
-	/* translate index in the array of buckets to bucket ID */
+	/* translate bucket index in the array of abstract buckets
+	   to bucket internal ID */
 	u64 (*idx2id)(u32 idx);
-	/* translate bucket ID to index in the array of buckets */
+	/* translate bucket internal ID to bucket index in the array
+	   of abstract buckets */
 	u32 (*id2idx)(u64 id);
-	/* create a set of abstract buckets */
+	/* create array of abstract buckets */
 	bucket_t *(*create_buckets)(void);
-	/* release a set of abstract buckets */
+	/* release array of abstract buckets */
 	void (*free_buckets)(bucket_t *vec);
-	/* insert a bucket @new into a set of buckets @vec
+	/* insert a bucket @new into array of abstract buckets @vec
 	   at position pos */
 	bucket_t *(*insert_bucket)(bucket_t *vec, bucket_t new, u32 numb, u32 pos);
-	/* remove a bucket located at position @pos from
-	   the set of buckets @vec */
+	/* remove a bucket located at position @pos in the array of
+	   abstract buckets @vec */
 	bucket_t *(*remove_bucket)(bucket_t *vec, u32 numb, u32 pos);
-	/* return total space currently occupied in all buckets */
+	/* return space currently occupied in the abstract array of buckets */
 	u64 (*space_occupied)(void);
 };
 
 struct dist_regular_ops {
-	/* initialize distribution context for regular file operations */
+	/* initialize distribution context */
 	int (*init)(reiser4_dcx *rdcx, void **tab, int nums_bits);
-	/* return internal brick ID in a logical volume.
-	   The caller has to be sure it is serialized with volume
-	   operations, which change distribution policy */
+
+	/* release distribution context */
+	void (*done)(void **tab);
+
+	/* Find brick internal ID by volume configuration. It requires
+	   guarantees (e.g. by using rcu means) that configuration won't
+	   be destroyed by some volume operation while calculating */
 	u64 (*lookup)(reiser4_dcx *rdcx, const struct inode *inode,
 		      const char *str, int len, u32 seed, void *tab);
+
 	void (*replace)(reiser4_dcx *rdcx, void **target);
 	void (*free)(void *tab);
-	/* put distribution context used for regular file operations */
-	void (*done)(void **tab);
 };
 
 /*
- * Operations with an array of abstract buckets
+ * Abstract buckets array operations
  */
 struct dist_volume_ops {
-	/* Initialize context of operation */
+	/* Initialize operation context */
 	int (*init)(void **tab, u64 num_buckets,
 		    int num_sgs_bits, reiser4_dcx *rdcx);
-	/* Release context of operation */
+	/* Release operation context */
 	void (*done)(reiser4_dcx *rdcx);
-	/* Increase capacity of an array.
-	   If @new is not NULL, then the whole bucket is to be added */
+	/* Increase array capacity.
+	   If @new is not NULL, then insert bucket @new at the position
+	   @target_pos in the array. Otherwise, increase capacity of the
+	   bucket located at that position */
 	int (*inc)(reiser4_dcx *rdcx, const void *tab,
 		   u64 target_pos, bucket_t new);
-	/* Decrease capacity of an array.
-	   If @old is not NULL, then the whole bucket is to be removed */
+	/* Decrease array capacity.
+	   If @old is not NULL, then remove bucket @old.
+	   Otherwise, decrease capacity of the bucket located at position
+	   @target_pos */
 	int (*dec)(reiser4_dcx *rdcx, const void *tab,
 		   u64 target_pos, bucket_t old);
-	/* Increase max limit for the number of buckets in array */
+	/* Increase current limit for number of buckets in array */
 	int (*spl)(reiser4_dcx *rdcx, const void *tab, u32 fact_bits);
-	/* Pack system configuration for storing on disk */
+	/* Pack configuration for its storing on disk */
 	void (*pack)(reiser4_dcx *rdcx, char *to, u64 src_off, u64 count);
-	/* Extract system configuration from disk */
+	/* Extract configuration from disk */
 	void (*unpack)(reiser4_dcx *rdcx, void *tab,
 		       char *from, u64 dst_off, u64 count);
-	/* Print system configuration */
+	/* Print configuration */
 	void (*dump)(reiser4_dcx *rdcx, void *tab,
 		     char *to, u64 offset, u32 size);
 };
@@ -606,32 +615,33 @@ typedef struct volume_plugin {
 	/* generic fields */
 	plugin_header h;
 
-	/* Return ID of meta-data subvolume */
+	/* Return meta-data brick internal ID */
 	u64 (*meta_subvol_id)(void);
-	/* Calculate ID of data subvolume */
-	u64 (*data_subvol_id_calc)(lv_conf *conf,
-				   const struct inode *inode,
+	/* Calculate data brick internal ID */
+	u64 (*data_subvol_id_calc)(lv_conf *conf, const struct inode *inode,
 				   loff_t data_offset_in_bytes);
-	/* Return data subvolume ID stored in the item specified by @coord */
+	/* Return data brick ID stored in the item specified by @coord */
 	u64 (*data_subvol_id_find)(const coord_t *coord);
-	/* Load a portion of LV system configuration contained
-	   in a subvolume @subv. Normally is called at mount time */
+	/* Load a portion of volume configuration contained
+	   in its brick @subv. Normally is called at mount time */
 	int (*load_volume)(reiser4_subvol *subv);
-	/* It is called at umount time */
+	/* Release resources associated with logical volume @vol.
+	   Normally, is called at unmount time */
 	void (*done_volume)(reiser4_volume *vol);
-	/* Init LV after loading LV system info from all subvolumes */
+	/* Init logical volume @vol after loading its system info
+	   from all its bricks */
 	int (*init_volume)(struct super_block *sb, reiser4_volume *vol);
 	/* Change data capacity of @brick to new @value */
 	int (*resize_brick)(reiser4_volume *vol, reiser4_subvol *brick,
 			    long long value);
 	/* Add @new brick to logical volume @vol */
 	int (*add_brick)(reiser4_volume *vol, reiser4_subvol *new);
+
 	/* Remove @brick from logical volume @vol */
 	int (*remove_brick)(reiser4_volume *vol, reiser4_subvol *brick);
 
-	/* The second half of ->remove_brick() above. Should be called
-	   if ->remove_brick() was aborted on rebalancing while unbalanced
-	   volume status reached the disk */
+	/* ->remove_brick() completion. Should be called after successful
+	   volume rebalancing */
 	int (*remove_brick_tail)(reiser4_volume *vol, reiser4_subvol *brick);
 
 	/* Print brick info */
@@ -640,14 +650,13 @@ typedef struct volume_plugin {
 	/* Print volume info */
 	int (*print_volume)(struct super_block *sb,
 			    struct reiser4_vol_op_args *args);
-	/* Increase upper limit for the number of available bricks
-	   in a volume in (1 << @factor_bits) times */
+	/* Increase current limit for number of bricks in a volume */
 	int (*scale_volume)(struct super_block *sb, unsigned factor_bits);
 	/*
-	 * Balance a logical volume in accordance with current volume
-	 * configuration. In particular, this procedure is called to
-	 * complete some volume operations (like adding/removing a brick).
-	 * On successful completion it returns 0.
+	 * Migrate all data blocks of a logical volume in accordance
+	 * with its current configuration. This procedure is called,
+	 * in particular, to complete some volume operations (like
+	 * adding/removing a brick). On successful completion returns 0.
 	 */
 	int (*balance_volume)(struct super_block *super);
 	struct bucket_ops bucket_ops;

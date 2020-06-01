@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2017-2019 Eduard O. Shishkin
+  Copyright (c) 2017-2020 Eduard O. Shishkin
 
   This file is licensed to you under your choice of the GNU Lesser
   General Public License, version 3 or any later version (LGPLv3 or
@@ -434,8 +434,8 @@ static int do_migrate_extent(struct extent_migrate_context *mctx)
 	all_grabbed2free();
 	/*
 	 * The next migrate-split iteration starts here.
-	 * Grab meta-data blocks for this iteration. We grab from
-	 * reserved area, as rebalancing can be launched on a volume
+	 * Grab disk space for meta-data blocks in this iteration. We grab
+	 * from reserved area, as rebalancing can be launched on a volume
 	 * with no free space.
 	 */
 	ret = reserve_migration_iter();

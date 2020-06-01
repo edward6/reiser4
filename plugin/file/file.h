@@ -189,7 +189,7 @@ int write_begin_stripe(struct file *file, struct page *page,
 int write_end_stripe(struct file *file, struct page *page,
 		     loff_t pos, unsigned copied, void *fsdata);
 int ioctl_stripe(struct file *filp, unsigned int cmd, unsigned long arg);
-int balance_stripe(struct inode *);
+int migrate_stripe(struct inode *);
 
 /*
  * Private methods of symlink file plugin

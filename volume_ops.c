@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2017 Eduard O. Shishkin
+  Copyright (c) 2017-2020 Eduard O. Shishkin
 
   This file is licensed to you under your choice of the GNU Lesser
   General Public License, version 3 or any later version (LGPLv3 or
