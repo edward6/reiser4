@@ -579,14 +579,12 @@ static int fill_super(struct super_block *super, void *data, int silent)
 	sbinfo->debugfs_root = debugfs_create_dir(super->s_id,
 						  reiser4_debugfs_root);
 	if (sbinfo->debugfs_root) {
-		sbinfo->tmgr.debugfs_atom_count =
-			debugfs_create_u32("atom_count", S_IFREG|S_IRUSR,
-					   sbinfo->debugfs_root,
-					   &sbinfo->tmgr.atom_count);
-		sbinfo->tmgr.debugfs_id_count =
-			debugfs_create_u32("id_count", S_IFREG|S_IRUSR,
-					   sbinfo->debugfs_root,
-					   &sbinfo->tmgr.id_count);
+		debugfs_create_u32("atom_count", S_IFREG|S_IRUSR,
+				   sbinfo->debugfs_root,
+				   &sbinfo->tmgr.atom_count);
+		debugfs_create_u32("id_count", S_IFREG|S_IRUSR,
+				   sbinfo->debugfs_root,
+				   &sbinfo->tmgr.id_count);
 	}
 	printk("reiser4: %s: using %s.\n", super->s_id,
 	       txmod_plugin_by_id(sbinfo->txmod)->h.desc);
