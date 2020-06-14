@@ -823,7 +823,7 @@ static int init_volume_asym(struct super_block *sb, reiser4_volume *vol)
 	 * Volume configuration will be updated by remove_brick_tail_asym()
 	 * upon balancing completion.
 	 */
-	reiser4_volume_set_incomplete_op(sb);
+	reiser4_volume_set_incomplete_removal(sb);
  out:
 	printk("reiser4 (%s): Volume is unbalanced. Please run volume.reiser4 -b\n",
 	       sb->s_id);
@@ -1627,7 +1627,7 @@ static int remove_proxy_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	 * back on error paths. Instead, it should be completed
 	 * in the context of the balancing procedure
 	 */
-	reiser4_volume_set_incomplete_op(reiser4_get_current_sb());
+	reiser4_volume_set_incomplete_removal(reiser4_get_current_sb());
 
 	printk("reiser4 (%s): Proxy brick %s scheduled for removal.\n",
 	       reiser4_get_current_sb()->s_id, victim->name);
@@ -1649,7 +1649,7 @@ static int remove_proxy_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	ret = remove_brick_tail_asym(vol, victim);
 	if (ret)
 		goto incomplete_removal;
-	reiser4_volume_clear_incomplete_op(reiser4_get_current_sb());
+	reiser4_volume_clear_incomplete_removal(reiser4_get_current_sb());
 	return 0;
  failed_removal:
 	/*
@@ -1760,7 +1760,7 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	 * From now on the file system doesn't allocate disk
 	 * addresses on the brick to be removed
 	 */
-	reiser4_volume_set_incomplete_op(sb);
+	reiser4_volume_set_incomplete_removal(sb);
 
 	printk("reiser4 (%s): Brick %s scheduled for removal.\n",
 	       sb->s_id, victim->name);
@@ -1781,7 +1781,7 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	ret = remove_brick_tail_asym(vol, victim);
 	if (ret)
 		goto incomplete_removal;
-	reiser4_volume_clear_incpmplete_op(sb);
+	reiser4_volume_clear_incomplete_removal(sb);
 	return 0;
  failed_removal:
 	/*
