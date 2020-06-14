@@ -175,7 +175,12 @@ static int reiser4_add_brick(struct super_block *sb,
 		;
 		reiser4_volume_set_proxy_enabled(sb);
 		reiser4_volume_set_proxy_io(sb);
-		/* nothing to do any more */
+		clear_bit(SUBVOL_IS_ORPHAN, &new->flags);
+		/*
+		 * nothing to do any more
+		 */
+		printk("reiser4 (%s): Brick %s has been added.",
+		       sb->s_id, new->name);
 		return 0;
 	}
 	/*
