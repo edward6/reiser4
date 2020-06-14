@@ -14,12 +14,21 @@
 #include "volume.h"
 
 /**
- * Implementations of simple and asymmetric logical volumes.
- * Asymmetric Logical Volume is a table of pointers to bricks
- * (subvolumes). Its first column represents meta-data brick
- * and its optional replicas. Other columns represent data
- * bricks with replicas. Data bricks contain only unformatted
- * blocks. Meta-data brick contain blocks of all types.
+ * Implementation of simple and asymmetric logical volumes.
+ *
+ * Simple Volume can consist of only one device. Operation of adding
+ * a brick to such volume will fail. All reiser4 partitions with old
+ * "format40" layout are simple volumes.
+ *
+ * Asymmetric Logical Volume can consist of any number of devices
+ * formatted with "format41" layout, called bricks (or storage
+ * subvolumes).
+ * Mounted asymmetric volume is represented by a table of pointers to
+ * bricks. Its first column represents meta-data brick with its
+ * optional replicas. Other columns represent data bricks with
+ * replicas. Data brick contains only unformatted blocks. Meta-data
+ * brick contains blocks of all types. Asymmetric Logical Volume
+ * contains at least one meta-data brick and any number of data bricks
  */
 
 #define VOLMAP_MAGIC "R4VoLMaP"
