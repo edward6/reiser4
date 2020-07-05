@@ -1103,7 +1103,7 @@ int writepages_stripe(struct address_space *mapping,
 
 int ioctl_stripe(struct file *filp, unsigned int cmd,  unsigned long arg)
 {
-	return RETERR(-ENOTTY);
+	return reiser4_ioctl_volume(filp, cmd, arg, reiser4_volume_op_file);
 }
 
 /**
@@ -1171,7 +1171,7 @@ int write_end_stripe(struct file *file, struct page *page,
 }
 
 /**
- * Migrate file stripes in accordance with current distribution table.
+ * Migrate data blocks of a regular file specified by @inode
  * Exclusive access to the file should be acquired by caller.
  *
  * Implementation details:
@@ -1182,7 +1182,7 @@ int write_end_stripe(struct file *file, struct page *page,
  * IMPORTANT: This implementation assumes that logical order on
  * the file coincides with the physical order.
  */
-int migrate_stripe(struct inode *inode)
+static int __migrate_stripe(struct inode *inode, u64 *dst_id)
 {
 	int ret;
 	reiser4_key key; /* search key */
@@ -1265,7 +1265,8 @@ int migrate_stripe(struct inode *inode)
 		 * this case @done_off contains offset of the leftmost
 		 * migrated byte
 		 */
-		ret = iplug->v.migrate(&coord, &ikey, &lh, inode, &done_off);
+		ret = iplug->v.migrate(&coord, &ikey, &lh, inode, &done_off,
+				       dst_id);
 		done_lh(&lh);
 		reiser4_release_reserved(inode->i_sb);
 		if (ret && ret != -E_REPEAT)
@@ -1288,6 +1289,16 @@ int migrate_stripe(struct inode *inode)
 	done_lh(&lh);
 	reiser4_inode_clr_flag(inode, REISER4_FILE_IN_MIGRATION);
 	return 0;
+}
+
+int migrate_stripe(struct inode *inode, u64 *dst_id)
+{
+	int ret;
+
+	get_exclusive_access(unix_file_inode_data(inode));
+	ret = __migrate_stripe(inode, dst_id);
+	drop_exclusive_access(unix_file_inode_data(inode));
+	return ret;
 }
 
 /*

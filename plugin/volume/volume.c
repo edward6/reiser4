@@ -2281,8 +2281,36 @@ static int iter_find_next(reiser4_tree *tree, coord_t *coord,
 }
 
 /**
- * Migrate all data blocks of asymmetric logical volume in accordance
- * with its current configuration.
+ * Migrate all data blocks of a regular file in asymmetric logical volume
+ */
+static int migrate_file_asym(struct inode *inode, u64 dst_idx)
+{
+	reiser4_volume *vol = super_volume(inode->i_sb);
+	u64 dst_id;
+
+	if (inode_file_plugin(inode)->migrate == NULL)
+		return 0;
+	if (dst_idx >= vol_nr_origins(vol))
+		return RETERR(-EINVAL);
+
+	dst_id = brick_idx_to_id(vol, dst_idx);
+	return inode_file_plugin(inode)->migrate(inode, &dst_id);
+}
+
+
+static inline int file_is_migratable(struct inode *inode,
+				     struct super_block *super)
+{
+	if (IS_ERR(inode) || inode_file_plugin(inode)->migrate == NULL)
+		return 0;
+	if (reiser4_is_set(super, REISER4_INCOMPLETE_BRICK_REMOVAL))
+		return 1;
+	return !reiser4_inode_get_flag(inode, REISER4_FILE_IMMOBILE);
+}
+
+/**
+ * Balance an asymmetric logical volume. See description of the method
+ * in plugin.h
  *
  * @super: super-block of the volume to be balanced;
  *
@@ -2445,15 +2473,12 @@ int balance_volume_asym(struct super_block *super)
 
 		inode = reiser4_iget(super, &sdkey, FIND_MAX_NOT_MORE_THAN, 0);
 
-		if (!IS_ERR(inode) && inode_file_plugin(inode)->migrate) {
+		if (file_is_migratable(inode, super)) {
 			reiser4_iget_complete(inode);
 			/*
 			 * migrate data blocks of this file
 			 */
-			get_exclusive_access(unix_file_inode_data(inode));
-			ret = inode_file_plugin(inode)->migrate(inode);
-			drop_exclusive_access(unix_file_inode_data(inode));
-
+			ret = inode_file_plugin(inode)->migrate(inode, NULL);
 			iput(inode);
 			if (ret) {
 				warning("edward-1889",
@@ -2529,6 +2554,7 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		.print_brick = print_brick_asym,
 		.print_volume = print_volume_asym,
 		.scale_volume = scale_volume_asym,
+		.migrate_file = migrate_file_asym,
 		.balance_volume = balance_volume_asym,
 		.bucket_ops = {
 			.cap_at = cap_at_asym,

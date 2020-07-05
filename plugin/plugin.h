@@ -358,10 +358,12 @@ typedef struct file_plugin {
 	/* called from ->destroy_inode() */
 	void (*destroy_inode) (struct inode *);
 	/*
-	 * Migrate file's data blocks in accordance with current configuration
-	 * of the logical volume
+	 * Migrate data blocks of a regular file specified by @inode.
+	 * If @dst_id is not NULL, then migrate all the blocks to brick with
+	 * @dst_id. Otherwise, migrate in accordance with current distribution
+	 * table.
 	 */
-	int (*migrate)(struct inode *object);
+	int (*migrate)(struct inode *object, u64 *dst_id);
 	/*
 	 * methods to serialize object identify. This is used, for example, by
 	 * reiser4_{en,de}code_fh().
@@ -652,6 +654,10 @@ typedef struct volume_plugin {
 			    struct reiser4_vol_op_args *args);
 	/* Increase current limit for number of bricks in a volume */
 	int (*scale_volume)(struct super_block *sb, unsigned factor_bits);
+	/*
+	 * Migrate all data blocks of a regular file to a brick with
+	 * serial number @dst_idx (as it is visible by user) */
+	int (*migrate_file)(struct inode *inode, u64 dst_idx);
 	/*
 	 * Migrate all data blocks of a logical volume in accordance
 	 * with its current configuration. This procedure is called,

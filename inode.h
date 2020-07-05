@@ -58,7 +58,9 @@ typedef enum {
 	 * kill-hook of tail items. It is never cleared once set. This bit is
 	 * modified and inspected under i_mutex. */
 	REISER4_HAS_MMAP = 8,
-	REISER4_PART_MIXED = 9,
+	REISER4_FAKE_IMODE_ONDISK = 9,
+	REISER4_PART_MIXED = REISER4_FAKE_IMODE_ONDISK,
+	REISER4_FILE_IMMOBILE = REISER4_FAKE_IMODE_ONDISK,
 	REISER4_PART_IN_CONV = 10,
 	REISER4_FILE_IN_CONVERSION = 11,
 	REISER4_FILE_IN_MIGRATION = 12,

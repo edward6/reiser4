@@ -109,45 +109,7 @@ int reiser4_sync_file_common(struct file *file, loff_t start, loff_t end, int da
 
 long reiser4_ioctl_dir_common(struct file *file, unsigned int cmd, unsigned long arg)
 {
-	int ret;
-	reiser4_context *ctx;
-	struct inode *inode = file_inode(file);
-	struct super_block *super = inode->i_sb;
-
-	ctx = reiser4_init_context(super);
-	if (IS_ERR(ctx))
-		return PTR_ERR(ctx);
-
-	switch (cmd) {
-	case REISER4_IOC_VOLUME: {
-		struct reiser4_vol_op_args *op_args;
-
-		if (!capable(CAP_SYS_ADMIN))
-			return RETERR(-EPERM);
-
-		op_args = memdup_user((void __user *)arg, sizeof(*op_args));
-		if (IS_ERR(op_args))
-			return PTR_ERR(op_args);
-
-		ret = reiser4_volume_op(super, op_args);
-		if (ret) {
-			warning("edward-1899",
-				"On-line volume operation failed (%d)", ret);
-			kfree(op_args);
-			break;
-		}
-		if (copy_to_user((struct reiser4_vol_op_args __user *)arg,
-				 op_args, sizeof(*op_args)))
-			ret = RETERR(-EFAULT);
-		kfree(op_args);
-		break;
-	}
-	default:
-		ret = RETERR(-ENOTTY);
-		break;
-	}
-	reiser4_exit_context(ctx);
-	return ret;
+	return reiser4_ioctl_volume(file, cmd, arg, reiser4_volume_op_dir);
 }
 
 /*

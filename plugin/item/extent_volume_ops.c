@@ -645,7 +645,8 @@ static void reset_migration_context(struct extent_migrate_context *mctx)
 /**
  * Assign a migration primitive in the case of no striping
  */
-static void what_to_do_nostripe(struct extent_migrate_context *mctx)
+static void what_to_do_nostripe(struct extent_migrate_context *mctx,
+				u64 *dst_id)
 {
 	coord_t *coord;
 	struct inode *inode = mctx->inode;
@@ -659,7 +660,8 @@ static void what_to_do_nostripe(struct extent_migrate_context *mctx)
 	 * For each item there are only 2 options:
 	 * either skip the whole one, or migrate it
 	 */
-	mctx->new_loc = calc_data_subvol(inode, get_key_offset(mctx->key))->id;
+	mctx->new_loc = dst_id != NULL ? *dst_id :
+		calc_data_subvol(inode, get_key_offset(mctx->key))->id;
 
 	if (get_key_ordering(mctx->key) == mctx->new_loc) {
 		/*
@@ -717,7 +719,7 @@ static void what_to_do_nostripe(struct extent_migrate_context *mctx)
  * Assign primitive migration operation over the given item
  * specified by @mctx.coord
  */
-static void what_to_do(struct extent_migrate_context *mctx)
+static void what_to_do(struct extent_migrate_context *mctx, u64 *dst_id)
 {
 	loff_t off1, off2;
 	loff_t split_off;
@@ -731,7 +733,7 @@ static void what_to_do(struct extent_migrate_context *mctx)
 		/*
 		 * the whole item is either to be migrated, or not
 		 */
-		return what_to_do_nostripe(mctx);
+		return what_to_do_nostripe(mctx, dst_id);
 
 	coord = mctx->coord;
 	zload(coord->node);
@@ -751,7 +753,8 @@ static void what_to_do(struct extent_migrate_context *mctx)
 	off1 = off1 - (off1 & (current_stripe_size - 1));
 	off2 = off2 - (off2 & (current_stripe_size - 1));
 
-	mctx->new_loc = calc_data_subvol(inode, off2)->id;
+	mctx->new_loc =
+		dst_id != NULL ? *dst_id : calc_data_subvol(inode, off2)->id;
 
 	while (off1 < off2) {
 		off2 -= current_stripe_size;
@@ -833,7 +836,7 @@ static void what_to_do(struct extent_migrate_context *mctx)
 
 int reiser4_migrate_extent(coord_t *coord, reiser4_key *key,
 			   lock_handle *lh, struct inode *inode,
-			   loff_t *done_off)
+			   loff_t *done_off, u64 *dst_id)
 {
 	int ret = 0;
 	reiser4_block_nr blocks_migrated = 0;
@@ -842,7 +845,7 @@ int reiser4_migrate_extent(coord_t *coord, reiser4_key *key,
 	init_migration_context(&mctx, inode, coord, key, lh);
 
 	while (!mctx.stop) {
-		what_to_do(&mctx);
+		what_to_do(&mctx, dst_id);
 		switch(mctx.act) {
 		case SKIP_EXTENT:
 			ret = zload(mctx.coord->node);

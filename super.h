@@ -851,8 +851,12 @@ extern long reiser4_subvol_reserved4user(const reiser4_subvol *,
 extern int reiser4_subvol_blocknr_is_sane(const reiser4_subvol *subv,
 					  const reiser4_block_nr *blk);
 /* operations on volume */
-extern int reiser4_volume_op(struct super_block *,
-			     struct reiser4_vol_op_args *);
+extern long reiser4_ioctl_volume(struct file *file,
+			  unsigned int cmd, unsigned long arg,
+			  int (*volume_op)(struct file *file,
+					   struct reiser4_vol_op_args *args));
+extern int reiser4_volume_op_file(struct file *, struct reiser4_vol_op_args *);
+extern int reiser4_volume_op_dir(struct file *, struct reiser4_vol_op_args *);
 extern int reiser4_volume_header(struct reiser4_vol_op_args *);
 extern int reiser4_brick_header(struct reiser4_vol_op_args *);
 extern __u64 reiser4_volume_block_count(const struct super_block *);

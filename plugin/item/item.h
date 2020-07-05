@@ -222,7 +222,8 @@ struct volume_ops{
 	 * offset of the leftmost processed byte. @key is the key of the item
 	 */
 	int (*migrate)(coord_t *coord, reiser4_key *key,
-		       lock_handle *lh, struct inode *inode, loff_t *done_off);
+		       lock_handle *lh, struct inode *inode, loff_t *done_off,
+		       u64 *dst_id);
 };
 
 /* operations specific to the directory item */

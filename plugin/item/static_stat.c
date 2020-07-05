@@ -276,8 +276,8 @@ static int present_lw_sd(struct inode *inode /* object being processed */ ,
 		inode->i_size = le64_to_cpu(get_unaligned(&sd_lw->size));
 		if ((inode->i_mode & S_IFMT) == (S_IFREG | S_IFIFO)) {
 			inode->i_mode &= ~S_IFIFO;
-			warning("", "partially converted file is encountered");
-			reiser4_inode_set_flag(inode, REISER4_PART_MIXED);
+			reiser4_inode_set_flag(inode,
+					       REISER4_FAKE_IMODE_ONDISK);
 		}
 		move_on(len, area, sizeof *sd_lw);
 		return 0;
@@ -304,7 +304,7 @@ static int save_lw_sd(struct inode *inode /* object being processed */ ,
 	sd = (reiser4_light_weight_stat *) * area;
 
 	delta = (reiser4_inode_get_flag(inode,
-					REISER4_PART_MIXED) ? S_IFIFO : 0);
+				REISER4_FAKE_IMODE_ONDISK) ? S_IFIFO : 0);
 	put_unaligned(cpu_to_le16(inode->i_mode | delta), &sd->mode);
 	put_unaligned(cpu_to_le32(inode->i_nlink), &sd->nlink);
 	put_unaligned(cpu_to_le64((__u64) inode->i_size), &sd->size);
