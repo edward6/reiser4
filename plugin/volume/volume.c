@@ -2301,7 +2301,7 @@ static int migrate_file_asym(struct inode *inode, u64 dst_idx)
 static inline int file_is_migratable(struct inode *inode,
 				     struct super_block *super)
 {
-	if (IS_ERR(inode) || inode_file_plugin(inode)->migrate == NULL)
+	if (inode_file_plugin(inode)->migrate == NULL)
 		return 0;
 	if (reiser4_is_set(super, REISER4_INCOMPLETE_BRICK_REMOVAL))
 		return 1;
@@ -2472,7 +2472,11 @@ int balance_volume_asym(struct super_block *super)
 		set_key_offset(&sdkey, 0);
 
 		inode = reiser4_iget(super, &sdkey, FIND_MAX_NOT_MORE_THAN, 0);
-
+		if (IS_ERR(inode))
+			/*
+			 * file was removed
+			 */
+			goto next;
 		if (file_is_migratable(inode, super)) {
 			reiser4_iget_complete(inode);
 			/*
@@ -2487,7 +2491,9 @@ int balance_volume_asym(struct super_block *super)
 				      ret);
 				goto error;
 			}
-		}
+		} else
+			iput(inode);
+	next:
 		if (terminate)
 			break;
 		ictx.curr = ictx.next;
