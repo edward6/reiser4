@@ -643,10 +643,11 @@ static void reset_migration_context(struct extent_migrate_context *mctx)
 }
 
 /**
- * Assign a migration primitive in the case of no striping
+ * Assign a migration primitive in the case when the whole item
+ * is either to be migrated, or to be skipped.
  */
-static void what_to_do_nostripe(struct extent_migrate_context *mctx,
-				u64 *dst_id)
+static void what_to_do_nosplit(struct extent_migrate_context *mctx,
+			       u64 *dst_id)
 {
 	coord_t *coord;
 	struct inode *inode = mctx->inode;
@@ -729,11 +730,12 @@ static void what_to_do(struct extent_migrate_context *mctx, u64 *dst_id)
 	struct inode *inode = mctx->inode;
 	reiser4_key split_key;
 
-	if (nostripe_migration_mode())
+	if (nosplit_migration_mode())
 		/*
-		 * the whole item is either to be migrated, or not
+		 * the whole item is either to be migrated,
+		 * or to be skipped
 		 */
-		return what_to_do_nostripe(mctx, dst_id);
+		return what_to_do_nosplit(mctx, dst_id);
 
 	coord = mctx->coord;
 	zload(coord->node);

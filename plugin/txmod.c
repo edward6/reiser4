@@ -81,14 +81,14 @@ static void forward_overwrite_unformatted(flush_pos_t *flush_pos, oid_t oid,
 */
 static void mark_jnode_overwrite(struct list_head *jnodes, jnode *node);
 
-int split_allocated_extent(coord_t *coord, reiser4_block_nr pos_in_unit,
-			   int return_inserted_pos);
+int split_extent_unit(coord_t *coord, reiser4_block_nr pos_in_unit,
+		      int return_inserted_pos);
 int allocated_extent_slum_size(flush_pos_t *flush_pos, oid_t oid,
 			       unsigned long index, unsigned long count);
 void assign_real_blocknrs(flush_pos_t *flush_pos, oid_t oid,
 			  unsigned long index, reiser4_block_nr count,
 			  reiser4_block_nr first, reiser4_subvol *subv);
-int convert_extent(coord_t *coord, reiser4_extent *replace);
+int convert_extent_unit(coord_t *coord, reiser4_extent *replace);
 int shift_extent_left_begin(znode *dst, const coord_t *coord,
 			    const reiser4_key *key, reiser4_extent *ext);
 
@@ -232,14 +232,15 @@ static int forward_relocate_unformatted(flush_pos_t *flush_pos,
 	assert("edward-1852", item_is_extent(coord));
 
 	if (flush_pos->pos_in_unit) {
+		assert("edward-2118", state == ALLOCATED_EXTENT);
 		/*
-		 * split extent unit into two ones
+		 * split extent unit into two ones. The left one will
+		 * be skipped - see the loop in handle_pos_on_twig()
 		 */
-		result = split_allocated_extent(coord,
-						flush_pos->pos_in_unit,
-						0 /* leave @coord set
-						     to overwritten
-						     extent */);
+		result = split_extent_unit(coord, flush_pos->pos_in_unit,
+					   0 /* leave @coord set
+						to overwritten
+						extent */);
 		flush_pos->pos_in_unit = 0;
 		*exit = 1;
 		return result;
@@ -300,7 +301,7 @@ static int forward_relocate_unformatted(flush_pos_t *flush_pos,
 	reiser4_set_extent(subv, &replace_ext, first_allocated, allocated);
 
 	/* adjust extent item */
-	result = convert_extent(coord, &replace_ext);
+	result = convert_extent_unit(coord, &replace_ext);
 	if (result != 0 && result != -ENOMEM) {
 		warning("vs-1461",
 			"Failed to allocate extent. Should not happen\n");

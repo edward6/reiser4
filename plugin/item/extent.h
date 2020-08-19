@@ -188,7 +188,7 @@ int update_extent_stripe(hint_t *hint, struct inode *, jnode *, int *plugged_hol
 #include "../../tap.h"
 
 struct replace_handle {
-	/* these are to be set before calling reiser4_replace_extent */
+	/* these are to be set before calling replace_extent_unit */
 	coord_t *coord;
 	lock_handle *lh;
 	reiser4_key key;
@@ -198,7 +198,7 @@ struct replace_handle {
 	int nr_new_extents;
 	unsigned flags;
 
-	/* these are used by reiser4_replace_extent */
+	/* these are used by replace_extent_unit */
 	reiser4_item_data item;
 	coord_t coord_after;
 	lock_handle lh_after;
@@ -210,8 +210,10 @@ struct replace_handle {
 #endif
 };
 
-/* this structure is kmalloced before calling make_extent to avoid excessive
-   stack consumption on plug_hole->reiser4_replace_extent */
+/*
+ * this structure is kmalloced before calling make_extent to avoid
+ * excessive stack consumption on plug_hole->replace_extent_unit()
+ */
 struct make_extent_handle {
 	uf_coord_t *uf_coord;
 	reiser4_block_nr blocknr;
@@ -224,8 +226,8 @@ struct make_extent_handle {
 	} u;
 };
 
-int reiser4_replace_extent(item_id extent_id, struct replace_handle *,
-			   int return_inserted_position);
+int replace_extent_unit(item_id extent_id, struct replace_handle *,
+			int return_inserted_position);
 lock_handle *znode_lh(znode *);
 
 /* the reiser4 repacker support */

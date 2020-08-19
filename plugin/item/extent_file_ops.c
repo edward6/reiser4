@@ -538,7 +538,7 @@ static int plug_hole(uf_coord_t *uf_coord, const reiser4_key *key, int *how)
 				   width - 1);
 		rh.nr_new_extents = 1;
 
-		/* have reiser4_replace_extent to return with @coord and
+		/* have replace_extent_unit() to return with @coord and
 		   @uf_coord->lh set to unit which was replaced */
 		return_inserted_position = 0;
 		*how = 3;
@@ -578,7 +578,7 @@ static int plug_hole(uf_coord_t *uf_coord, const reiser4_key *key, int *how)
 				   UNALLOCATED_EXTENT_START, 1);
 		rh.nr_new_extents = 1;
 
-		/* have reiser4_replace_extent to return with @coord and
+		/* have replace_extent_unit() to return with @coord and
 		   @uf_coord->lh set to unit which was inserted */
 		return_inserted_position = 1;
 		*how = 5;
@@ -593,7 +593,7 @@ static int plug_hole(uf_coord_t *uf_coord, const reiser4_key *key, int *how)
 				   HOLE_EXTENT_START, width - pos_in_unit - 1);
 		rh.nr_new_extents = 2;
 
-		/* have reiser4_replace_extent to return with @coord and
+		/* have replace_extent_unit() to return with @coord and
 		   @uf_coord->lh set to first of units which were inserted */
 		return_inserted_position = 1;
 		*how = 6;
@@ -603,8 +603,8 @@ static int plug_hole(uf_coord_t *uf_coord, const reiser4_key *key, int *how)
 		       extent_get_width(&rh.overwrite) * current_blocksize);
 
 	uf_coord->valid = 0;
-	return reiser4_replace_extent(EXTENT40_POINTER_ID,
-				      &rh, return_inserted_position);
+	return replace_extent_unit(EXTENT40_POINTER_ID,
+				   &rh, return_inserted_position);
 }
 
 /**

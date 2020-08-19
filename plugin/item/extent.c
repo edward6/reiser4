@@ -75,7 +75,7 @@ void reiser4_set_extent(reiser4_subvol *subv, reiser4_extent *ext,
 }
 
 /**
- * reiser4_replace_extent - replace extent and paste 1 or 2 after it
+ * replace_extent_unit - overwrite extent unit and paste 1 or 2 after it
  * @un_extent: coordinate of extent to be overwritten
  * @lh: need better comment
  * @key: need better comment
@@ -89,8 +89,8 @@ void reiser4_set_extent(reiser4_subvol *subv, reiser4_extent *ext,
  * first of newly inserted units, if it is 0 - @un_extent and @lh are returned
  * set to extent which was overwritten.
  */
-int reiser4_replace_extent(item_id extent_id, struct replace_handle *h,
-			   int return_inserted_position)
+int replace_extent_unit(item_id extent_id, struct replace_handle *h,
+			int return_inserted_position)
 {
 	int result;
 	znode *orig_znode;
