@@ -1833,6 +1833,61 @@ int reiser4_cut_tree(reiser4_tree * tree, const reiser4_key * from,
 	return result;
 }
 
+/**
+ * Update item key and respectively delimiting keys on the upper
+ * levels (if needed).
+ *
+ * @target: item, whose key needs to be updated
+ * @key: new value of the key
+ */
+int update_item_key(coord_t *target, const reiser4_key *key)
+{
+	znode *node;
+	carry_pool *pool;
+	carry_level *todo;
+	carry_plugin_info info;
+
+	pool = init_carry_pool(sizeof(*pool) + 3 * sizeof(*todo));
+	if (IS_ERR(pool))
+		return PTR_ERR(pool);
+	todo = (carry_level *) (pool + 1);
+	init_carry_level(todo, pool);
+
+	info.doing = NULL;
+	info.todo = todo;
+
+	node = target->node;
+	node_plugin_by_node(node)->update_item_key(target, key, &info);
+
+	if (target->item_pos == 0) {
+		int ret;
+		reiser4_tree *tree;
+
+		/*
+		 * ->update_item_key() could post COP_UPDATE
+		 */
+		ret = reiser4_carry(todo, NULL /* previous level */);
+		if (ret) {
+			done_carry_pool(pool);
+			return ret;
+		}
+		tree = znode_get_tree(node);
+		read_lock_tree();
+		write_lock_dk(tree);
+
+		znode_set_ld_key(node, key);
+		if (znode_is_left_connected(node) && node->left)
+			znode_set_rd_key(node->left, key);
+
+		write_unlock_dk(tree);
+		read_unlock_tree();
+	}
+	znode_make_dirty(node);
+
+	done_carry_pool(pool);
+	return 0;
+}
+
 int reiser4_subvol_init_tree(struct reiser4_subvol *subv,
 			     const reiser4_block_nr *root_block,
 			     tree_level height, node_plugin *nplug)

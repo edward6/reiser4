@@ -21,22 +21,9 @@ size_t filemap_copy_from_user(struct page *page, unsigned long offset,
 int find_stripe_item(hint_t *hint, const reiser4_key *key,
 		     znode_lock_mode lock_mode, struct inode *inode);
 reiser4_block_nr estimate_write_stripe_meta(int count);
+int update_item_key(coord_t *target, const reiser4_key *key);
 
-#if 0
-static void check_node(znode *node)
-{
-	const char *error;
-
-	zload(node);
-	assert("edward-2076",
-	       check_node40(node, REISER4_NODE_TREE_STABLE, &error) == 0);
-	zrelse(node);
-}
-#else
-#define check_node(node) noop
-#endif
-
-void try_merge_with_right_item(coord_t *left)
+int try_merge_with_right_item(coord_t *left)
 {
 	coord_t right;
 
@@ -46,33 +33,76 @@ void try_merge_with_right_item(coord_t *left)
 		/*
 		 * there is no items at the right
 		 */
-		return;
+		return 0;
 	if (are_items_mergeable(left, &right)) {
 		node_plugin_by_node(left->node)->merge_items(left, &right);
 		znode_make_dirty(left->node);
 	}
+	return 0;
+}
+
+int try_merge_with_left_item(coord_t *right)
+{
+	coord_t left;
+
+	coord_dup(&left, right);
+
+	if (coord_prev_item(&left))
+		/*
+		 * there is no items at the left
+		 */
+		return 0;
+
+	if (are_items_mergeable(&left, right)) {
+		node_plugin_by_node(left.node)->merge_items(&left, right);
+		znode_make_dirty(right->node);
+	}
+	return 0;
+}
+
+static inline int can_push_left(const coord_t *coord, const reiser4_key *key)
+{
+	reiser4_key akey;
+
+	return keyeq(key, append_key_extent(coord, &akey));
+}
+
+static inline int can_push_right(const coord_t *coord, const reiser4_key *key)
+{
+	coord_t right;
+	reiser4_key ikey;
+	reiser4_key pkey;
+
+	coord_dup(&right, coord);
+
+	if (coord_next_item(&right))
+		/*
+		 * there is no items at the right
+		 */
+		return 0;
+
+	memcpy(&pkey, key, sizeof(*key));
+	set_key_offset(&pkey, get_key_offset(key) + PAGE_SIZE);
+
+	return keyeq(&pkey, item_key_by_coord(&right, &ikey));
 }
 
 /**
- * Push a pointer to one unallocated physical block to the
- * storage tree.
+ * Place a pointer to one unallocated physical block to the storage tree
  *
- * @key: key of the logical block of the file's body;
- * @uf_coord: location to push (was found by coord_by_key());
+ * @key: key of the pointer to push
+ * @uf_coord: location to push (was found by coord_by_key())
  *
- * Pre-condition: logical block is not yet represented by any
- * pointer in the storage tree (thus, such name "plugging a hole")
+ * Pre-condition: the logical block is not yet represented by any pointer
+ * in the storage tree (thus, the procedure looks like "plugging a hole")
  *
- * First try to push the pointer to an existing item at the left.
- * If impossible, then create a new extent item and try to merge
- * it with an item at the right.
+ * First, try to push the pointer to existing items. If impossible, then
+ * create a new extent item
  */
 static int plug_hole_stripe(coord_t *coord, lock_handle *lh,
 			    const reiser4_key *key)
 {
 	int ret = 0;
-	znode *loaded;
-	reiser4_key akey;
 	reiser4_extent *ext;
 	reiser4_extent new_ext;
 	reiser4_item_data idata;
@@ -129,29 +159,13 @@ static int plug_hole_stripe(coord_t *coord, lock_handle *lh,
 	}
 	/*
 	 * We are on the twig level.
-	 * Try to push the pointer to the end of extent item specified
-	 * by @coord
+	 * First, try to push the pointer to existing extent items
 	 */
 	assert("edward-2057", item_is_extent(coord));
 
-	if (!keyeq(key, append_key_extent(coord, &akey))) {
+	if (can_push_left(coord, key)) {
 		/*
-		 * Can not push. Create a new item.
-		 *
-		 * FIXME-EDWARD: here it would be nice to try
-		 * also to push to the beginning of the item at
-		 * the right. However, current implementation
-		 * of extent items doesn't allow to do it. We
-		 * can only to create a new item and merge it
-		 * with the right neighbor.
-		 */
-		reiser4_set_extent(subvol_by_key(key), &new_ext,
-				   UNALLOCATED_EXTENT_START, 1);
-		init_new_extent(EXTENT41_POINTER_ID, &idata, &new_ext, 1);
-		ret = insert_by_coord(coord, &idata, key, lh, 0);
-	} else {
-		/*
-		 * We can push to the end of the item
+		 * push to the end of current item
 		 */
 		coord->unit_pos = coord_last_unit_pos(coord);
 		ext = extent_by_coord(coord);
@@ -176,28 +190,62 @@ static int plug_hole_stripe(coord_t *coord, lock_handle *lh,
 			init_new_extent(EXTENT41_POINTER_ID,
 					&idata, &new_ext, 1);
 			ret = insert_into_item(coord, lh, key, &idata, 0);
+			if (ret)
+				return ret;
 		}
+		return WITH_DATA(lh->node, try_merge_with_right_item(coord));
+
+	} else if (can_push_right(coord, key)) {
+		/*
+		 * push to the beginning of the item at right
+		 */
+		coord_next_item(coord);
+		ext = extent_by_coord(coord);
+
+		if ((state_of_extent(ext) == UNALLOCATED_EXTENT)) {
+			/*
+			 * fast paste
+			 */
+			extent_set_width(subvol_by_key(key), ext,
+					 extent_get_width(ext) + 1);
+			/*
+			 * since we push to the beginning of item,
+			 * we need to update its key
+			 */
+			return update_item_key(coord, key);
+		} else {
+			/*
+			 * paste with possible carry
+			 */
+			coord->between = BEFORE_UNIT;
+			reiser4_set_extent(subvol_by_key(key), &new_ext,
+					   UNALLOCATED_EXTENT_START, 1);
+			init_new_extent(EXTENT41_POINTER_ID,
+					&idata, &new_ext, 1);
+			return insert_into_item(coord, lh, key, &idata, 0);
+		}
+		/*
+		 * note that resulted item is not mergeable with an item
+		 * at the left (otherwise we would fall to can_push_left()
+		 * branch above)
+		 */
+	} else {
+		/*
+		 * we can't push to existing items, so create a new one
+		 */
+		reiser4_set_extent(subvol_by_key(key), &new_ext,
+				   UNALLOCATED_EXTENT_START, 1);
+		init_new_extent(EXTENT41_POINTER_ID, &idata, &new_ext, 1);
+		ret = insert_by_coord(coord, &idata, key, lh, 0);
+		if (ret)
+			return ret;
+		/*
+		 * it could happen that the newly created item got
+		 * to neighbor node, where it is mergeable with an
+		 * item at the right
+		 */
+		return WITH_DATA(lh->node, try_merge_with_right_item(coord));
 	}
-	if (ret)
-		return ret;
-	assert("edward-2075", coord->node == lh->node);
-	/*
-	 * Here @coord points out to the item, the pointer
-	 * was pushed to, or to a newly created item. Try to
-	 * merge it with the item at the right.
-	 */
-	ret = zload(coord->node);
-	if (ret)
-		return ret;
-	loaded = coord->node;
-	try_merge_with_right_item(coord);
-#if 0
-	assert("edward-2353",
-	       check_node40(loaded,
-			    REISER4_NODE_TREE_STABLE, &error) == 0);
-#endif
-	zrelse(loaded);
-	return 0;
 }
 
 int sync_jnode(jnode *node);

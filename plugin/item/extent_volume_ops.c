@@ -16,8 +16,10 @@
 #define MIGRATION_GRANULARITY (8192)
 
 jnode *do_jget(struct page *pg);
-void try_merge_with_right_item(coord_t *left);
+int try_merge_with_right_item(coord_t *left);
+int try_merge_with_left_item(coord_t *right);
 int split_extent_unit(coord_t *coord, reiser4_block_nr pos, int adv_to_right);
+int update_item_key(coord_t *target, const reiser4_key *key);
 
 /*
  * primitive migration operations over item
@@ -162,7 +164,7 @@ static int readpages_extent_item(const coord_t *coord, loff_t off,
  * @from_off: offset to cut from.
  */
 static int cut_off_tail(coord_t *coord, struct inode *inode,
-			loff_t from_off, int count)
+			loff_t from_off)
 {
 	reiser4_key from, to;
 	coord_t from_coord;
@@ -177,9 +179,6 @@ static int cut_off_tail(coord_t *coord, struct inode *inode,
 	item_key_by_coord(coord, &to);
 	set_key_offset(&to, get_key_offset(&to) +
 		       reiser4_extent_size(coord) - 1);
-
-	assert("edward-2420", count > 0);
-	assert("edward-2421", count == get_key_offset(&to) - from_off + 1);
 
 	from = to;
 	set_key_offset(&from, from_off);
@@ -198,7 +197,7 @@ static int migrate_blocks(struct extent_migrate_context *mctx)
 	reiser4_block_nr block;
 	int nr_jnodes = 0;
 	coord_t *coord = mctx->coord;
-	znode *twig_node;
+	znode *loaded;
 	reiser4_subvol *new_subv = current_origin(mctx->new_loc);
 	struct atom_brick_info *abi;
 	ON_DEBUG(reiser4_key check_key);
@@ -246,81 +245,62 @@ static int migrate_blocks(struct extent_migrate_context *mctx)
 	}
 	nr_jnodes = mctx->nr_pages;
 
-	ret = cut_off_tail(coord, mctx->inode, mctx->stop_off,
-			   mctx->nr_pages << PAGE_SHIFT);
-	if (ret)
-		goto error;
-	/*
-	 * At this pointg all the collected jnodes have become orphan
-	 * and unallocated - deallocation happened at kill_hook_extent().
-	 * Pages and jnodes wasn't truncated by that hook because of
-	 * REISER4_FILE_IN_MIGRATION flag set.
-	 *
-	 * Create a new unallocated extent instead of the removed one.
-	 * However, not everything is so simple - we need to find out
-	 * the status of the removed item: was it the leftmost item in
-	 * the file? If so, then we need to change position for such
-	 * creation (specifically, we need to be on the leaf level).
-	 */
-	assert("edward-2410", coord->between == AT_UNIT);
+	if (mctx->migrate_whole_item) {
+		reiser4_extent *ext;
 
-	if (mctx->migrate_whole_item &&
-	    (coord_prev_item(coord) ||
-	     !inode_file_plugin(mctx->inode)->owns_item(mctx->inode, coord))) {
+		assert("edward-2464", coord->unit_pos == 0);
+		assert("edward-2465", mctx->stop_off ==
+		       get_key_offset(item_key_by_coord(coord, &check_key)));
 		/*
-		 * No more items to the left on this node, or the next
-		 * item to the left doesn't belong our file.
-		 *
-		 * The status of removed item is still unclear, so we
-		 * release the locked position and call tree search
-		 * procedure - it will land us in the right place.
+		 * cut all units except the first one;
+		 * deallocate all blocks, pointed out by that first unit;
+		 * set that unit as unallocated extent of proper width;
+		 * update item's key to point out to the new brick;
+		 * try to merge the resulted item with the item at left
+		 * and right.
 		 */
-		done_lh(mctx->lh);
-		ret = find_file_item_nohint(coord, mctx->lh, &key,
-					    ZNODE_WRITE_LOCK, mctx->inode);
-		if (IS_CBKERR(ret)) {
-			warning("edward-2457",
-				"Inode %llu: extent (%llu %d) on brick %llu lost during migration",
-				get_inode_oid(mctx->inode),
-				(jprivate(mctx->pages[0]))->blocknr,
-				mctx->nr_pages,
-				jnode_get_subvol(jprivate(mctx->pages[0]))->id);
-			goto error;
+		if (nr_units_extent(coord) > 1) {
+			ret = cut_off_tail(coord, mctx->inode, mctx->stop_off +
+					   reiser4_extent_size_at(coord, 1));
+			if (ret)
+				goto error;
 		}
-		assert("edward-2411", coord->between != AT_UNIT);
-		if (coord->between == AFTER_UNIT) {
-			assert("edward-2412", coord->node->level == TWIG_LEVEL);
-			goto insert_on_twig;
-		}
-		assert("edward-2413", coord->node->level == LEAF_LEVEL);
-
-		reiser4_set_extent(new_subv, &new_ext,
-				   UNALLOCATED_EXTENT_START, mctx->nr_pages);
-		init_new_extent(EXTENT41_POINTER_ID, &idata, &new_ext, 1);
-		ret = insert_extent_by_coord(coord, &idata, &key, mctx->lh);
+		loaded = coord->node;
+		ret = zload(loaded);
 		if (ret)
 			goto error;
 
-		twig_node = mctx->lh->node;
-		assert("edward-2414", twig_node != coord->node);
+		ext = extent_by_coord(coord);
+		if (state_of_extent(ext) == ALLOCATED_EXTENT) {
+			reiser4_block_nr start = extent_get_start(ext);
+			reiser4_block_nr len = extent_get_width(ext);
 
-		ret = zload(twig_node);
-		if (ret)
+			reiser4_dealloc_blocks(&start,
+					       &len,
+					       0, BA_DEFER,
+					       find_data_subvol(coord));
+		}
+		reiser4_set_extent(new_subv, ext,
+				   UNALLOCATED_EXTENT_START, nr_jnodes);
+		ret = update_item_key(coord, &key);
+		if (ret) {
+			zrelse(loaded);
 			goto error;
-		coord_init_zero(coord);
-		ret = node_plugin_by_node(twig_node)->lookup(twig_node,
-							     &key,
-							     FIND_EXACT,
-							     coord);
-		BUG_ON(ret != NS_FOUND);
-		assert("edward-2415", twig_node == coord->node);
+		}
+		try_merge_with_right_item(coord);
+		try_merge_with_left_item(coord);
+		assert("edward-2466",
+		       check_node40(coord->node,
+				    REISER4_NODE_TREE_STABLE, &error) == 0);
+		zrelse(loaded);
 	} else {
 		/*
-		 * There is at least one non-processed item, which belongs
-		 * to our file. So, we need to be on the twig level for
-		 * creation
+		 * cut of tail, insert a new item at the end
 		 */
-	insert_on_twig:
+		ret = cut_off_tail(coord, mctx->inode, mctx->stop_off);
+		if (ret)
+			goto error;
+
 		coord_init_after_item(coord);
 
 		reiser4_set_extent(new_subv, &new_ext,
@@ -329,26 +309,23 @@ static int migrate_blocks(struct extent_migrate_context *mctx)
 		ret = insert_by_coord(coord, &idata, &key, mctx->lh, 0);
 		if (ret)
 			goto error;
-		twig_node = coord->node;
-		ret = zload(twig_node);
+
+		loaded = coord->node;
+		ret = zload(loaded);
 		if (ret)
 			goto error;
+		assert("edward-2416",
+		       keyeq(&key, item_key_by_coord(coord, &check_key)));
+		assert("edward-2424",
+		       reiser4_extent_size(coord) == mctx->nr_pages << PAGE_SHIFT);
+
+		try_merge_with_right_item(coord);
+
+		assert("edward-2425",
+		       check_node40(coord->node,
+				    REISER4_NODE_TREE_STABLE, &error) == 0);
+		zrelse(loaded);
 	}
-	/*
-	 * current implementation of extent items doesn't allow
-	 * to simply push unit at the beginning of an item -
-	 * instead we need to create a new item, then try to merge
-	 * it with the item to the right.
-	 */
-	assert("edward-2416",
-	       keyeq(&key, item_key_by_coord(coord, &check_key)));
-	assert("edward-2424",
-	       reiser4_extent_size(coord) == mctx->nr_pages << PAGE_SHIFT);
-	assert("edward-2425",
-	       check_node40(twig_node,
-			    REISER4_NODE_TREE_STABLE, &error) == 0);
-	try_merge_with_right_item(coord);
-	zrelse(twig_node);
 	/*
 	 * Capture jnodes, set new addresses for them,
 	 * and make them dirty. At flush time all the
