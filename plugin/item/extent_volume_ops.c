@@ -15,7 +15,6 @@
 
 #define MIGRATION_GRANULARITY (8192)
 
-jnode *do_jget(struct page *pg);
 int try_merge_with_right_item(coord_t *left);
 int try_merge_with_left_item(coord_t *right);
 int split_extent_unit(coord_t *coord, reiser4_block_nr pos, int adv_to_right);
@@ -232,7 +231,7 @@ static int migrate_blocks(struct extent_migrate_context *mctx)
 		assert("edward-2408",
 		       page->index == (mctx->stop_off >> PAGE_SHIFT) + i);
 		lock_page(page);
-		node = do_jget(page);
+		node = jnode_of_page(page);
 		if (IS_ERR(node)) {
 			nr_jnodes = i;
 			unlock_page(page);

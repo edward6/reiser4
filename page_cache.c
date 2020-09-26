@@ -565,12 +565,11 @@ void reiser4_drop_page(struct page *page)
 #define JNODE_GANG_SIZE (16)
 
 /* find all jnodes from range specified and invalidate them */
-static int
-truncate_jnodes_range(struct inode *inode, pgoff_t from, pgoff_t count)
+static int truncate_jnodes_range(struct inode *inode,
+				 pgoff_t from, pgoff_t count)
 {
 	reiser4_inode *info;
 	int truncated_jnodes;
-	reiser4_tree *tree;
 	unsigned long index;
 	unsigned long end;
 
@@ -587,7 +586,6 @@ truncate_jnodes_range(struct inode *inode, pgoff_t from, pgoff_t count)
 	truncated_jnodes = 0;
 
 	info = reiser4_inode_data(inode);
-	tree = meta_subvol_tree();
 
 	index = from;
 	end = from + count;

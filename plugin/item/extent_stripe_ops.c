@@ -248,17 +248,15 @@ static int plug_hole_stripe(coord_t *coord, lock_handle *lh,
 	}
 }
 
-int sync_jnode(jnode *node);
-
 static int __update_extent_stripe(uf_coord_t *uf_coord, const reiser4_key *key,
-				  jnode *node, int *hole_plugged)
+				  jnode *node, int *hole_plugged,
+				  reiser4_subvol *subv)
 {
 	int ret;
-	reiser4_subvol *subv;
 	reiser4_block_nr block;
 	struct atom_brick_info *abi;
 
-	subv = current_origin(get_key_ordering(key));
+	assert("edward-2468", subv == current_origin(get_key_ordering(key)));
 	assert("edward-2220", node->subvol == NULL || node->subvol == subv);
 
 	if (uf_coord->coord.between != AT_UNIT) {
@@ -266,27 +264,16 @@ static int __update_extent_stripe(uf_coord_t *uf_coord, const reiser4_key *key,
 		 * block pointer is not represented by any item in the tree
 		 */
 		if (*jnode_get_block(node)) {
-#if REISER4_DEBUG
-			notice("edward-2371",
-			       "Orphan jnode. Address (%llu %llu) overwritten",
-			       (unsigned long long )(*jnode_get_block(node)),
-			       (unsigned long long)(jnode_get_subvol(node)->id));
-#endif
 			/*
-			 * FIXME: Move the following error handling stuff
-			 * upward to write_extent_stripe_handle_enospc()
+			 * FIXME: explain in details appearance of such jnodes
 			 */
-			done_lh(uf_coord->lh);
-			reiser4_txn_restart_current();
-			sync_jnode(node);
-			reiser4_txn_restart_current();
-
 			spin_lock_jnode(node);
 			node->blocknr = 0;
 			node->subvol = NULL;
 			reiser4_uncapture_jnode(node);
-			return RETERR(-EBUSY);
 		}
+		assert("edward-2469", node->subvol == NULL);
+
 		uf_coord->valid = 0;
 		inode_add_blocks(mapping_jnode(node)->host, 1);
 		ret = plug_hole_stripe(&uf_coord->coord, uf_coord->lh, key);
@@ -296,6 +283,7 @@ static int __update_extent_stripe(uf_coord_t *uf_coord, const reiser4_key *key,
 		block = fake_blocknr_unformatted(1, subv);
 		jnode_set_block(node, &block);
 		jnode_set_subvol(node, subv);
+
 		if (hole_plugged)
 			*hole_plugged = 1;
 		JF_SET(node, JNODE_CREATED);
@@ -303,6 +291,8 @@ static int __update_extent_stripe(uf_coord_t *uf_coord, const reiser4_key *key,
 	} else if (*jnode_get_block(node) == 0) {
 		reiser4_extent *ext;
 		struct extent_coord_extension *ext_coord;
+
+		assert("edward-2470", node->subvol == NULL);
 
 		ext_coord = ext_coord_by_uf_coord(uf_coord);
 		check_uf_coord(uf_coord, NULL);
@@ -319,7 +309,7 @@ static int __update_extent_stripe(uf_coord_t *uf_coord, const reiser4_key *key,
 	 * make sure that locked twig node contains jnode
 	 * we are about to capture
 	 */
-	check_jnodes(uf_coord->lh->node, key, 1);
+	ON_DEBUG(check_jnodes(uf_coord->lh->node, key, 1));
 
 	ret = check_insert_atom_brick_info(node->subvol->id, &abi);
 	if (ret)
@@ -338,7 +328,7 @@ static int __update_extent_stripe(uf_coord_t *uf_coord, const reiser4_key *key,
 }
 
 /**
- * Determine on what brick a data page will be stored,
+ * Determine on which brick a data page will be stored,
  * and reserve space on that brick.
  */
 static int locate_reserve_data(coord_t *coord, lock_handle *lh,
@@ -356,14 +346,9 @@ static int locate_reserve_data(coord_t *coord, lock_handle *lh,
 		zrelse(coord->node);
 		assert("edward-2360",
 		       ergo(node->subvol, node->subvol == *loc));
-	} else if (node->subvol)
-		/*
-		 * this is a hint from migration procedure
-		 */
-		*loc = node->subvol;
-	else if (reiser4_is_set(reiser4_get_current_sb(),
-				REISER4_PROXY_IO) &&
-		 !(flags & UPX_PROXY_FULL))
+	} else if (reiser4_is_set(reiser4_get_current_sb(),
+				  REISER4_PROXY_IO) &&
+		   !(flags & UPX_PROXY_FULL))
 		*loc = get_proxy_subvol();
 	else
 		*loc = calc_data_subvol(inode, pos);
@@ -446,7 +431,7 @@ int update_extent_stripe(struct hint *hint, struct inode *inode,
 	 * if it doesn't exist
 	 */
 	ret = __update_extent_stripe(&hint->ext_coord, &key, node,
-				     plugged_hole);
+				     plugged_hole, dsubv);
 	zrelse(loaded);
 	if (ret == -ENOSPC) {
 		done_lh(hint->ext_coord.lh);

@@ -788,6 +788,22 @@ static void check_partial_page_truncate(struct inode *inode,
 }
 #endif
 
+#if REISER4_DEBUG
+static void check_truncate_jnodes(struct inode *inode, pgoff_t start)
+{
+	int ret;
+	jnode *node = NULL;
+
+	read_lock_tree();
+	ret = radix_tree_gang_lookup(jnode_tree_by_reiser4_inode(reiser4_inode_data(inode)),
+				     (void **)node, start, 1);
+	read_unlock_tree();
+	if (ret)
+		warning("edward-2467", "found jnode index=%lu, file_size=%llu",
+			index_jnode(node), inode->i_size);
+}
+#endif
+
 /**
  * Exclusive access to the file must be acquired
  */
@@ -820,6 +836,8 @@ static int shorten_stripe(struct inode *inode, loff_t new_size)
 	 * the case of calassic unix-files
 	 */
 	truncate_inode_pages(inode->i_mapping, round_up(new_size, PAGE_SIZE));
+	ON_DEBUG(check_truncate_jnodes(inode,
+			        round_up(new_size, PAGE_SIZE) >> PAGE_SHIFT));
 
 	padd_from = inode->i_size & (PAGE_SIZE - 1);
 	if (!padd_from)
@@ -892,9 +910,10 @@ static int truncate_body_stripe(struct inode *inode, struct iattr *attr)
 	if (inode->i_size < new_size) {
 		/* expand */
 		return reiser4_update_file_size(inode, new_size, 1);
-	} else
+	} else if (inode->i_size > new_size)
 		/* shrink */
 		return shorten_stripe(inode, new_size);
+	return 0;
 }
 
 int setattr_stripe(struct dentry *dentry, struct iattr *attr)

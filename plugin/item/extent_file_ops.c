@@ -303,7 +303,7 @@ static int append_last_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	 * make sure that we hold long term locked twig node containing all
 	 * jnodes we are about to capture
 	 */
-	check_jnodes(uf_coord->lh->node, key, count);
+	ON_DEBUG(check_jnodes(uf_coord->lh->node, key, count));
 	/*
 	 * assign fake block numbers to all jnodes. FIXME: make sure whether
 	 * twig node containing inserted extent item is locked
@@ -428,7 +428,7 @@ static int insert_first_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 	 * make sure that we hold long term locked twig node containing all
 	 * jnodes we are about to capture
 	 */
-	check_jnodes(uf_coord->lh->node, key, count);
+	ON_DEBUG(check_jnodes(uf_coord->lh->node, key, count));
 	/*
 	 * assign fake block numbers to all jnodes, capture and mark them dirty
 	 */
@@ -728,7 +728,7 @@ static int overwrite_extent(uf_coord_t *uf_coord, const reiser4_key *key,
 		 * make sure that we hold long term locked twig node containing
 		 * all jnodes we are about to capture
 		 */
-		check_jnodes(uf_coord->lh->node, &k, 1);
+		ON_DEBUG(check_jnodes(uf_coord->lh->node, &k, 1));
 		/*
 		 * assign fake block numbers to all jnodes, capture and mark
 		 * them dirty
