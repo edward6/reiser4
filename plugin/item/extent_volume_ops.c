@@ -619,80 +619,6 @@ static void reset_migration_context(struct extent_migrate_context *mctx)
 }
 
 /**
- * Assign a migration primitive in the case when the whole item
- * is either to be migrated, or to be skipped.
- */
-static void what_to_do_nosplit(struct extent_migrate_context *mctx,
-			       u64 *dst_id)
-{
-	coord_t *coord;
-	struct inode *inode = mctx->inode;
-
-	coord = mctx->coord;
-	zload(coord->node);
-	coord_clear_iplug(coord);
-	reset_migration_context(mctx);
-
-	/*
-	 * For each item there are only 2 options:
-	 * either skip the whole one, or migrate it
-	 */
-	mctx->new_loc = dst_id != NULL ? *dst_id :
-		calc_data_subvol(inode, get_key_offset(mctx->key))->id;
-
-	if (get_key_ordering(mctx->key) == mctx->new_loc) {
-		/*
-		 * skip the whole extent
-		 */
-		coord->unit_pos = 0;
-		mctx->stop_off = get_key_offset(mctx->key);
-
-		mctx->stop = 1;
-		mctx->act = SKIP_EXTENT;
-	} else if (reiser4_extent_size(coord) <=
-		   (MIGRATION_GRANULARITY << PAGE_SHIFT)) {
-		/*
-		 * migrate the whole extent
-		 */
-		coord->unit_pos = 0;
-		mctx->stop_off = get_key_offset(mctx->key);
-
-		mctx->migrate_whole_item = 1;
-		mctx->act = MIGRATE_EXTENT;
-	} else {
-		/*
-		 * extent is too large, migrate it by parts
-		 */
-		lookup_result ret;
-		reiser4_key split_key;
-
-		mctx->stop_off =
-			get_key_offset(mctx->key) +
-			reiser4_extent_size(coord) -
-			(MIGRATION_GRANULARITY << PAGE_SHIFT);
-
-		memcpy(&split_key, mctx->key, sizeof(split_key));
-		set_key_offset(&split_key, mctx->stop_off);
-		ret = lookup_extent(&split_key, FIND_EXACT, coord);
-
-		assert("edward-2442", ret == CBK_COORD_FOUND);
-		assert("edward-2443", coord->between == AT_UNIT);
-
-		unit_key_by_coord(coord, &split_key);
-
-		assert("edward-2444",
-		       get_key_offset(&split_key) <= mctx->stop_off);
-		mctx->unit_split_pos =
-			(mctx->stop_off -
-			 get_key_offset(&split_key)) >> PAGE_SHIFT;
-		mctx->migrate_whole_item = 0;
-		mctx->act = MIGRATE_EXTENT;
-	}
-	zrelse(coord->node);
-	return;
-}
-
-/**
  * Assign primitive migration operation over the given item
  * specified by @mctx.coord
  */
@@ -705,67 +631,57 @@ static void what_to_do(struct extent_migrate_context *mctx, u64 *dst_id)
 	lookup_result ret;
 	struct inode *inode = mctx->inode;
 	reiser4_key split_key;
-
-	if (nosplit_migration_mode())
-		/*
-		 * the whole item is either to be migrated,
-		 * or to be skipped
-		 */
-		return what_to_do_nosplit(mctx, dst_id);
+	int skip;
 
 	coord = mctx->coord;
 	zload(coord->node);
 	coord_clear_iplug(coord);
 	reset_migration_context(mctx);
 	/*
-	 * find split offset in the item, i.e. maximal offset,
-	 * so that data bytes at offset and (offset - 1) belong
-	 * to different bricks in the new logical volume
+	 * calculate offsets of leftmost and rightmost bytes
+	 * pointed out by the item
 	 */
-	/* offset of the leftmost byte */
 	off1 = get_key_offset(mctx->key);
-	/* offset of rightmost byte */
 	off2 = off1 + reiser4_extent_size(coord) - 1;
-
-	/* normalize offsets */
-	off1 = off1 - (off1 & (current_stripe_size - 1));
-	off2 = off2 - (off2 & (current_stripe_size - 1));
-
 	mctx->new_loc =
 		dst_id != NULL ? *dst_id : calc_data_subvol(inode, off2)->id;
-
-	while (off1 < off2) {
-		off2 -= current_stripe_size;
-		if (calc_data_subvol(inode, off2)->id != mctx->new_loc) {
-			split_off = off2 + current_stripe_size;
+	skip = (mctx->new_loc == get_key_ordering(mctx->key));
+	/*
+	 * find split offset in the item, i.e. maximal offset, so that
+	 * data bytes at (offset - 1) and (offset) belong to different
+	 * bricks in the logical volume with the new configuration.
+	 */
+	split_off = off2 - (off2 & (current_stripe_size - 1));
+	while (off1 < split_off) {
+		split_off -= current_stripe_size;
+		if (calc_data_subvol(inode, split_off)->id != mctx->new_loc) {
+			split_off += current_stripe_size;
 			goto split_off_found;
 		}
+		if (!skip && (off2 - split_off + 1 >=
+			      MIGRATION_GRANULARITY << PAGE_SHIFT))
+			/*
+			 * split offset is not found, but the extent
+			 * is too large, so we have to migrate a part
+			 * of the item
+			 */
+			goto split_off_found;
 	}
 	/*
-	 * split offset not found
-	 *
-	 * set current position to the beginning of the item
+	 * split offset not found. The whole item is either
+	 * to be migrated, or to be skipped
 	 */
 	coord->unit_pos = 0;
 	mctx->stop_off = get_key_offset(mctx->key);
-	if (mctx->new_loc != get_key_ordering(mctx->key)) {
-		/*
-		 * the whole item should be migrated
-		 */
-		mctx->migrate_whole_item = 1;
-		mctx->act = MIGRATE_EXTENT;
-		zrelse(coord->node);
-		return;
-	} else {
-		/*
-		 * the item is not to be splitted, or
-		 * migrated - finish to process extent
-		 */
+	if (skip) {
 		mctx->stop = 1;
 		mctx->act = SKIP_EXTENT;
-		zrelse(coord->node);
-		return;
+	} else {
+		mctx->migrate_whole_item = 1;
+		mctx->act = MIGRATE_EXTENT;
 	}
+	zrelse(coord->node);
+	return;
  split_off_found:
 	/*
 	 * set current position to the found split offset
@@ -791,24 +707,22 @@ static void what_to_do(struct extent_migrate_context *mctx, u64 *dst_id)
 		(split_off - get_key_offset(&split_key)) >> PAGE_SHIFT;
 
 	zrelse(coord->node);
-	if (mctx->new_loc != get_key_ordering(mctx->key)) {
+	if (skip) {
+		/*
+		 * The item to be split, its right part to be
+		 * skipped, and the left part to be processed in
+		 * the next iteration of migrate_extent().
+		 */
+		mctx->act = SPLIT_EXTENT;
+	} else {
 		/*
 		 * Only a part of item should be migrated.
-		 * In this case we don't perform the regular
-		 * split operation - the item will be "split"
-		 * by migration procedure
+		 * In this case the regular split operation is not
+		 * needed.
 		 */
 		mctx->migrate_whole_item = 0;
 		mctx->act = MIGRATE_EXTENT;
-		return;
 	}
-	/*
-	 * The item to be split, its right part to be
-	 * skipped, and the left part to be processed in
-	 * the next iteration of migrate_extent().
-	 * Now calculate position for split.
-	 */
-	mctx->act = SPLIT_EXTENT;
 	return;
 }
 
@@ -839,6 +753,11 @@ int reiser4_migrate_extent(coord_t *coord, reiser4_key *key,
 				goto out;
 			continue;
 		case MIGRATE_EXTENT:
+			/*
+			 * Resource-intensive. The maximun number of
+			 * blocks to migrate at once is determined by
+			 * MIGRATION_GRANULARITY
+			 */
 			ret = do_migrate_extent(&mctx);
 			if (ret)
 				goto out;
@@ -846,19 +765,6 @@ int reiser4_migrate_extent(coord_t *coord, reiser4_key *key,
 			*done_off = mctx.done_off;
 
 			blocks_migrated += mctx.blocks_migrated;
-#if 0
-			if (blocks_migrated >= MIGRATION_GRANULARITY) {
-				ret = -E_REPEAT;
-				/*
-				 * FIXME-EDWARD:
-				 * do we need to interrupt long migration
-				 * and commit transactions like we do in
-				 * the case of truncate? So far, as I can
-				 * see, we can go without it..
-				 */
-				goto out;
-			}
-#endif
 			break;
 		default:
 			impossible("edward-2116",

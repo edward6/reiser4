@@ -124,14 +124,6 @@ static inline reiser4_subvol *get_proxy_subvol(void)
 	return current_volume()->proxy;
 }
 
-static inline int nosplit_migration_mode(void)
-{
-	return (reiser4_is_set(reiser4_get_current_sb(),
-			       REISER4_PROXY_ENABLED) &&
-		num_dsa_subvols(current_volume()) == 1) ||
-		current_stripe_bits == 0;
-}
-
 /*
   Local variables:
   c-indentation-style: "K&R"
