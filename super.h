@@ -328,6 +328,8 @@ struct reiser4_volume {
 	int stripe_bits; /* logarithm of stripe size */
 	atomic_t nr_origins; /* number of original subvolumes (w/o replicas) */
 	distribution_plugin *dist_plug;
+	struct rw_semaphore volume_sem; /* protect volume configuration */
+	struct rw_semaphore brick_removal_sem;
 	atomic_t custom_brick_id; /* internal brick ID (i.e. index in the
 				     array of mslots). This is a "hint",
 				     which is set up by user. It is used
@@ -350,6 +352,11 @@ struct reiser4_volume {
 	reiser4_subvol *proxy; /* burst buffers */
 	reiser4_subvol *victim; /* brick to be removed from the volume */
 };
+
+typedef enum {
+	VBF_MIGRATE_ALL = 0x1,
+	VBF_CLR_IMMOBILE = 0x2
+} volume_balancing_flags;
 
 extern reiser4_super_info_data *get_super_private_nocheck(const struct
 							  super_block *super);
@@ -399,6 +406,8 @@ static inline mirror_t *conf_mslot_at(lv_conf *conf, u32 id)
 static inline reiser4_subvol *conf_mirror(lv_conf *conf,
 					  u32 slot_idx, u32 mirr_id)
 {
+	assert("edward-2473", conf_mslot_at(conf, slot_idx) != NULL);
+
 	return ((mirror_t *)conf_mslot_at(conf, slot_idx))[mirr_id];
 }
 
@@ -725,19 +734,6 @@ static inline int reiser4_is_set(const struct super_block *super,
 	return test_bit((int)f, &get_super_private(super)->fs_flags);
 }
 
-static inline int reiser4_volume_test_set_busy(struct super_block *sb)
-{
-	assert("edward-1947", sb != NULL);
-	return test_and_set_bit(REISER4_BUSY_VOL,
-				&get_super_private(sb)->fs_flags);
-}
-
-static inline void reiser4_volume_clear_busy(struct super_block *sb)
-{
-	assert("edward-1949", sb != NULL);
-	clear_bit(REISER4_BUSY_VOL, &get_super_private(sb)->fs_flags);
-}
-
 static inline int reiser4_volume_is_unbalanced(const struct super_block *sb)
 {
 	assert("edward-1945", sb != NULL);
@@ -819,7 +815,23 @@ static inline reiser4_tree *meta_subvol_tree(void)
 }
 
 extern reiser4_subvol *super_meta_subvol(struct super_block *super);
-extern reiser4_subvol *find_data_subvol(const coord_t *coord);
+
+#define find_data_subvol(coord) \
+current_origin(current_vol_plug()->find_brick(coord))
+
+static inline reiser4_subvol *calc_data_subvol(const struct inode *inode,
+					       loff_t offset)
+{
+	reiser4_subvol *ret;
+	lv_conf *conf;
+	reiser4_volume *vol = current_volume();
+
+	rcu_read_lock();
+	conf = rcu_dereference(vol->conf);
+	ret = conf_origin(conf, vol->vol_plug->calc_brick(conf, inode, offset));
+	rcu_read_unlock();
+	return ret;
+}
 
 struct file_system_type *get_reiser4_fs_type(void);
 extern long reiser4_statfs_type(const struct super_block *super);

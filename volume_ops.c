@@ -29,12 +29,6 @@ static int reiser4_print_volume(struct super_block *sb,
 static int reiser4_print_brick(struct super_block *sb,
 			       struct reiser4_vol_op_args *args)
 {
-	if (reiser4_volume_is_unbalanced(sb)) {
-		warning("edward-2373",
-			"Failed to print brick of unbalanced volume %s",
-			sb->s_id);
-		return -EBUSY;
-	}
 	return super_vol_plug(sb)->print_brick(sb, args);
 }
 
@@ -64,10 +58,11 @@ static int reiser4_resize_brick(struct super_block *sb,
 {
 	int ret;
 	reiser4_subvol *this;
+	int need_balance;
 
-	if (reiser4_volume_is_unbalanced(sb)) {
+	if (reiser4_volume_has_incomplete_removal(sb)) {
 		warning("edward-2166",
-			"Failed to resize brick (Unbalanced volume %s)",
+			"Failed to resize brick (%s has incomplete removal)",
 			sb->s_id);
 		return -EBUSY;
 	}
@@ -88,11 +83,29 @@ static int reiser4_resize_brick(struct super_block *sb,
 		return 0;
 	ret = super_vol_plug(sb)->resize_brick(super_volume(sb),
 				this,
-				args->new_capacity - this->data_capacity);
+				args->new_capacity - this->data_capacity,
+				&need_balance);
+	if (ret)
+		/* resize operation should be repeated in regular context */
+		return ret;
+
+	if (!(args->flags & COMPLETE_WITH_BALANCE))
+		return 0;
+
+	if (!need_balance)
+		return 0;
+
+	ret = super_vol_plug(sb)->balance_volume(sb, 0);
 	if (ret)
 		return ret;
+	/*
+	 * clear unbalanced status on disk
+	 */
 	reiser4_volume_clear_unbalanced(sb);
-	return capture_brick_super(get_meta_subvol());
+	ret = capture_brick_super(get_meta_subvol());
+	if (ret)
+		return ret;
+	return force_commit_current_atom();
 }
 
 static int reiser4_add_brick(struct super_block *sb,
@@ -103,12 +116,10 @@ static int reiser4_add_brick(struct super_block *sb,
 	int activated_here = 0;
 	reiser4_subvol *new = NULL;
 	reiser4_volume *host_of_new = NULL;
-	txn_atom *atom;
-	txn_handle *th;
 
-	if (reiser4_volume_is_unbalanced(sb)) {
+	if (reiser4_volume_has_incomplete_removal(sb)) {
 		warning("edward-2167",
-			"Failed to add brick (Unbalanced volume %s)",
+			"Failed to add brick (%s has incomplete removal)",
 			sb->s_id);
 		return -EBUSY;
 	}
@@ -142,13 +153,13 @@ static int reiser4_add_brick(struct super_block *sb,
 			    subvol_is_set(new, SUBVOL_HAS_DATA_ROOM)));
 
 		new->flags |= (1 << SUBVOL_IS_PROXY);
-		clear_bit(SUBVOL_HAS_DATA_ROOM, &new->flags);
 	}
-	/*
-	 * add activated new brick
-	 */
 	ret = vol->vol_plug->add_brick(vol, new);
 	if (ret) {
+		/*
+		 * operation of adding a brick should be repeated
+		 * in regular context
+		 */
 		if (activated_here) {
 			reiser4_deactivate_subvol(sb, new);
 			reiser4_unregister_subvol(new);
@@ -156,61 +167,26 @@ static int reiser4_add_brick(struct super_block *sb,
 		return ret;
 	}
 	/*
-	 * now it is not possible to deactivate the new
-	 * brick: since we posted a new config, there can
-	 * be IOs issued against that brick.
-	 *
-	 * Put super-blocks of meta-data brick and of the
-	 * new brick to the transaction - it will be first
-	 * IO issued for the new brick.
-	 */
-	ret = capture_brick_super(get_meta_subvol());
-	if (ret)
-		return ret;
-	ret = capture_brick_super(new);
-	if (ret)
-		return ret;
-	if (subvol_is_set(new, SUBVOL_IS_PROXY)) {
-		vol->proxy = new;
-		/* start a proxy flushing kernel thread here */
-		;
-		reiser4_volume_set_proxy_enabled(sb);
-		reiser4_volume_set_proxy_io(sb);
-		clear_bit(SUBVOL_IS_ORPHAN, &new->flags);
-		/*
-		 * nothing to do any more
-		 */
-		printk("reiser4 (%s): Brick %s has been added.",
-		       sb->s_id, new->name);
-		return 0;
-	}
-	/*
-	 * write unbalanced status to disk
-	 */
-	th = get_current_context()->trans;
-	atom = get_current_atom_locked();
-	assert("edward-2265", atom != NULL);
-	spin_lock_txnh(th);
-	ret = force_commit_atom(th);
-	if (ret)
-		return ret;
-	/*
 	 * new volume configuration has been written to disk,
 	 * so release all volinfo jnodes - they are not needed
 	 * any more
 	 */
 	release_volinfo_nodes(&vol->volinfo[CUR_VOL_CONF], 0);
-
 	clear_bit(SUBVOL_IS_ORPHAN, &new->flags);
 
-	printk("reiser4 (%s): Brick %s has been added.", sb->s_id, new->name);
+	if (!(args->flags & COMPLETE_WITH_BALANCE))
+		return 0;
 
-	ret = vol->vol_plug->balance_volume(sb);
+	ret = vol->vol_plug->balance_volume(sb, 0);
 	if (ret)
 		return ret;
+	/* clear unbalanced status on disk */
 
 	reiser4_volume_clear_unbalanced(sb);
-	return capture_brick_super(get_meta_subvol());
+	ret = capture_brick_super(get_meta_subvol());
+	if (ret)
+		return ret;
+	return force_commit_current_atom();
 }
 
 static void reiser4_detach_brick(reiser4_subvol *victim)
@@ -236,16 +212,18 @@ static void reiser4_detach_brick(reiser4_subvol *victim)
 	reiser4_unregister_subvol(victim);
 }
 
+static int reiser4_finish_removal(struct super_block *sb, reiser4_volume *vol);
+
 static int reiser4_remove_brick(struct super_block *sb,
 				struct reiser4_vol_op_args *args)
 {
 	int ret;
-	reiser4_volume *vol;
+	reiser4_volume *vol = super_volume(sb);
 	reiser4_subvol *victim;
 
-	if (reiser4_volume_is_unbalanced(sb)) {
+	if (reiser4_volume_has_incomplete_removal(sb)) {
 		warning("edward-2168",
-			"Failed to remove brick (Unbalanced volume %s)",
+			"Failed to remove brick (%s has incomplete removal)",
 			sb->s_id);
 		return -EBUSY;
 	}
@@ -257,35 +235,26 @@ static int reiser4_remove_brick(struct super_block *sb,
 			reiser4_get_current_sb()->s_id);
 		return -EINVAL;
 	}
-	vol = super_volume(sb);
-
 	ret = vol->vol_plug->remove_brick(vol, victim);
 	if (ret)
 		return ret;
+	printk("reiser4 (%s): Brick %s scheduled for removal.\n",
+	       sb->s_id, victim->name);
 
 	release_volinfo_nodes(&vol->volinfo[CUR_VOL_CONF], 0);
-	/*
-	 * unbalanced status was written to disk when
-	 * committing everything in remove_brick_tail()
-	 */
-	reiser4_volume_clear_unbalanced(sb);
 
-	if (!is_meta_brick(victim))
-		/* Goodbye! */
-		reiser4_detach_brick(victim);
-	return capture_brick_super(get_meta_subvol());
+	return reiser4_finish_removal(sb, vol);
 }
 
 static int reiser4_scale_volume(struct super_block *sb,
 				struct reiser4_vol_op_args *args)
 {
 	int ret;
-	txn_atom *atom;
-	txn_handle *th;
 	reiser4_volume *vol = super_volume(sb);
 
-	if (reiser4_volume_is_unbalanced(sb)) {
-		warning("edward-2168", "Failed to scale unbalanced volume %s)",
+	if (reiser4_volume_has_incomplete_removal(sb)) {
+		warning("edward-2168",
+			"Failed to scale volume %s with incomplete removal)",
 			sb->s_id);
 		return -EBUSY;
 	}
@@ -300,11 +269,7 @@ static int reiser4_scale_volume(struct super_block *sb,
 	/*
 	 * write unbalanced status to disk
 	 */
-	th = get_current_context()->trans;
-	atom = get_current_atom_locked();
-	assert("edward-2402", atom != NULL);
-	spin_lock_txnh(th);
-	ret = force_commit_atom(th);
+	ret = force_commit_current_atom();
 	if (ret)
 		return ret;
 	/*
@@ -317,66 +282,103 @@ static int reiser4_scale_volume(struct super_block *sb,
 	printk("reiser4 (%s): Volume has beed scaled in %u times.",
 	       sb->s_id, 1 << args->s.val);
 
-	ret = vol->vol_plug->balance_volume(sb);
+	if (!(args->flags & COMPLETE_WITH_BALANCE))
+		return 0;
+
+	ret = vol->vol_plug->balance_volume(sb, 0);
 	if (ret)
 		return ret;
+	/* clear unbalanced status on disk */
+
 	reiser4_volume_clear_unbalanced(sb);
-	return capture_brick_super(get_meta_subvol());
+	ret = capture_brick_super(get_meta_subvol());
+	if (ret)
+		return ret;
+	return force_commit_current_atom();
 }
 
 /**
- * Balance the volume and complete all unfinished volume operations
- * (if any). On success unbalanced flag is cleared. Otherwise, the
- * balancing procedure should be repeated in some context.
+ * We allow more than one balancing threads on the same volume. Note, however,
+ * that it would be inefficient: others will be always going after one leader
+ * without doing useful work.
+ * Pre-condition: volume is read locked
  */
-static int reiser4_balance_volume(struct super_block *sb)
+static int reiser4_balance_volume(struct super_block *sb, u32 flags)
 {
+	reiser4_volume *vol = super_volume(sb);
 	int ret;
-	reiser4_volume *vol;
 
-	if (!reiser4_volume_is_unbalanced(sb) &&
-	    !reiser4_is_set(sb, REISER4_PROXY_ENABLED))
-		return 0;
-	vol = super_volume(sb);
-	/*
-	 * volume must have two distribution configs:
-	 * old and new ones
-	 */
-	ret = vol->vol_plug->balance_volume(sb);
+	ret = vol->vol_plug->balance_volume(sb, flags);
 	if (ret)
 		return ret;
-	if (reiser4_volume_has_incomplete_removal(sb)) {
-		/*
-		 * finish unfinished brick removal
-		 * detected at volume initialization time,
-		 * see ->init_volume() method for details
-		 */
-		assert("edward-2258", vol->new_conf != NULL);
-		assert("edward-2259", vol->victim != NULL);
-
-		ret = vol->vol_plug->remove_brick_tail(vol, vol->victim);
-		if (ret)
-			return ret;
-		reiser4_volume_clear_incomplete_removal(sb);
-		reiser4_volume_clear_unbalanced(sb);
-		ret = capture_brick_super(get_meta_subvol());
-		if (ret)
-			return ret;
-		if (!is_meta_brick(vol->victim))
-			reiser4_detach_brick(vol->victim);
-		vol->victim = NULL;
-		return 0;
-	} else {
-		assert("edward-2374", vol->victim == NULL);
-		reiser4_volume_clear_unbalanced(sb);
-		return capture_brick_super(get_meta_subvol());
-	}
+	reiser4_volume_clear_unbalanced(sb);
+	ret = capture_brick_super(get_meta_subvol());
+	if (ret)
+		return ret;
+	return force_commit_current_atom();
 }
 
-static int reiser4_set_file_immobile(struct file *file)
+/**
+ * Pre-condition: exclusive access to the volume should be held
+ */
+static int reiser4_finish_removal(struct super_block *sb, reiser4_volume *vol)
 {
-	struct inode *inode = file_inode(file);
+	int ret;
+	reiser4_subvol *victim;
 
+	if (!reiser4_volume_has_incomplete_removal(sb))
+		return 0;
+
+	victim = vol->victim;
+	if (!victim)
+		goto cleanup;
+	if (reiser4_volume_is_unbalanced(sb)) {
+		/*
+		 * Move out all data blocks from @victim to the
+		 * remaining bricks. After balancing completion
+		 * the @victim shoudn't contain busy data blocks,
+		 * so we have to ignore immobile ststus of files
+		 */
+		ret = vol->vol_plug->balance_volume(sb,
+					VBF_MIGRATE_ALL | VBF_CLR_IMMOBILE);
+		if (ret)
+			goto error;
+		reiser4_volume_clear_unbalanced(sb);
+	}
+	/*
+	 * at this point volume must have two distribution configs:
+	 * old and new ones
+	 */
+	assert("edward-2258", vol->new_conf != NULL);
+
+	ret = vol->vol_plug->remove_brick_tail(vol, victim);
+	if (ret)
+		goto error;
+	assert("edward-2471", vol->new_conf == NULL);
+ cleanup:
+	assert("edward-2259", vol->victim == NULL);
+
+	if (victim && !is_meta_brick(victim))
+		/* Goodbye! */
+		reiser4_detach_brick(victim);
+
+	reiser4_volume_clear_incomplete_removal(sb);
+	ret = capture_brick_super(get_meta_subvol());
+	if (ret)
+		goto error;
+	ret = force_commit_current_atom();
+	if (ret)
+		goto error;
+	printk("reiser4 (%s): Removal completed.\n", sb->s_id);
+	return 0;
+ error:
+	reiser4_volume_set_incomplete_removal(sb);
+	warning("", "Failed to complete brick removal on %s.", sb->s_id);
+	return ret;
+}
+
+static int inode_set_immobile(struct inode *inode)
+{
 	if (reiser4_inode_get_flag(inode, REISER4_FILE_IMMOBILE))
 		return 0;
 	if (reserve_update_sd_common(inode))
@@ -386,10 +388,8 @@ static int reiser4_set_file_immobile(struct file *file)
 	return reiser4_update_sd(inode);
 }
 
-static int reiser4_clr_file_immobile(struct file *file)
+int inode_clr_immobile(struct inode *inode)
 {
-	struct inode *inode = file_inode(file);
-
 	if (!reiser4_inode_get_flag(inode, REISER4_FILE_IMMOBILE))
 		return 0;
 	if (reserve_update_sd_common(inode))
@@ -399,21 +399,18 @@ static int reiser4_clr_file_immobile(struct file *file)
 	return reiser4_update_sd(inode);
 }
 
+/**
+ * Pre-condition: brick_removal_sem should be down for read
+ */
 static int reiser4_migrate_file(struct file *file, u64 dst_idx)
 {
 	int ret;
 	struct inode *inode = file_inode(file);
 	struct super_block *sb = inode->i_sb;
 
-	if (reiser4_volume_is_unbalanced(sb)) {
-		/*
-		 * actually, we can perform migration in this case,
-		 * but let's don't bring the chaos.
-		 */
-		warning("", "Failed to migrate file of unbalanced volume %s)",
-			sb->s_id);
-		return RETERR(-EBUSY);
-	}
+	/*
+	 * We allow file migration on volumes with incompletely removed brick
+	 */
 	ret = super_vol_plug(sb)->migrate_file(inode, dst_idx);
 
 	if (ret == 0 && ((file->f_flags & O_SYNC) || IS_SYNC(inode))) {
@@ -466,39 +463,75 @@ int reiser4_volume_op_dir(struct file *file, struct reiser4_vol_op_args *args)
 {
 	int ret;
 	struct super_block *sb = file_inode(file)->i_sb;
+	reiser4_volume *vol = super_volume(sb);
 
-	/*
-	 * take exclusive access to the volume
-	 */
-	if (reiser4_volume_test_set_busy(sb)) {
-		warning("", "Operation %d failed: volume %s is busy",
-			args->opcode, sb->s_id);
-		return RETERR(-EBUSY);
-	}
 	switch(args->opcode) {
 	case REISER4_PRINT_VOLUME:
+		if (!down_read_trylock(&vol->volume_sem))
+			goto busy;
 		ret = reiser4_print_volume(sb, args);
+		up_read(&vol->volume_sem);
 		break;
 	case REISER4_PRINT_BRICK:
+		if (!down_read_trylock(&vol->volume_sem))
+			goto busy;
 		ret = reiser4_print_brick(sb, args);
+		up_read(&vol->volume_sem);
 		break;
 	case REISER4_RESIZE_BRICK:
+		if (!down_write_trylock(&vol->volume_sem))
+			goto busy;
 		ret = reiser4_resize_brick(sb, args);
+		up_write(&vol->volume_sem);
 		break;
 	case REISER4_ADD_BRICK:
+		if (!down_write_trylock(&vol->volume_sem))
+			goto busy;
 		ret = reiser4_add_brick(sb, args, 0);
+		up_write(&vol->volume_sem);
 		break;
 	case REISER4_ADD_PROXY:
+		if (!down_write_trylock(&vol->volume_sem))
+			goto busy;
 		ret = reiser4_add_brick(sb, args, 1);
+		up_write(&vol->volume_sem);
 		break;
 	case REISER4_REMOVE_BRICK:
+		if (!down_write_trylock(&vol->volume_sem))
+			goto busy;
+		if (!down_write_trylock(&vol->brick_removal_sem)) {
+			up_write(&vol->volume_sem);
+			goto busy;
+		}
 		ret = reiser4_remove_brick(sb, args);
+		up_write(&vol->brick_removal_sem);
+		up_write(&vol->volume_sem);
+		break;
+	case REISER4_FINISH_REMOVAL:
+		down_write(&vol->volume_sem);
+		down_write(&vol->brick_removal_sem);
+		ret = reiser4_finish_removal(sb, vol);
+		up_write(&vol->brick_removal_sem);
+		up_write(&vol->volume_sem);
 		break;
 	case REISER4_SCALE_VOLUME:
+		if (!down_write_trylock(&vol->volume_sem))
+			goto busy;
 		ret = reiser4_scale_volume(sb, args);
+		up_write(&vol->volume_sem);
 		break;
 	case REISER4_BALANCE_VOLUME:
-		ret = reiser4_balance_volume(sb);
+		if (!down_read_trylock(&vol->volume_sem))
+			goto busy;
+		ret = reiser4_balance_volume(sb, 0);
+		up_read(&vol->volume_sem);
+		break;
+	case REISER4_RESTORE_REGULAR_DST:
+		if (!down_read_trylock(&vol->volume_sem))
+			goto busy;
+		ret = reiser4_balance_volume(sb,
+					    VBF_MIGRATE_ALL | VBF_CLR_IMMOBILE);
+		up_read(&vol->volume_sem);
 		break;
 	default:
 		warning("edward-1950",
@@ -507,33 +540,33 @@ int reiser4_volume_op_dir(struct file *file, struct reiser4_vol_op_args *args)
 		ret = RETERR(-ENOTTY);
 		break;
 	}
-	/* drop exclusive access to the volume */
-	reiser4_volume_clear_busy(sb);
 	return ret;
+ busy:
+	warning("", "Operation %d failed: volume %s is busy",
+		args->opcode, sb->s_id);
+	return RETERR(-EBUSY);
 }
 
 int reiser4_volume_op_file(struct file *file,  struct reiser4_vol_op_args *args)
 {
-	int ret = 0;
+	int ret;
 	struct super_block *sb = file_inode(file)->i_sb;
+	reiser4_volume *vol = super_volume(sb);
 
-	/*
-	 * take exclusive access to the volume
-	 */
-	if (reiser4_volume_test_set_busy(sb)) {
-		warning("", "Operation %d failed: volume %s is busy",
-			args->opcode, sb->s_id);
-		return RETERR(-EBUSY);
-	}
 	switch(args->opcode) {
 	case REISER4_MIGRATE_FILE:
+		/*
+		 * make sure that bricks won't be evicted during file migration
+		 */
+		down_read(&vol->brick_removal_sem);
 		ret = reiser4_migrate_file(file, args->s.brick_idx);
+		up_read(&vol->brick_removal_sem);
 		break;
 	case REISER4_SET_FILE_IMMOBILE:
-		ret = reiser4_set_file_immobile(file);
+		ret = inode_set_immobile(file_inode(file));
 		break;
 	case REISER4_CLR_FILE_IMMOBILE:
-		ret = reiser4_clr_file_immobile(file);
+		ret = inode_clr_immobile(file_inode(file));
 		break;
 	default:
 		warning("edward-1952",
@@ -542,8 +575,6 @@ int reiser4_volume_op_file(struct file *file,  struct reiser4_vol_op_args *args)
 		ret = RETERR(-ENOTTY);
 		break;
 	}
-	/* drop exclusive access to the volume */
-	reiser4_volume_clear_busy(sb);
 	return ret;
 }
 

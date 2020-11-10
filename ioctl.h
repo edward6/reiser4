@@ -54,8 +54,6 @@ typedef enum {
 	REISER4_DONT_PUNCH_HOLES = 9,
 	/* volume is ready for regular operations */
 	REISER4_ACTIVATED_VOL = 10,
-	/* this is to serialize online volume operations */
-	REISER4_BUSY_VOL = 11,
 	/* volume is in unbalanced state */
 	REISER4_UNBALANCED_VOL = 12,
 	/* this flag indicates that volume operation was
@@ -115,7 +113,13 @@ typedef enum {
 	REISER4_MIGRATE_FILE,
 	REISER4_SET_FILE_IMMOBILE,
 	REISER4_CLR_FILE_IMMOBILE,
+	REISER4_FINISH_REMOVAL,
+	REISER4_RESTORE_REGULAR_DST
 } reiser4_vol_op;
+
+typedef enum {
+	COMPLETE_WITH_BALANCE = 0x1
+} reiser4_vol_op_flags;
 
 struct reiser4_volume_stat
 {
@@ -152,6 +156,7 @@ struct reiser4_vol_op_args
 	reiser4_vol_op opcode;
 	int error;
 	u64 new_capacity;
+	u64 flags;
 	union {
 		u64 brick_idx; /* index of brick in logical volume */
 		u64 vol_idx; /* serial num of volume in the list of volumes */

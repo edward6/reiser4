@@ -86,7 +86,7 @@ static void set_next_volmap_addr(struct volmap *vmap, reiser4_block_nr val)
 	put_unaligned(cpu_to_le64(val), &vmap->next);
 }
 
-static int balance_volume_asym(struct super_block *sb);
+static int balance_volume_asym(struct super_block *sb, u32 flags);
 
 static int voltab_nodes_per_block(void)
 {
@@ -747,16 +747,14 @@ static int init_volume_asym(struct super_block *sb, reiser4_volume *vol)
 		 * start a proxy flushing kernel thread here
 		 */
 	}
-	if (!reiser4_volume_is_unbalanced(sb))
+	if (!reiser4_volume_has_incomplete_removal(sb)) {
+		if (reiser4_volume_is_unbalanced(sb))
+			warning("", "Volume (%s) is unbalanced", sb->s_id);
 		return 0;
-	/*
-	 * Rebalancing has to be completed on this volume
-	 */
+	}
 	assert("edward-2250", current_volume() == vol);
 	/*
-	 * Check for uncompleted brick removal that possibly
-	 * was started in previous mount session, and for which
-	 * the balancing procedure was incompleted
+	 * prepare the volume for removal completion
 	 */
 	assert("edward-2244", vol->new_conf == NULL);
 
@@ -772,7 +770,8 @@ static int init_volume_asym(struct super_block *sb, reiser4_volume *vol)
 		}
 	}
 	if (nr_victims > 1) {
-		warning("edward-2246", "Too many bricks (%u) to be removed",
+		warning("edward-2246",
+			"Too many bricks (%u) scheduled for removal",
 			nr_victims);
 		return -EIO;
 	} else if (nr_victims == 0)
@@ -813,20 +812,21 @@ static int init_volume_asym(struct super_block *sb, reiser4_volume *vol)
 		 */
 		reiser4_volume_clear_proxy_io(reiser4_get_current_sb());
 	/*
-	 * borrow distribution table from the existing config
-	 * (which actually is a config with an old set of slots
-	 * and the new distribution table)
+	 * borrow distribution table from the existing config (which
+	 * includes the old set of slots and the new distribution table)
 	 */
-	vol->new_conf = vol->conf;
+	vol->new_conf->tab = vol->conf->tab;
 	/*
-	 * Now declare incomplete balancing.
+	 * Now announce incomplete removal.
 	 * Volume configuration will be updated by remove_brick_tail_asym()
-	 * upon balancing completion.
+	 * called by reiser4_finish_removal().
+	 * FIXME: don't ask user to finish removel.
+	 * Call reiser4_finish_removal() right here instead.
 	 */
-	reiser4_volume_set_incomplete_removal(sb);
  out:
-	printk("reiser4 (%s): Volume is unbalanced. Please run volume.reiser4 -b\n",
-	       sb->s_id);
+	warning("", "Please, complete brick %s removal on volume %s",
+		vol->victim ? vol->victim->name : "Null",
+		sb->s_id);
 	return 0;
 }
 
@@ -986,6 +986,7 @@ static int resize_brick(reiser4_volume *vol, reiser4_subvol *this,
 
 	this->data_capacity += delta;
 
+	*need_balance = 1;
 	if (num_dsa_subvols(vol) == 1 ||
 	    (is_meta_brick(this) && !meta_brick_belongs_dsa())) {
 		*need_balance = 0;
@@ -1181,18 +1182,13 @@ int add_data_brick(reiser4_volume *vol, reiser4_subvol *this,
 	return ret;
 }
 
-/**
- * Increase capacity of a specified brick
- * @id: internal ID of the brick
- */
 static int resize_brick_asym(reiser4_volume *vol, reiser4_subvol *this,
-			     long long delta)
+			     long long delta, int *need_balance)
 {
 	int ret;
-	int need_balance = 1;
+	struct super_block *sb = reiser4_get_current_sb();
 	reiser4_dcx *rdcx = &vol->dcx;
 	distribution_plugin *dist_plug = vol->dist_plug;
-	struct super_block *sb = reiser4_get_current_sb();
 	lv_conf *old_conf = vol->conf;
 
 	assert("edward-1824", vol != NULL);
@@ -1209,11 +1205,11 @@ static int resize_brick_asym(reiser4_volume *vol, reiser4_subvol *this,
 	if (ret)
 		return ret;
 
-	ret = resize_brick(vol, this, delta, &need_balance);
+	ret = resize_brick(vol, this, delta, need_balance);
 	dist_plug->v.done(rdcx);
 	if (ret)
 		return ret;
-	if (!need_balance) {
+	if (!(*need_balance)) {
 		ret = capture_brick_super(this);
 		if (ret)
 			goto error;
@@ -1230,12 +1226,17 @@ static int resize_brick_asym(reiser4_volume *vol, reiser4_subvol *this,
 	if (ret)
 		goto error;
 	dist_plug->r.replace(&vol->dcx, &vol->new_conf->tab);
-
+	/*
+	 * write unbalanced status and new data capacity to disk
+	 */
 	reiser4_volume_set_unbalanced(sb);
 	ret = capture_brick_super(get_meta_subvol());
 	if (ret)
 		goto error;
 	ret = capture_brick_super(this);
+	if (ret)
+		goto error;
+	ret = force_commit_current_atom();
 	if (ret)
 		goto error;
 	/*
@@ -1248,8 +1249,7 @@ static int resize_brick_asym(reiser4_volume *vol, reiser4_subvol *this,
 
 	printk("reiser4 (%s): Changed data capacity of brick %s.\n",
 	       sb->s_id, this->name);
-
-	return balance_volume_asym(sb);
+	return 0;
  error:
 	/*
 	 * resize failed - it should be repeated in regular context
@@ -1263,6 +1263,7 @@ static int add_proxy_asym(reiser4_volume *vol, reiser4_subvol *new)
 {
 	int ret;
 	lv_conf *old_conf = vol->conf;
+	struct super_block *sb = reiser4_get_current_sb();
 
 	if (is_meta_brick(new) && (vol_nr_origins(vol) == 1)) {
 		warning("edward-2434",
@@ -1296,8 +1297,18 @@ static int add_proxy_asym(reiser4_volume *vol, reiser4_subvol *new)
 		if (ret)
 			goto error;
 	}
+	reiser4_volume_set_proxy_enabled(sb);
+	reiser4_volume_set_proxy_io(sb);
+	clear_bit(SUBVOL_HAS_DATA_ROOM, &new->flags);
+
+	ret = capture_brick_super(get_meta_subvol());
+	if (ret)
+		goto error;
+	ret = capture_brick_super(new);
+	if (ret)
+		goto error;
 	/*
-	 * take away distribution table from the old config
+	 * borrow distribution table from the old config
 	 */
 	vol->new_conf->tab = old_conf->tab;
 	old_conf->tab = NULL;
@@ -1308,9 +1319,27 @@ static int add_proxy_asym(reiser4_volume *vol, reiser4_subvol *new)
 	synchronize_rcu();
 	free_lv_conf(old_conf);
 	vol->new_conf = NULL;
+	vol->proxy = new;
+	/*
+	 * after publishing the new config (not before!)
+	 * write superblocks of meta-data brick and the proxy brick respectively
+	 */
+	force_commit_current_atom();
+
+	/* FIXME: start a proxy flushing kernel thread here */
+
+	printk("reiser4 (%s): Proxy brick %s has been added.",
+	       sb->s_id, new->name);
 	return 0;
  error:
-	/* adding proxy should be repeated in regular context */
+	/* adding a proxy should be repeated in regular context */
+
+	clear_bit(SUBVOL_IS_PROXY, &new->flags);
+	if (!is_meta_brick(new))
+		new->flags |= (1 << SUBVOL_HAS_DATA_ROOM);
+	reiser4_volume_clear_proxy_enabled(sb);
+	reiser4_volume_clear_proxy_io(sb);
+
 	free_lv_conf(vol->new_conf);
 	vol->new_conf = NULL;
 	return ret;
@@ -1324,6 +1353,7 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	int ret;
 	distribution_plugin *dist_plug = vol->dist_plug;
 	lv_conf *old_conf = vol->conf;
+	struct super_block *sb = reiser4_get_current_sb();
 
 	bucket_t *old_vec;
 	bucket_t *new_vec;
@@ -1396,6 +1426,12 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	dist_plug->r.replace(&vol->dcx, &vol->new_conf->tab);
 
 	reiser4_volume_set_unbalanced(reiser4_get_current_sb());
+	ret = capture_brick_super(get_meta_subvol());
+	if (ret)
+		goto error;
+	ret = capture_brick_super(new);
+	if (ret)
+		goto error;
 	/*
 	 * Now publish the new config
 	 */
@@ -1404,11 +1440,22 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	free_lv_conf(old_conf);
 	vol->new_conf = NULL;
 	free_buckets(old_vec);
+	/*
+	 * after publishing the new config (not before!)
+	 * write superblocks of meta-data brick and the proxy brick respectively
+	 */
+	force_commit_current_atom();
+
+	printk("reiser4 (%s): Brick %s has been added.", sb->s_id, new->name);
 	return 0;
  error:
 	/*
-	 * adding brick to be repeated in regular context
+	 * adding a brick should be repeated in regular context
 	 */
+	if (is_meta_brick(new))
+		clear_bit(SUBVOL_HAS_DATA_ROOM, &new->flags);
+	reiser4_volume_clear_unbalanced(reiser4_get_current_sb());
+
 	new_vec = vol->buckets;
 	vol->buckets = old_vec;
 	free_buckets(new_vec);
@@ -1590,7 +1637,13 @@ static int remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim,
 static int remove_proxy_asym(reiser4_volume *vol, reiser4_subvol *victim)
 {
 	int ret;
+	struct super_block *sb = reiser4_get_current_sb();
 
+	/*
+	 * Prepare a new volume config with different set of bricks,
+	 * not including the proxy brick, and the same distribution
+	 * table
+	 */
 	if (is_meta_brick(victim))
 		ret = __remove_meta_brick(vol);
 	else
@@ -1600,72 +1653,47 @@ static int remove_proxy_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	assert("edward-2437", vol->new_conf != NULL);
 	assert("edward-2460", vol->new_conf->tab == NULL);
 	/*
+	 * borrow distribution table from the old config
+	 */
+	vol->new_conf->tab = vol->conf->tab;
+	/*
 	 * Disable IO requests against the proxy brick to be removed
 	 */
-	reiser4_volume_clear_proxy_io(reiser4_get_current_sb());
+	reiser4_volume_clear_proxy_io(sb);
 
 	if (!is_meta_brick(victim))
-		/*
-		 * put format super-block of data brick
-		 * we want to remove to the transaction
-		 */
 		capture_brick_super(victim);
 	/*
 	 * set unbalanced status and put format super-block
 	 * of meta-data brick to the transaction
 	 */
-	reiser4_volume_set_unbalanced(reiser4_get_current_sb());
+	reiser4_volume_set_unbalanced(sb);
+	reiser4_volume_set_incomplete_removal(sb);
 	ret = capture_brick_super(get_meta_subvol());
 	if (ret)
-		goto failed_removal;
+		goto error;
 	/*
-	 * take away distribution table from the old config
+	 * write unbalanced and incomplete removal status to disk
 	 */
-	vol->new_conf->tab = vol->conf->tab;
-	/*
-	 * Now the brick removal operation can not be rolled
-	 * back on error paths. Instead, it should be completed
-	 * in the context of the balancing procedure
-	 */
-	reiser4_volume_set_incomplete_removal(reiser4_get_current_sb());
-
-	printk("reiser4 (%s): Proxy brick %s scheduled for removal.\n",
-	       reiser4_get_current_sb()->s_id, victim->name);
-	/*
-	 * Now mirgate all data blocks from the brick to be
-	 * removed to the remaining bricks
-	 */
-	ret = balance_volume_asym(reiser4_get_current_sb());
-	/*
-	 * If balancing was interrupted for some reasons (system
-	 * crash, etc), then user just need to resume it (e.g. by
-	 * volume.reiser4 utility in the next mount session).
-	 * The new config at vol->new_conf to be published after
-	 * successful re-balancing completion.
-	 */
+	ret = force_commit_current_atom();
 	if (ret)
-		goto incomplete_removal;
-
-	ret = remove_brick_tail_asym(vol, victim);
-	if (ret)
-		goto incomplete_removal;
-	reiser4_volume_clear_incomplete_removal(reiser4_get_current_sb());
+		goto error;
+	/*
+	 * the volume will be balanced with the old distribution table -
+	 * it will move all data from the proxy brick to other bricks
+	 * of the volume
+	 */
 	return 0;
- failed_removal:
+ error:
 	/*
-	 * brick removal to be repeated in regular context
+	 * proxy removal should be repeated in regular context
 	 */
-	reiser4_volume_set_proxy_enabled(reiser4_get_current_sb());
+	reiser4_volume_clear_unbalanced(sb);
+	reiser4_volume_clear_incomplete_removal(sb);
+
+	reiser4_volume_set_proxy_enabled(sb);
 	free_lv_conf(vol->new_conf);
 	vol->new_conf = NULL;
-	return ret;
- incomplete_removal:
-	/*
-	 * brick removal to be completed in the
-	 * context of balancing procedure, see
-	 * reiser4_balance_volume()
-	 */
-	vol->victim = victim;
 	return ret;
 }
 
@@ -1682,6 +1710,8 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 
 	assert("edward-1830", vol != NULL);
 	assert("edward-1846", dist_plug != NULL);
+
+	vol->victim = victim;
 
 	if (subvol_is_set(victim, SUBVOL_IS_PROXY))
 		return remove_proxy_asym(vol, victim);
@@ -1709,45 +1739,48 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 
 	ret = make_volume_dconf(vol);
 	if (ret)
-		goto failed_removal;
+		goto error;
 	ret = update_volume_dconf(vol);
 	if (ret)
-		goto failed_removal;
+		goto error;
 	dist_plug->r.replace(&vol->dcx, &vol->new_conf->tab);
 	/*
-	 * Prepare a temporal config with the same set
-	 * of bricks, but updated distribution table.
+	 * Prepare a temporal config for balancing. This config has
+	 * the same set of bricks, but updated distribution table
 	 */
 	tmp_conf = clone_lv_conf(old_conf);
 	if (!tmp_conf) {
 		ret = RETERR(-ENOMEM);
-		goto failed_removal;
+		goto error;
 	}
+	/* borrow distribution table from the new config */
 	tmp_conf->tab = vol->new_conf->tab;
 
 	if (!is_meta_brick(victim))
-		/*
-		 * put format super-block of data brick
-		 * we want to remove to the transaction
-		 */
 		capture_brick_super(victim);
 	/*
 	 * set unbalanced status and put format super-block
 	 * of meta-data brick to the transaction
 	 */
 	reiser4_volume_set_unbalanced(sb);
+	reiser4_volume_set_incomplete_removal(sb);
 	ret = capture_brick_super(get_meta_subvol());
 	if (ret) {
 		tmp_conf->tab = NULL;
 		free_lv_conf(tmp_conf);
-		goto failed_removal;
+		goto error;
 	}
 	/*
+	 * write unbalanced and incomplete removal status to disk
+	 */
+	ret = force_commit_current_atom();
+	if (ret)
+		goto error;
+	/*
 	 * New configuration is written to disk.
-	 * From now on the brick removal operation can not
-	 * be rolled back on error paths. Instead, it should
-	 * be completed in the context of the balancing
-	 * procedure, see reiser4_balance_volume()
+	 * From now on the brick removal operation can not be rolled
+	 * back on error paths. Instead, it should be completed in a
+	 * context of a special completion operation
 	 */
 	/*
 	 * Publish the temporal config
@@ -1760,47 +1793,24 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	 * From now on the file system doesn't allocate disk
 	 * addresses on the brick to be removed
 	 */
-	reiser4_volume_set_incomplete_removal(sb);
-
 	printk("reiser4 (%s): Brick %s scheduled for removal.\n",
 	       sb->s_id, victim->name);
-	/*
-	 * Now mirgate all data blocks from the brick to be
-	 * removed to the remaining bricks
-	 */
-	ret = balance_volume_asym(sb);
-	/*
-	 * If balancing was interrupted for some reasons (system
-	 * crash, etc), then user just need to resume it by
-	 * volume.reiser4 utility in the next mount session.
-	 * The new config at vol->new_conf to be published after
-	 * successful re-balancing completion.
-	 */
-	if (ret)
-		goto incomplete_removal;
-	ret = remove_brick_tail_asym(vol, victim);
-	if (ret)
-		goto incomplete_removal;
-	reiser4_volume_clear_incomplete_removal(sb);
 	return 0;
- failed_removal:
+ error:
 	/*
-	 * brick removal to be repeated in regular context
+	 * brick removal should be repeated in regular context
 	 */
+	reiser4_volume_clear_unbalanced(sb);
+	reiser4_volume_clear_incomplete_removal(sb);
+	if (is_meta_brick(victim))
+		victim->flags |= (1 << SUBVOL_HAS_DATA_ROOM);
+
 	new_vec = vol->buckets;
 	vol->buckets = old_vec;
 	free_buckets(new_vec);
 
 	free_lv_conf(vol->new_conf);
 	vol->new_conf = NULL;
-	return ret;
- incomplete_removal:
-	/*
-	 * brick removal to be completed in the
-	 * context of balancing procedure, see
-	 * reiser4_balance_volume()
-	 */
-	vol->victim = victim;
 	return ret;
 }
 
@@ -1820,21 +1830,21 @@ static int reserve_brick_symbol_del(void)
 }
 
 /**
- * Brick removal procedure completion. Publish new volume config.
- * Pre-condition: logical volume is fully balanced, but unbalanced
- * status is not yet cleared up.
+ * Pre-condition: all data have been moved out of the brick to be removed
+ * by the balancing procedure, and unbalanced status has been successfully
+ * cleared up on disk
  */
 int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 {
 	int ret;
+	int is_proxy = 0;
 	lv_conf *cur_conf = vol->conf;
-	int need_capture = 0;
 
-	if (!is_meta_brick(victim)) {
+	if (!is_meta_brick(victim))
 		clear_bit(SUBVOL_TO_BE_REMOVED, &victim->flags);
-		need_capture = 1;
-	}
+
 	if (subvol_is_set(victim, SUBVOL_IS_PROXY)) {
+		is_proxy = 1;
 		assert("edward-2448",
 		       !subvol_is_set(victim, SUBVOL_HAS_DATA_ROOM));
 
@@ -1843,13 +1853,10 @@ int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 
 		if (!is_meta_brick(victim))
 			victim->flags |= (1 << SUBVOL_HAS_DATA_ROOM);
-		need_capture = 1;
 	}
-	if (need_capture) {
-		ret = capture_brick_super(victim);
-		if (ret)
-			return ret;
-	}
+	ret = capture_brick_super(victim);
+	if (ret)
+		goto error;
 	/*
 	 * We are about to release @victim with replicas.
 	 * Before this, it is absolutely necessarily to
@@ -1872,7 +1879,8 @@ int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 			warning("edward-2335",
 				"Can't remove data brick: not empty %s",
 				victim->name);
-			return RETERR(-EAGAIN);
+			ret = RETERR(-EAGAIN);
+			goto error;
 		}
 		/*
 		 * remove a record about @victim from the volume
@@ -1881,13 +1889,18 @@ int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 		 */
 		ret = reserve_brick_symbol_del();
 		if (ret)
-			return ret;
+			goto error;
 		ret = brick_symbol_del(victim);
 		reiser4_release_reserved(reiser4_get_current_sb());
 		if (ret)
-			return ret;
+			goto error;
 		atomic_dec(&vol->nr_origins);
 	}
+	/*
+	 * From now on we can not fail. Moreover, remove_brick_tail()
+	 * must not be called for this brick once again.
+	 */
+	vol->victim = NULL;
 	/*
 	 * Publish final config with updated set of slots,
 	 * which doesn't contain @victim.
@@ -1906,15 +1919,26 @@ int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	cur_conf->tab = NULL;
 	free_lv_conf(cur_conf);
 	vol->new_conf = NULL;
-
-	if (subvol_is_set(victim, SUBVOL_IS_PROXY))
+	if (is_proxy)
 		vol->proxy = NULL;
 
 	printk("reiser4 (%s): %s %s has been removed.\n",
-	       victim->super->s_id,
-	       subvol_is_set(victim, SUBVOL_IS_PROXY) ? "Proxy" : "Brick",
+	       victim->super->s_id, is_proxy ? "Proxy" : "Brick",
 	       victim->name);
 	return 0;
+ error:
+	/*
+	 * brick removal should be completed in the context of
+	 * a special removal completion operation
+	 */
+	victim->flags |= (1 << SUBVOL_TO_BE_REMOVED);
+	if (is_proxy) {
+		set_bit(SUBVOL_IS_PROXY, &victim->flags);
+		reiser4_volume_set_proxy_enabled(reiser4_get_current_sb());
+		if (!is_meta_brick(victim))
+			clear_bit(SUBVOL_HAS_DATA_ROOM, &victim->flags);
+	}
+	return ret;
 }
 
 static int init_volume_simple(struct super_block *sb, reiser4_volume *vol)
@@ -1932,8 +1956,8 @@ static u64 meta_subvol_id_simple(void)
 	return METADATA_SUBVOL_ID;
 }
 
-static u64 data_subvol_id_calc_simple(lv_conf *conf, const struct inode *inode,
-				      loff_t offset)
+static u64 calc_brick_simple(lv_conf *conf, const struct inode *inode,
+			     loff_t offset)
 {
 	return METADATA_SUBVOL_ID;
 }
@@ -1945,7 +1969,7 @@ static int remove_brick_simple(reiser4_volume *vol, reiser4_subvol *this)
 }
 
 static int resize_brick_simple(reiser4_volume *vol, reiser4_subvol *this,
-			       long long delta)
+			       long long delta, int *need_balance)
 {
 	warning("", "resize operation is undefined for simple volumes");
 	return -EINVAL;
@@ -1957,7 +1981,7 @@ static int add_brick_simple(reiser4_volume *vol, reiser4_subvol *new)
 	return -EINVAL;
 }
 
-static int balance_volume_simple(struct super_block *sb)
+static int balance_volume_simple(struct super_block *sb, u32 flags)
 {
 	warning("", "balance operation is undefined for simple volumes");
 	return -EINVAL;
@@ -1974,11 +1998,8 @@ static inline u32 get_seed(oid_t oid, reiser4_volume *vol)
 	return seed;
 }
 
-/**
- * Return internal ID of DSA brick
- */
-static u64 data_subvol_id_calc_asym(lv_conf *conf, const struct inode *inode,
-				    loff_t offset)
+static u64 calc_brick_asym(lv_conf *conf, const struct inode *inode,
+			   loff_t offset)
 {
 	assert("edward-2267", conf != NULL);
 
@@ -2025,7 +2046,7 @@ reiser4_subvol *super_meta_subvol(struct super_block *super)
 	return super_origin(super, super_vol_plug(super)->meta_subvol_id());
 }
 
-u64 data_subvol_id_find_simple(const coord_t *coord)
+u64 find_brick_simple(const coord_t *coord)
 {
 	return METADATA_SUBVOL_ID;
 }
@@ -2068,7 +2089,7 @@ int print_brick_simple(struct super_block *sb, struct reiser4_vol_op_args *args)
 	return 0;
 }
 
-u64 data_subvol_id_find_asym(const coord_t *coord)
+u64 find_brick_asym(const coord_t *coord)
 {
 	reiser4_key key;
 	assert("edward-1957", coord != NULL);
@@ -2192,7 +2213,16 @@ static int scale_volume_asym(struct super_block *sb, unsigned factor_bits)
 
 	dist_plug->r.replace(&vol->dcx, &vol->new_conf->tab);
 
-	reiser4_volume_set_unbalanced(reiser4_get_current_sb());
+	reiser4_volume_set_unbalanced(sb);
+	ret = capture_brick_super(get_meta_subvol());
+	if (ret)
+		goto error;
+	/*
+	 * write unbalanced status to disk
+	 */
+	ret = force_commit_current_atom();
+	if (ret)
+		goto error;
 	/*
 	 * Now publish the new config
 	 */
@@ -2203,7 +2233,7 @@ static int scale_volume_asym(struct super_block *sb, unsigned factor_bits)
 	return 0;
  error:
 	/*
-	 * the scale operation is to be repeated in regular context
+	 * the scale operation should be repeated in regular context
 	 */
 	vol->num_sgs_bits -= factor_bits;
 	free_lv_conf(vol->new_conf);
@@ -2299,14 +2329,16 @@ static int migrate_file_asym(struct inode *inode, u64 dst_idx)
 
 
 static inline int file_is_migratable(struct inode *inode,
-				     struct super_block *super)
+				     struct super_block *sb, u32 flags)
 {
 	if (inode_file_plugin(inode)->migrate == NULL)
 		return 0;
-	if (reiser4_is_set(super, REISER4_INCOMPLETE_BRICK_REMOVAL))
+	if (flags & VBF_MIGRATE_ALL)
 		return 1;
 	return !reiser4_inode_get_flag(inode, REISER4_FILE_IMMOBILE);
 }
+
+int inode_clr_immobile(struct inode *inode);
 
 /**
  * Balance an asymmetric logical volume. See description of the method
@@ -2331,7 +2363,7 @@ static inline int file_is_migratable(struct inode *inode,
  * FIXME: use hint/seal to not traverse tree every time when searching
  * for a position by "current" key of the iteration context.
  */
-int balance_volume_asym(struct super_block *super)
+int balance_volume_asym(struct super_block *super, u32 flags)
 {
 	int ret;
 	coord_t coord;
@@ -2477,22 +2509,30 @@ int balance_volume_asym(struct super_block *super)
 			 * file was removed
 			 */
 			goto next;
-		if (file_is_migratable(inode, super)) {
+		if (file_is_migratable(inode, super, flags)) {
 			reiser4_iget_complete(inode);
 			/*
 			 * migrate data blocks of this file
 			 */
 			ret = inode_file_plugin(inode)->migrate(inode, NULL);
-			iput(inode);
 			if (ret) {
+				iput(inode);
 				warning("edward-1889",
 				      "Inode %lli: data migration failed (%d)",
 				      (unsigned long long)get_inode_oid(inode),
 				      ret);
 				goto error;
 			}
-		} else
-			iput(inode);
+			if (flags & VBF_CLR_IMMOBILE) {
+				ret = inode_clr_immobile(inode);
+				if (ret)
+					warning("edward-2472",
+			      "Inode %lli: failed to clear immobile status(%d)",
+			      (unsigned long long)get_inode_oid(inode),
+			      ret);
+			}
+		}
+		iput(inode);
 	next:
 		if (terminate)
 			break;
@@ -2518,8 +2558,8 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 			.linkage = {NULL, NULL}
 		},
 		.meta_subvol_id = meta_subvol_id_simple,
-		.data_subvol_id_calc = data_subvol_id_calc_simple,
-		.data_subvol_id_find = data_subvol_id_find_simple,
+		.calc_brick = calc_brick_simple,
+		.find_brick = find_brick_simple,
 		.load_volume = NULL,
 		.done_volume = NULL,
 		.init_volume = init_volume_simple,
@@ -2548,8 +2588,8 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 			.linkage = {NULL, NULL}
 		},
 		.meta_subvol_id = meta_subvol_id_simple,
-		.data_subvol_id_calc = data_subvol_id_calc_asym,
-		.data_subvol_id_find = data_subvol_id_find_asym,
+		.calc_brick = calc_brick_asym,
+		.find_brick = find_brick_asym,
 		.load_volume = load_volume_asym,
 		.done_volume = done_volume_asym,
 		.init_volume = init_volume_asym,

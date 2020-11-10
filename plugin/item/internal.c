@@ -393,15 +393,7 @@ int shift_hook_internal(const coord_t * item /* coord of item */ ,
 }
 
 /* plugin->u.item.b.max_key_inside - not defined */
-
 /* plugin->u.item.b.nr_units - item.c:single_unit */
-
-u64 find_data_subvol_internal(const coord_t *coord)
-{
-	assert("edward-1956", item_is_internal(coord));
-
-	return get_meta_subvol_id();
-}
 
 /* Make Linus happy.
    Local variables:

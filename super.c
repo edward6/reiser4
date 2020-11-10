@@ -349,13 +349,6 @@ u64 reiser4_volume_fake_allocated(const struct super_block *sb)
 }
 #endif
 
-/**
- * Return data subvolume by its ID stored on disk
- */
-reiser4_subvol *find_data_subvol(const coord_t *coord)
-{
-	return current_origin(current_vol_plug()->data_subvol_id_find(coord));
-}
 
 /* Make Linus happy.
    Local variables:

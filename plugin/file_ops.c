@@ -76,7 +76,6 @@ int reiser4_sync_file_common(struct file *file, loff_t start, loff_t end, int da
 {
 	int ret;
 	reiser4_context *ctx;
-	txn_atom *atom;
 	struct dentry *dentry = file->f_path.dentry;
 	struct inode *inode = file->f_mapping->host;
 
@@ -89,7 +88,6 @@ int reiser4_sync_file_common(struct file *file, loff_t start, loff_t end, int da
 		return PTR_ERR(ctx);
 
 	inode_lock(inode);
-
 	ret = reserve_update_sd_common(inode);
 	if (ret) {
 		reiser4_exit_context(ctx);
@@ -97,14 +95,12 @@ int reiser4_sync_file_common(struct file *file, loff_t start, loff_t end, int da
 		return RETERR(-ENOSPC);
 	}
 	write_sd_by_inode_common(dentry->d_inode, NULL);
-
-	atom = get_current_atom_locked();
-	spin_lock_txnh(ctx->trans);
-	force_commit_atom(ctx->trans);
+	ret = force_commit_current_atom();
+	if (ret)
+		warning("", "Failed to sync file %s", dentry->d_name.name);
 	reiser4_exit_context(ctx);
 	inode_unlock(inode);
-
-	return 0;
+	return ret;
 }
 
 long reiser4_ioctl_dir_common(struct file *file, unsigned int cmd, unsigned long arg)

@@ -51,25 +51,6 @@ static inline reiser4_extent *ext_by_offset(const znode *node, int offset)
 	return ext;
 }
 
-/**
- * Return a pointer to data subvolume where
- * file's data at @offset should be stored
- */
-reiser4_subvol *calc_data_subvol(const struct inode *inode, loff_t offset)
-{
-	reiser4_subvol *ret;
-	lv_conf *conf;
-	reiser4_volume *vol = current_volume();
-
-	rcu_read_lock();
-	conf = rcu_dereference(vol->conf);
-	ret = conf_origin(conf, vol->vol_plug->data_subvol_id_calc(conf,
-								   inode,
-								   offset));
-	rcu_read_unlock();
-	return ret;
-}
-
 int build_body_key_stripe(struct inode *inode, loff_t off, reiser4_key *key)
 {
 	build_body_key_common(inode, key);

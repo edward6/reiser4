@@ -158,7 +158,6 @@ void destroy_inode_cryptcompress(struct inode *);
  * Private methods of striped-file plugin
  * (STRIPED_FILE_PLUGIN_ID)
  */
-reiser4_subvol *calc_data_subvol(const struct inode *inode, loff_t offset);
 int build_body_key_stripe(struct inode *inode, loff_t off,
 			  reiser4_key *key);
 int flow_by_inode_stripe(struct inode *inode, const char __user *buf, int user,

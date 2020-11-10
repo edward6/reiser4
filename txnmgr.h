@@ -424,6 +424,8 @@ extern jnode *find_first_dirty_jnode(txn_atom *, int);
 
 extern int commit_some_atoms(txn_mgr *);
 extern int force_commit_atom(txn_handle *);
+extern int force_commit_current_atom(void);
+
 extern int flush_current_atom(int, long, long *, txn_atom **, jnode *);
 
 extern int flush_some_atom(jnode *, long *, const struct writeback_control *, int);

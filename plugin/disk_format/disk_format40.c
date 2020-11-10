@@ -500,8 +500,10 @@ static int try_init_format(struct super_block *super,
 	if (get_format40_flags(&sb_format) & (1 << FORMAT40_HAS_DATA_ROOM))
 		subv->flags |= (1 << SUBVOL_HAS_DATA_ROOM);
 
-	if (get_format40_flags(&sb_format) & (1 << FORMAT40_TO_BE_REMOVED))
+	if (get_format40_flags(&sb_format) & (1 << FORMAT40_TO_BE_REMOVED)) {
 		subv->flags |= (1 << SUBVOL_TO_BE_REMOVED);
+		reiser4_volume_set_incomplete_removal(super);
+	}
 
 	if (get_format40_flags(&sb_format) & (1 << FORMAT40_IS_PROXY)) {
 		subv->flags |= (1 << SUBVOL_IS_PROXY);

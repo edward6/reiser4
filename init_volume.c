@@ -47,6 +47,8 @@ static reiser4_volume *reiser4_alloc_volume(u8 *uuid,
 	INIT_LIST_HEAD(&vol->subvols_list);
 	atomic_set(&vol->custom_brick_id, METADATA_SUBVOL_ID);
 	atomic_set(&vol->nr_origins, 0);
+	init_rwsem(&vol->volume_sem);
+	init_rwsem(&vol->brick_removal_sem);
 	return vol;
 }
 
@@ -828,7 +830,7 @@ void __reiser4_deactivate_volume(struct super_block *super)
 
 	if (vol->new_conf) {
 		assert("edward-2254",
-		       reiser4_volume_is_unbalanced(super));
+		       reiser4_volume_has_incomplete_removal(super));
 		assert("edward-2255",
 		       vol->new_conf->tab == vol->conf->tab);
 
@@ -958,9 +960,6 @@ static int volume_version_update(struct super_block *super)
 	lv_conf *conf = vol->conf;
 	int nr_to_update = 0;
 
-	txn_handle *trans;
-	txn_atom *atom;
-
 	for_each_mslot(conf, orig_id) {
 		reiser4_subvol *subv;
 		if (!conf->mslots[orig_id])
@@ -973,15 +972,8 @@ static int volume_version_update(struct super_block *super)
 	}
 	if (!nr_to_update)
 		return 0;
-	/*
-	 * Force write_logs immediately
-	 */
-	trans = get_current_context()->trans;
-	atom = get_current_atom_locked();
-	assert("vpf-1906", atom != NULL);
-
-	spin_lock_txnh(trans);
-	return force_commit_atom(trans);
+	/* force write_logs immediately */
+	return force_commit_current_atom();
 }
 
 /**

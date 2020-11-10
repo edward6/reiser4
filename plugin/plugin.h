@@ -520,6 +520,9 @@ typedef struct txmod_plugin {
 				reiser4_key *stop_key); // was_squalloc_extent
 } txmod_plugin;
 
+/*
+ * operations on an array of abstract buckets
+ */
 struct bucket_ops {
 	/* Get capacity of a bucket with serial number @idx
 	   in the array @buckets */
@@ -572,9 +575,6 @@ struct dist_regular_ops {
 	void (*free)(void *tab);
 };
 
-/*
- * Abstract buckets array operations
- */
 struct dist_volume_ops {
 	/* Initialize operation context */
 	int (*init)(void **tab, u64 num_buckets,
@@ -619,11 +619,17 @@ typedef struct volume_plugin {
 
 	/* Return meta-data brick internal ID */
 	u64 (*meta_subvol_id)(void);
-	/* Calculate data brick internal ID */
-	u64 (*data_subvol_id_calc)(lv_conf *conf, const struct inode *inode,
-				   loff_t data_offset_in_bytes);
-	/* Return data brick ID stored in the item specified by @coord */
-	u64 (*data_subvol_id_find)(const coord_t *coord);
+
+	/* Assign a target brick, where a chunk of data, defined by @inode
+	   and @offset, should be stored on. Returns internal ID of the
+	   target brick in the volume. Defines regular data distrubution
+	   policy on the logical volume with configuration @conf */
+	u64 (*calc_brick)(lv_conf *conf, const struct inode *inode,
+			  loff_t offset);
+	/* Find out, on which brick an extent of data blocks, defined by
+	   @coord, is stored. Return internal ID of the found brick in the
+	   volume */
+	u64 (*find_brick)(const coord_t *coord);
 	/* Load a portion of volume configuration contained
 	   in its brick @subv. Normally is called at mount time */
 	int (*load_volume)(reiser4_subvol *subv);
@@ -635,16 +641,20 @@ typedef struct volume_plugin {
 	int (*init_volume)(struct super_block *sb, reiser4_volume *vol);
 	/* Change data capacity of @brick to new @value */
 	int (*resize_brick)(reiser4_volume *vol, reiser4_subvol *brick,
-			    long long value);
+			    long long value, int *need_balance);
 	/* Add @new brick to logical volume @vol */
 	int (*add_brick)(reiser4_volume *vol, reiser4_subvol *new);
 
-	/* Remove @brick from logical volume @vol */
-	int (*remove_brick)(reiser4_volume *vol, reiser4_subvol *brick);
+	/* Start brick removal. Build a new volume configuration, which
+	   doesn't include @victim and move all data from the @victim to
+	   other bricks of the volume @vol */
+	int (*remove_brick)(reiser4_volume *vol, reiser4_subvol *victim);
 
-	/* ->remove_brick() completion. Should be called after successful
-	   volume rebalancing */
-	int (*remove_brick_tail)(reiser4_volume *vol, reiser4_subvol *brick);
+	/* End brick removal. Release resources associated with the brick
+	   @victim scheduled for removal. Should be called after successful
+	   volume rebalancing, which moves out all data from @victim to
+	   other bricks of the volume @vol */
+	int (*remove_brick_tail)(reiser4_volume *vol, reiser4_subvol *victim);
 
 	/* Print brick info */
 	int (*print_brick)(struct super_block *sb,
@@ -659,12 +669,11 @@ typedef struct volume_plugin {
 	 * serial number @dst_idx (as it is visible by user) */
 	int (*migrate_file)(struct inode *inode, u64 dst_idx);
 	/*
-	 * Migrate all data blocks of a logical volume in accordance
-	 * with its current configuration. This procedure is called,
-	 * in particular, to complete some volume operations (like
-	 * adding/removing a brick). On successful completion returns 0.
+	 * Migrate data blocks of a logical volume in accordance with
+	 * a distribution policy defined by volume configuration and
+	 * control @flags
 	 */
-	int (*balance_volume)(struct super_block *super);
+	int (*balance_volume)(struct super_block *super, u32 flags);
 	struct bucket_ops bucket_ops;
 } volume_plugin;
 

@@ -1507,6 +1507,18 @@ int force_commit_atom(txn_handle *txnh)
 	return 0;
 }
 
+int force_commit_current_atom(void)
+{
+	txn_atom *atom;
+	txn_handle *th;
+
+	th = get_current_context()->trans;
+	atom = get_current_atom_locked();
+	assert("vpf-1906", atom != NULL);
+	spin_lock_txnh(th);
+	return force_commit_atom(th);
+}
+
 /* Called to force commit of any outstanding atoms.  @commit_all_atoms controls
  * should we commit all atoms including new ones which are created after this
  * functions is called. */
