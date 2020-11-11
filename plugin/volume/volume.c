@@ -132,20 +132,16 @@ static bucket_t *create_buckets(void)
 	if (!ret)
 		return NULL;
 
-	for (i = meta_brick_belongs_dsa() ? 0 : 1, j = 0;
-	     i < conf->nr_mslots; i++) {
+	for (i = 0, j = 0; i < conf->nr_mslots; i++) {
 		if (conf->mslots[i] == NULL)
 			continue;
-
-		if (subvol_is_set(conf->mslots[i][0], SUBVOL_IS_PROXY))
-			/* skip proxy brick */
+		if (!is_dsa_brick(conf_origin(conf, i)))
 			continue;
-
-		ret[j] = conf->mslots[i][0];
+		ret[j] = conf_origin(conf, i);
 		/*
 		 * set index in DSA
 		 */
-		conf->mslots[i][0]->dsa_idx = j;
+		conf_origin(conf, i)->dsa_idx = j;
 		j++;
 	}
 #if REISER4_DEBUG
@@ -952,8 +948,8 @@ static u64 get_pos_in_vol(reiser4_volume *vol, reiser4_subvol *subv)
 }
 
 /**
- * This helper is to make sure that brick we want to operate on belongs
- * to the volume
+ * Returns true, if volume @vol includes @brick in its configuration.
+ * Pre-condition: the volume is read, or write locked
  */
 int brick_belongs_volume(reiser4_volume *vol, reiser4_subvol *subv)
 {
@@ -988,7 +984,7 @@ static int resize_brick(reiser4_volume *vol, reiser4_subvol *this,
 
 	*need_balance = 1;
 	if (num_dsa_subvols(vol) == 1 ||
-	    (is_meta_brick(this) && !meta_brick_belongs_dsa())) {
+	    (is_meta_brick(this) && !is_dsa_brick(this))) {
 		*need_balance = 0;
 		return 0;
 	}
@@ -1136,11 +1132,11 @@ u64 pos_in_dsa_by_mslot(u64 mslot_idx)
 	for (i = 0, j = 0; i < mslot_idx; i++) {
 		if (!vol->conf->mslots[i])
 			continue;
-		if (subvol_is_set(vol->conf->mslots[i][0], SUBVOL_IS_PROXY))
+		if (!is_dsa_brick(conf_origin(vol->conf, i)))
 			continue;
 		j++;
 	}
-	return meta_brick_belongs_dsa() ? j : j - 1;
+	return j;
 }
 
 int add_data_brick(reiser4_volume *vol, reiser4_subvol *this,
@@ -1194,9 +1190,9 @@ static int resize_brick_asym(reiser4_volume *vol, reiser4_subvol *this,
 	assert("edward-1824", vol != NULL);
 	assert("edward-1825", dist_plug != NULL);
 
-	if (subvol_is_set(this, SUBVOL_IS_PROXY)) {
+	if (is_proxy_brick(this)) {
 		warning("edward-2447",
-			"Can not resize proxy brick %s", this->name);
+			"Can't resize proxy brick %s", this->name);
 		return RETERR(-EINVAL);
 	}
 	ret = dist_plug->v.init(&vol->conf->tab,
@@ -1270,9 +1266,9 @@ static int add_proxy_asym(reiser4_volume *vol, reiser4_subvol *new)
 			"Single meta-data brick can not be proxy");
 		return -EINVAL;
 	}
-	if (brick_belongs_dsa(vol, new)) {
+	if (brick_belongs_volume(vol, new) && is_proxy_brick(new)) {
 		warning("edward-2435",
-			"Brick %s from DSA can not be proxy", new->name);
+			"Can't add second proxy brick to the volume");
 		return -EINVAL;
 	}
 	if (new == get_meta_subvol())
@@ -1377,13 +1373,16 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 			new->name);
 		return -EINVAL;
 	}
-	if (subvol_is_set(new, SUBVOL_IS_PROXY))
-		return add_proxy_asym(vol, new);
-
-	if (brick_belongs_dsa(vol, new)) {
+	if (brick_belongs_volume(vol, new) && is_dsa_brick(new)) {
+		/*
+		 * brick already participate in regular data distribution
+		 */
 		warning("edward-1963", "Can't add brick to DSA twice");
 		return -EINVAL;
 	}
+	if (subvol_is_set(new, SUBVOL_IS_PROXY))
+		return add_proxy_asym(vol, new);
+
 	/* reserve space on meta-data subvolume for brick symbol insertion */
 	grab_space_enable();
 	ret = reiser4_grab_space(estimate_one_insert_into_item(
@@ -1474,7 +1473,8 @@ static u64 space_occupied(void)
 	txnmgr_force_commit_all(reiser4_get_current_sb(), 0);
 
 	for_each_mslot(conf, subv_id) {
-		if (!conf->mslots[subv_id])
+		if (!conf->mslots[subv_id] ||
+		    !is_dsa_brick(conf_origin(conf, subv_id)))
 			continue;
 		ret += space_occupied_at(conf->mslots[subv_id]);
 	}
@@ -1501,7 +1501,7 @@ static int remove_meta_brick(reiser4_volume *vol, bucket_t **old_vec)
 
 	assert("edward-1844", num_dsa_subvols(vol) > 1);
 
-	if (!meta_brick_belongs_dsa()) {
+	if (!is_dsa_brick(mtd_subv)) {
 		warning("edward-2331",
 			"Metadata brick doesn't belong to DSA. Can't remove.");
 		return RETERR(-EINVAL);
@@ -1527,7 +1527,7 @@ static int remove_meta_brick(reiser4_volume *vol, bucket_t **old_vec)
 		goto error;
 
 	clear_bit(SUBVOL_HAS_DATA_ROOM, &mtd_subv->flags);
-	assert("edward-1827", !meta_brick_belongs_dsa());
+	assert("edward-1827", !is_dsa_brick(mtd_subv));
 	return 0;
  error:
 	vol->buckets = *old_vec;
@@ -1848,9 +1848,8 @@ int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 		assert("edward-2448",
 		       !subvol_is_set(victim, SUBVOL_HAS_DATA_ROOM));
 
-		clear_bit(SUBVOL_IS_PROXY, &victim->flags);
 		reiser4_volume_clear_proxy_enabled(reiser4_get_current_sb());
-
+		clear_bit(SUBVOL_IS_PROXY, &victim->flags);
 		if (!is_meta_brick(victim))
 			victim->flags |= (1 << SUBVOL_HAS_DATA_ROOM);
 	}
@@ -2003,16 +2002,17 @@ static u64 calc_brick_asym(lv_conf *conf, const struct inode *inode,
 {
 	assert("edward-2267", conf != NULL);
 
-	if (!conf->tab)
+	if (!conf->tab) {
 		/*
 		 * DSA includes only one brick. It is either meta-data
 		 * brick, or one of the next two bricks at the right
 		 */
+		assert("edward-2474", num_dsa_subvols(current_volume()) == 1);
 		return meta_brick_belongs_dsa() ? METADATA_SUBVOL_ID :
-			data_brick_belongs_dsa(conf_origin(conf,
-					    METADATA_SUBVOL_ID + 1)) ?
+			is_dsa_brick(conf_origin(conf,
+						 METADATA_SUBVOL_ID + 1)) ?
 			METADATA_SUBVOL_ID + 1 : METADATA_SUBVOL_ID + 2;
-	else {
+	} else {
 		u64 stripe_idx;
 		reiser4_volume *vol = current_volume();
 		distribution_plugin *dist_plug = current_dist_plug();

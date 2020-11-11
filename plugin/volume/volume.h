@@ -43,29 +43,38 @@ static inline u64 get_pos_in_dsa(reiser4_subvol *subv)
 	return subv->dsa_idx;
 }
 
-/*
- * Returns true, if meta-data subvolume participates in DSA.
- * Otherwise, returns false
- */
-static inline int meta_brick_belongs_dsa(void)
+static inline int is_proxy_brick(reiser4_subvol *subv)
 {
-	return subvol_is_set(get_meta_subvol(), SUBVOL_HAS_DATA_ROOM);
+	return subvol_is_set(subv, SUBVOL_IS_PROXY);
 }
 
-static inline int data_brick_belongs_dsa(reiser4_subvol *subv)
+/*
+ * Returns true, if @subv participates in regular data distribution
+ */
+static inline int is_dsa_brick(reiser4_subvol *subv)
 {
+	assert("edward-2475",
+	       ergo(is_proxy_brick(subv),
+		    !subvol_is_set(subv, SUBVOL_HAS_DATA_ROOM)));
+	assert("edward-2476",
+	       ergo(subvol_is_set(subv, SUBVOL_HAS_DATA_ROOM),
+		    !is_proxy_brick(subv)));
+
 	return subvol_is_set(subv, SUBVOL_HAS_DATA_ROOM);
 }
 
-static inline int brick_belongs_dsa(reiser4_volume *vol, reiser4_subvol *this)
+/*
+ * Returns true, if meta-data subvolume participates in regular
+ * data distribution. Otherwise, returns false
+ */
+static inline int meta_brick_belongs_dsa(void)
 {
-	return subvol_is_set(this, SUBVOL_HAS_DATA_ROOM) &&
-		!subvol_is_set(this, SUBVOL_IS_PROXY) &&
-		brick_belongs_volume(vol, this);
+	return is_dsa_brick(get_meta_subvol());
 }
 
 /**
- * Return number of bricks participating in DSA
+ * Without scanning all bricks i the volume, calculate and return number
+ * of bricks participating in regular data distribution
  *
  * Possible cases:
  *

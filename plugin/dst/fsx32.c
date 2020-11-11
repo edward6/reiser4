@@ -785,18 +785,25 @@ static int check_leftovers(reiser4_dcx *rdcx, u64 numb, u64 occ)
 	calibrate64(numb, occ, vec, ops->cap_at, vec_new_occ);
 
 	for (i = 0; i < numb; i++) {
+		u64 cap;
 		ON_DEBUG(notice("edward-2145",
 			"Brick %llu: data capacity: %llu, min required: %llu",
 			i, ops->cap_at(vec, i), vec_new_occ[i]));
 
-		if (ops->cap_at(vec, i) < vec_new_occ[i]) {
+		cap = ops->cap_at(vec, i);
+		cap -= (cap * 5)/100; /* deduct 5% reservation */
+		if (cap < vec_new_occ[i]) {
 			warning("edward-2070",
-	"Not enough data capacity (%llu) of brick %llu (required %llu)",
-				ops->cap_at(vec, i),
+		"Not enough data capacity (%llu) of brick %llu (required %llu)",
+				cap,
 				i,
 				vec_new_occ[i]);
 			ret = -ENOSPC;
 			break;
+		} else {
+			ON_DEBUG(notice("edward-2145",
+			"Brick %llu: data capacity: %llu, min required: %llu",
+					i, cap, vec_new_occ[i]));
 		}
 	}
 	fsx_free(vec_new_occ);

@@ -79,17 +79,17 @@ typedef enum {
 	SUBVOL_REGISTERED = 2,
 	/* set if subvol is activated */
 	SUBVOL_ACTIVATED = 3,
-	/* set if subvol participates in the storage array */
+	/* set if brick is used for data storage and participates
+	   in regular data distribution */
 	SUBVOL_HAS_DATA_ROOM = 4,
-	/* set for an empty subvolume at the latest [earliest]
-	   stage of brick removal [addition]. Indicates that
-	   subvolume doesn't accept any IOs */
+	/* set if subvolume is not included in volume configuration
+	   and doesn't accept any IOs */
 	SUBVOL_IS_ORPHAN = 5,
-	/* set at the early stage of brick removal.
-	   Brick may be not empty and may accept IOs */
+	/* set if brick was scheduled for removal. It may be not
+	   empty and may accept IOs */
 	SUBVOL_TO_BE_REMOVED = 6,
-	/* Brick has the highest priority when allocating disk
-	   addresses */
+	/* set if brick is used for data storage, but doesn't
+	   participate in regular data distribution */
 	SUBVOL_IS_PROXY = 7
 } reiser4_subvol_flag;
 

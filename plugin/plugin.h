@@ -565,9 +565,13 @@ struct dist_regular_ops {
 	/* release distribution context */
 	void (*done)(void **tab);
 
-	/* Find brick internal ID by volume configuration. It requires
-	   guarantees (e.g. by using rcu means) that configuration won't
-	   be destroyed by some volume operation while calculating */
+	/* Mapping. For each word @str of length @len it calculates and
+	   returns internal ID of a bucket from a set of buckets, which
+	   possess abstract capacities. The set of buckets is defined by
+	   a configuration pounted out by @rdcx. While calculating that
+	   configuration should be protected by some means (e.g. by rcu)
+	   from being destroyed by some operation like adding/removing a
+	   bucket, atc */
 	u64 (*lookup)(reiser4_dcx *rdcx, const struct inode *inode,
 		      const char *str, int len, u32 seed, void *tab);
 
