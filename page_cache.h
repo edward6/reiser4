@@ -34,9 +34,7 @@ extern void capture_reiser4_inodes(struct super_block *,
 				   struct writeback_control *);
 static inline void *reiser4_vmalloc(unsigned long size)
 {
-	return __vmalloc(size,
-			 reiser4_ctx_gfp_mask_get() | __GFP_HIGHMEM,
-			 PAGE_KERNEL);
+	return __vmalloc(size, reiser4_ctx_gfp_mask_get());
 }
 
 #define PAGECACHE_TAG_REISER4_MOVED PAGECACHE_TAG_DIRTY
