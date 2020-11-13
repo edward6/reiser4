@@ -435,7 +435,7 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 	}
 
 	if (iplug->b.lookup != NULL) {
-		return iplug->b.lookup(key, bias, coord);
+		return (node_search_result)iplug->b.lookup(key, bias, coord);
 	} else {
 		assert("nikita-1260", order == LESS_THAN);
 		coord->between = AFTER_UNIT;
