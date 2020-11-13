@@ -1092,6 +1092,7 @@ static inline int get_format_number_principal(int major)
 	default:
 		impossible("edward-2429", "Unsupported major release number");
 	}
+	return 0;
 }
 
 static inline int get_release_number_major(void)
