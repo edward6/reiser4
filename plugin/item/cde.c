@@ -85,6 +85,8 @@
 #define CHECKME(coord) noop
 #endif
 
+static_assert(REISER4_SEQ_SEARCH_BREAK > 2);
+
 /* return body of compound directory item at @coord */
 static inline cde_item_format *formatted_at(const coord_t * coord)
 {

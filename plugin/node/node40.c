@@ -272,7 +272,6 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 	assert("nikita-584", key != NULL);
 	assert("nikita-585", coord != NULL);
 	assert("nikita-2693", znode_is_any_locked(node));
-	cassert(REISER4_SEQ_SEARCH_BREAK > 2);
 
 	items = node_num_items(node);
 

@@ -128,6 +128,7 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
    tests. More thorough tuning is needed.
 */
 #define REISER4_SEQ_SEARCH_BREAK      (3)
+static_assert(REISER4_SEQ_SEARCH_BREAK > 2);
 
 /* don't allow tree to be lower than this */
 #define REISER4_MIN_TREE_HEIGHT       (TWIG_LEVEL)

@@ -56,7 +56,7 @@ extern __u64 reiser4_subvol_block_count(const reiser4_subvol *);
 static inline void extent_set_start(reiser4_subvol *subv, reiser4_extent *ext,
 				    reiser4_block_nr start)
 {
-	cassert(sizeof(ext->start) == 8);
+	static_assert(sizeof(ext->start) == 8);
 
 	assert("edward-2269", subv != NULL);
 	assert("nikita-2510", ergo(start > 1,
@@ -69,7 +69,7 @@ static inline void extent_set_width(reiser4_subvol *subv,
 				    reiser4_extent *ext,
 				    reiser4_block_nr width)
 {
-	cassert(sizeof(ext->width) == 8);
+	static_assert(sizeof(ext->width) == 8);
 	assert("edward-2270", width > 0);
 	assert("edward-2271", subv != NULL);
 
