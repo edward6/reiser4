@@ -331,13 +331,14 @@ static void unregister_subvol_locked(struct reiser4_subvol *subv)
  */
 void reiser4_unregister_subvol(struct reiser4_subvol *victim)
 {
-	struct reiser4_volume *vol;
+	struct reiser4_volume *vol, *vol_tmp;
 
 	mutex_lock(&reiser4_volumes_mutex);
 
-	list_for_each_entry(vol, &reiser4_volumes, list) {
-		struct reiser4_subvol *subv;
-		list_for_each_entry(subv, &vol->subvols_list, list) {
+	list_for_each_entry_safe(vol, vol_tmp, &reiser4_volumes, list) {
+		struct reiser4_subvol *subv, *subv_tmp;
+		list_for_each_entry_safe(subv, subv_tmp,
+					 &vol->subvols_list, list) {
 			if (subv == victim) {
 				unregister_subvol_locked(subv);
 				if (list_empty(&vol->subvols_list)) {
@@ -361,13 +362,14 @@ void reiser4_unregister_subvol(struct reiser4_subvol *victim)
 int reiser4_unregister_brick(struct reiser4_vol_op_args *args)
 {
 	int ret = 0;
-	struct reiser4_volume *vol;
+	struct reiser4_volume *vol, *vol_tmp;
 
 	mutex_lock(&reiser4_volumes_mutex);
 
-	list_for_each_entry(vol, &reiser4_volumes, list) {
-		struct reiser4_subvol *subv;
-		list_for_each_entry(subv, &vol->subvols_list, list) {
+	list_for_each_entry_safe(vol, vol_tmp, &reiser4_volumes, list) {
+		struct reiser4_subvol *subv, *subv_tmp;
+		list_for_each_entry_safe(subv, subv_tmp,
+					 &vol->subvols_list, list) {
 			if (!strncmp(args->d.name,
 				     subv->name, strlen(subv->name))) {
 				if (subvol_is_set(subv, SUBVOL_ACTIVATED)) {
@@ -399,13 +401,13 @@ int reiser4_unregister_brick(struct reiser4_vol_op_args *args)
  */
 void reiser4_unregister_volumes(void)
 {
-	struct reiser4_volume *vol;
-	struct reiser4_subvol *sub;
+	struct reiser4_volume *vol, *vol_tmp;
+	struct reiser4_subvol *sub, *sub_tmp;
 
 	mutex_lock(&reiser4_volumes_mutex);
 
-	list_for_each_entry(vol, &reiser4_volumes, list) {
-		list_for_each_entry(sub, &vol->subvols_list, list)
+	list_for_each_entry_safe(vol, vol_tmp, &reiser4_volumes, list) {
+		list_for_each_entry_safe(sub, sub_tmp, &vol->subvols_list, list)
 			unregister_subvol_locked(sub);
 		assert("edward-2328", list_empty(&vol->subvols_list));
 		list_del(&vol->list);
