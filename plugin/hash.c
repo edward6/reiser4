@@ -143,9 +143,7 @@ static __u64 hash_tea(const unsigned char *name /* name to hash */ ,
 	}
 
 	if (len >= 12) {
-		/* assert(len < 16); */
-		if (len >= 16)
-			*(int *)0 = 0;
+		assert("", len < 16);
 
 		a = (__u64) name[0] | (__u64) name[1] << 8 | (__u64) name[2] <<
 		    16 | (__u64) name[3] << 24;
@@ -160,9 +158,8 @@ static __u64 hash_tea(const unsigned char *name /* name to hash */ ,
 			d |= name[i];
 		}
 	} else if (len >= 8) {
-		/* assert(len < 12); */
-		if (len >= 12)
-			*(int *)0 = 0;
+		assert("", len < 12);
+
 		a = (__u64) name[0] | (__u64) name[1] << 8 | (__u64) name[2] <<
 		    16 | (__u64) name[3] << 24;
 		b = (__u64) name[4] | (__u64) name[5] << 8 | (__u64) name[6] <<
@@ -174,9 +171,8 @@ static __u64 hash_tea(const unsigned char *name /* name to hash */ ,
 			c |= name[i];
 		}
 	} else if (len >= 4) {
-		/* assert(len < 8); */
-		if (len >= 8)
-			*(int *)0 = 0;
+		assert("", len < 8);
+
 		a = (__u64) name[0] | (__u64) name[1] << 8 | (__u64) name[2] <<
 		    16 | (__u64) name[3] << 24;
 
@@ -186,9 +182,8 @@ static __u64 hash_tea(const unsigned char *name /* name to hash */ ,
 			b |= name[i];
 		}
 	} else {
-		/* assert(len < 4); */
-		if (len >= 4)
-			*(int *)0 = 0;
+		assert("", len < 4);
+
 		a = b = c = d = pad;
 		for (i = 0; i < len; i++) {
 			a <<= 8;
