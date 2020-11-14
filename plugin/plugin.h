@@ -994,7 +994,6 @@ typedef enum {
 typedef enum {
 	TRIV_DISTRIB_ID, /* for simple volumes */
 	FSX32M_DISTRIB_ID, /* builtin distribution of Eduard Shishkin */
-	CUSTOM_DISTRIB_ID, /* user-defined distribution */
 	LAST_DISTRIB_ID
 } reiser4_distribution_id;
 

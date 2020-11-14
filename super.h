@@ -330,13 +330,6 @@ struct reiser4_volume {
 	distribution_plugin *dist_plug;
 	struct rw_semaphore volume_sem; /* protect volume configuration */
 	struct rw_semaphore brick_removal_sem;
-	atomic_t custom_brick_id; /* internal brick ID (i.e. index in the
-				     array of mslots). This is a "hint",
-				     which is set up by user. It is used
-				     only when volume-based distribution is
-				     enabled. In other cases per-file hints
-				     are used (see field custom_brick_id
-				     in struct unix_file_info) */
 	volume_plugin *vol_plug;
 	reiser4_dcx dcx; /* distribution context */
 	reiser4_volinfo volinfo[2]; /* on-disk volume configurations: current

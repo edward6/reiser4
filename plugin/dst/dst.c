@@ -21,30 +21,6 @@ static u64 lookup_triv(reiser4_dcx *rdcx, const struct inode *inode,
 	return METADATA_SUBVOL_ID;
 }
 
-static u64 lookup_custom(reiser4_dcx *rdcx, const struct inode *inode,
-			 const char *str, int len, u32 seed, void *tab)
-{
-	u64 id;
-	lv_conf *conf;
-
-	if (reiser4_is_set(reiser4_get_current_sb(), REISER4_FILE_BASED_DIST)) {
-		assert("edward-2342", inode != NULL);
-		id = atomic_read(&unix_file_inode_data(inode)->custom_brick_id);
-	} else
-		id = atomic_read(&current_volume()->custom_brick_id);
-	/*
-	 * check if there is a brick with such ID.
-	 */
-	conf = rcu_dereference(current_volume()->conf);
-
-	if (id >= conf_nr_mslots(conf) || !conf_mslot_at(conf, id)) {
-		warning("edward-2343", "Invalid custom brick ID %llu",
-			(unsigned long long)id);
-		return METADATA_SUBVOL_ID;
-	}
-	return id;
-}
-
 distribution_plugin distribution_plugins[LAST_DISTRIB_ID] = {
 	[TRIV_DISTRIB_ID] = {
 		.h = {
@@ -100,34 +76,6 @@ distribution_plugin distribution_plugins[LAST_DISTRIB_ID] = {
 			.dump = dump_fsx32,
 		}
 	},
-	[CUSTOM_DISTRIB_ID] = {
-		.h = {
-			.type_id = REISER4_DISTRIBUTION_PLUGIN_TYPE,
-			.id = CUSTOM_DISTRIB_ID,
-			.pops = NULL,
-			.label = "custom",
-			.desc = "Custom Distribution",
-			.linkage = {NULL, NULL}
-		},
-		.seg_bits = 2, /* (log(sizeof u32)) */
-		.r = {
-			.init = NULL,
-			.lookup = lookup_custom,
-			.replace = NULL,
-			.free = NULL,
-			.done = NULL,
-		},
-		.v = {
-			.init = NULL,
-			.done = NULL,
-			.inc = NULL,
-			.dec = NULL,
-			.spl = NULL,
-			.pack = NULL,
-			.unpack = NULL,
-			.dump = NULL,
-		}
-	}
 };
 
 /*

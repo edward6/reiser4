@@ -1902,9 +1902,7 @@ int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	vol->victim = NULL;
 	/*
 	 * Publish final config with updated set of slots,
-	 * which doesn't contain @victim.
-	 * It doesn't change distribution policy, so we don't
-	 * need to take a write lock on distribution here.
+	 * which doesn't contain @victim
 	 */
 	rcu_assign_pointer(vol->conf, vol->new_conf);
 	/*

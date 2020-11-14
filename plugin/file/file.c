@@ -2743,8 +2743,6 @@ void init_inode_data_unix_file(struct inode *inode,
 	init_rwsem(&data->latch);
 	data->tplug = inode_formatting_plugin(inode);
 	data->exclusive_use = 0;
-	atomic_set(&data->custom_brick_id, 0 /* METADATA_SUBVOL_ID */);
-
 #if REISER4_DEBUG
 	data->ea_owner = NULL;
 	atomic_set(&data->nr_neas, 0);

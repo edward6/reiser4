@@ -60,9 +60,6 @@ typedef enum {
 	   interrupted for some reasons (e.g. system crash),
 	   and should be completed in some context */
 	REISER4_INCOMPLETE_BRICK_REMOVAL = 13,
-	/* this flag indicates that distribution mode is
-	   file-based (default is volume-based) */
-	REISER4_FILE_BASED_DIST = 14,
 	/* proxy-subvolume is active */
 	REISER4_PROXY_ENABLED = 15,
 	/* proxy subvolume accepts IO requests */

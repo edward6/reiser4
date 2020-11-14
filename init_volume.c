@@ -45,7 +45,6 @@ static reiser4_volume *reiser4_alloc_volume(u8 *uuid,
 
 	INIT_LIST_HEAD(&vol->list);
 	INIT_LIST_HEAD(&vol->subvols_list);
-	atomic_set(&vol->custom_brick_id, METADATA_SUBVOL_ID);
 	atomic_set(&vol->nr_origins, 0);
 	init_rwsem(&vol->volume_sem);
 	init_rwsem(&vol->brick_removal_sem);
