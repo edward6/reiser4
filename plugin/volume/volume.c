@@ -1266,11 +1266,6 @@ static int add_proxy_asym(reiser4_volume *vol, reiser4_subvol *new)
 			"Single meta-data brick can not be proxy");
 		return -EINVAL;
 	}
-	if (brick_belongs_volume(vol, new) && is_proxy_brick(new)) {
-		warning("edward-2435",
-			"Can't add second proxy brick to the volume");
-		return -EINVAL;
-	}
 	if (new == get_meta_subvol())
 		ret = __add_meta_brick(vol, new);
 	else

@@ -659,20 +659,22 @@ static void what_to_do(struct extent_migrate_context *mctx, u64 *dst_id)
 			goto split_off_found;
 		}
 		if (!skip && (off2 - split_off + 1 >=
-			      MIGRATION_GRANULARITY << PAGE_SHIFT))
+			      MIGRATION_GRANULARITY << PAGE_SHIFT)) {
 			/*
 			 * split offset is not found, but the extent
 			 * is too large, so we have to migrate a part
 			 * of the item
 			 */
+			split_off += current_stripe_size;
 			goto split_off_found;
+		}
 	}
 	/*
 	 * split offset not found. The whole item is either
 	 * to be migrated, or to be skipped
 	 */
 	coord->unit_pos = 0;
-	mctx->stop_off = get_key_offset(mctx->key);
+	mctx->stop_off = off1;
 	if (skip) {
 		mctx->stop = 1;
 		mctx->act = SKIP_EXTENT;
@@ -686,10 +688,8 @@ static void what_to_do(struct extent_migrate_context *mctx, u64 *dst_id)
 	/*
 	 * set current position to the found split offset
 	 */
-	assert("edward-2112",
-	       (get_key_offset(mctx->key) < split_off) &&
-	       (split_off < (get_key_offset(mctx->key) +
-			     reiser4_extent_size(coord))));
+	assert("edward-2112", (off1 < split_off) &&
+	       (split_off < off1 + reiser4_extent_size(coord)));
 
 	mctx->stop_off = split_off;
 

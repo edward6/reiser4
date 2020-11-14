@@ -109,7 +109,7 @@ static int reiser4_resize_brick(struct super_block *sb,
 }
 
 static int reiser4_add_brick(struct super_block *sb,
-			     struct reiser4_vol_op_args *args, int is_proxy)
+			     struct reiser4_vol_op_args *args, int add_proxy)
 {
 	int ret;
 	reiser4_volume *vol = super_volume(sb);
@@ -147,7 +147,12 @@ static int reiser4_add_brick(struct super_block *sb,
 			return ret;
 		activated_here = 1;
 	}
-	if (is_proxy) {
+	if (add_proxy) {
+		if (brick_belongs_volume(vol, new) && is_proxy_brick(new)) {
+			warning("edward-2435",
+				"Can't add second proxy brick to the volume");
+			return -EINVAL;
+		}
 		assert("edward-2449",
 		       ergo(!is_meta_brick(new),
 			    subvol_is_set(new, SUBVOL_HAS_DATA_ROOM)));
