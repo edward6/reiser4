@@ -383,6 +383,7 @@ static long reiser4_writeback_inodes(struct super_block *super,
 		spin_lock(&wb->list_lock);
 		goto skip;
 	}
+	ctx->flush_bd_task = 1;
 	/*
 	 * call reiser4_writepages for each of dirty inodes to turn
 	 * dirty pages into transactions if they were not yet.

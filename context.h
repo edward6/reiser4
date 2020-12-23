@@ -64,6 +64,8 @@ struct reiser4_context {
 	unsigned int on_stack:1;
 	/* file system is read-only */
 	unsigned int ro:1;
+	/* replacement of PF_FLUSHER */
+	unsigned int flush_bd_task:1;
 
 	/* count non-trivial jnode_set_dirty() calls */
 	unsigned long nr_marked_dirty;
