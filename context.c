@@ -266,7 +266,7 @@ static void reiser4_throttle_write_at(reiser4_context *context)
 	if (sbinfo != NULL && sbinfo->fake != NULL &&
 	    context->nr_marked_dirty != 0 &&
 	    !(current->flags & PF_MEMALLOC) &&
-	    !current_is_flush_bd_task())
+	    !context->flush_bd_task)
  		reiser4_throttle_write(sbinfo->fake);
 }
 
