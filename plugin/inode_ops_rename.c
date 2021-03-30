@@ -298,7 +298,8 @@ int reiser4_update_dir(struct inode *);
    entry. This should be re-considered when more than one different
    directory plugin will be implemented.
 */
-int reiser4_rename2_common(struct inode *old_dir /* directory where @old
+int reiser4_rename2_common(struct user_namespace *mnt_userns,
+			   struct inode *old_dir /* directory where @old
 						  * is located */ ,
 			   struct dentry *old_name /* old name */ ,
 			   struct inode *new_dir /* directory where @new
@@ -657,7 +658,8 @@ int reiser4_rename2_common(struct inode *old_dir /* directory where @old
 }
 
 #if 0
-int reiser4_rename_common(struct inode *old_dir /* directory where @old
+int reiser4_rename_common(struct user_namespace *mnt_userns,
+			  struct inode *old_dir /* directory where @old
 						 * is located */ ,
 			  struct dentry *old_name /* old name */ ,
 			  struct inode *new_dir /* directory where @new

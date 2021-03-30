@@ -914,7 +914,7 @@ static int write_jnodes_contig(jnode *first, int nr,
 
 	while (nr > 0) {
 		struct bio *bio;
-		int nr_blocks = min(nr, BIO_MAX_PAGES);
+		int nr_blocks = bio_max_segs(nr);
 		int i;
 		int nr_used;
 

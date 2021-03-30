@@ -745,7 +745,8 @@ int reiser4_write_end_dispatch(struct file *file,
 /*
  * Dispatchers without protection
  */
-int reiser4_setattr_dispatch(struct dentry *dentry, struct iattr *attr)
+int reiser4_setattr_dispatch(struct user_namespace *mnt_userns,
+			     struct dentry *dentry, struct iattr *attr)
 {
 	return inode_file_plugin(dentry->d_inode)->setattr(dentry, attr);
 }
