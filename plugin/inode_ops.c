@@ -26,7 +26,8 @@ static int create_vfs_object(struct inode *parent, struct dentry *dentry,
  * inode_operations.
  * Creates regular file using file plugin from parent directory plugin set.
  */
-int reiser4_create_common(struct inode *parent, struct dentry *dentry,
+int reiser4_create_common(struct user_namespace *mnt_userns,
+			  struct inode *parent, struct dentry *dentry,
 			  umode_t mode, bool exclusive)
 {
 	reiser4_object_create_data data;
@@ -333,7 +334,8 @@ int reiser4_unlink_common(struct inode *parent, struct dentry *victim)
  * inode_operations.
  * Creates object using file plugin SYMLINK_FILE_PLUGIN_ID.
  */
-int reiser4_symlink_common(struct inode *parent, struct dentry *dentry,
+int reiser4_symlink_common(struct user_namespace *mnt_userns,
+			   struct inode *parent, struct dentry *dentry,
 			   const char *linkname)
 {
 	reiser4_object_create_data data;
@@ -355,7 +357,8 @@ int reiser4_symlink_common(struct inode *parent, struct dentry *dentry,
  * inode_operations.
  * Creates object using file plugin DIRECTORY_FILE_PLUGIN_ID.
  */
-int reiser4_mkdir_common(struct inode *parent, struct dentry *dentry, umode_t mode)
+int reiser4_mkdir_common(struct user_namespace *mnt_userns,
+			 struct inode *parent, struct dentry *dentry, umode_t mode)
 {
 	reiser4_object_create_data data;
 
@@ -376,7 +379,8 @@ int reiser4_mkdir_common(struct inode *parent, struct dentry *dentry, umode_t mo
  * inode_operations.
  * Creates object using file plugin SPECIAL_FILE_PLUGIN_ID.
  */
-int reiser4_mknod_common(struct inode *parent, struct dentry *dentry,
+int reiser4_mknod_common(struct user_namespace *mnt_userns,
+			 struct inode *parent, struct dentry *dentry,
 			 umode_t mode, dev_t rdev)
 {
 	reiser4_object_create_data data;
@@ -423,14 +427,15 @@ const char *reiser4_get_link_common(struct dentry *dentry,
  *
  * Uses generic function to check for rwx permissions.
  */
-int reiser4_permission_common(struct inode *inode, int mask)
+int reiser4_permission_common(struct user_namespace *mnt_userns,
+			      struct inode *inode, int mask)
 {
 	// generic_permission() says that it's rcu-aware...
 #if 0
 	if (mask & MAY_NOT_BLOCK)
 		return -ECHILD;
 #endif
-	return generic_permission(inode, mask);
+	return generic_permission(&init_user_ns, inode, mask);
 }
 
 static int setattr_reserve(reiser4_tree *);
@@ -438,14 +443,15 @@ static int setattr_reserve(reiser4_tree *);
 /* this is common implementation of vfs's setattr method of struct
    inode_operations
 */
-int reiser4_setattr_common(struct dentry *dentry, struct iattr *attr)
+int reiser4_setattr_common(struct user_namespace *mnt_userns,
+			   struct dentry *dentry, struct iattr *attr)
 {
 	reiser4_context *ctx;
 	struct inode *inode;
 	int result;
 
 	inode = dentry->d_inode;
-	result = setattr_prepare(dentry, attr);
+	result = setattr_prepare(&init_user_ns, dentry, attr);
 	if (result)
 		return result;
 
@@ -462,7 +468,7 @@ int reiser4_setattr_common(struct dentry *dentry, struct iattr *attr)
 	 */
 	result = setattr_reserve(reiser4_tree_by_inode(inode));
 	if (!result) {
-		setattr_copy(inode, attr);
+		setattr_copy(&init_user_ns, inode, attr);
 		mark_inode_dirty(inode);
 		result = reiser4_update_sd(inode);
 	}
@@ -474,7 +480,8 @@ int reiser4_setattr_common(struct dentry *dentry, struct iattr *attr)
 /* this is common implementation of vfs's getattr method of struct
    inode_operations
 */
-int reiser4_getattr_common(const struct path *path, struct kstat *stat,
+int reiser4_getattr_common(struct user_namespace *mnt_userns,
+			   const struct path *path, struct kstat *stat,
 			   u32 request_mask, unsigned int flags)
 {
 	struct inode *obj;

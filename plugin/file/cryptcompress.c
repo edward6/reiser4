@@ -3664,7 +3664,7 @@ int setattr_cryptcompress(struct dentry *dentry, struct iattr *attr)
 		} else
 			result = 0;
 	} else
-		result = reiser4_setattr_common(dentry, attr);
+		result = reiser4_setattr_common(&init_user_ns, dentry, attr);
 	return result;
 }
 

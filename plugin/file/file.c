@@ -2628,7 +2628,7 @@ int setattr_unix_file(struct dentry *dentry,	/* Object to change attributes */
 		context_set_commit_async(ctx);
 		reiser4_exit_context(ctx);
 	} else
-		result = reiser4_setattr_common(dentry, attr);
+		result = reiser4_setattr_common(&init_user_ns, dentry, attr);
 
 	return result;
 }

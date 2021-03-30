@@ -27,7 +27,8 @@ struct dispatch_context {
  */
 
 /* inode operations */
-int reiser4_setattr_dispatch(struct dentry *, struct iattr *);
+int reiser4_setattr_dispatch(struct user_namespace *mnt_userns,
+			     struct dentry *, struct iattr *);
 
 /* file operations */
 ssize_t reiser4_read_dispatch(struct file *, char __user *buf,

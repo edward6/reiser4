@@ -983,7 +983,7 @@ static int process_truncate(struct inode *inode, __u64 size)
 	inode_lock(inode);
 	assert("vs-1704", get_current_context()->trans->atom == NULL);
 	dentry.d_inode = inode;
-	result = inode->i_op->setattr(&dentry, &attr);
+	result = inode->i_op->setattr(&init_user_ns, &dentry, &attr);
 	inode_unlock(inode);
 
 	context_set_commit_async(ctx);

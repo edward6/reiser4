@@ -9,7 +9,8 @@
 #include "../type_safe_hash.h"
 
 /* common implementations of inode operations */
-int reiser4_create_common(struct inode *parent, struct dentry *dentry,
+int reiser4_create_common(struct user_namespace *mnt_userns,
+			  struct inode *parent, struct dentry *dentry,
 			  umode_t mode, bool);
 struct dentry *reiser4_lookup_common(struct inode *parent,
 				      struct dentry *dentry,
@@ -17,19 +18,27 @@ struct dentry *reiser4_lookup_common(struct inode *parent,
 int reiser4_link_common(struct dentry *existing, struct inode *parent,
 			struct dentry *newname);
 int reiser4_unlink_common(struct inode *parent, struct dentry *victim);
-int reiser4_mkdir_common(struct inode *parent, struct dentry *dentry, umode_t mode);
-int reiser4_symlink_common(struct inode *parent, struct dentry *dentry,
-		   const char *linkname);
-int reiser4_mknod_common(struct inode *parent, struct dentry *dentry,
+int reiser4_mkdir_common(struct user_namespace *mnt_userns,
+			 struct inode *parent, struct dentry *dentry,
+			 umode_t mode);
+int reiser4_symlink_common(struct user_namespace *mnt_userns,
+			   struct inode *parent, struct dentry *dentry,
+			   const char *linkname);
+int reiser4_mknod_common(struct user_namespace *mnt_userns,
+		 struct inode *parent, struct dentry *dentry,
 		 umode_t mode, dev_t rdev);
-int reiser4_rename2_common(struct inode *old_dir, struct dentry *old_name,
+int reiser4_rename2_common(struct user_namespace *mnt_userns,
+			   struct inode *old_dir, struct dentry *old_name,
 			   struct inode *new_dir, struct dentry *new_name,
 			   unsigned flags);
 const char *reiser4_get_link_common(struct dentry *, struct inode *inode,
 				    struct delayed_call *done);
-int reiser4_permission_common(struct inode *, int mask);
-int reiser4_setattr_common(struct dentry *, struct iattr *);
-int reiser4_getattr_common(const struct path *path, struct kstat *stat,
+int reiser4_permission_common(struct user_namespace *mnt_userns,
+			      struct inode *, int mask);
+int reiser4_setattr_common(struct user_namespace *mnt_userns,
+			   struct dentry *, struct iattr *);
+int reiser4_getattr_common(struct user_namespace *mnt_userns,
+			   const struct path *path, struct kstat *stat,
 			   u32 request_mask, unsigned int flags);
 
 /* common implementations of file operations */
