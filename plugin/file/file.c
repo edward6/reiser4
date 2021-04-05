@@ -1700,30 +1700,33 @@ int readpages_unix_file(struct file *file, struct address_space *mapping,
 					 readpages_filler_uf);
 }
 
-/* this is called with nonexclusive access obtained,
-   file's container can not change */
-static ssize_t do_read_compound_file(hint_t *hint, struct file *file,
-				     char __user *buf, size_t count,
-				     loff_t *off)
+/**
+ * In a sequential manner find corresponding items in the tree
+ * and read against them.
+ * This is called with nonexclusive access obtained, so that
+ * file's container can not change
+ */
+static ssize_t do_read_compound_file(hint_t *hint,
+				     struct kiocb *iocb,
+				     struct iov_iter *iter)
 {
-	int result;
-	struct inode *inode;
-	flow_t flow;
+	struct inode *inode = file_inode(iocb->ki_filp);
+	size_t count = iov_iter_count(iter);
 	coord_t *coord;
 	znode *loaded;
+	int result;
+	flow_t flow;
 
-	inode = file_inode(file);
-
-	/* build flow */
-	result = flow_by_inode_unix_file(inode, buf, 1 /* user space */,
-					 count, *off, READ_OP, &flow);
+	result = flow_by_inode_unix_file(inode, NULL,
+					 1 /* user space */, count,
+					 iocb->ki_pos, READ_OP, &flow);
 	if (unlikely(result))
 		return result;
-
-	/* get seal and coord sealed with it from reiser4 private data
-	   of struct file.  The coord will tell us where our last read
-	   of this file finished, and the seal will help to determine
-	   if that location is still valid.
+	/*
+	 * get seal and coord sealed with it from reiser4 private data
+	 * of struct file.  The coord will tell us where our last read
+	 * of this file finished, and the seal will help to determine
+	 * if that location is still valid.
 	 */
 	coord = &hint->ext_coord.coord;
 	while (flow.length && result == 0) {
@@ -1734,18 +1737,18 @@ static ssize_t do_read_compound_file(hint_t *hint, struct file *file,
 			break;
 
 		if (coord->between != AT_UNIT) {
-			/* there were no items corresponding to given offset */
+			/*
+			 * there were no items corresponding to given offset
+			 */
 			done_lh(hint->ext_coord.lh);
 			break;
 		}
-
 		loaded = coord->node;
 		result = zload(loaded);
 		if (unlikely(result)) {
 			done_lh(hint->ext_coord.lh);
 			break;
 		}
-
 		if (hint->ext_coord.valid == 0)
 			validate_extended_coord(&hint->ext_coord,
 						get_key_offset(&flow.key));
@@ -1755,10 +1758,10 @@ static ssize_t do_read_compound_file(hint_t *hint, struct file *file,
 
 		switch(item_plugin_by_coord(coord)->h.id) {
 		case EXTENT40_POINTER_ID:
-			result = read_extent_unix_file(file, &flow, hint);
+			result = read_extent_unix_file(&flow, hint, iocb, iter);
 			break;
 		case FORMATTING_ID:
-			result = read_tail_unix_file(file, &flow, hint);
+			result = read_tail_unix_file(&flow, hint, iocb, iter);
 			break;
 		default:
 			result = RETERR(-EINVAL);
@@ -1769,24 +1772,23 @@ static ssize_t do_read_compound_file(hint_t *hint, struct file *file,
 	return (count - flow.length) ? (count - flow.length) : result;
 }
 
-static ssize_t read_compound_file(struct file*, char __user*, size_t, loff_t*);
+static ssize_t read_compound_file(struct kiocb *iocb, struct iov_iter *iter);
 
 /**
  * unix-file specific ->read() method
  * of struct file_operations.
  */
-ssize_t read_unix_file(struct file *file, char __user *buf,
-		       size_t read_amount, loff_t *off)
+ssize_t read_unix_file(struct kiocb *iocb, struct iov_iter *iter)
 {
 	reiser4_context *ctx;
 	ssize_t result;
 	struct inode *inode;
 	struct unix_file_info *uf_info;
 
-	if (unlikely(read_amount == 0))
+	if (unlikely(iov_iter_count(iter) == 0))
 		return 0;
 
-	inode = file_inode(file);
+	inode = file_inode(iocb->ki_filp);
 	assert("vs-972", !reiser4_inode_get_flag(inode, REISER4_NO_SD));
 
 	ctx = reiser4_init_context(inode->i_sb);
@@ -1811,13 +1813,13 @@ ssize_t read_unix_file(struct file *file, char __user *buf,
 	switch (uf_info->container) {
 	case UF_CONTAINER_EXTENTS:
 		if (!reiser4_inode_get_flag(inode, REISER4_PART_MIXED)) {
-			result = new_sync_read(file, buf, read_amount, off);
+			result = generic_file_read_iter(iocb, iter);
 			break;
 		}
 		/* fall through */
 	case UF_CONTAINER_TAILS:
 	case UF_CONTAINER_UNKNOWN:
-		result = read_compound_file(file, buf, read_amount, off);
+		result = read_compound_file(iocb, iter);
 		break;
 	case UF_CONTAINER_EMPTY:
 		result = 0;
@@ -1844,72 +1846,39 @@ ssize_t read_unix_file(struct file *file, char __user *buf,
  * would be suboptimal. We use our own "light-weigth"
  * version below.
  */
-static ssize_t read_compound_file(struct file *file, char __user *buf,
-				  size_t count, loff_t *off)
+static ssize_t read_compound_file(struct kiocb *iocb, struct iov_iter *iter)
 {
 	ssize_t result = 0;
-	struct inode *inode;
+	struct inode *inode = file_inode(iocb->ki_filp);
+	loff_t i_size = i_size_read(inode);
+	loff_t off = iocb->ki_pos;
 	hint_t *hint;
-	struct unix_file_info *uf_info;
-	size_t to_read;
-	size_t was_read = 0;
-	loff_t i_size;
 
-	inode = file_inode(file);
 	assert("vs-972", !reiser4_inode_get_flag(inode, REISER4_NO_SD));
 
-	i_size = i_size_read(inode);
-	if (*off >= i_size)
+	if (off >= i_size)
 		/* position to read from is past the end of file */
-		goto exit;
-	if (*off + count > i_size)
-		count = i_size - *off;
+		return 0;
+	iov_iter_truncate(iter, i_size - off);
 
 	hint = kmalloc(sizeof(*hint), reiser4_ctx_gfp_mask_get());
 	if (hint == NULL)
 		return RETERR(-ENOMEM);
 
-	result = load_file_hint(file, hint);
+	result = load_file_hint(iocb->ki_filp, hint);
 	if (result) {
 		kfree(hint);
 		return result;
 	}
-	uf_info = unix_file_inode_data(inode);
+	result = do_read_compound_file(hint, iocb, iter);
 
-	/* read by page-aligned chunks */
-	to_read = PAGE_SIZE - (*off & (loff_t)(PAGE_SIZE - 1));
-	if (to_read > count)
-		to_read = count;
-	while (count > 0) {
-		reiser4_txn_restart_current();
-		/*
-		 * faultin user page
-		 */
-		result = fault_in_pages_writeable(buf, to_read);
-		if (result)
-			return RETERR(-EFAULT);
-
-		result = do_read_compound_file(hint, file, buf, to_read, off);
-		if (result < 0)
-			break;
-		count -= result;
-		buf += result;
-
-		/* update position in a file */
-		*off += result;
-		/* total number of read bytes */
-		was_read += result;
-		to_read = count;
-		if (to_read > PAGE_SIZE)
-			to_read = PAGE_SIZE;
-	}
 	done_lh(&hint->lh);
-	save_file_hint(file, hint);
+	save_file_hint(iocb->ki_filp, hint);
 	kfree(hint);
-	if (was_read)
-		file_accessed(file);
- exit:
-	return was_read ? was_read : result;
+	if (result > 0)
+		file_accessed(iocb->ki_filp);
+
+	return result;
 }
 
 /* This function takes care about @file's pages. First of all it checks if

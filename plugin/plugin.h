@@ -224,8 +224,7 @@ typedef struct file_plugin {
 	 */
 	/* do whatever is necessary to do when object is opened */
 	int (*open) (struct inode *inode, struct file *file);
-	ssize_t (*read) (struct file *, char __user *buf, size_t read_amount,
-			loff_t *off);
+	ssize_t (*read) (struct kiocb *iocb, struct iov_iter *iter);
 	/* write as much as possible bytes from nominated @write_amount
 	 * before plugin scheduling is occurred. Save scheduling state
 	 * in @cont */

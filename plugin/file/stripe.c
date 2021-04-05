@@ -269,18 +269,17 @@ int find_stripe_item(hint_t *hint, const reiser4_key *key,
 	return find_file_item_nohint(coord, lh, key, lock_mode, inode);
 }
 
-ssize_t read_stripe(struct file *file, char __user *buf,
-		    size_t read_amount, loff_t *off)
+ssize_t read_stripe(struct kiocb *iocb, struct iov_iter *iter)
 {
 	ssize_t result;
 	struct inode *inode;
 	reiser4_context *ctx;
 	struct unix_file_info *uf_info;
 
-	if (unlikely(read_amount == 0))
+	if (unlikely(iov_iter_count(iter) == 0))
 		return 0;
 
-	inode = file_inode(file);
+	inode = file_inode(iocb->ki_filp);
 	assert("edward-2029", !reiser4_inode_get_flag(inode, REISER4_NO_SD));
 
 	ctx = reiser4_init_context(inode->i_sb);
@@ -293,7 +292,7 @@ ssize_t read_stripe(struct file *file, char __user *buf,
 	uf_info = unix_file_inode_data(inode);
 
 	get_nonexclusive_access(uf_info);
-	result = new_sync_read(file, buf, read_amount, off);
+	result = generic_file_read_iter(iocb, iter);
 	drop_nonexclusive_access(uf_info);
  out:
 	context_set_commit_async(ctx);

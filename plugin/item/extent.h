@@ -144,8 +144,8 @@ ssize_t write_extent_unix_file(struct file *, struct inode * inode,
 ssize_t write_extent_stripe(struct file *, struct inode * inode,
 			    const char __user *, size_t, loff_t *,
 			    unsigned flags);
-int read_extent_unix_file(struct file *, flow_t *, hint_t *);
-int read_extent_stripe(struct file *, flow_t *, hint_t *);
+int read_extent_unix_file(flow_t *, hint_t *, struct kiocb *, struct iov_iter *);
+int read_extent_stripe(flow_t *, hint_t *, struct kiocb *, struct iov_iter *);
 int readpage_extent_stripe(void *, struct page *);
 int reiser4_readpage_extent(void *, struct page *);
 int __reiser4_readpage_extent(const coord_t *coord, reiser4_extent *,

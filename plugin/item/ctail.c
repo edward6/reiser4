@@ -538,7 +538,8 @@ kill_units_ctail(coord_t * item, pos_in_node_t from, pos_in_node_t to,
 }
 
 /* plugin->u.item.s.file.read */
-int read_ctail(struct file *file UNUSED_ARG, flow_t * f, hint_t * hint)
+int read_ctail(flow_t * f, hint_t * hint,
+	       struct kiocb *iocb, struct iov_iter *iter)
 {
 	uf_coord_t *uf_coord;
 	coord_t *coord;

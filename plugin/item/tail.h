@@ -38,7 +38,7 @@ ssize_t write_tail_noreserve(struct file *file, struct inode * inode,
 			     loff_t *pos);
 ssize_t write_tail_unix_file(struct file *file, struct inode * inode,
 			     const char __user *buf, size_t count, loff_t *pos);
-int read_tail_unix_file(struct file *, flow_t *, hint_t *);
+int read_tail_unix_file(flow_t *, hint_t *, struct kiocb *, struct iov_iter *);
 int readpage_tail_unix_file(void *vp, struct page *page);
 reiser4_key *append_key_tail(const coord_t *, reiser4_key *);
 void init_coord_extension_tail(uf_coord_t *, loff_t offset);
