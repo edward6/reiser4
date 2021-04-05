@@ -125,9 +125,8 @@ static struct inode_operations regular_file_i_ops = {
 };
 static struct file_operations regular_file_f_ops = {
 	.llseek = generic_file_llseek,
-	.read = reiser4_read_dispatch,
+	.read_iter = reiser4_read_dispatch,
 	.write = reiser4_write_dispatch,
-	.read_iter = generic_file_read_iter,
 	.unlocked_ioctl = reiser4_ioctl_dispatch,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl = reiser4_ioctl_dispatch,

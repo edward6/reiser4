@@ -235,7 +235,7 @@ struct dir_entry_iops {
 struct file_iops{
 	ssize_t (*write) (struct file *, struct inode *,
 			  const char __user *, size_t, loff_t *pos);
-	int (*read) (struct file *, flow_t *, hint_t *);
+	int (*read) (flow_t *, hint_t *, struct kiocb *, struct iov_iter *);
 	int (*readpage) (void *, struct page *);
 	int (*get_block) (const coord_t *, sector_t, sector_t *);
 	/*

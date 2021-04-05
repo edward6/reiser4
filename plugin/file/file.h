@@ -31,8 +31,7 @@ int reiser4_setattr_dispatch(struct user_namespace *mnt_userns,
 			     struct dentry *, struct iattr *);
 
 /* file operations */
-ssize_t reiser4_read_dispatch(struct file *, char __user *buf,
-			      size_t count, loff_t *off);
+ssize_t reiser4_read_dispatch(struct kiocb *iocb, struct iov_iter *iter);
 ssize_t reiser4_write_dispatch(struct file *, const char __user *buf,
 			       size_t count, loff_t * off);
 long reiser4_ioctl_dispatch(struct file *filp, unsigned int cmd,
@@ -69,8 +68,7 @@ int setattr_unix_file(struct dentry *, struct iattr *);
 
 /* private file operations */
 
-ssize_t read_unix_file(struct file *, char __user *buf, size_t read_amount,
-		       loff_t *off);
+ssize_t read_unix_file(struct kiocb *iocb, struct iov_iter *iter);
 ssize_t write_unix_file(struct file *, const char __user *buf, size_t write_amount,
 			loff_t * off, struct dispatch_context * cont);
 int ioctl_unix_file(struct file *, unsigned int cmd, unsigned long arg);
@@ -106,8 +104,7 @@ void init_inode_data_unix_file(struct inode *, reiser4_object_create_data *,
 int setattr_cryptcompress(struct dentry *, struct iattr *);
 
 /* private file operations */
-ssize_t read_cryptcompress(struct file *, char __user *buf,
-			   size_t count, loff_t *off);
+ssize_t read_cryptcompress(struct kiocb *iocb, struct iov_iter *iter);
 ssize_t write_cryptcompress(struct file *, const char __user *buf,
 			    size_t count, loff_t * off,
 			    struct dispatch_context *cont);

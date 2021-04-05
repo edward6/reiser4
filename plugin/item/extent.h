@@ -133,7 +133,7 @@ int reiser4_check_extent(const coord_t * coord, const char **error);
 /* plugin->u.item.s.file.* */
 ssize_t reiser4_write_extent(struct file *, struct inode * inode,
 			     const char __user *, size_t, loff_t *);
-int reiser4_read_extent(struct file *, flow_t *, hint_t *);
+int reiser4_read_extent(flow_t *, hint_t *, struct kiocb *, struct iov_iter *);
 int reiser4_readpage_extent(void *, struct page *);
 int reiser4_do_readpage_extent(reiser4_extent*, reiser4_block_nr, struct page*);
 reiser4_key *append_key_extent(const coord_t *, reiser4_key *);

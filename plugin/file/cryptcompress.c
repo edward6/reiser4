@@ -2247,7 +2247,7 @@ int find_disk_cluster(struct cluster_handle * clust,
 			       item_id_by_coord(&hint->ext_coord.coord) ==
 			       CTAIL_ID);
 
-			result = iplug->s.file.read(NULL, &f, hint);
+			result = iplug->s.file.read(&f, hint, NULL, NULL);
 			if (result) {
 				zrelse(hint->ext_coord.coord.node);
 				goto out;
@@ -2976,14 +2976,9 @@ static reiser4_block_nr cryptcompress_estimate_read(struct inode *inode)
 }
 
 /**
- * plugin->read
- * @file: file to read from
- * @buf: address of user-space buffer
- * @read_amount: number of bytes to read
- * @off: position in file to read from
+ * plugin->read()
  */
-ssize_t read_cryptcompress(struct file * file, char __user *buf, size_t size,
-			   loff_t * off)
+ssize_t read_cryptcompress(struct kiocb *iocb, struct iov_iter *iter)
 {
 	ssize_t result;
 	struct inode *inode;
@@ -2991,7 +2986,7 @@ ssize_t read_cryptcompress(struct file * file, char __user *buf, size_t size,
 	struct cryptcompress_info *info;
 	reiser4_block_nr needed;
 
-	inode = file_inode(file);
+	inode = file_inode(iocb->ki_filp);
 	assert("edward-1194", !reiser4_inode_get_flag(inode, REISER4_NO_SD));
 
 	ctx = reiser4_init_context(inode->i_sb);
@@ -3006,7 +3001,7 @@ ssize_t read_cryptcompress(struct file * file, char __user *buf, size_t size,
 		reiser4_exit_context(ctx);
 		return result;
 	}
-	result = new_sync_read(file, buf, size, off);
+	result = generic_file_read_iter(iocb, iter);
 
 	context_set_commit_async(ctx);
 	reiser4_exit_context(ctx);

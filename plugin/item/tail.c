@@ -716,19 +716,21 @@ coord_matches_key_tail(const coord_t * coord, const reiser4_key * key)
 
 #endif
 
-/* plugin->u.item.s.file.read */
-int reiser4_read_tail(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
+/**
+ * plugin->u.item.s.file.read
+ */
+int reiser4_read_tail(flow_t *f, hint_t *hint,
+		      struct kiocb *iocb, struct iov_iter *iter)
 {
-	unsigned count;
+	size_t from_item, copied;
+	uf_coord_t *uf_coord;
 	int item_length;
 	coord_t *coord;
-	uf_coord_t *uf_coord;
 
 	uf_coord = &hint->ext_coord;
 	coord = &uf_coord->coord;
 
 	assert("vs-571", f->user == 1);
-	assert("vs-571", f->data);
 	assert("vs-967", coord && coord->node);
 	assert("vs-1117", znode_is_rlocked(coord->node));
 	assert("vs-1118", znode_is_loaded(coord->node));
@@ -736,25 +738,22 @@ int reiser4_read_tail(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
 	assert("nikita-3037", reiser4_schedulable());
 	assert("vs-1357", coord_matches_key_tail(coord, &f->key));
 
-	/* calculate number of bytes to read off the item */
+	/* how many bytes can we copy out from this item */
 	item_length = item_length_by_coord(coord);
-	count = item_length_by_coord(coord) - coord->unit_pos;
-	if (count > f->length)
-		count = f->length;
+	from_item = item_length_by_coord(coord) - coord->unit_pos;
+	if (from_item > iov_iter_count(iter))
+		from_item = iov_iter_count(iter);
 
-	/* user page has to be brought in so that major page fault does not
-	 * occur here when longtem lock is held */
-	if (__copy_to_user((char __user *)f->data,
-			   ((char *)item_body_by_coord(coord) + coord->unit_pos),
-			   count))
-		return RETERR(-EFAULT);
+	copied = copy_to_iter((char *)item_body_by_coord(coord) +
+			      coord->unit_pos, from_item, iter);
+	iocb->ki_pos += copied;
 
 	/* probably mark_page_accessed() should only be called if
 	 * coord->unit_pos is zero. */
 	mark_page_accessed(znode_page(coord->node));
-	move_flow_forward(f, count);
+	move_flow_forward(f, copied);
 
-	coord->unit_pos += count;
+	coord->unit_pos += copied;
 	if (item_length == coord->unit_pos) {
 		coord->unit_pos--;
 		coord->between = AFTER_UNIT;

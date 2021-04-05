@@ -74,7 +74,7 @@ int ctail_ok(const coord_t * coord);
 int check_ctail(const coord_t * coord, const char **error);
 
 /* plugin->u.item.s.* */
-int read_ctail(struct file *, flow_t *, hint_t *);
+int read_ctail(flow_t *, hint_t *, struct kiocb *, struct iov_iter *);
 int readpage_ctail(void *, struct page *);
 int readpages_ctail(struct file *, struct address_space *, struct list_head *);
 reiser4_key *append_key_ctail(const coord_t *, reiser4_key *);

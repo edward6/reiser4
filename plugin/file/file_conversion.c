@@ -629,11 +629,10 @@ int reiser4_open_dispatch(struct inode *inode, struct file *file)
 	return PROT_PASSIVE(int, open, (inode, file));
 }
 
-ssize_t reiser4_read_dispatch(struct file * file, char __user * buf,
-			      size_t size, loff_t * off)
+ssize_t reiser4_read_dispatch(struct kiocb *iocb, struct iov_iter *iter)
 {
-	struct inode * inode = file_inode(file);
-	return PROT_PASSIVE(ssize_t, read, (file, buf, size, off));
+	struct inode * inode = file_inode(iocb->ki_filp);
+	return PROT_PASSIVE(ssize_t, read, (iocb, iter));
 }
 
 long reiser4_ioctl_dispatch(struct file *filp, unsigned int cmd,

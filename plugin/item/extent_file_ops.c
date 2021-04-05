@@ -1186,21 +1186,18 @@ int reiser4_do_readpage_extent(reiser4_extent * ext, reiser4_block_nr pos,
 	return 0;
 }
 
-/* Implements plugin->u.item.s.file.read operation for extent items. */
-int reiser4_read_extent(struct file *file, flow_t *flow, hint_t *hint)
+/**
+ * plugin->u.item.s.file.read
+ */
+int reiser4_read_extent(flow_t *flow, hint_t *hint,
+			struct kiocb *iocb, struct iov_iter *iter)
 {
-	int result;
-	struct page *page;
-	unsigned long page_idx;
-	unsigned long page_off; /* offset within the page to start read from */
-	unsigned long page_cnt; /* bytes which can be read from the page which
-				   contains file_off */
-	struct address_space *mapping;
-	loff_t file_off; /* offset in a file to start read from */
 	uf_coord_t *uf_coord;
 	coord_t *coord;
-	struct extent_coord_extension *ext_coord;
-	char *kaddr;
+	loff_t from_extent;
+	reiser4_key ikey;
+	ssize_t read;
+	size_t wanted;
 
 	assert("vs-1353", current_blocksize == PAGE_SIZE);
 	assert("vs-572", flow->user == 1);
@@ -1215,80 +1212,35 @@ int reiser4_read_extent(struct file *file, flow_t *flow, hint_t *hint)
 	assert("vs-1119", znode_is_rlocked(coord->node));
 	assert("vs-1120", znode_is_loaded(coord->node));
 	assert("vs-1256", coord_matches_key_extent(coord, &flow->key));
-
-	mapping = file_inode(file)->i_mapping;
-	ext_coord = &uf_coord->extension.extent;
-
-	file_off = get_key_offset(&flow->key);
-	page_off = (unsigned long)(file_off & (PAGE_SIZE - 1));
-	page_cnt = PAGE_SIZE - page_off;
-
-	page_idx = (unsigned long)(file_off >> PAGE_SHIFT);
-
-	/* we start having twig node read locked. However, we do not want to
-	   keep that lock all the time readahead works. So, set a seal and
-	   release twig node. */
+	assert("edward-22",
+	       get_key_offset(item_key_by_coord(coord, &ikey)) +
+	       reiser4_extent_size(coord, nr_units_extent(coord)) >
+	       get_key_offset(&flow->key));
+	/*
+	 * how many bytes can we copy out from this extent
+	 */
+	from_extent = get_key_offset(item_key_by_coord(coord, &ikey)) +
+		reiser4_extent_size(coord, nr_units_extent(coord)) -
+		get_key_offset(&flow->key);
+	/*
+	 * set a seal and release twig node
+	 */
 	reiser4_set_hint(hint, &flow->key, ZNODE_READ_LOCK);
-	/* &hint->lh is done-ed */
+	/* &hint->lh is done */
 
-	do {
-		reiser4_txn_restart_current();
-		page = read_mapping_page(mapping, page_idx, file);
-		if (IS_ERR(page))
-			return PTR_ERR(page);
-		lock_page(page);
-		if (!PageUptodate(page)) {
-			unlock_page(page);
-			put_page(page);
-			warning("jmacd-97178",
-				"extent_read: page is not up to date");
-			return RETERR(-EIO);
-		}
-		mark_page_accessed(page);
-		unlock_page(page);
+	wanted = iov_iter_count(iter);
+	iov_iter_truncate(iter, from_extent);
+	/*
+	 * read not more than @from_extent bytes from this extent
+	 */
+	read = generic_file_read_iter(iocb, iter);
+	if (read > 0)
+		wanted -= read;
+	iov_iter_reexpand(iter, wanted);
 
-		/* If users can be writing to this page using arbitrary virtual
-		   addresses, take care about potential aliasing before reading
-		   the page on the kernel side.
-		 */
-		if (mapping_writably_mapped(mapping))
-			flush_dcache_page(page);
-
-		assert("nikita-3034", reiser4_schedulable());
-
-		/* number of bytes which are to be read from the page */
-		if (page_cnt > flow->length)
-			page_cnt = flow->length;
-
-		result = fault_in_pages_writeable(flow->data, page_cnt);
-		if (result) {
-			put_page(page);
-			return RETERR(-EFAULT);
-		}
-
-		kaddr = kmap_atomic(page);
-		result = __copy_to_user_inatomic(flow->data,
-						 kaddr + page_off, page_cnt);
-		kunmap_atomic(kaddr);
-		if (result != 0) {
-			kaddr = kmap(page);
-			result = __copy_to_user(flow->data,
-						kaddr + page_off, page_cnt);
-			kunmap(page);
-			if (unlikely(result))
-				return RETERR(-EFAULT);
-		}
-		put_page(page);
-
-		/* increase (flow->key) offset,
-		 * update (flow->data) user area pointer
-		 */
-		move_flow_forward(flow, page_cnt);
-
-		page_off = 0;
-		page_idx++;
-
-	} while (flow->length);
+	if (read <= 0)
+		return read;
+	move_flow_forward(flow, read);
 	return 0;
 }
 
