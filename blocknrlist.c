@@ -112,7 +112,8 @@ static int blocknr_list_entry_merge_entry(blocknr_list_entry *to,
  * ordering is to be preserved, @cmp must return 0."
  */
 static int blocknr_list_entry_compare(void* priv UNUSED_ARG,
-                                      struct list_head *a, struct list_head *b)
+				      const struct list_head *a,
+				      const struct list_head *b)
 {
 	blocknr_list_entry *entry_a, *entry_b;
 	reiser4_block_nr entry_a_end, entry_b_end;
