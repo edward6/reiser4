@@ -116,6 +116,13 @@ static struct inode_operations regular_file_i_ops = {
 	.setattr = reiser4_setattr_dispatch,
 	.getattr = reiser4_getattr_common
 };
+
+static struct inode_operations striped_file_i_ops = {
+	.permission = reiser4_permission_common,
+	.setattr = setattr_stripe,
+	.getattr = reiser4_getattr_common
+};
+
 static struct file_operations regular_file_f_ops = {
 	.llseek = generic_file_llseek,
 	.read_iter = reiser4_read_dispatch,
@@ -130,6 +137,22 @@ static struct file_operations regular_file_f_ops = {
 	.fsync = reiser4_sync_file_common,
 	.splice_read = generic_file_splice_read,
 };
+
+static struct file_operations striped_file_f_ops = {
+	.llseek = generic_file_llseek,
+	.read_iter = read_iter_stripe,
+	.write_iter = write_iter_stripe,
+	.unlocked_ioctl = ioctl_stripe,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = ioctl_stripe,
+#endif
+	.mmap = mmap_cryptcompress,
+	.open = open_stripe,
+	.release = release_stripe,
+	.fsync = reiser4_sync_file_common,
+	.splice_read = generic_file_splice_read,
+};
+
 static struct address_space_operations regular_file_a_ops = {
 	.writepage = reiser4_writepage,
 	.readpage = reiser4_readpage_dispatch,
@@ -140,6 +163,21 @@ static struct address_space_operations regular_file_a_ops = {
 	.write_begin = reiser4_write_begin_dispatch,
 	.write_end = reiser4_write_end_dispatch,
 	.bmap = reiser4_bmap_dispatch,
+	.invalidatepage = reiser4_invalidatepage,
+	.releasepage = reiser4_releasepage,
+	.migratepage = reiser4_migratepage,
+	.batch_lock_tabu = 1
+};
+
+static struct address_space_operations striped_file_a_ops = {
+	.writepage = reiser4_writepage,
+	.readpage = readpage_stripe,
+	.writepages = writepages_stripe,
+	.set_page_dirty = reiser4_set_page_dirty,
+	.readpages = readpages_stripe,
+	.write_begin = write_begin_stripe,
+	.write_end = write_end_stripe,
+	.bmap = bmap_unix_file,
 	.invalidatepage = reiser4_invalidatepage,
 	.releasepage = reiser4_releasepage,
 	.migratepage = reiser4_migratepage,
@@ -465,35 +503,17 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.linkage = {NULL, NULL},
 		},
 		/*
-		 * invariant vfs ops
+		 * vfs ops
 		 */
-		.inode_ops = &regular_file_i_ops,
-		.file_ops = &regular_file_f_ops,
-		.as_ops = &regular_file_a_ops,
+		.inode_ops = &striped_file_i_ops,
+		.file_ops = &striped_file_f_ops,
+		.as_ops = &striped_file_a_ops,
 		/*
-		 * private i_ops
-		 */
-		.setattr = setattr_stripe,
-		.open = open_stripe,
-		.read = read_stripe,
-		.write = write_stripe,
-		.ioctl = ioctl_stripe,
-		.mmap = mmap_cryptcompress,
-		.release = release_stripe,
-		/*
-		 * private f_ops
-		 */
-		.readpage = readpage_stripe,
-		.readpages = readpages_stripe,
-		.writepages = writepages_stripe,
-		.write_begin = write_begin_stripe,
-		.write_end = write_end_stripe,
-		/*
-		 * private a_ops
-		 */
-		.bmap = bmap_unix_file,
-		/*
-		 * other private methods
+		 * no private i_ops
+		 * no private f_ops
+		 * no private a_ops
+		 *
+		 * other private methods:
 		 */
 		.write_sd_by_inode = write_sd_by_inode_common,
 		.build_body_key = build_body_key_stripe,

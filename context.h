@@ -117,6 +117,7 @@ struct reiser4_context {
 #endif
 	void *vp;
 	gfp_t gfp_mask;
+	struct hint *hint;
 };
 
 extern reiser4_context *get_context_by_lock_stack(lock_stack *);

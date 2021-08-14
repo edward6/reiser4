@@ -134,7 +134,7 @@ static int hint_validate(hint_t *hint, reiser4_tree *tree,
 
 /**
  * Search-by-key procedure optimized for sequential operations
- * by using "sealing" technique.
+ * by using "sealing" technique. Subtle!
  *
  * @key: key of a block pointer we are looking for. That key is
  * not precise, that is we don't know its "ordering" component.
@@ -161,16 +161,19 @@ int find_stripe_item(hint_t *hint, const reiser4_key *key,
 
 	ret = hint_validate(hint, meta_subvol_tree(), key, lock_mode);
 	if (ret)
+		/*  improper, or broken seal */
 		goto nohint;
-	/*
-	 * we always seal only valid coord of existing block pointer
-	 */
 	assert("edward-2385",
 	       WITH_DATA(coord->node, coord_is_existing_unit(coord)));
+	/*
+	 * We sealed valid coord extension, which represents
+	 * existing block pointer. Respectively, if the seal
+	 * is unbroken, then it remains to be valid
+	 */
 	hint->ext_coord.valid = 1;
 	ext_coord = &hint->ext_coord.extension.extent;
 
-	/* fast lookup in the sealed coord locality */
+	/* fast lookup against the sealed coord extension */
 
 	ext_coord->pos_in_unit ++;
 	if (ext_coord->pos_in_unit < ext_coord->width)
@@ -269,7 +272,7 @@ int find_stripe_item(hint_t *hint, const reiser4_key *key,
 	return find_file_item_nohint(coord, lh, key, lock_mode, inode);
 }
 
-ssize_t read_stripe(struct kiocb *iocb, struct iov_iter *iter)
+ssize_t read_iter_stripe(struct kiocb *iocb, struct iov_iter *iter)
 {
 	ssize_t result;
 	struct inode *inode;
@@ -349,6 +352,7 @@ static inline ssize_t write_extent_stripe_handle_enospc(struct file *file,
 	return ret;
 }
 
+#if 0
 ssize_t write_stripe(struct file *file,
 		     const char __user *buf,
 		     size_t count, loff_t *pos,
@@ -435,6 +439,39 @@ ssize_t write_stripe(struct file *file,
 	 */
 	return (count - left) ? (count - left) : ret;
 }
+#endif
+
+ssize_t write_iter_stripe(struct kiocb *iocb, struct iov_iter *from)
+{
+	ssize_t ret;
+	struct hint hint;
+	struct inode *inode = file_inode(iocb->ki_filp);
+	reiser4_context *ctx;
+
+	ctx = reiser4_init_context(inode->i_sb);
+	if (IS_ERR(ctx))
+		return PTR_ERR(ctx);
+	/*
+	 * reserve space on meta-data brick for stat-data update (mtime/ctime)
+	 */
+	ret = reiser4_grab_space_force(estimate_update_common(inode),
+				       BA_CAN_COMMIT, get_meta_subvol());
+	if (ret)
+		goto out;
+
+	ret = load_file_hint(iocb->ki_filp, &hint);
+	if (ret)
+		return ret;
+	ctx->hint = &hint;
+
+	ret = generic_file_write_iter(iocb, from);
+	if (ret > 0)
+		save_file_hint(iocb->ki_filp, &hint);
+ out:
+	context_set_commit_async(ctx);
+	reiser4_exit_context(ctx);
+	return ret;
+}
 
 static inline int readpages_filler_stripe(void *data, struct page *page)
 {
@@ -486,14 +523,7 @@ int readpage_stripe(struct file *file, struct page *page)
 		reiser4_exit_context(ctx);
 		return RETERR(-ENOMEM);
 	}
-
-	result = load_file_hint(file, hint);
-	if (result) {
-		kfree(hint);
-		unlock_page(page);
-		reiser4_exit_context(ctx);
-		return result;
-	}
+	hint_init_zero(hint);
 	lh = &hint->lh;
 	/*
 	 * construct key of the page's first byte
@@ -558,20 +588,11 @@ int readpage_stripe(struct file *file, struct page *page)
 		result = __reiser4_readpage_extent(NULL, NULL, 0, page);
 		assert("edward-2033", result == 0);
 	}
-	if (result) {
+	if (result)
 		unlock_page(page);
-		reiser4_unset_hint(hint);
-	} else {
-		build_body_key_stripe(inode,
-				      (loff_t)(page->index + 1) << PAGE_SHIFT,
-				      &key);
-		/* FIXME should call reiser4_set_hint() */
-		reiser4_unset_hint(hint);
-	}
+
 	assert("edward-2034",
 	       ergo(result == 0, (PageLocked(page) || PageUptodate(page))));
-	assert("edward-2035",
-	       ergo(result != 0, !PageLocked(page)));
 	zrelse(coord->node);
 	done_lh(lh);
 
@@ -792,6 +813,7 @@ static int shorten_stripe(struct inode *inode, loff_t new_size)
 	int result;
 	struct page *page;
 	int padd_from;
+	struct hint hint;
 	unsigned long index;
 	reiser4_key smallest_removed;
 
@@ -876,7 +898,8 @@ static int shorten_stripe(struct inode *inode, loff_t new_size)
 	zero_user_segment(page, padd_from, PAGE_SIZE);
 	unlock_page(page);
 
-	result = find_or_create_extent_stripe(page, UPX_TRUNCATE);
+	hint_init_zero(&hint);
+	result = find_or_create_extent_stripe(page, &hint, UPX_TRUNCATE);
 
 	reiser4_release_reserved(inode->i_sb);
 	put_page(page);
@@ -896,7 +919,8 @@ static int truncate_body_stripe(struct inode *inode, struct iattr *attr)
 	return 0;
 }
 
-int setattr_stripe(struct dentry *dentry, struct iattr *attr)
+int setattr_stripe(struct user_namespace *mnt_userns,
+		   struct dentry *dentry, struct iattr *attr)
 {
 	return reiser4_setattr_generic(dentry, attr, truncate_body_stripe);
 }
@@ -970,6 +994,7 @@ static int capture_anon_page(struct page *page)
 {
 	int ret;
 	struct inode *inode;
+	struct hint hint;
 
 	if (PageWriteback(page))
 		/*
@@ -990,10 +1015,12 @@ static int capture_anon_page(struct page *page)
 				 get_meta_subvol() /* where */);
 	if (ret)
 		return ret;
-	ret = find_or_create_extent_stripe(page, 0);
+
+	hint_init_zero(&hint);
+	ret = find_or_create_extent_stripe(page, &hint, 0);
 	if (ret == -ENOSPC &&
 	    reiser4_is_set(reiser4_get_current_sb(), REISER4_PROXY_IO))
-		ret = find_or_create_extent_stripe(page, UPX_PROXY_FULL);
+		ret = find_or_create_extent_stripe(page, &hint, UPX_PROXY_FULL);
 	if (ret) {
 		SetPageError(page);
 		warning("edward-2046",
@@ -1100,7 +1127,7 @@ int writepages_stripe(struct address_space *mapping,
 					  commit_stripe_atoms);
 }
 
-int ioctl_stripe(struct file *filp, unsigned int cmd,  unsigned long arg)
+long int ioctl_stripe(struct file *filp, unsigned int cmd,  unsigned long arg)
 {
 	return reiser4_ioctl_volume(filp, cmd, arg, reiser4_volume_op_file);
 }
@@ -1109,27 +1136,42 @@ int ioctl_stripe(struct file *filp, unsigned int cmd,  unsigned long arg)
  * implementation of ->write_begin() address space operation
  * for striped-file plugin
  */
-int write_begin_stripe(struct file *file, struct page *page,
-		       loff_t pos, unsigned len, void **fsdata)
+int write_begin_stripe(struct file *file,
+		       struct address_space *mapping,
+		       loff_t pos,
+		       unsigned len,
+		       unsigned flags,
+		       struct page **pagep,
+		       void **fsdata)
 {
 	int ret;
+
+	assert("edward-2479", is_in_reiser4_context());
+
+	*pagep = grab_cache_page_write_begin(mapping, pos >> PAGE_SHIFT,
+					     flags & AOP_FLAG_NOFS);
+	if (!*pagep)
+		return -ENOMEM;
 	/*
-	 * Reserve space on meta-data brick.
-	 * In particular, it is needed to "drill" the leaf level
-	 * by search procedure.
+	 * Reserve space on meta-data brick for stat-data update (file size)
+	 * and for "drilling" the leaf level by search procedure
+	 *
+	 * FIXME: striped file plugin doesn't drill the leaf level?
 	 */
 	grab_space_enable();
-	ret = reiser4_grab_space(estimate_write_stripe_meta(1),
-				 0, /* flags */
-				 get_meta_subvol() /* where */);
+	ret = reiser4_grab_space(estimate_update_common(file_inode(file)) +
+				 estimate_write_stripe_meta(1),
+				 BA_CAN_COMMIT,
+				 get_meta_subvol());
 	if (ret)
-		return ret;
+		return RETERR(ret);
 
-	get_nonexclusive_access(unix_file_inode_data(file_inode(file)));
-	ret = reiser4_write_begin_common(file, page, pos, len,
+	ret = reiser4_write_begin_common(file, *pagep, pos, len,
 					 readpage_stripe);
-	if (unlikely(ret != 0))
-		drop_nonexclusive_access(unix_file_inode_data(file_inode(file)));
+	if (unlikely(ret)) {
+		unlock_page(*pagep);
+		put_page(*pagep);
+	}
 	return ret;
 }
 
@@ -1137,24 +1179,52 @@ int write_begin_stripe(struct file *file, struct page *page,
  * Implementation of ->write_end() address space operation
  * for striped-file plugin
  */
-int write_end_stripe(struct file *file, struct page *page,
-		     loff_t pos, unsigned copied, void *fsdata)
+int write_end_stripe(struct file *file,
+		     struct address_space *mapping,
+		     loff_t pos,
+		     unsigned len,
+		     unsigned copied,
+		     struct page *page,
+		     void *fsdata)
 {
 	int ret;
-	struct inode *inode;
-	struct unix_file_info *info;
+	struct inode *inode = file_inode(file);
+	struct unix_file_info *info = unix_file_inode_data(inode);
+	reiser4_context *ctx = get_current_context();
+	struct hint *hint = ctx->hint;
 
-	inode = file_inode(file);
-	info = unix_file_inode_data(inode);
-
+	SetPageUptodate(page);
+	set_page_dirty_notag(page);
 	unlock_page(page);
-	ret = find_or_create_extent_stripe(page, 0);
-	if (ret == -ENOSPC && reiser4_is_set(reiser4_get_current_sb(),
-					     REISER4_PROXY_IO))
-		ret = find_or_create_extent_stripe(page, UPX_PROXY_FULL);
+
+	reiser4_txn_restart(ctx);
+	get_nonexclusive_access(info);
+	ret = find_or_create_extent_stripe(page, hint, 0);
+	drop_nonexclusive_access(info);
+	if (ret == -ENOSPC) {
+		txnmgr_force_commit_all(inode->i_sb, 0);
+		get_nonexclusive_access(info);
+		ret = find_or_create_extent_stripe(page, hint, 0);
+		if (ret == -ENOSPC && reiser4_is_set(reiser4_get_current_sb(),
+						     REISER4_PROXY_IO)) {
+			/*
+			 * proxy disk is full, write to permanent location
+			 */
+			ret = find_or_create_extent_stripe(page, hint,
+							   UPX_PROXY_FULL);
+			if (ret == -ENOSPC) {
+				drop_nonexclusive_access(info);
+				txnmgr_force_commit_all(inode->i_sb, 0);
+				get_nonexclusive_access(info);
+				ret = find_or_create_extent_stripe(page, hint,
+							      UPX_PROXY_FULL);
+			}
+		}
+		drop_nonexclusive_access(info);
+	}
 	if (ret) {
 		SetPageError(page);
-		goto exit;
+		goto out;
 	}
 	if (pos + copied > inode->i_size) {
 		INODE_SET_FIELD(inode, i_size, pos + copied);
@@ -1164,9 +1234,9 @@ int write_end_stripe(struct file *file, struct page *page,
 				"Can not update stat-data: %i. FSCK?",
 				ret);
 	}
- exit:
-	drop_nonexclusive_access(unix_file_inode_data(file_inode(file)));
-	return ret;
+ out:
+	put_page(page);
+	return ret == 0 ? copied : ret;
 }
 
 /**

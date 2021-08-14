@@ -166,25 +166,35 @@ void init_inode_data_stripe(struct inode *, reiser4_object_create_data *,
 			    const reiser4_key *sd_key, int create);
 int open_stripe(struct inode *, struct file *);
 int release_stripe(struct inode *inode, struct file *file);
-ssize_t read_stripe(struct kiocb *iocb, struct iov_iter *iter);
-ssize_t write_stripe(struct file *file, const char __user *buf, size_t count,
-		     loff_t *pos, struct dispatch_context *cont);
+ssize_t read_iter_stripe(struct kiocb *iocb, struct iov_iter *iter);
+ssize_t write_iter_stripe(struct kiocb *iocb, struct iov_iter *from);
 int readpages_stripe(struct file *file, struct address_space *mapping,
 		     struct list_head *pages, unsigned nr_pages);
 int readpage_stripe(struct file *file, struct page *page);
 int writepages_stripe(struct address_space *, struct writeback_control *);
-int setattr_stripe(struct dentry *, struct iattr *);
+int setattr_stripe(struct user_namespace *mnt_userns,
+		   struct dentry *, struct iattr *);
 int delete_object_stripe(struct inode *);
 int cut_tree_worker_stripe(tap_t *, const reiser4_key * from_key,
 			   const reiser4_key * to_key,
 			   reiser4_key * smallest_removed,
 			   struct inode *object, int truncate,
 			   int *progress);
-int write_begin_stripe(struct file *file, struct page *page,
-		       loff_t pos, unsigned len, void **fsdata);
-int write_end_stripe(struct file *file, struct page *page,
-		     loff_t pos, unsigned copied, void *fsdata);
-int ioctl_stripe(struct file *filp, unsigned int cmd, unsigned long arg);
+int write_begin_stripe(struct file *file,
+		       struct address_space *mapping,
+		       loff_t pos,
+		       unsigned len,
+		       unsigned flags,
+		       struct page **pagep,
+		       void **fsdata);
+int write_end_stripe(struct file *file,
+		     struct address_space *mapping,
+		     loff_t pos,
+		     unsigned len,
+		     unsigned copied,
+		     struct page *page,
+		     void *fsdata);
+long int ioctl_stripe(struct file *filp, unsigned int cmd, unsigned long arg);
 int migrate_stripe(struct inode *object, u64 *dst_id);
 
 /*
@@ -267,7 +277,9 @@ void save_file_hint(struct file *, const hint_t *);
 struct uf_coord {
 	coord_t coord;
 	lock_handle *lh;
-	int valid;
+	int valid; /* If true, it means that the extension is valid.
+		      That is, if we called init_coord_extension(),
+		      it would result in the same extension */
 	union {
 		struct extent_coord_extension extent;
 		struct tail_coord_extension tail;
@@ -341,7 +353,8 @@ int tail2extent(struct unix_file_info *);
 int extent2tail(struct file *, struct unix_file_info *);
 
 int goto_right_neighbor(coord_t *, lock_handle *);
-int find_or_create_extent_stripe(struct page *page, unsigned flags);
+int find_or_create_extent_stripe(struct page *page, struct hint *hint,
+				 unsigned flags);
 int find_or_create_extent_unix_file(struct page *);
 int reiser4_setattr_generic(struct dentry *dentry, struct iattr *attr,
 			    int (*truncate_file_body_fn)(struct inode *,
