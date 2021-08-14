@@ -141,9 +141,6 @@ int reiser4_check_extent(const coord_t * coord, const char **error);
 /* plugin->u.item.s.file */
 ssize_t write_extent_unix_file(struct file *, struct inode * inode,
 			       const char __user *, size_t, loff_t *);
-ssize_t write_extent_stripe(struct file *, struct inode * inode,
-			    const char __user *, size_t, loff_t *,
-			    unsigned flags);
 int read_extent_unix_file(flow_t *, hint_t *, struct kiocb *, struct iov_iter *);
 int read_extent_stripe(flow_t *, hint_t *, struct kiocb *, struct iov_iter *);
 int readpage_extent_stripe(void *, struct page *);
