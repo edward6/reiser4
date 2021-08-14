@@ -88,19 +88,19 @@ static inline int can_push_right(const coord_t *coord, const reiser4_key *key)
 }
 
 /**
- * Place a pointer to one unallocated physical block to the storage tree
+ * Put a pointer to file's logical block to the storage tree
  *
- * @key: key of the pointer to push
- * @uf_coord: location to push (was found by coord_by_key())
+ * @key: key of the pointer
+ * @uf_coord: location of the pointer (was found by coord_by_key())
  *
- * Pre-condition: the logical block is not yet represented by any pointer
- * in the storage tree (thus, the procedure looks like "plugging a hole")
+ * Pre-condition: the logical block is not yet pointed out by any item
+ * in the storage tree.
  *
- * First, try to push the pointer to existing items. If impossible, then
+ * First, try to add the pointer to existing items. If impossible, then
  * create a new extent item
  */
-static int plug_hole_stripe(coord_t *coord, lock_handle *lh,
-			    const reiser4_key *key)
+static int add_block_pointer(coord_t *coord, lock_handle *lh,
+			     const reiser4_key *key)
 {
 	int ret = 0;
 	reiser4_extent *ext;
@@ -248,8 +248,8 @@ static int plug_hole_stripe(coord_t *coord, lock_handle *lh,
 	}
 }
 
-static int __update_extent_stripe(uf_coord_t *uf_coord, const reiser4_key *key,
-				  jnode *node, reiser4_subvol *subv)
+static int __update_extent(uf_coord_t *uf_coord, const reiser4_key *key,
+			   jnode *node, reiser4_subvol *subv)
 {
 	int ret;
 	reiser4_block_nr block;
@@ -275,10 +275,10 @@ static int __update_extent_stripe(uf_coord_t *uf_coord, const reiser4_key *key,
 
 		inode_add_blocks(mapping_jnode(node)->host, 1);
 		/*
-		 * pushing a block pointer to the tree invalidates the extension
+		 * adding a block pointer to the tree invalidates the extension
 		 */
 		uf_coord->valid = 0;
-		ret = plug_hole_stripe(&uf_coord->coord, uf_coord->lh, key);
+		ret = add_block_pointer(&uf_coord->coord, uf_coord->lh, key);
 		if (ret)
 			return ret;
 
@@ -328,12 +328,13 @@ static int __update_extent_stripe(uf_coord_t *uf_coord, const reiser4_key *key,
 }
 
 /**
- * Determine on which brick a data page will be stored,
- * and reserve space on that brick.
+ * Find out on which brick the file's logical block should be stored,
+ * and try to reserve space on that brick.
+ *
+ * Pre-condition: longterm lock is held
  */
-static int locate_reserve_data(coord_t *coord, lock_handle *lh,
-			       reiser4_key *key, struct inode *inode,
-			       loff_t pos, jnode *node,
+static int locate_reserve_data(coord_t *coord, reiser4_key *key,
+			       struct inode *inode, loff_t pos, jnode *node,
 			       reiser4_subvol **loc, unsigned flags)
 {
 	int ret;
@@ -355,25 +356,19 @@ static int locate_reserve_data(coord_t *coord, lock_handle *lh,
 
 	assert("edward-2361", *loc != NULL);
 	/*
-	 * Now we can reserve space on @loc.
-	 * Note that in the case of truncate the space
-	 * has been already reserved in shorten_stripe()
+	 * Now we know where to reserve space for the logical block
 	 */
 	if (flags & UPX_TRUNCATE)
+		/* the space has been already reserved in shorten_stripe() */
 		return 0;
 	grab_space_enable();
 	return reiser4_grab_space(1 /* count */,
-				  0 /* flags */,
-				  *loc /* where */);
+				  0 /* flags */, *loc /* where */);
 }
 
 #define FAST_SEQ_WRITE (1)
 
-/**
- * Update file body after writing @count blocks at offset @pos.
- * Return 0 on success.
- */
-static int update_extent_stripe(struct hint *hint, struct inode *inode,
+static int update_extent(struct hint *hint, struct inode *inode,
 			 jnode *node, unsigned flags)
 {
 	int ret = 0;
@@ -400,13 +395,9 @@ static int update_extent_stripe(struct hint *hint, struct inode *inode,
 		reiser4_unset_hint(hint);
 		return RETERR(-EIO);
 	}
-	/*
-	 * reserve space for data
-	 */
-	ret = locate_reserve_data(&hint->ext_coord.coord,
-				  hint->ext_coord.lh, &key,
-				  inode, off, node,
-				  &dsubv, flags);
+	/* reserve space for data */
+	ret = locate_reserve_data(&hint->ext_coord.coord, &key, inode,
+				  off, node, &dsubv, flags);
 	if (ret) {
 		reiser4_unset_hint(hint);
 		return ret;
@@ -433,8 +424,7 @@ static int update_extent_stripe(struct hint *hint, struct inode *inode,
 	 * This will put a new block pointer to the tree,
 	 * if there were no such ones
 	 */
-	ret = __update_extent_stripe(&hint->ext_coord, &key, node,
-				     dsubv);
+	ret = __update_extent(&hint->ext_coord, &key, node, dsubv);
 	zrelse(loaded);
 	if (ret) {
 		reiser4_unset_hint(hint);
@@ -462,8 +452,7 @@ static int update_extent_stripe(struct hint *hint, struct inode *inode,
 	return 0;
 }
 
-int find_or_create_extent_stripe(struct page *page,
-				 struct hint *hint, unsigned flags)
+int update_extent_stripe(struct page *page, struct hint *hint, unsigned flags)
 {
 	int ret;
 	struct inode *inode;
@@ -482,7 +471,7 @@ int find_or_create_extent_stripe(struct page *page,
 	JF_SET(node, JNODE_WRITE_PREPARED);
 	unlock_page(page);
 
-	ret = update_extent_stripe(hint, inode, node, flags);
+	ret = update_extent(hint, inode, node, flags);
 	JF_CLR(node, JNODE_WRITE_PREPARED);
 	if (ret) {
 		if (ret != -ENOSPC)

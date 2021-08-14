@@ -353,8 +353,7 @@ int tail2extent(struct unix_file_info *);
 int extent2tail(struct file *, struct unix_file_info *);
 
 int goto_right_neighbor(coord_t *, lock_handle *);
-int find_or_create_extent_stripe(struct page *page, struct hint *hint,
-				 unsigned flags);
+int update_extent_stripe(struct page *page, struct hint *hint, unsigned flags);
 int find_or_create_extent_unix_file(struct page *);
 int reiser4_setattr_generic(struct dentry *dentry, struct iattr *attr,
 			    int (*truncate_file_body_fn)(struct inode *,

@@ -365,16 +365,16 @@ void validate_extended_coord(uf_coord_t *uf_coord, loff_t offset);
 int readpage_stripe(struct file *file, struct page *page)
 {
 	reiser4_context *ctx;
-	int result;
 	struct inode *inode;
 	reiser4_key key;
-	hint_t *hint;
-	lock_handle *lh;
+	uf_coord_t ext_coord;
+	lock_handle lh;
 	coord_t *coord;
+	int ret;
 
-	assert("vs-1062", PageLocked(page));
-	assert("vs-976", !PageUptodate(page));
-	assert("vs-1061", page->mapping && page->mapping->host);
+	assert("edward-2480", PageLocked(page));
+	assert("edward-2481", !PageUptodate(page));
+	assert("edward-2482", page->mapping && page->mapping->host);
 
 	inode = page->mapping->host;
 
@@ -390,26 +390,14 @@ int readpage_stripe(struct file *file, struct page *page)
 		unlock_page(page);
 		return PTR_ERR(ctx);
 	}
-	hint = kmalloc(sizeof(*hint), reiser4_ctx_gfp_mask_get());
-	if (hint == NULL) {
-		unlock_page(page);
-		reiser4_exit_context(ctx);
-		return RETERR(-ENOMEM);
-	}
-	hint_init_zero(hint);
-	lh = &hint->lh;
-	/*
-	 * construct key of the page's first byte
-	 */
-	build_body_key_stripe(inode, page_offset(page), &key);
-	/*
-	 * look for file metadata corresponding to the page's first byte
-	 */
+	/* find pointer to respective block */
+
 	get_page(page);
 	unlock_page(page);
-	result = find_file_item_nohint(&hint->ext_coord.coord,
-				       hint->ext_coord.lh, &key,
-				       ZNODE_READ_LOCK, inode);
+	build_body_key_stripe(inode, page_offset(page), &key);
+	init_uf_coord(&ext_coord, &lh);
+	coord = &ext_coord.coord;
+	ret = find_file_item_nohint(coord, &lh, &key, ZNODE_READ_LOCK, inode);
 	lock_page(page);
 	put_page(page);
 
@@ -418,66 +406,37 @@ int readpage_stripe(struct file *file, struct page *page)
 		 * readpage allows truncate to run concurrently.
 		 * Page was truncated while it was not locked
 		 */
-		done_lh(lh);
-		kfree(hint);
+		ret = -EINVAL;
 		unlock_page(page);
-		reiser4_txn_restart(ctx);
-		reiser4_exit_context(ctx);
-		return -EINVAL;
+		goto out;
 	}
-	if (IS_CBKERR(result)) {
-		done_lh(lh);
-		kfree(hint);
+	if (IS_CBKERR(ret) || PageUptodate(page)) {
 		unlock_page(page);
-		reiser4_txn_restart(ctx);
-		reiser4_exit_context(ctx);
-		return result;
+		goto out;
 	}
-	if (PageUptodate(page)) {
-		done_lh(lh);
-		kfree(hint);
+	ret = zload(coord->node);
+	if (ret) {
 		unlock_page(page);
-		reiser4_txn_restart(ctx);
-		reiser4_exit_context(ctx);
-		return 0;
+		goto out;
 	}
-	coord = &hint->ext_coord.coord;
-	result = zload(coord->node);
-	if (result) {
-		done_lh(lh);
-		kfree(hint);
-		unlock_page(page);
-		reiser4_txn_restart(ctx);
-		reiser4_exit_context(ctx);
-		return result;
-	}
-	validate_extended_coord(&hint->ext_coord, page_offset(page));
-
 	if (coord_is_existing_unit(coord)) {
-		result = reiser4_readpage_extent(coord, page);
-		assert("edward-2032", result == 0);
+		validate_extended_coord(&ext_coord, page_offset(page));
+		ret = reiser4_readpage_extent(coord, page);
 	} else {
 		/* hole in the file */
-		result = __reiser4_readpage_extent(NULL, NULL, 0, page);
-		assert("edward-2033", result == 0);
+		ret = __reiser4_readpage_extent(NULL, NULL, 0, page);
 	}
-	if (result)
-		unlock_page(page);
-
-	assert("edward-2034",
-	       ergo(result == 0, (PageLocked(page) || PageUptodate(page))));
 	zrelse(coord->node);
-	done_lh(lh);
 
-	kfree(hint);
-	/*
-	 * FIXME: explain why it is needed. HINT: page allocation in write can
-	 * not be done when atom is not NULL because reiser4_writepage can not
-	 * kick entd and have to eflush
-	 */
+	if (ret)
+		unlock_page(page);
+	assert("edward-2034",
+	       ergo(ret == 0, (PageLocked(page) || PageUptodate(page))));
+ out:
+	done_lh(&lh);
 	reiser4_txn_restart(ctx);
 	reiser4_exit_context(ctx);
-	return result;
+	return ret;
 }
 
 #define CUT_TREE_MIN_ITERATIONS 64
@@ -772,7 +731,7 @@ static int shorten_stripe(struct inode *inode, loff_t new_size)
 	unlock_page(page);
 
 	hint_init_zero(&hint);
-	result = find_or_create_extent_stripe(page, &hint, UPX_TRUNCATE);
+	result = update_extent_stripe(page, &hint, UPX_TRUNCATE);
 
 	reiser4_release_reserved(inode->i_sb);
 	put_page(page);
@@ -890,10 +849,10 @@ static int capture_anon_page(struct page *page)
 		return ret;
 
 	hint_init_zero(&hint);
-	ret = find_or_create_extent_stripe(page, &hint, 0);
+	ret = update_extent_stripe(page, &hint, 0);
 	if (ret == -ENOSPC &&
 	    reiser4_is_set(reiser4_get_current_sb(), REISER4_PROXY_IO))
-		ret = find_or_create_extent_stripe(page, &hint, UPX_PROXY_FULL);
+		ret = update_extent_stripe(page, &hint, UPX_PROXY_FULL);
 	if (ret) {
 		SetPageError(page);
 		warning("edward-2046",
@@ -1072,25 +1031,24 @@ int write_end_stripe(struct file *file,
 
 	reiser4_txn_restart(ctx);
 	get_nonexclusive_access(info);
-	ret = find_or_create_extent_stripe(page, hint, 0);
+	ret = update_extent_stripe(page, hint, 0);
 	drop_nonexclusive_access(info);
 	if (ret == -ENOSPC) {
 		txnmgr_force_commit_all(inode->i_sb, 0);
 		get_nonexclusive_access(info);
-		ret = find_or_create_extent_stripe(page, hint, 0);
+		ret = update_extent_stripe(page, hint, 0);
 		if (ret == -ENOSPC && reiser4_is_set(reiser4_get_current_sb(),
 						     REISER4_PROXY_IO)) {
 			/*
 			 * proxy disk is full, write to permanent location
 			 */
-			ret = find_or_create_extent_stripe(page, hint,
-							   UPX_PROXY_FULL);
+			ret = update_extent_stripe(page, hint, UPX_PROXY_FULL);
 			if (ret == -ENOSPC) {
 				drop_nonexclusive_access(info);
 				txnmgr_force_commit_all(inode->i_sb, 0);
 				get_nonexclusive_access(info);
-				ret = find_or_create_extent_stripe(page, hint,
-							      UPX_PROXY_FULL);
+				ret = update_extent_stripe(page, hint,
+							   UPX_PROXY_FULL);
 			}
 		}
 		drop_nonexclusive_access(info);
