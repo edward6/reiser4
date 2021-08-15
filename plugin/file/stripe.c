@@ -8,21 +8,22 @@
 */
 
 /*
- * Implementation of regular files with distributed bodies.
+ * Implementation of regular files with distributed bodies (AKA "striped" files)
  *
  * Logical unit of distribution in such file is called "stripe".
- * Every stripe, which got physical addresses, is composed of extents
- * (IO units), and every extent is a set of filesystem blocks (allocation
- * units) with contiguous disk addresses.
- * Neighboring extents of any two adjacent (in the logical order) stripes,
- * which got to the same device, get merged at the stripe boundary if
- * their physical addresses are adjusent.
- * In the storage tree extents are represented by extent pointers (items)
- * of EXTENT41_POINTER_ID. Extent pointer's key is calculated like for
- * classic unix files (UNIX_FILE_PLUGIN_ID) except the ordering component,
- * which in our case contains ID of a brick (subvolume), where that extent
- * should be stored in.
- * Holes in a striped file are not represented by any items.
+ * Logical stripe, which got physical addresses on disk, is composed of extents,
+ * every extent is a set of filesystem blocks with contiguous disk addresses.
+ *
+ * Extents are pointed out by extent pointers (items) of EXTENT41_POINTER_ID in
+ * the storage tree. Extent pointer's key is calculated like for classic unix
+ * files (UNIX_FILE_PLUGIN_ID) except the ordering component: in our case it
+ * contains ID of a brick (subvolume), where that extent should be stored in.
+ *
+ * If neighboring extents of any two adjacent (in the logical order) stripes
+ * get to the same device, then the pointers get merged at the stripe boundary,
+ * once their physical addresses become adjasent.
+ *
+ * Holes in striped files are not represented by any items.
  */
 
 #include "../../inode.h"
@@ -168,7 +169,7 @@ int find_stripe_item(hint_t *hint, const reiser4_key *key,
 	/*
 	 * We sealed valid coord extension, which represents
 	 * existing block pointer. Respectively, if the seal
-	 * is unbroken, then it remains to be valid
+	 * is unbroken, then the extension is still valid
 	 */
 	hint->ext_coord.valid = 1;
 	ext_coord = &hint->ext_coord.extension.extent;
@@ -301,17 +302,6 @@ ssize_t read_iter_stripe(struct kiocb *iocb, struct iov_iter *iter)
 	context_set_commit_async(ctx);
 	reiser4_exit_context(ctx);
 	return result;
-}
-
-static inline size_t write_granularity(void)
-{
-	if (current_stripe_bits) {
-		int ret = 1 << (current_stripe_bits - current_blocksize_bits);
-		if (ret > DEFAULT_WRITE_GRANULARITY)
-			ret = DEFAULT_WRITE_GRANULARITY;
-		return ret;
-	} else
-		return DEFAULT_WRITE_GRANULARITY;
 }
 
 ssize_t write_iter_stripe(struct kiocb *iocb, struct iov_iter *from)
