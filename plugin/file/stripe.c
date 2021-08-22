@@ -967,13 +967,9 @@ int write_begin_stripe(struct file *file,
 		       void **fsdata)
 {
 	int ret;
+	struct page *page;
 
 	assert("edward-2479", is_in_reiser4_context());
-
-	*pagep = grab_cache_page_write_begin(mapping, pos >> PAGE_SHIFT,
-					     flags & AOP_FLAG_NOFS);
-	if (!*pagep)
-		return -ENOMEM;
 	/*
 	 * Reserve space on meta-data brick for stat-data update (file size)
 	 * and for "drilling" the leaf level by search procedure
@@ -986,15 +982,19 @@ int write_begin_stripe(struct file *file,
 				 BA_CAN_COMMIT,
 				 get_meta_subvol());
 	if (ret)
-		return RETERR(ret);
-
-	ret = reiser4_write_begin_common(file, *pagep, pos, len,
-					 readpage_stripe);
+		return ret;
+	page = grab_cache_page_write_begin(mapping, pos >> PAGE_SHIFT,
+					   flags & AOP_FLAG_NOFS);
+	if (!page)
+		return -ENOMEM;
+	ret = reiser4_write_begin_common(file, page, pos, len, readpage_stripe);
 	if (unlikely(ret)) {
-		unlock_page(*pagep);
-		put_page(*pagep);
+		unlock_page(page);
+		put_page(page);
+		return ret;
 	}
-	return ret;
+	*pagep = page;
+	return 0;
 }
 
 /**
