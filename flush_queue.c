@@ -530,7 +530,8 @@ static void release_prepped_list(flush_queue_t *fq)
 }
 
 static int fq_compare_jnode(void* priv UNUSED_ARG,
-			    struct list_head *a, struct list_head *b)
+			    const struct list_head *a,
+			    const struct list_head *b)
 {
 	jnode *ja, *jb;
 
