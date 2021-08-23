@@ -95,7 +95,7 @@ int equal_to_ldk(znode *node, const reiser4_key *key)
  * Returns true if @coord is set as if it was set as result of lookup with @key
  * in coord->node.
  */
-static int check_coord(const coord_t *coord, const reiser4_key *key)
+int check_coord(const coord_t *coord, const reiser4_key *key)
 {
 	coord_t twin;
 

@@ -1060,27 +1060,104 @@ int write_end_stripe(struct file *file,
 	return ret == 0 ? copied : ret;
 }
 
+struct scan_ctx {
+	reiser4_key *key;
+	int skip_iter;
+};
+
+static int iter_find_leftmost(reiser4_tree *tree, coord_t *coord,
+			      lock_handle *lh, void *arg)
+{
+	int ret;
+	reiser4_key ikey;
+	struct scan_ctx *sctx = arg;
+
+	assert("edward-2491", arg != NULL);
+	if (sctx->skip_iter) {
+		/* skip first iteration */
+		sctx->skip_iter = 0;
+		return 1;
+	}
+	ret = zload(coord->node);
+	if (ret)
+		return ret;
+	if (!item_is_extent(coord)) {
+		assert("edward-2492", item_is_internal(coord));
+		/* continue iteration */
+		zrelse(coord->node);
+		return 1;
+	}
+	/* break iteration */
+
+	item_key_by_coord(coord, &ikey);
+	zrelse(coord->node);
+	if (get_key_objectid(&ikey) == get_key_objectid(sctx->key)) {
+		/* found item of this file */
+		assert("edward-2493",
+		       get_key_offset(&ikey) > get_key_offset(sctx->key));
+		return 0;
+	}
+	return -ENOENT;
+}
+
 /**
- * Migrate data blocks of a regular file specified by @inode
- * Exclusive access to the file should be acquired by caller.
- *
- * Implementation details:
- * Scan file body from right to left, read all pages which should
- * get location on other bricks, and make them dirty. In flush time
- * those pages will get disk addresses on the new bricks.
- *
- * IMPORTANT: This implementation assumes that logical order on
- * the file coincides with the physical order.
+ * Find an extent item by @key. If it doesn't exist, then look for
+ * extent of the same file with the smallest key greater than @key.
+ * Return CBK_COORD_FOUND, if something from the listed above was found.
+ * Otherwise, return CBK_COORD_NOTFOUND or error.
  */
+static int find_extent_iter(coord_t *coord, lock_handle *lh, reiser4_key *key,
+			    struct inode *inode, znode_lock_mode lock_mode)
+{
+	int ret;
+	struct scan_ctx sctx;
+
+	ret = coord_by_key(meta_subvol_tree(), key,
+			   coord, lh, lock_mode,
+			   FIND_EXACT, TWIG_LEVEL, TWIG_LEVEL,
+			   CBK_UNIQUE, NULL /* read-ahead info */);
+	if (IS_CBKERR(ret))
+		return ret;
+	assert("edward-2494", coord->node->level == TWIG_LEVEL);
+
+	ret = zload(coord->node);
+	if (ret)
+		return ret;
+	/* we could land at internal item */
+	if (coord->between == AT_UNIT && item_is_extent(coord)) {
+		zrelse(coord->node);
+		return CBK_COORD_FOUND;
+	}
+	ret = coord_set_to_left(coord);
+	assert("edward-2495", ret == 0);
+	assert("edward-2496", coord_is_existing_item(coord));
+	/*
+	 * look for another item of this file at the right,
+	 */
+	sctx.key = key;
+	sctx.skip_iter = owns_item_unix_file(inode, coord);
+	zrelse(coord->node);
+
+	ret = reiser4_iterate_tree(meta_subvol_tree(), coord, lh,
+                                   iter_find_leftmost, &sctx, lock_mode, 0);
+	if (ret == -ENOENT || ret == -E_NO_NEIGHBOR)
+		return CBK_COORD_NOTFOUND;
+	else if (ret < 0)
+		return -E_DEADLOCK ? -EAGAIN : ret;
+
+	assert("edward-2497", WITH_DATA(coord->node, item_is_extent(coord)));
+	assert("edward-2498", coord->unit_pos == 0);
+	assert("edward-2499", coord->between == AT_UNIT);
+	assert("edward-2500", WITH_DATA(coord->node, check_coord(coord, key)));
+	return CBK_COORD_FOUND;
+}
+
 static int __migrate_stripe(struct inode *inode, u64 *dst_id)
 {
 	int ret;
-	reiser4_key key; /* search key */
-	reiser4_key ikey; /* item key */
-	struct unix_file_info *uf;
+	reiser4_key key;
 	coord_t coord;
 	lock_handle lh;
-	item_plugin *iplug;
 
 	/*
 	 * commit all file atoms before migration!
@@ -1090,85 +1167,64 @@ static int __migrate_stripe(struct inode *inode, u64 *dst_id)
 	reiser4_txn_restart_current();
 	if (ret)
 		return ret;
-	all_grabbed2free();
-	/*
-	 * Reserve space for the first iteration of the migration
-	 * procedure. We grab from reserved area, as rebalancing can
-	 * be launched on a volume with no free space.
-	 */
-	ret = reserve_migration_iter();
-	if (ret)
-		return ret;
-	uf = unix_file_inode_data(inode);
-
 	reiser4_inode_set_flag(inode, REISER4_FILE_IN_MIGRATION);
-
-	build_body_key_stripe(inode, get_key_offset(reiser4_max_key()),
-			      &key);
+	build_body_key_stripe(inode, 0, &key);
 	while (1) {
-		znode *loaded;
-		loff_t done_off;
+		loff_t done_off = 0;
 
+		all_grabbed2free();
+		/*
+		 * Reserve space on the meta-data brick for migration.
+		 * We grab from reserved area, as rebalancing can be
+		 * launched on a volume with no free space
+		 */
+		ret = reserve_migration_iter();
+		if (ret)
+			return ret;
 		init_lh(&lh);
-		ret = coord_by_key(meta_subvol_tree(), &key,
-				   &coord, &lh, ZNODE_WRITE_LOCK,
-				   FIND_MAX_NOT_MORE_THAN,
-				   TWIG_LEVEL, TWIG_LEVEL,
-				   CBK_UNIQUE, NULL);
+		coord_init_zero(&coord);
+		ret = find_extent_iter(&coord, &lh, &key,
+				       inode, ZNODE_WRITE_LOCK);
+
 		if (IS_CBKERR(ret)) {
 			done_lh(&lh);
 			reiser4_release_reserved(inode->i_sb);
 			return ret;
 		}
-		ret = zload(coord.node);
-		if (ret) {
+		if (ret != CBK_COORD_FOUND) {
 			done_lh(&lh);
 			reiser4_release_reserved(inode->i_sb);
-			return ret;
-		}
-		loaded = coord.node;
-
-		coord_set_to_left(&coord);
-		if (!coord_is_existing_item(&coord)) {
-			/*
-			 * nothing to migrate
-			 */
-			zrelse(loaded);
 			goto done;
 		}
-		/*
-		 * check that found item belongs to the file
-		 */
-		if (!inode_file_plugin(inode)->owns_item(inode, &coord)) {
-			zrelse(loaded);
-			goto done;
+		if (coord.unit_pos != 0) {
+			done_lh(&lh);
+			reiser4_release_reserved(inode->i_sb);
+			warning("edward-2501",
+				"Not implemented case. Repeat balancing");
+			return -EAGAIN;
 		}
-		item_key_by_coord(&coord, &ikey);
-		iplug = item_plugin_by_coord(&coord);
-		assert("edward-2349", iplug->v.migrate != NULL);
-		zrelse(loaded);
 		/*
-		 * Migrate data blocks (from right to left) pointed
-		 * out by the found extent item at @coord.
-		 * On success (ret == 0 || ret == -E_REPEAT) at least
-		 * one of the mentioned blocks has to be migrated. In
-		 * this case @done_off contains offset of the leftmost
-		 * migrated byte
+		 * Migrate a part of data blocks pointed out by the
+		 * found extent item at @coord.
+		 * On success at least one block has to be migrated.
+		 * In this case @done_off contains offset of the
+		 * rightmost migrated byte
 		 */
-		ret = iplug->v.migrate(&coord, &ikey, &lh, inode, &done_off,
-				       dst_id);
+		ret = reiser4_migrate_extent(&coord, &lh, inode, &done_off,
+					     dst_id);
 		done_lh(&lh);
 		reiser4_release_reserved(inode->i_sb);
-		if (ret && ret != -E_REPEAT)
+
+		if (ret) {
+			warning("edward-2502",
+				"failed to migrate file (%d)", ret);
 			return ret;
-		if (done_off == 0)
-			/* nothing to migrate any more */
-			break;
+		}
+		reiser4_throttle_write(inode);
 		/*
-		 * look for the item, which points out to the
-		 * rightmost not processed block
+		 * set key of the leftmost non-processed byte
 		 */
-		set_key_offset(&key, done_off - 1);
+		set_key_offset(&key, done_off + 1);
 	}
  done:
 	/*
@@ -1176,7 +1232,6 @@ static int __migrate_stripe(struct inode *inode, u64 *dst_id)
 	 * Clean up unbalanced status
 	 */
 	assert("edward-2104", reiser4_lock_counters()->d_refs == 0);
-	done_lh(&lh);
 	reiser4_inode_clr_flag(inode, REISER4_FILE_IN_MIGRATION);
 	return 0;
 }

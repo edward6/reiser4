@@ -347,6 +347,7 @@ static inline int ea_obtained(struct unix_file_info * uf_info)
 	return !ret;
 }
 
+int check_coord(const coord_t *coord, const reiser4_key *key);
 #endif
 
 int tail2extent(struct unix_file_info *);
