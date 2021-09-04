@@ -552,9 +552,6 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.scan = reiser4_scan_extent,
 			.convert = NULL,
 		},
-		.v = {
-			.migrate = NULL
-		},
 		.s = {
 			.file = {
 				.get_block = get_block_address_extent,
@@ -606,9 +603,6 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.update = NULL,
 			.scan = reiser4_scan_extent,
 			.convert = NULL,
-		},
-		.v = {
-			.migrate = reiser4_migrate_extent
 		},
 		.s = {
 			.file = {

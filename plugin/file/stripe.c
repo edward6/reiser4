@@ -87,7 +87,6 @@ int flow_by_inode_stripe(struct inode *inode,
  */
 
 #if REISER4_DEBUG
-
 static inline int equal_to_ldk_nonprec(znode *node, const reiser4_key *key)
 {
 	int ret;
@@ -162,7 +161,7 @@ int find_stripe_item(hint_t *hint, const reiser4_key *key,
 
 	ret = hint_validate(hint, meta_subvol_tree(), key, lock_mode);
 	if (ret)
-		/*  improper, or broken seal */
+		/* improper, or broken seal */
 		goto nohint;
 	assert("edward-2385",
 	       WITH_DATA(coord->node, coord_is_existing_unit(coord)));
@@ -1101,8 +1100,11 @@ static int iter_find_leftmost(reiser4_tree *tree, coord_t *coord,
 }
 
 /**
- * Find an extent item by @key. If it doesn't exist, then look for
- * extent of the same file with the smallest key greater than @key.
+ * coord_by_key() with a post-search
+ *
+ * Find @coord by @key. If a block pointer with such key doesn't exist
+ * in the tree, then look for extent of the same file with the smallest
+ * key greater than @key.
  * Return CBK_COORD_FOUND, if something from the listed above was found.
  * Otherwise, return CBK_COORD_NOTFOUND or error.
  */
@@ -1111,6 +1113,7 @@ static int find_extent_iter(coord_t *coord, lock_handle *lh, reiser4_key *key,
 {
 	int ret;
 	struct scan_ctx sctx;
+	ON_DEBUG(reiser4_key check_key);
 
 	ret = coord_by_key(meta_subvol_tree(), key,
 			   coord, lh, lock_mode,
@@ -1149,7 +1152,32 @@ static int find_extent_iter(coord_t *coord, lock_handle *lh, reiser4_key *key,
 	assert("edward-2498", coord->unit_pos == 0);
 	assert("edward-2499", coord->between == AT_UNIT);
 	assert("edward-2500", WITH_DATA(coord->node, check_coord(coord, key)));
+	assert("edward-2510",
+	       WITH_DATA(coord->node, get_key_offset(key) <=
+			 get_key_offset(item_key_by_coord(coord, &check_key))));
 	return CBK_COORD_FOUND;
+}
+
+#define NR_RA_BYTES (current_stripe_size << 10)
+#define NR_RA_PAGES (NR_RA_BYTES >> PAGE_SHIFT)
+
+static void readahead(struct file_ra_state *ra,
+		      struct address_space *mapping, pgoff_t index)
+{
+	struct page *page;
+
+	page = find_get_page(mapping, index);
+	if (!page) {
+		page_cache_sync_readahead(mapping, ra, NULL,
+					  index, NR_RA_PAGES);
+		page = find_get_page(mapping, index);
+	}
+	if (page && PageReadahead(page)) {
+		page_cache_async_readahead(mapping, ra, NULL,
+					   page, index, NR_RA_PAGES);
+	}
+	if (page)
+		put_page(page);
 }
 
 static int __migrate_stripe(struct inode *inode, u64 *dst_id)
@@ -1158,9 +1186,13 @@ static int __migrate_stripe(struct inode *inode, u64 *dst_id)
 	reiser4_key key;
 	coord_t coord;
 	lock_handle lh;
+	unsigned int nr_migrated = 0;
+	struct file_ra_state ra = { 0 };
 
 	/*
-	 * commit all file atoms before migration!
+	 * Commit all file atoms before migration
+	 * to make sure there is no pending IO requests
+	 * issued against bricks we want to remove!
 	 */
 	reiser4_txn_restart_current();
 	ret = sync_jnode_list(inode);
@@ -1169,8 +1201,10 @@ static int __migrate_stripe(struct inode *inode, u64 *dst_id)
 		return ret;
 	reiser4_inode_set_flag(inode, REISER4_FILE_IN_MIGRATION);
 	build_body_key_stripe(inode, 0, &key);
+	file_ra_state_init(&ra, inode->i_mapping);
 	while (1) {
-		loff_t done_off = 0;
+		loff_t done_off;
+		unsigned int nr_migrated_iter = 0;
 
 		all_grabbed2free();
 		/*
@@ -1181,11 +1215,13 @@ static int __migrate_stripe(struct inode *inode, u64 *dst_id)
 		ret = reserve_migration_iter();
 		if (ret)
 			return ret;
+		readahead(&ra, inode->i_mapping,
+			  get_key_offset(&key) >> PAGE_SHIFT);
+
 		init_lh(&lh);
 		coord_init_zero(&coord);
 		ret = find_extent_iter(&coord, &lh, &key,
 				       inode, ZNODE_WRITE_LOCK);
-
 		if (IS_CBKERR(ret)) {
 			done_lh(&lh);
 			reiser4_release_reserved(inode->i_sb);
@@ -1196,21 +1232,10 @@ static int __migrate_stripe(struct inode *inode, u64 *dst_id)
 			reiser4_release_reserved(inode->i_sb);
 			goto done;
 		}
-		if (coord.unit_pos != 0) {
-			done_lh(&lh);
-			reiser4_release_reserved(inode->i_sb);
-			warning("edward-2501",
-				"Not implemented case. Repeat balancing");
-			return -EAGAIN;
-		}
-		/*
-		 * Migrate a part of data blocks pointed out by the
-		 * found extent item at @coord.
-		 * On success at least one block has to be migrated.
-		 * In this case @done_off contains offset of the
-		 * rightmost migrated byte
-		 */
-		ret = reiser4_migrate_extent(&coord, &lh, inode, &done_off,
+		ret = reiser4_migrate_extent(&coord, &lh, inode,
+					     &nr_migrated_iter,
+					     get_key_offset(&key),
+					     &done_off,
 					     dst_id);
 		done_lh(&lh);
 		reiser4_release_reserved(inode->i_sb);
@@ -1220,16 +1245,21 @@ static int __migrate_stripe(struct inode *inode, u64 *dst_id)
 				"failed to migrate file (%d)", ret);
 			return ret;
 		}
-		reiser4_throttle_write(inode);
+		nr_migrated += nr_migrated_iter;
+		if (nr_migrated >= NR_RA_PAGES) {
+			force_commit_current_atom();
+			nr_migrated = 0;
+		}
 		/*
-		 * set key of the leftmost non-processed byte
+		 * set key to the leftmost non-processed byte
 		 */
+		assert("edward-2511", done_off >= get_key_offset(&key));
 		set_key_offset(&key, done_off + 1);
 	}
  done:
 	/*
 	 * The whole file has been successfully migrated.
-	 * Clean up unbalanced status
+	 * Clean up its unbalanced status
 	 */
 	assert("edward-2104", reiser4_lock_counters()->d_refs == 0);
 	reiser4_inode_clr_flag(inode, REISER4_FILE_IN_MIGRATION);

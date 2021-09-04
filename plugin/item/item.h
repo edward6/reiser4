@@ -215,12 +215,6 @@ struct flush_ops {
 	int (*convert) (flush_pos_t * pos);
 };
 
-struct volume_ops{
-	/* migrate unformatted blocks pointed out by item at @coord */
-	int (*migrate)(coord_t *coord, lock_handle *lh, struct inode *inode,
-		       loff_t *done_off, u64 *dst_id);
-};
-
 /* operations specific to the directory item */
 struct dir_entry_iops {
 	/* extract stat-data key from directory entry at @coord and place it
@@ -288,7 +282,6 @@ struct item_plugin {
 	/* methods common for all item types */
 	struct balance_ops b; /* balance operations */
  	struct flush_ops f;   /* flush operates with items via this methods */
-	struct volume_ops v; /* volume operations */
 
 	/* methods specific to particular type of item */
 	union {
