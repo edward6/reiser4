@@ -659,16 +659,24 @@ int reiser4_migrate_extent(coord_t *coord, lock_handle *lh,
 	if (ret)
 		return ret;
 	switch(mctx.act) {
-	case SKIP_EXTENT:
-		break;
-	case SPLIT_SKIP_EXTENT:
-		goto repeat;
-	case MIGRATE_EXTENT:
 	case SPLIT_MIGRATE_EXTENT:
 		ret = do_migrate_extent(&mctx);
 		if (ret)
 			return ret;
-		if (get_key_offset(&key) != 0) {
+		/* not left mergeable, since we split */
+		break;
+	case SPLIT_SKIP_EXTENT:
+		start_off = mctx.stop_off;
+		assert("edward-2512", get_key_offset(&key) == start_off);
+		/* not left mergeable, since we split */
+		goto repeat;
+	case MIGRATE_EXTENT:
+		ret = do_migrate_extent(&mctx);
+		if (ret)
+			return ret;
+		/* fall through */
+	case SKIP_EXTENT:
+		if (start_off) {
 			/*
 			 * try to merge with already processed
 			 * item at the left
