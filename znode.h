@@ -359,6 +359,8 @@ extern int incr_load_count_znode(load_count * dh, znode * node);	/* Set the argu
 extern int incr_load_count_jnode(load_count * dh, jnode * node);	/* If the argument jnode is formatted, do the same as
 									 * incr_load_count_znode, otherwise do nothing (unformatted nodes
 									 * don't require zload/zrelse treatment). */
+extern int check_load_count_new(load_count *dh, znode *new);            /* If handle is set for different node, then release it and load
+									   the new one */
 extern void move_load_count(load_count * new, load_count * old);	/* Move the contents of a load_count.  Old handle is released. */
 extern void copy_load_count(load_count * new, load_count * old);	/* Copy the contents of a load_count.  Old handle remains held. */
 

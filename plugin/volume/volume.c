@@ -2234,6 +2234,21 @@ static int scale_volume_asym(struct super_block *sb, unsigned factor_bits)
 	return ret;
 }
 
+static struct migration_context *alloc_migration_context(void)
+{
+	return reiser4_vmalloc(MIGRATION_CONTEXT_SIZE);
+}
+
+static void free_migration_context(struct migration_context *mctx)
+{
+	vfree(mctx);
+}
+
+void reset_migration_context(struct migration_context *mctx)
+{
+	memset(mctx, 0, MIGRATION_CONTEXT_SIZE);
+}
+
 struct reiser4_iterate_context {
 	reiser4_key curr;
 	reiser4_key next;
@@ -2309,15 +2324,24 @@ static int iter_find_next(reiser4_tree *tree, coord_t *coord,
 static int migrate_file_asym(struct inode *inode, u64 dst_idx)
 {
 	reiser4_volume *vol = super_volume(inode->i_sb);
+	struct migration_context *mctx;
 	u64 dst_id;
+	int ret;
 
 	if (inode_file_plugin(inode)->migrate == NULL)
 		return 0;
 	if (dst_idx >= vol_nr_origins(vol))
 		return RETERR(-EINVAL);
+	mctx = alloc_migration_context();
+	if (!mctx)
+		return RETERR(-ENOMEM);
 
 	dst_id = brick_idx_to_id(vol, dst_idx);
-	return inode_file_plugin(inode)->migrate(inode, &dst_id);
+
+	ret = inode_file_plugin(inode)->migrate(inode, mctx, &dst_id);
+
+	free_migration_context(mctx);
+	return ret;
 }
 
 
@@ -2363,6 +2387,7 @@ int balance_volume_asym(struct super_block *super, u32 flags)
 	lock_handle lh;
 	reiser4_key start_key;
 	struct reiser4_iterate_context ictx;
+	struct migration_context *mctx;
 	time64_t start;
 	/*
 	 * Set a start key (key of the leftmost object on the
@@ -2376,7 +2401,9 @@ int balance_volume_asym(struct super_block *super, u32 flags)
 	set_key_objectid(&start_key, 42 /* FORMAT40_ROOT_OBJECTID */);
 
 	memset(&ictx, 0, sizeof(ictx));
-
+	mctx = alloc_migration_context();
+	if (!mctx)
+		return -ENOMEM;
 	assert("edward-1881", super != NULL);
 
 	printk("reiser4 (%s): Started balancing...\n", super->s_id);
@@ -2507,7 +2534,7 @@ int balance_volume_asym(struct super_block *super, u32 flags)
 			/*
 			 * migrate data blocks of this file
 			 */
-			ret = inode_file_plugin(inode)->migrate(inode, NULL);
+			ret = inode_file_plugin(inode)->migrate(inode, mctx, NULL);
 			if (ret) {
 				iput(inode);
 				warning("edward-1889",
@@ -2534,9 +2561,11 @@ int balance_volume_asym(struct super_block *super, u32 flags)
  done:
 	printk("reiser4 (%s): Balancing completed in %lld seconds.\n",
 	       super->s_id, ktime_get_seconds() - start);
+	free_migration_context(mctx);
 	return 0;
  error:
 	warning("edward-2155", "%s: Balancing aborted (%d).", super->s_id, ret);
+	free_migration_context(mctx);
 	return ret == -E_DEADLOCK ? -EAGAIN : ret;
 }
 

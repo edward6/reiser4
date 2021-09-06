@@ -13,6 +13,34 @@
 #define INVALID_SUBVOL_ID   (0xffffffff)
 #define METADATA_SUBVOL_ID  (0)
 
+/* Maximum number of blocks to be migrated per iteration */
+#define MIGRATION_GRANULARITY (current_stripe_size)
+/*
+ * primitive migration operations over item
+ */
+enum migration_primitive_id {
+	INVALID_ACTION,
+	SKIP_ITEM,
+	MIGRATE_ITEM,
+};
+
+struct migration_context {
+	enum migration_primitive_id act;
+	int nr_pages;
+	coord_t *coord;
+	reiser4_key *key;
+	struct inode *inode;
+	u32 new_loc;
+	loff_t stop_off;
+	lock_handle *lh;
+	load_count dh;
+	struct page *pages[0];
+};
+
+#define MIGRATION_CONTEXT_SIZE ((sizeof(struct migration_context) +	\
+				 (MIGRATION_GRANULARITY >> PAGE_SHIFT)* \
+				 sizeof(struct page *)))
+
 extern void deactivate_subvol(struct super_block *super, reiser4_subvol *subv);
 extern reiser4_subvol *find_meta_brick_by_id(reiser4_volume *vol);
 extern lv_conf *alloc_lv_conf(u32 nr_slots);

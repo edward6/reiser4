@@ -362,7 +362,7 @@ typedef struct file_plugin {
 	 * @dst_id. Otherwise, migrate in accordance with current distribution
 	 * table.
 	 */
-	int (*migrate)(struct inode *object, u64 *dst_id);
+	int (*migrate)(struct inode *object, void *mctx, u64 *dst_id);
 	/*
 	 * methods to serialize object identify. This is used, for example, by
 	 * reiser4_{en,de}code_fh().

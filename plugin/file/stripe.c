@@ -1180,7 +1180,7 @@ static void readahead(struct file_ra_state *ra,
 		put_page(page);
 }
 
-static int __migrate_stripe(struct inode *inode, u64 *dst_id)
+static int __migrate_stripe(struct inode *inode, void *data, u64 *dst_id)
 {
 	int ret;
 	reiser4_key key;
@@ -1232,7 +1232,7 @@ static int __migrate_stripe(struct inode *inode, u64 *dst_id)
 			reiser4_release_reserved(inode->i_sb);
 			goto done;
 		}
-		ret = reiser4_migrate_extent(&coord, &lh, inode,
+		ret = reiser4_migrate_extent(data, &coord, &lh, inode,
 					     &nr_migrated_iter,
 					     get_key_offset(&key),
 					     &done_off,
@@ -1266,12 +1266,12 @@ static int __migrate_stripe(struct inode *inode, u64 *dst_id)
 	return 0;
 }
 
-int migrate_stripe(struct inode *inode, u64 *dst_id)
+int migrate_stripe(struct inode *inode, void *data, u64 *dst_id)
 {
 	int ret;
 
 	get_exclusive_access(unix_file_inode_data(inode));
-	ret = __migrate_stripe(inode, dst_id);
+	ret = __migrate_stripe(inode, data, dst_id);
 	drop_exclusive_access(unix_file_inode_data(inode));
 	return ret;
 }

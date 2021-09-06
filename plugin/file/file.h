@@ -195,7 +195,7 @@ int write_end_stripe(struct file *file,
 		     struct page *page,
 		     void *fsdata);
 long int ioctl_stripe(struct file *filp, unsigned int cmd, unsigned long arg);
-int migrate_stripe(struct inode *object, u64 *dst_id);
+int migrate_stripe(struct inode *object, void *data, u64 *dst_id);
 
 /*
  * Private methods of symlink file plugin

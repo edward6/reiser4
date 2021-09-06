@@ -864,6 +864,18 @@ int incr_load_count_znode(load_count * dh, znode * node)
 	return incr_load_count(dh);
 }
 
+int check_load_count_new(load_count *dh, znode *new)
+{
+	assert("edward-2513", dh != NULL);
+	assert("edward-2514", dh->node != NULL);
+	assert("edward-2515", new != NULL);
+
+	if (dh->node == new)
+		return 0;
+	done_load_count(dh);
+	return incr_load_count_znode(dh, new);
+}
+
 int incr_load_count_jnode(load_count * dh, jnode * node)
 {
 	if (jnode_is_znode(node)) {
