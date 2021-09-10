@@ -520,41 +520,37 @@ typedef struct txmod_plugin {
 } txmod_plugin;
 
 /*
- * operations on an array of abstract buckets
+ * Operations on buckets.
+ * Bucket is an abstraction managed by the distribution plugin.
+ * Through these operations the distribution plugin requests needed
+ * information from the upper layer (volume plugin)
  */
 struct bucket_ops {
-	/* Get capacity of a bucket with serial number @idx
-	   in the array @buckets */
-	u64 (*cap_at)(bucket_t *buckets, u64 idx);
-	/* Get apx of specified @bucket */
-	void *(*apx_of)(bucket_t bucket);
-	/* Get apx of a bucket with serial number @idx
-	   in the array @buckets */
-	void *(*apx_at)(bucket_t *buckets, u64 idx);
-	/* Set apx @apx of a bucket with serial number @idx
-	   in the array @buckets*/
-	void (*apx_set_at)(bucket_t *buckets, u64 idx, void *apx);
-	/* Get a pointer to apx length of a bucket with
-	   serial number @idx in the array @buckets */
-	u64 *(*apx_lenp_at)(bucket_t *buckets, u64 idx);
-	/* translate bucket index in the array of abstract buckets
-	   to bucket internal ID */
+	const char *(*bucket_type)(void);
+	/* Get unique name of the bucket in the system */
+	char *(*bucket_name)(bucket_t this);
+	/* Get capacity of a bucket with serial number @idx in the array @vec */
+	u64 (*cap_at)(bucket_t *vec, u64 idx);
+	/* Get reduced capacity (without reservation) of a bucket with serial
+	   number @idx in the array @vec */
+	u64 (*capr_at)(bucket_t *vec, u64 idx);
+	/* Get apx of bucket @this */
+	void *(*apx_of)(bucket_t this);
+	/* Get apx for a bucket with serial number @idx in the array @vec */
+	void *(*apx_at)(bucket_t *vec, u64 idx);
+	/* Set @apx for a bucket with serial number @idx in the array @vec */
+	void (*apx_set_at)(bucket_t *vec, u64 idx, void *apx);
+	/* Get a pointer to apx length of a bucket with serial number @idx in
+	   the array @vec */
+	u64 *(*apx_lenp_at)(bucket_t *vec, u64 idx);
+	/* Translate bucket index in the array of abstract buckets to bucket
+	   internal ID */
 	u64 (*idx2id)(u32 idx);
-	/* translate bucket internal ID to bucket index in the array
-	   of abstract buckets */
+	/* Translate bucket internal ID to the bucket index in the array of
+	   abstract buckets */
 	u32 (*id2idx)(u64 id);
-	/* create array of abstract buckets */
-	bucket_t *(*create_buckets)(void);
-	/* release array of abstract buckets */
-	void (*free_buckets)(bucket_t *vec);
-	/* insert a bucket @new into array of abstract buckets @vec
-	   at position pos */
-	bucket_t *(*insert_bucket)(bucket_t *vec, bucket_t new, u32 numb, u32 pos);
-	/* remove a bucket located at position @pos in the array of
-	   abstract buckets @vec */
-	bucket_t *(*remove_bucket)(bucket_t *vec, u32 numb, u32 pos);
-	/* return space currently occupied in the abstract array of buckets */
-	u64 (*space_occupied)(void);
+	/* Get current consumption of total volume capacity */
+	u64 (*cap_consump)(void);
 };
 
 struct dist_regular_ops {

@@ -59,10 +59,9 @@ typedef unsigned short pos_in_node_t;
 typedef struct lv_conf lv_conf;
 typedef reiser4_subvol *mirror_t;
 typedef mirror_t *slot_t;
-typedef void *bucket_t;
+typedef reiser4_subvol *bucket_t;
 
 #define MAX_POS_IN_NODE 65535
-#define MAX_NUM_SUBVOLS 8
 
 typedef struct jnode jnode;
 typedef struct reiser4_blocknr_hint reiser4_blocknr_hint;

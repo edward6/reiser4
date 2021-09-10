@@ -391,7 +391,7 @@ static int __split_extent_item(coord_t *coord, reiser4_block_nr unit_split_pos,
 	 * cut the original tail
 	 */
 	cut_node_content(&cut_from, &cut_to, NULL, NULL, NULL);
-	/* make sure that @coord is valid after split operation */
+	/* set @coord to the last unit of the resulted item */
 	if (unit_split_pos == 0)
 		coord->unit_pos --;
 

@@ -161,6 +161,21 @@ static inline reiser4_subvol *get_proxy_subvol(void)
 	return current_volume()->proxy;
 }
 
+#if REISER4_DEBUG
+static inline void check_buckets(bucket_t *vec, u32 num)
+{
+	u32 i;
+
+	for (i = 0; i < num; i++) {
+		assert("edward-2181", vec[i] != NULL);
+		assert("edward-2195",
+		       ((reiser4_subvol *)vec[i])->dsa_idx == i);
+	}
+}
+#else
+#define check_buckets(vol) noop
+#endif
+
 /*
   Local variables:
   c-indentation-style: "K&R"

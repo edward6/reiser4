@@ -114,6 +114,29 @@ reiser4_subvol *find_meta_brick_by_id(reiser4_volume *vol)
 	return NULL;
 }
 
+static bucket_t *reset_buckets(bucket_t *buckets)
+{
+	int i, j;
+	reiser4_volume *vol = current_volume();
+	lv_conf *conf = vol->conf;
+	u32 nr_buckets = num_dsa_subvols(vol);
+
+	for (i = 0, j = 0; i < conf->nr_mslots; i++) {
+		if (conf->mslots[i] == NULL)
+			continue;
+		if (!is_dsa_brick(conf_origin(conf, i)))
+			continue;
+		buckets[j] = conf_origin(conf, i);
+		/*
+		 * set index in DSA
+		 */
+		buckets[j]->dsa_idx = j;
+		j++;
+	}
+	assert("edward-2194", j == nr_buckets);
+	return buckets;
+}
+
 /**
  * Allocate and initialize an array of abstract buckets for an
  * asymmetric volume.
@@ -122,37 +145,13 @@ reiser4_subvol *find_meta_brick_by_id(reiser4_volume *vol)
  */
 static bucket_t *create_buckets(void)
 {
-	u32 i, j;
 	bucket_t *ret;
-	reiser4_volume *vol = current_volume();
-	lv_conf *conf = vol->conf;
-	u32 nr_buckets = num_dsa_subvols(vol);
+	u32 nr_buckets = num_dsa_subvols(current_volume());
 
 	ret = kmalloc(nr_buckets * sizeof(*ret), GFP_KERNEL);
 	if (!ret)
 		return NULL;
-
-	for (i = 0, j = 0; i < conf->nr_mslots; i++) {
-		if (conf->mslots[i] == NULL)
-			continue;
-		if (!is_dsa_brick(conf_origin(conf, i)))
-			continue;
-		ret[j] = conf_origin(conf, i);
-		/*
-		 * set index in DSA
-		 */
-		conf_origin(conf, i)->dsa_idx = j;
-		j++;
-	}
-#if REISER4_DEBUG
-	assert("edward-2194", j == nr_buckets);
-	for (i = 0; i < nr_buckets; i++) {
-		assert("edward-2181", ret[i] != NULL);
-		assert("edward-2195",
-		       ((reiser4_subvol *)ret[i])->dsa_idx == i);
-	}
-#endif
-	return (bucket_t *)ret;
+	return reset_buckets(ret);
 }
 
 static void free_buckets(bucket_t *vec)
@@ -171,6 +170,7 @@ static bucket_t *remove_bucket(bucket_t *vec, u32 numb, u32 pos)
 	bucket_t *new;
 
 	assert("edward-2338", pos < numb);
+	check_buckets(vec, numb);
 
 	new = kmalloc((numb - 1) * sizeof(*new), GFP_KERNEL);
 	if (new) {
@@ -187,6 +187,7 @@ static bucket_t *remove_bucket(bucket_t *vec, u32 numb, u32 pos)
 		memcpy(new, vec, pos * (sizeof(*new)));
 		memcpy(new + pos, vec + pos + 1,
 		       (numb - pos - 1) * sizeof(*new));
+		check_buckets(new, numb - 1);
 	}
 	return new;
 }
@@ -196,6 +197,7 @@ static bucket_t *insert_bucket(bucket_t *vec, bucket_t this, u32 numb, u32 pos)
 	bucket_t *new;
 
 	assert("edward-2339", pos <= numb);
+	check_buckets(vec, numb);
 
 	new = kmalloc((numb + 1) * sizeof(*new), GFP_KERNEL);
 	if (new) {
@@ -217,6 +219,7 @@ static bucket_t *insert_bucket(bucket_t *vec, bucket_t this, u32 numb, u32 pos)
 		memcpy(new, vec, pos * (sizeof(*new)));
 		new[pos] = this;
 		memcpy(new + pos + 1, vec + pos, (numb - pos) * sizeof(*new));
+		check_buckets(new, numb + 1);
 	}
 	return new;
 }
@@ -722,6 +725,7 @@ static int init_volume_asym(struct super_block *sb, reiser4_volume *vol)
 	vol->buckets = create_buckets();
 	if (!vol->buckets)
 		return -ENOMEM;
+	check_buckets(vol->buckets, num_dsa_subvols(current_volume()));
 
 	if (reiser4_is_set(sb, REISER4_PROXY_ENABLED)) {
 		/*
@@ -828,16 +832,38 @@ static int init_volume_asym(struct super_block *sb, reiser4_volume *vol)
 
 /**
  * Bucket operations.
- * The following methods translate bucket_t to mirror_t
  */
+
+static const char *bucket_type_asym(void)
+{
+	return "Brick";
+}
+
+static char *bucket_name_asym(bucket_t this)
+{
+	return this->name;
+}
+
+static u64 cap_of(bucket_t this)
+{
+	return this->data_capacity;
+}
+
 static u64 cap_at_asym(bucket_t *buckets, u64 idx)
 {
-	return ((mirror_t *)buckets)[idx]->data_capacity;
+	return cap_of(buckets[idx]);
+}
+
+static u64 capr_at_asym(bucket_t *buckets, u64 idx)
+{
+	u64 ret = cap_of(buckets[idx]);
+	ret -= (ret * 5)/100; /* deduct 5% reservation */
+	return ret;
 }
 
 static void *apx_of_asym(bucket_t bucket)
 {
-	return ((mirror_t)bucket)->apx;
+	return bucket->apx;
 }
 
 static void *apx_at_asym(bucket_t *buckets, u64 index)
@@ -847,22 +873,17 @@ static void *apx_at_asym(bucket_t *buckets, u64 index)
 
 static void apx_set_at_asym(bucket_t *buckets, u64 idx, void *apx)
 {
-	((mirror_t *)buckets)[idx]->apx = apx;
+	buckets[idx]->apx = apx;
 }
 
 static u64 *apx_lenp_at_asym(bucket_t *buckets, u64 idx)
 {
-	return &((mirror_t *)buckets)[idx]->apx_len;
+	return &buckets[idx]->apx_len;
 }
 
 static reiser4_subvol *origin_at(slot_t slot)
 {
 	return ((mirror_t *)slot)[0];
-}
-
-static u64 capacity_at(slot_t slot)
-{
-	return origin_at(slot)->data_capacity;
 }
 
 /**
@@ -871,7 +892,7 @@ static u64 capacity_at(slot_t slot)
  * @slot represents data brick! This function can not be
  * applied to meta-data brick.
  */
-static u64 data_blocks_occupied(slot_t slot)
+static u64 data_blocks_occupied(bucket_t this)
 {
 	/*
 	 * From the total block count on a device we need
@@ -879,9 +900,9 @@ static u64 data_blocks_occupied(slot_t slot)
 	 * format specifications), which are always busy
 	 * and are not a subject for distribution
 	 */
-	return origin_at(slot)->block_count -
-		origin_at(slot)->min_blocks_used -
-		origin_at(slot)->blocks_free;
+	return this->block_count -
+		this->min_blocks_used -
+		this->blocks_free;
 }
 
 /**
@@ -899,9 +920,12 @@ static slot_t find_first_nonempty_data_slot(void)
 	return NULL;
 }
 
-static u64 space_occupied_at(slot_t slot)
+/**
+ * current consumption of brick capacity
+ */
+static u64 cap_consump_brick_asym(bucket_t this)
 {
-	if (is_meta_brick(origin_at(slot))) {
+	if (is_meta_brick(this)) {
 		slot_t neighbor;
 		/*
 		 * In asymmetric LV we don't track a number of busy
@@ -918,12 +942,12 @@ static u64 space_occupied_at(slot_t slot)
 		neighbor = find_first_nonempty_data_slot();
 		BUG_ON(neighbor == NULL);
 
-		return div64_u64(capacity_at(slot) *
-				 space_occupied_at(neighbor),
-				 capacity_at(neighbor));
+		return div64_u64(cap_of(this) *
+				 cap_consump_brick_asym(origin_at(neighbor)),
+				 cap_of(origin_at(neighbor)));
 	} else
 		/* data brick */
-		return data_blocks_occupied(slot);
+		return data_blocks_occupied(this);
 }
 
 /**
@@ -1058,7 +1082,7 @@ static int add_meta_brick(reiser4_volume *vol, reiser4_subvol *new,
 	new->flags |= (1 << SUBVOL_HAS_DATA_ROOM);
 	return 0;
  error:
-	vol->buckets = *old_vec;
+	vol->buckets = reset_buckets(*old_vec);
 	free_buckets(new_vec);
 	return ret;
 }
@@ -1173,7 +1197,7 @@ int add_data_brick(reiser4_volume *vol, reiser4_subvol *this,
 	return vol->dist_plug->v.inc(&vol->dcx, vol->conf->tab,
 				     pos_in_dsa, this);
  error:
-	vol->buckets = *old_vec;
+	vol->buckets = reset_buckets(*old_vec);
 	free_buckets(new_vec);
 	return ret;
 }
@@ -1451,7 +1475,7 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	reiser4_volume_clear_unbalanced(reiser4_get_current_sb());
 
 	new_vec = vol->buckets;
-	vol->buckets = old_vec;
+	vol->buckets = reset_buckets(old_vec);
 	free_buckets(new_vec);
 
 	free_lv_conf(vol->new_conf);
@@ -1459,7 +1483,17 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	return ret;
 }
 
-static u64 space_occupied(void)
+static u64 space_free_at_asym(bucket_t bucket)
+{
+	u64 ret;
+	u64 reserved;
+
+	reserved = (5 * bucket->block_count)/100; /* 5% */
+	ret = bucket->blocks_free;
+	return ret < reserved ? 0: ret - reserved;
+}
+
+static u64 cap_consump_asym(void)
 {
 	u64 ret = 0;
 	u64 subv_id;
@@ -1471,9 +1505,36 @@ static u64 space_occupied(void)
 		if (!conf->mslots[subv_id] ||
 		    !is_dsa_brick(conf_origin(conf, subv_id)))
 			continue;
-		ret += space_occupied_at(conf->mslots[subv_id]);
+		ret += cap_consump_brick_asym(origin_at(conf->mslots[subv_id]));
 	}
 	return ret;
+}
+
+/**
+ * Check, if remaining bricks are able to accommodate all the data of the
+ * brick to be removed
+ */
+static int check_remove(reiser4_volume *vol, bucket_t *new_vec,
+			reiser4_subvol *victim)
+{
+	u64 free, min_req;
+
+	assert("edward-2518", num_dsa_subvols(vol) > 1);
+
+	if (num_dsa_subvols(vol) > 2)
+		/* estimation will be made with distribution plugin */
+		return 0;
+
+	free = space_free_at_asym(new_vec[0]);
+	min_req = cap_consump_brick_asym(victim);
+
+	if (free < min_req){
+		warning("edward-2517",
+		 "Not enough free space (%llu) on brick %s, min required %llu",
+			free, new_vec[0]->name, min_req);
+		return -ENOSPC;
+	}
+	return 0;
 }
 
 static int __remove_meta_brick(reiser4_volume *vol)
@@ -1512,6 +1573,9 @@ static int remove_meta_brick(reiser4_volume *vol, bucket_t **old_vec)
 	*old_vec = vol->buckets;
 	vol->buckets = new_vec;
 
+	ret = check_remove(vol, new_vec, mtd_subv);
+	if (ret)
+		goto error;
 	ret = dist_plug->v.dec(&vol->dcx, vol->conf->tab,
 			       METADATA_SUBVOL_ID, mtd_subv);
 	if (ret)
@@ -1525,7 +1589,7 @@ static int remove_meta_brick(reiser4_volume *vol, bucket_t **old_vec)
 	assert("edward-1827", !is_dsa_brick(mtd_subv));
 	return 0;
  error:
-	vol->buckets = *old_vec;
+	vol->buckets = reset_buckets(*old_vec);
 	free_buckets(new_vec);
 	return ret;
 }
@@ -1610,23 +1674,26 @@ static int remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim,
 	*old_vec = vol->buckets;
 	vol->buckets = new_vec;
 
+	ret = check_remove(vol, new_vec, victim);
+	if (ret)
+		goto error;
 	ret = vol->dist_plug->v.dec(&vol->dcx, vol->conf->tab,
 				    pos_in_dsa, victim);
-	if (ret) {
-		/*
-		 * release resources allocated by and
-		 * roll back changes made by __remove_data_brick()
-		 */
-		bucket_t *new_vec = vol->buckets;
-		vol->buckets = *old_vec;
-		free_buckets(new_vec);
-
-		free_lv_conf(vol->new_conf);
-		vol->new_conf = NULL;
-		return ret;
-	}
+	if (ret)
+		goto error;
 	victim->flags |= (1 << SUBVOL_TO_BE_REMOVED);
 	return 0;
+ error:
+	/*
+	 * release resources allocated by and
+	 * roll back changes made by __remove_data_brick()
+	 */
+	vol->buckets = reset_buckets(*old_vec);
+	free_buckets(new_vec);
+
+	free_lv_conf(vol->new_conf);
+	vol->new_conf = NULL;
+	return ret;
 }
 
 static int remove_proxy_asym(reiser4_volume *vol, reiser4_subvol *victim)
@@ -1801,7 +1868,7 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 		victim->flags |= (1 << SUBVOL_HAS_DATA_ROOM);
 
 	new_vec = vol->buckets;
-	vol->buckets = old_vec;
+	vol->buckets = reset_buckets(old_vec);
 	free_buckets(new_vec);
 
 	free_lv_conf(vol->new_conf);
@@ -2625,18 +2692,17 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		.migrate_file = migrate_file_asym,
 		.balance_volume = balance_volume_asym,
 		.bucket_ops = {
+			.bucket_type = bucket_type_asym,
+			.bucket_name = bucket_name_asym,
 			.cap_at = cap_at_asym,
+			.capr_at = capr_at_asym,
 			.apx_of = apx_of_asym,
 			.apx_at = apx_at_asym,
 			.apx_set_at = apx_set_at_asym,
 			.apx_lenp_at = apx_lenp_at_asym,
 			.idx2id = idx2id,
 			.id2idx = id2idx,
-			.create_buckets = create_buckets,
-			.free_buckets = free_buckets,
-			.insert_bucket = insert_bucket,
-			.remove_bucket = remove_bucket,
-			.space_occupied = space_occupied
+			.cap_consump = cap_consump_asym
 		}
 	}
 };

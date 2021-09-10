@@ -4,7 +4,7 @@
   Implementation over 32-bit hash.
   Adapted for use in Reiser4.
 
-  Copyright (c) 2014-2020 Eduard O. Shishkin
+  Copyright (c) 2014-2021 Eduard O. Shishkin
 */
 
 #include <linux/kernel.h>
@@ -759,11 +759,11 @@ int inc_fsx32(reiser4_dcx *rdcx, const void *tab, u64 target_pos, bucket_t new)
 }
 
 /**
- * Check if there is enough capacity on abstract buckets
+ * Check if there are enough capacities on abstract buckets
  * for successful completion of an operation.
  *
  * @numb: number of buckets upon succesfull completion.
- * @occ: total amount of space occupied on all buckets
+ * @occ: current total volume capacity consumption
  */
 static int check_leftovers(reiser4_dcx *rdcx, u64 numb, u64 occ)
 {
@@ -772,11 +772,18 @@ static int check_leftovers(reiser4_dcx *rdcx, u64 numb, u64 occ)
 	u64 *vec_new_occ;
 	bucket_t *vec = current_buckets();
 	struct bucket_ops *ops = current_bucket_ops();
+
+	if (numb < 2)
+		/*
+		 * in this case the capacity stuff is meaningless, so
+		 * the check has to be perfformed by the upper layer
+		 */
+		return 0;
 	/*
-	 * For each bucket calculate how much space will be
+	 * For each bucket calculate how much capacity will be
 	 * occupied on that bucket after successful completion
-	 * of the volume operation and compare it with the
-	 * bucket's capacity
+	 * of the volume operation and compare it with the bucket's
+	 * capacity, reduced by a reserved value
 	 */
 	vec_new_occ = fsx64_alloc(numb);
 	if (!vec_new_occ)
@@ -786,24 +793,24 @@ static int check_leftovers(reiser4_dcx *rdcx, u64 numb, u64 occ)
 
 	for (i = 0; i < numb; i++) {
 		u64 cap;
-		ON_DEBUG(notice("edward-2145",
-			"Brick %llu: data capacity: %llu, min required: %llu",
-			i, ops->cap_at(vec, i), vec_new_occ[i]));
 
-		cap = ops->cap_at(vec, i);
-		cap -= (cap * 5)/100; /* deduct 5% reservation */
+		cap = ops->capr_at(vec, i); /* capacity w/o reservation */
 		if (cap < vec_new_occ[i]) {
 			warning("edward-2070",
-		"Not enough data capacity (%llu) of brick %llu (required %llu)",
+			  "%s %s: not enough capacity (%llu), required %llu",
+				ops->bucket_type(),
+				ops->bucket_name(vec[i]),
 				cap,
-				i,
 				vec_new_occ[i]);
 			ret = -ENOSPC;
 			break;
 		} else {
 			ON_DEBUG(notice("edward-2145",
-			"Brick %llu: data capacity: %llu, min required: %llu",
-					i, cap, vec_new_occ[i]));
+			      "%s %s: capacity: %llu, min required: %llu",
+					ops->bucket_type(),
+					ops->bucket_name(vec[i]),
+					cap,
+					vec_new_occ[i]));
 		}
 	}
 	fsx_free(vec_new_occ);
@@ -832,7 +839,7 @@ int dec_fsx32(reiser4_dcx *rdcx, const void *tab, u64 target_pos,
 		if (ret)
 			return ret;
 	}
-	ret = check_leftovers(rdcx, new_numb, ops->space_occupied());
+	ret = check_leftovers(rdcx, new_numb, ops->cap_consump());
 	if (ret)
 		return ret;
 
