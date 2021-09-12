@@ -542,7 +542,7 @@ int what_to_do(struct migration_context *mctx, u64 *dst_id,
 		if (calc_data_subvol(inode, split_off)->id != mctx->new_loc)
 			goto split_off_found;
 		if (mctx->act == MIGRATE_ITEM &&
-		    split_off - off1 >= MIGRATION_GRANULARITY) {
+		    split_off - off1 >= MIGR_SMALL_CHUNK_BYTES) {
 			/*
 			 * split offset is not found, but the extent
 			 * is too large, so we have to migrate a part

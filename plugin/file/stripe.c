@@ -1158,9 +1158,6 @@ static int find_extent_iter(coord_t *coord, lock_handle *lh, reiser4_key *key,
 	return CBK_COORD_FOUND;
 }
 
-#define NR_RA_BYTES (current_stripe_size << 10)
-#define NR_RA_PAGES (NR_RA_BYTES >> PAGE_SHIFT)
-
 static void readahead(struct file_ra_state *ra,
 		      struct address_space *mapping, pgoff_t index)
 {
@@ -1169,24 +1166,24 @@ static void readahead(struct file_ra_state *ra,
 	page = find_get_page(mapping, index);
 	if (!page) {
 		page_cache_sync_readahead(mapping, ra, NULL,
-					  index, NR_RA_PAGES);
+					  index, MIGR_LARGE_CHUNK_PAGES);
 		page = find_get_page(mapping, index);
 	}
 	if (page && PageReadahead(page)) {
 		page_cache_async_readahead(mapping, ra, NULL,
-					   page, index, NR_RA_PAGES);
+					   page, index, MIGR_LARGE_CHUNK_PAGES);
 	}
 	if (page)
 		put_page(page);
 }
 
-static int __migrate_stripe(struct inode *inode, void *data, u64 *dst_id)
+static int __migrate_stripe(struct inode *inode, void *data,
+			    u64 *to_write, u64 *dst_id)
 {
 	int ret;
 	reiser4_key key;
 	coord_t coord;
 	lock_handle lh;
-	unsigned int nr_migrated = 0;
 	struct file_ra_state ra = { 0 };
 
 	/*
@@ -1245,10 +1242,10 @@ static int __migrate_stripe(struct inode *inode, void *data, u64 *dst_id)
 				"failed to migrate file (%d)", ret);
 			return ret;
 		}
-		nr_migrated += nr_migrated_iter;
-		if (nr_migrated >= NR_RA_PAGES) {
+		*to_write += nr_migrated_iter;
+		if (*to_write >= MIGR_LARGE_CHUNK_PAGES) {
 			force_commit_current_atom();
-			nr_migrated = 0;
+			*to_write = 0;
 		}
 		/*
 		 * set key to the leftmost non-processed byte
@@ -1266,12 +1263,12 @@ static int __migrate_stripe(struct inode *inode, void *data, u64 *dst_id)
 	return 0;
 }
 
-int migrate_stripe(struct inode *inode, void *data, u64 *dst_id)
+int migrate_stripe(struct inode *inode, void *data, u64 *to_write, u64 *dst_id)
 {
 	int ret;
 
 	get_exclusive_access(unix_file_inode_data(inode));
-	ret = __migrate_stripe(inode, data, dst_id);
+	ret = __migrate_stripe(inode, data, to_write, dst_id);
 	drop_exclusive_access(unix_file_inode_data(inode));
 	return ret;
 }

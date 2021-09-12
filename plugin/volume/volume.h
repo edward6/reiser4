@@ -13,8 +13,20 @@
 #define INVALID_SUBVOL_ID   (0xffffffff)
 #define METADATA_SUBVOL_ID  (0)
 
-/* Maximum number of blocks to be migrated per iteration */
-#define MIGRATION_GRANULARITY (current_stripe_size)
+/*
+ * Maximum chunk of data to be processed on the low level by
+ * operations over extent pointers
+ */
+#define MIGR_SMALL_CHUNK_BYTES (current_stripe_size)
+#define MIGR_SMALL_CHUNK_PAGES (MIGR_SMALL_CHUNK_BYTES >> PAGE_SHIFT)
+
+/*
+ * Maximum chunk of data to be processed on the high level by
+ * operations of blocks read/dealloaction, transaction commit, etc
+ */
+#define MIGR_LARGE_CHUNK_BYTES (current_stripe_size << 10)
+#define MIGR_LARGE_CHUNK_PAGES (MIGR_LARGE_CHUNK_BYTES >> PAGE_SHIFT)
+
 /*
  * primitive migration operations over item
  */
@@ -38,8 +50,7 @@ struct migration_context {
 };
 
 #define MIGRATION_CONTEXT_SIZE ((sizeof(struct migration_context) +	\
-				 (MIGRATION_GRANULARITY >> PAGE_SHIFT)* \
-				 sizeof(struct page *)))
+			        MIGR_SMALL_CHUNK_PAGES * sizeof(struct page *)))
 
 extern void deactivate_subvol(struct super_block *super, reiser4_subvol *subv);
 extern reiser4_subvol *find_meta_brick_by_id(reiser4_volume *vol);

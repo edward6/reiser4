@@ -357,12 +357,14 @@ typedef struct file_plugin {
 	/* called from ->destroy_inode() */
 	void (*destroy_inode) (struct inode *);
 	/*
-	 * Migrate data blocks of a regular file specified by @inode.
-	 * If @dst_id is not NULL, then migrate all the blocks to brick with
+	 * Migrate all data blocks of a regular file specified by @inode.
+	 * If @dst_id is not NULL, then migrate everything to the brick with
 	 * @dst_id. Otherwise, migrate in accordance with current distribution
-	 * table.
+	 * table. On success @to_write contains amount of data blocks which are
+	 * migrated, but not yet written to disk
 	 */
-	int (*migrate)(struct inode *object, void *mctx, u64 *dst_id);
+	int (*migrate)(struct inode *object, void *mctx,
+		       u64 *to_write, u64 *dst_id);
 	/*
 	 * methods to serialize object identify. This is used, for example, by
 	 * reiser4_{en,de}code_fh().
