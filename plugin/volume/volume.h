@@ -184,7 +184,7 @@ static inline void check_buckets(bucket_t *vec, u32 num)
 	}
 }
 #else
-#define check_buckets(vol) noop
+#define check_buckets(vec, num) noop
 #endif
 
 /*

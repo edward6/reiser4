@@ -119,7 +119,6 @@ static bucket_t *reset_buckets(bucket_t *buckets)
 	int i, j;
 	reiser4_volume *vol = current_volume();
 	lv_conf *conf = vol->conf;
-	u32 nr_buckets = num_dsa_subvols(vol);
 
 	for (i = 0, j = 0; i < conf->nr_mslots; i++) {
 		if (conf->mslots[i] == NULL)
@@ -133,7 +132,7 @@ static bucket_t *reset_buckets(bucket_t *buckets)
 		buckets[j]->dsa_idx = j;
 		j++;
 	}
-	assert("edward-2194", j == nr_buckets);
+	assert("edward-2194", j == num_dsa_subvols(vol));
 	return buckets;
 }
 

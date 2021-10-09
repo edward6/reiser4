@@ -292,8 +292,8 @@ static int __split_extent_item(coord_t *coord, reiser4_block_nr unit_split_pos,
 	reiser4_item_data idata;
 	reiser4_key split_key;
 	reiser4_key item_key;
-	ON_DEBUG(reiser4_key check_key);
 	znode *orig_node;
+	ON_DEBUG(reiser4_key check_key);
 
 	assert("edward-2109", znode_is_loaded(coord->node));
 	assert("edward-2143", ergo(unit_split_pos == 0, coord->unit_pos > 0));
@@ -476,12 +476,12 @@ int what_to_do(struct migration_context *mctx, u64 *dst_id,
 	loff_t off1, off2;
 	loff_t split_off;
 
-	ON_DEBUG(reiser4_key check_key);
 	struct inode *inode = mctx->inode;
 	coord_t *coord = mctx->coord;
 	load_count *dh = &mctx->dh;
 	lookup_result ret;
 	int augment;
+	ON_DEBUG(reiser4_key check_key);
 
 	ret = incr_load_count_znode(dh, coord->node);
 	if (ret)
