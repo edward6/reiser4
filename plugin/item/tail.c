@@ -6,9 +6,9 @@
 #include "../../carry.h"
 #include "../../vfs_ops.h"
 
-#include <asm/uaccess.h>
 #include <linux/swap.h>
 #include <linux/writeback.h>
+#include <linux/uio.h>
 
 /* plugin->u.item.b.max_key_inside */
 reiser4_key *max_key_inside_tail(const coord_t *coord, reiser4_key *key)
@@ -611,7 +611,7 @@ static loff_t faultin_user_pages(const char __user *buf, size_t count)
 		to_fault = PAGE_SIZE;
 		if (count < to_fault)
 			to_fault = count;
-		fault_in_pages_readable(buf + faulted, to_fault);
+		fault_in_readable(buf + faulted, to_fault);
 		count -= to_fault;
 		faulted += to_fault;
 	}

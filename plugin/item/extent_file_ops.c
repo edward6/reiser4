@@ -6,6 +6,7 @@
 #include "../object.h"
 #include "../volume/volume.h"
 #include <linux/swap.h>
+#include <linux/uio.h>
 
 static inline reiser4_extent *ext_by_offset(const znode *node, int offset)
 {
@@ -1057,7 +1058,7 @@ ssize_t write_extent_unix_file(struct file *file, struct inode *inode,
 		}
 
 		BUG_ON(get_current_context()->trans->atom != NULL);
-		fault_in_pages_readable(buf, to_page);
+		fault_in_readable(buf, to_page);
 		BUG_ON(get_current_context()->trans->atom != NULL);
 
 		lock_page(page);

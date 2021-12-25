@@ -46,9 +46,10 @@ static reiser4_plugin_ops compression_plugin_ops = {
 /*                         gzip1 compression                                  */
 /******************************************************************************/
 
-#define GZIP1_DEF_LEVEL		        Z_BEST_SPEED
+#define GZIP1_DEF_LEVEL			Z_BEST_SPEED
 #define GZIP1_DEF_WINBITS		15
 #define GZIP1_DEF_MEMLEVEL		MAX_MEM_LEVEL
+#define ZSTD_DEF_LEVEL			3
 
 static int gzip1_init(void)
 {
@@ -301,13 +302,13 @@ lzo1_decompress(coa_t coa, __u8 * src_first, size_t src_len,
 /******************************************************************************/
 
 typedef struct {
-	ZSTD_parameters params;
-	void* workspace;
-	ZSTD_CCtx* cctx;
+	void *workspace;
+	zstd_cctx *cctx;
 } zstd1_coa_c;
+
 typedef struct {
-	void* workspace;
-	ZSTD_DCtx* dctx;
+	void *workspace;
+	zstd_dctx *dctx;
 } zstd1_coa_d;
 
 static int zstd1_init(void)
@@ -317,7 +318,12 @@ static int zstd1_init(void)
 
 static int zstd1_overrun(unsigned src_len UNUSED_ARG)
 {
-	return ZSTD_compressBound(src_len) - src_len;
+	return zstd_compress_bound(src_len) - src_len;
+}
+
+static zstd_parameters zstd_params(void)
+{
+	return zstd_get_params(ZSTD_DEF_LEVEL, 0);
 }
 
 static coa_t zstd1_alloc(tfm_action act)
@@ -325,6 +331,7 @@ static coa_t zstd1_alloc(tfm_action act)
 	int ret = 0;
 	size_t workspace_size;
 	coa_t coa = NULL;
+	const zstd_parameters params = zstd_params();
 
 	switch (act) {
 	case TFMA_WRITE:	/* compress */
@@ -333,16 +340,18 @@ static coa_t zstd1_alloc(tfm_action act)
 			ret = -ENOMEM;
 			break;
 		}
-		/* ZSTD benchmark use level 1 as default. Max is 22. */
-		((zstd1_coa_c*)coa)->params = ZSTD_getParams(1, 0, 0);
-		workspace_size = ZSTD_CCtxWorkspaceBound(((zstd1_coa_c*)coa)->params.cParams);
+		workspace_size = zstd_cctx_workspace_bound(&params.cParams);
+		if (zstd_is_error(workspace_size)) {
+			ret = -EINVAL;
+			break;
+		}
 		((zstd1_coa_c*)coa)->workspace = reiser4_vmalloc(workspace_size);
 		if (!(((zstd1_coa_c*)coa)->workspace)) {
 			ret = -ENOMEM;
 			vfree(coa);
 			break;
 		}
-		((zstd1_coa_c*)coa)->cctx = ZSTD_initCCtx(((zstd1_coa_c*)coa)->workspace, workspace_size);
+		((zstd1_coa_c*)coa)->cctx = zstd_init_cctx(((zstd1_coa_c*)coa)->workspace, workspace_size);
 		if (!(((zstd1_coa_c*)coa)->cctx)) {
 			ret = -ENOMEM;
 			vfree(((zstd1_coa_c*)coa)->workspace);
@@ -356,14 +365,14 @@ static coa_t zstd1_alloc(tfm_action act)
 			ret = -ENOMEM;
 			break;
 		}
-		workspace_size = ZSTD_DCtxWorkspaceBound();
+		workspace_size = zstd_dctx_workspace_bound();
 		((zstd1_coa_d*)coa)->workspace = reiser4_vmalloc(workspace_size);
 		if (!(((zstd1_coa_d*)coa)->workspace)) {
 			ret = -ENOMEM;
 			vfree(coa);
 			break;
 		}
-		((zstd1_coa_d*)coa)->dctx = ZSTD_initDCtx(((zstd1_coa_d*)coa)->workspace, workspace_size);
+		((zstd1_coa_d*)coa)->dctx = zstd_init_dctx(((zstd1_coa_d*)coa)->workspace, workspace_size);
 		if (!(((zstd1_coa_d*)coa)->dctx)) {
 			ret = -ENOMEM;
 			vfree(((zstd1_coa_d*)coa)->workspace);
@@ -415,11 +424,12 @@ zstd1_compress(coa_t coa, __u8 * src_first, size_t src_len,
 	      __u8 * dst_first, size_t *dst_len)
 {
 	unsigned int result;
+	const zstd_parameters params = zstd_params();
 
 	assert("bsinot-5", coa != NULL);
 	assert("bsinot-6", src_len != 0);
-	result = ZSTD_compressCCtx(((zstd1_coa_c*)coa)->cctx, dst_first, *dst_len, src_first, src_len, ((zstd1_coa_c*)coa)->params);
-	if (ZSTD_isError(result)) {
+	result = zstd_compress_cctx(((zstd1_coa_c*)coa)->cctx, dst_first, *dst_len, src_first, src_len, &params);
+	if (zstd_is_error(result)) {
 		warning("bsinot-7", "zstd1_compressCCtx failed\n");
 		goto out;
 	}
@@ -443,9 +453,9 @@ zstd1_decompress(coa_t coa, __u8 * src_first, size_t src_len,
 	assert("bsinot-9", coa != NULL);
 	assert("bsinot-10", src_len != 0);
 
-	result = ZSTD_decompressDCtx(((zstd1_coa_d*)coa)->dctx, dst_first, *dst_len, src_first, src_len);
+	result = zstd_decompress_dctx(((zstd1_coa_d*)coa)->dctx, dst_first, *dst_len, src_first, src_len);
 	/* Same here. */
-	if (ZSTD_isError(result))
+	if (zstd_is_error(result))
 		warning("bsinot-11", "zstd1_decompressDCtx failed\n");
 	*dst_len = result;
 	return;

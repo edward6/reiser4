@@ -16,7 +16,6 @@
 #include "cryptcompress.h"
 
 #include <linux/pagevec.h>
-#include <asm/uaccess.h>
 #include <linux/swap.h>
 #include <linux/writeback.h>
 #include <linux/random.h>
@@ -2852,7 +2851,7 @@ static loff_t do_write_cryptcompress(struct file *file, struct inode *inode,
 			       page_off + to_page <= PAGE_SIZE);
 			assert("edward-287", clust.pages[i] != NULL);
 
-			fault_in_pages_readable(src, to_page);
+			fault_in_readable(src, to_page);
 
 			lock_page(clust.pages[i]);
 			result =
