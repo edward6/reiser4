@@ -22,6 +22,7 @@
 #include <linux/writeback.h>
 #include <linux/pagevec.h>
 #include <linux/syscalls.h>
+#include <linux/uio.h>
 
 
 static int unpack(struct file *file, struct inode *inode, int forever);

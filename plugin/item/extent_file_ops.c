@@ -6,6 +6,7 @@
 #include "../object.h"
 
 #include <linux/swap.h>
+#include <linux/uio.h>
 
 static inline reiser4_extent *ext_by_offset(const znode *node, int offset)
 {
@@ -1048,7 +1049,7 @@ ssize_t reiser4_write_extent(struct file *file, struct inode * inode,
 		}
 
 		BUG_ON(get_current_context()->trans->atom != NULL);
-		fault_in_pages_readable(buf, to_page);
+		fault_in_readable(buf, to_page);
 		BUG_ON(get_current_context()->trans->atom != NULL);
 
 		lock_page(page);
