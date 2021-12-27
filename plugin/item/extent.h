@@ -57,7 +57,7 @@ extern __u64 reiser4_current_block_count(void);
 static inline void
 extent_set_start(reiser4_extent * ext, reiser4_block_nr start)
 {
-	cassert(sizeof(ext->start) == 8);
+	static_assert(sizeof(ext->start) == 8);
 	assert("nikita-2510",
 	       ergo(start > 1, start < reiser4_current_block_count()));
 	put_unaligned(cpu_to_le64(start), &ext->start);
@@ -66,7 +66,7 @@ extent_set_start(reiser4_extent * ext, reiser4_block_nr start)
 static inline void
 extent_set_width(reiser4_extent * ext, reiser4_block_nr width)
 {
-	cassert(sizeof(ext->width) == 8);
+	static_assert(sizeof(ext->width) == 8);
 	assert("", width > 0);
 	put_unaligned(cpu_to_le64(width), &ext->width);
 	assert("nikita-2511",

@@ -53,6 +53,8 @@ struct blocknr_set_entry {
 	reiser4_block_nr entries[BLOCKNR_SET_ENTRIES_NUMBER];
 };
 
+static_assert(sizeof(blocknr_set_entry) == BLOCKNR_SET_ENTRY_SIZE);
+
 /* A pair of blocks as recorded in the blocknr_set_entry data. */
 struct blocknr_pair {
 	reiser4_block_nr a;
@@ -66,7 +68,6 @@ static unsigned bse_avail(blocknr_set_entry * bse)
 	unsigned used = bse->nr_singles + 2 * bse->nr_pairs;
 
 	assert("jmacd-5088", BLOCKNR_SET_ENTRIES_NUMBER >= used);
-	cassert(sizeof(blocknr_set_entry) == BLOCKNR_SET_ENTRY_SIZE);
 
 	return BLOCKNR_SET_ENTRIES_NUMBER - used;
 }

@@ -151,7 +151,7 @@ paste_extent(coord_t * coord, reiser4_item_data * data,
 	switch (coord->between) {
 	case AFTER_UNIT:
 		coord->unit_pos++;
-		/* fall through */
+		fallthrough;
 	case BEFORE_UNIT:
 		coord->between = AT_UNIT;
 		break;

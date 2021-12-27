@@ -59,23 +59,23 @@ static inline int pseq(const unsigned long *a1, const unsigned long *a2)
 	plugin_set *set2;
 
 	/* make sure fields are not missed in the code below */
-	cassert(sizeof *set1 ==
-		sizeof set1->hashval +
-		sizeof set1->link +
-		sizeof set1->file +
-		sizeof set1->dir +
-		sizeof set1->perm +
-		sizeof set1->formatting +
-		sizeof set1->hash +
-		sizeof set1->fibration +
-		sizeof set1->sd +
-		sizeof set1->dir_item +
-		sizeof set1->cipher +
-		sizeof set1->digest +
-		sizeof set1->compression +
-		sizeof set1->compression_mode +
-		sizeof set1->cluster +
-		sizeof set1->create);
+	static_assert(sizeof *set1 ==
+		      sizeof set1->hashval +
+		      sizeof set1->link +
+		      sizeof set1->file +
+		      sizeof set1->dir +
+		      sizeof set1->perm +
+		      sizeof set1->formatting +
+		      sizeof set1->hash +
+		      sizeof set1->fibration +
+		      sizeof set1->sd +
+		      sizeof set1->dir_item +
+		      sizeof set1->cipher +
+		      sizeof set1->digest +
+		      sizeof set1->compression +
+		      sizeof set1->compression_mode +
+		      sizeof set1->cluster +
+		      sizeof set1->create);
 
 	set1 = cast_to(a1);
 	set2 = cast_to(a2);

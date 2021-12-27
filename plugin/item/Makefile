@@ -1,6 +1,9 @@
-obj-$(CONFIG_REISER4_FS) += item_plugins.o
 
-item_plugins-objs :=		\
+MODULE := item_plugins
+
+obj-$(CONFIG_REISER4_FS) := $(MODULE).o
+
+$(MODULE)-objs +=		\
 	item.o			\
 	static_stat.o		\
 	sde.o			\
@@ -13,6 +16,3 @@ item_plugins-objs :=		\
 	extent_item_ops.o	\
 	extent_file_ops.o	\
 	extent_flush_ops.o
-
-
-

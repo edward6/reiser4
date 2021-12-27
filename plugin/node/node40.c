@@ -272,7 +272,6 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 	assert("nikita-584", key != NULL);
 	assert("nikita-585", coord != NULL);
 	assert("nikita-2693", znode_is_any_locked(node));
-	cassert(REISER4_SEQ_SEARCH_BREAK > 2);
 
 	items = node_num_items(node);
 
@@ -436,7 +435,7 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 	}
 
 	if (iplug->b.lookup != NULL) {
-		return iplug->b.lookup(key, bias, coord);
+		return (node_search_result)iplug->b.lookup(key, bias, coord);
 	} else {
 		assert("nikita-1260", order == LESS_THAN);
 		coord->between = AFTER_UNIT;
@@ -2357,7 +2356,7 @@ adjust_coord(coord_t * insert_coord, struct shift_params *shift, int removed,
 	case BEFORE_UNIT:
 		if (shift->real_stop.item_pos == insert_coord->item_pos)
 			insert_coord->unit_pos -= shift->part_units;
-		/* fall through */
+		fallthrough;
 	case AFTER_ITEM:
 		coord_add_item_pos(insert_coord, -removed);
 		break;

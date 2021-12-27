@@ -962,7 +962,7 @@ int is_disk_addr_unallocated(const reiser4_block_nr * addr	/* address to
 								 * check */ )
 {
 	assert("nikita-1766", addr != NULL);
-	cassert(sizeof(reiser4_block_nr) == 8);
+
 	return (*addr & REISER4_BLOCKNR_STATUS_BIT_MASK) ==
 	    REISER4_UNALLOCATED_STATUS_VALUE;
 }

@@ -1756,7 +1756,7 @@ ssize_t read_unix_file(struct kiocb *iocb, struct iov_iter *iter)
 			result = generic_file_read_iter(iocb, iter);
 			break;
 		}
-		/* fall through */
+		fallthrough;
 	case UF_CONTAINER_TAILS:
 	case UF_CONTAINER_UNKNOWN:
 		result = read_compound_file(iocb, iter);

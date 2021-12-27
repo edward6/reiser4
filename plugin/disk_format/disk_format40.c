@@ -442,21 +442,21 @@ int init_format_format40(struct super_block *s, void *data UNUSED_ARG)
 		break;
 	case INIT_JNODE:
 		done_super_jnode(s);
-		/* fall through */
+		fallthrough;
 	case INIT_SA:
 		sa_destroy_allocator(reiser4_get_space_allocator(s), s);
-		/* fall through */
+		fallthrough;
 	case JOURNAL_RECOVER:
 	case INIT_TREE:
 		reiser4_done_tree(&get_super_private(s)->tree);
-		/* fall through */
+		fallthrough;
 	case INIT_OID:
 	case KEY_CHECK:
 	case READ_SUPER:
 	case JOURNAL_REPLAY:
 	case INIT_STATUS:
 		reiser4_status_finish();
-		/* fall through */
+		fallthrough;
 	case INIT_JOURNAL_INFO:
 		reiser4_done_journal_info(s);
 	case FIND_A_SUPER:

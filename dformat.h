@@ -30,6 +30,8 @@ typedef __le64 d64;
 /* data-type for block number */
 typedef __u64 reiser4_block_nr;
 
+static_assert(sizeof(reiser4_block_nr) == 8);
+
 /* data-type for block number on disk, disk format */
 typedef __le64 reiser4_dblock_nr;
 

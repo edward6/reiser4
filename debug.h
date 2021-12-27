@@ -33,15 +33,6 @@
 #define reiser4_log(label, format, ...) 				\
 	DCALL(KERN_DEBUG, printk, 0, label, format , ## __VA_ARGS__)
 
-/* Assertion checked during compilation.
-    If "cond" is false (0) we get duplicate case label in switch.
-    Use this to check something like famous
-       cassert (sizeof(struct reiserfs_journal_commit) == 4096) ;
-    in 3.x journal.c. If cassertion fails you get compiler error,
-    so no "maintainer-id".
-*/
-#define cassert(cond) ({ switch (-1) { case (cond): case 0: break; } })
-
 #define noop   do {; } while (0)
 
 #if REISER4_DEBUG
