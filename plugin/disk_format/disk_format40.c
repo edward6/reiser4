@@ -625,29 +625,29 @@ static int init_format_generic(struct super_block *s,
 	case INIT_SYSTAB:
 	case INIT_JNODE:
 		put_sb_format_jnode(subv);
-		/* fall through */
+		fallthrough;
 	case INIT_SA:
 		sa_destroy_allocator(reiser4_get_space_allocator(subv),
 				     s, subv);
-		/* fall through */
+		fallthrough;
 	case JOURNAL_RECOVER:
 	case INIT_TREE:
 		reiser4_done_tree(&subv->tree);
-		/* fall through */
+		fallthrough;
 	case INIT_OID:
 	case KEY_CHECK:
 	case READ_SUPER:
 		if (!sb_rdonly(s) &&
 		    reiser4_subvol_free_blocks(subv) < RELEASE_RESERVED)
 			result = RETERR(-ENOSPC);
-		/* fall through */
+		fallthrough;
 	case JOURNAL_REPLAY:
 	case INIT_STATUS:
 		reiser4_status_finish(subv);
-		/* fall through */
+		fallthrough;
 	case INIT_JOURNAL_INFO:
 		reiser4_done_journal_info(subv);
-		/* fall through */
+		fallthrough;
 	case NONE_DONE:
 		break;
 	default:

@@ -1,5 +1,8 @@
-obj-$(CONFIG_REISER4_FS) += dir_plugins.o
 
-dir_plugins-objs :=	\
-	hashed_dir.o	\
+MODULE := dir_plugins
+
+obj-$(CONFIG_REISER4_FS) := $(MODULE).o
+
+$(MODULE)-objs += 	\
+	hashed_dir.o 	\
 	seekable_dir.o

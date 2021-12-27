@@ -1363,8 +1363,8 @@ static void update_stale_dk(reiser4_tree * tree, znode * node)
 	read_unlock_tree();
 }
 
-/*
- * handle searches a the non-unique key.
+/**
+ * Search for non-unique key.
  *
  * Suppose that we are looking for an item with possibly non-unique key 100.
  *
@@ -1387,7 +1387,7 @@ static void update_stale_dk(reiser4_tree * tree, znode * node)
  */
 static level_lookup_result search_to_left(cbk_handle * h/* search handle */)
 {
-	level_lookup_result result;
+	level_lookup_result result = LOOKUP_INVAL;
 	coord_t *coord;
 	znode *node;
 	znode *neighbor;

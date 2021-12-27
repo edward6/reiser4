@@ -358,7 +358,7 @@ int coord_next_unit(coord_t *coord)
 		   it was after the current item. */
 		coord->between = AFTER_ITEM;
 		coord->unit_pos = 0;
-		/* FALLTHROUGH */
+		fallthrough;
 
 	case AFTER_ITEM:
 		/* Check for end-of-node. */
@@ -471,7 +471,7 @@ int coord_prev_unit(coord_t *coord)
 			return 1;
 
 		coord_dec_item_pos(coord);
-		/* FALLTHROUGH */
+		fallthrough;
 
 	case AFTER_ITEM:
 		coord->between = AT_UNIT;

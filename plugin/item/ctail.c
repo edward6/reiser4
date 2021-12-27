@@ -1508,7 +1508,7 @@ static void post_convert_ctail(flush_pos_t * pos,
 				coord_init_before_item(&pos->coord);
 			break;
 		}
-		/* fall through */
+		fallthrough;
 	case CTAIL_APPEND_ITEM:
 		/*
 		 * in the append mode the whole flow has been inserted
@@ -1677,7 +1677,7 @@ static int do_convert_ctail(flush_pos_t * pos, ctail_convert_mode_t mode)
 		overwrite_ctail(&pos->coord, &info->flow);
 		if (info->flow.length != 0)
 			break;
-		/* fall through */
+		fallthrough;
 		/* cut the rest of item (if any) */
 	case CTAIL_CUT_ITEM:
 		assert("edward-1231", info->flow.length == 0);

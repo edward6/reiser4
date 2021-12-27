@@ -1,6 +1,9 @@
-obj-$(CONFIG_REISER4_FS) += node_plugins.o
 
-node_plugins-objs :=	\
-	node.o		\
+MODULE := node_plugins
+
+obj-$(CONFIG_REISER4_FS) := $(MODULE).o
+
+$(MODULE)-objs +=	\
+	node.o 		\
 	node40.o	\
 	node41.o

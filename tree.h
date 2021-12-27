@@ -75,7 +75,9 @@ typedef enum {
 	   doesn't exist, or some error occurred. */
 	LOOKUP_DONE,
 	/* restart traversal from the root. Infamous "repetition". */
-	LOOKUP_REST
+	LOOKUP_REST,
+	/* this should not appear as an outcome */
+	LOOKUP_INVAL
 } level_lookup_result;
 
 /*    This is representation of internal reiser4 tree where all file-system

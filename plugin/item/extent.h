@@ -57,10 +57,9 @@ static inline void extent_set_start(reiser4_subvol *subv, reiser4_extent *ext,
 				    reiser4_block_nr start)
 {
 	static_assert(sizeof(ext->start) == 8);
-
 	assert("edward-2269", subv != NULL);
-	assert("nikita-2510", ergo(start > 1,
-				   start < reiser4_subvol_block_count(subv)));
+	assert("nikita-2510",
+	       ergo(start > 1, start < reiser4_subvol_block_count(subv)));
 
 	put_unaligned(cpu_to_le64(start), &ext->start);
 }

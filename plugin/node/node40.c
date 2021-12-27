@@ -2352,7 +2352,7 @@ adjust_coord(coord_t * insert_coord, struct shift_params *shift, int removed,
 	case BEFORE_UNIT:
 		if (shift->real_stop.item_pos == insert_coord->item_pos)
 			insert_coord->unit_pos -= shift->part_units;
-		/* fall through */
+		fallthrough;
 	case AFTER_ITEM:
 		coord_add_item_pos(insert_coord, -removed);
 		break;
