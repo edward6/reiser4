@@ -2219,7 +2219,7 @@ int print_brick_asym(struct super_block *sb, struct reiser4_vol_op_args *args)
 
 	brick_idx = args->s.brick_idx;
 	if (brick_idx >= vol_nr_origins(vol)) {
-		ret = -EINVAL;
+		args->error = E_NOBRC;
 		goto out;
 	}
 	id = brick_idx_to_id(vol, brick_idx);

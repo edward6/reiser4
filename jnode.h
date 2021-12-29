@@ -699,7 +699,7 @@ static inline jnode *jnode_rip_check(jnode *node)
 	return node;
 }
 
-static inline jnode *jnode_by_link(struct list_head *link)
+static inline jnode *jnode_by_link(const struct list_head *link)
 {
 	return list_entry(link, jnode, capture_link);
 }

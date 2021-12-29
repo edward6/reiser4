@@ -250,7 +250,7 @@ int reiser4_volume_header(struct reiser4_vol_op_args *args)
 	}
 	if (!this) {
 		mutex_unlock(&reiser4_volumes_mutex);
-		args->error = -ENOENT;
+		args->error = E_NOVOL;
 		return 0;
 	}
 	memcpy(args->u.vol.id, this->uuid, 16);
@@ -279,7 +279,7 @@ int reiser4_brick_header(struct reiser4_vol_op_args *args)
 	vol = reiser4_search_volume(args->u.vol.id);
 	if (!vol) {
 		mutex_unlock(&reiser4_volumes_mutex);
-		args->error = -EINVAL;
+		args->error = E_NOVOL;
 		return 0;
 	}
 	list_for_each_entry(subv, &vol->subvols_list, list) {
@@ -291,7 +291,7 @@ int reiser4_brick_header(struct reiser4_vol_op_args *args)
 	}
 	if (!this) {
 		mutex_unlock(&reiser4_volumes_mutex);
-		args->error = -ENOENT;
+		args->error = E_NOBRC;
 		return 0;
 	}
 	memcpy(args->u.brick.ext_id, this->uuid, 16);
