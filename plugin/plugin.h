@@ -642,14 +642,17 @@ typedef struct volume_plugin {
 	int (*init_volume)(struct super_block *sb, reiser4_volume *vol);
 	/* Change data capacity of @brick to new @value */
 	int (*resize_brick)(reiser4_volume *vol, reiser4_subvol *brick,
-			    long long value, int *need_balance);
+			    long long value, int *need_balance,
+			    struct reiser4_vol_op_args *args);
 	/* Add @new brick to logical volume @vol */
-	int (*add_brick)(reiser4_volume *vol, reiser4_subvol *new);
+	int (*add_brick)(reiser4_volume *vol, reiser4_subvol *new,
+			 reiser4_vol_op_error *error);
 
 	/* Start brick removal. Build a new volume configuration, which
 	   doesn't include @victim and move all data from the @victim to
 	   other bricks of the volume @vol */
-	int (*remove_brick)(reiser4_volume *vol, reiser4_subvol *victim);
+	int (*remove_brick)(reiser4_volume *vol, reiser4_subvol *victim,
+			    reiser4_vol_op_error *error);
 
 	/* End brick removal. Release resources associated with the brick
 	   @victim scheduled for removal. Should be called after successful

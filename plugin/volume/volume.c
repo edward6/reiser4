@@ -1202,7 +1202,8 @@ int add_data_brick(reiser4_volume *vol, reiser4_subvol *this,
 }
 
 static int resize_brick_asym(reiser4_volume *vol, reiser4_subvol *this,
-			     long long delta, int *need_balance)
+			     long long delta, int *need_balance,
+			     struct reiser4_vol_op_args *args)
 {
 	int ret;
 	struct super_block *sb = reiser4_get_current_sb();
@@ -1214,8 +1215,7 @@ static int resize_brick_asym(reiser4_volume *vol, reiser4_subvol *this,
 	assert("edward-1825", dist_plug != NULL);
 
 	if (is_proxy_brick(this)) {
-		warning("edward-2447",
-			"Can't resize proxy brick %s", this->name);
+		args->error = E_RESIZE_PROXY;
 		return RETERR(-EINVAL);
 	}
 	ret = dist_plug->v.init(&vol->conf->tab,
@@ -1278,15 +1278,15 @@ static int resize_brick_asym(reiser4_volume *vol, reiser4_subvol *this,
 	return ret;
 }
 
-static int add_proxy_asym(reiser4_volume *vol, reiser4_subvol *new)
+static int add_proxy_asym(reiser4_volume *vol, reiser4_subvol *new,
+			  reiser4_vol_op_error *error)
 {
 	int ret;
 	lv_conf *old_conf = vol->conf;
 	struct super_block *sb = reiser4_get_current_sb();
 
 	if (is_meta_brick(new) && (vol_nr_origins(vol) == 1)) {
-		warning("edward-2434",
-			"Single meta-data brick can not be proxy");
+		*error = E_ADD_SNGL_PROXY;
 		return -EINVAL;
 	}
 	if (new == get_meta_subvol())
@@ -1362,7 +1362,8 @@ static int add_proxy_asym(reiser4_volume *vol, reiser4_subvol *new)
 /**
  * Add a @new brick to asymmetric logical volume @vol
  */
-static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
+static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new,
+			  reiser4_vol_op_error *error)
 {
 	int ret;
 	distribution_plugin *dist_plug = vol->dist_plug;
@@ -1377,7 +1378,7 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	assert("edward-2239", vol->new_conf == NULL);
 
 	if (new->data_capacity == 0) {
-		warning("edward-1962", "Can't add brick of zero capacity");
+		*error = E_ADD_INVAL_CAPA;
 		return -EINVAL;
 	}
 	/*
@@ -1387,19 +1388,18 @@ static int add_brick_asym(reiser4_volume *vol, reiser4_subvol *new)
 	if (new != get_meta_subvol() &&
 	    reiser4_subvol_used_blocks(new) >
 	    reiser4_subvol_min_blocks_used(new)) {
-		warning("edward-2334", "Can't add not empty data brick %s",
-			new->name);
+		*error = E_ADD_NOT_EMPTY;
 		return -EINVAL;
 	}
 	if (brick_belongs_volume(vol, new) && is_dsa_brick(new)) {
 		/*
 		 * brick already participate in regular data distribution
 		 */
-		warning("edward-1963", "Can't add brick to DSA twice");
+		*error = E_BRICK_EXIST;
 		return -EINVAL;
 	}
 	if (subvol_is_set(new, SUBVOL_IS_PROXY))
-		return add_proxy_asym(vol, new);
+		return add_proxy_asym(vol, new, error);
 
 	/* reserve space on meta-data subvolume for brick symbol insertion */
 	grab_space_enable();
@@ -1514,7 +1514,7 @@ static u64 cap_consump_asym(void)
  * brick to be removed
  */
 static int check_remove(reiser4_volume *vol, bucket_t *new_vec,
-			reiser4_subvol *victim)
+			reiser4_subvol *victim, reiser4_vol_op_error *error)
 {
 	u64 free, min_req;
 
@@ -1531,6 +1531,7 @@ static int check_remove(reiser4_volume *vol, bucket_t *new_vec,
 		warning("edward-2517",
 		 "Not enough free space (%llu) on brick %s, min required %llu",
 			free, new_vec[0]->name, min_req);
+		*error = E_REMOVE_NOSPACE;
 		return -ENOSPC;
 	}
 	return 0;
@@ -1547,7 +1548,8 @@ static int __remove_meta_brick(reiser4_volume *vol)
 	return 0;
 }
 
-static int remove_meta_brick(reiser4_volume *vol, bucket_t **old_vec)
+static int remove_meta_brick(reiser4_volume *vol, bucket_t **old_vec,
+			     reiser4_vol_op_error *error)
 {
 	int ret;
 	reiser4_subvol *mtd_subv = get_meta_subvol();
@@ -1557,8 +1559,7 @@ static int remove_meta_brick(reiser4_volume *vol, bucket_t **old_vec)
 	assert("edward-1844", num_dsa_subvols(vol) > 1);
 
 	if (!is_dsa_brick(mtd_subv)) {
-		warning("edward-2331",
-			"Metadata brick doesn't belong to DSA. Can't remove.");
+		*error = E_REMOVE_MTD;
 		return RETERR(-EINVAL);
 	}
 	/*
@@ -1572,7 +1573,7 @@ static int remove_meta_brick(reiser4_volume *vol, bucket_t **old_vec)
 	*old_vec = vol->buckets;
 	vol->buckets = new_vec;
 
-	ret = check_remove(vol, new_vec, mtd_subv);
+	ret = check_remove(vol, new_vec, mtd_subv, error);
 	if (ret)
 		goto error;
 	ret = dist_plug->v.dec(&vol->dcx, vol->conf->tab,
@@ -1654,7 +1655,7 @@ static int __remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim)
 }
 
 static int remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim,
-			     bucket_t **old_vec)
+			     bucket_t **old_vec, reiser4_vol_op_error *error)
 {
 	int ret;
 	u32 pos_in_dsa;
@@ -1673,7 +1674,7 @@ static int remove_data_brick(reiser4_volume *vol, reiser4_subvol *victim,
 	*old_vec = vol->buckets;
 	vol->buckets = new_vec;
 
-	ret = check_remove(vol, new_vec, victim);
+	ret = check_remove(vol, new_vec, victim, error);
 	if (ret)
 		goto error;
 	ret = vol->dist_plug->v.dec(&vol->dcx, vol->conf->tab,
@@ -1758,7 +1759,8 @@ static int remove_proxy_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	return ret;
 }
 
-static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
+static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim,
+			     reiser4_vol_op_error *error)
 {
 	int ret;
 	lv_conf *tmp_conf;
@@ -1778,8 +1780,7 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 		return remove_proxy_asym(vol, victim);
 
 	if (old_nr_dsa_bricks == 1) {
-		warning("edward-1941",
-			"Can't remove the single brick from DSA");
+		*error = E_REMOVE_UNDEF;
 		return RETERR(-EINVAL);
 	}
 	ret = dist_plug->v.init(&vol->conf->tab,
@@ -1789,9 +1790,9 @@ static int remove_brick_asym(reiser4_volume *vol, reiser4_subvol *victim)
 		return ret;
 
 	if (is_meta_brick(victim))
-		ret = remove_meta_brick(vol, &old_vec);
+		ret = remove_meta_brick(vol, &old_vec, error);
 	else
-		ret = remove_data_brick(vol, victim, &old_vec);
+		ret = remove_data_brick(vol, victim, &old_vec, error);
 	dist_plug->v.done(&vol->dcx);
 	if (ret)
 		return ret;
@@ -2020,28 +2021,30 @@ static u64 calc_brick_simple(lv_conf *conf, const struct inode *inode,
 	return METADATA_SUBVOL_ID;
 }
 
-static int remove_brick_simple(reiser4_volume *vol, reiser4_subvol *this)
+static int remove_brick_simple(reiser4_volume *vol, reiser4_subvol *this,
+			       reiser4_vol_op_error *error)
 {
-	warning("", "remove_brick operation is undefined for simple volumes");
+	*error = E_REMOVE_SIMPLE;
 	return -EINVAL;
 }
 
 static int resize_brick_simple(reiser4_volume *vol, reiser4_subvol *this,
-			       long long delta, int *need_balance)
+			       long long delta, int *need_balance,
+			       struct reiser4_vol_op_args *args)
 {
-	warning("", "resize operation is undefined for simple volumes");
+	args->error = E_RESIZE_SIMPLE;
 	return -EINVAL;
 }
 
-static int add_brick_simple(reiser4_volume *vol, reiser4_subvol *new)
+static int add_brick_simple(reiser4_volume *vol, reiser4_subvol *new,
+			    reiser4_vol_op_error *error)
 {
-	warning("", "add_brick operation is undefined for simple volumes");
+	*error = E_ADD_SIMPLE;
 	return -EINVAL;
 }
 
 static int balance_volume_simple(struct super_block *sb, u32 flags)
 {
-	warning("", "balance operation is undefined for simple volumes");
 	return -EINVAL;
 }
 
@@ -2219,7 +2222,7 @@ int print_brick_asym(struct super_block *sb, struct reiser4_vol_op_args *args)
 
 	brick_idx = args->s.brick_idx;
 	if (brick_idx >= vol_nr_origins(vol)) {
-		args->error = E_NOBRC;
+		args->error = E_NO_BRICK;
 		goto out;
 	}
 	id = brick_idx_to_id(vol, brick_idx);

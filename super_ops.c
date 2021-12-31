@@ -648,7 +648,8 @@ static struct dentry *reiser4_mount(struct file_system_type *fs_type, int flags,
 	 * the volume could be created by old version of reiser4progs,
 	 * so try to register it here.
 	 */
-	ret = reiser4_scan_device(dev_name, flags, fs_type, &subv, &host);
+	ret = reiser4_scan_device(dev_name, flags, fs_type, &subv, &host,
+				  NULL);
 	if (ret)
 		return ERR_PTR(ret);
 
@@ -712,12 +713,6 @@ static long reiser4_control_ioctl(struct file *file, unsigned int cmd,
 			return PTR_ERR(op_args);
 
 		ret = reiser4_offline_op(op_args);
-		if (ret) {
-			ON_DEBUG(warning("edward-2315",
-				"off-line volume operation failed (%d)", ret));
-			kfree(op_args);
-			break;
-		}
 		if (copy_to_user((struct reiser4_vol_op_args __user *)arg,
 				 op_args, sizeof(*op_args)))
 			ret = RETERR(-EFAULT);

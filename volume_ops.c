@@ -17,7 +17,8 @@ static int reiser4_register_brick(struct reiser4_vol_op_args *args)
 	reiser4_volume *host = NULL;
 
 	return reiser4_scan_device(args->d.name, FMODE_READ,
-				   get_reiser4_fs_type(), NULL, &host);
+				   get_reiser4_fs_type(), NULL, &host,
+				   &args->error);
 }
 
 static int reiser4_print_volume(struct super_block *sb,
@@ -61,21 +62,16 @@ static int reiser4_resize_brick(struct super_block *sb,
 	int need_balance;
 
 	if (reiser4_volume_has_incomplete_removal(sb)) {
-		warning("edward-2166",
-			"Failed to resize brick (%s has incomplete removal)",
-			sb->s_id);
+		args->error = E_INCOMPL_REMOVAL;
 		return -EBUSY;
 	}
 	if (args->new_capacity == 0) {
-		warning("edward-2395", "Can not resize brick to zero.");
+		args->error = E_RESIZE_TO_ZERO;
 		return -EINVAL;
 	}
 	this = find_active_brick(sb, args->d.name);
 	if (!this) {
-		warning("edward-2148",
-			"Brick %s doesn't belong to volume %s. Can not resize.",
-			args->d.name,
-			reiser4_get_current_sb()->s_id);
+		args->error = E_BRICK_NOT_IN_VOL;
 		return -EINVAL;
 	}
 	if (args->new_capacity == this->data_capacity)
@@ -84,7 +80,7 @@ static int reiser4_resize_brick(struct super_block *sb,
 	ret = super_vol_plug(sb)->resize_brick(super_volume(sb),
 				this,
 				args->new_capacity - this->data_capacity,
-				&need_balance);
+				&need_balance, args);
 	if (ret)
 		/* resize operation should be repeated in regular context */
 		return ret;
@@ -96,8 +92,10 @@ static int reiser4_resize_brick(struct super_block *sb,
 		return 0;
 
 	ret = super_vol_plug(sb)->balance_volume(sb, 0);
-	if (ret)
+	if (ret) {
+		args->error = E_BALANCE;
 		return ret;
+	}
 	/*
 	 * clear unbalanced status on disk
 	 */
@@ -118,16 +116,15 @@ static int reiser4_add_brick(struct super_block *sb,
 	reiser4_volume *host_of_new = NULL;
 
 	if (reiser4_volume_has_incomplete_removal(sb)) {
-		warning("edward-2167",
-			"Failed to add brick (%s has incomplete removal)",
-			sb->s_id);
+		args->error = E_INCOMPL_REMOVAL;
 		return -EBUSY;
 	}
 	/*
 	 * register new brick
 	 */
 	ret = reiser4_scan_device(args->d.name, FMODE_READ,
-				  get_reiser4_fs_type(), &new, &host_of_new);
+				  get_reiser4_fs_type(), &new, &host_of_new,
+				  &args->error);
 	if (ret)
 		return ret;
 
@@ -135,8 +132,7 @@ static int reiser4_add_brick(struct super_block *sb,
 	assert("edward-1970", host_of_new != NULL);
 
 	if (host_of_new != vol) {
-		warning("edward-1971",
-			"Failed to add brick (Inappropriate volume)");
+		args->error = E_ADD_INAPP_VOL;
 		return -EINVAL;
 	}
 	if (!subvol_is_set(new, SUBVOL_ACTIVATED)) {
@@ -149,8 +145,7 @@ static int reiser4_add_brick(struct super_block *sb,
 	}
 	if (add_proxy) {
 		if (brick_belongs_volume(vol, new) && is_proxy_brick(new)) {
-			warning("edward-2435",
-				"Can't add second proxy brick to the volume");
+			args->error = E_ADD_SECOND_PROXY;
 			return -EINVAL;
 		}
 		assert("edward-2449",
@@ -159,7 +154,7 @@ static int reiser4_add_brick(struct super_block *sb,
 
 		new->flags |= (1 << SUBVOL_IS_PROXY);
 	}
-	ret = vol->vol_plug->add_brick(vol, new);
+	ret = vol->vol_plug->add_brick(vol, new, &args->error);
 	if (ret) {
 		/*
 		 * operation of adding a brick should be repeated
@@ -183,8 +178,10 @@ static int reiser4_add_brick(struct super_block *sb,
 		return 0;
 
 	ret = vol->vol_plug->balance_volume(sb, 0);
-	if (ret)
+	if (ret) {
+		args->error = E_BALANCE;
 		return ret;
+	}
 	/* clear unbalanced status on disk */
 
 	reiser4_volume_clear_unbalanced(sb);
@@ -227,20 +224,15 @@ static int reiser4_remove_brick(struct super_block *sb,
 	reiser4_subvol *victim;
 
 	if (reiser4_volume_has_incomplete_removal(sb)) {
-		warning("edward-2168",
-			"Failed to remove brick (%s has incomplete removal)",
-			sb->s_id);
+		args->error = E_INCOMPL_REMOVAL;
 		return -EBUSY;
 	}
 	victim = find_active_brick(sb, args->d.name);
 	if (!victim) {
-		warning("edward-2149",
-			"Brick %s doesn't belong to volume %s. Can not remove.",
-			args->d.name,
-			reiser4_get_current_sb()->s_id);
+		args->error = E_BRICK_NOT_IN_VOL;
 		return -EINVAL;
 	}
-	ret = vol->vol_plug->remove_brick(vol, victim);
+	ret = vol->vol_plug->remove_brick(vol, victim, &args->error);
 	if (ret)
 		return ret;
 	printk("reiser4 (%s): Brick %s scheduled for removal.\n",
@@ -258,9 +250,7 @@ static int reiser4_scale_volume(struct super_block *sb,
 	reiser4_volume *vol = super_volume(sb);
 
 	if (reiser4_volume_has_incomplete_removal(sb)) {
-		warning("edward-2168",
-			"Failed to scale volume %s with incomplete removal)",
-			sb->s_id);
+		args->error = E_INCOMPL_REMOVAL;
 		return -EBUSY;
 	}
 	if (args->s.val == 0)
@@ -291,8 +281,10 @@ static int reiser4_scale_volume(struct super_block *sb,
 		return 0;
 
 	ret = vol->vol_plug->balance_volume(sb, 0);
-	if (ret)
+	if (ret) {
+		args->error = E_BALANCE;
 		return ret;
+	}
 	/* clear unbalanced status on disk */
 
 	reiser4_volume_clear_unbalanced(sb);
@@ -452,8 +444,7 @@ int reiser4_offline_op(struct reiser4_vol_op_args *args)
 		ret = reiser4_brick_header(args);
 		break;
 	default:
-		warning("", "Unsupported off-line volume operation %d",
-			args->opcode);
+		args->error = E_UNSUPP_OP;
 		ret = -ENOTTY;
 		break;
 	}
@@ -535,20 +526,17 @@ int reiser4_volume_op_dir(struct file *file, struct reiser4_vol_op_args *args)
 		if (!down_read_trylock(&vol->volume_sem))
 			goto busy;
 		ret = reiser4_balance_volume(sb,
-					    VBF_MIGRATE_ALL | VBF_CLR_IMMOBILE);
+					     VBF_MIGRATE_ALL | VBF_CLR_IMMOBILE);
 		up_read(&vol->volume_sem);
 		break;
 	default:
-		warning("edward-1950",
-			"%s: volume operation %d is unsupported by directories",
-			sb->s_id, args->opcode);
+		args->error = E_UNSUPP_OP;
 		ret = RETERR(-ENOTTY);
 		break;
 	}
 	return ret;
  busy:
-	warning("", "Operation %d failed: volume %s is busy",
-		args->opcode, sb->s_id);
+	args->error = E_VOLUME_BUSY;
 	return RETERR(-EBUSY);
 }
 
@@ -574,9 +562,7 @@ int reiser4_volume_op_file(struct file *file,  struct reiser4_vol_op_args *args)
 		ret = inode_clr_immobile(file_inode(file));
 		break;
 	default:
-		warning("edward-1952",
-			"%s: volume operation %d is unsupported by regular files",
-			sb->s_id, args->opcode);
+		args->error = E_UNSUPP_OP;
 		ret = RETERR(-ENOTTY);
 		break;
 	}
@@ -607,12 +593,6 @@ long reiser4_ioctl_volume(struct file *file,
 			return PTR_ERR(op_args);
 
 		ret = volume_op(file, op_args);
-		if (ret) {
-			warning("edward-1899",
-				"On-line volume operation failed (%d)", ret);
-			kfree(op_args);
-			break;
-		}
 		if (copy_to_user((struct reiser4_vol_op_args __user *)arg,
 				 op_args, sizeof(*op_args)))
 			ret = RETERR(-EFAULT);

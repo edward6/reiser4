@@ -115,8 +115,31 @@ typedef enum {
 } reiser4_vol_op;
 
 typedef enum {
-	E_NOBRC = 1, /* brick not found */
-	E_NOVOL = 2 /* volume not found */
+	E_NO_ERROR = 0,
+	E_NO_BRICK = 1,
+	E_NO_VOLUME = 2,
+	E_RESIZE_PROXY = 3,
+	E_RESIZE_SIMPLE = 4,
+	E_RESIZE_TO_ZERO = 5,
+	E_ADD_INVAL_CAPA = 6,
+	E_ADD_NOT_EMPTY = 7,
+	E_ADD_SIMPLE = 8,
+	E_ADD_INAPP_VOL = 9,
+	E_ADD_SECOND_PROXY = 10,
+	E_ADD_SNGL_PROXY = 11,
+	E_BRICK_EXIST = 12,
+	E_BRICK_NOT_IN_VOL = 13,
+	E_REMOVE_SIMPLE = 14,
+	E_REMOVE_UNDEF = 15,
+	E_REMOVE_NOSPACE = 16,
+	E_REMOVE_MTD = 17,
+	E_BALANCE = 18,
+	E_INCOMPL_REMOVAL = 19,
+	E_VOLUME_BUSY = 20,
+	E_REG_NO_MASTER = 21,
+	E_UNREG_ACTIVE = 22,
+	E_UNREG_NO_BRICK = 23,
+	E_UNSUPP_OP = 24,
 } reiser4_vol_op_error;
 
 typedef enum {

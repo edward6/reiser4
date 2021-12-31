@@ -250,7 +250,7 @@ int reiser4_volume_header(struct reiser4_vol_op_args *args)
 	}
 	if (!this) {
 		mutex_unlock(&reiser4_volumes_mutex);
-		args->error = E_NOVOL;
+		args->error = E_NO_VOLUME;
 		return 0;
 	}
 	memcpy(args->u.vol.id, this->uuid, 16);
@@ -279,7 +279,7 @@ int reiser4_brick_header(struct reiser4_vol_op_args *args)
 	vol = reiser4_search_volume(args->u.vol.id);
 	if (!vol) {
 		mutex_unlock(&reiser4_volumes_mutex);
-		args->error = E_NOVOL;
+		args->error = E_NO_VOLUME;
 		return 0;
 	}
 	list_for_each_entry(subv, &vol->subvols_list, list) {
@@ -291,7 +291,7 @@ int reiser4_brick_header(struct reiser4_vol_op_args *args)
 	}
 	if (!this) {
 		mutex_unlock(&reiser4_volumes_mutex);
-		args->error = E_NOBRC;
+		args->error = E_NO_BRICK;
 		return 0;
 	}
 	memcpy(args->u.brick.ext_id, this->uuid, 16);
@@ -372,9 +372,7 @@ int reiser4_unregister_brick(struct reiser4_vol_op_args *args)
 			if (!strncmp(args->d.name,
 				     subv->name, strlen(subv->name))) {
 				if (subvol_is_set(subv, SUBVOL_ACTIVATED)) {
-					warning("edward-2314",
-					"Can not unregister activated brick %s",
-						subv->name);
+					args->error = E_UNREG_ACTIVE;
 					ret = -EINVAL;
 					goto out;
 				}
@@ -387,8 +385,7 @@ int reiser4_unregister_brick(struct reiser4_vol_op_args *args)
 			}
 		}
 	}
-	warning("edward-2313",
-		"Can not find registered brick %s", args->d.name);
+	args->error = E_UNREG_NO_BRICK;
 	ret = -EINVAL;
  out:
 	mutex_unlock(&reiser4_volumes_mutex);
@@ -420,8 +417,9 @@ void reiser4_unregister_volumes(void)
 /**
  * read master super-block from disk and make its copy
  */
-int reiser4_read_master_sb(struct block_device *bdev,
-			   struct reiser4_master_sb *copy)
+static int reiser4_read_master_sb(struct block_device *bdev,
+				  struct reiser4_master_sb *copy,
+				  reiser4_vol_op_error *error)
 {
 	struct page *page;
 	struct reiser4_master_sb *master;
@@ -432,7 +430,7 @@ int reiser4_read_master_sb(struct block_device *bdev,
 				   REISER4_MAGIC_OFFSET >> PAGE_SHIFT,
 				   GFP_KERNEL);
 	if (IS_ERR_OR_NULL(page))
-		return -EINVAL;
+		return -EIO;
 	master = kmap(page);
 	if (strncmp(master->magic,
 		    REISER4_SUPER_MAGIC_STRING,
@@ -442,6 +440,8 @@ int reiser4_read_master_sb(struct block_device *bdev,
 		 */
 		kunmap(page);
 		put_page(page);
+		if (error)
+			*error = E_REG_NO_MASTER;
 		return -EINVAL;
 	}
 	memcpy(copy, master, sizeof(*master));
@@ -459,7 +459,8 @@ int reiser4_read_master_sb(struct block_device *bdev,
  * On success return 0. Otherwise return error.
  */
 int reiser4_scan_device(const char *path, fmode_t flags, void *holder,
-			reiser4_subvol **result, reiser4_volume **host)
+			reiser4_subvol **result, reiser4_volume **host,
+			reiser4_vol_op_error *error)
 {
 	int ret;
 	u64 subv_id;
@@ -479,7 +480,7 @@ int reiser4_scan_device(const char *path, fmode_t flags, void *holder,
 		ret = PTR_ERR(bdev);
 		goto out;
 	}
-	ret = reiser4_read_master_sb(bdev, &master);
+	ret = reiser4_read_master_sb(bdev, &master, error);
 	if (ret)
 		goto bdev_put;
 

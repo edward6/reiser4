@@ -880,7 +880,8 @@ extern struct inode *reiser4_get_bitmap_fake(const struct super_block *super);
 extern int is_reiser4_super(const struct super_block *super);
 extern int reiser4_done_super(struct super_block *s);
 extern int reiser4_scan_device(const char *path, fmode_t flags, void *holder,
-			       reiser4_subvol **result, reiser4_volume **host);
+			       reiser4_subvol **result, reiser4_volume **host,
+			       reiser4_vol_op_error *error);
 
 /* step of fill super */
 extern int reiser4_offline_op(struct reiser4_vol_op_args *);
