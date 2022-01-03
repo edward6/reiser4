@@ -91,11 +91,9 @@ static int reiser4_resize_brick(struct super_block *sb,
 	if (!need_balance)
 		return 0;
 
-	ret = super_vol_plug(sb)->balance_volume(sb, 0);
-	if (ret) {
-		set_vol_op_error(&args->error, E_BALANCE);
+	ret = super_vol_plug(sb)->balance_volume(sb, 0, &args->error);
+	if (ret)
 		return ret;
-	}
 	/*
 	 * clear unbalanced status on disk
 	 */
@@ -177,11 +175,9 @@ static int reiser4_add_brick(struct super_block *sb,
 	if (!(args->flags & COMPLETE_WITH_BALANCE))
 		return 0;
 
-	ret = vol->vol_plug->balance_volume(sb, 0);
-	if (ret) {
-		set_vol_op_error(&args->error, E_BALANCE);
+	ret = vol->vol_plug->balance_volume(sb, 0, &args->error);
+	if (ret)
 		return ret;
-	}
 	/* clear unbalanced status on disk */
 
 	reiser4_volume_clear_unbalanced(sb);
@@ -282,11 +278,9 @@ static int reiser4_scale_volume(struct super_block *sb,
 	if (!(args->flags & COMPLETE_WITH_BALANCE))
 		return 0;
 
-	ret = vol->vol_plug->balance_volume(sb, 0);
-	if (ret) {
-		set_vol_op_error(&args->error, E_BALANCE);
+	ret = vol->vol_plug->balance_volume(sb, 0, &args->error);
+	if (ret)
 		return ret;
-	}
 	/* clear unbalanced status on disk */
 
 	reiser4_volume_clear_unbalanced(sb);
@@ -302,12 +296,13 @@ static int reiser4_scale_volume(struct super_block *sb,
  * without doing useful work.
  * Pre-condition: volume is read locked
  */
-static int reiser4_balance_volume(struct super_block *sb, u32 flags)
+static int reiser4_balance_volume(struct super_block *sb, u32 flags,
+				  reiser4_vol_op_error *error)
 {
 	reiser4_volume *vol = super_volume(sb);
 	int ret;
 
-	ret = vol->vol_plug->balance_volume(sb, flags);
+	ret = vol->vol_plug->balance_volume(sb, flags, error);
 	if (ret)
 		return ret;
 	reiser4_volume_clear_unbalanced(sb);
@@ -340,7 +335,8 @@ static int reiser4_finish_removal(struct super_block *sb, reiser4_volume *vol,
 		 * so we have to ignore immobile ststus of files
 		 */
 		ret = vol->vol_plug->balance_volume(sb,
-					VBF_MIGRATE_ALL | VBF_CLR_IMMOBILE);
+					VBF_MIGRATE_ALL | VBF_CLR_IMMOBILE,
+						    error);
 		if (ret)
 			goto error;
 		reiser4_volume_clear_unbalanced(sb);
@@ -521,14 +517,15 @@ int reiser4_volume_op_dir(struct file *file, struct reiser4_vol_op_args *args)
 	case REISER4_BALANCE_VOLUME:
 		if (!down_read_trylock(&vol->volume_sem))
 			goto busy;
-		ret = reiser4_balance_volume(sb, 0);
+		ret = reiser4_balance_volume(sb, 0, &args->error);
 		up_read(&vol->volume_sem);
 		break;
 	case REISER4_RESTORE_REGULAR_DST:
 		if (!down_read_trylock(&vol->volume_sem))
 			goto busy;
 		ret = reiser4_balance_volume(sb,
-					     VBF_MIGRATE_ALL | VBF_CLR_IMMOBILE);
+					     VBF_MIGRATE_ALL | VBF_CLR_IMMOBILE,
+					     &args->error);
 		up_read(&vol->volume_sem);
 		break;
 	default:

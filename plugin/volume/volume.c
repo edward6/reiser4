@@ -86,7 +86,8 @@ static void set_next_volmap_addr(struct volmap *vmap, reiser4_block_nr val)
 	put_unaligned(cpu_to_le64(val), &vmap->next);
 }
 
-static int balance_volume_asym(struct super_block *sb, u32 flags);
+static int balance_volume_asym(struct super_block *sb, u32 flags,
+			       reiser4_vol_op_error *error);
 
 static int voltab_nodes_per_block(void)
 {
@@ -2052,8 +2053,10 @@ static int add_brick_simple(reiser4_volume *vol, reiser4_subvol *new,
 	return -EINVAL;
 }
 
-static int balance_volume_simple(struct super_block *sb, u32 flags)
+static int balance_volume_simple(struct super_block *sb, u32 flags,
+				 reiser4_vol_op_error *error)
 {
+	set_vol_op_error(error, E_BALANCE_SIMPLE);
 	return -EINVAL;
 }
 
@@ -2462,7 +2465,8 @@ int inode_clr_immobile(struct inode *inode);
  * FIXME: use hint/seal to not traverse tree every time when searching
  * for a position by "current" key of the iteration context.
  */
-int balance_volume_asym(struct super_block *super, u32 flags)
+int balance_volume_asym(struct super_block *super, u32 flags,
+			reiser4_vol_op_error *error)
 {
 	int ret;
 	coord_t coord;
@@ -2622,6 +2626,7 @@ int balance_volume_asym(struct super_block *super, u32 flags)
 							  &to_write_iter, NULL);
 			if (ret) {
 				iput(inode);
+				set_vol_op_error(error, E_BALANCE_MIGR_ERROR);
 				warning("edward-1889",
 				      "Inode %lli: data migration failed (%d)",
 				      (unsigned long long)get_inode_oid(inode),
@@ -2630,11 +2635,14 @@ int balance_volume_asym(struct super_block *super, u32 flags)
 			}
 			if (flags & VBF_CLR_IMMOBILE) {
 				ret = inode_clr_immobile(inode);
-				if (ret)
+				if (ret) {
+					set_vol_op_error(error,
+							 E_BALANCE_CLR_IMMOB);
 					warning("edward-2472",
 			      "Inode %lli: failed to clear immobile status(%d)",
 			      (unsigned long long)get_inode_oid(inode),
 			      ret);
+				}
 			}
 			to_write += to_write_iter;
 		}

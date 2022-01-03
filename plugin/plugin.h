@@ -677,7 +677,8 @@ typedef struct volume_plugin {
 	 * a distribution policy defined by volume configuration and
 	 * control @flags
 	 */
-	int (*balance_volume)(struct super_block *super, u32 flags);
+	int (*balance_volume)(struct super_block *super, u32 flags,
+			      reiser4_vol_op_error *error);
 	struct bucket_ops bucket_ops;
 } volume_plugin;
 
