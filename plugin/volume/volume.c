@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2016-2020 Eduard O. Shishkin
+  Copyright (c) 2016-2022 Eduard O. Shishkin
 
   This file is licensed to you under your choice of the GNU Lesser
   General Public License, version 3 or any later version (LGPLv3 or
@@ -747,14 +747,17 @@ static int init_volume_asym(struct super_block *sb, reiser4_volume *vol)
 		 */
 	}
 	if (!reiser4_volume_has_incomplete_removal(sb)) {
+		/* nothing to do any more */
 		if (reiser4_volume_is_unbalanced(sb))
 			warning("", "Volume (%s) is unbalanced", sb->s_id);
 		return 0;
 	}
-	assert("edward-2250", current_volume() == vol);
 	/*
-	 * prepare the volume for removal completion
+	 * Prepare the volume for removal completion.
+	 * The completion itself should be performed by user
+	 * by a respective utility after successfull mount
 	 */
+	assert("edward-2250", current_volume() == vol);
 	assert("edward-2244", vol->new_conf == NULL);
 
 	for_each_mslot(cur_conf, subv_id) {
@@ -1896,7 +1899,8 @@ static int reserve_brick_symbol_del(void)
  * by the balancing procedure, and unbalanced status has been successfully
  * cleared up on disk
  */
-int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
+static int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim,
+				  reiser4_vol_op_error *error)
 {
 	int ret;
 	int is_proxy = 0;
@@ -1937,9 +1941,7 @@ int remove_brick_tail_asym(reiser4_volume *vol, reiser4_subvol *victim)
 	if (!is_meta_brick(victim)) {
 		if (reiser4_subvol_used_blocks(victim) >
 		    reiser4_subvol_min_blocks_used(victim)) {
-			warning("edward-2335",
-				"Can't remove data brick: not empty %s",
-				victim->name);
+			set_vol_op_error(error, E_REMOVE_TAIL_NOT_EMPTY);
 			ret = RETERR(-EAGAIN);
 			goto error;
 		}
@@ -2025,6 +2027,13 @@ static int remove_brick_simple(reiser4_volume *vol, reiser4_subvol *this,
 			       reiser4_vol_op_error *error)
 {
 	set_vol_op_error(error, E_REMOVE_SIMPLE);
+	return -EINVAL;
+}
+
+static int remove_brick_tail_simple(reiser4_volume *vol, reiser4_subvol *this,
+				    reiser4_vol_op_error *error)
+{
+	set_vol_op_error(error, E_REMOVE_TAIL_SIMPLE);
 	return -EINVAL;
 }
 
@@ -2671,7 +2680,7 @@ volume_plugin volume_plugins[LAST_VOLUME_ID] = {
 		.resize_brick = resize_brick_simple,
 		.add_brick = add_brick_simple,
 		.remove_brick = remove_brick_simple,
-		.remove_brick_tail = NULL,
+		.remove_brick_tail = remove_brick_tail_simple,
 		.print_brick = print_brick_simple,
 		.print_volume = print_volume_simple,
 		.balance_volume = balance_volume_simple,

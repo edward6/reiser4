@@ -214,7 +214,8 @@ static void reiser4_detach_brick(reiser4_subvol *victim)
 	reiser4_unregister_subvol(victim);
 }
 
-static int reiser4_finish_removal(struct super_block *sb, reiser4_volume *vol);
+static int reiser4_finish_removal(struct super_block *sb, reiser4_volume *vol,
+				  reiser4_vol_op_error *error);
 
 static int reiser4_remove_brick(struct super_block *sb,
 				struct reiser4_vol_op_args *args)
@@ -240,9 +241,7 @@ static int reiser4_remove_brick(struct super_block *sb,
 
 	release_volinfo_nodes(&vol->volinfo[CUR_VOL_CONF], 0);
 
-	ret = reiser4_finish_removal(sb, vol);
-	if (ret)
-		set_vol_op_error(&args->error, E_REMOVE_TAIL);
+	ret = reiser4_finish_removal(sb, vol, &args->error);
 	return ret;
 }
 
@@ -321,7 +320,8 @@ static int reiser4_balance_volume(struct super_block *sb, u32 flags)
 /**
  * Pre-condition: exclusive access to the volume should be held
  */
-static int reiser4_finish_removal(struct super_block *sb, reiser4_volume *vol)
+static int reiser4_finish_removal(struct super_block *sb, reiser4_volume *vol,
+				  reiser4_vol_op_error *error)
 {
 	int ret;
 	reiser4_subvol *victim;
@@ -351,7 +351,7 @@ static int reiser4_finish_removal(struct super_block *sb, reiser4_volume *vol)
 	 */
 	assert("edward-2258", vol->new_conf != NULL);
 
-	ret = vol->vol_plug->remove_brick_tail(vol, victim);
+	ret = vol->vol_plug->remove_brick_tail(vol, victim, error);
 	if (ret)
 		goto error;
 	assert("edward-2471", vol->new_conf == NULL);
@@ -508,9 +508,7 @@ int reiser4_volume_op_dir(struct file *file, struct reiser4_vol_op_args *args)
 	case REISER4_FINISH_REMOVAL:
 		down_write(&vol->volume_sem);
 		down_write(&vol->brick_removal_sem);
-		ret = reiser4_finish_removal(sb, vol);
-		if (ret)
-			set_vol_op_error(&args->error, E_REMOVE_TAIL);
+		ret = reiser4_finish_removal(sb, vol, &args->error);
 		up_write(&vol->brick_removal_sem);
 		up_write(&vol->volume_sem);
 		break;

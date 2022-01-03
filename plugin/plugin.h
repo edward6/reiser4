@@ -658,8 +658,8 @@ typedef struct volume_plugin {
 	   @victim scheduled for removal. Should be called after successful
 	   volume rebalancing, which moves out all data from @victim to
 	   other bricks of the volume @vol */
-	int (*remove_brick_tail)(reiser4_volume *vol, reiser4_subvol *victim);
-
+	int (*remove_brick_tail)(reiser4_volume *vol, reiser4_subvol *victim,
+				 reiser4_vol_op_error *error);
 	/* Print brick info */
 	int (*print_brick)(struct super_block *sb,
 			   struct reiser4_vol_op_args *args);
