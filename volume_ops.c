@@ -62,16 +62,16 @@ static int reiser4_resize_brick(struct super_block *sb,
 	int need_balance;
 
 	if (reiser4_volume_has_incomplete_removal(sb)) {
-		args->error = E_INCOMPL_REMOVAL;
+		set_vol_op_error(&args->error, E_INCOMPL_REMOVAL);
 		return -EBUSY;
 	}
 	if (args->new_capacity == 0) {
-		args->error = E_RESIZE_TO_ZERO;
+		set_vol_op_error(&args->error, E_RESIZE_TO_ZERO);
 		return -EINVAL;
 	}
 	this = find_active_brick(sb, args->d.name);
 	if (!this) {
-		args->error = E_BRICK_NOT_IN_VOL;
+		set_vol_op_error(&args->error, E_BRICK_NOT_IN_VOL);
 		return -EINVAL;
 	}
 	if (args->new_capacity == this->data_capacity)
@@ -93,7 +93,7 @@ static int reiser4_resize_brick(struct super_block *sb,
 
 	ret = super_vol_plug(sb)->balance_volume(sb, 0);
 	if (ret) {
-		args->error = E_BALANCE;
+		set_vol_op_error(&args->error, E_BALANCE);
 		return ret;
 	}
 	/*
@@ -116,7 +116,7 @@ static int reiser4_add_brick(struct super_block *sb,
 	reiser4_volume *host_of_new = NULL;
 
 	if (reiser4_volume_has_incomplete_removal(sb)) {
-		args->error = E_INCOMPL_REMOVAL;
+		set_vol_op_error(&args->error, E_INCOMPL_REMOVAL);
 		return -EBUSY;
 	}
 	/*
@@ -132,7 +132,7 @@ static int reiser4_add_brick(struct super_block *sb,
 	assert("edward-1970", host_of_new != NULL);
 
 	if (host_of_new != vol) {
-		args->error = E_ADD_INAPP_VOL;
+		set_vol_op_error(&args->error, E_ADD_INAPP_VOL);
 		return -EINVAL;
 	}
 	if (!subvol_is_set(new, SUBVOL_ACTIVATED)) {
@@ -145,7 +145,7 @@ static int reiser4_add_brick(struct super_block *sb,
 	}
 	if (add_proxy) {
 		if (brick_belongs_volume(vol, new) && is_proxy_brick(new)) {
-			args->error = E_ADD_SECOND_PROXY;
+			set_vol_op_error(&args->error, E_ADD_SECOND_PROXY);
 			return -EINVAL;
 		}
 		assert("edward-2449",
@@ -179,7 +179,7 @@ static int reiser4_add_brick(struct super_block *sb,
 
 	ret = vol->vol_plug->balance_volume(sb, 0);
 	if (ret) {
-		args->error = E_BALANCE;
+		set_vol_op_error(&args->error, E_BALANCE);
 		return ret;
 	}
 	/* clear unbalanced status on disk */
@@ -224,12 +224,12 @@ static int reiser4_remove_brick(struct super_block *sb,
 	reiser4_subvol *victim;
 
 	if (reiser4_volume_has_incomplete_removal(sb)) {
-		args->error = E_INCOMPL_REMOVAL;
+		set_vol_op_error(&args->error, E_INCOMPL_REMOVAL);
 		return -EBUSY;
 	}
 	victim = find_active_brick(sb, args->d.name);
 	if (!victim) {
-		args->error = E_BRICK_NOT_IN_VOL;
+		set_vol_op_error(&args->error, E_BRICK_NOT_IN_VOL);
 		return -EINVAL;
 	}
 	ret = vol->vol_plug->remove_brick(vol, victim, &args->error);
@@ -240,7 +240,10 @@ static int reiser4_remove_brick(struct super_block *sb,
 
 	release_volinfo_nodes(&vol->volinfo[CUR_VOL_CONF], 0);
 
-	return reiser4_finish_removal(sb, vol);
+	ret = reiser4_finish_removal(sb, vol);
+	if (ret)
+		set_vol_op_error(&args->error, E_REMOVE_TAIL);
+	return ret;
 }
 
 static int reiser4_scale_volume(struct super_block *sb,
@@ -250,7 +253,7 @@ static int reiser4_scale_volume(struct super_block *sb,
 	reiser4_volume *vol = super_volume(sb);
 
 	if (reiser4_volume_has_incomplete_removal(sb)) {
-		args->error = E_INCOMPL_REMOVAL;
+		set_vol_op_error(&args->error, E_INCOMPL_REMOVAL);
 		return -EBUSY;
 	}
 	if (args->s.val == 0)
@@ -282,7 +285,7 @@ static int reiser4_scale_volume(struct super_block *sb,
 
 	ret = vol->vol_plug->balance_volume(sb, 0);
 	if (ret) {
-		args->error = E_BALANCE;
+		set_vol_op_error(&args->error, E_BALANCE);
 		return ret;
 	}
 	/* clear unbalanced status on disk */
@@ -370,7 +373,6 @@ static int reiser4_finish_removal(struct super_block *sb, reiser4_volume *vol)
 	return 0;
  error:
 	reiser4_volume_set_incomplete_removal(sb);
-	warning("", "Failed to complete brick removal on %s.", sb->s_id);
 	return ret;
 }
 
@@ -444,7 +446,7 @@ int reiser4_offline_op(struct reiser4_vol_op_args *args)
 		ret = reiser4_brick_header(args);
 		break;
 	default:
-		args->error = E_UNSUPP_OP;
+		set_vol_op_error(&args->error, E_UNSUPP_OP);
 		ret = -ENOTTY;
 		break;
 	}
@@ -507,6 +509,8 @@ int reiser4_volume_op_dir(struct file *file, struct reiser4_vol_op_args *args)
 		down_write(&vol->volume_sem);
 		down_write(&vol->brick_removal_sem);
 		ret = reiser4_finish_removal(sb, vol);
+		if (ret)
+			set_vol_op_error(&args->error, E_REMOVE_TAIL);
 		up_write(&vol->brick_removal_sem);
 		up_write(&vol->volume_sem);
 		break;
@@ -530,13 +534,13 @@ int reiser4_volume_op_dir(struct file *file, struct reiser4_vol_op_args *args)
 		up_read(&vol->volume_sem);
 		break;
 	default:
-		args->error = E_UNSUPP_OP;
+		set_vol_op_error(&args->error, E_UNSUPP_OP);
 		ret = RETERR(-ENOTTY);
 		break;
 	}
 	return ret;
  busy:
-	args->error = E_VOLUME_BUSY;
+	set_vol_op_error(&args->error, E_VOLUME_BUSY);
 	return RETERR(-EBUSY);
 }
 
@@ -562,7 +566,7 @@ int reiser4_volume_op_file(struct file *file,  struct reiser4_vol_op_args *args)
 		ret = inode_clr_immobile(file_inode(file));
 		break;
 	default:
-		args->error = E_UNSUPP_OP;
+		set_vol_op_error(&args->error, E_UNSUPP_OP);
 		ret = RETERR(-ENOTTY);
 		break;
 	}

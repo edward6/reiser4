@@ -250,7 +250,7 @@ int reiser4_volume_header(struct reiser4_vol_op_args *args)
 	}
 	if (!this) {
 		mutex_unlock(&reiser4_volumes_mutex);
-		args->error = E_NO_VOLUME;
+		set_vol_op_error(&args->error, E_NO_VOLUME);
 		return 0;
 	}
 	memcpy(args->u.vol.id, this->uuid, 16);
@@ -279,7 +279,7 @@ int reiser4_brick_header(struct reiser4_vol_op_args *args)
 	vol = reiser4_search_volume(args->u.vol.id);
 	if (!vol) {
 		mutex_unlock(&reiser4_volumes_mutex);
-		args->error = E_NO_VOLUME;
+		set_vol_op_error(&args->error, E_NO_VOLUME);
 		return 0;
 	}
 	list_for_each_entry(subv, &vol->subvols_list, list) {
@@ -291,7 +291,7 @@ int reiser4_brick_header(struct reiser4_vol_op_args *args)
 	}
 	if (!this) {
 		mutex_unlock(&reiser4_volumes_mutex);
-		args->error = E_NO_BRICK;
+		set_vol_op_error(&args->error, E_NO_BRICK);
 		return 0;
 	}
 	memcpy(args->u.brick.ext_id, this->uuid, 16);
@@ -372,7 +372,8 @@ int reiser4_unregister_brick(struct reiser4_vol_op_args *args)
 			if (!strncmp(args->d.name,
 				     subv->name, strlen(subv->name))) {
 				if (subvol_is_set(subv, SUBVOL_ACTIVATED)) {
-					args->error = E_UNREG_ACTIVE;
+					set_vol_op_error(&args->error,
+							 E_UNREG_ACTIVE);
 					ret = -EINVAL;
 					goto out;
 				}
@@ -385,7 +386,7 @@ int reiser4_unregister_brick(struct reiser4_vol_op_args *args)
 			}
 		}
 	}
-	args->error = E_UNREG_NO_BRICK;
+	set_vol_op_error(&args->error, E_UNREG_NO_BRICK);
 	ret = -EINVAL;
  out:
 	mutex_unlock(&reiser4_volumes_mutex);
@@ -440,8 +441,7 @@ static int reiser4_read_master_sb(struct block_device *bdev,
 		 */
 		kunmap(page);
 		put_page(page);
-		if (error)
-			*error = E_REG_NO_MASTER;
+		set_vol_op_error(error, E_REG_NO_MASTER);
 		return -EINVAL;
 	}
 	memcpy(copy, master, sizeof(*master));
@@ -487,19 +487,22 @@ int reiser4_scan_device(const char *path, fmode_t flags, void *holder,
 	ret = -EINVAL;
 	df_pid = master_get_dformat_pid(&master);
 	df_plug = disk_format_plugin_by_unsafe_id(df_pid);
-	if (df_plug == NULL)
+	if (df_plug == NULL) {
 		/* unknown disk format plugin */
+		set_vol_op_error(error, E_SCAN_UNSUPP);
 		goto bdev_put;
-
+	}
 	vol_pid = master_get_volume_pid(&master);
 	vol_plug = volume_plugin_by_unsafe_id(vol_pid);
-	if (!vol_plug)
+	if (!vol_plug) {
 		/* unknown volume plugin */
+		set_vol_op_error(error, E_SCAN_UNSUPP);
 		goto bdev_put;
-
+	}
 	mirror_id = master_get_mirror_id(&master);
 	nr_replicas = master_get_num_replicas(&master);
 	if (mirror_id > nr_replicas) {
+		set_vol_op_error(error, E_SCAN_UNMATCH);
 		warning("edward-1739",
 		       "%s: mirror id (%u) larger than number of replicas (%u)",
 			path, mirror_id, nr_replicas);
@@ -508,16 +511,16 @@ int reiser4_scan_device(const char *path, fmode_t flags, void *holder,
 
 	dist_pid = master_get_distrib_pid(&master);
 	dist_plug = distribution_plugin_by_unsafe_id(dist_pid);
-	if (!dist_plug)
+	if (!dist_plug) {
 		/* unknown distribution plugin */
+		set_vol_op_error(error, E_SCAN_UNSUPP);
 		goto bdev_put;
-
+	}
 	stripe_bits = master_get_stripe_bits(&master);
 	if (stripe_bits != 0 &&
 	    stripe_bits < PAGE_SHIFT &&
 	    stripe_bits > MAX_STRIPE_BITS) {
-		warning("edward-1814",
-			"bad stripe_bits value (%d)n", stripe_bits);
+		set_vol_op_error(error, E_SCAN_BAD_STRIPE);
 		goto bdev_put;
 	}
 	/*

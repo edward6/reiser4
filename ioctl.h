@@ -133,14 +133,25 @@ typedef enum {
 	E_REMOVE_UNDEF = 15,
 	E_REMOVE_NOSPACE = 16,
 	E_REMOVE_MTD = 17,
-	E_BALANCE = 18,
-	E_INCOMPL_REMOVAL = 19,
-	E_VOLUME_BUSY = 20,
-	E_REG_NO_MASTER = 21,
-	E_UNREG_ACTIVE = 22,
-	E_UNREG_NO_BRICK = 23,
-	E_UNSUPP_OP = 24,
+	E_REMOVE_TAIL = 18,
+	E_BALANCE = 19,
+	E_INCOMPL_REMOVAL = 20,
+	E_VOLUME_BUSY = 21,
+	E_REG_NO_MASTER = 22,
+	E_UNREG_ACTIVE = 23,
+	E_UNREG_NO_BRICK = 24,
+	E_SCAN_UNSUPP = 25,
+	E_SCAN_UNMATCH = 26,
+	E_SCAN_BAD_STRIPE = 27,
+	E_UNSUPP_OP = 28
 } reiser4_vol_op_error;
+
+static inline void set_vol_op_error(reiser4_vol_op_error *errp,
+				    reiser4_vol_op_error val)
+{
+	if (errp)
+		*errp = val;
+}
 
 typedef enum {
 	COMPLETE_WITH_BALANCE = 0x1
