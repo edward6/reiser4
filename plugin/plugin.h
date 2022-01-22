@@ -311,11 +311,6 @@ typedef struct file_plugin {
 	   detach of directory plugin to remove ".." */
 	int (*detach) (struct inode *child, struct inode *parent);
 
-	/* called when @child was just looked up in the @parent. It is not
-	   empty for DIRECTORY_FILE_PLUGIN_ID only where it calls attach of
-	   directory plugin */
-	int (*bind) (struct inode *child, struct inode *parent);
-
 	/* process safe-link during mount */
 	int (*safelink) (struct inode *object, reiser4_safe_link_t link,
 			 __u64 value);

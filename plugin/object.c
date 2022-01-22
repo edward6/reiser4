@@ -68,13 +68,6 @@ static int build_body_key_bugop(struct inode *inode, loff_t off,
 	return 0;
 }
 
-static int _dummyop(void)
-{
-	return 0;
-}
-
-#define dummyop ((void *)_dummyop)
-
 static int change_file(struct inode *inode,
 		       reiser4_plugin * plugin,
 		       pset_member memb)
@@ -225,8 +218,15 @@ static struct file_operations directory_f_ops = {
 #endif
 	.unlocked_ioctl = reiser4_ioctl_dir_common
 };
+
+static int reiser4_writepages_directory(struct address_space *mapping,
+					struct writeback_control *wbc)
+{
+	return 0;
+}
+
 static struct address_space_operations directory_a_ops = {
-	.writepages = dummyop,
+	.writepages = reiser4_writepages_directory
 };
 
 /*
@@ -285,8 +285,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.rem_link = reiser4_rem_link_common,
 		.owns_item = owns_item_unix_file,
 		.can_add_link = can_add_link_common,
-		.detach = dummyop,
-		.bind = dummyop,
+		.detach = NULL,
 		.safelink = safelink_common,
 		.estimate = {
 			.create = estimate_create_common,
@@ -329,7 +328,6 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.can_add_link = can_add_link_common,
 		.can_rem_link = can_rem_link_common_dir,
 		.detach = reiser4_detach_common_dir,
-		.bind = reiser4_bind_common_dir,
 		.safelink = safelink_common,
 		.estimate = {
 			.create = estimate_create_common_dir,
@@ -370,8 +368,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.add_link = reiser4_add_link_common,
 		.rem_link = reiser4_rem_link_common,
 		.can_add_link = can_add_link_common,
-		.detach = dummyop,
-		.bind = dummyop,
+		.detach = NULL,
 		.safelink = safelink_common,
 		.estimate = {
 			.create = estimate_create_common,
@@ -415,8 +412,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.rem_link = reiser4_rem_link_common,
 		.owns_item = owns_item_common,
 		.can_add_link = can_add_link_common,
-		.detach = dummyop,
-		.bind = dummyop,
+		.detach = NULL,
 		.safelink = safelink_common,
 		.estimate = {
 			.create = estimate_create_common,
@@ -473,8 +469,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.rem_link = reiser4_rem_link_common,
 		.owns_item = owns_item_common,
 		.can_add_link = can_add_link_common,
-		.detach = dummyop,
-		.bind = dummyop,
+		.detach = NULL,
 		.safelink = safelink_common,
 		.estimate = {
 			.create = estimate_create_common,
@@ -525,8 +520,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.rem_link = reiser4_rem_link_common,
 		.owns_item = owns_item_unix_file,
 		.can_add_link = can_add_link_common,
-		.detach = dummyop,
-		.bind = dummyop,
+		.detach = NULL,
 		.safelink = safelink_common,
 		.estimate = {
 			.create = estimate_create_common,

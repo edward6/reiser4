@@ -563,7 +563,6 @@ extern int ctail_insert_unprepped_cluster(struct cluster_handle * clust,
 					  struct inode * inode);
 extern int readpages_cryptcompress(struct file*, struct address_space*,
 				   struct list_head*, unsigned);
-int bind_cryptcompress(struct inode *child, struct inode *parent);
 void destroy_inode_cryptcompress(struct inode * inode);
 int grab_page_cluster(struct inode *inode, struct cluster_handle * clust,
 		      rw_op rw);

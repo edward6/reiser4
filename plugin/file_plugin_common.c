@@ -391,18 +391,6 @@ int reiser4_detach_common_dir(struct inode *child, struct inode *parent)
 	return dplug->detach(child, parent);
 }
 
-/* this is common implementation of bind method of file plugin for typical
-   directory
-*/
-int reiser4_bind_common_dir(struct inode *child, struct inode *parent)
-{
-	dir_plugin *dplug;
-
-	dplug = inode_dir_plugin(child);
-	assert("nikita-2646", dplug != NULL);
-	return dplug->attach(child, parent);
-}
-
 static int process_truncate(struct inode *, __u64 size);
 
 /* this is common implementation of safelink method of file plugin

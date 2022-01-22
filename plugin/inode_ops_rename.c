@@ -563,7 +563,7 @@ int reiser4_rename2_common(struct user_namespace *mnt_userns,
 	   node. */
 	done_lh(new_lh);
 
-	if (fplug != NULL) {
+	if (fplug && fplug->detach) {
 		/* detach @new_inode from name-space */
 		result = fplug->detach(new_inode, new_dir);
 		if (result != 0)
@@ -853,7 +853,7 @@ int reiser4_rename_common(struct user_namespace *mnt_userns,
 	   node. */
 	done_lh(&new_lh);
 
-	if (fplug != NULL) {
+	if (fplug && fplug->detach) {
 		/* detach @new_inode from name-space */
 		result = fplug->detach(new_inode, new_dir);
 		if (result != 0)
