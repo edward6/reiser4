@@ -70,7 +70,6 @@ int owns_item_common_dir(const struct inode *, const coord_t *);
 int can_add_link_common(const struct inode *);
 int can_rem_link_common_dir(const struct inode *);
 int reiser4_detach_common_dir(struct inode *child, struct inode *parent);
-int reiser4_bind_common_dir(struct inode *child, struct inode *parent);
 int safelink_common(struct inode *, reiser4_safe_link_t, __u64 value);
 reiser4_block_nr estimate_create_common(const struct inode *);
 reiser4_block_nr estimate_create_common_dir(const struct inode *);

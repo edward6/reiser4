@@ -250,7 +250,6 @@ int reiser4_unlink_common(struct inode *parent, struct dentry *victim)
 
 	object = victim->d_inode;
 	fplug = inode_file_plugin(object);
-	assert("nikita-2882", fplug->detach != NULL);
 
 	result = unlink_check_and_grab(parent, victim);
 	if (result != 0) {
@@ -259,7 +258,8 @@ int reiser4_unlink_common(struct inode *parent, struct dentry *victim)
 		return result;
 	}
 
-	result = fplug->detach(object, parent);
+	if (fplug->detach)
+		result = fplug->detach(object, parent);
 	if (result == 0) {
 		dir_plugin *parent_dplug;
 		reiser4_dir_entry_desc entry;
@@ -703,7 +703,7 @@ static int do_create_vfs_child(reiser4_object_create_data * data,/* parameters
 			object->i_ctime = current_time(object);
 			reiser4_update_dir(parent);
 		}
-		if (result != 0)
+		if (result != 0 && obj_plug->detach)
 			/* cleanup failure to add entry */
 			obj_plug->detach(object, parent);
 	} else if (result != -ENOMEM)

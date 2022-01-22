@@ -337,6 +337,12 @@ int reiser4_writepages_dispatch(struct address_space *mapping,
 	return inode_file_plugin(mapping->host)->writepages(mapping, wbc);
 }
 
+int reiser4_writepages_directory(struct address_space *mapping,
+				 struct writeback_control *wbc)
+{
+	return 0;
+}
+
 /* Make Linus happy.
    Local variables:
    c-indentation-style: "K&R"
