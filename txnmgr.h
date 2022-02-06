@@ -203,6 +203,12 @@ struct atom_brick_info {
 						 scheme at block_alloc.c */
 };
 
+struct fq_brick_info {
+	struct rb_node node;
+	u32 brick_id; /* key */
+	struct list_head prepped;
+};
+
 /* An atomic transaction: this is the underlying system representation
    of a transaction, not the one seen by clients.
 
@@ -337,7 +343,6 @@ struct txn_atom {
 #define ATOM_CLEAN_LIST(atom) (&(atom)->clean_nodes)
 #define ATOM_OVRWR_LIST(atom) (&(atom)->ovrwr_nodes)
 #define ATOM_WB_LIST(atom) (&(atom)->writeback_nodes)
-#define ATOM_FQ_LIST(fq) (&(fq)->prepped)
 
 #define NODE_LIST(node) (node)->list
 #define ASSIGN_NODE_LIST(node, list) ON_DEBUG(NODE_LIST(node) = list)
@@ -457,6 +462,15 @@ static inline void init_atom_brick_info(struct atom_brick_info *abi,
 	memset(abi, 0, sizeof(*abi));
 	RB_CLEAR_NODE(&abi->node);
 	abi->brick_id = brick_id;
+}
+
+static inline void init_fq_brick_info(struct fq_brick_info *qbi,
+				      u32 brick_id)
+{
+	memset(qbi, 0, sizeof(*qbi));
+	RB_CLEAR_NODE(&qbi->node);
+	qbi->brick_id = brick_id;
+	INIT_LIST_HEAD(&qbi->prepped);
 }
 
 static inline struct atom_brick_info *atom_meta_brick_info(txn_atom *atom)
@@ -752,9 +766,12 @@ struct flush_queue {
 	spinlock_t guard;
 	/* flush_queue state: [in_use | ready] */
 	flush_queue_state_t state;
-	/* A list which contains queued nodes, queued nodes are removed from any
-	 * atom's list and put on this ->prepped one. */
-	struct list_head prepped;
+	/* lists of queued nodes (one list per brick).
+	   Queued nodes are removed from any atom's list and put
+	   on this ->prepped set. */
+	struct rb_root prepped;
+	/* list of prepperd fq pre-allocated for meta-data brick */
+	struct fq_brick_info mqbi;
 	/* number of submitted i/o requests */
 	atomic_t nr_submitted;
 	/* number of i/o errors */
@@ -770,6 +787,12 @@ struct flush_queue {
 #endif
 };
 
+static inline struct fq_brick_info *fq_meta_brick_info(flush_queue_t *fq)
+{
+	return &fq->mqbi;
+}
+extern struct fq_brick_info *grab_fq_brick_info(flush_queue_t *fq,
+						u32 brick_id);
 extern int reiser4_fq_by_atom(txn_atom *, flush_queue_t **);
 extern void reiser4_fq_put_nolock(flush_queue_t *);
 extern void reiser4_fq_put(flush_queue_t *);

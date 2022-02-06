@@ -51,6 +51,59 @@
 #define mark_fq_in_use(fq)     do { (fq)->state |= FQ_IN_USE;    } while (0)
 #define mark_fq_ready(fq)      do { (fq)->state &= ~FQ_IN_USE;   } while (0)
 
+static struct kmem_cache *qbi_slab = NULL;
+
+struct fq_brick_info *grab_fq_brick_info(flush_queue_t *fq, u32 brick_id)
+{
+	struct rb_root *root = &fq->prepped;
+	struct rb_node **pos = &(root->rb_node);
+	struct rb_node *parent = NULL;
+	struct fq_brick_info *qbi;
+
+	if (brick_id == METADATA_SUBVOL_ID)
+		/* it is preallocated */
+		return fq_meta_brick_info(fq);
+	while (*pos) {
+                qbi = rb_entry(*pos, struct fq_brick_info, node);
+                parent = *pos;
+
+                if (brick_id < qbi->brick_id)
+                        pos = &((*pos)->rb_left);
+                else if (brick_id > qbi->brick_id)
+                        pos = &((*pos)->rb_right);
+                else
+                        return qbi;
+        }
+	qbi = kmem_cache_alloc(qbi_slab, reiser4_ctx_gfp_mask_get());
+	if (qbi) {
+		init_fq_brick_info(qbi, brick_id);
+		rb_link_node(&qbi->node, parent, pos);
+		rb_insert_color(&qbi->node, root);
+	}
+	return qbi;
+}
+
+static void done_prepped_set(flush_queue_t *fq)
+{
+	struct rb_root *root = &fq->prepped;
+
+	/* remove pre-allocated object */
+	rb_erase(&fq->mqbi.node, root);
+	RB_CLEAR_NODE(&fq->mqbi.node);
+
+	while (!RB_EMPTY_ROOT(root)) {
+		struct rb_node *node;
+		struct fq_brick_info *qbi;
+
+		node = rb_first(root);
+		qbi = rb_entry(node, struct fq_brick_info, node);
+
+		rb_erase(&qbi->node, root);
+		RB_CLEAR_NODE(&qbi->node);
+		kmem_cache_free(qbi_slab, qbi);
+	}
+}
+
 /* get lock on atom from locked flush queue object */
 static txn_atom *atom_locked_by_fq_nolock(flush_queue_t *fq)
 {
@@ -102,7 +155,14 @@ static void init_fq(flush_queue_t *fq)
 
 	atomic_set(&fq->nr_submitted, 0);
 
-	INIT_LIST_HEAD(ATOM_FQ_LIST(fq));
+	fq->prepped = RB_ROOT;
+	/*
+	 * init object pre-allocated for meta-data brick
+	 * and insert it to the prepped set
+	 */
+	init_fq_brick_info(fq_meta_brick_info(fq), METADATA_SUBVOL_ID);
+	rb_link_node(&fq_meta_brick_info(fq)->node, NULL, &fq->prepped.rb_node);
+	rb_insert_color(&fq_meta_brick_info(fq)->node, &fq->prepped);
 
 	init_waitqueue_head(&fq->wait);
 	spin_lock_init(&fq->guard);
@@ -124,17 +184,24 @@ int reiser4_init_fqs(void)
 				    0, SLAB_HWCACHE_ALIGN, NULL);
 	if (fq_slab == NULL)
 		return RETERR(-ENOMEM);
+	qbi_slab = kmem_cache_create("qbi",
+				     sizeof(struct fq_brick_info),
+				     0, SLAB_HWCACHE_ALIGN, NULL);
+	if (qbi_slab == NULL) {
+		destroy_reiser4_cache(&fq_slab);
+		return RETERR(-ENOMEM);
+	}
 	return 0;
 }
 
 /**
- * reiser4_done_fqs - delete flush queue cache
- *
+ * reiser4_done_fqs - delete flush_queue and fq_brick_info caches
  * This is called on reiser4 module unloading or system shutdown.
  */
 void reiser4_done_fqs(void)
 {
 	destroy_reiser4_cache(&fq_slab);
+	destroy_reiser4_cache(&qbi_slab);
 }
 
 /* create new flush queue object */
@@ -182,12 +249,28 @@ static void detach_fq(flush_queue_t *fq)
 	spin_unlock(&(fq->guard));
 }
 
+#if REISER4_DEBUG
+static void fq_check_prepped_empty(flush_queue_t *fq)
+{
+	struct rb_node *node;
+
+	for (node = rb_first(&fq->prepped); node; node = rb_next(node)) {
+		struct fq_brick_info *qbi;
+		qbi = rb_entry(node, struct fq_brick_info, node);
+		assert("zam-763", list_empty_careful(&qbi->prepped));
+	}
+}
+#else
+#define fq_check_prepped_empty(fq) noop
+#endif
+
 /* destroy flush queue object */
 static void done_fq(flush_queue_t *fq)
 {
-	assert("zam-763", list_empty_careful(ATOM_FQ_LIST(fq)));
 	assert("zam-766", atomic_read(&fq->nr_submitted) == 0);
+	fq_check_prepped_empty(fq);
 
+	done_prepped_set(fq);
 	kmem_cache_free(fq_slab, fq);
 }
 
@@ -203,6 +286,8 @@ static void mark_jnode_queued(flush_queue_t *fq, jnode * node)
  */
 void queue_jnode(flush_queue_t *fq, jnode *node)
 {
+	struct fq_brick_info *qbi;
+
 	assert_spin_locked(&(node->guard));
 	assert("zam-713", node->atom != NULL);
 	assert_spin_locked(&(node->atom->alock));
@@ -217,8 +302,11 @@ void queue_jnode(flush_queue_t *fq, jnode *node)
 
 	assert("edward-2321", !reiser4_blocknr_is_fake(jnode_get_block(node)));
 
+	qbi = grab_fq_brick_info(fq, node->subvol->id);
+	BUG_ON(qbi == NULL);
+
 	mark_jnode_queued(fq, node);
-	list_move_tail(&node->capture_link, ATOM_FQ_LIST(fq));
+	list_move_tail(&node->capture_link, &qbi->prepped);
 
 	ON_DEBUG(count_jnode(node->atom, node, NODE_LIST(node),
 			     FQ_LIST, 1));
@@ -232,7 +320,7 @@ static int wait_io(flush_queue_t *fq, int *nr_io_errors)
 	assert("zam-738", fq->atom != NULL);
 	assert_spin_locked(&(fq->atom->alock));
 	assert("zam-736", fq_in_use(fq));
-	assert("zam-911", list_empty_careful(ATOM_FQ_LIST(fq)));
+	fq_check_prepped_empty(fq);
 
 	if (atomic_read(&fq->nr_submitted) != 0) {
 		struct super_block *super;
@@ -363,17 +451,22 @@ int current_atom_finish_all_fq(void)
 }
 
 /**
- * Change node->atom field for all jnode from given list
+ * Change node->atom field for all jnodes from the prepped set
  */
-static void scan_fq_and_update_atom_ref(struct list_head *list,
-					txn_atom *atom)
+static void scan_fq_and_update_atom_ref(flush_queue_t *fq, txn_atom *atom)
 {
-	jnode *cur;
+	struct rb_node *node;
 
-	list_for_each_entry(cur, list, capture_link) {
-		spin_lock_jnode(cur);
-		cur->atom = atom;
-		spin_unlock_jnode(cur);
+	for (node = rb_first(&fq->prepped); node; node = rb_next(node)) {
+		jnode *cur;
+		struct fq_brick_info *qbi;
+
+		qbi = rb_entry(node, struct fq_brick_info, node);
+		list_for_each_entry(cur, &qbi->prepped, capture_link) {
+			spin_lock_jnode(cur);
+			cur->atom = atom;
+			spin_unlock_jnode(cur);
+		}
 	}
 }
 
@@ -388,7 +481,7 @@ void reiser4_fuse_fq(txn_atom *to, txn_atom *from)
 	assert_spin_locked(&(from->alock));
 
 	list_for_each_entry(fq, &from->flush_queues, alink) {
-		scan_fq_and_update_atom_ref(ATOM_FQ_LIST(fq), to);
+		scan_fq_and_update_atom_ref(fq, to);
 		spin_lock(&(fq->guard));
 		fq->atom = to;
 		spin_unlock(&(fq->guard));
@@ -484,20 +577,13 @@ void add_fq_to_bio(flush_queue_t *fq, struct bio *bio)
 			   &fq->nr_submitted);
 }
 
-/**
- * Move all queued nodes out from @fq->prepped list
- */
-static void release_prepped_list(flush_queue_t *fq)
+static void release_prepped_list(flush_queue_t *fq,
+				 struct list_head *this, txn_atom *atom)
 {
-	txn_atom *atom;
-
-	assert("zam-904", fq_in_use(fq));
-	atom = atom_locked_by_fq(fq);
-
-	while (!list_empty(ATOM_FQ_LIST(fq))) {
+	while (!list_empty(this)) {
 		jnode *cur;
 
-		cur = list_entry(ATOM_FQ_LIST(fq)->next, jnode, capture_link);
+		cur = list_entry(this->next, jnode, capture_link);
 		list_del_init(&cur->capture_link);
 
 		count_dequeued_node(fq);
@@ -522,32 +608,28 @@ static void release_prepped_list(flush_queue_t *fq)
 
 		spin_unlock_jnode(cur);
 	}
-
-	if (--atom->nr_running_queues == 0)
-		reiser4_atom_send_event(atom);
-
-	spin_unlock_atom(atom);
 }
 
-static int fq_compare_jnode(void* priv UNUSED_ARG,
-			    const struct list_head *a,
-			    const struct list_head *b)
+/**
+ * Move all queued nodes out from @fq->prepped set
+ */
+static void release_prepped_set(flush_queue_t *fq)
 {
-	jnode *ja, *jb;
+	struct rb_node *node;
+	txn_atom *atom;
 
-	assert("edward-1873", a != NULL);
-	assert("edward-1874", b != NULL);
+	assert("zam-904", fq_in_use(fq));
+	atom = atom_locked_by_fq(fq);
 
-	ja = jnode_by_link(a);
-	jb = jnode_by_link(b);
+	for (node = rb_first(&fq->prepped); node; node = rb_next(node)) {
+		struct fq_brick_info *qbi;
 
-	if (jnode_get_subvol(ja)->id < jnode_get_subvol(jb)->id)
-		return -1;
-	if (jnode_get_subvol(ja)->id > jnode_get_subvol(jb)->id)
-		return 1;
-	if (jnode_get_block(ja) < jnode_get_block(jb))
-		return -1;
-	return 1;
+		qbi = rb_entry(node, struct fq_brick_info, node);
+		release_prepped_list(fq, &qbi->prepped, atom);
+	}
+	if (--atom->nr_running_queues == 0)
+		reiser4_atom_send_event(atom);
+	spin_unlock_atom(atom);
 }
 
 /**
@@ -561,6 +643,7 @@ int reiser4_write_fq(flush_queue_t *fq, long *nr_submitted, int flags)
 {
 	int ret;
 	txn_atom *atom;
+	struct rb_node *node;
 
 	while (1) {
 		atom = atom_locked_by_fq(fq);
@@ -576,9 +659,13 @@ int reiser4_write_fq(flush_queue_t *fq, long *nr_submitted, int flags)
 	atom->nr_running_queues++;
 	spin_unlock_atom(atom);
 
-	list_sort(NULL, ATOM_FQ_LIST(fq), fq_compare_jnode);
-	ret = write_jnode_list(ATOM_FQ_LIST(fq), fq, nr_submitted, flags);
-	release_prepped_list(fq);
+	for (node = rb_first(&fq->prepped); node; node = rb_next(node)) {
+		struct fq_brick_info *qbi;
+
+		qbi = rb_entry(node, struct fq_brick_info, node);
+		ret = write_jnode_list(&qbi->prepped, fq, nr_submitted, flags);
+	}
+	release_prepped_set(fq);
 	return ret;
 }
 
@@ -669,7 +756,8 @@ flush_queue_t *get_fq_for_current_atom(void)
 void reiser4_fq_put_nolock(flush_queue_t *fq)
 {
 	assert("zam-747", fq->atom != NULL);
-	assert("zam-902", list_empty_careful(ATOM_FQ_LIST(fq)));
+	fq_check_prepped_empty(fq);
+
 	mark_fq_ready(fq);
 	assert("vs-1245", fq->owner == current);
 	ON_DEBUG(fq->owner = NULL);
@@ -711,12 +799,18 @@ void reiser4_check_fq(const txn_atom *atom)
 	 */
 	count = 0;
 	list_for_each_entry(fq, &atom->flush_queues, alink) {
-		spin_lock(&(fq->guard));
+		struct rb_node *node;
 		/*
 		 * calculate number of jnodes on fq' list of prepped jnodes
 		 */
-		list_for_each(pos, ATOM_FQ_LIST(fq))
-			count++;
+		spin_lock(&(fq->guard));
+		for (node = rb_first(&fq->prepped); node; node = rb_next(node)){
+			struct fq_brick_info *qbi;
+			qbi = rb_entry(node, struct fq_brick_info, node);
+
+			list_for_each(pos, &qbi->prepped)
+				count++;
+		}
 		spin_unlock(&(fq->guard));
 	}
 	if (count != atom->fq)
