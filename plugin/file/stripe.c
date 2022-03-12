@@ -39,6 +39,7 @@
 #include <linux/writeback.h>
 #include <linux/pagevec.h>
 #include <linux/syscalls.h>
+#include <linux/uio.h>
 
 reiser4_block_nr estimate_migration_iter(void);
 reiser4_block_nr estimate_write_stripe_meta(int count);
