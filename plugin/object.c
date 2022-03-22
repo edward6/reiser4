@@ -251,7 +251,6 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.rem_link = reiser4_rem_link_common,
 		.owns_item = owns_item_unix_file,
 		.can_add_link = can_add_link_common,
-		.detach = NULL,
 		.safelink = safelink_common,
 		.estimate = {
 			.create = estimate_create_common,
@@ -294,7 +293,6 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.owns_item = owns_item_common_dir,
 		.can_add_link = can_add_link_common,
 		.can_rem_link = can_rem_link_common_dir,
-		.detach = reiser4_detach_common_dir,
 		.safelink = safelink_common,
 		.estimate = {
 			.create = estimate_create_common_dir,
@@ -335,7 +333,6 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.add_link = reiser4_add_link_common,
 		.rem_link = reiser4_rem_link_common,
 		.can_add_link = can_add_link_common,
-		.detach = NULL,
 		.safelink = safelink_common,
 		.estimate = {
 			.create = estimate_create_common,
@@ -379,7 +376,6 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.rem_link = reiser4_rem_link_common,
 		.owns_item = owns_item_common,
 		.can_add_link = can_add_link_common,
-		.detach = NULL,
 		.safelink = safelink_common,
 		.estimate = {
 			.create = estimate_create_common,
@@ -437,7 +433,6 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.rem_link = reiser4_rem_link_common,
 		.owns_item = owns_item_common,
 		.can_add_link = can_add_link_common,
-		.detach = NULL,
 		.safelink = safelink_common,
 		.estimate = {
 			.create = estimate_create_common,
@@ -454,7 +449,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.size = wire_size_common,
 			.done = wire_done_common
 		}
-	}
+	},
 };
 
 static int change_dir(struct inode *inode,
@@ -496,7 +491,6 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 		.rem_entry = reiser4_rem_entry_common,
 		.init = reiser4_dir_init_common,
 		.done = reiser4_dir_done_common,
-		.attach = reiser4_attach_common,
 		.detach = reiser4_detach_common,
 		.estimate = {
 			.add_entry = estimate_add_entry_common,
@@ -527,7 +521,6 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 		.rem_entry = reiser4_rem_entry_common,
 		.init = reiser4_dir_init_common,
 		.done = reiser4_dir_done_common,
-		.attach = reiser4_attach_common,
 		.detach = reiser4_detach_common,
 		.estimate = {
 			.add_entry = estimate_add_entry_common,

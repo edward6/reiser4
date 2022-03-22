@@ -355,17 +355,6 @@ int reiser4_dir_done_common(struct inode *object/* object being deleted */)
 	return 0;
 }
 
-/* this is common implementation of attach method of dir plugin
-*/
-int reiser4_attach_common(struct inode *child UNUSED_ARG,
-			  struct inode *parent UNUSED_ARG)
-{
-	assert("nikita-2647", child != NULL);
-	assert("nikita-2648", parent != NULL);
-
-	return 0;
-}
-
 /* this is common implementation of detach method of dir plugin
    remove "..", decrease nlink on parent
 */

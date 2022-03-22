@@ -337,10 +337,6 @@ typedef struct file_plugin {
 	/* checks whether hard links to this object can be removed */
 	int (*can_rem_link) (const struct inode *);
 
-	/* not empty for DIRECTORY_FILE_PLUGIN_ID only currently. It calls
-	   detach of directory plugin to remove ".." */
-	int (*detach) (struct inode *child, struct inode *parent);
-
 	/* process safe-link during mount */
 	int (*safelink) (struct inode *object, reiser4_safe_link_t link,
 			 __u64 value);
@@ -460,18 +456,16 @@ typedef struct dir_plugin {
 	int (*rem_entry) (struct inode *object, struct dentry *where,
 			  reiser4_dir_entry_desc * entry);
 
-	/*
-	 * initialize directory structure for newly created object. For normal
-	 * unix directories, insert dot and dotdot.
-	 */
+	/* initialize directory structure for newly created object.
+	 * For normal unix directories, insert "." and ".." */
 	int (*init) (struct inode *object, struct inode *parent,
 		     reiser4_object_create_data * data);
 
-	/* destroy directory */
+	/* for normal unix directories removes "." */
 	int (*done) (struct inode *child);
 
-	/* called when @subdir was just looked up in the @dir */
-	int (*attach) (struct inode *subdir, struct inode *dir);
+	/* for normal unix directories removes ".." and decrease
+	   nlink on parent */
 	int (*detach) (struct inode *subdir, struct inode *dir);
 
 	struct {

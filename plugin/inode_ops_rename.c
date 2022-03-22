@@ -415,8 +415,8 @@ int reiser4_rename2_common(struct user_namespace *mnt_userns,
 	coord_t *new_coord;
 
 	struct reiser4_dentry_fsdata *new_fsdata;
-	dir_plugin *dplug;
-	file_plugin *fplug;
+	dir_plugin *old_dplug;
+	dir_plugin *new_dplug;
 
 	reiser4_dir_entry_desc *old_entry, *new_entry, *dotdot_entry;
 	lock_handle * new_lh, *dotdot_lh;
@@ -463,8 +463,8 @@ int reiser4_rename2_common(struct user_namespace *mnt_userns,
 	old_inode = old_name->d_inode;
 	new_inode = new_name->d_inode;
 
-	dplug = inode_dir_plugin(old_dir);
-	fplug = NULL;
+	old_dplug = inode_dir_plugin(old_dir);
+	new_dplug = NULL;
 
 	new_fsdata = reiser4_get_dentry_fsdata(new_name);
 	if (IS_ERR(new_fsdata)) {
@@ -536,7 +536,7 @@ int reiser4_rename2_common(struct user_namespace *mnt_userns,
 					      new_dir,
 					      new_inode, new_coord, new_lh);
 			if (result == 0)
-				fplug = inode_file_plugin(new_inode);
+				new_dplug = inode_dir_plugin(new_inode);
 		} else if (result == CBK_COORD_NOTFOUND) {
 			/* VFS told us that @new_name is bound to existing
 			   inode, but we failed to find directory entry. */
@@ -564,9 +564,9 @@ int reiser4_rename2_common(struct user_namespace *mnt_userns,
 	   node. */
 	done_lh(new_lh);
 
-	if (fplug && fplug->detach) {
+	if (new_dplug && new_dplug->detach) {
 		/* detach @new_inode from name-space */
-		result = fplug->detach(new_inode, new_dir);
+		result = new_dplug->detach(new_inode, new_dir);
 		if (result != 0)
 			warning("nikita-2330", "Cannot detach %lli: %i. %s",
 				(unsigned long long)get_inode_oid(new_inode),
@@ -579,8 +579,8 @@ int reiser4_rename2_common(struct user_namespace *mnt_userns,
 	if (result == 0) {
 		old_entry->obj = old_inode;
 
-		dplug->build_entry_key(old_dir,
-				       &old_name->d_name, &old_entry->key);
+		old_dplug->build_entry_key(old_dir,
+					   &old_name->d_name, &old_entry->key);
 
 		/* At this stage new name was introduced for
 		   @old_inode. @old_inode, @new_dir, and @new_inode i_nlink
@@ -589,7 +589,7 @@ int reiser4_rename2_common(struct user_namespace *mnt_userns,
 		   We want to remove @old_name now. If @old_inode wasn't
 		   directory this is simple.
 		 */
-		result = dplug->rem_entry(old_dir, old_name, old_entry);
+		result = old_dplug->rem_entry(old_dir, old_name, old_entry);
 		if (result != 0 && result != -ENOMEM) {
 			warning("nikita-2335",
 				"Cannot remove old name: %i", result);

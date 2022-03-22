@@ -352,19 +352,6 @@ int can_rem_link_common_dir(const struct inode *inode)
 	return !is_dir_empty(inode);
 }
 
-/* this is common implementation of detach method of file plugin for typical
-   directory
-*/
-int reiser4_detach_common_dir(struct inode *child, struct inode *parent)
-{
-	dir_plugin *dplug;
-
-	dplug = inode_dir_plugin(child);
-	assert("nikita-2883", dplug != NULL);
-	assert("nikita-2884", dplug->detach != NULL);
-	return dplug->detach(child, parent);
-}
-
 static int process_truncate(struct inode *, __u64 size);
 
 /* this is common implementation of safelink method of file plugin
