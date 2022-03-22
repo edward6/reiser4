@@ -240,14 +240,14 @@ int reiser4_unlink_common(struct inode *parent, struct dentry *victim)
 	reiser4_context *ctx;
 	int result;
 	struct inode *object;
-	file_plugin *fplug;
+	dir_plugin *dplug;
 
 	ctx = reiser4_init_context(parent->i_sb);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 
 	object = victim->d_inode;
-	fplug = inode_file_plugin(object);
+	dplug = inode_dir_plugin(object);
 
 	result = unlink_check_and_grab(parent, victim);
 	if (result != 0) {
@@ -255,9 +255,8 @@ int reiser4_unlink_common(struct inode *parent, struct dentry *victim)
 		reiser4_exit_context(ctx);
 		return result;
 	}
-
-	if (fplug->detach)
-		result = fplug->detach(object, parent);
+	if (dplug && dplug->detach)
+		result = dplug->detach(object, parent);
 	if (result == 0) {
 		dir_plugin *parent_dplug;
 		reiser4_dir_entry_desc entry;
@@ -556,9 +555,9 @@ static int do_create_vfs_child(reiser4_object_create_data *data,
 	struct inode *parent;	/* new name */
 	oid_t oid;              /* new object id */
 
-	dir_plugin *par_dir;	/* directory plugin on the parent */
-	dir_plugin *obj_dir;	/* directory plugin on the new object */
-	file_plugin *obj_plug;	/* object plugin on the new object */
+	dir_plugin *par_dplug;	/* directory plugin on the parent */
+	dir_plugin *obj_dplug;	/* directory plugin on the new object */
+	file_plugin *obj_fplug;	/* object plugin on the new object */
 	struct inode *object;	/* new object */
 
 	reiser4_dir_entry_desc entry;	/* new directory entry */
@@ -571,16 +570,16 @@ static int do_create_vfs_child(reiser4_object_create_data *data,
 	assert("nikita-1419", dentry != NULL);
 
 	/* check, that name is acceptable for parent */
-	par_dir = inode_dir_plugin(parent);
-	if (par_dir->is_name_acceptable &&
-	    !par_dir->is_name_acceptable(parent,
-					 dentry->d_name.name,
-					 (int)dentry->d_name.len))
+	par_dplug = inode_dir_plugin(parent);
+	if (par_dplug->is_name_acceptable &&
+	    !par_dplug->is_name_acceptable(parent,
+					   dentry->d_name.name,
+					   (int)dentry->d_name.len))
 		return RETERR(-ENAMETOOLONG);
 
 	result = 0;
-	obj_plug = file_plugin_by_id((int)data->id);
-	if (obj_plug == NULL) {
+	obj_fplug = file_plugin_by_id((int)data->id);
+	if (obj_fplug == NULL) {
 		warning("nikita-430", "Cannot find plugin %i", data->id);
 		return RETERR(-ENOENT);
 	}
@@ -609,9 +608,9 @@ static int do_create_vfs_child(reiser4_object_create_data *data,
 	entry.obj = object;
 
 	set_plugin(&reiser4_inode_data(object)->pset, PSET_FILE,
-		   file_plugin_to_plugin(obj_plug));
+		   file_plugin_to_plugin(obj_fplug));
 
-	result = obj_plug->set_plug_in_inode(object, parent, data);
+	result = obj_fplug->set_plug_in_inode(object, parent, data);
 	if (result) {
 		warning("nikita-431", "Cannot install plugin %i on %llx",
 			data->id, (unsigned long long)get_inode_oid(object));
@@ -620,19 +619,19 @@ static int do_create_vfs_child(reiser4_object_create_data *data,
 	/*
 	 * reget plugin after installation
 	 */
-	obj_plug = inode_file_plugin(object);
+	obj_fplug = inode_file_plugin(object);
 
-	if (obj_plug->create_object == NULL)
+	if (obj_fplug->create_object == NULL)
 		return RETERR(-EPERM);
 	/*
 	 * if any of hash, tail, sd or permission plugins for newly created
 	 * object are not set yet set them here inheriting them from parent
 	 * directory
 	 */
-	assert("nikita-2070", obj_plug->adjust_to_parent != NULL);
-	result = obj_plug->adjust_to_parent(object,
-					    parent,
-					    object->i_sb->s_root->d_inode);
+	assert("nikita-2070", obj_fplug->adjust_to_parent != NULL);
+	result = obj_fplug->adjust_to_parent(object,
+					     parent,
+					     object->i_sb->s_root->d_inode);
 	if (result == 0)
 		result = finish_pset(object);
 	if (result != 0) {
@@ -649,13 +648,13 @@ static int do_create_vfs_child(reiser4_object_create_data *data,
 	 * call file plugin's method to initialize plugin specific part of
 	 * inode
 	 */
-	if (obj_plug->init_inode_data)
-		obj_plug->init_inode_data(object, data, NULL, 1 /*create */);
+	if (obj_fplug->init_inode_data)
+		obj_fplug->init_inode_data(object, data, NULL, 1 /*create */);
 	/*
 	 * obtain directory plugin (if any) for new object
 	 */
-	obj_dir = inode_dir_plugin(object);
-	if (obj_dir != NULL && obj_dir->init == NULL)
+	obj_dplug = inode_dir_plugin(object);
+	if (obj_dplug != NULL && obj_dplug->init == NULL)
 		return RETERR(-EPERM);
 	reiser4_inode_data(object)->locality_id = get_inode_oid(parent);
 
@@ -682,7 +681,7 @@ static int do_create_vfs_child(reiser4_object_create_data *data,
 	   reiser4_delete_inode() will try to remove its stat-data. */
 	reiser4_inode_set_flag(object, REISER4_LOADED);
 
-	result = obj_plug->create_object(object, parent, data, &oid);
+	result = obj_fplug->create_object(object, parent, data, &oid);
 	if (result != 0) {
 		reiser4_inode_clr_flag(object, REISER4_IMMUTABLE);
 		if (result != -ENAMETOOLONG && result != -ENOMEM)
@@ -691,16 +690,15 @@ static int do_create_vfs_child(reiser4_object_create_data *data,
 				(unsigned long long)get_inode_oid(object));
 		return result;
 	}
-
-	if (obj_dir != NULL)
-		result = obj_dir->init(object, parent, data);
+	if (obj_dplug != NULL)
+		result = obj_dplug->init(object, parent, data);
 	if (result == 0) {
 		assert("nikita-434", !reiser4_inode_get_flag(object,
 							     REISER4_NO_SD));
 		/* insert inode into VFS hash table */
 		insert_inode_hash(object);
 		/* create entry */
-		result = par_dir->add_entry(parent, dentry, data, &entry);
+		result = par_dplug->add_entry(parent, dentry, data, &entry);
 		if (result == 0) {
 			/* If O_CREAT is set and the file did not previously
 			   exist, upon successful completion, open() shall
@@ -711,9 +709,9 @@ static int do_create_vfs_child(reiser4_object_create_data *data,
 			object->i_ctime = current_time(object);
 			reiser4_update_dir(parent);
 		}
-		if (result != 0 && obj_plug->detach)
+		if (result != 0 && obj_dplug && obj_dplug->detach)
 			/* cleanup failure to add entry */
-			obj_plug->detach(object, parent);
+			obj_dplug->detach(object, parent);
 	} else if (result != -ENOMEM)
 		warning("nikita-2219", "Failed to initialize dir for %llu: %i",
 			(unsigned long long)get_inode_oid(object), result);
@@ -728,7 +726,7 @@ static int do_create_vfs_child(reiser4_object_create_data *data,
 		 * already updated above (update_parent_dir()) */
 		reiser4_update_sd(parent);
 		/* failure to create entry, remove object */
-		obj_plug->delete_object(object);
+		obj_fplug->delete_object(object);
 	}
 
 	/* file has name now, clear immutable flag */

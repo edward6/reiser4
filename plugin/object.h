@@ -99,7 +99,6 @@ int reiser4_rem_entry_common(struct inode *object, struct dentry *where,
 int reiser4_dir_init_common(struct inode *object, struct inode *parent,
 			    reiser4_object_create_data *);
 int reiser4_dir_done_common(struct inode *);
-int reiser4_attach_common(struct inode *child, struct inode *parent);
 int reiser4_detach_common(struct inode *object, struct inode *parent);
 reiser4_block_nr estimate_add_entry_common(const struct inode *);
 reiser4_block_nr estimate_rem_entry_common(const struct inode *);
