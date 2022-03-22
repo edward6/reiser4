@@ -27,10 +27,10 @@ int reiser4_symlink_common(struct user_namespace *mnt_userns,
 int reiser4_mknod_common(struct user_namespace *mnt_userns,
 		 struct inode *parent, struct dentry *dentry,
 		 umode_t mode, dev_t rdev);
-int reiser4_rename2_common(struct user_namespace *mnt_userns,
-			   struct inode *old_dir, struct dentry *old_name,
-			   struct inode *new_dir, struct dentry *new_name,
-			   unsigned flags);
+int reiser4_rename_common(struct user_namespace *mnt_userns,
+			  struct inode *old_dir, struct dentry *old_name,
+			  struct inode *new_dir, struct dentry *new_name,
+			  unsigned flags);
 const char *reiser4_get_link_common(struct dentry *, struct inode *inode,
 				    struct delayed_call *done);
 int reiser4_permission_common(struct user_namespace *mnt_userns,
