@@ -3464,30 +3464,38 @@ reiser4_block_nr txnmgr_count_deleted_blocks(void)
 	return result;
 }
 
+/*
+ * If true, then the atom's delete set is represented by blocknr_set.
+ * Otherwise by blocknr_list.
+ */
+#define COMPACT_DELETE_SET						\
+	(reiser4_is_set(reiser4_get_current_sb(), REISER4_DISCARD) ||	\
+	 current_vol_plug() != volume_plugin_by_id(SIMPLE_VOLUME_ID))
+
 void atom_dset_init(txn_atom *atom)
 {
-	if (1) {
-		blocknr_list_init(&atom->discard.delete_set);
+	if (COMPACT_DELETE_SET) {
+		blocknr_list_init(&atom->delete_set);
 	} else {
-		blocknr_set_init(&atom->nodiscard.delete_set);
+		blocknr_set_init(&atom->delete_set);
 	}
 }
 
 void atom_dset_destroy(txn_atom *atom)
 {
-	if (1) {
-		blocknr_list_destroy(&atom->discard.delete_set);
+	if (COMPACT_DELETE_SET) {
+		blocknr_list_destroy(&atom->delete_set);
 	} else {
-		blocknr_set_destroy(&atom->nodiscard.delete_set);
+		blocknr_set_destroy(&atom->delete_set);
 	}
 }
 
 void atom_dset_merge(txn_atom *from, txn_atom *to)
 {
-	if (1) {
-		blocknr_list_merge(&from->discard.delete_set, &to->discard.delete_set);
+	if (COMPACT_DELETE_SET) {
+		blocknr_list_merge(&from->delete_set, &to->delete_set);
 	} else {
-		blocknr_set_merge(&from->nodiscard.delete_set, &to->nodiscard.delete_set);
+		blocknr_set_merge(&from->delete_set, &to->delete_set);
 	}
 }
 
@@ -3498,22 +3506,24 @@ int atom_dset_deferred_apply(txn_atom* atom,
 {
 	int ret;
 
-	if (1) {
+	if (COMPACT_DELETE_SET) {
 		ret = blocknr_list_iterator(atom,
-		                            &atom->discard.delete_set,
+		                            &atom->delete_set,
 		                            actor,
 		                            data,
 		                            delete);
-	}
-#if 0
-	else {
+	} else {
+		assert("edward-2519",
+		       current_vol_plug() ==
+		       volume_plugin_by_id(SIMPLE_VOLUME_ID));
+
 		ret = blocknr_set_iterator(atom,
-		                           &atom->nodiscard.delete_set,
+		                           &atom->delete_set,
 		                           actor,
 		                           data,
-		                           delete);
+		                           delete,
+					   METADATA_SUBVOL_ID);
 	}
-#endif
 	return ret;
 }
 
@@ -3525,24 +3535,21 @@ extern int atom_dset_deferred_add_extent(txn_atom *atom,
 {
 	int ret;
 
-	if (1) {
+	if (COMPACT_DELETE_SET) {
 		ret = blocknr_list_add_extent(atom,
-		                              &atom->discard.delete_set,
+		                              &atom->delete_set,
 		                              (blocknr_list_entry**)new_entry,
 		                              start,
 		                              len,
 					      subvol_id);
-	}
-#if 0
-	else {
+	} else {
 		ret = blocknr_set_add_extent(atom,
-		                             &atom->nodiscard.delete_set,
+		                             &atom->delete_set,
 		                             (blocknr_set_entry**)new_entry,
 		                             start,
 		                             len,
 					     subvol_id);
 	}
-#endif
 	return ret;
 }
 

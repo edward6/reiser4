@@ -838,9 +838,12 @@ static int check_sd_resize(struct inode *inode, coord_t *coord,
 	item_key_by_coord(&left_coord, &left_key);
 	item_key_by_coord(coord, &key);
 
-	if (all_but_offset_key_eq(&key, &left_key))
+	if (all_but_offset_key_eq(&key, &left_key)) {
 		/* corruption occured */
-		ret = 1;
+		warning("", "keys differ not only in offset:");
+		reiser4_print_key("key", &key);
+		reiser4_print_key("left key", &left_key);
+	}
 	zrelse(left_lock.node);
  exit:
 	done_lh(&left_lock);

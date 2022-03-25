@@ -128,7 +128,7 @@ int discard_atom(txn_atom *atom, struct list_head *processed_set)
 	assert("intelfx-28", atom != NULL);
 	assert("intelfx-59", processed_set != NULL);
 
-	if (list_empty(&atom->discard.delete_set)) {
+	if (list_empty(&atom->delete_set)) {
 		/* Nothing left to discard. */
 		spin_unlock_atom(atom);
 		return 0;
@@ -136,7 +136,7 @@ int discard_atom(txn_atom *atom, struct list_head *processed_set)
 
 	/* Take the delete sets from the atom in order to release atom spinlock. */
 	blocknr_list_init(&discard_set);
-	blocknr_list_merge(&atom->discard.delete_set, &discard_set);
+	blocknr_list_merge(&atom->delete_set, &discard_set);
 	spin_unlock_atom(atom);
 
 	/* Sort the discard list, joining adjacent and overlapping extents. */
@@ -166,7 +166,7 @@ void discard_atom_post(txn_atom *atom, struct list_head *processed_set)
 		return;
 	}
 
-	blocknr_list_merge(processed_set, &atom->discard.delete_set);
+	blocknr_list_merge(processed_set, &atom->delete_set);
 	spin_unlock_atom(atom);
 }
 

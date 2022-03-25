@@ -263,24 +263,15 @@ struct txn_atom {
 	/* Start time. */
 	unsigned long start_time;
 
-	/* The atom's delete sets.
-	   "simple" are blocknr_set instances and are used when discard is disabled.
-	   "discard" are blocknr_list instances and are used when discard is enabled. */
-	union {
-		struct {
-		/* The atom's delete set. It collects block numbers of the nodes
-		   which were deleted during the transaction. */
-			struct list_head delete_set;
-		} nodiscard;
-
-		struct {
-			/* The atom's delete set. It collects all blocks that have been
-			   deallocated (both immediate and deferred) during the transaction.
-			   These blocks are considered for discarding at commit time.
-			   For details see discard.c */
-			struct list_head delete_set;
-		} discard;
-	};
+	/* The atom's delete sets. It collects block numbers of the nodes
+	   which were deleted during the transaction.
+	   Depending on the volume capabilities, it is represented either
+	   by blocknr_set, or by blocknr_list.
+	   If discard support is enabled, or the volume has scaling out
+	   capabilities, then it is represented by blocknr_list.
+	   Otherwise, it is represented by blocknr_set, which is more
+	   compact */
+	struct list_head delete_set;
 
 	/* The transaction's list of dirty captured nodes--per level.  Index
 	   by (level). dirty_nodes[0] is for znode-above-root */
