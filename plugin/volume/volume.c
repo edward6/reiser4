@@ -2422,10 +2422,7 @@ static int migrate_file_asym(struct inode *inode, u64 dst_idx)
 
 	ret = inode_file_plugin(inode)->migrate(inode, mctx,
 						&to_write, &dst_id);
-
 	free_migration_context(mctx);
-	if (to_write)
-		force_commit_current_atom();
 	return ret;
 }
 
