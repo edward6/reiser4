@@ -2406,7 +2406,7 @@ static int migrate_file_asym(struct inode *inode, u64 dst_idx)
 {
 	reiser4_volume *vol = super_volume(inode->i_sb);
 	struct migration_context *mctx;
-	u64 to_write = 0;
+	u64 nr_uncommitted = 0;
 	u64 dst_id;
 	int ret;
 
@@ -2421,7 +2421,7 @@ static int migrate_file_asym(struct inode *inode, u64 dst_idx)
 	dst_id = brick_idx_to_id(vol, dst_idx);
 
 	ret = inode_file_plugin(inode)->migrate(inode, mctx,
-						&to_write, &dst_id);
+						&nr_uncommitted, &dst_id);
 	free_migration_context(mctx);
 	return ret;
 }
@@ -2471,7 +2471,7 @@ int balance_volume_asym(struct super_block *super, u32 flags,
 	reiser4_key start_key;
 	struct reiser4_iterate_context ictx;
 	struct migration_context *mctx;
-	u64 to_write = 0;
+	u64 nr_uncommitted = 0;
 	time64_t start;
 	/*
 	 * Set a start key (key of the leftmost object on the
@@ -2526,7 +2526,7 @@ int balance_volume_asym(struct super_block *super, u32 flags,
 		goto error;
 	}
 	while (1) {
-		u64 to_write_iter = 0;
+		u64 nr_uncommitted_iter = 0;
 		int terminate = 0;
 		reiser4_key found;
 		reiser4_key sdkey;
@@ -2620,7 +2620,8 @@ int balance_volume_asym(struct super_block *super, u32 flags,
 			 * migrate data blocks of this file
 			 */
 			ret = inode_file_plugin(inode)->migrate(inode, mctx,
-							  &to_write_iter, NULL);
+							  &nr_uncommitted_iter,
+							  NULL);
 			if (ret) {
 				iput(inode);
 				set_vol_op_error(error, E_BALANCE_MIGR_ERROR);
@@ -2641,12 +2642,12 @@ int balance_volume_asym(struct super_block *super, u32 flags,
 			      ret);
 				}
 			}
-			to_write += to_write_iter;
+			nr_uncommitted += nr_uncommitted_iter;
 		}
 		iput(inode);
-		if (to_write >= MIGR_LARGE_CHUNK_PAGES) {
+		if (nr_uncommitted >= MIGR_LARGE_CHUNK_PAGES) {
 			txnmgr_force_commit_all(super, 0);
-			to_write = 0;
+			nr_uncommitted = 0;
 		}
 	next:
 		if (terminate)
@@ -2654,7 +2655,7 @@ int balance_volume_asym(struct super_block *super, u32 flags,
 		ictx.curr = ictx.next;
 	}
  done:
-	if (to_write)
+	if (nr_uncommitted)
 		txnmgr_force_commit_all(super, 0);
 	printk("reiser4 (%s): Balancing completed in %lld seconds.\n",
 	       super->s_id, ktime_get_seconds() - start);

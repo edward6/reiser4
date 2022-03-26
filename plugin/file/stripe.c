@@ -1179,7 +1179,7 @@ static void readahead(struct file_ra_state *ra,
 }
 
 static int __migrate_stripe(struct inode *inode, void *data,
-			    u64 *to_write, u64 *dst_id)
+			    u64 *nr_uncommitted, u64 *dst_id)
 {
 	int ret;
 	reiser4_key key;
@@ -1243,10 +1243,10 @@ static int __migrate_stripe(struct inode *inode, void *data,
 				"failed to migrate file (%d)", ret);
 			return ret;
 		}
-		*to_write += nr_migrated_iter;
-		if (*to_write >= MIGR_LARGE_CHUNK_PAGES) {
+		*nr_uncommitted += nr_migrated_iter;
+		if (*nr_uncommitted >= MIGR_LARGE_CHUNK_PAGES) {
 			force_commit_current_atom();
-			*to_write = 0;
+			*nr_uncommitted = 0;
 		}
 		/*
 		 * set key to the leftmost non-processed byte
@@ -1264,12 +1264,13 @@ static int __migrate_stripe(struct inode *inode, void *data,
 	return 0;
 }
 
-int migrate_stripe(struct inode *inode, void *data, u64 *to_write, u64 *dst_id)
+int migrate_stripe(struct inode *inode, void *data,
+		   u64 *nr_uncommitted, u64 *dst_id)
 {
 	int ret;
 
 	get_exclusive_access(unix_file_inode_data(inode));
-	ret = __migrate_stripe(inode, data, to_write, dst_id);
+	ret = __migrate_stripe(inode, data, nr_uncommitted, dst_id);
 	drop_exclusive_access(unix_file_inode_data(inode));
 	return ret;
 }
